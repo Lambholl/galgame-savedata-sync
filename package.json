@@ -22,7 +22,7 @@
     "env:check": "node scripts/doctor.mjs",
     "security:npm": "pnpm audit --registry=https://registry.npmjs.org --audit-level low",
     "security:check": "node scripts/security-check.mjs",
-    "security:android": "node scripts/android-build.mjs --inventory && node scripts/security-android.mjs",
+    "security:android": "pnpm android:sync && node scripts/android-build.mjs --inventory && node scripts/security-android.mjs",
     "android:sync": "pnpm --filter @savedata-sync/mobile android:sync",
     "android:open": "node scripts/android-open.mjs",
     "android:build": "pnpm android:sync && node scripts/android-build.mjs"
@@ -34,6 +34,8 @@
     "@types/react-dom": "18.3.7",
     "@vitejs/plugin-react": "5.2.0",
     "eslint": "10.13.0",
+    "eslint-config-prettier": "10.1.8",
+    "eslint-plugin-prettier": "5.5.7",
     "eslint-plugin-react-hooks": "7.1.1",
     "eslint-plugin-react-refresh": "0.5.7",
     "globals": "17.13.0",

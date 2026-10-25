@@ -22,5 +22,5 @@ related_files: []
 | `scripts/check-text.mjs`、`eslint.config.mjs`、`tsconfig.base.json` | 编码、格式、lint 和严格类型检查 | 生成目录不作为手写代码格式化 |
 | `scripts/security-check.mjs`、`scripts/toolchain-policy.mjs` | npm 全量审计、pnpm 公告与 Node 安全补丁门禁 | 查询失败不能报告通过；安全基线来自已核实的官方发行记录 |
 | `scripts/android-inventory.gradle`、`scripts/security-android.mjs` | 解析 Maven 实际依赖并查询 OSV | 含运行、测试和构建图；未解析依赖导致失败；临时报告在 .reports/ |
-| `.github/workflows/ci.yml` | Windows CI 与依赖审计 | Action 固定 commit SHA；没有执行远端工作流或发布 |
+| `.github/workflows/ci.yml` | Windows CI 与依赖审计 | Action 固定 commit SHA；security:android 入口先同步 Capacitor，远端结果见 testing/regression-notes.md |
 | `README.md`、`docs/development.md` | 开发命令、工具要求与检查范围 | 版本约束以工程配置为准 |

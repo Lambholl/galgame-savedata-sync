@@ -6,3 +6,19 @@ pnpm-lock.yaml
 apps/mobile/android/
 dev.local.json
 .reports/
+
+# Markdown is maintained manually, including embedded code blocks.
+*.[mM][dD]
+*.[mM][dD][xX]
+*.[mM][aA][rR][kK][dD][oO][wW][nN]
+*.[mM][dD][oO][wW][nN]
+*.[mM][kK][dD][nN]
+*.[mM][kK][dD]
+*.[mM][dD][wW][nN]
+*.[mM][kK][dD][oO][wW][nN]
+*.[lL][iI][vV][eE][mM][dD]
+*.[rR][oO][nN][nN]
+*.[sS][cC][dD]
+*.[wW][oO][rR][kK][bB][oO][oO][kK]
+[rR][eE][aA][dD][mM][eE]
+[cC][oO][nN][tT][eE][nN][tT][sS].[lL][rR]

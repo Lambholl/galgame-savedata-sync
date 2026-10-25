@@ -74,7 +74,7 @@ pnpm security:android
 - `xcode>uuid` 精确覆盖为 11.1.1，修复 [GHSA-w5hq-g745-h8pq](https://github.com/uuidjs/uuid/security/advisories/GHSA-w5hq-g745-h8pq)。选择仍支持 CommonJS 的修复版本，已验证 xcode 的 UUID 生成调用兼容；不全局强制所有包升级主版本。
 - Gradle 采用 [8.14.6 安全补丁](https://docs.gradle.org/8.14.6/release-notes.html)，分发 ZIP 固定官方 SHA-256，下载或哈希失败不绕过校验。
 - Android Gradle Plugin 升级至兼容的 8.13.2。`apps/mobile/android/dependency-security.json` 统一修补构建间接库：Netty 保持兼容的 4.1 分支，压缩、JOSE、Bouncy Castle 和 JDOM 使用经 OSV 检查的修复版本；Protobuf 3.x 修补至 3.25.9，不降级独立的 4.x 请求。策略同时覆盖生成项目的 buildscript 和普通依赖，不修改 node_modules。未使用的 Google Services 构建插件已移除。
-- `security:android` 每次重新解析全部可解析的 Maven 配置（包括各构建变体、测试、lint 等工具）及 buildscript classpath，写入 Git 忽略的 `.reports/android-dependencies.json`，并向 OSV 查询这些版本和 Gradle Core。解析或查询失败均不报告通过。
+- `security:android` 先构建移动网页并执行 Capacitor 同步，生成 Git 忽略的 Cordova 工程，再重新解析全部可解析的 Maven 配置（包括各构建变体、测试、lint 等工具）及 buildscript classpath，写入 Git 忽略的 `.reports/android-dependencies.json`，并向 OSV 查询这些版本和 Gradle Core。生成、解析或查询失败均不报告通过。
 - CI 固定 Action commit SHA，使用 JDK 21 和 runner 预装 SDK，并执行 `pnpm check`、`pnpm security:check` 及 `pnpm security:android`。Node.js 安全基线见 `scripts/toolchain-policy.mjs`，后续需跟随官方安全发布维护。
 
 2026-10-25 项目依赖审计结果：官方 npm 全量 397 项零已知漏洞；Android 全部可解析 Maven 配置与 Gradle Core 共 273 项零已知公告；固定 pnpm 10.34.8 单独 OSV 查询零公告。
@@ -89,5 +89,5 @@ Windows 构建产物的 renderer 与隔离 preload 已通过启动检查；Andro
 - 检查脚本不自动安装软件、不修改全局环境、不接受或补签 SDK licenses。
 - Electron 45 首次运行时按需下载运行时；`pnpm --filter @savedata-sync/desktop exec electron --version` 可验证下载和执行。环境检查只读取安装结果，不触发下载。
 - 移动网页预览可在缺少 Android Studio 时开发；APK 编译与真机验证需要单独完成。
-- CI 当前执行格式、lint、类型、基础设施测试、Web/Electron 构建及 npm/Maven/工具链安全检查；远端 CI 未执行，不宣称真机业务流程已经通过。
+- CI 执行格式、lint、类型、基础设施测试、Web/Electron 构建及 npm/Maven/工具链安全检查；远端执行结果见项目记忆，不代表真机业务流程已经通过。
 - Android 原生工程为 Capacitor 生成，保留 Gradle Wrapper；`minSdkVersion = 29`、`compileSdkVersion = targetSdkVersion = 36`，Manifest 允许明文 HTTP。未增加后台服务或后台任务。

@@ -31,6 +31,11 @@ related_files: []
 | --- | --- | --- | --- | --- | --- |
 | 精简项目记忆 | completed | project/、development/、testing/、governance/dependencies.md | 文档 | 已删除机器环境记录及重复表述，开发指南保留通用说明 | 按路线图继续项目工作 |
 | 整理首次提交 | completed | project/charter.md、standards/commit-style.md | 仓库全部源文件与配置 | 已更新授权记录并核对提交范围，仓库检查及记忆校验通过 | 按路线图继续项目工作 |
+| 修复干净检出的 Android 审计 | completed | development/code-map.md、testing/regression-notes.md | package.json、docs/development.md | 已复现缺少生成工程的错误；审计入口补齐同步后，干净副本审计与 pnpm check 通过 | 修复待提交后在远端重跑 CI |
+| 按通用编码规范完善 ESLint | completed | standards/coding-style.md、testing/regression-notes.md | eslint.config.mjs、.prettierrc.json、.prettierignore、package.json、pnpm-lock.yaml、手写 TS/JS | 已补齐质量和命名规则、框架默认导出例外；ESLint 直接读取无分号 Prettier 配置，排除全部 Markdown；pnpm check、规则反例、格式冲突和依赖审计通过，规范与验证边界已同步 | 后续修改共用 Prettier 配置；按项目流程继续集成 |
+| 建立 Agent 开发准入规则 | completed | standards/coding-style.md | AGENTS.md、apps/AGENTS.md | 已创建根目录简短门槛与 apps 细则，要求开发前具备并读取 antd skill；已明确主动读取子目录规则及双端组件库边界，文本、链接和记忆校验通过 | 后续 Agent 开发遵循根入口；应用开发按需读取 apps 细则 |
+| 明确 Git 提交授权边界 | completed | standards/commit-style.md、project/charter.md | AGENTS.md | 已落实明确授权与默认单次规则、范围和失效边界，清除章程中的旧提交授权；记忆、文本及差异校验通过，本轮未暂存或提交 | 后续提交前核对用户授权来源、范围及有效性，单次授权耗尽后重新取得授权 |
+| 整理并验证工程规范提交 | completed | project/charter.md、standards/commit-style.md、testing/regression-notes.md | 当前 ESLint、Prettier、Agent 规则、Android 审计入口及相关源码和文档改动 | 已核对提交范围；pnpm check、记忆校验、差异检查通过，19 个源码文件仅有格式变更，中文 Conventional Commits 信息已就绪 | 按用户本轮单次授权暂存并创建包含本行的一次本地提交；提交成功后授权自动耗尽，无推送授权 |
 
 开始产品、代码或文档工作前登记范围、入口和下一步；检查点、阻塞和完成时更新。完成时先更新长期事实，再记录完成状态与结果；完成状态进入 Git 历史后，后续维护才可清理无缺口的工作项。开放问题保留结论和状态。
 
@@ -76,7 +81,7 @@ related_files: []
 | `requirements/user-stories.md` | 用户故事 | draft | 用户故事 |
 | `standards/api-style.md` | API 规范 | draft | API规范 |
 | `standards/coding-style.md` | 项目级编码规范 | active | 编码规范 |
-| `standards/commit-style.md` | 提交规范 | draft | 提交规范 |
+| `standards/commit-style.md` | 提交规范 | active | 提交规范 |
 | `standards/testing-style.md` | 测试规范 | draft | 测试规范 |
 | `testing/acceptance.md` | 验收标准 | active | 验收标准 |
 | `testing/coverage-gaps.md` | 测试覆盖缺口 | active | 测试缺口 |
