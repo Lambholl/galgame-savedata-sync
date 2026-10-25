@@ -16,18 +16,20 @@
     "test:infra": "node --test scripts/toolchain-policy.test.mjs",
     "test:shared": "pnpm --filter @savedata-sync/shared test",
     "test:desktop": "pnpm --filter @savedata-sync/desktop test",
+    "test:mobile": "pnpm --filter @savedata-sync/mobile test",
     "lint": "eslint . --max-warnings 0",
     "format": "prettier . --write",
     "format:check": "prettier . --check",
     "check:text": "node scripts/check-text.mjs",
-    "check": "pnpm check:text && pnpm format:check && pnpm lint && pnpm typecheck && pnpm test:infra && pnpm test:shared && pnpm test:desktop && pnpm build",
+    "check": "pnpm check:text && pnpm format:check && pnpm lint && pnpm typecheck && pnpm test:infra && pnpm test:shared && pnpm test:desktop && pnpm test:mobile && pnpm build",
     "env:check": "node scripts/doctor.mjs",
     "security:npm": "pnpm audit --registry=https://registry.npmjs.org --audit-level low",
     "security:check": "node scripts/security-check.mjs",
     "security:android": "pnpm android:sync && node scripts/android-build.mjs --inventory && node scripts/security-android.mjs",
     "android:sync": "pnpm --filter @savedata-sync/mobile android:sync",
     "android:open": "node scripts/android-open.mjs",
-    "android:build": "pnpm android:sync && node scripts/android-build.mjs"
+    "android:build": "pnpm android:sync && node scripts/android-build.mjs",
+    "android:test": "pnpm android:sync && node scripts/android-build.mjs --test"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",

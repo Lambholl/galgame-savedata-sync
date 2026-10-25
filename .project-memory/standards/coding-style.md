@@ -3,7 +3,7 @@ doc_type: coding-style
 status: active
 priority: high
 owner: development
-updated: 2026-10-25
+updated: 2026-10-26
 tags: [编码规范]
 related_files: []
 ---
@@ -27,8 +27,8 @@ related_files: []
 | 来源 | 路径 | 优先级 | 状态 |
 | --- | --- | --- | --- |
 | 自动化配置 | `.editorconfig`、`.gitattributes`、`.prettierrc.json`、`.prettierignore`、`eslint.config.mjs`、`tsconfig.base.json`、`package.json` | P0 | active |
-| Skill 通用规范入口 | `references/company-standards/language-baseline.md` | P1 | active |
-| Skill 通用编码规则 | `references/company-standards/common-rules.md` | P1 | active |
+| Skill 通用规范入口 | `references/general-standards/language-baseline.md` | P1 | active |
+| Skill 通用编码规则 | `references/general-standards/common-rules.md` | P1 | active |
 | 项目记忆 | 本文件 | P2 | active |
 | 现有代码风格 | `apps/`、`packages/shared/`、`scripts/` | P3 | active |
 
@@ -36,7 +36,7 @@ related_files: []
 
 | 类型 | 写入位置 | 规则 |
 | --- | --- | --- |
-| 通用语言规范基线 | Skill 自身 `references/company-standards/` | 不在项目模板中私自修改 |
+| 通用语言规范基线 | Skill 自身 `references/general-standards/` | 不在项目模板中私自修改 |
 | 项目级覆盖和差异 | 本文件或同目录规范文件 | 记录差异原因、适用范围和生效条件 |
 | 自动化格式规则 | `.prettierrc.json`、`.editorconfig` | 格式只维护一份；ESLint 通过 `eslint-plugin-prettier/recommended` 读取 Prettier 配置并关闭冲突规则 |
 
@@ -54,6 +54,7 @@ related_files: []
 | Agent 开发准入 | 全仓库门槛以根目录 `AGENTS.md` 为准；应用细则在 `apps/AGENTS.md`，由根文件要求在修改应用前主动读取；开发必须具备并读取 `antd` skill |
 | 平台边界 | `packages/shared` 不引入 Node、Electron 或 Android 平台接口；平台能力留在各应用适配层 |
 | 原生生成工程 | Android 模板保留原生工具风格，不用 Prettier 重写；手写改动仍需检查 UTF-8 与换行 |
+| Android Java | 用户同意沿用 Java；通用基线无专属 Java 文件，适用通用编码规则、现有 Android 风格及官方 Java 约定。原生代码用 javac、Android lint、单元/仪器测试验证，不为本包引入 Kotlin 插件 |
 | 检查入口 | `pnpm check` 执行文本、格式、lint、类型、基础设施测试和双端构建；`security:check` / `security:android` 分别审计 Node 工具链及 Maven |
 | 版本控制边界 | 忽略清单以 `.gitignore` 为准，生成产物与临时报告不进入 Git |
 
@@ -67,11 +68,11 @@ related_files: []
 
 ## 6. 版权信息
 
-私有项目默认遵循 Skill 公司通用编码规则中的公司版权主体。这里只记录项目级差异；没有差异时保持“遵循公司基线”。
+版权信息以项目实际作者、现有许可证和用户明确要求为准；Skill 不预设版权归属。尚未明确的署名信息保持待确认。
 
 | 场景 | 规则 |
 | --- | --- |
-| 默认规则 | 遵循公司基线 |
+| 默认规则 | 遵循项目现有许可证和明确的作者署名；未明确时不新增版权主体 |
 | 项目差异 | 待补充 |
 
 ## 7. 接口与函数说明

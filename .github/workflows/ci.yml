@@ -24,5 +24,6 @@ jobs:
           cache: gradle
       - run: pnpm install --frozen-lockfile
       - run: pnpm check
+      - run: pnpm android:test
       - run: pnpm security:check
       - run: pnpm security:android

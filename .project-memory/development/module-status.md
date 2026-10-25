@@ -19,16 +19,17 @@ related_files: []
 
 ## 1. 当前模块
 
-已建立工程基础设施、双端空壳、共享契约及 Windows 目录读取适配；Android SAF、新文件发布、HTTP 与同步流程尚未实现。后续顺序见[路线图](../project/roadmap.md)与[工作包](work-packages.md)。Windows 真实目录只读检查通过，Android 业务真机验证仍未执行。done 仅表示对应模块范围完成，不代表完整产品可用。
+已建立工程基础设施、双端空壳、共享契约及双端目录读取适配；新文件发布、HTTP 与同步流程尚未实现。后续顺序见[路线图](../project/roadmap.md)与[工作包](work-packages.md)。双端真实目录只读检查通过；Android API 33 与旧 API 35 的选择/取消和重启授权恢复分别通过，API 29 与其它提供者仍待矩阵验证。done 仅表示对应模块范围完成，不代表完整产品可用。
 
 | 模块 | 状态 | 负责人 | 相关文件 | 风险 | 下一步 |
 | --- | --- | --- | --- | --- | --- |
 | 工作区与质量配置 | done | 开发 | 根目录配置、packages/shared、scripts/check-text.mjs | — | 维护质量检查与固定依赖 |
-| WP-001 共享契约 | done | 开发 | packages/shared/src、packages/shared/test、packages/shared/README.md | 纯数据验证不代表平台操作已验证 | 维护版本 1 契约及检查 |
+| WP-001 共享契约 | done | 开发 | packages/shared/src、packages/shared/test、packages/shared/README.md | 纯数据验证不代表平台操作已验证；已实现单文件类型尚未适配已确定的 tar.gz 批量方案 | 先设计批量契约并独立拆包修订类型/守卫，保留版本兼容边界；不将本行 done 视为新契约已完成 |
 | Windows 目录读取适配 | done | 开发 | apps/desktop/src/main/directory-*.ts、src/directory-bridge.ts、preload、test | 无源目录写入或 HTTP；系统选择器人工交互待界面阶段；路径检查不提供恶意并发命名空间隔离 | 已通过 15 项测试、真实目录只读校验、preload 构建隔离加载及 pnpm check；暂存发布由 WP-009 实现 |
 | Windows 空壳 | done | 开发 | apps/desktop | 尚无项目管理、HTTP 服务和最终目录操作界面 | WP-007 接入界面；本包没有增加 UI 组件 |
-| Android 网页空壳 | done | 开发 | apps/mobile/src、Vite/Capacitor 配置 | 尚未接入任何目录授权或同步功能 | 在业务实现授权后继续 |
-| Android 原生工程与审计 | done | 开发 | apps/mobile/android、scripts/android-inventory.gradle | 无真机验证 | 实现业务能力并安排设备验证 |
+| Android 网页空壳 | done | 开发 | apps/mobile/src、Vite/Capacitor 配置 | SAF 桥已存在，界面尚未接入目录按钮或同步功能 | 在业务实现授权后继续 |
+| Java SAF 读取适配 | done | 开发 | apps/mobile/README.md、原生插件、src/saf-* 与测试 | 无写入/HTTP；API 29、其它提供者及实际撤权/目录移除待矩阵；流调用者必须关闭资源 | 5 项桥、4 项新增 Java 单元、lint/双 APK、旧 API 35 真实目录及 API 33 合成夹具复测通过；本轮完整批次和独立交互回执已收齐，内容/mtime 与 ctime 边界见回归状态；写入留 WP-010 |
+| Android 原生工程与审计 | done | 开发 | apps/mobile/android、scripts/android-inventory.gradle | 既有审计证据不代表全部系统/提供者能力通过 | 维持 pnpm android:test，依赖变化后复审 |
 | 工具链安全检查 | done | 开发 | scripts/security-*、scripts/toolchain-policy* | — | 依赖变更后重新审计与构建 |
 
 ## 2. 状态说明

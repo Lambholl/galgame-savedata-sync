@@ -23,10 +23,10 @@ related_files: []
 ## 1. 摘要
 
 - 架构风格：Windows 内置 HTTP 服务、Android 主动连接的局域网双端应用；当前方案已确认，基础空壳和 Windows 目录读取已建立，HTTP 服务与同步流程尚未实现。
-- 当前实现：版本 1 共享契约及 Windows 目录读取适配已建立；Windows 支持配置恢复、当前层枚举和主进程原生只读流，有限桥不传文件字节。Android SAF、新文件发布及 HTTP 仍待后续包；接口边界见[接口契约](api-contracts.md)。
+- 当前实现：版本 1 共享契约及 Windows 目录读取适配已建立；Windows 支持配置恢复、当前层枚举和主进程原生只读流，有限桥不传文件字节。Java SAF 读取已实现并通过 API 33 与旧 API 35 的目录/原生流检查；写入及 HTTP 仍待后续包；接口边界见[接口契约](api-contracts.md)。
 - 核心模块：设备与地址管理、目录映射、当前目录预览、本次差异计划、文件流传输、平台文件适配。
 - 关键约束：明文 HTTP、手选方向、无历史同步基线、目录不递归汇总大小。
-- 已选技术栈：React + TypeScript + Vite；Windows 使用 Electron + Ant Design；Android 使用 Capacitor + Ant Design Mobile，文件能力由 Kotlin 插件适配。选择结论见 [Q-001](../requirements/open-questions.md)。
+- 已选技术栈：React + TypeScript + Vite；Windows 使用 Electron + Ant Design；Android 使用 Capacitor + Ant Design Mobile，文件能力沿用 Java 原生插件，用户已接受该选择。双端框架选择见 [Q-001](../requirements/open-questions.md)。
 - 技术选型理由：优先复用业务模型、协议类型与 Hooks，桌面和移动端分别使用适合操作方式的组件。antd 与 antd-mobile 是独立组件库，不假设一套组件 API 自动适配两端。
 - 平台差异：Windows 使用 Node.js 文件与 HTTP 能力；Android 使用 SAF、ContentResolver 和原生文件流，不将 content URI 当成本地绝对路径。
 - 实现风险：SAF 属性及写入能力因提供者而异；自动发现受局域网组播条件影响；需在 Android 10 和较新真机验证。
@@ -42,6 +42,7 @@ related_files: []
 | 文件夹不汇总大小 | 目录大小列建议显示“—”，不递归汇总后代文件字节数；修改日期读取目录自身元数据。同步枚举后代文件不属于目录大小计算 |
 | 界面与平台能力分离 | 共用模型、当前比较逻辑和状态管理；桌面并排表格、手机列表详情、平板宽屏布局分别适配 |
 | 文件以流传输 | 文件内容通过 Node.js 或 Android 原生流读取和发送，避免将整份文件转为 Base64 跨 JS 桥传递 |
+| tar.gz 批量传输 | 双向统一将本次待传文件集合打包为 tar.gz，经 HTTP 原生流传输；接收端逐项验证内容再发布，批量边界不改变文件级结果语义 |
 | Android 仅前台 | 前台连接时允许任一端发起任务；不提供后台运行、后台传输或保活，不引入后台任务和前台服务方案 |
 | 独立备份 | 备份可关闭、默认开启、保留最近 3 次；目标端备份区与同步目录分离，不参与方向或差异判定 |
 | 任务安全边界 | 同一项目避免并行写入；临时接收、校验和失败说明作为候选可靠性设计；不假设 SAF 可以原子替换整个目录 |
@@ -54,7 +55,7 @@ related_files: []
 | 同步项目 | 保存项目名称、可选展示信息和两端目录映射 | 首版推荐本地 JSON 存储配置，不保存历史文件索引 | proposed |
 | 预览与比较 | 读取当前条目、属性对照、生成本次差异计划 | 共用 TypeScript 模型，原生适配只负责实际读取；排序与差异筛选为界面建议 | proposed |
 | Windows 应用 | 桌面界面、目录选择、HTTP 服务、托盘 | Electron 主进程运行 Node.js 能力，界面通过受限桥调用 | planned |
-| Android 应用 | 移动界面、目录授权、NSD、HTTP 客户端 | Capacitor + Kotlin 插件；仅前台；持久目录授权与远端 IP 独立 | planned |
+| Android 应用 | 移动界面、目录授权、NSD、HTTP 客户端 | Capacitor + Java 插件；仅前台；持久目录授权与远端 IP 独立 | active（SAF 读取及 API 33/35 验证通过；其余待后续包） |
 | 任务控制与传输 | 显式方向、传输进度、文件流和结果 | Android 前台连接时可接收 Windows 发起的任务；覆盖复制与镜像两种模式 | planned |
 | 备份与恢复 | 覆盖前保存目标内容，提供手工恢复 | 默认开启、保留最近 3 次；独立于同步目录和任务比较数据 | planned |
 
@@ -73,7 +74,7 @@ related_files: []
 3. 源端独有条目复制；同路径内容不同按所选方向覆盖；相同内容跳过；目标端独有条目由复制模式决定。
 4. 没有历史“首次同步”分支，没有依据日期选择权威端或双向修改冲突合并的逻辑。覆盖复制保留目标独有条目；镜像模式将其列入删除计划以使目标匹配源。
 5. 展示本次新增、覆盖和可选删除计划；源目录不可读、目录授权失效与真实空目录必须区分。
-6. 启用备份时，在目标端独立备份区保存将被覆盖或删除的内容；按项目保留最近 3 次，用于手工恢复。以临时文件或平台支持的暂存机制接收并校验，完成后应用到目标，显示准确结果；不承诺目录级原子性。
+6. 启用备份时，在目标端独立备份区保存将被覆盖或删除的内容；按项目保留最近 3 次，用于手工恢复。将本次计划中的待传文件合批为 tar.gz，经 HTTP 流传输；接收端暂存、验证归档及每个文件的内容后发布到目标，显示准确结果；不承诺目录级原子性。
 7. 断线重连后重新扫描；已成功写入的文件成为当前文件状态，不依赖旧任务清单、历史数量或旧方向继续判定。临时比较数据在任务结束后丢弃。
 8. 备份默认开启且可关闭，仅用于手工恢复，不参与下次比较。传输期间发现文件变化时重扫或报告失败。Android 离开前台后不提供继续同步的能力；再次回到前台时按当前目录重新建立任务。
 
@@ -100,5 +101,6 @@ related_files: []
 | 首次连接入口 | 发现列表 + 手动 IP，扫码后续补充 | accepted |
 | 复制与备份 | 覆盖复制和镜像均提供，默认覆盖复制；备份可关闭、默认开启、保留最近 3 次 | accepted |
 | 前台边界 | Android 只支持前台，后台不在范围内；前台连接时两端均可发起任务 | accepted |
+| 文件传输格式 | 双向统一采用 tar.gz，按本次待传集合合批；保持逐文件校验与结果反馈；正式契约及实现待后续包交付 | accepted |
 
 上述结论记录于已关闭的[问题登记表](../requirements/open-questions.md)，尚未另建独立 ADR。参考：[Ant Design](https://ant.design/docs/react/introduce/)、[Ant Design Mobile](https://github.com/ant-design/ant-design-mobile)、[Capacitor Android](https://capacitorjs.com/docs/android)、[Android NSD](https://developer.android.com/develop/connectivity/wifi/use-nsd)、[SAF 文件属性](https://developer.android.com/reference/android/provider/DocumentsContract.Document)。

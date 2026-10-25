@@ -4,8 +4,8 @@ status: active
 priority: high
 owner: product
 id_prefix: REQ
-id_high_water: 17
-updated: 2026-10-25
+id_high_water: 18
+updated: 2026-10-26
 tags: [产品需求]
 related_files: []
 ---
@@ -23,7 +23,7 @@ related_files: []
 - 核心问题：在 Windows 与 Android 设备之间手工往返复制游戏存档不便。
 - 目标用户：同一局域网内在电脑和 Android 设备之间切换的使用者。
 - 核心价值：将文件夹映射保存为项目，浏览两端当前文件，手动选择方向后同步。
-- 当前范围：以下 active 需求及六项方案选择已由用户确认；仓库基础设施和双端空壳已创建，同步业务尚未实现。已解答问题保留在[开放问题](open-questions.md)，当前方案见[架构总览](../architecture/overview.md)。
+- 当前范围：以下 active 需求及方案选择已由用户确认；仓库基础设施、双端空壳及目录读取已建立，同步业务尚未实现。已解答问题保留在[开放问题](open-questions.md)，当前方案见[架构总览](../architecture/overview.md)。
 
 ## 2. 需求清单
 
@@ -46,6 +46,7 @@ related_files: []
 | REQ-015 | 提供覆盖前备份开关，默认开启，保留最近 3 次 | P0 | active | 目标端独立备份区可手工恢复；备份不进入同步目录或同步判定；保留策略可验证 |
 | REQ-016 | Android 仅支持前台；前台连接时允许两端发起同步 | P0 | active | Android 前台可从任一端发起任务；不提供后台同步服务或后台传输能力 |
 | REQ-017 | 检查所有项目依赖版本，避免引入已知漏洞版本，包括开发、间接依赖和 Android 构建依赖 | P0 | active | 依赖变更后执行官方 npm / OSV 审计与上游安全公告核对；已知漏洞需修复；网络或依赖解析失败不计作审计通过 |
+| REQ-018 | 双向统一采用 tar.gz 作为唯一文件传输方案，按本次待传集合合批 | P0 | active | Windows 与 Android 原生层打包/解包，经 HTTP 流传输；接收端逐文件校验并反馈实际结果；格式决定不改变当前状态判定、复制模式、备份与前台边界 |
 
 ## 3. 约束
 

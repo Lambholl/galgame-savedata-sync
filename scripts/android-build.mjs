@@ -20,6 +20,7 @@ const cwd = join(REPO_ROOT, 'apps', 'mobile', 'android')
 const isWindows = process.platform === 'win32'
 const command = isWindows ? 'cmd.exe' : './gradlew'
 const isInventory = process.argv.includes('--inventory')
+const isTest = process.argv.includes('--test')
 const gradleArgs = isInventory
   ? [
       '--no-daemon',
@@ -28,7 +29,16 @@ const gradleArgs = isInventory
       'writeDependencyInventory',
       '--console=plain',
     ]
-  : ['--no-daemon', ':app:assembleDebug']
+  : isTest
+    ? [
+        '--no-daemon',
+        ':app:testDebugUnitTest',
+        ':app:lintDebug',
+        ':app:assembleDebug',
+        ':app:assembleDebugAndroidTest',
+        '--console=plain',
+      ]
+    : ['--no-daemon', ':app:assembleDebug']
 const args = isWindows ? ['/d', '/c', 'gradlew.bat', ...gradleArgs] : gradleArgs
 const proxyOptions = gradleProxy
   ? `-Dhttp.proxyHost=${gradleProxy.host} -Dhttp.proxyPort=${gradleProxy.port} -Dhttps.proxyHost=${gradleProxy.host} -Dhttps.proxyPort=${gradleProxy.port}`

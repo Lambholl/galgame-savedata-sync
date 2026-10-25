@@ -1,6 +1,6 @@
 # Galgame SaveData Sync
 
-Windows 与 Android 的局域网文件夹同步工具。当前仓库包含开发基础设施和双端应用空壳，尚未实现文件夹同步功能。
+Windows 与 Android 的局域网文件夹同步工具。当前已实现共享契约和双端目录读取适配，界面仍为空壳，尚未实现文件夹同步或 HTTP 传输功能。
 
 ## 目录
 
@@ -44,16 +44,17 @@ Windows PowerShell 若限制执行 `.ps1` 启动器，可使用 `pnpm.cmd` 执�
 | `pnpm env:check --desktop` | 只检查桌面工具，不要求 Android 环境                               |
 | `pnpm dev:desktop`         | 启动 Electron 开发模式                                            |
 | `pnpm dev:mobile`          | 启动移动界面的本机网页预览                                        |
-| `pnpm check`               | 编码/换行、格式、ESLint、类型、基础设施测试和双端构建             |
+| `pnpm check`               | 编码/换行、格式、ESLint、类型、契约/双端适配测试和双端构建       |
 | `pnpm security:check`      | 官方 npm 全量审计、固定 pnpm 的 OSV 检查及 Node.js 安全补丁基线   |
 | `pnpm security:npm`        | 仅审计全部 npm 直接/间接依赖，含开发依赖                          |
 | `pnpm security:android`    | Gradle 解析 Android 运行、测试及构建依赖后通过 OSV 检查 Maven 包  |
-| `pnpm format`              | 格式化手写代码及普通文档；生成的 Android 工程与项目记忆单独维护   |
+| `pnpm format`              | 格式化手写代码；Markdown 与生成的 Android 工程单独维护          |
 | `pnpm android:sync`        | 构建移动网页并同步到已纳入仓库的 Android 工程                     |
 | `pnpm android:build`       | 同步资源后使用项目 Gradle Wrapper 构建 debug APK                  |
+| `pnpm android:test` | Java 单元、Android lint 及调试/仪器测试 APK 构建，不自动连接设备 |
 | `pnpm android:open`        | 在配置的 Android Studio 中打开原生工程                            |
 
-构建命令不会打包 Windows 安装器、签名或发布应用。当前没有业务逻辑单元测试，`pnpm check` 不代表同步功能已经实现或通过验收。
+构建命令不会打包 Windows 安装器、签名或发布应用。目录与契约测试已纳入 `pnpm check`；Android 原生检查另用 `pnpm android:test`，真机另行验证。这些检查不代表同步功能已经实现或通过验收。
 
 ## 仓库结构
 
@@ -70,4 +71,4 @@ docs/               开发指南
 
 ## 项目记忆
 
-先读取[记忆索引](.project-memory/INDEX.md)，再按任务定位需求、架构、规范与当前工作。产品同步功能在后续工作中实现，本轮只建立基础设施。
+先读取[记忆索引](.project-memory/INDEX.md)，再按任务定位需求、架构、规范与当前工作。同步、写入与 HTTP 功能在后续工作包实现；当前平台读取接口见[桌面适配](apps/desktop/README.md)和[移动适配](apps/mobile/README.md)。
