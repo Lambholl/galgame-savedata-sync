@@ -1,6 +1,16 @@
 import assert from 'node:assert/strict'
 import { once } from 'node:events'
-import { mkdtemp, mkdir, readFile, readdir, rename, rm, symlink, writeFile } from 'node:fs/promises'
+import {
+  mkdtemp,
+  mkdir,
+  readFile,
+  readdir,
+  realpath,
+  rename,
+  rm,
+  symlink,
+  writeFile,
+} from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { isAbsolute, join, relative, sep } from 'node:path'
 import test from 'node:test'
@@ -9,9 +19,11 @@ import { toDirectoryError } from '../src/main/directory-errors.ts'
 import { isWithinDirectory } from '../src/main/directory-paths.ts'
 
 async function createFixture(t) {
-  const base = await mkdtemp(join(tmpdir(), 'savedata-directory-test-'))
+  // Windows 的 TEMP 可能含 8.3 别名，夹具与适配器须使用一致的真实路径。
+  const temporaryRoot = await realpath(tmpdir())
+  const base = await mkdtemp(join(temporaryRoot, 'savedata-directory-test-'))
   t.after(async () => {
-    const child = relative(tmpdir(), base)
+    const child = relative(temporaryRoot, base)
     assert.ok(isAbsolute(base) && child && child !== '..' && !child.startsWith(`..${sep}`))
     assert.ok(!isAbsolute(child) && base.includes('savedata-directory-test-'))
     await rm(base, { recursive: true, force: true })

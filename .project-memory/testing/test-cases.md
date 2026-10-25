@@ -4,7 +4,7 @@ status: active
 priority: medium
 owner: testing
 id_prefix: TC
-id_high_water: 21
+id_high_water: 22
 updated: 2026-10-26
 tags: [测试用例]
 related_files: []
@@ -16,6 +16,7 @@ related_files: []
 
 | ID | 功能 | 场景 | 前置条件 | 预期结果 | 状态 |
 | --- | --- | --- | --- | --- | --- |
+| TC-022 | Windows 测试临时目录路径 | 系统临时目录为 8.3 别名；在子进程设置 TEMP/TMP 后重跑目录和 IPC 用例 | Windows 且卷生成可观测的短名；全新独立临时目录；非 Windows 或短名不可用时明确跳过该项 | 夹具创建和清理基于同一异步 realpath 临时根，原 15 项全部通过；业务链接/越界校验保持；本机普通及短路径完整 16 项均通过无跳过，pnpm check 通过；远端结果单列回归状态 | passed |
 | TC-002 | 共用契约（WP-001） | 空目录、未知大小/日期、权限失败、不存在、结果待确认分别编码 | 版本 1 DTO、守卫与错误映射实现 | 空目录为成功空列表，未知为 null，错误与待确认不伪装成功；JSON 往返及类型反例通过；pnpm test:shared/typecheck 可复验 | passed |
 | TC-003 | Windows 目录读取（WP-002） | 选择结果/取消、配置重开恢复、中文/空格、空文件、嵌套目录及引用替换 | 独立临时目录与 Windows 适配器 | 原生读流及当前层属性通过；失效与空目录区分；旧引用不会打开替换对象；系统选择器人工点击留界面阶段 | passed |
 | TC-004 | Android 授权（WP-003、WP-008） | 选择目录、取消、重启恢复，再撤销权限或移除目录 | 用户可授权测试目录；设备验证授权 | API 33 与旧 API 35 已分别通过选择/取消、进程重启恢复与独立失效权限夹具；实际撤权/移除及 Android 10/其它提供者仍待矩阵，真实源不作故障夹具 | pending |

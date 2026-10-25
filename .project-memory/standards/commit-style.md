@@ -12,18 +12,16 @@ related_files: []
 
 ## 目录
 
-- [提交规范](#提交规范)
-  - [目录](#目录)
-  - [1. 基本规则](#1-基本规则)
-  - [2. 提交策略](#2-提交策略)
-  - [3. 提交格式](#3-提交格式)
-    - [类型（type）定义](#类型type定义)
-    - [2. 中文 commit message 模板](#2-中文-commit-message-模板)
-    - [Subject 行规范](#subject-行规范)
-    - [Body 编写规范](#body-编写规范)
-    - [Breaking Changes 标注](#breaking-changes-标注)
-    - [Issue 关联](#issue-关联)
-    - [commitlint 中文配置（可选）](#commitlint-中文配置可选)
+- [1. 基本规则](#1-基本规则)
+- [2. 提交策略](#2-提交策略)
+- [3. 提交格式](#3-提交格式)
+  - [类型（type）定义](#类型type定义)
+  - [2. 中文 commit message 模板](#2-中文-commit-message-模板)
+  - [Subject 行规范](#subject-行规范)
+  - [Body 编写规范](#body-编写规范)
+  - [Breaking Changes 标注](#breaking-changes-标注)
+  - [Issue 关联](#issue-关联)
+  - [commitlint 中文配置（可选）](#commitlint-中文配置可选)
 
 ## 1. 基本规则
 

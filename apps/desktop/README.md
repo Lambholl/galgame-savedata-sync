@@ -68,7 +68,9 @@ Electron 构建显式内联 workspace 共享包，避免 sandbox preload 在运�
 
 ## 5. 验证
 
-`pnpm test:desktop` 使用 Node 内置测试器执行 15 项临时目录/IPC 检查，并已接入 `pnpm check`。覆盖 Unicode/空文件、配置恢复、当前层枚举、根/条目替换、junction 越界、原生读流释放、跨根引用、取消选择、IPC 参数和主 frame 信任边界。临时夹具删除前核对绝对路径处于指定临时目录内；测试不硬编码真实存档位置。
+`pnpm test:desktop` 使用 Node 内置测试器执行 16 项临时目录/IPC 检查，并已接入 `pnpm check`。覆盖 Unicode/空文件、配置恢复、当前层枚举、根/条目替换、junction 越界、原生读流释放、跨根引用、取消选择、IPC 参数和主 frame 信任边界。临时夹具先通过异步 realpath 解析系统临时目录，创建与清理使用同一真实根，避免 Windows 8.3 短路径引发路径校验差异；测试不硬编码真实存档位置。
+
+Windows 短路径回归通过 PowerShell 调用 GetShortPathName，生成真实 8.3 别名，并在只影响子进程的 TEMP/TMP 环境中重跑目录与 IPC 用例，要求全部通过。非 Windows 或卷未生成不同短名时明确跳过此项；常规用例仍执行。此修复只调整测试夹具，不放宽业务代码的链接、根范围和身份检查。
 
 额外只读验证通过用户授权的真实 Windows 目录执行：读取前后文件内容哈希、条目和目录修改时间一致，原生读流一致，配置恢复成功；具体路径及文件哈希不进入仓库。该检查不代表 Android、HTTP 传输、原生选择器人工点击或完整界面已验收。
 

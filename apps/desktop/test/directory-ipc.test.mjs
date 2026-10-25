@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, mkdir, realpath, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { isAbsolute, join, relative, sep } from 'node:path'
 import test from 'node:test'
@@ -8,9 +8,10 @@ import { createDirectoryAdapter } from '../src/main/directory-adapter.ts'
 import { isTrustedDirectorySender, registerDirectoryIpc } from '../src/main/directory-ipc.ts'
 
 async function fixture(t) {
-  const base = await mkdtemp(join(tmpdir(), 'savedata-ipc-test-'))
+  const temporaryRoot = await realpath(tmpdir())
+  const base = await mkdtemp(join(temporaryRoot, 'savedata-ipc-test-'))
   t.after(async () => {
-    const child = relative(tmpdir(), base)
+    const child = relative(temporaryRoot, base)
     assert.ok(child && !isAbsolute(child) && child !== '..' && !child.startsWith(`..${sep}`))
     assert.ok(base.includes('savedata-ipc-test-'))
     await rm(base, { recursive: true, force: true })
