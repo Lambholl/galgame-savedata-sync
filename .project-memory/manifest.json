@@ -47,6 +47,6 @@
   },
   "user_managed_files": [],
   "navigation_contract": "compact-v1",
-  "project_extension_files": [],
+  "project_extension_files": ["development/work-packages.md"],
   "migration_history": []
 }

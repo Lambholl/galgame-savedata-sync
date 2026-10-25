@@ -5,7 +5,7 @@ priority: high
 owner: project
 id_prefix: M
 id_high_water: 4
-updated: 2026-10-25
+updated: 2026-10-26
 tags: [路线图, 里程碑]
 related_files: []
 ---
@@ -16,6 +16,7 @@ related_files: []
 
 - [1. 里程碑](#1-里程碑)
 - [2. 当前计划](#2-当前计划)
+- [3. M-001 交付边界与后续交接](#3-m-001-交付边界与后续交接)
 
 只保留当前和计划中的里程碑；已完成阶段的有效结果吸收到项目目标、架构或决策后删除历史行。
 
@@ -23,7 +24,7 @@ related_files: []
 
 | 里程碑 | 目标 | 计划时间 | 状态 |
 | --- | --- | --- | --- |
-| M-001 | 已选 React 技术栈下验证目录与 HTTP：Android 授权目录、元数据读取、前台文件往返、明文访问；验证目录不递归统计大小 | 待对应实现或原型授权后安排 | planned |
+| M-001 | 已选 React 技术栈下验证目录与 HTTP：Android 授权目录、元数据读取、前台文件往返、明文访问；验证目录不递归统计大小 | 已形成 WP-001 至 WP-008 设计草稿，待评审及对应实现授权 | planned |
 | M-002 | 最小可用双端：项目与目录映射、手动 IP、方向按钮、两端文件预览、经确认的复制规则、进度和结果 | M-001 通过后安排 | planned |
 | M-003 | 地址变更与重连：mDNS/DNS-SD 自动发现列表、稳定设备关联、手动 IP 兜底和改址保留配置 | M-002 后安排 | planned |
 | M-004 | 完整首版：补齐镜像模式及删除预览、默认开启的最近 3 次备份与手工恢复、两端发起及预览体验；Android 仅前台 | 核心闭环后安排 | planned |
@@ -32,6 +33,14 @@ related_files: []
 
 | 优先级 | 事项 | 依赖 | 状态 |
 | --- | --- | --- | --- |
-| P0 | 在对应业务实现或原型授权后，按 M-001 验证目录与 HTTP | 需求与基础设施已就绪；目录访问与同步能力待实现 | pending |
-| P0 | 按已确认的首版范围细化平台适配、接口与工作拆分 | [产品需求](../requirements/product.md)、[架构总览](../architecture/overview.md) | planned |
+| P0 | 评审 M-001 设计并在对应实现授权后从 WP-001 进入实现 | [工作包](../development/work-packages.md)、[接口契约](../architecture/api-contracts.md)；远端 CI 已通过 | pending |
+| P0 | 按 WP-001 至 WP-008 分包验证目录、HTTP 与真机；范围过大先拆分 | [工作包与设计入口](../development/work-packages.md)、[模块设计](../architecture/modules.md)、[测试用例](../testing/test-cases.md) | planned |
 | P0 | 保持 Android 仅前台、当前状态独立、目录不汇总大小的边界 | [项目约束](../requirements/constraints.md)、[验收标准](../testing/acceptance.md) | active |
+
+## 3. M-001 交付边界与后续交接
+
+M-001 只在专用测试目录中验证新文件往返，不开放真实存档覆盖或镜像删除；依次拆为共享契约、Windows 目录、Android SAF、HTTP 读取、HTTP 接收、Android 原生传输、最小验证界面、真机验收。每包依赖、目标范围和退出条件只在[工作包登记](../development/work-packages.md)维护。
+
+ADB 在 Android 真机验证前准备，用于安装和日志；实际传输必须通过同一局域网 HTTP。Android 10 与较新版本的真机证据、授权恢复、双向内容校验、前台中断以及不递归统计目录大小均通过后才能关闭 M-001。设备缺失时保留缺口，可继续不依赖设备的工作。
+
+M-002 至 M-004 的拆分方向见仓库根目录下 `docs/plans/m001-directory-http.md` 第 7 节，当前不将其展开成可执行大包。面向真实存档的覆盖功能必须与默认备份保护共同具备；不得因备份完整验收排在 M-004 就在前序阶段开放无保护的正式覆盖流程。该安排为设计建议，尚未变更既定产品需求或授予实现权限。

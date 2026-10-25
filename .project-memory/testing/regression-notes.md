@@ -3,7 +3,7 @@ doc_type: regression-notes
 status: active
 priority: medium
 owner: testing
-updated: 2026-10-25
+updated: 2026-10-26
 tags: [回归测试, 当前状态]
 related_files: []
 ---
@@ -20,5 +20,5 @@ related_files: []
 | npm 与 pnpm 安全 | passed | 仅表示当前已知公告，不覆盖系统二进制 | 新增 Prettier lint 插件后 pnpm security:npm 全量审计零漏洞；pnpm 10.34.8 OSV 零公告 |
 | Android 依赖 | passed | 不代表 SDK/JDK 系统二进制或真实业务已验证 | 干净源码副本执行 security:android，自动生成 Capacitor 工程并解析全部配置；Maven 与 Gradle Core 共 273 项零已知公告 |
 | Android 原生构建 | passed | 无真机测试 | android:build 成功；APK Manifest 实测 minSdk 29、targetSdk 36、明文 HTTP=true |
-| 远端 CI | failed | Android 审计前缺少 Capacitor 生成工程；修复后待远端重跑 | 用户提供的 GitHub Actions 日志；前序 pnpm check 与 security:check 通过 |
+| 远端 CI | passed | 无当前阻塞；不代表真机业务验收通过 | 用户于 2026-10-26 明确确认远端 CI 已通过；本轮未独立查询运行链接或重跑 |
 | 同步产品验收 | pending | 同步业务、SAF 插件、局域网服务与真机流程尚未实现 | testing/acceptance.md |

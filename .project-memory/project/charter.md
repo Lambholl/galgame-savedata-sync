@@ -3,7 +3,7 @@ doc_type: project-charter
 status: active
 priority: high
 owner: project
-updated: 2026-10-25
+updated: 2026-10-26
 tags: [项目目标, 成功标准]
 related_files: []
 ---
@@ -23,7 +23,7 @@ related_files: []
 - 目标用户：在电脑与 Android 设备之间切换、需要管理多个游戏或文件夹的使用者。
 - 当前阶段：基础设施与双端空壳已建立并通过构建及项目依赖审计，同步业务尚未实现。证据见[实现细节](../development/implementation-notes.md)。
 - 成功标准：见[验收标准](../testing/acceptance.md)。
-- 当前授权：用户明确要求提交当前工程规范维护改动，允许必要暂存及一次本地提交；授权仅覆盖保存本条记录的该次提交，成功后自动耗尽。同步业务实现、推送、Hook 和发布未授权。后续提交遵循[提交规范](../standards/commit-style.md)，不得复用该次授权。
+- 当前授权：用户已授权 M-001 设计与记忆维护，并明确要求提交本次变更，允许必要暂存及一次本地提交；本次提交授权仅覆盖包含本条记录的设计与记忆提交，成功后自动耗尽。业务实现、设备安装及文件写入、推送、Hook 和发布未授权。设计范围见[工作包](../development/work-packages.md)，后续提交继续遵循[提交规范](../standards/commit-style.md)，不得复用本次或既有提交授权。
 
 ## 2. 项目目标
 

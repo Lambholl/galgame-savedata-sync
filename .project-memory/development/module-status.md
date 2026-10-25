@@ -3,7 +3,7 @@ doc_type: module-status
 status: active
 priority: high
 owner: development
-updated: 2026-10-25
+updated: 2026-10-26
 tags: [模块状态, 开发进度]
 related_files: []
 ---
@@ -19,7 +19,7 @@ related_files: []
 
 ## 1. 当前模块
 
-已建立工程基础设施与双端空壳，尚未实现任何同步业务模块。设计见[架构总览](../architecture/overview.md)，后续顺序见[路线图](../project/roadmap.md)。done 仅表示该行基础设施工作完成，不代表完整产品可用。
+已建立工程基础设施与双端空壳，尚未实现任何同步业务模块。设计见[架构总览](../architecture/overview.md)，后续顺序见[路线图](../project/roadmap.md)。M-001 已形成[分包设计](work-packages.md)，仍待评审及对应实现授权，不将计划中模块登记为已存在。用户确认远端 CI 已通过，真机验证仍未执行。done 仅表示该行基础设施工作完成，不代表完整产品可用。
 
 | 模块 | 状态 | 负责人 | 相关文件 | 风险 | 下一步 |
 | --- | --- | --- | --- | --- | --- |

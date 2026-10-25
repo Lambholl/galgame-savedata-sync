@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 owner: project
-updated: 2026-10-25
+updated: 2026-10-26
 tags: [Agent导航, 项目记忆]
 related_files: []
 ---
@@ -29,13 +29,15 @@ related_files: []
 
 | 工作 | 状态 | 相关记忆文档 | 相关代码或配置 | 已完成 | 下一步 |
 | --- | --- | --- | --- | --- | --- |
+| 整理并验证 M-001 设计提交 | completed | project/charter.md、standards/commit-style.md、development/work-packages.md | docs/plans/m001-directory-http.md、M-001 相关项目记忆 | 已核对单次本地提交授权及 12 个文档/记忆文件的范围；授权边界已同步，记忆、文本和差异检查通过，无业务代码变更 | 按本次单次授权创建包含本行的本地提交；提交成功后授权自动耗尽，不推送 |
+| 设计 M-001 并拆分后续工作 | completed | project/roadmap.md、architecture/api-contracts.md、architecture/modules.md、development/work-packages.md、testing/test-cases.md | docs/plans/m001-directory-http.md；后续涉及 packages/shared、apps/desktop、apps/mobile | 已形成 8 个候选工作包、接口/模块边界、14 个待执行用例及后续交接；已同步 CI 通过与授权；记忆、设计链接、文本和差异校验通过 | 设计文档完成，候选方案仍待评审；下一包为 WP-001，共用契约确认并获对应实现授权后开工；同步业务尚未实现 |
 | 精简项目记忆 | completed | project/、development/、testing/、governance/dependencies.md | 文档 | 已删除机器环境记录及重复表述，开发指南保留通用说明 | 按路线图继续项目工作 |
 | 整理首次提交 | completed | project/charter.md、standards/commit-style.md | 仓库全部源文件与配置 | 已更新授权记录并核对提交范围，仓库检查及记忆校验通过 | 按路线图继续项目工作 |
-| 修复干净检出的 Android 审计 | completed | development/code-map.md、testing/regression-notes.md | package.json、docs/development.md | 已复现缺少生成工程的错误；审计入口补齐同步后，干净副本审计与 pnpm check 通过 | 修复待提交后在远端重跑 CI |
+| 修复干净检出的 Android 审计 | completed | development/code-map.md、testing/regression-notes.md | package.json、docs/development.md | 修复已随工程规范提交落库；本地干净副本审计通过，用户已确认远端 CI 通过 | 已闭环，后续维护保留干净检出检查 |
 | 按通用编码规范完善 ESLint | completed | standards/coding-style.md、testing/regression-notes.md | eslint.config.mjs、.prettierrc.json、.prettierignore、package.json、pnpm-lock.yaml、手写 TS/JS | 已补齐质量和命名规则、框架默认导出例外；ESLint 直接读取无分号 Prettier 配置，排除全部 Markdown；pnpm check、规则反例、格式冲突和依赖审计通过，规范与验证边界已同步 | 后续修改共用 Prettier 配置；按项目流程继续集成 |
 | 建立 Agent 开发准入规则 | completed | standards/coding-style.md | AGENTS.md、apps/AGENTS.md | 已创建根目录简短门槛与 apps 细则，要求开发前具备并读取 antd skill；已明确主动读取子目录规则及双端组件库边界，文本、链接和记忆校验通过 | 后续 Agent 开发遵循根入口；应用开发按需读取 apps 细则 |
 | 明确 Git 提交授权边界 | completed | standards/commit-style.md、project/charter.md | AGENTS.md | 已落实明确授权与默认单次规则、范围和失效边界，清除章程中的旧提交授权；记忆、文本及差异校验通过，本轮未暂存或提交 | 后续提交前核对用户授权来源、范围及有效性，单次授权耗尽后重新取得授权 |
-| 整理并验证工程规范提交 | completed | project/charter.md、standards/commit-style.md、testing/regression-notes.md | 当前 ESLint、Prettier、Agent 规则、Android 审计入口及相关源码和文档改动 | 已核对提交范围；pnpm check、记忆校验、差异检查通过，19 个源码文件仅有格式变更，中文 Conventional Commits 信息已就绪 | 按用户本轮单次授权暂存并创建包含本行的一次本地提交；提交成功后授权自动耗尽，无推送授权 |
+| 整理并验证工程规范提交 | completed | project/charter.md、standards/commit-style.md、testing/regression-notes.md | ESLint、Prettier、Agent 规则、Android 审计入口及相关源码和文档 | 已创建本地提交 dc29348；提交前工程检查通过，用户已确认远端 CI 通过 | 原单次提交授权已耗尽；后续提交须另有明确授权 |
 
 开始产品、代码或文档工作前登记范围、入口和下一步；检查点、阻塞和完成时更新。完成时先更新长期事实，再记录完成状态与结果；完成状态进入 Git 历史后，后续维护才可清理无缺口的工作项。开放问题保留结论和状态。
 
@@ -65,6 +67,7 @@ related_files: []
 | `development/implementation-notes.md` | 实现细节 | active | 实现细节 |
 | `development/known-issues.md` | 已知问题 | active | 已知问题 |
 | `development/module-status.md` | 模块状态 | active | 模块状态, 开发进度 |
+| `development/work-packages.md` | 工作包登记 | draft | 工作包, M-001, 设计 |
 | `governance/assumptions.md` | 项目假设 | active | 假设 |
 | `governance/dependencies.md` | 外部依赖 | active | 外部依赖 |
 | `governance/issues.md` | 问题登记表 | active | 问题 |
