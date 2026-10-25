@@ -1,0 +1,37 @@
+import groovy.json.JsonOutput
+import org.gradle.api.artifacts.component.ModuleComponentIdentifier
+
+// Include every resolvable variant/tool configuration, plus each buildscript classpath.
+gradle.projectsEvaluated {
+    rootProject.tasks.register('writeDependencyInventory') {
+        doLast {
+            def packages = [:]
+            rootProject.allprojects.each { project ->
+                def configurations = project.configurations.findAll {
+                    it.canBeResolved
+                }.toList()
+                def buildClasspath = project.buildscript.configurations.findByName('classpath')
+                if (buildClasspath != null && buildClasspath.canBeResolved) configurations.add(buildClasspath)
+                configurations.each { configuration ->
+                    configuration.incoming.resolutionResult.allComponents.each { component ->
+                        if (component.id instanceof ModuleComponentIdentifier) {
+                            def module = component.id
+                            def name = "${module.group}:${module.module}"
+                            packages["${name}:${module.version}"] = [name: name, version: module.version]
+                        }
+                    }
+                    // Do not silently report a clean inventory with unresolved dependencies.
+                    def unresolved = configuration.incoming.resolutionResult.allDependencies.findAll {
+                        it instanceof org.gradle.api.artifacts.result.UnresolvedDependencyResult
+                    }
+                    if (!unresolved.isEmpty()) throw new GradleException("Unresolved dependencies in ${project.path}:${configuration.name}")
+                }
+            }
+            def report = [gradleVersion: gradle.gradleVersion, packages: packages.values().toList().sort { a, b -> a.name <=> b.name ?: a.version <=> b.version }]
+            def output = rootProject.file('../../../.reports/android-dependencies.json')
+            output.parentFile.mkdirs()
+            output.setText(JsonOutput.prettyPrint(JsonOutput.toJson(report)) + '\n', 'UTF-8')
+            println "Resolved ${packages.size()} Maven package versions to ${output}"
+        }
+    }
+}

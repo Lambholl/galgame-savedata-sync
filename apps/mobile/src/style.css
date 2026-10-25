@@ -1,0 +1,16 @@
+:root {
+  font-family: system-ui, sans-serif;
+  color-scheme: light;
+}
+
+body {
+  margin: 0;
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.app-content {
+  max-width: 960px;
+  margin: 32px auto;
+  padding: 0 16px;
+}

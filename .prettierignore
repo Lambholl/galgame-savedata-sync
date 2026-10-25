@@ -1,0 +1,8 @@
+node_modules/
+dist/
+out/
+pnpm-lock.yaml
+.project-memory/
+apps/mobile/android/
+dev.local.json
+.reports/

@@ -1,0 +1,32 @@
+def dependencySecurity = new groovy.json.JsonSlurper().parse(file('dependency-security.json'))
+
+// Apply before each project buildscript resolves, including Capacitor's generated projects.
+// Netty stays on its compatible 4.1 line; keep related crypto artifacts aligned.
+gradle.beforeProject { project ->
+    [project.buildscript.configurations, project.configurations].each { configurations ->
+        configurations.configureEach { configuration ->
+            configuration.resolutionStrategy.eachDependency { details ->
+                def key = "${details.requested.group}:${details.requested.name}"
+                def patchedVersion = dependencySecurity.modules[key]
+                if (patchedVersion == null && details.requested.group == 'io.netty'
+                    && details.requested.version?.startsWith('4.1.')) {
+                    patchedVersion = dependencySecurity.netty4Version
+                }
+                if (patchedVersion == null && details.requested.group == 'com.google.protobuf'
+                    && details.requested.version?.startsWith('3.')) {
+                    patchedVersion = dependencySecurity.protobuf3Version
+                }
+                if (patchedVersion != null) {
+                    details.useVersion(patchedVersion.toString())
+                    details.because('Known-vulnerability patch policy in dependency-security.json')
+                }
+            }
+        }
+    }
+}
+
+include ':app'
+include ':capacitor-cordova-android-plugins'
+project(':capacitor-cordova-android-plugins').projectDir = new File('./capacitor-cordova-android-plugins/')
+
+apply from: 'capacitor.settings.gradle'

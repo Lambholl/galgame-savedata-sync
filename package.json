@@ -1,0 +1,45 @@
+{
+  "name": "galgame-savedata-sync",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.34.8",
+  "engines": {
+    "node": "^22.13.0 || >=24.0.0",
+    "pnpm": ">=10.34.8 <11"
+  },
+  "scripts": {
+    "dev:desktop": "pnpm --filter @savedata-sync/desktop dev",
+    "dev:mobile": "pnpm --filter @savedata-sync/mobile dev",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "test:infra": "node --test scripts/toolchain-policy.test.mjs",
+    "lint": "eslint . --max-warnings 0",
+    "format": "prettier . --write",
+    "format:check": "prettier . --check",
+    "check:text": "node scripts/check-text.mjs",
+    "check": "pnpm check:text && pnpm format:check && pnpm lint && pnpm typecheck && pnpm test:infra && pnpm build",
+    "env:check": "node scripts/doctor.mjs",
+    "security:npm": "pnpm audit --registry=https://registry.npmjs.org --audit-level low",
+    "security:check": "node scripts/security-check.mjs",
+    "security:android": "node scripts/android-build.mjs --inventory && node scripts/security-android.mjs",
+    "android:sync": "pnpm --filter @savedata-sync/mobile android:sync",
+    "android:open": "node scripts/android-open.mjs",
+    "android:build": "pnpm android:sync && node scripts/android-build.mjs"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@types/node": "22.20.5",
+    "@types/react": "18.3.31",
+    "@types/react-dom": "18.3.7",
+    "@vitejs/plugin-react": "5.2.0",
+    "eslint": "10.13.0",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "eslint-plugin-react-refresh": "0.5.7",
+    "globals": "17.13.0",
+    "prettier": "3.9.10",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.72.0",
+    "vite": "8.3.5"
+  }
+}
