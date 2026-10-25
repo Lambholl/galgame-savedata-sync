@@ -21,7 +21,7 @@ related_files:
 
 ## 1. 状态与入口
 
-用户授权 WP-003 实现和连接设备验证，允许安装调试/测试 APK 及操作应用私有测试配置，沿用 Java；真实存档始终只读，root 不替代系统 SAF 授权。新文件写入拆至 WP-010，仅独立夹具可用于后续写入测试。用户已明确本次单次本地提交包含全部当前 SAF 读取、独立基准、tar.gz 决定与配套改动，成功后授权耗尽，不推送；具体权限见[项目章程](../project/charter.md)。
+用户授权 WP-003 实现和连接设备验证，允许安装调试/测试 APK 及操作应用私有测试配置，沿用 Java。新文件写入拆至 WP-010，仅独立夹具可用于后续写入测试。
 
 详细范围与流程位于 `docs/plans/m001-directory-http.md`；[接口契约](../architecture/api-contracts.md)与[模块设计](../architecture/modules.md)维护当前边界。共享与平台说明见 `packages/shared/README.md`、`apps/desktop/README.md`、`apps/mobile/README.md`。基础设施、共享契约及双端目录读取已完成；Java SAF 通过 API 33 合成夹具复测与旧 API 35 读取/恢复验证；两机证据不混用。新文件发布、HTTP 与同步流程未实现，本次目录适配尚未远端验证。
 
