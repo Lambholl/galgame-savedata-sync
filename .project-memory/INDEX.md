@@ -29,8 +29,10 @@ related_files: []
 
 | 工作 | 状态 | 相关记忆文档 | 相关代码或配置 | 已完成 | 下一步 |
 | --- | --- | --- | --- | --- | --- |
-| 整理并验证 M-001 设计提交 | completed | project/charter.md、standards/commit-style.md、development/work-packages.md | docs/plans/m001-directory-http.md、M-001 相关项目记忆 | 已核对单次本地提交授权及 12 个文档/记忆文件的范围；授权边界已同步，记忆、文本和差异检查通过，无业务代码变更 | 按本次单次授权创建包含本行的本地提交；提交成功后授权自动耗尽，不推送 |
-| 设计 M-001 并拆分后续工作 | completed | project/roadmap.md、architecture/api-contracts.md、architecture/modules.md、development/work-packages.md、testing/test-cases.md | docs/plans/m001-directory-http.md；后续涉及 packages/shared、apps/desktop、apps/mobile | 已形成 8 个候选工作包、接口/模块边界、14 个待执行用例及后续交接；已同步 CI 通过与授权；记忆、设计链接、文本和差异校验通过 | 设计文档完成，候选方案仍待评审；下一包为 WP-001，共用契约确认并获对应实现授权后开工；同步业务尚未实现 |
+| 整理共享契约提交并补充提交命名规则 | completed | standards/commit-style.md、project/charter.md、development/work-packages.md、testing/regression-notes.md | packages/shared、根检查配置、配套文档与记忆 | 已核对本轮单次提交授权和共享实现范围；提交规范已禁止标题/正文/页脚出现具体工作包编号；记忆、文本和差异检查通过，沿用最后代码修改后的 pnpm check 证据 | 按本轮单次授权创建包含本行的中文本地提交，提交前检查完整 message；成功后授权耗尽，不推送 |
+| 实现 WP-001 共享模型与契约 | completed | development/work-packages.md、architecture/api-contracts.md、testing/test-cases.md、standards/coding-style.md | packages/shared、根 package.json、tsconfig.base.json、docs/plans/m001-directory-http.md | 版本 1 DTO、纯守卫、路由/头名/错误映射、线格式说明及示例已实现；15 项运行时测试、9 项类型反例与 pnpm check（含双端构建）通过；无新增依赖或平台 IO | 对应授权后进入 WP-002 Windows 目录适配；平台 IO/HTTP/真机验收仍待后续包；本次提交权限见章程 |
+| 整理并验证 M-001 设计提交 | completed | project/charter.md、standards/commit-style.md、development/work-packages.md | docs/plans/m001-directory-http.md、M-001 相关项目记忆 | 已创建提交 f23250c，提交前记忆、文本和差异检查通过 | 原单次授权已耗尽，后续提交须另有明确授权 |
+| 设计 M-001 并拆分后续工作 | completed | project/roadmap.md、architecture/api-contracts.md、architecture/modules.md、development/work-packages.md、testing/test-cases.md | docs/plans/m001-directory-http.md；后续涉及 packages/shared、apps/desktop、apps/mobile | 已形成 8 个工作包、接口/模块边界、14 个验收场景及后续交接；设计已保存为 f23250c，WP-001 后续实现状态见工作包 | 继续按分包登记推进，平台与产品验收仍待完成 |
 | 精简项目记忆 | completed | project/、development/、testing/、governance/dependencies.md | 文档 | 已删除机器环境记录及重复表述，开发指南保留通用说明 | 按路线图继续项目工作 |
 | 整理首次提交 | completed | project/charter.md、standards/commit-style.md | 仓库全部源文件与配置 | 已更新授权记录并核对提交范围，仓库检查及记忆校验通过 | 按路线图继续项目工作 |
 | 修复干净检出的 Android 审计 | completed | development/code-map.md、testing/regression-notes.md | package.json、docs/development.md | 修复已随工程规范提交落库；本地干净副本审计通过，用户已确认远端 CI 通过 | 已闭环，后续维护保留干净检出检查 |
@@ -58,7 +60,7 @@ related_files: []
 
 | 文档 | 标题 | 状态 | 标签 |
 | --- | --- | --- | --- |
-| `architecture/api-contracts.md` | 接口契约 | draft | API, 接口契约 |
+| `architecture/api-contracts.md` | 接口契约 | active | API, 接口契约 |
 | `architecture/data-flow.md` | 数据流 | draft | 数据流 |
 | `architecture/dependencies.md` | 架构依赖 | draft | 依赖 |
 | `architecture/modules.md` | 模块设计 | draft | 模块 |
@@ -67,7 +69,7 @@ related_files: []
 | `development/implementation-notes.md` | 实现细节 | active | 实现细节 |
 | `development/known-issues.md` | 已知问题 | active | 已知问题 |
 | `development/module-status.md` | 模块状态 | active | 模块状态, 开发进度 |
-| `development/work-packages.md` | 工作包登记 | draft | 工作包, M-001, 设计 |
+| `development/work-packages.md` | 工作包登记 | active | 工作包, M-001, 设计 |
 | `governance/assumptions.md` | 项目假设 | active | 假设 |
 | `governance/dependencies.md` | 外部依赖 | active | 外部依赖 |
 | `governance/issues.md` | 问题登记表 | active | 问题 |

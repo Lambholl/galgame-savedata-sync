@@ -3,7 +3,7 @@ doc_type: code-map
 status: active
 priority: medium
 owner: development
-updated: 2026-10-25
+updated: 2026-10-26
 tags: [代码地图]
 related_files: []
 ---
@@ -16,7 +16,9 @@ related_files: []
 | `apps/desktop/` | Electron 主进程、preload 和 antd 空壳 | Renderer 无 Node 集成；contextIsolation 和 sandbox 开启 |
 | `apps/mobile/` | antd-mobile 空壳、Vite 与 Capacitor 配置 | 网页预览不等于 Android 原生能力验证 |
 | `apps/mobile/android/` | Capacitor 生成的原生工程与项目 Wrapper | minSdk 29、compile/target 36；Manifest 明文 HTTP；不增加后台服务 |
-| `packages/shared/src/index.ts` | 双端共用导出入口 | 当前仅应用名称，不包含业务同步算法或平台 API |
+| `packages/shared/src/index.ts` | 应用名和共享契约导出入口 | 不包含同步算法或平台 API |
+| `packages/shared/src/contracts.ts`、`protocol.ts`、`validation.ts` | 协议版本 1 DTO、错误/路由/头名映射与纯数据守卫 | 目录不汇总大小；封闭 DTO 区分空值/失败/未知结果；平台路径、权限和真实内容校验仍由适配器负责 |
+| `packages/shared/test/`、`packages/shared/README.md` | 运行时/类型契约检查、完整线格式与调用示例 | pnpm test:shared 执行运行时测试，typecheck 检查类型反例，均已接入 pnpm check |
 | `scripts/doctor.mjs`、`scripts/local-environment.mjs` | 开发工具入口 | 使用方式见 README |
 | `scripts/android-build.mjs`、`scripts/android-open.mjs` | 原生构建、依赖清单与 IDE 入口 | 只对子进程传入 SDK/JDK；IDE 不存在时明确失败 |
 | `scripts/check-text.mjs`、`eslint.config.mjs`、`tsconfig.base.json` | 编码、格式、lint 和严格类型检查 | 生成目录不作为手写代码格式化 |

@@ -24,7 +24,7 @@ related_files: []
 
 | 里程碑 | 目标 | 计划时间 | 状态 |
 | --- | --- | --- | --- |
-| M-001 | 已选 React 技术栈下验证目录与 HTTP：Android 授权目录、元数据读取、前台文件往返、明文访问；验证目录不递归统计大小 | 已形成 WP-001 至 WP-008 设计草稿，待评审及对应实现授权 | planned |
+| M-001 | 已选 React 技术栈下验证目录与 HTTP：Android 授权目录、元数据读取、前台文件往返、明文访问；验证目录不递归统计大小 | WP-001 已实现并验证；WP-002 至 WP-008 待对应授权，平台能力尚未开始 | active |
 | M-002 | 最小可用双端：项目与目录映射、手动 IP、方向按钮、两端文件预览、经确认的复制规则、进度和结果 | M-001 通过后安排 | planned |
 | M-003 | 地址变更与重连：mDNS/DNS-SD 自动发现列表、稳定设备关联、手动 IP 兜底和改址保留配置 | M-002 后安排 | planned |
 | M-004 | 完整首版：补齐镜像模式及删除预览、默认开启的最近 3 次备份与手工恢复、两端发起及预览体验；Android 仅前台 | 核心闭环后安排 | planned |
@@ -33,7 +33,7 @@ related_files: []
 
 | 优先级 | 事项 | 依赖 | 状态 |
 | --- | --- | --- | --- |
-| P0 | 评审 M-001 设计并在对应实现授权后从 WP-001 进入实现 | [工作包](../development/work-packages.md)、[接口契约](../architecture/api-contracts.md)；远端 CI 已通过 | pending |
+| P0 | 对应实现授权后进入 WP-002 Windows 目录适配，再推进 WP-003 Android SAF | WP-001 已通过；[工作包](../development/work-packages.md)、[接口契约](../architecture/api-contracts.md) | pending |
 | P0 | 按 WP-001 至 WP-008 分包验证目录、HTTP 与真机；范围过大先拆分 | [工作包与设计入口](../development/work-packages.md)、[模块设计](../architecture/modules.md)、[测试用例](../testing/test-cases.md) | planned |
 | P0 | 保持 Android 仅前台、当前状态独立、目录不汇总大小的边界 | [项目约束](../requirements/constraints.md)、[验收标准](../testing/acceptance.md) | active |
 

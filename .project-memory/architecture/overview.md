@@ -3,7 +3,7 @@ doc_type: architecture-overview
 status: active
 priority: high
 owner: architecture
-updated: 2026-10-25
+updated: 2026-10-26
 tags: [架构总览]
 related_files: []
 ---
@@ -23,6 +23,7 @@ related_files: []
 ## 1. 摘要
 
 - 架构风格：Windows 内置 HTTP 服务、Android 主动连接的局域网双端应用；当前方案已确认，基础空壳已建立，HTTP 服务与同步业务尚未实现。
+- 当前实现：WP-001 的版本 1 共享 DTO、纯数据守卫与协议映射已建立；接口约定见[接口契约](api-contracts.md)。目录、HTTP 和原生流均待后续包实现，不能将模型验证当成平台验收。
 - 核心模块：设备与地址管理、目录映射、当前目录预览、本次差异计划、文件流传输、平台文件适配。
 - 关键约束：明文 HTTP、手选方向、无历史同步基线、目录不递归汇总大小。
 - 已选技术栈：React + TypeScript + Vite；Windows 使用 Electron + Ant Design；Android 使用 Capacitor + Ant Design Mobile，文件能力由 Kotlin 插件适配。选择结论见 [Q-001](../requirements/open-questions.md)。

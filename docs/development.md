@@ -85,9 +85,11 @@ Windows 构建产物的 renderer 与隔离 preload 已通过启动检查；Andro
 
 ## 验证范围与常见问题
 
+- `pnpm test:shared` 执行共享包的纯数据契约测试，无需连接设备或网络；类型反例随 `pnpm typecheck` 检查。完整契约、线格式和示例见[共享包说明](../packages/shared/README.md)。
+- `pnpm check` 已包含共享契约测试及双端构建；当前共享模型已实现，目录适配、HTTP 服务与原生文件传输仍待后续工作包。
 - `pnpm env:check --json` 提供结构化检查；`--desktop` 排除 Android 工具。WARN 不导致失败，FAIL 的退出码为 1。
 - 检查脚本不自动安装软件、不修改全局环境、不接受或补签 SDK licenses。
 - Electron 45 首次运行时按需下载运行时；`pnpm --filter @savedata-sync/desktop exec electron --version` 可验证下载和执行。环境检查只读取安装结果，不触发下载。
 - 移动网页预览可在缺少 Android Studio 时开发；APK 编译与真机验证需要单独完成。
-- CI 执行格式、lint、类型、基础设施测试、Web/Electron 构建及 npm/Maven/工具链安全检查；远端执行结果见项目记忆，不代表真机业务流程已经通过。
+- CI 执行格式、lint、类型、基础设施/共享契约测试、Web/Electron 构建及 npm/Maven/工具链安全检查；远端执行结果见项目记忆，不代表真机业务流程已经通过。
 - Android 原生工程为 Capacitor 生成，保留 Gradle Wrapper；`minSdkVersion = 29`、`compileSdkVersion = targetSdkVersion = 36`，Manifest 允许明文 HTTP。未增加后台服务或后台任务。

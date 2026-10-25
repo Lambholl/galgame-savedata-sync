@@ -1,6 +1,6 @@
 ---
 doc_type: work-packages
-status: draft
+status: active
 priority: high
 owner: development
 id_prefix: WP
@@ -21,15 +21,15 @@ related_files:
 
 ## 1. 状态与入口
 
-用户已授权设计和项目记忆维护，本次设计变更的单次提交授权及失效边界见[项目章程](../project/charter.md)。业务实现、设备安装或文件写入、推送尚未授权。本表是待评审的设计草稿；planned 表示未开始，不表示实现已授权。已确认产品基线保持不变，详见[路线图](../project/roadmap.md)与[产品需求](../requirements/product.md)。
+用户已授权 WP-001 共享模型、契约及测试、必要检查配置和记忆同步，并要求提交本次变更及补充提交命名规则；本次单次提交授权和失效边界见[项目章程](../project/charter.md)。本包不涉及平台 IO、界面或网络实现，后续包、设备安装/写入及推送未授权。planned 表示未开始，其余候选方案仍按包评审。已确认产品基线保持不变，详见[路线图](../project/roadmap.md)与[产品需求](../requirements/product.md)。
 
-详细范围、流程和验证方案位于仓库根目录下 `docs/plans/m001-directory-http.md`；[接口契约](../architecture/api-contracts.md)、[模块设计](../architecture/modules.md)为配套候选设计。记忆维护稳定摘要和工作入口，详细执行设计保留在该独立文档中。基础设施与空壳已完成，同步业务尚未实现；用户于 2026-10-26 确认远端 CI 已通过。
+详细范围、流程和验证方案位于仓库根目录下 `docs/plans/m001-directory-http.md`；[接口契约](../architecture/api-contracts.md)记录已实现的版本 1 共享契约，[模块设计](../architecture/modules.md)保留当前与后续边界。完整线格式与示例见 `packages/shared/README.md`。基础设施、空壳及 WP-001 已完成，平台目录与同步流程尚未实现；既有远端 CI 已通过，本次共享实现尚未在远端验证。
 
 ## 2. M-001 工作包
 
-| ID | 工作包 | 依赖 | 目标代码范围（尚未实现） | 退出条件与验证 | 状态 | 已完成 / 下一步 |
+| ID | 工作包 | 依赖 | 代码范围 | 退出条件与验证 | 状态 | 已完成 / 下一步 |
 | --- | --- | --- | --- | --- | --- | --- |
-| WP-001 | 共享模型与契约 | 设计评审及对应实现授权 | packages/shared | 明确元数据空值、能力、错误、进度与终态；契约测试及严格类型检查通过 | planned | 已有设计草稿；先评审接口并取得本包实现授权 |
+| WP-001 | 共享模型与契约 | 用户已要求开始本包 | packages/shared、根检查入口与 tsconfig.base.json | 明确元数据空值、能力、错误、进度与终态；契约测试及严格类型检查通过 | done | 已实现版本 1 DTO、纯守卫、线格式常量/说明；15 项运行时测试、9 项类型反例及 pnpm check 通过；下一包 WP-002 仍待对应授权 |
 | WP-002 | Windows 目录适配 | WP-001 | apps/desktop 主进程与 preload | 目录引用独立持久化，当前层读取、新文件读写与路径边界测试通过 | planned | 无实现；实现时使用临时测试目录 |
 | WP-003 | Android SAF 适配 | WP-001 | apps/mobile 原生插件及桥接口 | 选择、持久授权、当前层元数据与原生流可用；编译通过，真机缺口单独记录 | planned | 无实现；原生接口确定后安排设备授权验证 |
 | WP-004 | Windows HTTP 读取 | WP-002 | apps/desktop 主进程 | 服务生命周期、设备描述、目录及文件下载端点集成检查通过 | planned | 无实现；仅开放已选择根目录 |

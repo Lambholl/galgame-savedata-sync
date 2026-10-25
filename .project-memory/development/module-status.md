@@ -19,11 +19,12 @@ related_files: []
 
 ## 1. 当前模块
 
-已建立工程基础设施与双端空壳，尚未实现任何同步业务模块。设计见[架构总览](../architecture/overview.md)，后续顺序见[路线图](../project/roadmap.md)。M-001 已形成[分包设计](work-packages.md)，仍待评审及对应实现授权，不将计划中模块登记为已存在。用户确认远端 CI 已通过，真机验证仍未执行。done 仅表示该行基础设施工作完成，不代表完整产品可用。
+已建立工程基础设施、双端空壳和 WP-001 共享契约，目录访问、HTTP 与同步流程尚未实现。设计见[架构总览](../architecture/overview.md)，后续顺序见[路线图](../project/roadmap.md)与[工作包](work-packages.md)。用户确认既有远端 CI 已通过，当前业务真机验证仍未执行。done 仅表示对应模块范围完成，不代表完整产品可用。
 
 | 模块 | 状态 | 负责人 | 相关文件 | 风险 | 下一步 |
 | --- | --- | --- | --- | --- | --- |
 | 工作区与质量配置 | done | 开发 | 根目录配置、packages/shared、scripts/check-text.mjs | — | 维护质量检查与固定依赖 |
+| WP-001 共享契约 | done | 开发 | packages/shared/src、packages/shared/test、packages/shared/README.md | 纯数据验证不代表平台操作已验证 | 15 项运行时测试、9 项类型反例及 pnpm check 通过；下一步按 WP-002 实现 Windows 目录适配，需对应授权 |
 | Windows 空壳 | done | 开发 | apps/desktop | 尚无项目管理、HTTP 服务或文件读写 | 在业务实现授权后继续 |
 | Android 网页空壳 | done | 开发 | apps/mobile/src、Vite/Capacitor 配置 | 尚未接入任何目录授权或同步功能 | 在业务实现授权后继续 |
 | Android 原生工程与审计 | done | 开发 | apps/mobile/android、scripts/android-inventory.gradle | 无真机验证 | 实现业务能力并安排设备验证 |
