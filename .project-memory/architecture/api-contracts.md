@@ -21,7 +21,7 @@ related_files: []
 
 ## 1. 状态与范围
 
-用户已要求执行 WP-001。版本 1 的共享 DTO、纯数据守卫、路由/头名和错误映射已在 packages/shared 实现；接口文档是后续适配器的当前开发契约，不表示 HTTP 端点或设备能力已经实现。工作范围、依赖与详细设计入口见[工作包](../development/work-packages.md)，完整字段、线格式及调用示例位于仓库根目录下 `packages/shared/README.md`。
+版本 1 共享契约与 Windows 本地目录读取适配已实现。本页是后续 HTTP/平台实现的当前契约，不表示 HTTP 端点或 Android 能力已存在。Windows 主进程/桥说明见 `apps/desktop/README.md`，共享字段与线格式见 `packages/shared/README.md`；范围与依赖见[工作包](../development/work-packages.md)。
 
 M-001 只验证专用测试目录内的新文件往返，不包含同步项目 CRUD、覆盖、镜像删除、备份、mDNS 或 Windows 发起任务的控制通道。Windows 为服务端，Android 原生层为 HTTP 客户端。
 
@@ -64,7 +64,9 @@ transferId 不表示历史同步基线。服务只维护本次会话的运行与
 
 | 边界 | 允许传递的内容 | 禁止或限制 |
 | --- | --- | --- |
-| Electron preload | 目录选择/恢复、当前层查询、服务启动/停止、订阅状态和传输结果 | 不暴露任意 fs、shell、Node 或任意路径接口 |
+| Electron preload（已实现） | chooseDirectory、listRoots、listDirectory；只接受 ID，返回公开 DTO；系统选择器在主进程执行 | 无 fs/shell/Node、绝对路径、内容或写入接口；校验登记窗口、主 frame 与精确 URL；退出移除 handler |
+| Electron 主进程原生读取（已实现） | registerDirectory 登记系统选中路径，listDirectory 返回当前层，openFile 返回本进程只读流 | 配置独立存放，不保存历史清单；调用者消费或 destroy 流；逐段拒绝 symlink/junction，重查根/条目/句柄身份，不承诺恶意并发命名空间原子隔离 |
+| Electron 后续服务（未实现） | WP-004/005 后再加入服务控制与传输状态；新文件发布先由 WP-009 完成 | 不能把本包目录读取当作 HTTP/文件传输或写入能力 |
 | Capacitor Kotlin 插件 | 目录选择/恢复、元数据、本地引用、原生 upload/download/cancel 及进度 | 内容流留在原生层；不将整文件或 Base64 交给 JS |
 | 生命周期 | Android 前台允许启动任务；离开前台取消；返回后重新核实当前目录 | 不创建后台服务、不恢复旧任务继续传输；发布竞争按真实结果反馈 |
 
@@ -87,3 +89,5 @@ packages/shared 提供 isDeviceDescriptor、isDirectoryReference、isEntryRefere
 守卫仅校验已解析 JSON/plain data，不执行文件、网络、哈希计算、生命周期控制或脱敏，不改变/克隆/冻结输入；平台负责资源所有权、释放、线程隔离及原生异常到错误码的映射。跨 Kotlin/JS 的超范围整数必须在原生侧拒绝，未知属性显式输出 null。调用示例及桥生命周期说明见 `packages/shared/README.md`。
 
 运行时契约测试、只读/联合类型反例、严格类型与双端构建均纳入 pnpm check。实际 SAF、HTTP 端点、前台中断与真机行为仍未验证，不能将共享守卫通过当作产品验收通过。
+
+Windows 目录与 IPC 的 15 项测试已通过，并在用户授权的真实目录完成只读原生流与配置恢复检查；前后内容哈希与修改时间一致。构建后的 CJS preload 隔离加载仅需 Electron 依赖。系统选择器人工交互及最终目录界面仍待界面包验证；真实目录禁止写入/删除/修改，测试配置与夹具独立存放，不保存真实路径或文件哈希。

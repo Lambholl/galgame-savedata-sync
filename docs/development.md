@@ -86,7 +86,8 @@ Windows 构建产物的 renderer 与隔离 preload 已通过启动检查；Andro
 ## 验证范围与常见问题
 
 - `pnpm test:shared` 执行共享包的纯数据契约测试，无需连接设备或网络；类型反例随 `pnpm typecheck` 检查。完整契约、线格式和示例见[共享包说明](../packages/shared/README.md)。
-- `pnpm check` 已包含共享契约测试及双端构建；当前共享模型已实现，目录适配、HTTP 服务与原生文件传输仍待后续工作包。
+- `pnpm test:desktop` 执行 Windows 临时目录与有限 IPC 测试，已接入 `pnpm check`；接口、配置和资源责任见[桌面适配说明](../apps/desktop/README.md)。Windows 目录读取已实现，当前 UI 按钮尚未接入。
+- `pnpm check` 包含共享、桌面测试及双端构建；Android SAF、新文件暂存发布、HTTP 服务与文件传输仍待后续工作包。真实用户目录仅做只读验证，写入/失败测试使用独立临时夹具。
 - `pnpm env:check --json` 提供结构化检查；`--desktop` 排除 Android 工具。WARN 不导致失败，FAIL 的退出码为 1。
 - 检查脚本不自动安装软件、不修改全局环境、不接受或补签 SDK licenses。
 - Electron 45 首次运行时按需下载运行时；`pnpm --filter @savedata-sync/desktop exec electron --version` 可验证下载和执行。环境检查只读取安装结果，不触发下载。

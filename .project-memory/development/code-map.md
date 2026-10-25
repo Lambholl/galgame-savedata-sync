@@ -14,6 +14,9 @@ related_files: []
 | --- | --- | --- |
 | `package.json`、`pnpm-workspace.yaml`、`pnpm-lock.yaml` | pnpm 工作区、固定版本与工程入口 | 私有工作区；使用指定 pnpm，不依赖系统全局 Gradle |
 | `apps/desktop/` | Electron 主进程、preload 和 antd 空壳 | Renderer 无 Node 集成；contextIsolation 和 sandbox 开启 |
+| `apps/desktop/src/main/directory-adapter.ts`、`directory-store.ts`、`directory-paths.ts`、`directory-errors.ts` | 目录选择登记、独立配置、当前层元数据、根内原生读流及脱敏错误 | 没有源目录写入 API；拒绝 symlink/junction 与失效身份，配置不保存历史文件索引 |
+| `apps/desktop/src/directory-bridge.ts`、`src/main/directory-ipc.ts`、`src/preload/index.ts` | 三个有限目录方法与 IPC 来源/参数/返回校验 | 绝对路径和文件内容不跨桥；handler 在退出时移除；main/preload 内联共享包 |
+| `apps/desktop/test/`、`apps/desktop/README.md` | Windows 临时目录/IPC 测试与接口说明 | pnpm test:desktop 已接入 pnpm check；真实目录仅只读验证，机器路径不提交 |
 | `apps/mobile/` | antd-mobile 空壳、Vite 与 Capacitor 配置 | 网页预览不等于 Android 原生能力验证 |
 | `apps/mobile/android/` | Capacitor 生成的原生工程与项目 Wrapper | minSdk 29、compile/target 36；Manifest 明文 HTTP；不增加后台服务 |
 | `packages/shared/src/index.ts` | 应用名和共享契约导出入口 | 不包含同步算法或平台 API |

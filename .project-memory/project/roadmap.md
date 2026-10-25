@@ -24,7 +24,7 @@ related_files: []
 
 | 里程碑 | 目标 | 计划时间 | 状态 |
 | --- | --- | --- | --- |
-| M-001 | 已选 React 技术栈下验证目录与 HTTP：Android 授权目录、元数据读取、前台文件往返、明文访问；验证目录不递归统计大小 | WP-001 已实现并验证；WP-002 至 WP-008 待对应授权，平台能力尚未开始 | active |
+| M-001 | 已选 React 技术栈下验证目录与 HTTP：Android 授权目录、元数据读取、前台文件往返、明文访问；验证目录不递归统计大小 | WP-001、WP-002 已实现验证；暂存发布拆为 WP-009，其余平台/HTTP 包待授权推进 | active |
 | M-002 | 最小可用双端：项目与目录映射、手动 IP、方向按钮、两端文件预览、经确认的复制规则、进度和结果 | M-001 通过后安排 | planned |
 | M-003 | 地址变更与重连：mDNS/DNS-SD 自动发现列表、稳定设备关联、手动 IP 兜底和改址保留配置 | M-002 后安排 | planned |
 | M-004 | 完整首版：补齐镜像模式及删除预览、默认开启的最近 3 次备份与手工恢复、两端发起及预览体验；Android 仅前台 | 核心闭环后安排 | planned |
@@ -33,13 +33,13 @@ related_files: []
 
 | 优先级 | 事项 | 依赖 | 状态 |
 | --- | --- | --- | --- |
-| P0 | 对应实现授权后进入 WP-002 Windows 目录适配，再推进 WP-003 Android SAF | WP-001 已通过；[工作包](../development/work-packages.md)、[接口契约](../architecture/api-contracts.md) | pending |
-| P0 | 按 WP-001 至 WP-008 分包验证目录、HTTP 与真机；范围过大先拆分 | [工作包与设计入口](../development/work-packages.md)、[模块设计](../architecture/modules.md)、[测试用例](../testing/test-cases.md) | planned |
+| P0 | 对应实现授权后进入 WP-003 Android SAF；真实两端目录始终只读，设备连接不代表安装/写入授权 | 共享契约和 Windows 读取已通过；[工作包](../development/work-packages.md) | pending |
+| P0 | 按 9 个工作包继续验证目录、HTTP 与真机；WP-009 新文件发布先于 WP-005 接收 | [工作包与设计入口](../development/work-packages.md)、[模块设计](../architecture/modules.md)、[测试用例](../testing/test-cases.md) | planned |
 | P0 | 保持 Android 仅前台、当前状态独立、目录不汇总大小的边界 | [项目约束](../requirements/constraints.md)、[验收标准](../testing/acceptance.md) | active |
 
 ## 3. M-001 交付边界与后续交接
 
-M-001 只在专用测试目录中验证新文件往返，不开放真实存档覆盖或镜像删除；依次拆为共享契约、Windows 目录、Android SAF、HTTP 读取、HTTP 接收、Android 原生传输、最小验证界面、真机验收。每包依赖、目标范围和退出条件只在[工作包登记](../development/work-packages.md)维护。
+M-001 只在专用测试目录中验证新文件往返，不开放真实存档覆盖或镜像删除；真实用户目录只允许读取。目录读取与新文件发布已拆开，9 个工作包的依赖、目标范围和退出条件只在[工作包登记](../development/work-packages.md)维护。
 
 ADB 在 Android 真机验证前准备，用于安装和日志；实际传输必须通过同一局域网 HTTP。Android 10 与较新版本的真机证据、授权恢复、双向内容校验、前台中断以及不递归统计目录大小均通过后才能关闭 M-001。设备缺失时保留缺口，可继续不依赖设备的工作。
 
