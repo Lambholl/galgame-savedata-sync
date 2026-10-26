@@ -5,7 +5,8 @@ import { HttpOperationError, toHttpError } from './http-errors.ts'
 
 /** 解码一次的封闭路由；不使用会归一化点段的 URL 路径解析。 */
 export interface HttpRoute {
-  readonly kind: 'device' | 'roots' | 'entries' | 'downloads' | 'manifest' | 'content' | 'transfer'
+  readonly kind:
+    'device' | 'roots' | 'entries' | 'downloads' | 'uploads' | 'manifest' | 'content' | 'transfer'
   readonly id: string | null
   readonly parentId: string | null
 }
@@ -67,10 +68,10 @@ export function inspectHttpRequest(request: IncomingMessage): HttpRoute {
   else if (
     segments.length === 3 &&
     resource === 'transfers' &&
-    id === 'downloads' &&
+    (id === 'downloads' || id === 'uploads') &&
     method === 'POST'
   )
-    kind = 'downloads'
+    kind = id
   else if (
     resource === 'transfers' &&
     isOpaqueId(id) &&
@@ -82,13 +83,20 @@ export function inspectHttpRequest(request: IncomingMessage): HttpRoute {
     resource === 'transfers' &&
     isOpaqueId(id) &&
     segments.length === 4 &&
-    method === 'GET' &&
-    (action === 'manifest' || action === 'content')
+    ((method === 'GET' && (action === 'manifest' || action === 'content')) ||
+      (method === 'PUT' && action === 'content'))
   )
     kind = action
   else invalid()
   if (kind !== 'entries' && query.size > 0) invalid()
-  if (kind !== 'downloads' && (encoding !== undefined || (length !== undefined && length !== '0')))
+  if (method === 'PUT' && kind === 'content' && (encoding !== undefined || length === undefined))
+    invalid()
+  if (
+    kind !== 'downloads' &&
+    kind !== 'uploads' &&
+    !(method === 'PUT' && kind === 'content') &&
+    (encoding !== undefined || (length !== undefined && length !== '0'))
+  )
     invalid()
   return { kind, id: id ?? null, parentId: query.get('parentId') ?? null }
 }

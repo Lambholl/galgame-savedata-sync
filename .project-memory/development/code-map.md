@@ -18,7 +18,8 @@ related_files: []
 | `apps/desktop/src/main/archive-adapter.ts`、`archive-cache.ts`、`archive-format.ts`、`archive-errors.ts` | 私有源快照、受限 USTAR/gzip1 编解码、逐层校验、资源/取消与缓存所有权/清理 | 无 HTTP 或目标发布；缓存与源根互不包含；句柄持有缓存，读流关闭后 dispose；清理失败阻止新任务 |
 | `apps/desktop/test/archive-adapter.test.mjs`、`test/fixtures/archive-v1.json` | Windows 私有归档 20 项故障/边界与独立 Python 格式夹具 | 合成数据，不操作真实存档；后续 Java 复用固定字节与原文期望；不以各自自我往返替代互通证据 |
 | `apps/desktop/src/main/new-file-publisher.ts`、`publication-errors.ts`、`test/new-file-publisher.test.mjs` | 进程内写授权/预检、单文件候选/link/最终回读、逐项结果与清理重试；24 项专项 | 仅原生调用，目录/HTTP/UI 不自动授予写权限；候选与目标同卷，不覆盖/删除已有条目；崩溃后不猜测候选所有权 |
-| `apps/desktop/src/main/http-service.ts`、`http-wire.ts`、`http-errors.ts`、`transfer-registry.ts` | 原生 HTTP 读取、严格协议字节边界、会话内异步下载/状态/取消、期限与单次 ID/content | 显式监听且默认回环；进程仅一活动批次，清理失败不释放；sender sent 不证明目标发布；应用退出等待 stop |
+| `apps/desktop/src/main/http-service.ts`、`http-wire.ts`、`http-errors.ts`、`transfer-registry.ts` | 原生 HTTP 读取/接收、严格协议字节边界、会话内双角色任务/查询/取消、期限与单次 ID/content | 显式监听且默认回环；进程仅一活动批次，清理失败不释放；sender sent 不证明目标发布；应用退出等待 stop |
+| `apps/desktop/src/main/upload-receiver.ts`、`test/http-receiver.test.mjs` | 单次上传背压/断流/取消、压缩体检查点与异步完整归档校验、顺序发布/部分结果与上下文核对；29 项真实 HTTP/TCP 专项 | 接收适配与本机写授权分开，全部原文验证前零发布；202 不表示发布成功；清理失败保留名额，响应/结果丢失不重放 |
 | `apps/desktop/test/http-service.test.mjs` | 25 项真实回环 HTTP/TCP、异步结果/单次领取、预算、期限、断流与清理故障测试 | 独立临时夹具；不使用 ADB 或真实存档，不替代 Android/LAN/最终 UI 验收 |
 | `apps/desktop/src/directory-bridge.ts`、`src/main/directory-ipc.ts`、`src/preload/index.ts` | 三个有限目录方法与 IPC 来源/参数/返回校验 | 绝对路径和文件内容不跨桥；handler 在退出时移除；main/preload 内联共享包 |
 | `apps/desktop/test/`、`apps/desktop/README.md` | Windows 临时目录/IPC 测试与接口说明 | pnpm test:desktop 已接入 pnpm check；真实目录仅只读验证，机器路径不提交 |

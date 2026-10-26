@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import type { ServerResponse } from 'node:http'
+import type { IncomingMessage, ServerResponse } from 'node:http'
 import { Transform } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import {
@@ -9,24 +9,32 @@ import {
   HTTP_HEADERS,
   isBatchManifest,
   isDownloadBatchRequest,
+  isReceiveBatchRequest,
+  isBatchState,
+  matchesBatchState,
+  isSha256,
 } from '@savedata-sync/shared'
 import type {
   BatchManifest,
   BatchProgress,
   BatchRunningState,
   BatchState,
-  BatchTerminalState,
   DownloadBatchRequest,
   KnownOperationError,
+  OperationError,
+  FileOutcome,
+  ReceiveBatchRequest,
 } from '@savedata-sync/shared'
 import type { WindowsArchive, WindowsArchiveAdapter } from './archive-adapter.ts'
 import { ArchiveCancelledError } from './archive-errors.ts'
 import { HttpOperationError, toHttpError } from './http-errors.ts'
+import { WindowsUploadReceiver, publicationRequests } from './upload-receiver.ts'
+import type { ReceiverDependencies, ReceiverCompletion } from './upload-receiver.ts'
 
 type ArchiveProvider = Pick<WindowsArchiveAdapter, 'prepare' | 'retryCleanup'>
 type TransferTimeouts = Pick<
   typeof BATCH_TIMEOUTS_MS,
-  'ready' | 'total' | 'networkIdle' | 'terminalRetention'
+  'ready' | 'awaitingContent' | 'total' | 'networkIdle' | 'terminalRetention'
 >
 
 /** 原生时钟及收紧预算只供可信主进程/测试注入；不能由 HTTP 请求配置。 */
@@ -34,6 +42,7 @@ export interface TransferRegistryOptions {
   readonly now?: () => number
   readonly timeouts?: { readonly [Key in keyof TransferTimeouts]?: number }
   readonly maxTransfers?: number
+  readonly receiver?: ReceiverDependencies
 }
 
 interface TransferTask {
@@ -48,6 +57,8 @@ interface TransferTask {
   reason: KnownOperationError | null
   worker: Promise<void>
   finishing: Promise<void> | null
+  receiverRequest: ReceiveBatchRequest | null
+  receiver: WindowsUploadReceiver | null
 }
 
 // 原生控制可构造多个监听实例，但同一进程仍只能有一个活动批次。
@@ -76,11 +87,15 @@ export class WindowsTransferRegistry {
   private readonly timeouts: { [Key in keyof TransferTimeouts]: number }
   private readonly maxTransfers: number
   private readonly timer: ReturnType<typeof setInterval>
+  private readonly receiver: ReceiverDependencies | undefined
+  private pendingId: string | null = null
+  private pendingRegistration: Promise<BatchState> | null = null
   private activeId: string | null = null
   private isStopped = false
 
   constructor(archive: ArchiveProvider, options: TransferRegistryOptions = {}) {
     this.archive = archive
+    this.receiver = options.receiver
     this.now = options.now ?? Date.now
     this.timeouts = { ...BATCH_TIMEOUTS_MS, ...options.timeouts }
     this.maxTransfers = options.maxTransfers ?? BATCH_LIMITS.maxTransfersPerSession
@@ -90,7 +105,13 @@ export class WindowsTransferRegistry {
       this.maxTransfers > BATCH_LIMITS.maxTransfersPerSession
     )
       throw new HttpOperationError('invalid-request', '任务容量配置无效。')
-    for (const key of ['ready', 'total', 'networkIdle', 'terminalRetention'] as const)
+    for (const key of [
+      'ready',
+      'awaitingContent',
+      'total',
+      'networkIdle',
+      'terminalRetention',
+    ] as const)
       if (
         !Number.isSafeInteger(this.timeouts[key]) ||
         this.timeouts[key] < 1 ||
@@ -114,14 +135,7 @@ export class WindowsTransferRegistry {
         '下载批次请求无效。',
       )
     }
-    this.sweep()
-    if (this.isStopped) throw new HttpOperationError('busy', '服务正在停止。')
-    if (this.usedIds.has(value.transferId))
-      throw new HttpOperationError('task-conflict', '本会话已使用该任务标识。')
-    if (activeTransferOwner !== null)
-      throw new HttpOperationError('busy', '已有活动批次或缓存等待清理。')
-    if (this.usedIds.size >= this.maxTransfers)
-      throw new HttpOperationError('resource-limit', '会话任务标识容量已满，请重新启动服务。')
+    this.assertAvailable(value.transferId)
     const request = clone(value)
     const at = this.now()
     const state: BatchRunningState = {
@@ -157,6 +171,8 @@ export class WindowsTransferRegistry {
       reason: null,
       worker: Promise.resolve(),
       finishing: null,
+      receiverRequest: null,
+      receiver: null,
     }
     this.usedIds.add(request.transferId)
     this.activeId = request.transferId
@@ -164,6 +180,155 @@ export class WindowsTransferRegistry {
     this.tasks.set(request.transferId, task)
     task.worker = Promise.resolve().then(() => this.prepare(task, request))
     return clone(state)
+  }
+
+  /** 上传先只读预检全部目标；异步预检期间保留进程名额，拒绝后不占用已用 ID。 */
+  registerUpload(value: unknown): Promise<BatchState> {
+    if (!isReceiveBatchRequest(value)) {
+      const mismatch =
+        value &&
+        typeof value === 'object' &&
+        'protocolVersion' in value &&
+        value.protocolVersion !== 1
+      throw new HttpOperationError(
+        mismatch ? 'protocol-mismatch' : 'invalid-request',
+        '上传登记请求无效。',
+      )
+    }
+    if (!this.receiver)
+      throw new HttpOperationError('unsupported-operation', '未启用原生接收能力。')
+    const request = clone(value)
+    this.assertAvailable(request.manifest.transferId)
+    this.pendingId = request.manifest.transferId
+    activeTransferOwner = this.ownership
+    this.pendingRegistration = this.prepareUpload(request, this.receiver).finally(() => {
+      this.pendingId = null
+      this.pendingRegistration = null
+      if (this.activeId === null && activeTransferOwner === this.ownership)
+        activeTransferOwner = null
+    })
+    return this.pendingRegistration
+  }
+
+  private async prepareUpload(
+    request: ReceiveBatchRequest,
+    receiver: ReceiverDependencies,
+  ): Promise<BatchState> {
+    const targets = new Set<string>()
+    for (const file of publicationRequests(request)) {
+      const key = await receiver.publisher.checkTarget(file)
+      if (targets.has(key))
+        throw new HttpOperationError('name-conflict', '多个文件映射到相同实际目标。')
+      targets.add(key)
+    }
+    if (this.isStopped) throw new HttpOperationError('busy', '服务正在停止。')
+    const at = this.now()
+    const state: BatchRunningState = {
+      transferId: request.manifest.transferId,
+      direction: 'android-to-windows',
+      role: 'receiver',
+      updatedAt: at,
+      status: 'running',
+      stage: 'awaiting-content',
+      cancelRequested: false,
+      fileResults: [],
+      progress: {
+        sourceBytesRead: 0,
+        archiveBytesTransferred: 0,
+        fileBytesVerified: 0,
+        fileBytesPublished: 0,
+        totalFileBytes: request.manifest.totalFileBytes,
+        totalArchiveBytes: request.manifest.archive.sizeBytes,
+        totalFiles: request.manifest.files.length,
+        verifiedFiles: 0,
+        publishedFiles: 0,
+      },
+    }
+    const task: TransferTask = {
+      state,
+      manifest: request.manifest,
+      artifact: null,
+      controller: new AbortController(),
+      acceptedAt: at,
+      stageAt: at,
+      networkAt: at,
+      terminalAt: null,
+      reason: null,
+      worker: Promise.resolve(),
+      finishing: null,
+      receiverRequest: request,
+      receiver: null,
+    }
+    task.receiver = new WindowsUploadReceiver(request, receiver, {
+      signal: task.controller.signal,
+      state: () => clone(task.state),
+      reason: () => task.reason,
+      networkProgress: () => {
+        task.networkAt = this.now()
+      },
+      abort: (reason) => this.abort(task, reason),
+      ownArchive: (artifact) => {
+        task.artifact = artifact
+      },
+      progress: (stage, progress, results) => {
+        if (task.state.status === 'running' && task.state.role === 'receiver') {
+          task.state = { ...task.state, fileResults: results }
+          this.running(task, stage, progress)
+        }
+      },
+      complete: (completion) => this.completeReceiver(task, completion),
+    })
+    this.tasks.set(state.transferId, task)
+    this.usedIds.add(state.transferId)
+    this.activeId = state.transferId
+    return clone(state)
+  }
+
+  /** 请求头匹配登记清单后同步领取唯一 PUT；重复或错误方向不消耗原生输入。 */
+  receiveContent(
+    id: string,
+    request: IncomingMessage,
+    response: ServerResponse,
+  ): Promise<BatchState> {
+    const task = this.find(id)
+    if (
+      task.state.status !== 'running' ||
+      task.state.role !== 'receiver' ||
+      task.state.stage !== 'awaiting-content' ||
+      !task.receiver ||
+      !task.manifest
+    )
+      throw new HttpOperationError('task-conflict', '该任务当前不接受上传内容。')
+    const length = request.headers['content-length']
+    const hash = request.headers[HTTP_HEADERS.archiveSha256]
+    if (
+      request.headers['transfer-encoding'] !== undefined ||
+      typeof length !== 'string' ||
+      typeof request.headers['content-type'] !== 'string' ||
+      request.headers['content-type'].toLowerCase() !== 'application/gzip' ||
+      !isSha256(hash)
+    )
+      throw new HttpOperationError('invalid-request', '上传内容头无效。')
+    if (Number(length) > BATCH_LIMITS.maxArchiveBytes)
+      throw new HttpOperationError('resource-limit', '上传体超过协议预算。')
+    if (Number(length) !== task.manifest.archive.sizeBytes || hash !== task.manifest.archive.sha256)
+      throw new HttpOperationError('checksum-mismatch', '上传头与登记清单不符。')
+    this.running(task, 'transferring')
+    task.networkAt = this.now()
+    const receive = task.receiver.receive(request, response)
+    task.worker = receive.worker
+    return receive.accepted
+  }
+
+  private assertAvailable(id: string): void {
+    this.sweep()
+    if (this.isStopped) throw new HttpOperationError('busy', '服务正在停止。')
+    if (this.usedIds.has(id) || this.pendingId === id)
+      throw new HttpOperationError('task-conflict', '本会话已使用或正在登记该任务标识。')
+    if (activeTransferOwner !== null)
+      throw new HttpOperationError('busy', '已有活动批次或缓存等待清理。')
+    if (this.usedIds.size >= this.maxTransfers)
+      throw new HttpOperationError('resource-limit', '会话任务标识容量已满，请重新启动服务。')
   }
 
   /** 查询返回独立快照，不改变期限；不存在/到期均不证明远端未写入。 */
@@ -208,6 +373,8 @@ export class WindowsTransferRegistry {
       if (task.terminalAt !== null) {
         if (now - task.terminalAt >= this.timeouts.terminalRetention) {
           task.manifest = null
+          task.receiverRequest = null
+          task.receiver = null
           this.tasks.delete(id)
         }
         continue
@@ -216,6 +383,8 @@ export class WindowsTransferRegistry {
       if (
         now - task.acceptedAt >= this.timeouts.total ||
         (task.state.stage === 'ready' && now - task.stageAt >= this.timeouts.ready) ||
+        (task.state.stage === 'awaiting-content' &&
+          now - task.stageAt >= this.timeouts.awaitingContent) ||
         (task.state.stage === 'transferring' && now - task.networkAt >= this.timeouts.networkIdle)
       )
         this.abort(task, operation('timeout', '批次操作超过期限。'))
@@ -229,6 +398,8 @@ export class WindowsTransferRegistry {
     const task = this.tasks.get(id)
     if (task?.state.status === 'running') throw new HttpOperationError('busy', '任务仍在使用缓存。')
     await this.archive.retryCleanup()
+    await this.receiver?.archive.retryCleanup()
+    await this.receiver?.publisher.retryCleanup()
     if (task)
       task.state = {
         ...task.state,
@@ -244,6 +415,7 @@ export class WindowsTransferRegistry {
   async stop(): Promise<void> {
     this.isStopped = true
     clearInterval(this.timer)
+    if (this.pendingRegistration) await this.pendingRegistration.catch(() => undefined)
     for (const task of this.tasks.values()) this.abort(task, null)
     await Promise.all([...this.tasks.values()].map((task) => task.worker.catch(() => undefined)))
     await this.retryCleanup()
@@ -285,6 +457,17 @@ export class WindowsTransferRegistry {
     )
     if (task.state.stage === 'ready')
       task.worker = this.finish(task, reason ? 'failed' : 'cancelled', reason)
+    else if (task.state.stage === 'awaiting-content' && task.receiverRequest)
+      task.worker = this.completeReceiver(task, {
+        status: reason ? 'failed' : 'cancelled',
+        error: reason,
+        results: task.receiverRequest.manifest.files.map((file) => ({
+          fileId: file.fileId,
+          status: 'not-attempted',
+          reason: reason ? 'batch-invalid' : 'cancelled',
+        })),
+        cleanupError: null,
+      })
   }
 
   private async prepare(task: TransferTask, request: DownloadBatchRequest): Promise<void> {
@@ -421,21 +604,23 @@ export class WindowsTransferRegistry {
 
   private finish(
     task: TransferTask,
-    status: 'sent' | 'failed' | 'cancelled',
-    error: KnownOperationError | null,
+    status: 'sent' | 'succeeded' | 'failed' | 'cancelled' | 'unknown',
+    error: OperationError | null,
     previousCleanup: KnownOperationError | null = null,
+    results: readonly FileOutcome[] | null = null,
   ): Promise<void> {
     if (task.finishing) return task.finishing
     this.running(task, 'cleaning')
-    task.finishing = this.clean(task, status, error, previousCleanup)
+    task.finishing = this.clean(task, status, error, previousCleanup, results)
     return task.finishing
   }
 
   private async clean(
     task: TransferTask,
-    status: 'sent' | 'failed' | 'cancelled',
-    error: KnownOperationError | null,
+    status: 'sent' | 'succeeded' | 'failed' | 'cancelled' | 'unknown',
+    error: OperationError | null,
     previousCleanup: KnownOperationError | null,
+    results: readonly FileOutcome[] | null,
   ): Promise<void> {
     let cleanupError = previousCleanup
     try {
@@ -447,10 +632,10 @@ export class WindowsTransferRegistry {
     const at = this.now()
     const common = {
       transferId: task.state.transferId,
-      direction: 'windows-to-android' as const,
-      role: 'sender' as const,
+      direction: task.state.direction,
+      role: task.state.role,
       updatedAt: at,
-      fileResults: null,
+      fileResults: results,
       ...(cleanupError
         ? {
             cleanupStatus: 'incomplete' as const,
@@ -458,15 +643,42 @@ export class WindowsTransferRegistry {
           }
         : { cleanupStatus: 'complete' as const, cleanupError: null }),
     }
-    task.state = (
-      status === 'failed'
-        ? { ...common, status, error: error ?? operation('io-failure', '本地任务失败。') }
-        : { ...common, status, error: null }
-    ) satisfies BatchTerminalState
+    const terminal = {
+      ...common,
+      status,
+      error:
+        status === 'failed'
+          ? (error ?? operation('io-failure', '本地任务失败。'))
+          : status === 'unknown'
+            ? error
+            : null,
+    }
+    if (
+      !isBatchState(terminal) ||
+      (task.receiverRequest &&
+        !matchesBatchState(
+          terminal,
+          task.receiverRequest.manifest,
+          'android-to-windows',
+          task.receiverRequest,
+        ))
+    )
+      throw new HttpOperationError('result-unknown', '批次最终结果未能对应当前清单。')
+    task.state = terminal
     task.terminalAt = at
     if (!cleanupError) {
       this.activeId = null
       if (activeTransferOwner === this.ownership) activeTransferOwner = null
     }
+  }
+
+  private completeReceiver(task: TransferTask, completion: ReceiverCompletion): Promise<void> {
+    return this.finish(
+      task,
+      completion.status,
+      completion.error,
+      completion.cleanupError,
+      completion.results,
+    )
   }
 }

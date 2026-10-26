@@ -53,9 +53,9 @@ if (hasInstanceLock)
       )
       const archive = await createWindowsArchiveAdapter(adapter, app.getPath('userData'))
       // 网络服务由后续可信界面显式启动；应用退出须等待私有缓存和连接释放。
-      const httpService = new WindowsHttpService(adapter, archive)
       // 发布适配器没有默认写授权，后续仅由可信本机操作显式 grant。
       const publisher = new WindowsNewFilePublisher(adapter)
+      const httpService = new WindowsHttpService(adapter, archive, { publisher })
       let canQuit = false
       let isClosing = false
       app.on('before-quit', (event) => {

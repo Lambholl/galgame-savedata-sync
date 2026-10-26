@@ -21,9 +21,9 @@ related_files: []
 
 - 项目目标：在 Windows 电脑与 Android 设备之间，通过局域网手动选择方向同步文件夹，减少游玩 galgame 时手工复制存档的操作。
 - 目标用户：在电脑与 Android 设备之间切换、需要管理多个游戏或文件夹的使用者。
-- 当前阶段：基础设施、双端空壳、v1 批量共享契约、双端目录读取与 Windows 私有归档已实现；Java SAF 在 API 33 合成夹具和 API 35 真实目录分别验证读取与授权恢复。Windows HTTP sender 与会话注册已实现；Windows 原生单文件非覆盖发布已实现；Java 归档、HTTP receiver/Android 网络、批次发布和同步流程尚未实现。实现见[实现细节](../development/implementation-notes.md)，验证边界见[回归状态](../testing/regression-notes.md)。
+- 当前阶段：基础设施、双端空壳、v1 批量共享契约、双端目录读取与 Windows 私有归档已实现；Java SAF 在 API 33 合成夹具和 API 35 真实目录分别验证读取与授权恢复。Windows HTTP sender/receiver、会话注册与批次非覆盖发布已实现；Java 归档、SAF 发布、Android 网络和同步流程尚未实现。实现见[实现细节](../development/implementation-notes.md)，验证边界见[回归状态](../testing/regression-notes.md)。
 - 成功标准：见[验收标准](../testing/acceptance.md)。
-- 当前授权：WP-004 已提交 096dfec；推进 WP-009 Windows 新文件暂存与发布的代码、测试、说明及记忆同步。仅在独立临时夹具验证显式授权的新文件写入，无需 ADB；不含 HTTP 接收、新提交/推送或设备操作，真实存档保持只读。
+- 当前授权：WP-009 已提交 63ddb34；本次 WP-005 Windows HTTP 接收代码、测试、说明及记忆同步已完成，本包未提交；下一包为 WP-013 Android Java 归档，尚未开始。仅在本地 HTTP 与独立临时夹具验证显式授权写入，无需 ADB；不含 Android/最终界面、新提交/推送或设备操作，真实存档保持只读。
 
 ## 2. 项目目标
 

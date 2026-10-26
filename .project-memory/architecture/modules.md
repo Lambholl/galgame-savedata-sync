@@ -17,7 +17,7 @@ related_files: []
 
 ## 1. 设计状态
 
-v1 本地/批量共享契约、双端目录读取、Windows 私有归档及 HTTP sender 已实现，Java SAF 在 API 33/35 分别通过读取验证。Windows 原生新文件发布已实现；Java 归档、HTTP receiver/Android 网络、批次发布编排及界面集成仍待实现。tar.gz 批量设计位于仓库根目录的 `docs/plans/m001-tar-gzip-protocol.md`；Windows/Java 归档与目标发布各自独立验证，网络包只负责集成编排。当前实现与验证状态见[模块状态](../development/module-status.md)，依赖与退出条件见[工作包](../development/work-packages.md)。
+v1 本地/批量共享契约、双端目录读取、Windows 私有归档及 HTTP sender 已实现，Java SAF 在 API 33/35 分别通过读取验证。Windows 原生新文件发布及 HTTP receiver 批次编排已实现；Java 归档、SAF 发布、Android 网络及界面集成仍待实现。tar.gz 批量设计位于仓库根目录的 `docs/plans/m001-tar-gzip-protocol.md`；Windows/Java 归档与目标发布各自独立验证，网络包只负责集成编排。当前实现与验证状态见[模块状态](../development/module-status.md)，依赖与退出条件见[工作包](../development/work-packages.md)。
 
 ## 2. M-001 模块边界
 
@@ -31,7 +31,7 @@ v1 本地/批量共享契约、双端目录读取、Windows 私有归档及 HTTP
 | Windows 私有归档 | 已实现源快照/变化检查、受限 USTAR/gzip1 编解码、完整计数/哈希/结束校验和缓存所有权/取消清理 | 本次源引用或清单/归档流、可选 signal/进度回调 | 主进程私有只读流句柄、实测清单；完整验证后返回，不发布目标 | WP-012；Windows 读取/共享批量契约；固定夹具供 Java 复用 | apps/desktop/src/main/archive-*.ts、独立合成夹具 |
 | Android Java 私有归档 | 原生源快照及同格式编解码、有限缓冲/上限/取消和缓存释放 | SAF 原生读流或清单/归档流 | 仅原生持有的私有缓存和校验结果 | WP-013；Android 读取/共享批量契约；复用 Windows 固定夹具；不写 SAF 目标 | apps/mobile Java 模块及测试 |
 | Windows HTTP 读取与任务注册 | 已实现显式服务启停/会话、目录、异步下载/单次 content、状态/取消、期限与清理；默认不监听 | 经验证的引用、本次集合 | 设备/会话描述、当前层、tar.gz 流及 sender 实际状态 | WP-004；Windows 读取、共享批量契约与 WP-012 | apps/desktop/src/main/http-*.ts、transfer-registry.ts、index.ts、HTTP 集成测试 |
-| Windows HTTP 接收 | 编排完整接收/归档校验及非覆盖发布，接入 receiver 状态 | 清单、逐项目标引用、tar.gz 原生流 | 逐文件实际结果、进度及残留 | WP-005；WP-004/WP-009/WP-012 | apps/desktop 主进程 |
+| Windows HTTP 接收 | 已实现上传预检/单次 PUT、压缩体确认及异步完整归档校验后非覆盖发布，接入 receiver 状态/取消/期限/清理 | 清单、逐项目标引用、tar.gz 原生流 | 逐文件实际结果、进度及残留 | WP-005；WP-004/WP-009/WP-012；接收能力与本机根写授权分开 | apps/desktop/src/main/upload-receiver.ts、http-*.ts、transfer-registry.ts、test/http-receiver.test.mjs |
 | Android 原生传输 | HTTP/会话编排、归档/校验后发布、进度/取消/前台边界 | 本地引用、本次集合、手动地址和方向 | sender/receiver 分开的状态、逐文件实际结果和残留 | WP-006；Android 读取、共享批量契约与 WP-005/WP-010/WP-013 | apps/mobile 原生插件及桥接口 |
 | 最小验证界面 | 目录与元数据、服务状态、手动连接和双向传输操作 | 当前状态与用户操作 | 受限本地桥调用；源目标及结果展示 | WP-007；桌面 antd、移动 antd-mobile | apps/desktop renderer、apps/mobile/src |
 

@@ -39,6 +39,11 @@ export interface ArchiveOperationOptions {
   readonly onProgress?: (counters: ArchiveCounters) => void
 }
 
+/** 原生接收检查点：仅压缩体已完整落盘并核对长度/SHA 后触发，不表示 tar/原文已通过。 */
+export interface ArchiveReceiveOptions extends ArchiveOperationOptions {
+  readonly onArchiveStored?: () => void
+}
+
 /** 只供主进程持有的缓存句柄；读流须关闭，dispose 后全部方法失效，不经 IPC 传递。 */
 export interface WindowsArchive {
   readonly manifest: BatchManifest
@@ -235,7 +240,7 @@ export class WindowsArchiveAdapter {
   async receive(
     manifest: unknown,
     input: Readable,
-    options: ArchiveOperationOptions = {},
+    options: ArchiveReceiveOptions = {},
   ): Promise<WindowsArchive> {
     const earlyError: { value: Error | null } = { value: null }
     const rememberError = (error: Error): void => {
@@ -273,6 +278,8 @@ export class WindowsArchiveAdapter {
           actual.sha256 !== snapshot.archive.sha256
         )
           throw new ArchiveError('checksum-mismatch', '压缩体长度或哈希与清单不符。')
+        checkArchiveAbort(options.signal)
+        options.onArchiveStored?.()
         await this.unpack(job, snapshot, counters, options)
         return this.artifact(job, snapshot, 'file')
       }, options)
