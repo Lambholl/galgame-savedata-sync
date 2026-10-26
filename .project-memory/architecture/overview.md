@@ -22,8 +22,8 @@ related_files: []
 
 ## 1. 摘要
 
-- 架构风格：Windows 内置 HTTP 服务、Android 主动连接的局域网双端应用；Windows HTTP sender/receiver 与批次非覆盖发布已实现，Android 归档/发布/网络与完整同步流程尚未实现。
-- 当前实现：双端空壳、v1 本地/批量共享契约、双端目录读取、Windows 私有归档与 HTTP sender 已建立。Windows 支持目录配置恢复、当前层枚举、源快照与受限归档编解码，有限桥不传文件字节。Java SAF 读取通过 API 33 与 API 35 的独立目录/原生流检查；Windows 单文件非覆盖发布及 HTTP receiver 批次编排已实现；Java 归档、SAF 发布与 Android 客户端待后续包。接口边界见[接口契约](api-contracts.md)。
+- 架构风格：Windows 内置 HTTP 服务、Android 主动连接的局域网双端应用；Windows HTTP sender/receiver 与批次非覆盖发布已实现，Android 目标发布/网络与完整同步流程尚未实现。
+- 当前实现：双端空壳、v1 本地/批量共享契约、双端目录读取、Windows 私有归档与 HTTP sender 已建立。Windows 支持目录配置恢复、当前层枚举、源快照与受限归档编解码，有限桥不传文件字节。Java SAF 读取通过 API 33 与 API 35 的独立目录/原生流检查；Windows 单文件非覆盖发布及 HTTP receiver 批次编排已实现；Java 私有归档已实现；SAF 发布与 Android 客户端待后续包。接口边界见[接口契约](api-contracts.md)。
 - 核心模块：设备与地址管理、目录映射、当前目录预览、本次差异计划、文件流传输、平台文件适配。
 - 关键约束：明文 HTTP、手选方向、无历史同步基线、目录不递归汇总大小。
 - 已选技术栈：React + TypeScript + Vite；Windows 使用 Electron + Ant Design；Android 使用 Capacitor + Ant Design Mobile，文件能力沿用 Java 原生插件，用户已接受该选择。双端框架选择见 [Q-001](../requirements/open-questions.md)。
@@ -101,7 +101,7 @@ related_files: []
 | 首次连接入口 | 发现列表 + 手动 IP，扫码后续补充 | accepted |
 | 复制与备份 | 覆盖复制和镜像均提供，默认覆盖复制；备份可关闭、默认开启、保留最近 3 次 | accepted |
 | 前台边界 | Android 只支持前台，后台不在范围内；前台连接时两端均可发起任务 | accepted |
-| 文件传输格式 | 双向唯一 tar.gz；v1 批量共享声明及 Windows 私有源快照/受限归档已实现；Windows HTTP sender 已实现；Windows 单文件非覆盖发布及 HTTP receiver 批次编排已实现；Java 归档、SAF 发布和 Android 网络未交付，完整校验后才允许后续发布；见仓库根目录的 `docs/plans/m001-tar-gzip-protocol.md` | accepted |
+| 文件传输格式 | 双向唯一 tar.gz；v1 批量共享声明及 Windows 私有源快照/受限归档已实现；Windows HTTP sender 已实现；Windows 单文件非覆盖发布及 HTTP receiver 批次编排已实现；Java 私有归档已实现；SAF 发布和 Android 网络未交付，完整校验后才允许后续发布；见仓库根目录的 `docs/plans/m001-tar-gzip-protocol.md` | accepted |
 | 开发阶段协议修订 | 用户确认 HTTP 无业务消费者，已原位修订 v1 的类型/守卫/测试及线格式，不另建 v2；本地目录 DTO 保持复用 | accepted |
 
 上述结论记录于已关闭的[问题登记表](../requirements/open-questions.md)，尚未另建独立 ADR。参考：[Ant Design](https://ant.design/docs/react/introduce/)、[Ant Design Mobile](https://github.com/ant-design/ant-design-mobile)、[Capacitor Android](https://capacitorjs.com/docs/android)、[Android NSD](https://developer.android.com/develop/connectivity/wifi/use-nsd)、[SAF 文件属性](https://developer.android.com/reference/android/provider/DocumentsContract.Document)。

@@ -21,9 +21,9 @@ related_files: []
 
 - 项目目标：在 Windows 电脑与 Android 设备之间，通过局域网手动选择方向同步文件夹，减少游玩 galgame 时手工复制存档的操作。
 - 目标用户：在电脑与 Android 设备之间切换、需要管理多个游戏或文件夹的使用者。
-- 当前阶段：基础设施、双端空壳、v1 批量共享契约、双端目录读取与 Windows 私有归档已实现；Java SAF 在 API 33 合成夹具和 API 35 真实目录分别验证读取与授权恢复。Windows HTTP sender/receiver、会话注册与批次非覆盖发布已实现；Java 归档、SAF 发布、Android 网络和同步流程尚未实现。实现见[实现细节](../development/implementation-notes.md)，验证边界见[回归状态](../testing/regression-notes.md)。
+- 当前阶段：基础设施、双端空壳、v1 批量共享契约、双端目录读取与 Windows 私有归档已实现；Java SAF 在 API 33 合成夹具和 API 35 真实目录分别验证读取与授权恢复。Windows HTTP sender/receiver、会话注册与批次非覆盖发布已实现；Java 私有归档已实现；SAF 发布、Android 网络和同步流程尚未实现。实现见[实现细节](../development/implementation-notes.md)，验证边界见[回归状态](../testing/regression-notes.md)。
 - 成功标准：见[验收标准](../testing/acceptance.md)。
-- 当前授权：WP-009 已提交 63ddb34；本次 WP-005 Windows HTTP 接收代码、测试、说明及记忆同步已完成，本包未提交；下一包为 WP-013 Android Java 归档，尚未开始。仅在本地 HTTP 与独立临时夹具验证显式授权写入，无需 ADB；不含 Android/最终界面、新提交/推送或设备操作，真实存档保持只读。
+- 当前授权：本轮 WP-013 Java 归档代码、测试、说明与记忆同步已授权，用户要求实际 SAF 集成和设备验证一起完成；25 项归档 JVM、5 项 API 33 设备、原生跨端互通、lint/双 APK 已通过。仅独立合成源与私有缓存，不申请 SAF 目标写权限；已获 Git 暂存和本地提交授权；未授权推送或下一工作包。下一建议 WP-010，真实存档保持只读。
 
 ## 2. 项目目标
 

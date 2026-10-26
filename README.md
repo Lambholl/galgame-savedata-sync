@@ -1,6 +1,6 @@
 # Galgame SaveData Sync
 
-Windows 与 Android 的局域网文件夹同步工具。当前已实现共享批量契约、双端目录读取、Windows 私有归档、HTTP 下载及批次上传发布。服务需由可信主进程显式启动，接收需单独本机写授权；界面仍为空壳，Android 归档/写入/网络、跨端编排和文件夹同步尚未实现。
+Windows 与 Android 的局域网文件夹同步工具。当前已实现共享批量契约、双端目录读取与私有归档、Windows HTTP 下载及批次上传发布。服务需由可信主进程显式启动，接收需单独本机写授权；界面仍为空壳，Android 写入/网络、跨端编排和文件夹同步尚未实现。
 
 ## 目录
 
@@ -51,7 +51,7 @@ Windows PowerShell 若限制执行 `.ps1` 启动器，可使用 `pnpm.cmd` 执�
 | `pnpm format`              | 格式化手写代码；Markdown 与生成的 Android 工程单独维护          |
 | `pnpm android:sync`        | 构建移动网页并同步到已纳入仓库的 Android 工程                     |
 | `pnpm android:build`       | 同步资源后使用项目 Gradle Wrapper 构建 debug APK                  |
-| `pnpm android:test` | Java 单元、Android lint 及调试/仪器测试 APK 构建，不自动连接设备 |
+| `pnpm android:test` | Java 单元、跨端原生归档互通、Android lint 及调试/仪器测试 APK 构建，不自动连接设备 |
 | `pnpm android:open`        | 在配置的 Android Studio 中打开原生工程                            |
 
 构建命令不会打包 Windows 安装器、签名或发布应用。目录与契约测试已纳入 `pnpm check`；Android 原生检查另用 `pnpm android:test`，真机另行验证。这些检查不代表同步功能已经实现或通过验收。
@@ -71,4 +71,4 @@ docs/               开发指南
 
 ## 项目记忆
 
-先读取[记忆索引](.project-memory/INDEX.md)，再按任务定位需求、架构、规范与当前工作。Windows 原生单文件发布已实现；HTTP receiver、Android 写入/网络与同步功能在后续工作包实现；目录读取与私有归档接口见[桌面适配](apps/desktop/README.md)和[移动适配](apps/mobile/README.md)。
+先读取[记忆索引](.project-memory/INDEX.md)，再按任务定位需求、架构、规范与当前工作。Windows HTTP sender/receiver 与新文件发布、双端私有归档及实际 SAF 读流集成已实现；Android 目标发布/网络与同步功能在后续工作包实现；目录读取与私有归档接口见[桌面适配](apps/desktop/README.md)和[移动适配](apps/mobile/README.md)。

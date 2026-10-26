@@ -33,13 +33,15 @@ related_files: []
 | 有限 Electron 桥 | 只暴露 chooseDirectory/listRoots/listDirectory；主窗口、主 frame、精确 URL 和参数/返回 DTO 均校验；无任意路径、内容、写入或删除入口。workspace 共享包在 main/preload 构建内联，preload 仅需 Electron require | apps/desktop/src/directory-bridge.ts、src/main/directory-ipc.ts、src/preload/index.ts、electron.vite.config.ts |
 | Windows 检查 | pnpm test:desktop 的 114 项测试（16 目录/IPC、20 私有归档、25 HTTP sender、24 发布、29 HTTP receiver）与 pnpm check 通过；夹具统一采用异步 realpath 临时根；Windows 8.3 短路径子进程回归通过且无跳过，远端复验见回归状态。既有真实存档只读检查内容与 mtime 一致，具体路径/哈希不保存 | apps/desktop/test；testing/regression-notes.md |
 | Java SAF 读取 | 已实现只读系统选择器、稳定根/设备 ID 与权限恢复、当前层元数据和原生 InputStream；URI 不出原生层，未保存历史条目/哈希；API 33 合成夹具与旧 API 35 真实目录分别通过读取、选择/取消及重启恢复；首次访问 ctime 的未确定归因见回归状态 | apps/mobile/README.md、apps/mobile/src/saf-*、Android Java 源码及测试 |
+| Java 私有归档 | 已实现实际流原文快照、未知长度计数/读取后 SAF 观察复核、规范 USTAR/gzip1；显式原始 inflater 消耗边界及 CRC/ISIZE/物理 EOF，全部逐文件 SHA 和精确 tar 结束通过才返回句柄。固定 v1 原生不可变模型不承担网络 JSON 解码 | ArchiveAdapter.java、ArchiveModel.java、ArchiveFormat.java、SafArchiveSource.java；apps/mobile/README.md |
+| Java 缓存及验证 | 可信 Context 先解析系统私有路径别名；其下缓存标记/随机任务/链接及未知条目失败关闭；进程任务独占直到句柄释放或清理成功，主错误/清理错误分开，可重试和启动孤儿恢复；64 KiB 实际流预算，取消关闭源/查询。25 项 JVM、5 项 API 33 设备、双向原生互通通过，源原文受外部独立复核 | ArchiveCache.java、ArchiveControl.java、ArchiveFailure.java、ArchiveAdapterTest.java、ArchiveSafTest.java、scripts/verify-archive-interop.mjs |
 | 独立传输基准 | 仅 debug 的精确目录授权 Activity 与手动仪器用例，配合 Python 标准库私有 HTTP 对端；三样本双向比较实验共 54 组通过，含 SAF 写后回读，作为 tar.gz 决定的性能与可行性证据；默认不执行，不改只读注册表，不代表正式批量契约或写入业务包完成 | docs/experiments/transfer-benchmark-2026-10-26.md；scripts/experiments/transfer-benchmark.py；TransferBenchmarkTest.java |
-| 当前产品边界 | 已有空壳、本地/批量共享契约、双端读取适配、Windows 私有归档、HTTP sender/receiver 与批次非覆盖发布；没有项目管理、Android 归档/发布/网络、mDNS 或同步算法；Android 写入单列 WP-010，界面未接目录按钮 | apps/desktop、apps/mobile、development/work-packages.md |
+| 当前产品边界 | 已有空壳、本地/批量共享契约、双端读取适配、双端私有归档、Windows HTTP sender/receiver 与批次非覆盖发布；没有项目管理、Android 目标发布/网络、mDNS 或同步算法；Android 写入单列 WP-010，界面未接目录按钮 | apps/desktop、apps/mobile、development/work-packages.md |
 | 固定依赖 | 采用兼容的 React 18 / TypeScript 5.9；pnpm 10.34.8；精确锁定版本和 lockfile，保留严格 peer 检查 | package.json、pnpm-lock.yaml、pnpm-workspace.yaml |
 | npm 安全 | 官方 registry 对 397 项依赖复审零已知漏洞；xcode 的 uuid 定向修复为 11.1.1，已验证 CommonJS UUID 调用兼容；pnpm 独立 OSV 查询零公告 | scripts/security-check.mjs、pnpm-workspace.yaml |
 | Gradle 安全 | 升级为 8.14.6；分发 ZIP 固定官方 SHA-256，Wrapper JAR 已按官方 SHA-256 验证并更新启动器 | apps/mobile/android/gradle/wrapper/、gradlew、gradlew.bat |
 | Android 工具依赖 | AGP 8.13.2 与统一补丁策略已生效；全部可解析 Maven 配置（含各变体、测试、lint 和构建工具）与 Gradle Core 共 273 项复审零已知公告；包含 Protobuf 3.x 修复且保留 4.x 请求。移除未使用的 Google Services 构建插件 | apps/mobile/android/dependency-security.json、scripts/security-android.mjs |
-| Android 构建与读取检查 | pnpm android:test 的 5 项 Java 单元（含 4 项 SAF 边界）、Android lint 和双 APK 构建通过；API 33 合成夹具及 API 35 真实目录分别验证读取、选择/取消和进程重启恢复，API 29 与其它提供者仍未验证 | apps/mobile/android/app/src/test、src/androidTest；testing/regression-notes.md |
+| Android 构建与读取检查 | pnpm android:test 的 30 项 Java 单元（25 项归档、4 项 SAF、1 项基础）、Android lint 和双 APK 构建通过；API 33 合成夹具及 API 35 真实目录分别验证读取、选择/取消和进程重启恢复，API 29 与其它提供者仍未验证 | apps/mobile/android/app/src/test、src/androidTest；testing/regression-notes.md |
 
 ## 2. 注意事项
 

@@ -259,6 +259,32 @@ final class SafDirectoryStore {
     }
 
     /**
+     * 归档读取前后重新查询授权、身份、类型及可观察属性。只返回原生观察模型；
+     * 未知长度保留 null，不能以新查询覆盖枚举时的基线后继续读取已变化的源。
+     */
+    synchronized ArchiveModel.Observation archiveObservation(String rootId, String entryId,
+                                                            CancellationSignal signal) throws SafFailure {
+        try {
+            Root root = requireRoot(rootId);
+            Entry entry = requireEntry(rootId, entryId);
+            Snapshot current = query(root, entry.documentId, signal);
+            if (current.isDirectory || current.isVirtual) {
+                throw new SafFailure("unsupported-operation", "该条目不支持原始文件归档");
+            }
+            ArchiveModel.Observation baseline = observation(entry, entry.snapshot);
+            ArchiveModel.Observation observed = observation(entry, current);
+            if (!baseline.same(observed)) throw new SafFailure("source-changed", "源文件属性已变化，请重新读取目录");
+            return observed;
+        } catch (Exception cause) { throw SafFailure.from(cause); }
+    }
+
+    private ArchiveModel.Observation observation(Entry entry, Snapshot snapshot) {
+        return new ArchiveModel.Observation(entry.rootId + ":" + snapshot.documentId,
+            documentIds.get(entry.rootId + "\n" + entry.documentId), entry.parentId,
+            snapshot.name, snapshot.size, snapshot.modified);
+    }
+
+    /**
      * 以 r 模式打开当前已枚举的文件；返回流归调用者所有，调用者必须关闭。
      * 每次读取均检查取消状态；生命周期管理方还必须关闭阻塞中的流。
      * 字节不经过 JS 桥；大小和日期检查仅用于发现可观察的源变化，不提供原子快照。

@@ -26,6 +26,9 @@ related_files: []
 | `apps/mobile/` | antd-mobile 空壳、Vite 与 Capacitor 配置 | 网页预览不等于 Android 原生能力验证 |
 | `apps/mobile/android/` | Capacitor 生成的原生工程与项目 Wrapper | minSdk 29、compile/target 36；Manifest 明文 HTTP；不增加后台服务 |
 | `apps/mobile/android/app/src/main/java/io/github/galgame/savedatasync/` | Java SAF 只读选择、权限/配置恢复、当前层元数据和原生流 | URI 留原生层，READ 持久授权，原生流调用者负责关闭；配置不保存条目或哈希 |
+| 同目录 `ArchiveAdapter.java`、`ArchiveModel.java`、`ArchiveFormat.java`、`ArchiveCache.java`、`ArchiveControl.java`、`ArchiveFailure.java`、`SafArchiveSource.java` | Java 私有源快照、严格 USTAR/单 gzip、固定预算/取消/期限与缓存归属/恢复/重试；SAF 读取后复核 | 无 JSON/HTTP/目标发布或文件内容跨桥；句柄关闭读流后 close；进程独占覆盖待清理资源 |
+| `apps/mobile/android/app/src/test/java/io/github/galgame/savedatasync/ArchiveAdapterTest.java`、`src/androidTest/java/io/github/galgame/savedatasync/ArchiveSafTest.java` | 25 项 JVM 归档故障/格式/资源及 5 项实际设备 SAF 专项 | 共用 Python 独立夹具，实际 Windows/JVM/Android 压缩器互通；合成源只读，缺少实际目录授权失败而非跳过 |
+| `scripts/verify-archive-interop.mjs` | 构建前 Windows 准备、构建后 Windows 接收 Java 输出，另支持设备产物及 SAF 原文验证 | prepare/verify 纳入 android:test；只操作固定报告目录中的合成数据，测试 APK 不包含主机路径配置 |
 | `apps/mobile/src/saf-directory-bridge.ts`、`saf-directories.ts`、`test/`、`README.md` | 受限 TS 桥、原生绑定、契约测试与调用说明 | 网页预览不支持；只传公开 DTO/ID，无内容/写入方法；pnpm test:mobile 纳入 check |
 | `apps/mobile/android/app/src/test/`、`src/androidTest/` | Java 纯边界与设备仪器测试 | 默认仅独立私有夹具和桥检查；交互模式由真实选择器授权，真实目录只读 |
 | `apps/mobile/android/app/src/debug/`、`src/androidTest/java/io/github/galgame/savedatasync/TransferBenchmarkTest.java`、`scripts/experiments/transfer-benchmark.py` | 手工启用的真实 LAN/SAF 双向性能实验 | 只授权全新测试树写入，有限缓冲、逐项写后回读、私有副本和清理；默认跳过，debug Activity 不导出，release 不含入口；不替代正式 HTTP/写入适配 |

@@ -22,6 +22,12 @@ android {
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
     }
+    sourceSets {
+        // 两端测试消费同一份独立 Python 格式夹具，不复制后分别维护。
+        test.resources.srcDirs += '../../../desktop/test/fixtures'
+        androidTest.assets.srcDirs += '../../../desktop/test/fixtures'
+        androidTest.assets.srcDirs += "$buildDir/generated/archive-interop"
+    }
 }
 
 repositories {
@@ -43,3 +49,10 @@ dependencies {
 }
 
 apply from: 'capacitor.build.gradle'
+
+// 固定 Windows 产物变化或 Java 产物丢失时，必须重新执行跨端单元验证。
+tasks.withType(Test).configureEach {
+    inputs.file(layout.buildDirectory.file('reports/archive-interop/windows.gz'))
+    inputs.file(layout.buildDirectory.file('reports/archive-interop/windows-large.gz'))
+    outputs.file(layout.buildDirectory.file('reports/archive-interop/java.gz'))
+}
