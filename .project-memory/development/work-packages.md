@@ -22,11 +22,11 @@ related_files:
 
 ## 1. 状态与入口
 
-当前用户授权 tar.gz 批量契约设计、工作包拆分及文档/记忆同步，无需 ADB；本轮不执行产品代码、测试代码、设备操作或 Git 提交。用户确认 HTTP API 无业务消费者，允许原位修订 v1，不另建 v2。Java SAF 读取实现及既有设备验证证据继续有效，新文件写入仍由 WP-010 在独立夹具验证。
+设计文档已按用户授权提交 a8dcec3。用户要求继续下一工作包，当前允许 WP-011 共享批量契约的代码、测试、说明与记忆同步；无需 ADB。本包无提交/推送或设备操作授权。HTTP API 无业务消费者，允许原位修订 v1，不另建 v2；Java SAF 读取及既有设备验证边界继续有效。
 
 详细范围与流程位于 `docs/plans/m001-directory-http.md`；[接口契约](../architecture/api-contracts.md)与[模块设计](../architecture/modules.md)维护当前边界。共享与平台说明见 `packages/shared/README.md`、`apps/desktop/README.md`、`apps/mobile/README.md`。基础设施、共享契约及双端目录读取已完成；Java SAF 通过 API 33 合成夹具复测与旧 API 35 读取/恢复验证；两机证据不混用。新文件发布、HTTP 与同步流程未实现，本次目录适配尚未远端验证。
 
-双向唯一 tar.gz 方案见[Q-008](../requirements/open-questions.md)，具体清单、路由、归档格式、资源限制、进度/终态和失败语义已形成设计，位于仓库根目录的 `docs/plans/m001-tar-gzip-protocol.md`。新增 WP-011 至 WP-013，分别实现共享批量契约与双端原生归档。现有共享包单文件传输类型尚未修订；本文 planned 均不表示已授权实现或检查通过。下一实现起点为 WP-011，无需 ADB。
+双向唯一 tar.gz 方案见[Q-008](../requirements/open-questions.md)，详细设计位于仓库根目录的 `docs/plans/m001-tar-gzip-protocol.md`。WP-011 已原位修订 v1 批量数据声明、守卫、上下文匹配和常量，并通过共享/既有目录桥及双端构建；不包含编解码或真实 IO。WP-012/013 原生归档仍 planned，下一实现起点 WP-012 无需 ADB；planned 不表示已授权实现或检查通过。
 
 ## 2. M-001 工作包
 
@@ -42,7 +42,7 @@ related_files:
 | WP-008 | 真机验收与 M-001 结论 | WP-001 至 WP-007、WP-009 至 WP-013；对应设备验证授权 | 测试设备与 testing/ 文档 | Android 10 及较新真机矩阵、实际 LAN HTTP、授权恢复、内容校验和故障用例通过 | planned | 需要设备；缺少平台仍保留缺口，不关闭 M-001 |
 | WP-009 | Windows 新文件暂存与发布 | WP-002 | apps/desktop 主进程与测试 | 独立测试目录内验证写流、同名拒绝、发布竞争、失败/取消清理；不触碰真实存档 | planned | 从 WP-002 拆出，尚未实现；须在 WP-005 前完成，不向 Renderer 暴露任意写入 |
 | WP-010 | Android SAF 新文件写入 | WP-003 | apps/mobile 原生适配及测试 | 独立测试目录内验证写授权、新建、校验、名称冲突及失败残留；原生流不跨 JS | planned | 从 WP-003 拆出；独立调试基准未交付正式发布适配。保留平台内部单文件边界，由 WP-006 聚合批次；需设备验证提供者改名/歧义与不修改既有文件，不承诺 SAF 排他创建；真实存档保持只读 |
-| WP-011 | 共享 tar.gz 批量契约 | WP-001；本次批量协议设计 | packages/shared/src、test、README.md；最小受影响引用 | 原位修订 v1 的批量 DTO/守卫/路由/头/错误及上限常量；清单对应/求和、角色终态、未知结果、类型反例、旧目录桥回归与 pnpm check 通过 | planned | 下一实现包，无需 ADB；替换尚无业务消费者的单文件 HTTP 类型/语义，不改已工作的目录 DTO，不引入 IO 或编解码依赖 |
+| WP-011 | 共享 tar.gz 批量契约 | WP-001；本次批量协议设计 | packages/shared/src、test、README.md；设计/记忆同步 | 原位修订 v1 的批量 DTO/守卫/路由/头/错误及上限常量；清单对应/求和、角色终态、未知结果、类型反例、旧目录桥回归与 pnpm check 通过 | done | 32 项运行时、16 项类型反例及 pnpm check（含 16 桌面/5 移动桥、双端构建）通过；保持目录 DTO，无新增依赖/IO；下一包 WP-012；本包未提交、未连接设备 |
 | WP-012 | Windows 原生归档与私有暂存 | WP-002、WP-011 | apps/desktop 主进程归档模块、独立夹具及测试 | 按流源快照、受限 USTAR/gzip1 打包、完整解包校验、非法归档/计数/空间/取消/清理；固定跨端夹具与独立内容期望通过 | planned | 无需 ADB；只写自身私有临时目录，不发布目标文件、不提供 HTTP；包内明确流/缓存所有权与可观测源变化边界 |
 | WP-013 | Android Java 原生归档与私有暂存 | WP-003、WP-011；复用 WP-012 固定夹具 | apps/mobile Java 归档模块、单元/仪器测试及共用格式夹具 | 与 Windows 同一归档语义/故障矩阵、未知源长度实测、有限缓冲及缓存清理；Java 单元/lint/双 APK 通过，SAF 实测缺口单列 | planned | JVM 纯 IO 及构建无需 ADB；调用实际 SAF 原生读流的集成验证需要设备；不申请目标写授权、不做 HTTP 或 SAF 最终发布 |
 

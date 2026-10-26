@@ -23,7 +23,7 @@ related_files: []
 
 | 模块 | 职责 | 输入 | 输出 | 依赖 | 相关文件 |
 | --- | --- | --- | --- | --- | --- |
-| 共用契约 | 已实现 v1 目录与单文件声明；WP-011 将传输原位修订为批量清单、映射、状态/结果、会话/资源/错误常量 | 已解析 JSON/plain data | 只读 DTO 或守卫布尔值 | WP-001 已完成；WP-011 待实现；不导入平台 API | packages/shared/src；packages/shared/README.md |
+| 共用契约 | 已实现 v1 本地目录及批量清单、映射、状态/结果、会话/资源/错误常量；纯守卫与任务上下文匹配 | 已解析 JSON/plain data；本次清单/方向及 receiver 目标请求 | 只读 DTO 或校验布尔值，不证明真实 IO | WP-001/WP-011 已完成；不导入平台 API | packages/shared/src；packages/shared/README.md |
 | Windows 目录读取适配 | 已实现选择登记与恢复、当前层查询、根内原生只读流 | 主进程选择器路径或本地 rootId/entryId | 公开 DTO 或仅主进程持有的 Readable | WP-002；无源目录写入入口 | apps/desktop 主进程与 preload |
 | Windows 新文件暂存发布 | 候选写流、同名拒绝、发布与失败/取消清理 | 独立测试目录与新文件请求 | 新文件结果或残留说明 | WP-009；依赖 WP-002，不向 Renderer 暴露任意写入 | apps/desktop 主进程与测试 |
 | Android SAF 读取适配 | 已实现只读授权/恢复、当前层元数据、原生读流，API 33/35 读取验证通过 | 系统选择结果、本地目录引用 | 当前条目、原生 InputStream 和能力/错误 | WP-003；Java、SAF、ContentResolver | apps/mobile 原生插件；apps/mobile/README.md |

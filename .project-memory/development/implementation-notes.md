@@ -20,8 +20,8 @@ related_files: []
 | 主题 | 结论 | 相关文件 |
 | --- | --- | --- |
 | 基础设施 | pnpm 工作区、双端 React 空壳、共享入口、严格 TS / ESLint / Prettier、编码检查和 Windows CI 已建立 | 根目录配置、apps/、packages/shared、scripts/、.github/workflows/ci.yml |
-| WP-001 共享契约 | 协议版本 1，封闭 JSON DTO、三态能力、空值/错误、运行/成功/失败/取消/未知结果、创建请求与错误状态映射已实现；守卫无平台 IO，不计算实际哈希 | packages/shared/src/contracts.ts、protocol.ts、validation.ts；完整说明和示例见 packages/shared/README.md |
-| 共享检查入口 | pnpm test:shared 执行 15 项 Node 运行时契约测试；类型反例随 typecheck 检查；pnpm check 已接入。共享包只使用 ES2022 标准库、无自动平台类型、启用 erasableSyntaxOnly；根 tsconfig 允许 .ts 源码引用以配合原生类型擦除测试 | package.json、tsconfig.base.json、packages/shared/package.json、packages/shared/tsconfig.json、packages/shared/test |
+| 共享本地/批量契约 | 保留数字 v1 与本地设备/目录 DTO，移除未被业务消费的旧单文件声明；批量清单/映射/状态/结果、路由/头/错误/预算常量、封闭守卫及上下文匹配已实现。sender sent 与 receiver succeeded 分开，实际文件哈希/根/父/名需匹配本任务；无平台 IO，不计算实际哈希 | packages/shared/src/contracts.ts、protocol.ts、validation.ts、batch-*.ts、data-validation.ts；packages/shared/README.md |
+| 共享检查入口 | pnpm test:shared 的 32 项运行时测试（12 项基础、20 项批量/上下文）、16 项类型反例及 pnpm check 通过；包含全部原有目录桥和双端构建。共享只用 ES2022、无自动平台类型、启用 erasableSyntaxOnly；未新增依赖 | package.json、tsconfig.base.json、packages/shared/tsconfig.json、packages/shared/test |
 | Windows 目录读取 | schema 1 配置在应用 userData，保存稳定设备/根 ID 与 bigint dev/ino 身份；配置不位于所选根内，未知版本/坏配置不重置。条目映射仅存内存；当前层读取、身份重查及原生只读流已实现 | apps/desktop/src/main/directory-adapter.ts、directory-store.ts、directory-paths.ts；完整说明见 apps/desktop/README.md |
 | 有限 Electron 桥 | 只暴露 chooseDirectory/listRoots/listDirectory；主窗口、主 frame、精确 URL 和参数/返回 DTO 均校验；无任意路径、内容、写入或删除入口。workspace 共享包在 main/preload 构建内联，preload 仅需 Electron require | apps/desktop/src/directory-bridge.ts、src/main/directory-ipc.ts、src/preload/index.ts、electron.vite.config.ts |
 | Windows 检查 | pnpm test:desktop 的 16 项临时目录/IPC 测试与 pnpm check 通过；夹具统一用异步 realpath 的系统临时根，创建及清理边界一致；真实 8.3 别名环境中子进程重跑原 15 项，正常/短路径均通过且无跳过；业务路径检查未放宽，远端复验见回归状态。既有真实存档只读检查内容与 mtime 一致，具体路径/哈希不保存 | apps/desktop/test；testing/regression-notes.md |

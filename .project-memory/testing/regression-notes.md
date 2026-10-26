@@ -14,9 +14,9 @@ related_files: []
 
 | 回归范围 | 当前结果 | 未解决问题 | 证据 |
 | --- | --- | --- | --- |
-| tar.gz 批量契约设计与分包 | 设计完成；记忆、文本、链接/目录与依赖检查通过 | WP-011/012/013 和正式 HTTP/发布均未实现，TC-023 至 TC-027 仍 pending；本轮只改文档，无设备或业务运行验证 | docs/plans/m001-tar-gzip-protocol.md；15 份变更文档的 87 个本地链接/章节检查、13 包拓扑及资源预算算术检查通过；project-memory validate、pnpm check:text、git diff --check 通过 |
-| 编码、格式、lint、严格类型、基础设施/共享/桌面/移动桥测试、双端构建 | passed | 新文件写入与 HTTP 业务未实现；真机矩阵仍有缺口 | pnpm check 通过；2 项基础设施、15 项共享、16 项桌面、5 项移动桥测试，9 项类型反例及 Web/Electron 构建；桌面含实际执行的短路径子进程回归 |
-| WP-001 共享契约 | passed | 守卫只校验解析后数据，不确认真实权限、内容、发布或前台生命周期 | pnpm test:shared、共享 typecheck；空值/错误、当前层引用、协议/名称/ID/哈希、进度/回执/取消/未知结果及只读边界 |
+| tar.gz 批量契约设计与分包 | 设计已提交 a8dcec3，数据层实现通过 | WP-012/013 和正式 HTTP/发布未实现，TC-024 至 TC-027 仍 pending；无新设备或性能通过证据 | docs/plans/m001-tar-gzip-protocol.md；13 包依赖、资源预算和文档边界继续有效；共享实现见下一行 |
+| 编码、格式、lint、严格类型、基础设施/共享/桌面/移动桥测试、双端构建 | passed | 新文件写入与 HTTP 业务未实现；真机矩阵仍有缺口 | 本轮 pnpm check 通过；2 项基础设施、32 项共享、16 项桌面、5 项移动桥测试，16 项类型反例及 Web/Electron 构建；短路径子进程回归执行通过，无新增依赖 |
+| WP-011 共享本地/批量契约 | passed | 守卫/上下文匹配不解析 JSON 文本、归档或确认实际权限、内容、发布、会话与前台生命周期 | 32 项运行时及 16 项类型反例通过；12 项基础回归和 20 项批量/上下文覆盖连续 ID、目标对应、精确 tar 求和、资源边界、角色终态、取消/残留、错位目标/哈希及进度；pnpm check 通过 |
 | ESLint 通用规范与 Prettier 集成 | passed | 语义与人工评审边界见 standards/coding-style.md | 12 个规则反例、4 个框架默认导出例外、eslint --fix 共用格式配置、42 项 Markdown 排除检查通过；eslint-config-prettier 检查无冲突；19 个源码文件仅有格式变更 |
 | Windows 目录读取与有限 IPC | passed（本机） | 不覆盖系统选择器人工点击、实际 Electron 窗口交互、新文件写入或 HTTP；Node 路径检查不是并发命名空间原子隔离；本轮 CI 修复待远端复验 | pnpm test:desktop 的 16 项测试；正常及 8.3 短路径 TEMP/TMP 环境均全部通过、无跳过，含子进程重跑原 15 项；构建 CJS preload 在隔离环境加载，只有 Electron require，三个有限方法可用 |
 | Windows 真实存档目录只读 | passed | 只验证当前层读取，不代表 Android 或同步产品验收；真实目录禁止写入/修改/删除 | 用户授权目录的适配器只读流与原生读取一致，配置恢复成功；前后内容哈希、条目及修改时间相同，路径/哈希不保存 |

@@ -26,6 +26,7 @@ related_files: []
 | `docs/experiments/transfer-benchmark-2026-10-26.md`、同名 CSV | 54 组匿名性能结果与复验方法 | 三个样本对应用户输入顺序；只保存计数、体积和耗时，不保存原路径、文件名或原始哈希 |
 | `packages/shared/src/index.ts` | 应用名和共享契约导出入口 | 不包含同步算法或平台 API |
 | `packages/shared/src/contracts.ts`、`protocol.ts`、`validation.ts` | 协议版本 1 DTO、错误/路由/头名映射与纯数据守卫 | 目录不汇总大小；封闭 DTO 区分空值/失败/未知结果；平台路径、权限和真实内容校验仍由适配器负责 |
+| `packages/shared/src/batch-contracts.ts`、`batch-limits.ts`、`batch-validation.ts`、`batch-context.ts`、`data-validation.ts` | v1 批量 DTO、固定预算/期限、结构/关系守卫与任务上下文匹配；基础容器/文本/数值辅助供内部复用 | sender/receiver 分开；清单与目标一一对应；matchesBatchState 核对实际结果；无归档、HTTP、IO 或历史存储 |
 | `packages/shared/test/`、`packages/shared/README.md` | 运行时/类型契约检查、完整线格式与调用示例 | pnpm test:shared 执行运行时测试，typecheck 检查类型反例，均已接入 pnpm check |
 | `scripts/doctor.mjs`、`scripts/local-environment.mjs` | 开发工具入口 | 使用方式见 README |
 | `scripts/android-build.mjs`、`scripts/android-open.mjs` | 原生构建、单元/lint/双 APK 检查、依赖清单与 IDE 入口 | pnpm android:test 不连接设备；只对子进程传入 SDK/JDK；IDE 不存在时明确失败 |

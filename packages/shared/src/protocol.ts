@@ -1,11 +1,10 @@
 import { PROTOCOL_VERSION } from './contracts.ts'
 import type { OperationErrorCode } from './contracts.ts'
 
-/** 协议头名不区分大小写；文件名只放 UTF-8 URL 查询参数，不放原始 HTTP 头。 */
+/** 会话和压缩体校验头；文件名只放 JSON，不放原始 HTTP 头。 */
 export const HTTP_HEADERS = {
-  contentSha256: 'x-content-sha256',
-  expectedSha256: 'x-expected-sha256',
-  expectedSizeBytes: 'x-expected-size-bytes',
+  sessionId: 'x-sync-session-id',
+  archiveSha256: 'x-archive-sha256',
 } as const
 
 /** 静态路由与模板；适配器需校验参数并编码每段，不能直接替换任意路径。 */
@@ -13,8 +12,10 @@ export const HTTP_ROUTES = {
   device: '/v1/device',
   roots: '/v1/roots',
   entries: '/v1/roots/{rootId}/entries',
-  content: '/v1/roots/{rootId}/files/{entryId}/content',
-  createFile: '/v1/roots/{rootId}/transfers/{transferId}',
+  downloads: '/v1/transfers/downloads',
+  uploads: '/v1/transfers/uploads',
+  manifest: '/v1/transfers/{transferId}/manifest',
+  content: '/v1/transfers/{transferId}/content',
   transfer: '/v1/transfers/{transferId}',
 } as const
 
@@ -22,6 +23,12 @@ export const HTTP_ROUTES = {
 export const HTTP_ERROR_STATUS = {
   'invalid-request': 400,
   'protocol-mismatch': 409,
+  'session-mismatch': 409,
+  'task-conflict': 409,
+  'invalid-archive': 422,
+  'resource-limit': 413,
+  busy: 429,
+  timeout: 408,
   'permission-denied': 403,
   'authorization-expired': 403,
   'not-found': 404,

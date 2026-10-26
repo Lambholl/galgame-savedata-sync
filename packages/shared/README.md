@@ -2,95 +2,107 @@
 
 ## 目录
 
-- [1. 范围与入口](#1-范围与入口)
-- [2. 数据与校验](#2-数据与校验)
-- [3. HTTP 线协议](#3-http-线协议)
-- [4. 生命周期与跨语言责任](#4-生命周期与跨语言责任)
-- [5. 使用示例与检查](#5-使用示例与检查)
+- [1. 范围与兼容性](#1-范围与兼容性)
+- [2. 本地目录与批量模型](#2-本地目录与批量模型)
+- [3. 守卫与上下文匹配](#3-守卫与上下文匹配)
+- [4. HTTP 线格式与预算](#4-http-线格式与预算)
+- [5. 资源及跨语言责任](#5-资源及跨语言责任)
+- [6. 检查与验证边界](#6-检查与验证边界)
 
-## 1. 范围与入口
+## 1. 范围与兼容性
 
-`@savedata-sync/shared` 通过 `src/index.ts` 导出协议版本 1 的 DTO、路由/头名/错误映射和纯数据守卫。保留既有 `APP_NAME` 导出。没有文件读写、网络服务、同步算法、状态存储或平台适配；Windows 与 Android 的实际能力由后续工作包实现。
+`@savedata-sync/shared` 从 `src/index.ts` 导出应用名、协议 v1 的本地目录/设备 DTO、tar.gz 批量 DTO、纯数据守卫、上下文匹配器和协议常量。共享包不包含 IO、归档编解码、HTTP 服务/客户端、任务存储或同步算法。
 
-版本必须是数字 `1`，不能强制转换字符串或默认接受未来版本。协议对象采用封闭结构，缺失或额外字段均被守卫拒绝。用户确认当前 HTTP API 无业务消费者，允许在 WP-011 原位修订 v1 为[tar.gz 批量契约](../../docs/plans/m001-tar-gzip-protocol.md)，不另建 v2；此开发阶段例外不用于正式消费者出现后的不兼容变更。现有代码仍为下述单文件声明，批量类型/守卫/常量及测试尚未实现。不要将平台内部路径、content URI、历史文件索引加进公开 DTO。
+HTTP 尚无业务消费者，用户允许直接修订数字 `PROTOCOL_VERSION=1`；不新增 v2、不保留旧单文件端点或别名。DeviceDescriptor、DirectoryReference、EntryMetadata、DirectoryListing、DirectorySelectionResult 及本地目录桥保持复用。HTTP 的 DeviceResponse 改为 `OperationResult<BatchDeviceDescriptor>`，包装本地 device 并提供 sessionId/limits。
 
-## 2. 数据与校验
+旧 TransferProgress/TransferReceipt/TransferResult/TransferState、CreateFileRequest/CreateFileResponse/TransferResponse 及对应守卫已移除。后续调用迁移为 BatchProgress/BatchState/FileOutcome、DownloadBatchRequest/ReceiveBatchRequest、BatchResponse/ManifestResponse，并在接受接收成功前执行上下文匹配。旧 content/createFile 路由及逐文件哈希/长度头由批量路由和归档校验头替换。该开发阶段原位修订不作为正式消费者出现后的兼容策略。
 
-| 对象 | 规则 |
+详细目标行为见[批量协议设计](../../docs/plans/m001-tar-gzip-protocol.md)；本包实现的是其数据与关系约束，正式归档/HTTP/发布仍由后续平台包实现。
+
+## 2. 本地目录与批量模型
+
+| 对象 | 语义与约束 |
 | --- | --- |
-| ID | `deviceId`、`rootId`、`entryId`、`parentId`、`transferId` 为 1–128 个 ASCII 字符，首位字母或数字，后续允许字母、数字、下划线和短横线；大小写敏感。不接收路径、URI 或编码后的路径片段 |
-| 根目录 | `authorization` 为 granted、expired、unavailable 或 unverified；地址独立于根引用，授权恢复及失效判定由适配器完成 |
-| 条目 | `kind` 区分 file/directory；根层 `parentId=null`，entryId 不能等于 parentId；name 为原始展示名，不从它拼装可访问路径 |
-| 大小 | 所有字节计数必须是非负安全整数；未知为 null，不以 0 代替；目录 sizeBytes 必须为 null |
-| 日期 | Unix 毫秒整数，限制在 JavaScript 可表示日期范围 ±8.64e15；0 和负数为真实日期；未知修改日期为 null；日期不决定权威端 |
-| 文本 | 展示名、条目名、错误信息非空白且不超过 1024 个 UTF-16 码元；错误信息由生产者脱敏，守卫不能自动发现隐私 |
-| 能力 | supported、unsupported、unknown 三态；未知不等于不支持，平台声明能力也不保证实际操作成功 |
-| 当前层清单 | entries 可为空；条目必须属于同一 rootId 和 parentId，entryId 不得重复；无递归大小计算 |
-| 新文件名 | 1–255 个 UTF-16 码元，禁止路径字符、控制字符、未配对代理项、Windows 保留名称及尾部点/空格；保留合法 Unicode，不静默改名或归一化；提供者仍可拒绝创建 |
-| SHA-256 | 严格 64 个小写十六进制字符，仅用于本次传输；守卫只检查格式，不计算内容或确认一致性 |
+| 本地设备/目录 | 安装内 deviceId 与连接地址分离；授权 granted/expired/unavailable/unverified；URI 与真实路径留在平台内部；选择取消不清除原目录 |
+| 元数据/当前层 | file/directory 联合；目录 sizeBytes 固定 null，文件未知为 null、空文件为 0；时间为 Unix 毫秒（±8.64e15 内安全整数），0 和负数有效；只列当前层，不汇总目录大小 |
+| 基本数据 | ID 为 1–128 位 URL 安全 ASCII；SHA-256 为 64 位小写十六进制；展示文本非空白、最多 1024 个 UTF-16 码元且不含未配对代理项；无类型强制转换 |
+| 共同创建名 | 最多 255 个 UTF-16 码元；拒绝路径、控制字符、Windows 保留名及尾部点/空格；保留合法 Unicode，不归一化/改名；实际名称竞争仍由平台验证 |
+| SourceSelection / DownloadBatchRequest | 单个已登记源根内的显式文件引用；fileId 必须从 f000001 连续到最多 f001024，源 entryId 不重复，不接受空批或目录展开 |
+| PreparedFile / BatchManifest | 源引用、显示名/日期和本次实际长度/哈希；未知源长度必须先实测；校验文件求和、源唯一性和精确 tar 长度；清单不保存为历史基线 |
+| ArchiveDescriptor | format=tar.gz、compressionLevel=1、实际压缩体长度、tar 原文长度、实际归档哈希；不同压缩器可以产生不同字节，接收端验证本次归档 |
+| TargetSelection / ReceiveBatchRequest | 用 fileId 一一映射 targetRootId 内已有 parentId 和单文件名；映射顺序可与清单不同，缺项/重复/额外项/显式同目标拒绝；不按 tar 路径创建文件 |
+| BatchProgress | 分开 sourceBytesRead、archiveBytesTransferred、fileBytesVerified、fileBytesPublished；totalFileBytes/totalArchiveBytes 未知为 null；文件数、字节及阶段关系检查，不代表文件夹大小 |
+| BatchState | running 含 stage/progress/cancelRequested；终态含 error/fileResults/cleanupStatus/cleanupError；角色为 sender 或 receiver，不混用字段 |
+| FileOutcome | 成功带 bytesWritten/sha256/实际文件 entry；失败和取消可带本次残留；未知必须 result-unknown；未尝试带 batch-invalid/prior-failure/cancelled 原因 |
 
-所有 `is…` 守卫用于检查解析后的 JSON/plain data，返回布尔值并提供类型收窄，不改变、克隆或冻结输入。它们不负责 JSON 文本解析或检查带恶意 getter/Proxy 的可执行对象；调用者先捕获解析错误，再调用守卫。跨异步/线程边界需要复制快照时由调用者负责。
+sender 的 sent 只表示本机发送完成，不代表对端已接收或发布；sender 不允许报告 succeeded 或逐文件目标结果。receiver 的 succeeded 必须全项成功。首次失败/取消/未知停止后续发布，最终结果按连续 fileId 覆盖全部清单；保留前项成功，后项用准确的 not-attempted 原因。校验整批失败时全部为 not-attempted/batch-invalid。
 
-`OperationResult<T>` 为 `{status:'success', value:T}` 或 `{status:'error', error:OperationError}`。成功空清单是有效空目录；权限失效或读取失败必须进入错误分支。取消系统选择器用 `DirectorySelectionResult` 的 cancelled 分支，保留既有有效引用。
+私有缓存清理状态与目标发布结果分开：已确认发布成功但清理失败仍保留 succeeded，cleanupStatus=incomplete 且 cleanupError=cleanup-failed；不把真实成功写入改报为未写入。unknown 使用 result-unknown 且 canRetry=false，空残留数组不能证明没有残留。
 
-## 3. HTTP 线协议
+## 3. 守卫与上下文匹配
 
-以下记录当前代码中已实现的单文件声明，尚无 HTTP 业务实现或消费者；不能用作后续批量适配器的目标规格。WP-011 将按上述批量设计直接替换对应 DTO、路由、头、进度/结果及错误映射，并同步本 README 和测试；本轮只交付设计。
+`is…` 守卫只接收已解析 JSON/plain data，不修改、克隆或冻结输入，不执行 IO/哈希/归档校验。非普通容器、稀疏数组、缺失/额外字段、非法联合或超范围值返回 false。它们不防御可执行 getter/Proxy；调用方应先在解析层拒绝重复 JSON 键、非法 UTF-8、超限文本和歧义 HTTP 定界。
 
-| 路由 | 方法与输入 | 成功响应 |
-| --- | --- | --- |
-| /v1/device | GET | 200，DeviceResponse |
-| /v1/roots | GET | 200，RootsResponse；仅返回本机已选择的根 |
-| /v1/roots/{rootId}/entries | GET；可选 parentId 查询参数，省略表示根层 | 200，DirectoryResponse |
-| /v1/roots/{rootId}/files/{entryId}/content | GET | 200，application/octet-stream，x-content-sha256；已知长度时 Content-Length |
-| /v1/roots/{rootId}/transfers/{transferId} | PUT；name、可选 parentId 查询参数；x-expected-sha256 必填；x-expected-size-bytes 可选；原始字节流 | 201，CreateFileResponse；必须发布并校验成功 |
-| /v1/transfers/{transferId} | GET | 200，TransferResponse；查询成功不等于任务成功 |
-| /v1/transfers/{transferId} | DELETE；请求取消，不删除已发布文件 | 200，TransferResponse；返回实际观察结果，不伪报已回滚 |
+本地守卫为 isDeviceDescriptor、isDirectoryReference、isEntryReference、isEntryMetadata、isDirectoryListing、isOperationError、isOperationResult 和 isDirectorySelectionResult。批量守卫为 isBatchLimits、isBatchDeviceDescriptor、isSourceSelection、isDownloadBatchRequest、isPreparedFile、isArchiveDescriptor、isBatchManifest、isTargetSelection、isReceiveBatchRequest、isBatchProgress、isFileOutcome 和 isBatchState。isBatchFileId/isOpaqueId/isSha256/isPortableFileName/isProtocolVersionSupported 为纯值辅助守卫。
 
-JSON 响应 `Content-Type: application/json`；守卫检查解包后的数据。除字节下载外，成功与失败使用 `OperationResult` 包络。PUT 失败返回相应 HTTP 错误与 error 包络；如果已经建立任务，查询端点另提供其 failed 状态。查询未知或到期的 transferId 返回 404 与 result-unknown，不能解释为没有写入。
+`matchesBatchState(value, manifest, direction, receiver?)` 在结构校验后与本任务上下文核对：任务 ID、方向、清单一致性、全部结果数量、字节/哈希、目标根/父目录/名称及重复最终条目。sender 不传 receiver，receiver 必须传入完整 ReceiveBatchRequest；缺少目标上下文不能接受成功。不以 JSON 序列化字段顺序或对象身份判断清单相同。
 
-上传的两个 ID 来自路由，parentId/name 来自 UTF-8 URL 查询参数，哈希/长度来自 ASCII 头，解析后组成 `CreateFileRequest`。根层 parentId 省略并映射为 null；空字符串、重复参数/必需头、非法百分号或非 UTF-8 编码必须失败，不能悄悄选取一个值或重复解码。name 编解码使用 URL 查询参数规则，不能放进原始 HTTP 头或路径段。具体请求解析由后续 HTTP 工作包实现。
-
-长度头只允许非负十进制安全整数，`0` 有效；没有长度头映射为 null；不接受负数、指数、小数、空白或超范围值。HTTP Content-Length 表示传输定界，x-expected-size-bytes 表示本次内容校验，已知时两者必须一致；未知长度仍以正常流结束及哈希校验确认。下载头中的哈希需在发送内容前计算；流开始后的错误可能无法再发送 JSON，由接收方校验并核实实际结果。
-
-| 错误码 | HTTP 状态 |
-| --- | --- |
-| invalid-request | 400 |
-| protocol-mismatch、name-conflict、source-changed | 409 |
-| permission-denied、authorization-expired、not-readable、path-outside-root | 403 |
-| not-found、result-unknown | 404 |
-| checksum-mismatch | 422 |
-| insufficient-space | 507 |
-| unsupported-operation | 501 |
-| io-failure、cleanup-failed | 500 |
-| network-failure | null，本地连接失败没有 HTTP 响应 |
-
-`canRetry` 仅表示核实当前状态后可以让用户发起新操作，不允许自动重放写入。result-unknown 必须为 false。用户取消通过独立任务状态表达，不发明 499 状态码。映射依据 [HTTP 语义](https://www.rfc-editor.org/rfc/rfc9110.html)和 [507 存储不足语义](https://www.rfc-editor.org/rfc/rfc4918.html#section-11.5)。
-
-## 4. 生命周期与跨语言责任
-
-- `TransferProgress` 为 running，阶段只有 preparing、transferring、verifying、publishing。总量未知为 null；已传字节不能大于已知总量；校验/发布阶段即使字节传满仍未成功。
-- `TransferReceipt` 的 succeeded 必须携带实际字节、本次哈希与最终文件元数据；已知目标大小应与实际字节一致。failed 带错误与可空 residualEntry，cancelled 带可空 residualEntry，unknown 只能带 result-unknown 错误。守卫不能证明文件已真正校验或发布，该责任属于适配器。
-- Android 离开前台停止新任务并取消原生流；发布竞争按实际结果报告，unknown 不等于 failed 或未写入。回到前台重新读取当前目录并发起新任务，不恢复旧任务。服务仅保存会话内短期任务观察，到期或重启后重读当前目标，不保存长期传输账本。
-- DTO 为只读快照，进程/桥之间通过 JSON 值传递，不传文件句柄、缓冲区或原生异常对象。Node 与 Kotlin 各自拥有本侧流、暂存文件、回调和监听，负责在成功、失败、取消、离开前台及退出时释放。
-- Kotlin Long/时间值输出前须检查安全整数范围；未知使用 JSON null，不用缺失字段或字符串数字代替。UI 的监听者负责取消订阅，原生异步线程不得共享可变 DTO；需要时创建新的快照。
-- `isPortableFileName` 是协议创建约束，依据 [Windows 文件命名规则](https://learn.microsoft.com/en-us/windows/win32/fileio/naming-a-file)制定；不保证提供者原子性、目标未存在或根内安全。实际同名竞争、真实路径检查和残留清理由平台实现。
-
-## 5. 使用示例与检查
+`isBatchProgressAdvance(previous, next)` 只比较同任务的进度值，检查计数单调、总文件数相同，以及已知总量不改写；调用方先核实任务身份、会话、角色、时间和阶段。它不实现任务状态机或自动重试。
 
 ```ts
-import { isDirectoryListing, isOperationResult } from '@savedata-sync/shared'
+import { isBatchState, isOperationResult, matchesBatchState } from '@savedata-sync/shared'
+import type { ReceiveBatchRequest } from '@savedata-sync/shared'
 
-// payload 为已解析的 JSON；守卫不执行网络或文件操作。
-function inspectListing(payload: unknown): string {
-  if (!isOperationResult(payload, isDirectoryListing)) return '协议格式错误'
+// request 是本次已验证的 Android → Windows 接收请求；payload 是已解析的状态响应。
+function inspectUpload(payload: unknown, request: ReceiveBatchRequest): string {
+  if (!isOperationResult(payload, isBatchState)) return '响应格式错误'
   if (payload.status === 'error') return payload.error.message
-  return `当前层包含 ${payload.value.entries.length} 个条目`
+  if (!matchesBatchState(payload.value, request.manifest, 'android-to-windows', request)) {
+    return '任务结果与本次清单或目标不符'
+  }
+  if (payload.value.status === 'succeeded') return '全部文件已发布并回读确认'
+  if (payload.value.status === 'unknown') return '结果待确认，请重新读取目标核实'
+  return payload.value.status
 }
 ```
 
-- `pnpm test:shared`：用 Node 内置测试器及显式 `--experimental-strip-types` 执行运行时测试，无新增依赖。该开关支持项目功能最低 Node 22.13，仍应按仓库安全基线选择运行时。
-- `pnpm --filter @savedata-sync/shared typecheck`：同时检查源码和类型反例；类型反例只参与编译，不执行。
-- `pnpm check`：包含共享测试及双端构建；共享包显式只使用 ES2022 标准库、关闭自动平台类型注入，并启用 erasableSyntaxOnly，保证测试无需运行 TS 代码生成语法。
+结构/关系校验都不能证明提供者未覆盖已有文件或内容确实回读正确；平台仍要执行权限、身份、名称等价、非覆盖发布和真实内容校验。读取配置中的 deviceId 与当前连接返回的 deviceId/sessionId 也由调用者核实。
 
-运行时测试覆盖 JSON 往返、空值、目录与错误区别、跨层清单、名称/ID 边界、进度与回执、取消/未知结果；类型反例覆盖只读数据和联合收窄。平台 IO、真实 HTTP、Android SAF、设备授权与前台生命周期的实际行为仍待后续包验证。
+## 4. HTTP 线格式与预算
+
+以下路由/头和数据声明已导出，HTTP 行为尚未实现。除 GET /v1/device 外，请求均须唯一 `x-sync-session-id`；会话随服务重启改变，不等于稳定设备 ID，也不是认证。
+
+| 路由 | 方法与输入 | 成功响应 |
+| --- | --- | --- |
+| /v1/device | GET | 200，DeviceResponse，值为 device/sessionId/limits |
+| /v1/roots | GET | 200，RootsResponse，只返回本机已选择根 |
+| /v1/roots/{rootId}/entries | GET；可选 parentId 查询参数，省略为 null | 200，DirectoryResponse，当前层清单 |
+| /v1/transfers/downloads | POST；DownloadBatchRequest JSON | 202，BatchResponse，异步准备 sender |
+| /v1/transfers/{transferId}/manifest | GET | 200，ManifestResponse，仅已准备好的清单 |
+| /v1/transfers/{transferId}/content | GET；sender ready，单次领取 | 200，application/gzip 原始体 |
+| /v1/transfers/uploads | POST；ReceiveBatchRequest JSON | 201，BatchResponse，仅登记 receiver |
+| /v1/transfers/{transferId}/content | PUT；receiver awaiting-content，唯一压缩体 | 202，BatchResponse，收齐后异步校验/发布 |
+| /v1/transfers/{transferId} | GET / DELETE | 查询 200；取消活动任务 202/已有终态 200；BatchResponse 为实际状态 |
+
+JSON 使用 OperationResult 互斥包络。201/202 和查询 200 均不表示文件已发布；必须检查批次/逐文件结果并执行上下文匹配。归档 content 的 Content-Length 和 `x-archive-sha256` 必填，与 manifest.archive 一致；不设 Content-Encoding，不自动解压/重定向，不支持 Range、续传或自动重放。文件名/目标映射放 JSON，目录 parentId 仍按查询参数规则解码一次。
+
+`BATCH_LIMITS` 固定每批 1024 文件、单文件 256 MiB、原文合计 1 GiB、tar 1 GiB+1 MiB、压缩体 1088 MiB、单个 JSON 8 MiB、每端一个活动任务、每会话 4096 个已接纳 ID。`BATCH_RESOURCES` 为 64 KiB 显式 IO 缓冲和 3 GiB 私有缓存；`BATCH_TIMEOUTS_MS` 为 ready 等待 10 分钟、等上传体 2 分钟、总期限 30 分钟、网络无进展 60 秒、终态保留 10 分钟。这里只提供常量，计时/限流/缓存/ID 生命周期由平台实现。
+
+`BATCH_ARCHIVE` 固定受限 USTAR、gzip level 1 和 application/gzip；成员名仅 fileId。声明的 tarSizeBytes 必须为 `Σ(512 + ceil(sizeBytes/512)×512)+1024`；真实 tar 头、填充、结束、gzip 单 member/CRC/ISIZE 和所有 SHA-256 的检查留给原生编解码器。技术预算不作为全产品规模或峰值内存保证。
+
+HTTP_ERROR_STATUS 保留既有错误映射，并增加 session-mismatch/task-conflict=409、invalid-archive=422、resource-limit=413、busy=429、timeout=408；network-failure 仍映射 null，无可伪造 HTTP 响应。session-mismatch 和 result-unknown 均禁止 canRetry=true；其他 canRetry 也只允许核实当前状态后由用户新建操作。
+
+## 5. 资源及跨语言责任
+
+- 原生层拥有流、压缩器、缓存、任务、回调和监听；向 JS 仅传 JSON 快照，不传文件内容、Base64、句柄或 URI。Android 使用 Java，long 输出前检查 JS 安全整数范围。
+- 准备时源原文先流式暂存并实测长度/哈希，再打包稳定归档；接收端完整验证归档和全部原文后才逐项发布。清单、哈希及结果只在当前会话短期存活，不保存历史基线。
+- Windows/Java 归档适配、JSON/HTTP 解析、实际源变化检查及非覆盖发布由后续包实现；共同创建名不能替代 Windows 竞争检查或 SAF 提供者语义验证。
+- Android 离开前台取消本地任务并尽力取消远端，取消丢失可能留下已发布结果；返回前台核实当前目标，不恢复旧任务。共享包不控制生命周期，也不保证平台操作可立即中断。
+
+## 6. 检查与验证边界
+
+- `pnpm test:shared`：32 项运行时测试，包括 12 项本地模型/错误/名称回归及 20 项批量/上下文用例；使用 Node 内置测试器和类型擦除，无新增依赖。
+- `pnpm --filter @savedata-sync/shared typecheck`：类型检查包含 16 项预期失败反例，覆盖只读快照、角色终态、压缩参数和未知/会话重试边界。
+- `pnpm check`：共享检查及既有双端目录桥测试、严格类型和 Web/Electron 构建；本包仅使用 ES2022 标准库，关闭平台类型自动注入。
+
+成员/单项/总原文/tar/压缩体边界通过纯数据用例验证，不分配真实大文件；超限 JSON、重复键、非法归档字节、真实 IO、网络、SAF 发布和前台中断均不是本包已验证能力。后续归档与 HTTP 包按设计故障矩阵补齐，不能将共享守卫通过当作完整产品验收。

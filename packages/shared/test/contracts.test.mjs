@@ -3,7 +3,6 @@ import test from 'node:test'
 import {
   HTTP_ERROR_STATUS,
   PROTOCOL_VERSION,
-  isCreateFileRequest,
   isDeviceDescriptor,
   isDirectoryListing,
   isDirectoryReference,
@@ -15,9 +14,6 @@ import {
   isPortableFileName,
   isProtocolVersionSupported,
   isSha256,
-  isTransferProgress,
-  isTransferResult,
-  isTransferState,
 } from '../src/index.ts'
 
 const CAPABILITIES = {
@@ -46,28 +42,6 @@ const ROOT = {
   authorization: 'granted',
 }
 const ERROR = { code: 'authorization-expired', message: '请重新选择目录', canRetry: false }
-const IDENTITY = { transferId: 'transfer-1', direction: 'android-to-windows' }
-const PROGRESS = {
-  ...IDENTITY,
-  status: 'running',
-  stage: 'transferring',
-  bytesTransferred: 0,
-  totalBytes: null,
-}
-const SHA256 = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'
-const RECEIPT = {
-  ...IDENTITY,
-  status: 'succeeded',
-  bytesTransferred: 0,
-  sha256: SHA256,
-  entry: FILE,
-}
-const UNKNOWN = {
-  ...IDENTITY,
-  status: 'unknown',
-  error: { code: 'result-unknown', message: '重新读取目标核实结果', canRetry: false },
-}
-
 test('协议只接受确切版本，缺失、未来版本和类型强制转换均被拒绝', () => {
   const device = {
     protocolVersion: PROTOCOL_VERSION,
@@ -130,7 +104,6 @@ test('未知文件大小不等于空文件，目录不允许携带汇总大小',
 test('字节和时间拒绝溢出、非整数和非 JSON 数值', () => {
   for (const sizeBytes of [-1, 0.5, NaN, Infinity, Number.MAX_SAFE_INTEGER + 1]) {
     assert.equal(isEntryMetadata({ ...FILE, sizeBytes }), false)
-    assert.equal(isTransferProgress({ ...PROGRESS, bytesTransferred: sizeBytes }), false)
   }
   for (const modifiedAt of [0.5, NaN, Infinity, 8.64e15 + 1]) {
     assert.equal(isEntryMetadata({ ...FILE, modifiedAt }), false)
@@ -210,68 +183,10 @@ test('新文件名保留 Unicode，拒绝路径、Windows 保留名和歧义尾�
   assert.equal(isEntryMetadata({ ...FILE, name: 'CON.dat' }), true)
 })
 
-test('新建请求只携带本次校验数据，拒绝缺失字段和额外覆盖选项', () => {
-  const request = {
-    rootId: 'root-1',
-    parentId: null,
-    transferId: 'transfer-1',
-    name: FILE.name,
-    expectedSizeBytes: null,
-    expectedSha256: SHA256,
-  }
-  assert.equal(isCreateFileRequest(request), true)
-  assert.equal(isCreateFileRequest({ ...request, expectedSizeBytes: 0 }), true)
-  assert.equal(isCreateFileRequest({ ...request, overwrite: true }), false)
-  assert.equal(isCreateFileRequest({ ...request, name: '../outside' }), false)
-  assert.equal(isCreateFileRequest({ ...request, expectedSha256: undefined }), false)
-  for (const hash of [
-    SHA256.toUpperCase(),
-    SHA256 + '\n',
-    SHA256.slice(1) + '\n',
-    '',
-    'g'.repeat(64),
-  ]) {
-    assert.equal(isSha256(hash), false)
-    assert.equal(isCreateFileRequest({ ...request, expectedSha256: hash }), false)
-  }
-})
-
-test('未知总量不伪造百分比，字节传满仍需校验和发布', () => {
-  assert.equal(isTransferProgress(PROGRESS), true)
-  for (const stage of ['preparing', 'transferring', 'verifying', 'publishing']) {
-    const value = { ...PROGRESS, stage, bytesTransferred: 10, totalBytes: 10 }
-    assert.equal(isTransferProgress(value), true)
-    assert.equal(isTransferResult(value), false)
-  }
-  assert.equal(isTransferProgress({ ...PROGRESS, bytesTransferred: 11, totalBytes: 10 }), false)
-  assert.equal(isTransferProgress({ ...PROGRESS, stage: 'succeeded' }), false)
-})
-
-test('成功回执必须有最终文件、实际字节及本次哈希，不能混入错误', () => {
-  assert.equal(isTransferResult(RECEIPT), true)
-  assert.equal(isTransferState(RECEIPT), true)
-  for (const value of [
-    { ...RECEIPT, error: ERROR },
-    { ...RECEIPT, sha256: '' },
-    { ...RECEIPT, entry: DIRECTORY },
-    { ...RECEIPT, entry: { ...FILE, sizeBytes: 1 } },
-    { ...RECEIPT, bytesTransferred: undefined },
-  ])
-    assert.equal(isTransferResult(value), false)
-})
-
-test('失败、取消和结果未知保持独立，清理残留可以明确报告', () => {
-  const residualEntry = { rootId: 'root-1', entryId: 'partial-1' }
-  assert.equal(
-    isTransferResult({ ...IDENTITY, status: 'failed', error: ERROR, residualEntry }),
-    true,
-  )
-  assert.equal(isTransferResult({ ...IDENTITY, status: 'cancelled', residualEntry: null }), true)
-  assert.equal(isTransferResult(UNKNOWN), true)
-  assert.equal(isTransferResult({ ...UNKNOWN, error: { ...UNKNOWN.error, canRetry: true } }), false)
-  assert.equal(isTransferResult({ ...UNKNOWN, status: 'failed', residualEntry: null }), false)
-  assert.equal(isTransferResult({ ...UNKNOWN, error: ERROR }), false)
-  assert.equal(isTransferResult({ ...IDENTITY, status: 'cancelled' }), false)
+test('哈希格式严格使用小写十六进制，不接受换行或长度歧义', () => {
+  assert.equal(isSha256('a'.repeat(64)), true)
+  for (const value of ['A'.repeat(64), 'a'.repeat(64) + '\n', '', 'g'.repeat(64)])
+    assert.equal(isSha256(value), false)
 })
 
 test('错误拒绝未知码，网络失败不伪造 HTTP 响应，任务未知不授权重放', () => {
@@ -286,7 +201,6 @@ test('错误拒绝未知码，网络失败不伪造 HTTP 响应，任务未知�
 test('守卫拒绝非 JSON 容器及额外字段，不改变合法输入', () => {
   for (const value of [null, undefined, [], new Date(), 0, 'text', Object.create({ ...LISTING })]) {
     assert.equal(isDirectoryListing(value), false)
-    assert.equal(isTransferState(value), false)
   }
   assert.equal(isDirectoryListing({ ...LISTING, error: ERROR }), false)
   const value = structuredClone({ ...LISTING, entries: [FILE] })

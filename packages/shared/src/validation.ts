@@ -1,6 +1,5 @@
 import type {
   CapabilityState,
-  CreateFileRequest,
   DeviceCapabilities,
   DeviceDescriptor,
   DirectoryListing,
@@ -11,56 +10,18 @@ import type {
   EntryReference,
   OperationError,
   OperationResult,
-  TransferProgress,
-  TransferResult,
-  TransferState,
 } from './contracts.ts'
+import { HTTP_ERROR_STATUS, isOpaqueId, isProtocolVersionSupported } from './protocol.ts'
+
 import {
-  HTTP_ERROR_STATUS,
-  isOpaqueId,
-  isPortableFileName,
-  isProtocolVersionSupported,
-  isSha256,
-} from './protocol.ts'
-
-type ValueGuard<TValue> = (value: unknown) => value is TValue
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false
-  const prototype: unknown = Object.getPrototypeOf(value)
-  return prototype === Object.prototype || prototype === null
-}
-
-function hasShape(value: unknown, keys: readonly string[]): value is Record<string, unknown> {
-  return (
-    isRecord(value) &&
-    Object.keys(value).length === keys.length &&
-    keys.every((key) => Object.hasOwn(value, key))
-  )
-}
-
-function isText(value: unknown): value is string {
-  return typeof value === 'string' && value.trim().length > 0 && value.length <= 1024
-}
-
-function isByteCount(value: unknown): value is number {
-  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0
-}
-
-function isTimestamp(value: unknown): value is number {
-  return typeof value === 'number' && Number.isSafeInteger(value) && Math.abs(value) <= 8.64e15
-}
-
-function isNullable<TValue>(value: unknown, guard: ValueGuard<TValue>): value is TValue | null {
-  return value === null || guard(value)
-}
-
-function isArrayOf<TValue>(value: unknown, guard: ValueGuard<TValue>): value is TValue[] {
-  if (!Array.isArray(value)) return false
-  // for...of 也检查稀疏数组中的空洞，避免 every 跳过缺失条目。
-  for (const item of value) if (!guard(item)) return false
-  return true
-}
+  hasShape,
+  isText,
+  isByteCount,
+  isTimestamp,
+  isNullable,
+  isArrayOf,
+} from './data-validation.ts'
+import type { ValueGuard } from './data-validation.ts'
 
 function isCapability(value: unknown): value is CapabilityState {
   return value === 'supported' || value === 'unsupported' || value === 'unknown'
@@ -167,7 +128,7 @@ export function isOperationError(value: unknown): value is OperationError {
     Object.hasOwn(HTTP_ERROR_STATUS, value.code) &&
     isText(value.message) &&
     typeof value.canRetry === 'boolean' &&
-    (value.code !== 'result-unknown' || !value.canRetry)
+    (!['result-unknown', 'session-mismatch'].includes(value.code) || !value.canRetry)
   )
 }
 
@@ -194,105 +155,5 @@ export function isDirectorySelectionResult(value: unknown): value is DirectorySe
     (hasShape(value, ['status', 'error']) &&
       value.status === 'error' &&
       isOperationError(value.error))
-  )
-}
-
-function hasTransferIdentity(value: Record<string, unknown>): boolean {
-  return (
-    isOpaqueId(value.transferId) &&
-    (value.direction === 'windows-to-android' || value.direction === 'android-to-windows')
-  )
-}
-
-/** 校验运行阶段与字节边界；传满字节仍是 running，成功必须使用独立回执。 */
-export function isTransferProgress(value: unknown): value is TransferProgress {
-  return (
-    hasShape(value, [
-      'transferId',
-      'direction',
-      'status',
-      'stage',
-      'bytesTransferred',
-      'totalBytes',
-    ]) &&
-    hasTransferIdentity(value) &&
-    value.status === 'running' &&
-    typeof value.stage === 'string' &&
-    ['preparing', 'transferring', 'verifying', 'publishing'].includes(value.stage) &&
-    isByteCount(value.bytesTransferred) &&
-    isNullable(value.totalBytes, isByteCount) &&
-    (value.totalBytes === null || value.bytesTransferred <= value.totalBytes)
-  )
-}
-
-/** 校验成功/失败/取消/待确认的互斥结果；不会计算哈希或把未知解释为未写入。 */
-export function isTransferResult(value: unknown): value is TransferResult {
-  if (!isRecord(value)) return false
-  switch (value.status) {
-    case 'succeeded':
-      return (
-        hasShape(value, [
-          'transferId',
-          'direction',
-          'status',
-          'bytesTransferred',
-          'sha256',
-          'entry',
-        ]) &&
-        hasTransferIdentity(value) &&
-        isByteCount(value.bytesTransferred) &&
-        isSha256(value.sha256) &&
-        isEntryMetadata(value.entry) &&
-        value.entry.kind === 'file' &&
-        (value.entry.sizeBytes === null || value.entry.sizeBytes === value.bytesTransferred)
-      )
-    case 'failed':
-      return (
-        hasShape(value, ['transferId', 'direction', 'status', 'error', 'residualEntry']) &&
-        hasTransferIdentity(value) &&
-        isOperationError(value.error) &&
-        value.error.code !== 'result-unknown' &&
-        isNullable(value.residualEntry, isEntryReference)
-      )
-    case 'cancelled':
-      return (
-        hasShape(value, ['transferId', 'direction', 'status', 'residualEntry']) &&
-        hasTransferIdentity(value) &&
-        isNullable(value.residualEntry, isEntryReference)
-      )
-    case 'unknown':
-      return (
-        hasShape(value, ['transferId', 'direction', 'status', 'error']) &&
-        hasTransferIdentity(value) &&
-        isOperationError(value.error) &&
-        value.error.code === 'result-unknown'
-      )
-    default:
-      return false
-  }
-}
-
-/** 校验会话内查询观察；运行态和结果态共享身份但不可混合字段。 */
-export function isTransferState(value: unknown): value is TransferState {
-  return isTransferProgress(value) || isTransferResult(value)
-}
-
-/** 校验新文件请求元数据，不打开流；实际同名冲突、能力和发布竞争由平台处理。 */
-export function isCreateFileRequest(value: unknown): value is CreateFileRequest {
-  return (
-    hasShape(value, [
-      'rootId',
-      'parentId',
-      'transferId',
-      'name',
-      'expectedSizeBytes',
-      'expectedSha256',
-    ]) &&
-    isOpaqueId(value.rootId) &&
-    isNullable(value.parentId, isOpaqueId) &&
-    isOpaqueId(value.transferId) &&
-    isPortableFileName(value.name) &&
-    isNullable(value.expectedSizeBytes, isByteCount) &&
-    isSha256(value.expectedSha256)
   )
 }

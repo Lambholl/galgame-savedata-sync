@@ -24,7 +24,7 @@ related_files: []
 
 | 里程碑 | 目标 | 计划时间 | 状态 |
 | --- | --- | --- | --- |
-| M-001 | 已选 React 技术栈下验证目录与 HTTP：Android 授权目录、元数据读取、前台文件往返、明文访问；验证目录不递归统计大小 | WP-001 至 WP-003 已完成；双端新文件写入拆为 WP-009/WP-010，HTTP 和完整真机矩阵待后续包 | active |
+| M-001 | 已选 React 技术栈下验证目录与 HTTP：Android 授权目录、元数据读取、前台文件往返、明文访问；验证目录不递归统计大小 | WP-001 至 WP-003 及 WP-011 批量共享契约已完成；双端归档/新文件发布、HTTP 和完整真机矩阵待后续包 | active |
 | M-002 | 最小可用双端：项目与目录映射、手动 IP、方向按钮、两端文件预览、经确认的复制规则、进度和结果 | M-001 通过后安排 | planned |
 | M-003 | 地址变更与重连：mDNS/DNS-SD 自动发现列表、稳定设备关联、手动 IP 兜底和改址保留配置 | M-002 后安排 | planned |
 | M-004 | 完整首版：补齐镜像模式及删除预览、默认开启的最近 3 次备份与手工恢复、两端发起及预览体验；Android 仅前台 | 核心闭环后安排 | planned |
@@ -33,7 +33,7 @@ related_files: []
 
 | 优先级 | 事项 | 依赖 | 状态 |
 | --- | --- | --- | --- |
-| P0 | tar.gz 批量契约与拆包设计已形成；下一实现起点为 WP-011 原位修订 v1 共享模型/守卫/常量及测试，无需 ADB | 仓库根目录的 `docs/plans/m001-tar-gzip-protocol.md`、[工作包](../development/work-packages.md)；HTTP 暂无业务消费者，用户允许直接修订 v1 | planned |
+| P0 | 下一实现起点 WP-012 Windows 原生归档与私有暂存，无需 ADB；先验证打包/解包、源快照、资源与取消清理，再接 HTTP | WP-011 已完成 v1 原位修订，32 项运行时/16 项类型反例及 pnpm check 通过；[工作包](../development/work-packages.md)与仓库根目录的 `docs/plans/m001-tar-gzip-protocol.md` | planned |
 | P0 | 后续依次推进 WP-012 Windows 私有归档、WP-004 HTTP 读取、WP-009 发布、WP-005 接收；WP-013 Android 私有归档及 WP-010 SAF 发布完成后接 WP-006，再验证界面与真机 | 共享/双端归档已独立拆包，完整依赖与退出条件见[工作包](../development/work-packages.md)；SAF/前台/LAN 验收需设备 | planned |
 | P0 | 保持 Android 仅前台、当前状态独立、目录不汇总大小的边界 | [项目约束](../requirements/constraints.md)、[验收标准](../testing/acceptance.md) | active |
 

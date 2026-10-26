@@ -25,9 +25,9 @@ related_files: []
 
 M-001 只验证专用测试目录内的新文件往返，不包含同步项目 CRUD、覆盖、镜像删除、备份、mDNS 或 Windows 发起任务的控制通道。Windows 为服务端，Android 原生层为 HTTP 客户端。
 
-用户已在[Q-008](../requirements/open-questions.md)确定双向统一采用 tar.gz。完整批量协议设计位于仓库根目录的 `docs/plans/m001-tar-gzip-protocol.md`，已定义清单、路由、格式、资源预算及逐文件实际结果；尚未实现。HTTP API 尚无业务消费者，用户明确允许直接修订 v1，不另建 v2 或保留旧单文件端点；WP-011 同步更新共享类型、守卫、测试与说明。
+用户已在[Q-008](../requirements/open-questions.md)确定双向统一采用 tar.gz。完整设计位于仓库根目录的 `docs/plans/m001-tar-gzip-protocol.md`；WP-011 已原位修订 v1 的批量 DTO、纯守卫、上下文匹配、路由/头/错误及预算常量和测试。HTTP 尚无业务消费者，不另建 v2 或保留旧单文件声明；归档编解码、网络与发布均未实现。
 
-独立调试协议已在真实 LAN 完成 54 组双向与 SAF 写后回读实验，结果见 `docs/experiments/transfer-benchmark-2026-10-26.md`。实验未交付正式批量端点或归档接收适配，也不自动符合新增受限归档格式。当前共享包的单文件传输声明仍是实现事实，后续实现以批量设计为目标，不把设计完成当作实现通过。
+独立调试协议已在真实 LAN 完成 54 组双向与 SAF 写后回读实验，结果见 `docs/experiments/transfer-benchmark-2026-10-26.md`。实验未交付正式批量端点或归档接收适配，也不自动符合受限归档格式。共享数据校验通过不代表实际归档、HTTP 或目标文件发布通过。
 
 ## 2. 共用数据语义
 
@@ -40,15 +40,15 @@ M-001 只验证专用测试目录内的新文件往返，不包含同步项目 C
 | EntryCapabilities / DeviceCapabilities | 条目能力 canRead/canList/canCreate/canRename/canDelete；设备能力 canListRoots/canReadFiles/canReceiveFiles/canQueryTransfers/canCancelTransfers；各值 supported/unsupported/unknown |
 | OperationError / OperationResult | code、message、canRetry；互斥 success/value 与 error/error 包络；result-unknown 的 canRetry 必须为 false；错误消息由生产者脱敏 |
 | DirectorySelectionResult | selected 携带 directory，cancelled 不携带目录或错误，error 携带错误；取消不清空既有有效引用 |
-| BatchDeviceDescriptor（设计） | 包装既有 device，加 sessionId 和固定 limits；只变更 HTTP 响应，不改本地目录桥返回值 |
-| BatchManifest / TargetSelection（设计） | 清单记录本次源引用、fileId、实测长度/哈希及归档校验；目标以已有父目录引用和单文件名一一映射，不直接按归档路径写盘 |
-| BatchProgress / BatchState / 文件结果（设计） | 分开源读取、压缩体传输、原文校验与已发布字节；sender 的 sent 不代表 receiver 的 succeeded；receiver 逐项记录成功、失败、取消、未尝试或待确认 |
+| BatchDeviceDescriptor | 已实现共享声明：包装既有 device，加 sessionId 和固定 limits；不改本地目录桥返回值 |
+| BatchManifest / TargetSelection | 已实现 DTO/关系守卫：源引用、连续 fileId、实测长度/哈希及精确 tar 求和；目标在已有父目录以单文件名一一映射，不展开归档路径 |
+| BatchProgress / BatchState / FileOutcome | 已实现角色/阶段/计数和结果聚合守卫；sender sent 不代表 receiver succeeded；逐项成功/失败/取消/未尝试/未知与清理状态分开 |
 
 M-001 不要求所有提供者保留源修改时间；写入后查询并展示目标实际元数据。同路径、同大小或同日期均不能替代内容校验。
 
 ## 3. Windows HTTP 接口约定
 
-以下为待实现的 v1 批量路由；完整字段、状态码和例外以仓库根目录的 `docs/plans/m001-tar-gzip-protocol.md` 为准。WP-011 实现共享声明，WP-012/WP-013 分别实现双端归档；网络包只编排这些能力。
+以下 v1 批量路由常量及 DTO 已由 WP-011 导出，端点行为尚未实现；完整字段、状态码和例外以仓库根目录的 `docs/plans/m001-tar-gzip-protocol.md` 为准。WP-012/WP-013 分别实现双端归档，网络包只编排这些能力。
 
 | API | 方法 | 请求 | 响应 | 错误边界 | 工作包 |
 | --- | --- | --- | --- | --- | --- |
@@ -84,7 +84,7 @@ transferId 不表示历史同步基线。服务以每次启动的 sessionId 隔�
 
 ## 5. 版本与线格式
 
-本节为批量设计的待实现目标；当前共享代码仍含单文件声明，WP-011 同步替换。用户明确允许在尚无 HTTP 业务消费者的开发阶段原位修订 v1；正式消费者出现后不再套用此例外。
+本节的数据声明和映射已在共享包实现，JSON 文本/HTTP 解析与实际 IO 行为仍待平台包实现。用户允许在无 HTTP 业务消费者阶段原位修订 v1；旧单文件传输类型、守卫和路由已移除，正式消费者出现后不再套用此例外。迁移说明见 packages/shared/README.md。
 
 - 协议只接受数字版本 1，封闭 DTO 拒绝缺失和额外字段。ID 为 1–128 个 ASCII 字符，首位字母或数字，后续允许字母、数字、下划线和短横线，不接收路径或 URI；批内 fileId 使用受限连续编号。
 - 字节数为非负安全整数；时间是 ±8.64e15 范围内的 Unix 毫秒整数，0 和负数有实际含义，未知修改日期用 null。文本非空白且最长 1024 个 UTF-16 码元。
@@ -96,7 +96,9 @@ transferId 不表示历史同步基线。服务以每次启动的 sessionId 隔�
 
 ## 6. 已实现检查与验证边界
 
-packages/shared 当前提供目录/设备/错误/选择结果守卫和版本、ID、哈希、创建文件名辅助守卫；isTransferProgress/isTransferResult/isTransferState/isCreateFileRequest 等单文件传输守卫仍是已实现事实，但需 WP-011 按批量设计替换，不能直接作为后续 HTTP 规格。
+packages/shared 保留本地目录/设备/错误/选择结果守卫，新增批量描述、选择/清单/目标请求、归档声明、进度/文件结果/批次状态守卫及 isBatchProgressAdvance。matchesBatchState(value, manifest, direction, receiver?) 对照本次清单和明确方向；receiver 必须提供完整 ReceiveBatchRequest，核对结果覆盖、字节/哈希、目标根/父目录/名称与重复最终条目。sender 不传接收上下文。不依赖 JSON 键顺序，不保存历史。
+
+32 项运行时测试和 16 项类型反例通过；pnpm check 包含现有 16 项桌面、5 项移动桥测试及双端构建，均通过。没有新增依赖或平台 IO；JSON 重复键/UTF-8/字节超限、真实归档字节及网络/SAF 发布仍待后续包验证。
 
 守卫仅校验已解析 JSON/plain data，不执行文件、网络、哈希计算、生命周期控制或脱敏，不改变/克隆/冻结输入；平台负责资源所有权、释放、线程隔离及原生异常到错误码的映射。跨 Java/JS 的超范围整数在原生侧拒绝，未知属性显式输出 null；SAF 日期 0 依提供者约定转换为未知。调用示例及桥生命周期说明见 `packages/shared/README.md`、`apps/mobile/README.md`。
 
