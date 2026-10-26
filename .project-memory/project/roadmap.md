@@ -33,13 +33,13 @@ related_files: []
 
 | 优先级 | 事项 | 依赖 | 状态 |
 | --- | --- | --- | --- |
-| P0 | 双向统一采用 tar.gz；下一步先细化批量契约并拆分共享类型及双端归档工作，再进入 WP-004；本轮仅维护决定，真实两端目录始终只读 | Q-008 已关闭，双端读取及独立 LAN/SAF 基准通过；[工作包](../development/work-packages.md) | pending |
-| P0 | 按 tar.gz 契约设计结果更新工作包与详细计划，继续验证 HTTP、写入与真机；WP-009 先于 WP-005，WP-010 先于 WP-006 | [工作包与设计入口](../development/work-packages.md)、[模块设计](../architecture/modules.md)、[测试用例](../testing/test-cases.md) | planned |
+| P0 | tar.gz 批量契约与拆包设计已形成；下一实现起点为 WP-011 原位修订 v1 共享模型/守卫/常量及测试，无需 ADB | 仓库根目录的 `docs/plans/m001-tar-gzip-protocol.md`、[工作包](../development/work-packages.md)；HTTP 暂无业务消费者，用户允许直接修订 v1 | planned |
+| P0 | 后续依次推进 WP-012 Windows 私有归档、WP-004 HTTP 读取、WP-009 发布、WP-005 接收；WP-013 Android 私有归档及 WP-010 SAF 发布完成后接 WP-006，再验证界面与真机 | 共享/双端归档已独立拆包，完整依赖与退出条件见[工作包](../development/work-packages.md)；SAF/前台/LAN 验收需设备 | planned |
 | P0 | 保持 Android 仅前台、当前状态独立、目录不汇总大小的边界 | [项目约束](../requirements/constraints.md)、[验收标准](../testing/acceptance.md) | active |
 
 ## 3. M-001 交付边界与后续交接
 
-M-001 只在专用测试目录中验证新文件往返，不开放真实存档覆盖或镜像删除；真实用户目录只允许读取。双端目录读取与新文件发布已拆开，10 个工作包的依赖、目标范围和退出条件只在[工作包登记](../development/work-packages.md)维护。
+M-001 只在专用测试目录中验证新文件往返，不开放真实存档覆盖或镜像删除；真实用户目录只允许读取。双端目录读取、新文件发布、共享批量契约及原生归档已拆为 13 个工作包；依赖、目标范围和退出条件在[工作包登记](../development/work-packages.md)维护。
 
 ADB 在 Android 真机验证前准备，用于安装和日志；实际传输必须通过同一局域网 HTTP。Android 10 与较新版本的真机证据、授权恢复、双向内容校验、前台中断以及不递归统计目录大小均通过后才能关闭 M-001。设备缺失时保留缺口，可继续不依赖设备的工作。
 

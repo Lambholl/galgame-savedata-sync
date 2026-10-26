@@ -101,6 +101,7 @@ related_files: []
 | 首次连接入口 | 发现列表 + 手动 IP，扫码后续补充 | accepted |
 | 复制与备份 | 覆盖复制和镜像均提供，默认覆盖复制；备份可关闭、默认开启、保留最近 3 次 | accepted |
 | 前台边界 | Android 只支持前台，后台不在范围内；前台连接时两端均可发起任务 | accepted |
-| 文件传输格式 | 双向统一采用 tar.gz，按本次待传集合合批；保持逐文件校验与结果反馈；正式契约及实现待后续包交付 | accepted |
+| 文件传输格式 | 双向唯一 tar.gz，按本次待传集合合批；正式批量设计已形成，采用受限 ID 成员名、完整校验后逐项发布及逐文件结果；共享声明/归档/HTTP 实现尚未交付，见仓库根目录的 `docs/plans/m001-tar-gzip-protocol.md` | accepted |
+| 开发阶段协议修订 | 用户确认 HTTP 无业务消费者，允许在 WP-011 直接修订 v1 的类型/守卫/测试和后续线格式，不另建 v2；本地目录 DTO 保持复用 | accepted |
 
 上述结论记录于已关闭的[问题登记表](../requirements/open-questions.md)，尚未另建独立 ADR。参考：[Ant Design](https://ant.design/docs/react/introduce/)、[Ant Design Mobile](https://github.com/ant-design/ant-design-mobile)、[Capacitor Android](https://capacitorjs.com/docs/android)、[Android NSD](https://developer.android.com/develop/connectivity/wifi/use-nsd)、[SAF 文件属性](https://developer.android.com/reference/android/provider/DocumentsContract.Document)。
