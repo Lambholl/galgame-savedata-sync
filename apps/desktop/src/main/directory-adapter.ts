@@ -3,7 +3,12 @@ import { open, readdir, realpath } from 'node:fs/promises'
 import type { BigIntStats } from 'node:fs'
 import { basename, isAbsolute, join, relative, resolve } from 'node:path'
 import type { Readable } from 'node:stream'
-import { isDirectoryListing, isEntryMetadata, isOpaqueId } from '@savedata-sync/shared'
+import {
+  isDirectoryListing,
+  isEntryMetadata,
+  isOpaqueId,
+  isPortableFileName,
+} from '@savedata-sync/shared'
 import type {
   DirectoryListing,
   DirectoryReference,
@@ -35,6 +40,16 @@ export interface DirectoryFileRead {
   readonly stream: Readable
   /** 读完后重查原身份、大小及可观察时间；不重新读取内容，也不保证原子快照。 */
   readonly verifyUnchanged: () => Promise<void>
+}
+
+/** 仅原生层持有的目录快照，不授予写权限；验证/元数据方法仍只执行读取。 */
+export interface NativeDirectoryLocation {
+  readonly rootId: string
+  readonly parentId: string | null
+  readonly path: string
+  readonly identity: FileIdentity
+  readonly verify: () => Promise<void>
+  readonly describeFile: (name: string, identity: FileIdentity) => Promise<FileMetadata>
 }
 
 /**
@@ -218,6 +233,54 @@ export class WindowsDirectoryAdapter {
         await handle.close()
         throw error
       }
+    })
+  }
+
+  /**
+   * 供独立原生发布适配定位已登记父目录，不通过 IPC 公开路径，也不授权写入。
+   * 捕获根/父目录身份；verify 不依赖临时条目表，允许关闭或失败后安全清理自有候选。
+   * describeFile 只登记身份匹配的实际普通文件，调用者仍须完成内容回读校验。
+   */
+  async locateNativeDirectory(
+    rootId: string,
+    parentId: string | null = null,
+  ): Promise<NativeDirectoryLocation> {
+    const root = await this.inspectRoot(rootId)
+    const path = parentId === null ? root.path : (await this.inspectEntry(rootId, parentId)).path
+    const stats = await inspectLocalPath(path)
+    if (!stats.isDirectory())
+      throw new DirectoryAccessError('invalid-request', '目标父条目不是目录。')
+    const identity = Object.freeze(getFileIdentity(stats))
+    const verify = async (): Promise<void> => {
+      const current = await this.inspectRoot(rootId)
+      if (
+        relative(current.path, root.path) !== '' ||
+        !hasSameIdentity(await inspectLocalPath(root.path), root.identity) ||
+        !hasSameIdentity(await inspectLocalPath(path), identity)
+      )
+        throw new DirectoryAccessError('source-changed', '原生目录身份已经变化。')
+    }
+    await verify()
+    return Object.freeze({
+      rootId,
+      parentId,
+      path,
+      identity,
+      verify,
+      describeFile: async (name: string, expected: FileIdentity): Promise<FileMetadata> => {
+        if (!isPortableFileName(name))
+          throw new DirectoryAccessError('invalid-request', '新文件名称无效。')
+        await verify()
+        const filePath = join(path, name)
+        const fileStats = await inspectLocalPath(filePath)
+        if (!fileStats.isFile() || !hasSameIdentity(fileStats, expected))
+          throw new DirectoryAccessError('source-changed', '新文件身份已经变化。')
+        const metadata = this.describeEntry(root, filePath, fileStats, parentId)
+        if (metadata.kind !== 'file')
+          throw new DirectoryAccessError('source-changed', '新文件类型已经变化。')
+        await verify()
+        return metadata
+      },
     })
   }
 

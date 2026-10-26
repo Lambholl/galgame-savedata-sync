@@ -7,6 +7,7 @@ import { toDirectoryError } from './directory-errors.ts'
 import { createWindowsArchiveAdapter } from './archive-adapter.ts'
 import { WindowsHttpService } from './http-service.ts'
 import { toHttpError } from './http-errors.ts'
+import { WindowsNewFilePublisher } from './new-file-publisher.ts'
 
 const trustedWindows = new Set<number>()
 const rendererUrl = process.env.ELECTRON_RENDERER_URL
@@ -53,6 +54,8 @@ if (hasInstanceLock)
       const archive = await createWindowsArchiveAdapter(adapter, app.getPath('userData'))
       // 网络服务由后续可信界面显式启动；应用退出须等待私有缓存和连接释放。
       const httpService = new WindowsHttpService(adapter, archive)
+      // 发布适配器没有默认写授权，后续仅由可信本机操作显式 grant。
+      const publisher = new WindowsNewFilePublisher(adapter)
       let canQuit = false
       let isClosing = false
       app.on('before-quit', (event) => {
@@ -60,17 +63,18 @@ if (hasInstanceLock)
         event.preventDefault()
         if (isClosing) return
         isClosing = true
-        httpService.stop().then(
-          () => {
+        Promise.allSettled([httpService.stop(), publisher.stop()])
+          .then((results) => {
+            for (const result of results)
+              if (result.status === 'rejected') throw toHttpError(result.reason)
             canQuit = true
             app.quit()
-          },
-          (error: unknown) => {
+          })
+          .catch((error: unknown) => {
             isClosing = false
-            console.error('Failed to stop desktop HTTP service', toHttpError(error).operationError)
-            dialog.showErrorBox('退出清理失败', '无法释放私有缓存，请检查权限后重试退出。')
-          },
-        )
+            console.error('Failed to release desktop resources', toHttpError(error).operationError)
+            dialog.showErrorBox('退出清理失败', '无法释放缓存或候选文件，请检查权限后重试退出。')
+          })
       })
       const disposeDirectoryIpc = registerDirectoryIpc(ipcMain, adapter, {
         choosePath: async () => {

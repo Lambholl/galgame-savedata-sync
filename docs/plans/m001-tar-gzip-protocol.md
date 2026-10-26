@@ -14,13 +14,13 @@
 
 ## 1. 状态与适用范围
 
-更新日期：2026-10-26。协议使用 `protocolVersion=1` 及 `/v1`；v1 共享契约、Windows 私有归档及 HTTP sender/任务注册已实现，20 项归档、25 项 HTTP 专项及 pnpm check 通过。Java 归档、HTTP receiver/Android 网络、目标发布及跨端生命周期仍待后续包，不把私有缓存往返当作同步产品完成。
+更新日期：2026-10-26。协议使用 `protocolVersion=1` 及 `/v1`；v1 共享契约、Windows 私有归档及 HTTP sender/任务注册已实现，Windows 单文件非覆盖发布已实现；20 项归档、25 项 HTTP、24 项发布专项及 pnpm check 通过。Java 归档、HTTP receiver/Android 网络、批次发布及跨端生命周期仍待后续包，不把私有缓存往返当作同步产品完成。
 
 双向唯一数据格式为 tar.gz，Windows 提供服务，Android Java 原生层主动请求。M-001 仅向独立测试目录创建新文件；目标父目录必须已经存在，不创建目录、不覆盖、不镜像删除、不备份。可分别选择已有不同子目录中的文件，但不由归档展开目录树。完整同步目录映射和新建目录在 M-002 另行设计。
 
 本文的清单、缓存、哈希、结果和已用任务 ID 都属于当前会话，不参与后续同步判断。目录浏览仍只列当前层，不为文件夹大小递归扫描。无待传文件时本地显示无需传输，不建立空批次。超出单批限制时明确拒绝；自动拆批和跨批重试不在 M-001 内，不据此改变首版文件范围。
 
-Windows 归档/HTTP sender 已通过本地回环验证；下一包 WP-009 新文件发布也无需 ADB。Android 原生构建可无设备执行；SAF、前台中断及实际 LAN 验收需要设备和对应授权。归档故障测试仅使用独立合成夹具与私有缓存。
+Windows 归档/HTTP sender 已通过本地回环验证；原生单文件发布也已通过本地验证；下一包 WP-005 HTTP 接收无需 ADB。Android 原生构建可无设备执行；SAF、前台中断及实际 LAN 验收需要设备和对应授权。归档故障测试仅使用独立合成夹具与私有缓存。
 
 ## 2. 数据结构与校验
 
@@ -186,9 +186,9 @@ sourceBytesRead 只计从源拷贝到私有原文快照的字节，不计压缩�
 | 发布和取消 | 全部校验前无目标写入；同名竞争不改原有文件；第 k 项失败/取消保留前项成功并标明后项未尝试；SAF 改名/歧义/残留；取消请求丢失不冒充远端已取消 | WP-009、WP-010、WP-005、WP-006 |
 | 真机/前台/实际 LAN | Android API 29 和较新系统，真正 SAF 新建及写后回读，前台中断及长文件/多个文件往返；不以 ADB 复制或端口转发替代 | WP-006、WP-008 |
 
-共享批量契约、WP-012 Windows 私有归档及 WP-004 HTTP sender 已完成。Windows 使用独立 Python 格式夹具与完整故障矩阵，原生 API/缓存释放说明见[桌面说明](../../apps/desktop/README.md)。WP-013 Java 归档及后续平台包仍 planned；WP-004/005/006 编排归档，WP-009/010 负责目标发布，不重复实现。Windows 证据不替代 Java、网络与发布验收。
+共享批量契约、WP-012 Windows 私有归档、WP-004 HTTP sender 和 WP-009 原生新文件发布已完成。Windows 使用独立 Python 格式夹具与完整故障矩阵，原生 API/缓存释放说明见[桌面说明](../../apps/desktop/README.md)。WP-013 Java 归档及后续平台包仍 planned；WP-004/005/006 编排归档，WP-009/010 负责目标发布，不重复实现。Windows 单文件证据不替代 Java、实际跨端网络与批次发布验收。
 
-推荐后续顺序：WP-009 → WP-005 → WP-013 → WP-010 → WP-006 → WP-007 → WP-008。完整依赖、代码范围和退出条件以[工作包登记](../../.project-memory/development/work-packages.md)为准。下一包 WP-009 无需 ADB；Windows HTTP receiver 与 Android 网络仍未实现。
+推荐后续顺序：WP-005 → WP-013 → WP-010 → WP-006 → WP-007 → WP-008。完整依赖、代码范围和退出条件以[工作包登记](../../.project-memory/development/work-packages.md)为准。下一包 WP-005 无需 ADB；Windows HTTP receiver 与 Android 网络仍未实现。
 
 ## 9. 依据与设计取舍
 

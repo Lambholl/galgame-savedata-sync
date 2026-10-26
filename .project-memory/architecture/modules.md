@@ -17,7 +17,7 @@ related_files: []
 
 ## 1. 设计状态
 
-v1 本地/批量共享契约、双端目录读取、Windows 私有归档及 HTTP sender 已实现，Java SAF 在 API 33/35 分别通过读取验证。Java 归档、HTTP receiver/Android 网络、目标发布及界面集成仍待实现。tar.gz 批量设计位于仓库根目录的 `docs/plans/m001-tar-gzip-protocol.md`；Windows/Java 归档与目标发布各自独立验证，网络包只负责集成编排。当前实现与验证状态见[模块状态](../development/module-status.md)，依赖与退出条件见[工作包](../development/work-packages.md)。
+v1 本地/批量共享契约、双端目录读取、Windows 私有归档及 HTTP sender 已实现，Java SAF 在 API 33/35 分别通过读取验证。Windows 原生新文件发布已实现；Java 归档、HTTP receiver/Android 网络、批次发布编排及界面集成仍待实现。tar.gz 批量设计位于仓库根目录的 `docs/plans/m001-tar-gzip-protocol.md`；Windows/Java 归档与目标发布各自独立验证，网络包只负责集成编排。当前实现与验证状态见[模块状态](../development/module-status.md)，依赖与退出条件见[工作包](../development/work-packages.md)。
 
 ## 2. M-001 模块边界
 
@@ -25,7 +25,7 @@ v1 本地/批量共享契约、双端目录读取、Windows 私有归档及 HTTP
 | --- | --- | --- | --- | --- | --- |
 | 共用契约 | 已实现 v1 本地目录及批量清单、映射、状态/结果、会话/资源/错误常量；纯守卫与任务上下文匹配 | 已解析 JSON/plain data；本次清单/方向及 receiver 目标请求 | 只读 DTO 或校验布尔值，不证明真实 IO | 已实现共享模块；不导入平台 API | packages/shared/src；packages/shared/README.md |
 | Windows 目录读取适配 | 已实现选择登记与恢复、当前层查询、根内原生只读流 | 主进程选择器路径或本地 rootId/entryId | 公开 DTO 或仅主进程持有的 Readable | WP-002；无源目录写入入口 | apps/desktop 主进程与 preload |
-| Windows 新文件暂存发布 | 候选写流、同名拒绝、发布与失败/取消清理 | 独立测试目录与新文件请求 | 新文件结果或残留说明 | WP-009；依赖 WP-002，不向 Renderer 暴露任意写入 | apps/desktop 主进程与测试 |
+| Windows 新文件暂存发布 | 已实现显式写授权/只读预检、同目录候选、排他硬链接发布、最终回读与失败/取消清理 | 独立测试目录与新文件请求 | 共享 FileOutcome 与独立清理状态/残留 | WP-009；原生授权不持久化，无覆盖/删除或 HTTP；WP-005 负责整批编排 | apps/desktop/src/main/new-file-publisher.ts、publication-errors.ts、目录原生定位及测试 |
 | Android SAF 读取适配 | 已实现只读授权/恢复、当前层元数据、原生读流，API 33/35 读取验证通过 | 系统选择结果、本地目录引用 | 当前条目、原生 InputStream 和能力/错误 | WP-003；Java、SAF、ContentResolver | apps/mobile 原生插件；apps/mobile/README.md |
 | Android SAF 新文件写入 | 候选写授权、新建、原生写流与残留处理 | 独立测试目录与新文件请求 | 校验后的实际结果/残留 | WP-010；依赖 WP-003，先于 WP-006 | apps/mobile 后续原生适配 |
 | Windows 私有归档 | 已实现源快照/变化检查、受限 USTAR/gzip1 编解码、完整计数/哈希/结束校验和缓存所有权/取消清理 | 本次源引用或清单/归档流、可选 signal/进度回调 | 主进程私有只读流句柄、实测清单；完整验证后返回，不发布目标 | WP-012；Windows 读取/共享批量契约；固定夹具供 Java 复用 | apps/desktop/src/main/archive-*.ts、独立合成夹具 |

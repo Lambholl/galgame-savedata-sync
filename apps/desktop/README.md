@@ -1,4 +1,4 @@
-# Windows 目录、归档与 HTTP 读取适配
+# Windows 目录、归档、HTTP 与新文件发布
 
 ## 目录
 
@@ -11,12 +11,13 @@
 - [7. 缓存与格式边界](#7-缓存与格式边界)
 - [8. HTTP 服务与任务生命周期](#8-http-服务与任务生命周期)
 - [9. HTTP 验证边界](#9-http-验证边界)
+- [10. 原生新文件发布](#10-原生新文件发布)
 
 ## 1. 范围与入口
 
 `src/main/directory-adapter.ts` 提供 Windows 本机的目录登记、恢复、当前层元数据和原生只读文件流。目录通过系统选择器进入主进程，Renderer 不提交绝对路径；界面按钮与浏览布局在后续界面工作包接入。
 
-目录模块保持源只读；私有归档负责快照、编解码和缓存清理；HTTP 读取服务编排设备/目录查询、下载准备、单次内容领取及状态/取消。上传、目标发布、覆盖和删除尚未实现。真实用户目录仅用于只读检查，自动测试只修改自有临时夹具。
+目录模块保持源只读；私有归档负责快照、编解码和缓存清理；HTTP 读取服务编排设备/目录查询、下载准备、单次内容领取及状态/取消。独立原生发布模块已实现显式写授权和单文件非覆盖发布，尚未接入 HTTP receiver 或 UI；覆盖和删除同步未实现。真实用户目录保持只读，写入验证仅使用自有临时夹具。
 
 ## 2. 主进程接口
 
@@ -67,13 +68,13 @@ preload 通过 `window.desktopDirectories` 暴露冻结的 `DesktopDirectoryApi`
 
 每次读取重新检查根身份；路径逐段 lstat，拒绝 symlink/junction，核对 realpath 与根范围，读取句柄再核对身份。文件/目录替换使旧引用失效，需要刷新或明确重新选择。当前策略拒绝所有遇到的链接，不自动跟随根内链接；不支持的条目导致该层读取失败，不能静默显示为空目录。
 
-Node 的路径检查与文件打开不是同一个原子操作。本实现检查可观察到的替换和越界，不承诺在外部进程恶意并发重排命名空间时提供内核级隔离；不引入目录级原子替换承诺。内容哈希与源变化校验由下述私有归档模块处理，写入授权和发布竞争留后续写入工作包。
+Node 的路径检查与文件打开不是同一个原子操作。本实现检查可观察到的替换和越界，不承诺在外部进程恶意并发重排命名空间时提供内核级隔离；不引入目录级原子替换承诺。内容哈希与源变化校验由下述私有归档模块处理，写入授权和发布竞争由第 10 节的独立原生发布模块处理。
 
 Electron 构建显式内联 workspace 共享包，避免 sandbox preload 在运行时 require TypeScript 源码。preload 保留 CJS 输出，contextIsolation/sandbox 开启，Renderer 无 Node 集成。
 
 ## 5. 验证
 
-`pnpm test:desktop` 执行 61 项测试（16 目录/IPC、20 归档、25 HTTP），纳入 `pnpm check`。目录覆盖 Unicode/空文件、配置恢复、当前层、身份/链接越界、读流释放和有限 IPC；归档覆盖独立格式夹具、故障/超限、源变化、取消与所有权；HTTP 检查见第 9 节。临时夹具基于 realpath 的系统临时根，避免 Windows 8.3 别名差异，不记录真实存档路径。
+`pnpm test:desktop` 执行 85 项测试（16 目录/IPC、20 归档、25 HTTP、24 发布），纳入 `pnpm check`。目录覆盖 Unicode/空文件、配置恢复、当前层、身份/链接越界、读流释放和有限 IPC；归档覆盖独立格式夹具、故障/超限、源变化、取消与所有权；HTTP 检查见第 9 节。临时夹具基于 realpath 的系统临时根，避免 Windows 8.3 别名差异，不记录真实存档路径。
 
 Windows 短路径回归通过 PowerShell 调用 GetShortPathName，生成真实 8.3 别名，并在只影响子进程的 TEMP/TMP 环境中重跑目录与 IPC 用例，要求全部通过。非 Windows 或卷未生成不同短名时明确跳过此项；常规用例仍执行。此修复只调整测试夹具，不放宽业务代码的链接、根范围和身份检查。
 
@@ -105,7 +106,7 @@ Windows 短路径回归通过 PowerShell 调用 GetShortPathName，生成真实 
 
 源快照和解包仅写到随机任务目录。根/任务都有所有权标记并检查目录身份，进程内仅一份活动缓存，成功句柄未释放也占用名额。清理先核实所有成员，再逐个 unlink 普通文件并 rmdir 空任务目录；拒绝陌生文件、子目录、链接和多重硬链接，不递归展开归档路径。不确定所有权或初始化身份时失败关闭；不声称对抗外部恶意并发重排私有命名空间。
 
-归档严格按[批量协议](../../docs/plans/m001-tar-gzip-protocol.md)的规范化 USTAR 头、顺序 fileId、零填充和两个结束块生成/校验。gzip 限制固定头和单 member，使用原始 DEFLATE 解码并核对实际消耗字节、CRC32/ISIZE、完整 tar 长度及每文件 SHA-256；拒绝拼接、尾随、损坏、截断、链接及扩展头。全体验证通过后才返回私有句柄；目标新文件发布留独立写入包。
+归档严格按[批量协议](../../docs/plans/m001-tar-gzip-protocol.md)的规范化 USTAR 头、顺序 fileId、零填充和两个结束块生成/校验。gzip 限制固定头和单 member，使用原始 DEFLATE 解码并核对实际消耗字节、CRC32/ISIZE、完整 tar 长度及每文件 SHA-256；拒绝拼接、尾随、损坏、截断、链接及扩展头。全体验证通过后才返回私有句柄；目标新文件发布已由独立原生模块实现，HTTP receiver 编排仍待后续包。
 
 `test/fixtures/archive-v1.json` 由 Python 标准库独立生成，包含三份合成原文、规范 tar 和 gzip；测试验证 Node 编码的 tar 精确匹配独立预期，也验证 Node 解码 Python gzip，后续 Java 包复用这份夹具。测试中的完整 Buffer/gunzipSync 仅用于小夹具，产品路径使用有限缓冲流式 IO。
 
@@ -137,10 +138,51 @@ HTTP 已实现设备、根/当前层、POST downloads、GET manifest/content、G
 
 归档从固定私有快照发送，发送时再核对实际长度/SHA-256。进度区分源读取和写入 HTTP 流的归档字节；sender 的校验/发布计数始终为 0，sent 仅表示本机发送流完成，不证明 Android 接收或发布。失败、取消和超时等待实际 IO 结束再清理；原始失败与清理错误分开。清理失败保留互斥，即使公开结果到期仍阻止新任务，明确重试成功后才释放。
 
-主进程 before-quit 等待服务停止，成功后继续退出；清理失败显示错误并保留重试机会。页面没有服务控制、任意路径、文件字节或写入入口。
+主进程 before-quit 同时等待 HTTP 服务与发布适配器停止，成功后继续退出；清理失败显示错误并保留重试机会。页面没有服务控制、任意路径、文件字节或写入入口。
 
 ## 9. HTTP 验证边界
 
 `test/http-service.test.mjs` 的 25 项用例使用真实回环 HTTP/TCP 和独立临时源/缓存，覆盖下载内容与哈希、异步状态、并发 ID/单次领取、进程活动名额、路由/会话/畸形头、重复键/非法编码、JSON 精确上限与超限、取消/断流/校验失败、期限/结果到期/容量、清理失败及重试、停止/重启和端口冲突。时间边界由原生时钟与仅收紧的期限注入，不等待实际 30 分钟；大归档内存与性能仍需专项实测。
 
 这些检查验证 Windows sender 与服务原语，不代替 Android Java/SAF、真实 LAN 跨端往返、receiver 发布及最终界面/实际窗口退出验收。应用不自动监听 LAN，未执行设备操作，也未向真实存档写入。
+
+## 10. 原生新文件发布
+
+`src/main/new-file-publisher.ts` 的 `WindowsNewFilePublisher` 是独立主进程能力；目录读取登记、应用启动和 HTTP 查询均不授予写权限。构造不写文件，写授权只在本进程存活；退出会撤销授权、取消未发布操作并等待候选清理。仅在本机明确授权的专用测试根中使用，真实存档保持只读。
+
+| 原生 API | 输入/返回 | 生命周期与失败 |
+| --- | --- | --- |
+| new WindowsNewFilePublisher(source, options?) | 目录适配器；可选 maxFileBytes 及受信任 IO 注入 | 文件预算只能收紧 256 MiB 协议上限；不支持安全硬链接时失败，不降级覆盖 |
+| grant(rootId) / revoke(rootId) | 已登记本地根 ID；Promise&lt;void&gt; | 显式本机授权；撤销等待正在操作的原生 worker；新实例没有旧授权；读取桥能力仍保持只读 |
+| checkTarget(request) | 只读预检，返回物理父目录 dev/ino 与大小写比较键 | 验证授权、父目录、预算及当前同名项，供后续 receiver 预检/批次去重；不预留名称，发布时仍重查 |
+| publish(request, input, options?) | 原文 Readable、可选 signal/同步 onProgress；返回 outcome 与清理状态 | 接管并最终关闭输入；非法请求抛 PublicationError，有效请求返回共享 FileOutcome；未确认结果为 unknown，不自动重放 |
+| retryCleanup() / stop() | Promise&lt;void&gt; | 清理失败保留身份和进程名额；明确重试成功后释放；并发清理/停止共用相应操作；stop 失败可再次 stop |
+
+request 为封闭对象 `{fileId, rootId, parentId, name, sizeBytes, sha256}`。名称使用共同创建约束，parentId 为已有父目录或 null；不接受路径、目录创建、覆盖或批次执行。目录适配器新增的 `locateNativeDirectory` 只提供原生路径、身份复验和已知身份文件的元数据登记，本身不写文件，也不跨 preload。
+
+```ts
+import { WindowsNewFilePublisher } from './src/main/new-file-publisher.ts'
+
+// source、targetRequest 与完整校验后的 verifiedArchive 由可信主进程提供。
+const publisher = new WindowsNewFilePublisher(source)
+await publisher.grant(targetRequest.rootId)
+await publisher.checkTarget(targetRequest)
+const result = await publisher.publish(
+  targetRequest,
+  await verifiedArchive.openFile(targetRequest.fileId),
+)
+console.log(result.outcome.status, result.cleanupStatus)
+await publisher.stop()
+```
+
+发布在目标父目录以 `wx` 创建随机 `.savedata-new-<UUID>.tmp` 候选，因此候选和最终文件在同一卷；输入按不超过 64 KiB 分块、检查可用空间，实测长度/SHA-256、sync 并关闭后才进入发布点。最终名称通过 `fs.link(candidate, target)` 排他创建；同名检查用于早期反馈，实际不覆盖保证由 link 提供。成功后读取最终文件至 EOF，复验身份、属性、长度及 SHA-256，再登记实际元数据。只有此时报告 succeeded；候选 unlink 只移除临时名称，保留最终文件。
+
+硬链接及卷限制参见 [Node fsPromises.link](https://nodejs.org/docs/latest-v22.x/api/fs.html#fspromiseslinkexistingpath-newpath)、[Windows CreateHardLinkW](https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-createhardlinkw)。只验证了本机临时卷；其他卷或网络文件系统未验收，不支持安全发布时明确失败。比较键使用物理父目录身份及小写名称，排他创建仍须交给文件系统；特殊 Unicode/8.3 名称等价矩阵尚待补充。
+
+发布点前取消会关闭输入并清理候选；link 成功后完成有界回读，以实际结果报告成功或 unknown，不因取消删除最终文件。发布已经发生但回执、身份或回读无法确认时保留当前最终条目并返回 result-unknown；不把失败查询当作“未写入”。清理失败独立于成功/失败/取消结果，确知属于本次的残留可返回引用；引用为空也不能证明没有残留。
+
+同进程只允许一个原生发布操作或待清理候选，名额与归档缓存独立，允许后续 receiver 持有已校验归档并逐文件发布。候选删除前重新验证父目录、普通文件及原身份；身份被替换时停止清理，保留互斥，不删除未知条目。进度只报告候选写入、最终回读与已确认发布的字节，不应重复累加为批次归档校验进度。
+
+`test/new-file-publisher.test.mjs` 的 24 项专项覆盖真实非覆盖发布、已有/竞争文件保护、只读预检/物理父目录去重、目录与候选身份变化、流长度/哈希、空间/sync/不支持卷错误、取消与发布竞争、unknown、清理失败/并发重试/撤权/停止及私有归档读流衔接；每项均复验独立只读源的内容和属性。HTTP 接收、批次部分发布、实际 LAN/Android 与最终界面仍由后续包验收。
+
+所有权与写授权均不跨进程保存。崩溃或强制退出可能留下目标卷候选；重启不扫描、猜测或删除此类条目，也不恢复旧任务，需另行核实。正常退出/失败/取消的进程内清理已验证，跨进程候选恢复、真实断电、其他文件系统及大文件资源实测仍保留缺口。Node 路径检查不提供对恶意并发重排命名空间的内核级隔离。
