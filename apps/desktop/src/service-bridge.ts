@@ -55,8 +55,9 @@ function isSnapshot(value: unknown): value is DesktopServiceSnapshot {
     !('error' in value) ||
     !('targets' in value) ||
     !('tasks' in value)
-  )
+  ) {
     return false
+  }
   const listener = value.listener
   return (
     (listener === null ||

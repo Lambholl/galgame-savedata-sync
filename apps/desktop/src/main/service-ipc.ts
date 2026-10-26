@@ -29,14 +29,14 @@ export function registerServiceIpc(
     const address = service.getAddress()
     const addresses = address
       ? [
-          ...new Set(
-            Object.values(networkInterfaces()).flatMap((items) =>
-              (items ?? [])
-                .filter((item) => item.family === 'IPv4' && !item.internal)
-                .map((item) => `http://${item.address}:${address.port}`),
-            ),
+        ...new Set(
+          Object.values(networkInterfaces()).flatMap((items) =>
+            (items ?? [])
+              .filter((item) => item.family === 'IPv4' && !item.internal)
+              .map((item) => `http://${item.address}:${address.port}`),
           ),
-        ]
+        ),
+      ]
       : []
     return {
       status: 'success',
@@ -64,41 +64,60 @@ export function registerServiceIpc(
         status: 'error' as const,
         error: { code, message, canRetry: false },
       })
-      if (!options.isTrustedSender(event))
+      if (!options.isTrustedSender(event)) {
         return fail('permission-denied', '此页面无法控制本地服务。')
-      if (action === 'status')
+      }
+      if (action === 'status') {
         return args.length === 0 ? snapshot() : fail('invalid-request', '服务参数无效。')
-      if (isMutating) return fail('busy', '正在处理上一项服务操作。')
+      }
+      if (isMutating) {
+        return fail('busy', '正在处理上一项服务操作。')
+      }
       isMutating = true
       try {
         if (action === 'start') {
           const port = argument(args, 'port')
-          if (typeof port !== 'number' || !Number.isInteger(port) || port < 0 || port > 65535)
+          if (typeof port !== 'number' || !Number.isInteger(port) || port < 0 || port > 65535) {
             return fail('invalid-request', '端口应为 0 到 65535 的整数。')
+          }
           await service.start({ host: '0.0.0.0', port })
         } else if (action === 'revokeTarget' || action === 'cancel') {
           const id = argument(args, action === 'cancel' ? 'transferId' : 'rootId')
-          if (!isOpaqueId(id)) return fail('invalid-request', '引用无效。')
-          if (action === 'cancel') service.cancel(id)
-          else {
+          if (!isOpaqueId(id)) {
+            return fail('invalid-request', '引用无效。')
+          }
+          if (action === 'cancel') {
+            service.cancel(id)
+          } else {
             await publisher.revoke(id)
             targets.delete(id)
           }
         } else {
-          if (args.length !== 0) return fail('invalid-request', '服务参数无效。')
+          if (args.length !== 0) {
+            return fail('invalid-request', '服务参数无效。')
+          }
           if (action === 'chooseTarget') {
             const path = await options.chooseTargetPath()
-            if (!options.isTrustedSender(event))
+            if (!options.isTrustedSender(event)) {
               return fail('permission-denied', '页面已离开应用。')
-            if (path === null) return { status: 'cancelled' }
+            }
+            if (path === null) {
+              return { status: 'cancelled' }
+            }
             const result = await adapter.registerDirectory(path)
-            if (result.status === 'error') return result
+            if (result.status === 'error') {
+              return result
+            }
             await publisher.grant(result.value.rootId)
             targets.set(result.value.rootId, result.value)
             return { status: 'selected', directory: result.value }
           }
-          if (action === 'stop') await service.stop()
-          if (action === 'cleanup') await service.retryCleanup()
+          if (action === 'stop') {
+            await service.stop()
+          }
+          if (action === 'cleanup') {
+            await service.retryCleanup()
+          }
         }
         return snapshot()
       } catch (error) {
@@ -109,6 +128,8 @@ export function registerServiceIpc(
     })
   }
   return () => {
-    for (const channel of Object.values(SERVICE_CHANNELS)) ipc.removeHandler(channel)
+    for (const channel of Object.values(SERVICE_CHANNELS)) {
+      ipc.removeHandler(channel)
+    }
   }
 }

@@ -26,7 +26,9 @@ for (let offset = 0; offset < packages.length; offset += 100) {
     }),
     signal: AbortSignal.timeout(30_000),
   })
-  if (!response.ok) throw new Error(`OSV lookup failed: HTTP ${response.status}`)
+  if (!response.ok) {
+    throw new Error(`OSV lookup failed: HTTP ${response.status}`)
+  }
   const report = await response.json()
   if (!Array.isArray(report.results) || report.results.length !== batch.length) {
     throw new Error('Incomplete Android advisory response')
@@ -41,4 +43,6 @@ for (let offset = 0; offset < packages.length; offset += 100) {
 console.log(
   `Android/Maven audit: ${packages.length} resolved package versions, ${findings} known advisories.`,
 )
-if (findings) process.exitCode = 1
+if (findings) {
+  process.exitCode = 1
+}

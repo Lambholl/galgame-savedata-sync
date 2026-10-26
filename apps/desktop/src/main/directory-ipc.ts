@@ -52,12 +52,20 @@ export function registerDirectoryIpc(
   ipc.handle(
     DIRECTORY_CHANNELS.choose,
     async (event, ...args: unknown[]): Promise<DirectorySelectionResult> => {
-      if (!isAllowed(event)) return forbidden
-      if (args.length !== 0) return invalidRequest()
+      if (!isAllowed(event)) {
+        return forbidden
+      }
+      if (args.length !== 0) {
+        return invalidRequest()
+      }
       try {
         const path = await options.choosePath()
-        if (!isAllowed(event)) return forbidden
-        if (path === null) return { status: 'cancelled' }
+        if (!isAllowed(event)) {
+          return forbidden
+        }
+        if (path === null) {
+          return { status: 'cancelled' }
+        }
         const result = await adapter.registerDirectory(path)
         return result.status === 'success'
           ? { status: 'selected', directory: result.value }
@@ -68,12 +76,18 @@ export function registerDirectoryIpc(
     },
   )
   ipc.handle(DIRECTORY_CHANNELS.roots, (event, ...args: unknown[]) => {
-    if (!isAllowed(event)) return forbidden
-    if (args.length !== 0) return invalidRequest()
+    if (!isAllowed(event)) {
+      return forbidden
+    }
+    if (args.length !== 0) {
+      return invalidRequest()
+    }
     return adapter.listRoots()
   })
   ipc.handle(DIRECTORY_CHANNELS.list, (event, ...args: unknown[]) => {
-    if (!isAllowed(event)) return forbidden
+    if (!isAllowed(event)) {
+      return forbidden
+    }
     const request: unknown = args[0]
     if (
       args.length !== 1 ||
@@ -86,11 +100,14 @@ export function registerDirectoryIpc(
       !Object.hasOwn(request, 'parentId') ||
       !isOpaqueId(request.rootId) ||
       (request.parentId !== null && !isOpaqueId(request.parentId))
-    )
+    ) {
       return invalidRequest()
+    }
     return adapter.listDirectory(request.rootId, request.parentId)
   })
   return () => {
-    for (const channel of Object.values(DIRECTORY_CHANNELS)) ipc.removeHandler(channel)
+    for (const channel of Object.values(DIRECTORY_CHANNELS)) {
+      ipc.removeHandler(channel)
+    }
   }
 }

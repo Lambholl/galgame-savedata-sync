@@ -4,8 +4,10 @@ import { displayBytes, taskIsActive } from './api.ts'
 import type { UiTask } from './api.ts'
 
 function stateTitle(state: BatchState | null): string {
-  if (!state) return '正在读取任务'
-  if (state.status === 'running')
+  if (!state) {
+    return '正在读取任务'
+  }
+  if (state.status === 'running') {
     return {
       preparing: '准备文件',
       ready: '等待领取',
@@ -15,6 +17,7 @@ function stateTitle(state: BatchState | null): string {
       publishing: '写入目标',
       cleaning: '清理临时文件',
     }[state.stage]
+  }
   return {
     sent: '发送完成',
     succeeded: '目标写入成功',
@@ -44,7 +47,9 @@ export function TaskView({
   readonly onCancel: (id: string) => void
   readonly onCleanup: () => void
 }): React.JSX.Element {
-  if (!tasks.length) return <Empty description="暂无传输任务" />
+  if (!tasks.length) {
+    return <Empty description="暂无传输任务" />
+  }
   return (
     <div className="library-stack">
       {tasks.map((task) => {

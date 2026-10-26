@@ -3,7 +3,9 @@ export type ValueGuard<TValue> = (value: unknown) => value is TValue
 
 /** 拒绝数组、类实例和继承自其他对象的容器；不修改输入。 */
 export function isRecord(value: unknown): value is Record<string, unknown> {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return false
+  }
   const prototype: unknown = Object.getPrototypeOf(value)
   return prototype === Object.prototype || prototype === null
 }
@@ -50,8 +52,14 @@ export function isNullable<TValue>(
 
 /** 逐项检查数组，包含空洞；调用方另行限制长度和成员关系。 */
 export function isArrayOf<TValue>(value: unknown, guard: ValueGuard<TValue>): value is TValue[] {
-  if (!Array.isArray(value)) return false
-  for (const item of value) if (!guard(item)) return false
+  if (!Array.isArray(value)) {
+    return false
+  }
+  for (const item of value) {
+    if (!guard(item)) {
+      return false
+    }
+  }
   return true
 }
 

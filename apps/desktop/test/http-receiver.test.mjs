@@ -54,7 +54,9 @@ async function setup(t, options = {}) {
     options.archiveOptions,
   )
   const publisher = new WindowsNewFilePublisher(source, options.publisherOptions)
-  if (options.grant !== false) await publisher.grant(selected.rootId)
+  if (options.grant !== false) {
+    await publisher.grant(selected.rootId)
+  }
   const provider = options.wrapPublisher ? options.wrapPublisher(publisher) : publisher
   const service = new WindowsHttpService(
     source,
@@ -67,8 +69,9 @@ async function setup(t, options = {}) {
     await publisher.stop()
     assert.equal(await readFile(original, 'utf8'), '不得修改的合成源')
     const after = await lstat(original, { bigint: true })
-    for (const field of ['size', 'mtimeNs', 'ctimeNs', 'dev', 'ino'])
+    for (const field of ['size', 'mtimeNs', 'ctimeNs', 'dev', 'ino']) {
       assert.equal(after[field], before[field])
+    }
     const child = relative(temporaryRoot, base)
     assert.ok(
       child &&
@@ -135,7 +138,11 @@ function request(fixture, path, options = {}) {
     ...(body ? { 'content-length': body.length, 'content-type': 'application/json' } : {}),
     ...options.headers,
   }
-  for (const [key, value] of Object.entries(headers)) if (value === undefined) delete headers[key]
+  for (const [key, value] of Object.entries(headers)) {
+    if (value === undefined) {
+      delete headers[key]
+    }
+  }
   return new Promise((resolve, reject) => {
     const outgoing = httpRequest(
       {
@@ -195,7 +202,9 @@ async function waitState(fixture, payload, predicate = (state) => state.status !
       matchesBatchState(state, payload.request.manifest, 'android-to-windows', payload.request),
       JSON.stringify(state),
     )
-    if (predicate(state)) return state
+    if (predicate(state)) {
+      return state
+    }
     await sleep(5)
   }
   assert.fail('接收任务未在测试期限内完成')
@@ -210,7 +219,9 @@ function deferred() {
 }
 
 async function waitGate(gate, signal) {
-  if (signal.aborted) return
+  if (signal.aborted) {
+    return
+  }
   let abort
   const aborted = new Promise((resolve) => {
     abort = resolve
@@ -280,8 +291,9 @@ test('第 k 项出现真实竞争时保留前项成功，后项未尝试，既�
     publisherOptions: {
       io: {
         link: async (candidate, target) => {
-          if (basename(target) === '100% 存档.sav')
+          if (basename(target) === '100% 存档.sav') {
             await writeFile(target, '竞争文件', { flag: 'wx' })
+          }
           await link(candidate, target)
         },
       },

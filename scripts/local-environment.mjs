@@ -7,7 +7,9 @@ export const REPO_ROOT = fileURLToPath(new URL('../', import.meta.url))
 
 function readLocalSettings() {
   const path = join(REPO_ROOT, 'dev.local.json')
-  if (!existsSync(path)) return {}
+  if (!existsSync(path)) {
+    return {}
+  }
   const value = JSON.parse(readFileSync(path, 'utf8'))
   if (value === null || typeof value !== 'object' || Array.isArray(value)) {
     throw new Error('dev.local.json must contain a JSON object')

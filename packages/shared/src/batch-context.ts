@@ -31,19 +31,24 @@ function hasSameManifest(left: BatchManifest, right: BatchManifest): boolean {
 }
 
 function matchesReceiverResults(state: BatchState, request: ReceiveBatchRequest): boolean {
-  if (state.role !== 'receiver') return false
+  if (state.role !== 'receiver') {
+    return false
+  }
   const targets = new Map(request.targets.map((target) => [target.fileId, target]))
   const manifest = request.manifest
   if (
     state.fileResults.length > manifest.files.length ||
     (state.status !== 'running' && state.fileResults.length !== manifest.files.length)
-  )
+  ) {
     return false
+  }
   const seenEntries = new Set<string>()
   for (const result of state.fileResults) {
     const file = manifest.files.find((item) => item.fileId === result.fileId)
     const target = targets.get(result.fileId)
-    if (!file || !target) return false
+    if (!file || !target) {
+      return false
+    }
     if (result.status === 'succeeded') {
       if (
         result.bytesWritten !== file.sizeBytes ||
@@ -52,12 +57,15 @@ function matchesReceiverResults(state: BatchState, request: ReceiveBatchRequest)
         result.entry.parentId !== target.parentId ||
         result.entry.name !== target.name ||
         seenEntries.has(result.entry.entryId)
-      )
+      ) {
         return false
+      }
       seenEntries.add(result.entry.entryId)
     } else if ('residualEntries' in result) {
       for (const entry of result.residualEntries) {
-        if (entry.rootId !== request.targetRootId || seenEntries.has(entry.entryId)) return false
+        if (entry.rootId !== request.targetRootId || seenEntries.has(entry.entryId)) {
+          return false
+        }
         seenEntries.add(entry.entryId)
       }
     }
@@ -82,25 +90,32 @@ export function matchesBatchState(
     !isBatchManifest(manifest) ||
     value.transferId !== manifest.transferId ||
     value.direction !== direction
-  )
+  ) {
     return false
+  }
   if (value.role === 'sender') {
-    if (receiver !== undefined) return false
+    if (receiver !== undefined) {
+      return false
+    }
   } else if (
     !isReceiveBatchRequest(receiver) ||
     !hasSameManifest(manifest, receiver.manifest) ||
     !matchesReceiverResults(value, receiver)
-  )
+  ) {
     return false
-  if (value.status !== 'running') return true
+  }
+  if (value.status !== 'running') {
+    return true
+  }
   const progress = value.progress
   if (
     progress.totalFiles !== manifest.files.length ||
     (progress.totalFileBytes !== null && progress.totalFileBytes !== manifest.totalFileBytes) ||
     (progress.totalArchiveBytes !== null &&
       progress.totalArchiveBytes !== manifest.archive.sizeBytes)
-  )
+  ) {
     return false
+  }
   return (
     progress.sourceBytesRead <= manifest.totalFileBytes &&
     progress.fileBytesVerified <= manifest.totalFileBytes &&

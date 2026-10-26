@@ -63,7 +63,9 @@ export interface UiAdapter {
   service(start: boolean, port: number): Promise<void>
 }
 export function unwrap<T>(result: OperationResult<T>): T {
-  if (result.status === 'error') throw new Error(result.error.message)
+  if (result.status === 'error') {
+    throw new Error(result.error.message)
+  }
   return result.value
 }
 export function displayBytes(value: number | null): string {
@@ -79,13 +81,13 @@ export function displayTime(value: number | null): string {
   return value === null
     ? '时间未知'
     : new Date(value).toLocaleString('zh-CN', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false,
-      })
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    })
 }
 export function taskIsActive(task: UiTask): boolean {
   return (

@@ -40,19 +40,28 @@ let checked = 0
 
 function checkDirectory(directory) {
   for (const entry of readdirSync(directory, { withFileTypes: true })) {
-    if (entry.name === 'dev.local.json' || entry.name === 'local.properties') continue
-    const path = join(directory, entry.name)
-    if (entry.isSymbolicLink()) continue
-    if (entry.isDirectory()) {
-      if (!ignoredDirectories.has(entry.name)) checkDirectory(path)
+    if (entry.name === 'dev.local.json' || entry.name === 'local.properties') {
       continue
     }
-    if (!textExtensions.has(extname(entry.name)) && !textNames.has(entry.name)) continue
+    const path = join(directory, entry.name)
+    if (entry.isSymbolicLink()) {
+      continue
+    }
+    if (entry.isDirectory()) {
+      if (!ignoredDirectories.has(entry.name)) {
+        checkDirectory(path)
+      }
+      continue
+    }
+    if (!textExtensions.has(extname(entry.name)) && !textNames.has(entry.name)) {
+      continue
+    }
     const label = relative(REPO_ROOT, path)
     const bytes = readFileSync(path)
     checked += 1
-    if (bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf)
+    if (bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf) {
       errors.push(`${label}: UTF-8 BOM`)
+    }
     let text
     try {
       text = decoder.decode(bytes)
@@ -60,14 +69,16 @@ function checkDirectory(directory) {
       errors.push(`${label}: invalid UTF-8`)
       continue
     }
-    if (/\r/.test(text) && !['.bat', '.cmd'].includes(extname(entry.name)))
+    if (/\r/.test(text) && !['.bat', '.cmd'].includes(extname(entry.name))) {
       errors.push(`${label}: expected LF line endings`)
+    }
     const hasControlCharacter = Array.from(text).some((character) => {
       const code = character.charCodeAt(0)
       return code < 32 && ![9, 10, 13].includes(code)
     })
-    if (text.includes('\uFFFD') || hasControlCharacter)
+    if (text.includes('\uFFFD') || hasControlCharacter) {
       errors.push(`${label}: replacement or control character`)
+    }
   }
 }
 

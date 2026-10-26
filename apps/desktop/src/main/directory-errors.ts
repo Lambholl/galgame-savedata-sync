@@ -17,7 +17,9 @@ export class DirectoryAccessError extends Error {
 
 /** 将文件系统错误映射为稳定且不包含主机路径的错误，不丢弃内部 cause。 */
 export function toDirectoryError(error: unknown): DirectoryAccessError {
-  if (error instanceof DirectoryAccessError) return error
+  if (error instanceof DirectoryAccessError) {
+    return error
+  }
   const code = error && typeof error === 'object' && 'code' in error ? error.code : null
   if (code === 'ENOENT' || code === 'ENOTDIR') {
     return new DirectoryAccessError('not-found', '目录或文件已不存在，请刷新目录。', error)

@@ -58,7 +58,9 @@ export function DirectoryPanel({
     api
       .listRoots()
       .then((result) => {
-        if (!isCurrent) return
+        if (!isCurrent) {
+          return
+        }
         if (result.status === 'error') {
           setError(`${result.error.message}（${result.error.code}）`)
           setRoots([])
@@ -72,7 +74,9 @@ export function DirectoryPanel({
         )
       })
       .catch(() => {
-        if (isCurrent) setError('读取目录列表失败。')
+        if (isCurrent) {
+          setError('读取目录列表失败。')
+        }
       })
     return () => {
       isCurrent = false
@@ -81,32 +85,47 @@ export function DirectoryPanel({
   useEffect(() => {
     setListing(null)
     setSelected([])
-    if (!rootId) return
+    if (!rootId) {
+      return
+    }
     let isCurrent = true
     setIsLoading(true)
     setError('')
     // 远端刷新根列表会清空条目引用；依次重读祖先，恢复当前父目录的有效引用。
     async function readCurrent(): Promise<
       Awaited<ReturnType<AndroidDirectoryApi['listDirectory']>>
-    > {
+      > {
       for (const ancestor of [null, ...crumbs.slice(0, -1).map((crumb) => crumb.id)]) {
-        if (parentId === null) break
+        if (parentId === null) {
+          break
+        }
         const result = await api.listDirectory(rootId, ancestor)
-        if (result.status === 'error' || !isCurrent) return result
+        if (result.status === 'error' || !isCurrent) {
+          return result
+        }
       }
       return api.listDirectory(rootId, parentId)
     }
     readCurrent()
       .then((result) => {
-        if (!isCurrent) return
-        if (result.status === 'success') setListing(result.value)
-        else setError(`${result.error.message}（${result.error.code}）`)
+        if (!isCurrent) {
+          return
+        }
+        if (result.status === 'success') {
+          setListing(result.value)
+        } else {
+          setError(`${result.error.message}（${result.error.code}）`)
+        }
       })
       .catch(() => {
-        if (isCurrent) setError('读取目录失败，请刷新或重新选择。')
+        if (isCurrent) {
+          setError('读取目录失败，请刷新或重新选择。')
+        }
       })
       .finally(() => {
-        if (isCurrent) setIsLoading(false)
+        if (isCurrent) {
+          setIsLoading(false)
+        }
       })
     return () => {
       isCurrent = false
@@ -116,15 +135,15 @@ export function DirectoryPanel({
     onChange(
       listing && listing.rootId === rootId && listing.parentId === parentId
         ? {
-            rootId,
-            parentId,
-            label,
-            listing,
-            files: listing.entries.filter(
-              (entry): entry is FileMetadata =>
-                entry.kind === 'file' && selected.includes(entry.entryId),
-            ),
-          }
+          rootId,
+          parentId,
+          label,
+          listing,
+          files: listing.entries.filter(
+            (entry): entry is FileMetadata =>
+              entry.kind === 'file' && selected.includes(entry.entryId),
+          ),
+        }
         : null,
     )
   }, [listing, rootId, parentId, label, selected, onChange])
@@ -138,12 +157,17 @@ export function DirectoryPanel({
           content: '允许在所选目录及子目录中创建新文件。同名文件会拒绝接收，请勿选择真实游戏存档。',
           confirmText: '继续选择',
         }))
-      )
+      ) {
         return
+      }
       const result = await api.chooseDirectory()
-      if (result.status === 'error') setError(`${result.error.message}（${result.error.code}）`)
+      if (result.status === 'error') {
+        setError(`${result.error.message}（${result.error.code}）`)
+      }
       if (result.status === 'selected') {
-        if (isWriteTarget) onGrant?.(result.directory.rootId)
+        if (isWriteTarget) {
+          onGrant?.(result.directory.rootId)
+        }
         setCrumbs([])
         setRootId(result.directory.rootId)
         setRevision((value) => value + 1)
@@ -236,9 +260,9 @@ export function DirectoryPanel({
                 <Checkbox
                   checked={selected.includes(entry.entryId)}
                   disabled={isDisabled || isLoading || entry.capabilities.canRead === 'unsupported'}
-                  onChange={(checked) =>
+                  onChange={(isChecked) =>
                     setSelected((items) =>
-                      checked
+                      isChecked
                         ? [...items, entry.entryId]
                         : items.filter((id) => id !== entry.entryId),
                     )

@@ -5,15 +5,15 @@ import { describeState, formatBytes, formatDate } from './display'
 
 function describeFile(result: FileOutcome): string {
   switch (result.status) {
-    case 'succeeded':
-      return `写入成功 · ${formatBytes(result.bytesWritten)} · ${result.entry.name}`
-    case 'failed':
-    case 'unknown':
-      return `${result.error.message} · 残留 ${result.residualEntries.length} 项`
-    case 'cancelled':
-      return `已取消 · 残留 ${result.residualEntries.length} 项`
-    case 'not-attempted':
-      return `未尝试 · ${{ 'batch-invalid': '批次无效', 'prior-failure': '前项失败', cancelled: '已取消' }[result.reason]}`
+  case 'succeeded':
+    return `写入成功 · ${formatBytes(result.bytesWritten)} · ${result.entry.name}`
+  case 'failed':
+  case 'unknown':
+    return `${result.error.message} · 残留 ${result.residualEntries.length} 项`
+  case 'cancelled':
+    return `已取消 · 残留 ${result.residualEntries.length} 项`
+  case 'not-attempted':
+    return `未尝试 · ${{ 'batch-invalid': '批次无效', 'prior-failure': '前项失败', cancelled: '已取消' }[result.reason]}`
   }
 }
 

@@ -9,11 +9,17 @@ export const NODE_SECURITY_BASELINES = Object.freeze({ 22: [22, 23, 4], 24: [24,
  */
 export function isNodeSecurityBaselineMet(version) {
   const actual = version.split('.').map(Number)
-  if (actual.length !== 3 || actual.some((part) => !Number.isInteger(part))) return false
+  if (actual.length !== 3 || actual.some((part) => !Number.isInteger(part))) {
+    return false
+  }
   const minimum = NODE_SECURITY_BASELINES[actual[0]]
-  if (!minimum) return false
+  if (!minimum) {
+    return false
+  }
   for (let i = 0; i < minimum.length; i += 1) {
-    if (actual[i] !== minimum[i]) return actual[i] > minimum[i]
+    if (actual[i] !== minimum[i]) {
+      return actual[i] > minimum[i]
+    }
   }
   return true
 }

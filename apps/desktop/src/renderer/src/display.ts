@@ -2,9 +2,15 @@ import type { BatchState } from '@savedata-sync/shared'
 
 /** 字节数只格式化真实计数；null 保留未知语义，0 为实际空文件。 */
 export function formatBytes(bytes: number | null): string {
-  if (bytes === null) return '未知'
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KiB`
+  if (bytes === null) {
+    return '未知'
+  }
+  if (bytes < 1024) {
+    return `${bytes} B`
+  }
+  if (bytes < 1024 * 1024) {
+    return `${(bytes / 1024).toFixed(1)} KiB`
+  }
   return `${(bytes / (1024 * 1024)).toFixed(1)} MiB`
 }
 

@@ -156,8 +156,9 @@ export function isBatchManifest(value: unknown): value is BatchManifest {
     !hasOrderedFileIds(value.files) ||
     !isBoundedCount(value.totalFileBytes, BATCH_LIMITS.maxTotalFileBytes) ||
     !isArchiveDescriptor(value.archive)
-  )
+  ) {
     return false
+  }
   const totalFileBytes = value.files.reduce((sum, file) => sum + file.sizeBytes, 0)
   const tarSizeBytes = value.files.reduce(
     (sum, file) => sum + 512 + Math.ceil(file.sizeBytes / 512) * 512,
@@ -189,8 +190,9 @@ export function isReceiveBatchRequest(value: unknown): value is ReceiveBatchRequ
     !isOpaqueId(value.targetRootId) ||
     !isBoundedArray(value.targets, isTargetSelection) ||
     value.targets.length !== value.manifest.files.length
-  )
+  ) {
     return false
+  }
   const ids = new Set(value.targets.map((target) => target.fileId))
   const locations = new Set(
     value.targets.map((target) => JSON.stringify([target.parentId, target.name])),
@@ -216,8 +218,9 @@ export function isBatchProgress(value: unknown): value is BatchProgress {
       'verifiedFiles',
       'publishedFiles',
     ])
-  )
+  ) {
     return false
+  }
   if (
     !isBoundedCount(value.sourceBytesRead, BATCH_LIMITS.maxTotalFileBytes) ||
     !isBoundedCount(value.archiveBytesTransferred, BATCH_LIMITS.maxArchiveBytes) ||
@@ -233,8 +236,9 @@ export function isBatchProgress(value: unknown): value is BatchProgress {
     value.totalFiles === 0 ||
     !isByteCount(value.verifiedFiles) ||
     !isByteCount(value.publishedFiles)
-  )
+  ) {
     return false
+  }
   return (
     value.publishedFiles <= value.verifiedFiles &&
     value.verifiedFiles <= value.totalFiles &&
@@ -260,8 +264,9 @@ export function isBatchProgressAdvance(previous: unknown, next: unknown): boolea
     !isBatchProgress(previous) ||
     !isBatchProgress(next) ||
     previous.totalFiles !== next.totalFiles
-  )
+  ) {
     return false
+  }
   const counters = [
     'sourceBytesRead',
     'archiveBytesTransferred',
@@ -279,8 +284,10 @@ export function isBatchProgressAdvance(previous: unknown, next: unknown): boolea
 
 /** 校验单文件结果的封闭联合；实际发布/内容/残留归属须由平台验证。 */
 export function isFileOutcome(value: unknown): value is FileOutcome {
-  if (!isRecord(value) || !isBatchFileId(value.fileId)) return false
-  if (value.status === 'succeeded')
+  if (!isRecord(value) || !isBatchFileId(value.fileId)) {
+    return false
+  }
+  if (value.status === 'succeeded') {
     return (
       hasShape(value, ['fileId', 'status', 'bytesWritten', 'sha256', 'entry']) &&
       isBoundedCount(value.bytesWritten, BATCH_LIMITS.maxFileBytes) &&
@@ -289,11 +296,13 @@ export function isFileOutcome(value: unknown): value is FileOutcome {
       value.entry.kind === 'file' &&
       (value.entry.sizeBytes === null || value.entry.sizeBytes === value.bytesWritten)
     )
-  if (value.status === 'not-attempted')
+  }
+  if (value.status === 'not-attempted') {
     return (
       hasShape(value, ['fileId', 'status', 'reason']) &&
       isOneOf(value.reason, ['batch-invalid', 'prior-failure', 'cancelled'])
     )
+  }
   const keys =
     value.status === 'cancelled'
       ? ['fileId', 'status', 'residualEntries']
@@ -302,9 +311,12 @@ export function isFileOutcome(value: unknown): value is FileOutcome {
     !hasShape(value, keys) ||
     !isBoundedArray(value.residualEntries, isEntryReference, true) ||
     !hasUniqueReferences(value.residualEntries)
-  )
+  ) {
     return false
-  if (value.status === 'cancelled') return true
+  }
+  if (value.status === 'cancelled') {
+    return true
+  }
   return (
     isOperationError(value.error) &&
     ((value.status === 'failed' && value.error.code !== 'result-unknown') ||
@@ -314,60 +326,73 @@ export function isFileOutcome(value: unknown): value is FileOutcome {
 
 function hasValidCleanup(value: Record<string, unknown>): boolean {
   switch (value.cleanupStatus) {
-    case 'not-needed':
-    case 'complete':
-      return value.cleanupError === null
-    case 'incomplete':
-      return isOperationError(value.cleanupError) && value.cleanupError.code === 'cleanup-failed'
-    case 'unknown':
-      return isOperationError(value.cleanupError) && value.cleanupError.code === 'result-unknown'
-    default:
-      return false
+  case 'not-needed':
+  case 'complete':
+    return value.cleanupError === null
+  case 'incomplete':
+    return isOperationError(value.cleanupError) && value.cleanupError.code === 'cleanup-failed'
+  case 'unknown':
+    return isOperationError(value.cleanupError) && value.cleanupError.code === 'result-unknown'
+  default:
+    return false
   }
 }
 
 function hasValidResultOrder(results: readonly FileOutcome[]): boolean {
-  if (!hasOrderedFileIds(results)) return false
+  if (!hasOrderedFileIds(results)) {
+    return false
+  }
   const publishedBytes = results.reduce(
     (sum, result) => sum + (result.status === 'succeeded' ? result.bytesWritten : 0),
     0,
   )
-  if (publishedBytes > BATCH_LIMITS.maxTotalFileBytes) return false
+  if (publishedBytes > BATCH_LIMITS.maxTotalFileBytes) {
+    return false
+  }
   let hasStopped = false
   for (const result of results) {
-    if (hasStopped && result.status !== 'not-attempted') return false
-    if (result.status !== 'succeeded') hasStopped = true
+    if (hasStopped && result.status !== 'not-attempted') {
+      return false
+    }
+    if (result.status !== 'succeeded') {
+      hasStopped = true
+    }
   }
   return true
 }
 
 function hasValidReceiverTerminal(status: unknown, results: readonly FileOutcome[]): boolean {
-  if (results.every((result) => result.status === 'succeeded')) return status === 'succeeded'
-  if (results.some((result) => result.status === 'unknown'))
+  if (results.every((result) => result.status === 'succeeded')) {
+    return status === 'succeeded'
+  }
+  if (results.some((result) => result.status === 'unknown')) {
     return (
       status === 'unknown' &&
       results.every(
         (result) => result.status !== 'not-attempted' || result.reason === 'prior-failure',
       )
     )
-  if (results.some((result) => result.status === 'failed'))
+  }
+  if (results.some((result) => result.status === 'failed')) {
     return (
       status === 'failed' &&
       results.every(
         (result) => result.status !== 'not-attempted' || result.reason === 'prior-failure',
       )
     )
+  }
   if (
     results.some(
       (result) =>
         result.status === 'cancelled' ||
         (result.status === 'not-attempted' && result.reason === 'cancelled'),
     )
-  )
+  ) {
     return (
       status === 'cancelled' &&
       results.every((result) => result.status !== 'not-attempted' || result.reason === 'cancelled')
     )
+  }
   return (
     status === 'failed' &&
     results.every(
@@ -391,8 +416,9 @@ function hasValidRunningState(value: Record<string, unknown>): boolean {
     ]) ||
     typeof value.cancelRequested !== 'boolean' ||
     !isBatchProgress(value.progress)
-  )
+  ) {
     return false
+  }
   const progress = value.progress
   if (value.role === 'sender') {
     if (
@@ -402,16 +428,20 @@ function hasValidRunningState(value: Record<string, unknown>): boolean {
       progress.fileBytesPublished !== 0 ||
       progress.verifiedFiles !== 0 ||
       progress.publishedFiles !== 0
-    )
+    ) {
       return false
-    if (value.stage === 'preparing') return progress.archiveBytesTransferred === 0
-    if (value.stage === 'ready')
+    }
+    if (value.stage === 'preparing') {
+      return progress.archiveBytesTransferred === 0
+    }
+    if (value.stage === 'ready') {
       return (
         progress.totalFileBytes !== null &&
         progress.sourceBytesRead === progress.totalFileBytes &&
         progress.totalArchiveBytes !== null &&
         progress.archiveBytesTransferred === 0
       )
+    }
     return (
       value.stage === 'cleaning' ||
       (progress.totalFileBytes !== null &&
@@ -434,31 +464,43 @@ function hasValidRunningState(value: Record<string, unknown>): boolean {
     !hasValidResultOrder(value.fileResults) ||
     value.fileResults.some((result) => result.status === 'not-attempted') ||
     value.fileResults.length > progress.totalFiles
-  )
+  ) {
     return false
+  }
   const published = value.fileResults.filter((result) => result.status === 'succeeded')
   if (
     progress.publishedFiles !== published.length ||
     progress.fileBytesPublished !== published.reduce((sum, result) => sum + result.bytesWritten, 0)
-  )
+  ) {
     return false
-  if (value.stage === 'cleaning') return true
-  if (progress.totalFileBytes === null || progress.totalArchiveBytes === null) return false
-  if (value.stage === 'preparing' || value.stage === 'awaiting-content')
+  }
+  if (value.stage === 'cleaning') {
+    return true
+  }
+  if (progress.totalFileBytes === null || progress.totalArchiveBytes === null) {
+    return false
+  }
+  if (value.stage === 'preparing' || value.stage === 'awaiting-content') {
     return (
       progress.archiveBytesTransferred === 0 &&
       progress.fileBytesVerified === 0 &&
       progress.verifiedFiles === 0 &&
       value.fileResults.length === 0
     )
-  if (value.stage === 'transferring')
+  }
+  if (value.stage === 'transferring') {
     return (
       progress.fileBytesVerified === 0 &&
       progress.verifiedFiles === 0 &&
       value.fileResults.length === 0
     )
-  if (progress.archiveBytesTransferred !== progress.totalArchiveBytes) return false
-  if (value.stage === 'verifying') return value.fileResults.length === 0
+  }
+  if (progress.archiveBytesTransferred !== progress.totalArchiveBytes) {
+    return false
+  }
+  if (value.stage === 'verifying') {
+    return value.fileResults.length === 0
+  }
   return (
     progress.verifiedFiles === progress.totalFiles &&
     progress.fileBytesVerified === progress.totalFileBytes
@@ -472,9 +514,12 @@ export function isBatchState(value: unknown): value is BatchState {
     !isOpaqueId(value.transferId) ||
     !isOneOf(value.direction, ['windows-to-android', 'android-to-windows']) ||
     !isTimestamp(value.updatedAt)
-  )
+  ) {
     return false
-  if (value.status === 'running') return hasValidRunningState(value)
+  }
+  if (value.status === 'running') {
+    return hasValidRunningState(value)
+  }
   if (
     !hasShape(value, [
       'transferId',
@@ -488,15 +533,23 @@ export function isBatchState(value: unknown): value is BatchState {
       'cleanupError',
     ]) ||
     !hasValidCleanup(value)
-  )
+  ) {
     return false
+  }
   if (value.status === 'failed') {
-    if (!isOperationError(value.error) || value.error.code === 'result-unknown') return false
+    if (!isOperationError(value.error) || value.error.code === 'result-unknown') {
+      return false
+    }
   } else if (value.status === 'unknown') {
-    if (!isOperationError(value.error) || value.error.code !== 'result-unknown') return false
-  } else if (!isOneOf(value.status, ['sent', 'succeeded', 'cancelled']) || value.error !== null)
+    if (!isOperationError(value.error) || value.error.code !== 'result-unknown') {
+      return false
+    }
+  } else if (!isOneOf(value.status, ['sent', 'succeeded', 'cancelled']) || value.error !== null) {
     return false
-  if (value.role === 'sender') return value.fileResults === null && value.status !== 'succeeded'
+  }
+  if (value.role === 'sender') {
+    return value.fileResults === null && value.status !== 'succeeded'
+  }
   return (
     value.role === 'receiver' &&
     value.status !== 'sent' &&

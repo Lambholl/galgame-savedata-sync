@@ -103,21 +103,24 @@ export class WindowsTransferRegistry {
       !Number.isSafeInteger(this.maxTransfers) ||
       this.maxTransfers < 1 ||
       this.maxTransfers > BATCH_LIMITS.maxTransfersPerSession
-    )
+    ) {
       throw new HttpOperationError('invalid-request', '任务容量配置无效。')
+    }
     for (const key of [
       'ready',
       'awaitingContent',
       'total',
       'networkIdle',
       'terminalRetention',
-    ] as const)
+    ] as const) {
       if (
         !Number.isSafeInteger(this.timeouts[key]) ||
         this.timeouts[key] < 1 ||
         this.timeouts[key] > BATCH_TIMEOUTS_MS[key]
-      )
+      ) {
         throw new HttpOperationError('invalid-request', '任务期限配置无效。')
+      }
+    }
     this.timer = setInterval(() => this.sweep(), Math.min(1000, ...Object.values(this.timeouts)))
     this.timer.unref()
   }
@@ -195,8 +198,9 @@ export class WindowsTransferRegistry {
         '上传登记请求无效。',
       )
     }
-    if (!this.receiver)
+    if (!this.receiver) {
       throw new HttpOperationError('unsupported-operation', '未启用原生接收能力。')
+    }
     const request = clone(value)
     this.assertAvailable(request.manifest.transferId)
     this.pendingId = request.manifest.transferId
@@ -204,8 +208,9 @@ export class WindowsTransferRegistry {
     this.pendingRegistration = this.prepareUpload(request, this.receiver).finally(() => {
       this.pendingId = null
       this.pendingRegistration = null
-      if (this.activeId === null && activeTransferOwner === this.ownership)
+      if (this.activeId === null && activeTransferOwner === this.ownership) {
         activeTransferOwner = null
+      }
     })
     return this.pendingRegistration
   }
@@ -217,11 +222,14 @@ export class WindowsTransferRegistry {
     const targets = new Set<string>()
     for (const file of publicationRequests(request)) {
       const key = await receiver.publisher.checkTarget(file)
-      if (targets.has(key))
+      if (targets.has(key)) {
         throw new HttpOperationError('name-conflict', '多个文件映射到相同实际目标。')
+      }
       targets.add(key)
     }
-    if (this.isStopped) throw new HttpOperationError('busy', '服务正在停止。')
+    if (this.isStopped) {
+      throw new HttpOperationError('busy', '服务正在停止。')
+    }
     const at = this.now()
     const state: BatchRunningState = {
       transferId: request.manifest.transferId,
@@ -297,8 +305,9 @@ export class WindowsTransferRegistry {
       task.state.stage !== 'awaiting-content' ||
       !task.receiver ||
       !task.manifest
-    )
+    ) {
       throw new HttpOperationError('task-conflict', '该任务当前不接受上传内容。')
+    }
     const length = request.headers['content-length']
     const hash = request.headers[HTTP_HEADERS.archiveSha256]
     if (
@@ -307,12 +316,18 @@ export class WindowsTransferRegistry {
       typeof request.headers['content-type'] !== 'string' ||
       request.headers['content-type'].toLowerCase() !== 'application/gzip' ||
       !isSha256(hash)
-    )
+    ) {
       throw new HttpOperationError('invalid-request', '上传内容头无效。')
-    if (Number(length) > BATCH_LIMITS.maxArchiveBytes)
+    }
+    if (Number(length) > BATCH_LIMITS.maxArchiveBytes) {
       throw new HttpOperationError('resource-limit', '上传体超过协议预算。')
-    if (Number(length) !== task.manifest.archive.sizeBytes || hash !== task.manifest.archive.sha256)
+    }
+    if (
+      Number(length) !== task.manifest.archive.sizeBytes ||
+      hash !== task.manifest.archive.sha256
+    ) {
       throw new HttpOperationError('checksum-mismatch', '上传头与登记清单不符。')
+    }
     this.running(task, 'transferring')
     task.networkAt = this.now()
     const receive = task.receiver.receive(request, response)
@@ -322,13 +337,18 @@ export class WindowsTransferRegistry {
 
   private assertAvailable(id: string): void {
     this.sweep()
-    if (this.isStopped) throw new HttpOperationError('busy', '服务正在停止。')
-    if (this.usedIds.has(id) || this.pendingId === id)
+    if (this.isStopped) {
+      throw new HttpOperationError('busy', '服务正在停止。')
+    }
+    if (this.usedIds.has(id) || this.pendingId === id) {
       throw new HttpOperationError('task-conflict', '本会话已使用或正在登记该任务标识。')
-    if (activeTransferOwner !== null)
+    }
+    if (activeTransferOwner !== null) {
       throw new HttpOperationError('busy', '已有活动批次或缓存等待清理。')
-    if (this.usedIds.size >= this.maxTransfers)
+    }
+    if (this.usedIds.size >= this.maxTransfers) {
       throw new HttpOperationError('resource-limit', '会话任务标识容量已满，请重新启动服务。')
+    }
   }
 
   /** 查询返回独立快照，不改变期限；不存在/到期均不证明远端未写入。 */
@@ -345,7 +365,9 @@ export class WindowsTransferRegistry {
   /** 仅在 ready 之后或仍保留清单的终态可读，准备阶段返回 task-conflict。 */
   getManifest(id: string): BatchManifest {
     const task = this.find(id)
-    if (!task.manifest) throw new HttpOperationError('task-conflict', '任务清单尚不可用。')
+    if (!task.manifest) {
+      throw new HttpOperationError('task-conflict', '任务清单尚不可用。')
+    }
     return clone(task.manifest)
   }
 
@@ -364,8 +386,9 @@ export class WindowsTransferRegistry {
       task.state.role !== 'sender' ||
       task.state.stage !== 'ready' ||
       !task.artifact
-    )
+    ) {
       throw new HttpOperationError('task-conflict', '任务内容已领取或当前阶段不允许领取。')
+    }
     this.running(task, 'transferring')
     task.networkAt = this.now()
     task.worker = this.send(task, response)
@@ -385,44 +408,58 @@ export class WindowsTransferRegistry {
         }
         continue
       }
-      if (task.state.status !== 'running' || task.state.stage === 'cleaning') continue
+      if (task.state.status !== 'running' || task.state.stage === 'cleaning') {
+        continue
+      }
       if (
         now - task.acceptedAt >= this.timeouts.total ||
         (task.state.stage === 'ready' && now - task.stageAt >= this.timeouts.ready) ||
         (task.state.stage === 'awaiting-content' &&
           now - task.stageAt >= this.timeouts.awaitingContent) ||
         (task.state.stage === 'transferring' && now - task.networkAt >= this.timeouts.networkIdle)
-      )
+      ) {
         this.abort(task, operation('timeout', '批次操作超过期限。'))
+      }
     }
   }
 
   /** 仅重试确知所有权的归档缓存；成功后更新仍保留的终态并释放互斥。 */
   async retryCleanup(): Promise<void> {
     const id = this.activeId
-    if (id === null) return
+    if (id === null) {
+      return
+    }
     const task = this.tasks.get(id)
-    if (task?.state.status === 'running') throw new HttpOperationError('busy', '任务仍在使用缓存。')
+    if (task?.state.status === 'running') {
+      throw new HttpOperationError('busy', '任务仍在使用缓存。')
+    }
     await this.archive.retryCleanup()
     await this.receiver?.archive.retryCleanup()
     await this.receiver?.publisher.retryCleanup()
-    if (task)
+    if (task) {
       task.state = {
         ...task.state,
         cleanupStatus: 'complete',
         cleanupError: null,
         updatedAt: this.now(),
       }
+    }
     this.activeId = null
-    if (activeTransferOwner === this.ownership) activeTransferOwner = null
+    if (activeTransferOwner === this.ownership) {
+      activeTransferOwner = null
+    }
   }
 
   /** 停止接纳、取消并等待当前 worker，最后释放缓存；失败由主进程明确处理。 */
   async stop(): Promise<void> {
     this.isStopped = true
     clearInterval(this.timer)
-    if (this.pendingRegistration) await this.pendingRegistration.catch(() => undefined)
-    for (const task of this.tasks.values()) this.abort(task, null)
+    if (this.pendingRegistration) {
+      await this.pendingRegistration.catch(() => undefined)
+    }
+    for (const task of this.tasks.values()) {
+      this.abort(task, null)
+    }
     await Promise.all([...this.tasks.values()].map((task) => task.worker.catch(() => undefined)))
     await this.retryCleanup()
     this.tasks.clear()
@@ -432,8 +469,9 @@ export class WindowsTransferRegistry {
   private find(id: string): TransferTask {
     this.sweep()
     const task = this.tasks.get(id)
-    if (!task)
+    if (!task) {
       throw new HttpOperationError('result-unknown', '任务不存在或结果已到期，请核实当前目标。')
+    }
     return task
   }
 
@@ -442,8 +480,12 @@ export class WindowsTransferRegistry {
     stage: BatchRunningState['stage'],
     progress?: BatchProgress,
   ): void {
-    if (task.state.status !== 'running') return
-    if (task.state.stage !== stage) task.stageAt = this.now()
+    if (task.state.status !== 'running') {
+      return
+    }
+    if (task.state.stage !== stage) {
+      task.stageAt = this.now()
+    }
     task.state = {
       ...task.state,
       stage,
@@ -453,7 +495,9 @@ export class WindowsTransferRegistry {
   }
 
   private abort(task: TransferTask, reason: KnownOperationError | null): void {
-    if (task.state.status !== 'running' || task.controller.signal.aborted) return
+    if (task.state.status !== 'running' || task.controller.signal.aborted) {
+      return
+    }
     task.reason = reason
     task.state = { ...task.state, cancelRequested: reason === null, updatedAt: this.now() }
     task.controller.abort(
@@ -461,9 +505,9 @@ export class WindowsTransferRegistry {
         ? new DOMException('任务超时。', 'TimeoutError')
         : new Error('任务中断。'),
     )
-    if (task.state.stage === 'ready')
+    if (task.state.stage === 'ready') {
       task.worker = this.finish(task, reason ? 'failed' : 'cancelled', reason)
-    else if (task.state.stage === 'awaiting-content' && task.receiverRequest)
+    } else if (task.state.stage === 'awaiting-content' && task.receiverRequest) {
       task.worker = this.completeReceiver(task, {
         status: reason ? 'failed' : 'cancelled',
         error: reason,
@@ -474,6 +518,7 @@ export class WindowsTransferRegistry {
         })),
         cleanupError: null,
       })
+    }
   }
 
   private async prepare(task: TransferTask, request: DownloadBatchRequest): Promise<void> {
@@ -481,11 +526,12 @@ export class WindowsTransferRegistry {
       const artifact = await this.archive.prepare(request, {
         signal: task.controller.signal,
         onProgress: (counters) => {
-          if (task.state.status === 'running')
+          if (task.state.status === 'running') {
             this.running(task, task.state.stage, {
               ...task.state.progress,
               sourceBytesRead: counters.sourceBytesRead,
             })
+          }
         },
       })
       task.artifact = artifact
@@ -497,32 +543,34 @@ export class WindowsTransferRegistry {
         artifact.manifest.files.some(
           (file, index) => file.sourceEntryId !== request.files[index]?.entryId,
         )
-      )
+      ) {
         throw new HttpOperationError('invalid-archive', '归档清单与当前任务不符。')
+      }
       task.manifest = clone(artifact.manifest)
       if (task.controller.signal.aborted) {
         await this.finish(task, task.reason ? 'failed' : 'cancelled', task.reason)
         return
       }
-      if (task.state.status === 'running')
+      if (task.state.status === 'running') {
         this.running(task, 'ready', {
           ...task.state.progress,
           sourceBytesRead: artifact.manifest.totalFileBytes,
           totalFileBytes: artifact.manifest.totalFileBytes,
           totalArchiveBytes: artifact.manifest.archive.sizeBytes,
         })
+      }
     } catch (error) {
       const cleanup =
         error && typeof error === 'object' && 'cleanupError' in error && error.cleanupError
           ? operation('cleanup-failed', '私有缓存清理失败，请重试。')
           : null
-      const cancelled =
+      const wasCancelled =
         task.reason === null &&
         (task.controller.signal.aborted || error instanceof ArchiveCancelledError)
       await this.finish(
         task,
-        cancelled ? 'cancelled' : 'failed',
-        cancelled ? null : (task.reason ?? this.knownError(error)),
+        wasCancelled ? 'cancelled' : 'failed',
+        wasCancelled ? null : (task.reason ?? this.knownError(error)),
         cleanup,
       )
     }
@@ -530,7 +578,9 @@ export class WindowsTransferRegistry {
 
   private async send(task: TransferTask, response: ServerResponse): Promise<void> {
     const artifact = task.artifact
-    if (!artifact) throw new HttpOperationError('task-conflict', '任务缓存不可用。')
+    if (!artifact) {
+      throw new HttpOperationError('task-conflict', '任务缓存不可用。')
+    }
     const descriptor = artifact.manifest.archive
     const hash = createHash('sha256')
     let bytes = 0
@@ -540,8 +590,9 @@ export class WindowsTransferRegistry {
     }
     let removeErrorListeners = (): void => undefined
     const disconnected = (): void => {
-      if (!response.writableFinished)
+      if (!response.writableFinished) {
         this.abort(task, localFailure ?? operation('network-failure', '归档连接中断。'))
+      }
     }
     response.once('close', disconnected)
     try {
@@ -561,11 +612,12 @@ export class WindowsTransferRegistry {
           bytes += chunk.length
           hash.update(chunk)
           task.networkAt = this.now()
-          if (task.state.status === 'running')
+          if (task.state.status === 'running') {
             this.running(task, 'transferring', {
               ...task.state.progress,
               archiveBytesTransferred: bytes,
             })
+          }
           callback(null, chunk)
         },
         flush: (callback) =>
@@ -591,9 +643,9 @@ export class WindowsTransferRegistry {
       await pipeline(input, counter, response, { signal: task.controller.signal })
       await this.finish(task, 'sent', null)
     } catch (error) {
-      const cancelled = task.controller.signal.aborted && task.reason === null
+      const wasCancelled = task.controller.signal.aborted && task.reason === null
       const failure = task.reason ?? localFailure ?? this.knownError(error)
-      await this.finish(task, cancelled ? 'cancelled' : 'failed', cancelled ? null : failure)
+      await this.finish(task, wasCancelled ? 'cancelled' : 'failed', wasCancelled ? null : failure)
       throw new HttpOperationError(failure.code, failure.message, error)
     } finally {
       removeErrorListeners()
@@ -615,7 +667,9 @@ export class WindowsTransferRegistry {
     previousCleanup: KnownOperationError | null = null,
     results: readonly FileOutcome[] | null = null,
   ): Promise<void> {
-    if (task.finishing) return task.finishing
+    if (task.finishing) {
+      return task.finishing
+    }
     this.running(task, 'cleaning')
     task.finishing = this.clean(task, status, error, previousCleanup, results)
     return task.finishing
@@ -644,9 +698,9 @@ export class WindowsTransferRegistry {
       fileResults: results,
       ...(cleanupError
         ? {
-            cleanupStatus: 'incomplete' as const,
-            cleanupError: { ...cleanupError, code: 'cleanup-failed' as const },
-          }
+          cleanupStatus: 'incomplete' as const,
+          cleanupError: { ...cleanupError, code: 'cleanup-failed' as const },
+        }
         : { cleanupStatus: 'complete' as const, cleanupError: null }),
     }
     const terminal = {
@@ -668,13 +722,16 @@ export class WindowsTransferRegistry {
           'android-to-windows',
           task.receiverRequest,
         ))
-    )
+    ) {
       throw new HttpOperationError('result-unknown', '批次最终结果未能对应当前清单。')
+    }
     task.state = terminal
     task.terminalAt = at
     if (!cleanupError) {
       this.activeId = null
-      if (activeTransferOwner === this.ownership) activeTransferOwner = null
+      if (activeTransferOwner === this.ownership) {
+        activeTransferOwner = null
+      }
     }
   }
 

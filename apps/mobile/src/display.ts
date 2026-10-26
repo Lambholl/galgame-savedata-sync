@@ -2,9 +2,15 @@ import type { BatchState } from '@savedata-sync/shared'
 
 /** null 显示未知，0 显示空文件的实际字节数。 */
 export function formatBytes(bytes: number | null): string {
-  if (bytes === null) return '未知'
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KiB`
+  if (bytes === null) {
+    return '未知'
+  }
+  if (bytes < 1024) {
+    return `${bytes} B`
+  }
+  if (bytes < 1024 * 1024) {
+    return `${(bytes / 1024).toFixed(1)} KiB`
+  }
   return `${(bytes / (1024 * 1024)).toFixed(1)} MiB`
 }
 

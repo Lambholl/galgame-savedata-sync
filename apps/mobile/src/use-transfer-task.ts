@@ -22,27 +22,37 @@ export function useTransferTask(task: CurrentTransfer | null): {
     setRemote((value) => (value?.transferId === transferId ? value : null))
     setManifest((value) => (value?.transferId === transferId ? value : null))
     setError('')
-    if (!task) return
+    if (!task) {
+      return
+    }
     const id = task.options.request.transferId
     let isCurrent = true
     let timer: ReturnType<typeof setTimeout>
     let isPolling = false
     let hasManifest = false
     async function poll(): Promise<void> {
-      if (!isCurrent || isPolling || document.visibilityState === 'hidden') return
+      if (!isCurrent || isPolling || document.visibilityState === 'hidden') {
+        return
+      }
       clearTimeout(timer)
       isPolling = true
       try {
         const localResult = await androidTransfers.query(id)
         const remoteResult = await androidTransfers.queryRemote(id, true)
-        if (!isCurrent) return
+        if (!isCurrent) {
+          return
+        }
         const errors: string[] = []
-        if (localResult.status === 'success') setLocal(localResult.value)
-        else if (localResult.error.code !== 'task-conflict')
+        if (localResult.status === 'success') {
+          setLocal(localResult.value)
+        } else if (localResult.error.code !== 'task-conflict') {
           errors.push(`手机：${localResult.error.message}（${localResult.error.code}）`)
-        if (remoteResult.status === 'success') setRemote(remoteResult.value)
-        else if (remoteResult.error.code !== 'task-conflict')
+        }
+        if (remoteResult.status === 'success') {
+          setRemote(remoteResult.value)
+        } else if (remoteResult.error.code !== 'task-conflict') {
           errors.push(`电脑：${remoteResult.error.message}（${remoteResult.error.code}）`)
+        }
         setError(errors.join('；'))
         if (!hasManifest) {
           const result = await androidTransfers.getManifest(id)
@@ -58,17 +68,21 @@ export function useTransferTask(task: CurrentTransfer | null): {
           receiver.value.status !== 'running' &&
           localResult.status === 'success' &&
           localResult.value.status !== 'running'
-        )
+        ) {
           return
+        }
       } catch {
-        if (isCurrent) setError('读取任务失败，请刷新结果。')
+        if (isCurrent) {
+          setError('读取任务失败，请刷新结果。')
+        }
       } finally {
         isPolling = false
       }
-      if (isCurrent)
+      if (isCurrent) {
         timer = setTimeout(() => {
           poll().catch(() => setError('刷新任务失败。'))
         }, 1200)
+      }
     }
     const resume = (): void => {
       poll().catch(() => setError('恢复任务显示失败。'))

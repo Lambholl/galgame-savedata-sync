@@ -50,14 +50,20 @@ export function DirectoryPane({
     setListing(null)
     setSelected([])
     setError('')
-    if (!rootId || !isOnline) return
+    if (!rootId || !isOnline) {
+      return
+    }
     let isCurrent = true
     setIsLoading(true)
     async function read(): Promise<void> {
       for (const ancestor of [null, ...crumbs.slice(0, -1).map((item) => item.id)]) {
-        if (parentId === null) break
+        if (parentId === null) {
+          break
+        }
         unwrap(await adapter.directory(deviceId, rootId as string, ancestor))
-        if (!isCurrent) return
+        if (!isCurrent) {
+          return
+        }
       }
       const value = unwrap(await adapter.directory(deviceId, rootId as string, parentId))
       if (isCurrent) {
@@ -71,10 +77,14 @@ export function DirectoryPane({
     }
     read()
       .catch((cause: unknown) => {
-        if (isCurrent) setError(cause instanceof Error ? cause.message : '读取目录失败。')
+        if (isCurrent) {
+          setError(cause instanceof Error ? cause.message : '读取目录失败。')
+        }
       })
       .finally(() => {
-        if (isCurrent) setIsLoading(false)
+        if (isCurrent) {
+          setIsLoading(false)
+        }
       })
     return () => {
       isCurrent = false
@@ -84,14 +94,14 @@ export function DirectoryPane({
     onLocation(
       listing && rootId && isOnline
         ? {
-            rootId,
-            parentId,
-            listing,
-            files: listing.entries.filter(
-              (item): item is FileMetadata =>
-                item.kind === 'file' && selected.includes(item.entryId),
-            ),
-          }
+          rootId,
+          parentId,
+          listing,
+          files: listing.entries.filter(
+            (item): item is FileMetadata =>
+              item.kind === 'file' && selected.includes(item.entryId),
+          ),
+        }
         : null,
     )
   }, [listing, rootId, parentId, selected, isOnline, onLocation])
@@ -147,18 +157,18 @@ export function DirectoryPane({
         }}
         {...(isSource
           ? {
-              rowSelection: {
-                columnWidth: 26,
-                selectedRowKeys: [...selected],
-                getCheckboxProps: (item: EntryMetadata) => ({
-                  disabled:
+            rowSelection: {
+              columnWidth: 26,
+              selectedRowKeys: [...selected],
+              getCheckboxProps: (item: EntryMetadata) => ({
+                disabled:
                     isDisabled ||
                     item.kind !== 'file' ||
                     item.capabilities.canRead === 'unsupported',
-                }),
-                onChange: (keys: React.Key[]) => setSelected(keys.map(String)),
-              },
-            }
+              }),
+              onChange: (keys: React.Key[]) => setSelected(keys.map(String)),
+            },
+          }
           : {})}
         columns={[
           {

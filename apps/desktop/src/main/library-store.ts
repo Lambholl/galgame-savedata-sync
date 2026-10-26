@@ -46,18 +46,25 @@ export class DesktopLibrary {
   async load(): Promise<void> {
     try {
       const value: unknown = JSON.parse(await readFile(this.file, 'utf8'))
-      if (!isLibraryConfig(value)) throw new Error('游戏与设备配置格式无效。')
+      if (!isLibraryConfig(value)) {
+        throw new Error('游戏与设备配置格式无效。')
+      }
       this.config = value
     } catch (error) {
-      if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) throw error
+      if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) {
+        throw error
+      }
     }
   }
   private update(work: (current: LibraryConfig) => LibraryConfig): Promise<void> {
     const next = this.saving.then(async () => {
       const config = work(this.config)
-      if (!isLibraryConfig(config))
+      if (!isLibraryConfig(config)) {
         throw new HttpOperationError('invalid-request', '游戏或设备配置无效。')
-      if (JSON.stringify(config) === JSON.stringify(this.config)) return
+      }
+      if (JSON.stringify(config) === JSON.stringify(this.config)) {
+        return
+      }
       const temporary = `${this.file}.${randomUUID()}.tmp`
       await writeFile(temporary, JSON.stringify(config), { encoding: 'utf8', flag: 'wx' })
       await rename(temporary, this.file)
@@ -89,16 +96,16 @@ export class DesktopLibrary {
         action === 'forget'
           ? current.devices.filter((item) => item.id !== id)
           : current.devices.map((item) =>
-              item.id === id
-                ? { ...item, ...(name ? { name } : {}), blocked: action === 'block' }
-                : item,
-            ),
+            item.id === id
+              ? { ...item, ...(name ? { name } : {}), blocked: action === 'block' }
+              : item,
+          ),
       games:
         action === 'forget'
           ? current.games.map((item) => ({
-              ...item,
-              links: item.links.filter((link) => link.deviceId !== id),
-            }))
+            ...item,
+            links: item.links.filter((link) => link.deviceId !== id),
+          }))
           : current.games,
     }))
     if (action !== 'allow') {
@@ -124,21 +131,25 @@ export class DesktopLibrary {
       this.runtime.delete(value.deviceId)
       return { games: [], links: [], request: null }
     }
-    if (!isCatalogHello(value))
+    if (!isCatalogHello(value)) {
       throw new HttpOperationError('invalid-request', '设备目录元数据无效。')
+    }
     const hello = structuredClone(value)
     const saved = this.config.devices.find((item) => item.id === hello.deviceId)
-    if (saved?.blocked)
+    if (saved?.blocked) {
       throw new HttpOperationError('permission-denied', '此设备已在电脑断开，请在电脑允许连接。')
+    }
     if (
       [...this.runtime.entries()].some(
         ([id, item]) =>
           id !== hello.deviceId && (isTransferring || Date.now() - item.seenAt < 15000),
       )
-    )
+    ) {
       throw new HttpOperationError('busy', '电脑已连接另一台手机，请先断开。')
-    if (!saved && this.config.devices.length >= 32)
+    }
+    if (!saved && this.config.devices.length >= 32) {
       throw new HttpOperationError('resource-limit', '最多保存 32 台设备。')
+    }
     const previous = this.runtime.get(hello.deviceId)
     this.runtime.set(hello.deviceId, {
       hello,
@@ -152,9 +163,9 @@ export class DesktopLibrary {
           devices: current.devices.some((item) => item.id === hello.deviceId)
             ? current.devices
             : [
-                ...current.devices,
-                { id: hello.deviceId, name: hello.name, address: null, blocked: false },
-              ],
+              ...current.devices,
+              { id: hello.deviceId, name: hello.name, address: null, blocked: false },
+            ],
         },
         hello.deviceId,
         hello.links.filter((link) => hello.games.some((item) => item.id === link.localGameId)),
@@ -165,25 +176,27 @@ export class DesktopLibrary {
       const answer = hello.answer.result
       clearTimeout(pending.timer)
       this.pending.delete(hello.deviceId)
-      if (answer.status === 'error')
+      if (answer.status === 'error') {
         pending.reject(new HttpOperationError(answer.error.code, answer.error.message))
-      else if (
+      } else if (
         answer.value.rootId !== pending.query.rootId ||
         answer.value.parentId !== pending.query.parentId
-      )
+      ) {
         pending.reject(new HttpOperationError('invalid-request', '手机目录应答与请求不匹配。'))
-      else {
+      } else {
         const entries = this.runtime.get(hello.deviceId)?.entries
         for (const item of answer.value.entries) {
-          if (entries && entries.size < 32768)
+          if (entries && entries.size < 32768) {
             entries.add(`${answer.value.rootId}\n${item.entryId}`)
+          }
         }
         pending.resolve(answer.value)
       }
     }
     const roots = await this.adapter.listRoots()
-    if (roots.status === 'error')
+    if (roots.status === 'error') {
       throw new HttpOperationError(roots.error.code, roots.error.message)
+    }
     return {
       games: libraryCatalog(this.config, roots.value),
       links: libraryLinks(this.config, hello.deviceId),
@@ -194,12 +207,15 @@ export class DesktopLibrary {
   directory(deviceId: string, rootId: string, parentId: string | null): Promise<DirectoryListing> {
     const peer = this.snapshot().peers.find((item) => item.device.id === deviceId)
     const runtime = this.runtime.get(deviceId)
-    if (!peer?.isConnected || !peer.games.some((item) => item.root?.rootId === rootId))
+    if (!peer?.isConnected || !peer.games.some((item) => item.root?.rootId === rootId)) {
       return Promise.reject(new HttpOperationError('not-found', '手机未在线或目录已失效。'))
-    if (parentId !== null && !runtime?.entries.has(`${rootId}\n${parentId}`))
+    }
+    if (parentId !== null && !runtime?.entries.has(`${rootId}\n${parentId}`)) {
       return Promise.reject(new HttpOperationError('invalid-request', '请从游戏根目录重新浏览。'))
-    if (this.pending.has(deviceId))
+    }
+    if (this.pending.has(deviceId)) {
       return Promise.reject(new HttpOperationError('busy', '正在读取这台手机的目录。'))
+    }
     const query = { requestId: randomUUID(), rootId, parentId }
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {

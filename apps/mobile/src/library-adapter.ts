@@ -34,22 +34,32 @@ export function createMobileLibraryAdapter(): UiAdapter {
   let hasRestored = false
   let descriptors: readonly BatchDeviceDescriptor[] = []
   function load(): LibraryConfig {
-    if (config) return config
+    if (config) {
+      return config
+    }
     const raw = localStorage.getItem(CONFIG_KEY)
     const value: unknown = raw === null ? emptyLibrary() : JSON.parse(raw)
-    if (!isLibraryConfig(value)) throw new Error('游戏配置损坏，请保留应用数据后检查。')
+    if (!isLibraryConfig(value)) {
+      throw new Error('游戏配置损坏，请保留应用数据后检查。')
+    }
     config = value
     return value
   }
   function save(value: LibraryConfig): void {
-    if (!isLibraryConfig(value)) throw new Error('游戏或设备配置无效。')
-    if (JSON.stringify(load()) === JSON.stringify(value)) return
+    if (!isLibraryConfig(value)) {
+      throw new Error('游戏或设备配置无效。')
+    }
+    if (JSON.stringify(load()) === JSON.stringify(value)) {
+      return
+    }
     localStorage.setItem(CONFIG_KEY, JSON.stringify(value))
     config = value
   }
   async function select(id: string): Promise<BatchDeviceDescriptor> {
     const descriptor = descriptors.find((item) => item.device.deviceId === id)
-    if (!descriptor) throw new Error('请先连接这台电脑。')
+    if (!descriptor) {
+      throw new Error('请先连接这台电脑。')
+    }
     if (selectedId !== id) {
       unwrap(await androidTransfers.selectDevice(id))
       unwrap(await androidTransfers.listRemoteRoots())
@@ -61,7 +71,7 @@ export function createMobileLibraryAdapter(): UiAdapter {
     if (!hasRestored) {
       current = unwrap(await androidTransfers.current())
       hasRestored = true
-      if (current)
+      if (current) {
         task = {
           id: current.options.request.transferId,
           title: current.device.device.displayName,
@@ -70,8 +80,11 @@ export function createMobileLibraryAdapter(): UiAdapter {
           upload: current.upload,
           names: {},
         }
+      }
     }
-    if (!current || !task || !taskIsActive(task)) return
+    if (!current || !task || !taskIsActive(task)) {
+      return
+    }
     const id = current.options.request.transferId
     const local = await androidTransfers.query(id)
     const remote = await androidTransfers.queryRemote(id, true)
@@ -89,7 +102,9 @@ export function createMobileLibraryAdapter(): UiAdapter {
   async function disconnect(id: string): Promise<void> {
     unwrap(await androidTransfers.disconnectDevice(id))
     descriptors = descriptors.filter((item) => item.device.deviceId !== id)
-    if (selectedId === id) selectedId = null
+    if (selectedId === id) {
+      selectedId = null
+    }
   }
   return {
     platform: 'android',
@@ -100,7 +115,7 @@ export function createMobileLibraryAdapter(): UiAdapter {
       descriptors = unwrap(await androidTransfers.connections())
       for (const descriptor of descriptors) {
         const id = descriptor.device.deviceId
-        if (!load().devices.some((item) => item.id === id))
+        if (!load().devices.some((item) => item.id === id)) {
           save({
             ...load(),
             devices: [
@@ -108,6 +123,7 @@ export function createMobileLibraryAdapter(): UiAdapter {
               { id, name: descriptor.device.displayName, address: null, blocked: false },
             ],
           })
+        }
         const result = await androidTransfers.exchangeCatalog(id, {
           games: libraryCatalog(load(), roots),
           links: libraryLinks(load(), id),
@@ -120,7 +136,9 @@ export function createMobileLibraryAdapter(): UiAdapter {
             result.error.code === 'permission-denied' ||
             result.error.code === 'busy'
           ) {
-            if (!task || !taskIsActive(task)) await disconnect(id)
+            if (!task || !taskIsActive(task)) {
+              await disconnect(id)
+            }
           }
           continue
         }
@@ -129,17 +147,17 @@ export function createMobileLibraryAdapter(): UiAdapter {
         save(mergeCatalogLinks(load(), id, result.value.links))
         const request = result.value.request
         if (request) {
-          const allowed = load().games.some((item) => item.rootId === request.rootId)
-          const response: OperationResult<DirectoryListing> = allowed
+          const isAllowed = load().games.some((item) => item.rootId === request.rootId)
+          const response: OperationResult<DirectoryListing> = isAllowed
             ? await androidDirectories.listDirectory(request.rootId, request.parentId)
             : {
-                status: 'error',
-                error: {
-                  code: 'permission-denied',
-                  message: '这个目录未配置到游戏。',
-                  canRetry: false,
-                },
-              }
+              status: 'error',
+              error: {
+                code: 'permission-denied',
+                message: '这个目录未配置到游戏。',
+                canRetry: false,
+              },
+            }
           answers.set(id, { requestId: request.requestId, result: response })
         }
       }
@@ -161,21 +179,26 @@ export function createMobileLibraryAdapter(): UiAdapter {
     saveGames(games): Promise<void> {
       return Promise.resolve().then(() => save({ ...load(), games }))
     },
-    async chooseDirectory(receive) {
-      const result = await (receive
+    async chooseDirectory(shouldReceive) {
+      const result = await (shouldReceive
         ? androidTransfers.chooseTarget()
         : androidDirectories.chooseDirectory())
-      if (receive && result.status === 'selected') granted.add(result.directory.rootId)
+      if (shouldReceive && result.status === 'selected') {
+        granted.add(result.directory.rootId)
+      }
       return result
     },
     async connect(address, expectedDeviceId): Promise<void> {
-      if (descriptors.length) throw new Error('请先断开当前设备。')
+      if (descriptors.length) {
+        throw new Error('请先断开当前设备。')
+      }
       const normalized = normalizeHttpAddress(address)
       const descriptor = unwrap(await androidTransfers.connect(normalized))
       const id = descriptor.device.deviceId
       try {
-        if (expectedDeviceId && expectedDeviceId !== id)
+        if (expectedDeviceId && expectedDeviceId !== id) {
           throw new Error('这个地址属于另一台设备，原游戏关联已保留。请将新设备单独添加。')
+        }
         const roots = unwrap(await androidDirectories.listRoots())
         const reply = unwrap(
           await androidTransfers.exchangeCatalog(id, {
@@ -216,12 +239,16 @@ export function createMobileLibraryAdapter(): UiAdapter {
       }
       if (action === 'allow') {
         const item = load().devices.find((value) => value.id === id)
-        if (!item?.address) throw new Error('设备地址缺失。')
+        if (!item?.address) {
+          throw new Error('设备地址缺失。')
+        }
         await this.connect(item.address, id)
         return
       }
       if (action === 'forget') {
-        if (descriptors.some((item) => item.device.deviceId === id)) await disconnect(id)
+        if (descriptors.some((item) => item.device.deviceId === id)) {
+          await disconnect(id)
+        }
         save({
           ...load(),
           devices: load().devices.filter((item) => item.id !== id),
@@ -236,32 +263,37 @@ export function createMobileLibraryAdapter(): UiAdapter {
         address !== undefined &&
         descriptors.some((item) => item.device.deviceId === id) &&
         load().devices.find((item) => item.id === id)?.address !== normalizeHttpAddress(address)
-      )
+      ) {
         throw new Error('请先断开设备，再修改地址。')
+      }
       save({
         ...load(),
         devices: load().devices.map((item) =>
           item.id === id
             ? {
-                ...item,
-                name: name ?? item.name,
-                ...(address !== undefined ? { address: normalizeHttpAddress(address) } : {}),
-              }
+              ...item,
+              name: name ?? item.name,
+              ...(address !== undefined ? { address: normalizeHttpAddress(address) } : {}),
+            }
             : item,
         ),
       })
     },
     async directory(deviceId, rootId, parentId) {
-      if (deviceId === null) return androidDirectories.listDirectory(rootId, parentId)
+      if (deviceId === null) {
+        return androidDirectories.listDirectory(rootId, parentId)
+      }
       await select(deviceId)
       return androidTransfers.listRemoteDirectory(rootId, parentId)
     },
     async start(transfer: UiTransfer): Promise<void> {
       const descriptor = await select(transfer.deviceId)
-      if (!unwrap(await androidTransfers.requestNotifications()))
+      if (!unwrap(await androidTransfers.requestNotifications())) {
         throw new Error('请允许传输通知后重试。')
-      if (!transfer.upload && !granted.has(transfer.targetRootId))
+      }
+      if (!transfer.upload && !granted.has(transfer.targetRootId)) {
         throw new Error('请先允许本机目录接收文件。')
+      }
       const options: TransferStartOptions = {
         request: {
           protocolVersion: PROTOCOL_VERSION,
@@ -304,7 +336,9 @@ export function createMobileLibraryAdapter(): UiAdapter {
       unwrap(await androidTransfers.cancel(id))
     },
     async cleanup(): Promise<void> {
-      if (!unwrap(await androidTransfers.retryCleanup())) throw new Error('仍有临时文件未清理。')
+      if (!unwrap(await androidTransfers.retryCleanup())) {
+        throw new Error('仍有临时文件未清理。')
+      }
     },
     service(): Promise<void> {
       return Promise.reject(new Error('请在电脑开启服务。'))

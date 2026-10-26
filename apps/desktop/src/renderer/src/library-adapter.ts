@@ -7,7 +7,9 @@ export function createDesktopLibraryAdapter(): UiAdapter {
     const library = window.desktopLibrary,
       service = window.desktopService,
       directories = window.desktopDirectories
-    if (!library || !service || !directories) throw new Error('请在桌面应用中打开此界面。')
+    if (!library || !service || !directories) {
+      throw new Error('请在桌面应用中打开此界面。')
+    }
     return { library, service, directories }
   }
   return {
@@ -47,9 +49,9 @@ export function createDesktopLibraryAdapter(): UiAdapter {
     async saveGames(games): Promise<void> {
       unwrap(await apis().library.saveGames(games))
     },
-    chooseDirectory(receive) {
+    chooseDirectory(shouldReceive) {
       const api = apis()
-      return receive ? api.service.chooseTarget() : api.directories.chooseDirectory()
+      return shouldReceive ? api.service.chooseTarget() : api.directories.chooseDirectory()
     },
     async revokeReceive(rootId): Promise<void> {
       unwrap(await apis().service.revokeTarget(rootId))
@@ -89,9 +91,9 @@ export function createDesktopLibraryAdapter(): UiAdapter {
     async cleanup(): Promise<void> {
       unwrap(await apis().service.retryCleanup())
     },
-    async service(start, port): Promise<void> {
+    async service(shouldStart, port): Promise<void> {
       const api = apis()
-      unwrap(await (start ? api.service.start(port) : api.service.stop()))
+      unwrap(await (shouldStart ? api.service.start(port) : api.service.stop()))
     },
   }
 }

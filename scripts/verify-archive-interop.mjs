@@ -25,7 +25,9 @@ const archive = await createWindowsArchiveAdapter(source, privateDirectory)
 
 async function collect(stream) {
   const chunks = []
-  for await (const chunk of stream) chunks.push(chunk)
+  for await (const chunk of stream) {
+    chunks.push(chunk)
+  }
   return Buffer.concat(chunks)
 }
 
@@ -34,8 +36,9 @@ try {
     const root = join(OUTPUT, 'source')
     await mkdir(root, { recursive: true })
     const names = FIXTURE.contentsBase64.map((_, index) => `夹具 ${index}.sav`)
-    for (const [index, name] of names.entries())
+    for (const [index, name] of names.entries()) {
       await writeFile(join(root, name), Buffer.from(FIXTURE.contentsBase64[index], 'base64'))
+    }
     const registered = await source.registerDirectory(root)
     assert.equal(registered.status, 'success')
     const listing = await source.listDirectory(registered.value.rootId)
@@ -58,14 +61,18 @@ try {
       // 使用中性后缀，避免 Android 资源合并阶段处理 .gz 后改变待验证的原始字节。
       await writeFile(join(assets, 'windows-archive.bin'), bytes)
       await unlink(join(assets, 'windows.gz')).catch((error) => {
-        if (error.code !== 'ENOENT') throw error
+        if (error.code !== 'ENOENT') {
+          throw error
+        }
       })
       await writeFile(join(assets, 'windows-manifest.json'), JSON.stringify(prepared.manifest))
     } finally {
       await prepared.dispose()
     }
     const large = Buffer.alloc(131073)
-    for (let index = 0; index < large.length; index++) large[index] = (index * 31 + 7) % 256
+    for (let index = 0; index < large.length; index++) {
+      large[index] = (index * 31 + 7) % 256
+    }
     await writeFile(join(root, 'large.sav'), large)
     const updated = await source.listDirectory(registered.value.rootId)
     assert.equal(updated.status, 'success')
@@ -100,7 +107,9 @@ try {
       assert.equal(manifest.totalFileBytes, 131096)
       for (const file of manifest.files) {
         assert.ok(['empty.sav', 'large.sav', '存档😀.sav'].includes(file.sourceName))
-        if (file.sourceParentId !== null) assert.equal(file.sourceName, 'empty.sav')
+        if (file.sourceParentId !== null) {
+          assert.equal(file.sourceName, 'empty.sav')
+        }
         const local =
           file.sourceParentId !== null
             ? 'control.sav'
@@ -134,11 +143,12 @@ try {
     }
     const received = await archive.receive(manifest, Readable.from([bytes]))
     try {
-      for (const [index, file] of manifest.files.entries())
+      for (const [index, file] of manifest.files.entries()) {
         assert.deepEqual(
           await collect(await received.openFile(file.fileId)),
           Buffer.from(FIXTURE.contentsBase64[index], 'base64'),
         )
+      }
     } finally {
       await received.dispose()
     }
@@ -154,8 +164,9 @@ try {
   // 只删除此脚本在固定报告目录内生成的源夹具；报告用于后续 Android 互通验证。
   if (mode === 'verify') {
     const root = join(OUTPUT, 'source')
-    for (const [index] of FIXTURE.contentsBase64.entries())
+    for (const [index] of FIXTURE.contentsBase64.entries()) {
       await unlink(join(root, `夹具 ${index}.sav`))
+    }
     await unlink(join(root, 'large.sav'))
     await rmdir(root)
   }

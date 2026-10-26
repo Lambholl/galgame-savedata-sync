@@ -23,7 +23,9 @@ async function setup(t, options = {}) {
   const base = await mkdtemp(join(temporaryRoot, 'savedata-http-test-'))
   const services = []
   t.after(async () => {
-    for (const service of services) await service.stop()
+    for (const service of services) {
+      await service.stop()
+    }
     const child = relative(temporaryRoot, base)
     assert.ok(
       child &&
@@ -92,7 +94,11 @@ async function request(fixture, path, options = {}) {
     ...(body === null ? {} : { 'content-type': 'application/json', 'content-length': body.length }),
     ...options.headers,
   }
-  for (const [key, value] of Object.entries(headers)) if (value === undefined) delete headers[key]
+  for (const [key, value] of Object.entries(headers)) {
+    if (value === undefined) {
+      delete headers[key]
+    }
+  }
   return new Promise((resolve, reject) => {
     const outgoing = httpRequest(
       {
@@ -132,7 +138,9 @@ async function waitState(
     assert.equal(response.status, 200)
     const state = unwrap(response.json)
     assert.ok(isBatchState(state), JSON.stringify(state))
-    if (predicate(state)) return state
+    if (predicate(state)) {
+      return state
+    }
     await sleep(5)
   }
   assert.fail('任务未在测试期限内到达预期状态')
@@ -254,12 +262,13 @@ test('格式错误不占用 ID；错误版本、额外字段、URI 和越界引�
       { ...fixture.request, files: [{ fileId: 'f000001', entryId: 'content://uri' }] },
       'invalid-request',
     ],
-  ])
+  ]) {
     assert.equal(
       (await request(fixture, '/v1/transfers/downloads', { method: 'POST', value })).json.error
         .code,
       code,
     )
+  }
   assert.equal(
     (await request(fixture, '/v1/transfers/downloads', { method: 'POST', value: fixture.request }))
       .status,

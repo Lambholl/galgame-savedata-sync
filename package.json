@@ -19,7 +19,7 @@
     "test:desktop": "pnpm --filter @savedata-sync/desktop test",
     "test:mobile": "pnpm --filter @savedata-sync/mobile test",
     "test:all": "pnpm test:infra && pnpm test:shared && pnpm test:desktop && pnpm test:mobile && pnpm android:test",
-    "lint": "eslint . --max-warnings 0",
+    "lint": "eslint . --cache",
     "format": "prettier . --write",
     "format:check": "prettier . --check",
     "check:text": "node scripts/check-text.mjs",

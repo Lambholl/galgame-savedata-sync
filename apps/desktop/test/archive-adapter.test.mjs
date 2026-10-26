@@ -18,7 +18,9 @@ const HASH = (bytes) => createHash('sha256').update(bytes).digest('hex')
 
 async function collect(stream) {
   const chunks = []
-  for await (const chunk of stream) chunks.push(chunk)
+  for await (const chunk of stream) {
+    chunks.push(chunk)
+  }
   return Buffer.concat(chunks)
 }
 
@@ -36,7 +38,9 @@ async function setup(
   const base = await mkdtemp(join(temporaryRoot, 'savedata-archive-test-'))
   const cleanup = { archive: null }
   t.after(async () => {
-    if (cleanup.archive) await cleanup.archive.retryCleanup()
+    if (cleanup.archive) {
+      await cleanup.archive.retryCleanup()
+    }
     const child = relative(temporaryRoot, base)
     assert.ok(
       child &&
@@ -53,8 +57,9 @@ async function setup(
   await mkdir(privateDirectory)
   const source = await createDirectoryAdapter(join(base, 'control', 'directories.json'))
   const names = contents.map((content, index) => `存档 😀 ${index}.sav`)
-  for (const [index, content] of contents.entries())
+  for (const [index, content] of contents.entries()) {
     await writeFile(join(root, names[index]), content)
+  }
   const selected = unwrap(await source.registerDirectory(root))
   const listing = unwrap(await source.listDirectory(selected.rootId))
   const entries = names.map((name) => listing.entries.find((entry) => entry.name === name))
@@ -113,8 +118,9 @@ test('源快照与原生 gzip1 往返保留内容/mtime，空文件和超过缓�
   const received = await fixture.archive.receive(manifest, Readable.from([bytes]), {
     onProgress: (value) => progress.push(value),
   })
-  for (const [index, file] of manifest.files.entries())
+  for (const [index, file] of manifest.files.entries()) {
     assert.deepEqual(await collect(await received.openFile(file.fileId)), fixture.contents[index])
+  }
   await received.dispose()
   for (const [index, name] of fixture.names.entries()) {
     assert.deepEqual(await readFile(join(fixture.root, name)), fixture.contents[index])
@@ -133,8 +139,9 @@ test('解码独立 Python 固定夹具，编码结果解压后匹配独立预期
     FIXTURE.manifest,
     Readable.from([Buffer.from(FIXTURE.archiveBase64, 'base64')]),
   )
-  for (const [index, file] of FIXTURE.manifest.files.entries())
+  for (const [index, file] of FIXTURE.manifest.files.entries()) {
     assert.deepEqual(await collect(await received.openFile(file.fileId)), contents[index])
+  }
   await received.dispose()
   const prepared = await archive.prepare(request)
   const bytes = await collect(await prepared.openArchive())
@@ -210,8 +217,9 @@ test('gzip 严格拒绝可选头、拼接成员、尾随、截断和 CRC/ISIZE �
     Buffer.concat([original, Buffer.alloc(8)]),
     original.subarray(0, -4),
     gzipSync(Buffer.alloc(0)),
-  ])
+  ]) {
     await expectFailure(archive, bytes, 'invalid-archive')
+  }
 })
 
 test('收紧的成员/总原文/tar/压缩体/私有缓存硬限在实际流中执行，不能由清单放宽', async (t) => {

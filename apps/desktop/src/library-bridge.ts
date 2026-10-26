@@ -60,7 +60,9 @@ export function createLibraryBridge(
   ): Promise<OperationResult<T>> {
     try {
       const value = await invoke(channel, ...args)
-      if (isOperationResult(value, guard)) return value
+      if (isOperationResult(value, guard)) {
+        return value
+      }
     } catch {
       /* IPC 失效由统一错误回报。 */
     }
@@ -84,11 +86,12 @@ export function createLibraryBridge(
         !isOpaqueId(deviceId) ||
         !isOpaqueId(rootId) ||
         (parentId !== null && !isOpaqueId(parentId))
-      )
+      ) {
         return {
           status: 'error',
           error: { code: 'invalid-request', message: '目录引用无效。', canRetry: false },
         }
+      }
       const result = await call(
         LIBRARY_CHANNELS.directory,
         [{ deviceId, rootId, parentId }],
@@ -97,11 +100,12 @@ export function createLibraryBridge(
       if (
         result.status === 'success' &&
         (result.value.rootId !== rootId || result.value.parentId !== parentId)
-      )
+      ) {
         return {
           status: 'error',
           error: { code: 'invalid-request', message: '目录应答不匹配。', canRetry: false },
         }
+      }
       return result
     },
   })

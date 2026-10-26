@@ -100,8 +100,9 @@ export function isLibraryConfig(value: unknown): value is LibraryConfig {
     !Array.isArray(value.devices) ||
     value.devices.length > 32 ||
     !value.devices.every(isSavedDevice)
-  )
+  ) {
     return false
+  }
   const games: unknown[] = value.games
   const devices = value.devices
   if (
@@ -120,8 +121,9 @@ export function isLibraryConfig(value: unknown): value is LibraryConfig {
             item.excludedDevices.length <= 32 &&
             item.excludedDevices.every(isOpaqueId))),
     )
-  )
+  ) {
     return false
+  }
   return (
     unique(games, (item) => item.id) &&
     unique(devices, (item) => item.id) &&
@@ -209,8 +211,9 @@ export function normalizeHttpAddress(value: string): string {
     !host ||
     (port && Number(port) > 65535) ||
     (!host.startsWith('[') && host.split('.').some((part) => Number(part) > 255))
-  )
+  ) {
     throw new Error('请输入电脑显示的完整 HTTP 地址。')
+  }
   return `http://${host.toLowerCase()}${port ? `:${Number(port)}` : ''}`
 }
 /** 从本次目录引用生成目录表；失效引用显示为空，不保存文件条目。 */
@@ -248,16 +251,17 @@ export function mergeCatalogLinks(
         links.some(
           (value) => value.localGameId === previous.gameId && value.remoteGameId !== item.id,
         )
-      )
+      ) {
         return { ...item, links: item.links.filter((value) => value.deviceId !== deviceId) }
+      }
       return link && !item.excludedDevices?.includes(deviceId)
         ? {
-            ...item,
-            links: [
-              ...item.links.filter((value) => value.deviceId !== deviceId),
-              { deviceId, gameId: link.localGameId },
-            ],
-          }
+          ...item,
+          links: [
+            ...item.links.filter((value) => value.deviceId !== deviceId),
+            { deviceId, gameId: link.localGameId },
+          ],
+        }
         : item
     }),
   }

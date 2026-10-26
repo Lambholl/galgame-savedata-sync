@@ -61,7 +61,9 @@ test('HTTP 描述包装本地设备，预算不接受协商放宽或额外字段
 })
 
 test('批内编号是有界连续 ID，不能携带路径、尾随换行或数字强制转换', () => {
-  for (const value of ['f000001', 'f001024']) assert.equal(isBatchFileId(value), true)
+  for (const value of ['f000001', 'f001024']) {
+    assert.equal(isBatchFileId(value), true)
+  }
   for (const value of [
     'f000000',
     'f001025',
@@ -71,8 +73,9 @@ test('批内编号是有界连续 ID，不能携带路径、尾随换行或数�
     'f０００００１',
     ['f000001'],
     null,
-  ])
+  ]) {
     assert.equal(isBatchFileId(value), false)
+  }
   const request = {
     protocolVersion: 1,
     transferId: 'batch-1',
@@ -89,8 +92,9 @@ test('批内编号是有界连续 ID，不能携带路径、尾随换行或数�
     request.files.toReversed(),
     [request.files[0], { ...request.files[1], entryId: 'source-1' }],
     [request.files[0], { ...request.files[1], fileId: 'f000001' }],
-  ])
+  ]) {
     assert.equal(isDownloadBatchRequest({ ...request, files }), false)
+  }
   assert.equal(isDownloadBatchRequest({ ...request, protocolVersion: '1' }), false)
 })
 
@@ -115,8 +119,9 @@ test('已准备清单实测未知长度，严格验证求和及 tar 填充长度
     NaN,
     Infinity,
     Number.MAX_SAFE_INTEGER + 1,
-  ])
+  ]) {
     assert.equal(isPreparedFile({ ...file, sizeBytes }), false)
+  }
   assert.equal(isPreparedFile({ ...file, sourceModifiedAt: -1 }), true)
   assert.equal(isPreparedFile({ ...file, sourceModifiedAt: 8.64e15 + 1 }), false)
   assert.equal(isPreparedFile({ ...file, sourceName: '\uD800' }), false)
@@ -239,8 +244,9 @@ test('v1 批量路由、头和新增错误映射一致，旧会话与未知结�
     assert.equal(HTTP_ERROR_STATUS[code], status)
     assert.equal(isOperationError({ code, message: '测试错误', canRetry: false }), true)
   }
-  for (const code of ['session-mismatch', 'result-unknown'])
+  for (const code of ['session-mismatch', 'result-unknown']) {
     assert.equal(isOperationError({ code, message: '禁止重放', canRetry: true }), false)
+  }
   assert.equal(
     BATCH_RESOURCES.maxCacheBytes >= BATCH_LIMITS.maxArchiveBytes + BATCH_LIMITS.maxTotalFileBytes,
     true,

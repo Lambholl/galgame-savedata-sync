@@ -45,13 +45,18 @@ async function setup(t, options = {}) {
     return publisher
   }
   const publisher = create(options.configuration)
-  if (options.grant !== false) await publisher.grant(selected.rootId)
+  if (options.grant !== false) {
+    await publisher.grant(selected.rootId)
+  }
   t.after(async () => {
-    for (const instance of publishers) await instance.stop()
+    for (const instance of publishers) {
+      await instance.stop()
+    }
     assert.deepEqual(await readFile(originalPath), original)
     const after = await lstat(originalPath, { bigint: true })
-    for (const field of ['size', 'mtimeNs', 'ctimeNs', 'dev', 'ino'])
+    for (const field of ['size', 'mtimeNs', 'ctimeNs', 'dev', 'ino']) {
       assert.equal(after[field], before[field])
+    }
     const child = relative(temporaryRoot, base)
     assert.ok(
       child &&
@@ -114,7 +119,9 @@ test('空文件、Unicode 与超过缓冲区原文独占发布，最终属性和
     assert.deepEqual(await readFile(join(fixture.root, name)), bytes)
     const opened = unwrap(await fixture.source.openFile(result.outcome.entry))
     const chunks = []
-    for await (const chunk of opened.stream) chunks.push(chunk)
+    for await (const chunk of opened.stream) {
+      chunks.push(chunk)
+    }
     assert.deepEqual(Buffer.concat(chunks), bytes)
     assert.equal((await lstat(join(fixture.root, name), { bigint: true })).nlink, 1n)
   }
@@ -143,14 +150,17 @@ test('同名、大小写等价名及已有目录都不覆盖，已有内容与�
   await writeFile(path, '原始内容')
   const before = await lstat(path, { bigint: true })
   await mkdir(join(fixture.root, 'folder'))
-  for (const name of ['SAVE.sav', 'save.SAV', 'folder'])
+  for (const name of ['SAVE.sav', 'save.SAV', 'folder']) {
     assert.equal(
       (await fixture.publish(Buffer.from('new'), { name })).outcome.error.code,
       'name-conflict',
     )
+  }
   assert.equal(await readFile(path, 'utf8'), '原始内容')
   const after = await lstat(path, { bigint: true })
-  for (const field of ['ino', 'dev', 'mtimeNs', 'size']) assert.equal(after[field], before[field])
+  for (const field of ['ino', 'dev', 'mtimeNs', 'size']) {
+    assert.equal(after[field], before[field])
+  }
   await assertNoCandidates(fixture.root)
 })
 
@@ -189,7 +199,9 @@ test('预先取消、中途取消与超时关闭输入并清理，未跨发布�
     {
       signal: controller.signal,
       onProgress: (progress) => {
-        if (progress.stagedBytes > 0) controller.abort()
+        if (progress.stagedBytes > 0) {
+          controller.abort()
+        }
       },
     },
   )

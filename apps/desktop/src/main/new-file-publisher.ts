@@ -86,8 +86,9 @@ interface PublicationJob {
 let activePublication: symbol | null = null
 
 function validateRequest(value: unknown): asserts value is NewFilePublicationRequest {
-  if (!value || typeof value !== 'object' || Array.isArray(value))
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
     throw new PublicationError('invalid-request', '新文件请求无效。')
+  }
   const record = value as Record<string, unknown>
   const keys = ['fileId', 'rootId', 'parentId', 'name', 'sizeBytes', 'sha256']
   if (
@@ -102,15 +103,19 @@ function validateRequest(value: unknown): asserts value is NewFilePublicationReq
     record.sizeBytes < 0 ||
     record.sizeBytes > BATCH_LIMITS.maxFileBytes ||
     !isSha256(record.sha256)
-  )
+  ) {
     throw new PublicationError('invalid-request', '新文件请求字段无效或超过协议限制。')
+  }
 }
 
 function checkAbort(job: PublicationJob): void {
-  if (!job.controller.signal.aborted) return
+  if (!job.controller.signal.aborted) {
+    return
+  }
   const reason: unknown = job.controller.signal.reason
-  if (reason instanceof Error && reason.name === 'TimeoutError')
+  if (reason instanceof Error && reason.name === 'TimeoutError') {
     throw new PublicationError('timeout', '新文件发布超时。', reason)
+  }
   throw new PublicationCancelledError()
 }
 
@@ -141,17 +146,22 @@ export class WindowsNewFilePublisher {
       !Number.isSafeInteger(this.maxFileBytes) ||
       this.maxFileBytes < 0 ||
       this.maxFileBytes > BATCH_LIMITS.maxFileBytes
-    )
+    ) {
       throw new PublicationError('invalid-request', '原生文件预算无效。')
+    }
   }
 
   /** 仅可信本机操作可显式授权已选择的根；不持久化，不改变只读目录桥的能力声明。 */
   async grant(rootId: string): Promise<void> {
-    if (this.isStopped) throw new PublicationError('busy', '发布适配器已停止。')
+    if (this.isStopped) {
+      throw new PublicationError('busy', '发布适配器已停止。')
+    }
     const location = await this.source.locateNativeDirectory(rootId).catch((error: unknown) => {
       throw toPublicationError(error)
     })
-    if (this.isStopped) throw new PublicationError('busy', '发布适配器已停止。')
+    if (this.isStopped) {
+      throw new PublicationError('busy', '发布适配器已停止。')
+    }
     this.grants.set(rootId, location)
   }
 
@@ -174,20 +184,27 @@ export class WindowsNewFilePublisher {
     try {
       validateRequest(value)
       const request = Object.freeze({ ...value })
-      if (this.isStopped) throw new PublicationError('busy', '发布适配器已停止。')
+      if (this.isStopped) {
+        throw new PublicationError('busy', '发布适配器已停止。')
+      }
       const grant = this.grants.get(request.rootId)
-      if (!grant) throw new PublicationError('permission-denied', '目标根没有本进程写授权。')
-      if (request.sizeBytes > this.maxFileBytes)
+      if (!grant) {
+        throw new PublicationError('permission-denied', '目标根没有本进程写授权。')
+      }
+      if (request.sizeBytes > this.maxFileBytes) {
         throw new PublicationError('resource-limit', '文件超过本机预算。')
+      }
       await grant.verify()
       const location = await this.source.locateNativeDirectory(request.rootId, request.parentId)
       const names = await readdir(location.path)
-      if (names.some((name) => name.toLowerCase() === request.name.toLowerCase()))
+      if (names.some((name) => name.toLowerCase() === request.name.toLowerCase())) {
         throw new PublicationError('name-conflict', '目标名称已存在。')
+      }
       await location.verify()
       await grant.verify()
-      if (this.grants.get(request.rootId) !== grant || this.isStopped)
+      if (this.grants.get(request.rootId) !== grant || this.isStopped) {
         throw new PublicationError('permission-denied', '本次写授权已经失效。')
+      }
       return `${location.identity.dev}:${location.identity.ino}\0${request.name.toLowerCase()}`
     } catch (error) {
       throw toPublicationError(error)
@@ -220,7 +237,7 @@ export class WindowsNewFilePublisher {
             : request.sizeBytes > this.maxFileBytes
               ? 'resource-limit'
               : null
-      if (unavailable || !grant)
+      if (unavailable || !grant) {
         return {
           outcome: {
             fileId: request.fileId,
@@ -234,11 +251,15 @@ export class WindowsNewFilePublisher {
           cleanupStatus: 'not-needed',
           cleanupError: null,
         }
+      }
       const controller = new AbortController()
       signal = options.signal
       abort = () => controller.abort(signal?.reason)
-      if (signal?.aborted) abort()
-      else signal?.addEventListener('abort', abort, { once: true })
+      if (signal?.aborted) {
+        abort()
+      } else {
+        signal?.addEventListener('abort', abort, { once: true })
+      }
       controller.signal.addEventListener('abort', () => input.destroy(), { once: true })
       const job: PublicationJob = {
         token: Symbol('new-file'),
@@ -266,7 +287,9 @@ export class WindowsNewFilePublisher {
       job.worker = this.execute(job)
       return await job.worker
     } finally {
-      if (signal && abort) signal.removeEventListener('abort', abort)
+      if (signal && abort) {
+        signal.removeEventListener('abort', abort)
+      }
       input.destroy()
       await finished(input, { cleanup: true }).catch(() => undefined)
       input.off('error', rememberError)
@@ -276,15 +299,20 @@ export class WindowsNewFilePublisher {
   /** 仅清理本实例持有且身份仍匹配的候选；不删除已发布最终文件或未知替换物。 */
   async retryCleanup(): Promise<void> {
     const job = this.job
-    if (!job) return
-    if (job.isRunning) throw new PublicationError('busy', '新文件操作尚未结束。')
+    if (!job) {
+      return
+    }
+    if (job.isRunning) {
+      throw new PublicationError('busy', '新文件操作尚未结束。')
+    }
     const cleanup = await this.clean(job)
-    if (cleanup.cleanupStatus === 'incomplete')
+    if (cleanup.cleanupStatus === 'incomplete') {
       throw new PublicationError(
         'cleanup-failed',
         '候选清理失败，请核实权限和目录身份。',
         job.cleanupFailure,
       )
+    }
     this.release(job)
   }
 
@@ -293,10 +321,11 @@ export class WindowsNewFilePublisher {
     this.isStopped = true
     this.grants.clear()
     this.job?.controller.abort()
-    if (!this.stopping)
+    if (!this.stopping) {
       this.stopping = this.close().finally(() => {
         this.stopping = null
       })
+    }
     return this.stopping
   }
 
@@ -307,8 +336,9 @@ export class WindowsNewFilePublisher {
 
   private async verifyGrant(job: PublicationJob): Promise<void> {
     checkAbort(job)
-    if (this.grants.get(job.request.rootId) !== job.grant)
+    if (this.grants.get(job.request.rootId) !== job.grant) {
       throw new PublicationError('permission-denied', '本次写授权已经失效。')
+    }
     await job.grant.verify()
     await job.location?.verify()
     checkAbort(job)
@@ -348,13 +378,16 @@ export class WindowsNewFilePublisher {
         job.hasLinked = true
       } catch (error) {
         const targetStats = await lstat(target, { bigint: true }).catch(() => null)
-        if (targetStats && job.identity && hasSameIdentity(targetStats, job.identity))
+        if (targetStats && job.identity && hasSameIdentity(targetStats, job.identity)) {
           job.isUncertain = true
+        }
         throw error
       }
       // link 成功后不因取消回滚新文件，完成有界回读以报告实际结果。
       await this.readBack(job, target)
-      if (!job.identity) throw new PublicationError('source-changed', '候选身份不可用。')
+      if (!job.identity) {
+        throw new PublicationError('source-changed', '候选身份不可用。')
+      }
       const entry = await job.location.describeFile(job.request.name, job.identity)
       this.emit(job, 'verifying', job.request.sizeBytes)
       outcome = {
@@ -374,7 +407,7 @@ export class WindowsNewFilePublisher {
         }
       }
       const residualEntries = await this.residuals(job, job.hasLinked ? job.request.name : null)
-      if (job.hasLinked || job.isUncertain)
+      if (job.hasLinked || job.isUncertain) {
         outcome = {
           fileId: job.request.fileId,
           status: 'unknown',
@@ -385,15 +418,16 @@ export class WindowsNewFilePublisher {
           },
           residualEntries,
         }
-      else if (failure instanceof PublicationCancelledError)
+      } else if (failure instanceof PublicationCancelledError) {
         outcome = { fileId: job.request.fileId, status: 'cancelled', residualEntries: [] }
-      else
+      } else {
         outcome = {
           fileId: job.request.fileId,
           status: 'failed',
           error: toPublicationError(failure).operationError,
           residualEntries: [],
         }
+      }
     }
     const cleanup = await this.clean(job)
     if (
@@ -401,7 +435,7 @@ export class WindowsNewFilePublisher {
       (outcome.status === 'failed' ||
         outcome.status === 'cancelled' ||
         outcome.status === 'unknown')
-    )
+    ) {
       outcome = {
         ...outcome,
         residualEntries: [
@@ -409,21 +443,28 @@ export class WindowsNewFilePublisher {
           ...(await this.residuals(job, job.candidateName)),
         ],
       }
+    }
     job.isRunning = false
-    if (cleanup.cleanupStatus !== 'incomplete') this.release(job)
+    if (cleanup.cleanupStatus !== 'incomplete') {
+      this.release(job)
+    }
     return { outcome, ...cleanup }
   }
 
   private async assertNameFree(job: PublicationJob): Promise<void> {
-    if (!job.location) throw new PublicationError('invalid-request', '目标父目录不可用。')
+    if (!job.location) {
+      throw new PublicationError('invalid-request', '目标父目录不可用。')
+    }
     const names = await readdir(job.location.path)
-    if (names.some((name) => name.toLowerCase() === job.request.name.toLowerCase()))
+    if (names.some((name) => name.toLowerCase() === job.request.name.toLowerCase())) {
       throw new PublicationError('name-conflict', '目标名称已存在，未覆盖已有条目。')
+    }
   }
 
   private async assertCandidate(job: PublicationJob): Promise<void> {
-    if (!job.location || !job.identity)
+    if (!job.location || !job.identity) {
       throw new PublicationError('source-changed', '候选身份不可用。')
+    }
     await job.location.verify()
     const stats = await inspectLocalPath(join(job.location.path, job.candidateName))
     if (
@@ -431,40 +472,48 @@ export class WindowsNewFilePublisher {
       !hasSameIdentity(stats, job.identity) ||
       stats.nlink !== 1n ||
       stats.size !== BigInt(job.request.sizeBytes)
-    )
+    ) {
       throw new PublicationError('source-changed', '候选文件已经变化。')
+    }
   }
 
   private async stage(job: PublicationJob): Promise<void> {
-    if (!job.location) throw new PublicationError('invalid-request', '目标父目录不可用。')
+    if (!job.location) {
+      throw new PublicationError('invalid-request', '目标父目录不可用。')
+    }
     const handle = await open(join(job.location.path, job.candidateName), 'wx', 0o600)
     job.handles.add(handle)
     job.hasCandidate = true
     const stats = await handle.stat({ bigint: true })
-    if (!stats.isFile() || stats.nlink !== 1n)
+    if (!stats.isFile() || stats.nlink !== 1n) {
       throw new PublicationError('source-changed', '候选创建身份无效。')
+    }
     job.identity = getFileIdentity(stats)
     const hash = createHash('sha256')
     this.emit(job, 'staging')
     for await (const chunk of job.input) {
-      if (!Buffer.isBuffer(chunk))
+      if (!Buffer.isBuffer(chunk)) {
         throw new PublicationError('invalid-request', '原文流必须提供二进制数据。')
+      }
       for (let offset = 0; offset < chunk.length; offset += BATCH_RESOURCES.maxBufferBytes) {
         const bytes = chunk.subarray(offset, offset + BATCH_RESOURCES.maxBufferBytes)
         await this.verifyGrant(job)
         if (
           job.stagedBytes + bytes.length > job.request.sizeBytes ||
           job.stagedBytes + bytes.length > this.maxFileBytes
-        )
+        ) {
           throw new PublicationError('checksum-mismatch', '实际原文长度超过本次声明。')
+        }
         const available = await (this.io.availableBytes ?? availableBytes)(job.location.path)
-        if (available < BigInt(bytes.length))
+        if (available < BigInt(bytes.length)) {
           throw new PublicationError('insufficient-space', '目标卷可用空间不足。')
+        }
         for (let written = 0; written < bytes.length;) {
           checkAbort(job)
           const result = await handle.write(bytes, written, bytes.length - written)
-          if (result.bytesWritten <= 0)
+          if (result.bytesWritten <= 0) {
             throw new PublicationError('io-failure', '候选写入未取得进展。')
+          }
           written += result.bytesWritten
         }
         hash.update(bytes)
@@ -473,8 +522,9 @@ export class WindowsNewFilePublisher {
       }
     }
     checkAbort(job)
-    if (job.stagedBytes !== job.request.sizeBytes || hash.digest('hex') !== job.request.sha256)
+    if (job.stagedBytes !== job.request.sizeBytes || hash.digest('hex') !== job.request.sha256) {
       throw new PublicationError('checksum-mismatch', '原文长度或 SHA-256 不符。')
+    }
     await (this.io.sync ?? ((file) => file.sync()))(handle)
     await handle.close()
     job.handles.delete(handle)
@@ -485,16 +535,20 @@ export class WindowsNewFilePublisher {
     job.handles.add(handle)
     try {
       const before = await handle.stat({ bigint: true })
-      if (!job.identity || !before.isFile() || !hasSameIdentity(before, job.identity))
+      if (!job.identity || !before.isFile() || !hasSameIdentity(before, job.identity)) {
         throw new PublicationError('source-changed', '最终文件身份不符。')
+      }
       const hash = createHash('sha256')
       const buffer = Buffer.alloc(BATCH_RESOURCES.maxBufferBytes)
       while (true) {
         const { bytesRead } = await handle.read(buffer, 0, buffer.length, job.readBackBytes)
-        if (bytesRead === 0) break
+        if (bytesRead === 0) {
+          break
+        }
         job.readBackBytes += bytesRead
-        if (job.readBackBytes > job.request.sizeBytes)
+        if (job.readBackBytes > job.request.sizeBytes) {
           throw new PublicationError('checksum-mismatch', '最终文件长度超过预期。')
+        }
         hash.update(buffer.subarray(0, bytesRead))
         this.emit(job, 'verifying')
       }
@@ -506,8 +560,9 @@ export class WindowsNewFilePublisher {
         before.ctimeNs !== after.ctimeNs ||
         job.readBackBytes !== job.request.sizeBytes ||
         hash.digest('hex') !== job.request.sha256
-      )
+      ) {
         throw new PublicationError('checksum-mismatch', '最终文件内容或读取期间属性不符。')
+      }
     } finally {
       await handle.close()
       job.handles.delete(handle)
@@ -515,7 +570,9 @@ export class WindowsNewFilePublisher {
   }
 
   private async residuals(job: PublicationJob, name: string | null): Promise<EntryReference[]> {
-    if (!name || !job.location || !job.identity) return []
+    if (!name || !job.location || !job.identity) {
+      return []
+    }
     try {
       const entry = await job.location.describeFile(name, job.identity)
       return [{ rootId: entry.rootId, entryId: entry.entryId }]
@@ -525,10 +582,11 @@ export class WindowsNewFilePublisher {
   }
 
   private clean(job: PublicationJob): Promise<BatchCleanup> {
-    if (!job.cleaning)
+    if (!job.cleaning) {
       job.cleaning = this.removeCandidate(job).finally(() => {
         job.cleaning = null
       })
+    }
     return job.cleaning
   }
 
@@ -539,12 +597,15 @@ export class WindowsNewFilePublisher {
         job.handles.delete(handle)
       }
       if (job.hasCandidate) {
-        if (!job.location) throw new PublicationError('cleanup-failed', '候选所有权未能核实。')
+        if (!job.location) {
+          throw new PublicationError('cleanup-failed', '候选所有权未能核实。')
+        }
         await job.location.verify()
         const path = join(job.location.path, job.candidateName)
         const stats = await lstat(path, { bigint: true }).catch((error: unknown) => {
-          if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT')
+          if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') {
             return null
+          }
           throw error
         })
         if (stats) {
@@ -553,8 +614,9 @@ export class WindowsNewFilePublisher {
             !stats.isFile() ||
             stats.isSymbolicLink() ||
             !hasSameIdentity(stats, job.identity)
-          )
+          ) {
             throw new PublicationError('cleanup-failed', '候选已被替换，未删除未知条目。')
+          }
           await (this.io.unlink ?? unlink)(path)
         }
         job.hasCandidate = false
@@ -574,8 +636,12 @@ export class WindowsNewFilePublisher {
   }
 
   private release(job: PublicationJob): void {
-    if (this.job === job) this.job = null
-    if (activePublication === job.token) activePublication = null
+    if (this.job === job) {
+      this.job = null
+    }
+    if (activePublication === job.token) {
+      activePublication = null
+    }
   }
 }
 

@@ -23,21 +23,21 @@ const isInventory = process.argv.includes('--inventory')
 const isTest = process.argv.includes('--test')
 const gradleArgs = isInventory
   ? [
-      '--no-daemon',
-      '--init-script',
-      '../../../scripts/android-inventory.gradle',
-      'writeDependencyInventory',
-      '--console=plain',
-    ]
+    '--no-daemon',
+    '--init-script',
+    '../../../scripts/android-inventory.gradle',
+    'writeDependencyInventory',
+    '--console=plain',
+  ]
   : isTest
     ? [
-        '--no-daemon',
-        ':app:testDebugUnitTest',
-        ':app:lintDebug',
-        ':app:assembleDebug',
-        ':app:assembleDebugAndroidTest',
-        '--console=plain',
-      ]
+      '--no-daemon',
+      ':app:testDebugUnitTest',
+      ':app:lintDebug',
+      ':app:assembleDebug',
+      ':app:assembleDebugAndroidTest',
+      '--console=plain',
+    ]
     : ['--no-daemon', ':app:assembleDebug']
 const args = isWindows ? ['/d', '/c', 'gradlew.bat', ...gradleArgs] : gradleArgs
 const proxyOptions = gradleProxy

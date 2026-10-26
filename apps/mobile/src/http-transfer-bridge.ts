@@ -90,7 +90,7 @@ export interface AndroidTransferApi {
   startDownload(options: TransferStartOptions): Promise<OperationResult<TransferHandle>>
   startUpload(options: TransferStartOptions): Promise<OperationResult<TransferHandle>>
   query(transferId: string): Promise<OperationResult<BatchState>>
-  queryRemote(transferId: string, refresh?: boolean): Promise<OperationResult<BatchState>>
+  queryRemote(transferId: string, shouldRefresh?: boolean): Promise<OperationResult<BatchState>>
   getManifest(transferId: string): Promise<OperationResult<BatchManifest>>
   cancel(transferId: string): Promise<OperationResult<null>>
   retryCleanup(): Promise<OperationResult<boolean>>
@@ -148,8 +148,9 @@ function isStartOptions(value: unknown): value is TransferStartOptions {
     !Array.isArray(value.targets) ||
     value.targets.length !== value.request.files.length ||
     !value.targets.every(isTargetSelection)
-  )
+  ) {
     return false
+  }
   const ids = new Set(value.request.files.map((file) => file.fileId))
   return (
     new Set(value.targets.map((target) => target.fileId)).size === ids.size &&
@@ -177,7 +178,9 @@ export function createHttpTransferBridge(
     work: () => Promise<unknown>,
     guard: (value: unknown) => value is T,
   ): Promise<OperationResult<T>> {
-    if (!isAndroid()) return failure(UNSUPPORTED)
+    if (!isAndroid()) {
+      return failure(UNSUPPORTED)
+    }
     try {
       const response = await work()
       return isOperationResult(response, guard) ? response : failure(BRIDGE)
@@ -187,9 +190,13 @@ export function createHttpTransferBridge(
   }
   async function getManifest(transferId: string): Promise<OperationResult<BatchManifest>> {
     const context = contexts.get(transferId)
-    if (!context) return failure(INVALID)
+    if (!context) {
+      return failure(INVALID)
+    }
     const response = await invoke(() => plugin.getManifest({ transferId }), isBatchManifest)
-    if (response.status === 'error') return response
+    if (response.status === 'error') {
+      return response
+    }
     const manifest = response.value
     if (
       manifest.transferId !== transferId ||
@@ -199,36 +206,39 @@ export function createHttpTransferBridge(
       manifest.files.some(
         (file, index) => file.sourceEntryId !== context.options.request.files[index]?.entryId,
       )
-    )
+    ) {
       return failure(BRIDGE)
-    if (context.manifest && JSON.stringify(context.manifest) !== JSON.stringify(manifest))
+    }
+    if (context.manifest && JSON.stringify(context.manifest) !== JSON.stringify(manifest)) {
       return failure(BRIDGE)
+    }
     context.manifest = structuredClone(manifest)
     return response
   }
   async function validateState(
     value: unknown,
     context: TransferContext,
-    remote: boolean,
+    isRemote: boolean,
   ): Promise<OperationResult<BatchState>> {
     const id = context.options.request.transferId
     const direction = context.upload ? 'android-to-windows' : 'windows-to-android'
-    const sender = context.upload !== remote
+    const isSender = context.upload !== isRemote
     if (
       !isBatchState(value) ||
       value.transferId !== id ||
       value.direction !== direction ||
-      value.role !== (sender ? 'sender' : 'receiver') ||
+      value.role !== (isSender ? 'sender' : 'receiver') ||
       (value.status === 'running' &&
         value.progress.totalFiles !== context.options.request.files.length)
-    )
+    ) {
       return failure(BRIDGE)
+    }
     if (!context.manifest) {
       const response = await getManifest(id)
       if (response.status === 'error') {
         // 原生下载在清单生成前结束时，逐文件只能是本次选择的“未尝试”。
         if (
-          !remote &&
+          !isRemote &&
           !context.upload &&
           value.role === 'receiver' &&
           response.error.code === 'task-conflict' &&
@@ -240,60 +250,74 @@ export function createHttpTransferBridge(
               result.status === 'not-attempted' &&
               result.reason === (value.status === 'cancelled' ? 'cancelled' : 'batch-invalid'),
           )
-        )
+        ) {
           return { status: 'success', value }
+        }
         if (
-          sender &&
+          isSender &&
           response.error.code === 'task-conflict' &&
           (value.status === 'failed' ||
             value.status === 'cancelled' ||
             (value.status === 'running' && value.stage === 'preparing'))
-        )
+        ) {
           return { status: 'success', value }
+        }
         return failure(BRIDGE)
       }
     }
     const manifest = context.manifest
-    const receiver = sender
+    const receiver = isSender
       ? undefined
       : {
-          protocolVersion: 1 as const,
-          manifest,
-          targetRootId: context.options.targetRootId,
-          targets: context.options.targets,
-        }
+        protocolVersion: 1 as const,
+        manifest,
+        targetRootId: context.options.targetRootId,
+        targets: context.options.targets,
+      }
     return matchesBatchState(value, manifest, direction, receiver)
       ? { status: 'success', value }
       : failure(BRIDGE)
   }
   async function query(
     transferId: string,
-    remote: boolean,
-    refresh: boolean,
+    isRemote: boolean,
+    shouldRefresh: boolean,
   ): Promise<OperationResult<BatchState>> {
     const context = contexts.get(transferId)
-    if (!context) return failure(INVALID)
+    if (!context) {
+      return failure(INVALID)
+    }
     const response = await invoke(
-      () => (remote ? plugin.queryRemote({ transferId, refresh }) : plugin.query({ transferId })),
+      () =>
+        isRemote
+          ? plugin.queryRemote({ transferId, refresh: shouldRefresh })
+          : plugin.query({ transferId }),
       isBatchState,
     )
-    if (response.status === 'error') return response
-    return validateState(response.value, context, remote)
+    if (response.status === 'error') {
+      return response
+    }
+    return validateState(response.value, context, isRemote)
   }
   async function start(
     options: TransferStartOptions,
-    upload: boolean,
+    isUpload: boolean,
   ): Promise<OperationResult<TransferHandle>> {
-    if (!isStartOptions(options) || contexts.has(options.request.transferId))
+    if (!isStartOptions(options) || contexts.has(options.request.transferId)) {
       return failure(INVALID)
-    if (!isAndroid()) return failure(UNSUPPORTED)
-    if (!device) return failure(INVALID)
+    }
+    if (!isAndroid()) {
+      return failure(UNSUPPORTED)
+    }
+    if (!device) {
+      return failure(INVALID)
+    }
     const stable = structuredClone(options)
     const id = stable.request.transferId
     // 原生事件可能先于 start 的回执到达；先保存上下文，失败后撤回。
-    contexts.set(id, { options: stable, upload, remoteDeviceId: device.device.deviceId })
+    contexts.set(id, { options: stable, upload: isUpload, remoteDeviceId: device.device.deviceId })
     const response = await invoke(
-      () => (upload ? plugin.startUpload(stable) : plugin.startDownload(stable)),
+      () => (isUpload ? plugin.startUpload(stable) : plugin.startDownload(stable)),
       isHandle,
     )
     if (response.status === 'error' || response.value.transferId !== id) {
@@ -313,22 +337,32 @@ export function createHttpTransferBridge(
           value.every((item) => item.device.platform === 'windows'),
       ),
     async selectDevice(deviceId: string): Promise<OperationResult<BatchDeviceDescriptor>> {
-      if (!isOpaqueId(deviceId)) return failure(INVALID)
+      if (!isOpaqueId(deviceId)) {
+        return failure(INVALID)
+      }
       const result = await invoke(() => plugin.selectDevice({ deviceId }), isBatchDeviceDescriptor)
       if (result.status === 'success') {
-        if (result.value.device.deviceId !== deviceId || result.value.device.platform !== 'windows')
+        if (
+          result.value.device.deviceId !== deviceId ||
+          result.value.device.platform !== 'windows'
+        ) {
           return failure(BRIDGE)
+        }
         device = structuredClone(result.value)
       }
       return result
     },
     async disconnectDevice(deviceId: string): Promise<OperationResult<null>> {
-      if (!isOpaqueId(deviceId)) return failure(INVALID)
+      if (!isOpaqueId(deviceId)) {
+        return failure(INVALID)
+      }
       const result = await invoke(
         () => plugin.disconnectDevice({ deviceId }),
         (value): value is null => value === null,
       )
-      if (result.status === 'success' && device?.device.deviceId === deviceId) device = undefined
+      if (result.status === 'success' && device?.device.deviceId === deviceId) {
+        device = undefined
+      }
       return result
     },
     exchangeCatalog: (
@@ -339,10 +373,14 @@ export function createHttpTransferBridge(
         ? invoke(() => plugin.exchangeCatalog({ deviceId, catalog }), isCatalogReply)
         : Promise.resolve(failure(INVALID)),
     async connect(address: string): Promise<OperationResult<BatchDeviceDescriptor>> {
-      if (typeof address !== 'string' || address.length > 256) return failure(INVALID)
+      if (typeof address !== 'string' || address.length > 256) {
+        return failure(INVALID)
+      }
       const response = await invoke(() => plugin.connect({ address }), isBatchDeviceDescriptor)
       if (response.status === 'success') {
-        if (response.value.device.platform !== 'windows') return failure(BRIDGE)
+        if (response.value.device.platform !== 'windows') {
+          return failure(BRIDGE)
+        }
         device = structuredClone(response.value)
       }
       return response
@@ -359,7 +397,9 @@ export function createHttpTransferBridge(
       return result
     },
     async chooseTarget(): Promise<DirectorySelectionResult> {
-      if (!isAndroid()) return failure(UNSUPPORTED)
+      if (!isAndroid()) {
+        return failure(UNSUPPORTED)
+      }
       try {
         const response = await plugin.chooseTarget()
         return isDirectorySelectionResult(response) ? response : failure(BRIDGE)
@@ -409,8 +449,9 @@ export function createHttpTransferBridge(
       rootId: string,
       parentId: string | null = null,
     ): Promise<OperationResult<DirectoryListing>> {
-      if (!isOpaqueId(rootId) || (parentId !== null && !isOpaqueId(parentId)))
+      if (!isOpaqueId(rootId) || (parentId !== null && !isOpaqueId(parentId))) {
         return failure(INVALID)
+      }
       const result = await invoke(
         () => plugin.listRemoteDirectory({ rootId, parentId }),
         isDirectoryListing,
@@ -426,11 +467,15 @@ export function createHttpTransferBridge(
       start(options, true),
     query: (transferId: string): Promise<OperationResult<BatchState>> =>
       query(transferId, false, false),
-    queryRemote: (transferId: string, refresh = false): Promise<OperationResult<BatchState>> =>
-      query(transferId, true, refresh),
+    queryRemote: (
+      transferId: string,
+      shouldRefresh = false,
+    ): Promise<OperationResult<BatchState>> => query(transferId, true, shouldRefresh),
     getManifest,
     async cancel(transferId: string): Promise<OperationResult<null>> {
-      if (!contexts.has(transferId)) return failure(INVALID)
+      if (!contexts.has(transferId)) {
+        return failure(INVALID)
+      }
       return invoke(
         () => plugin.cancel({ transferId }),
         (value): value is null => value === null,
@@ -444,12 +489,16 @@ export function createHttpTransferBridge(
     async subscribe(
       listener: (state: OperationResult<BatchState>) => void,
     ): Promise<OperationResult<TransferSubscription>> {
-      if (!isAndroid()) return failure(UNSUPPORTED)
+      if (!isAndroid()) {
+        return failure(UNSUPPORTED)
+      }
       try {
-        let active = true
+        let isActive = true
         let pending: Promise<void> = Promise.resolve()
         function notify(state: OperationResult<BatchState>): void {
-          if (!active) return
+          if (!isActive) {
+            return
+          }
           try {
             listener(state)
           } catch {
@@ -457,10 +506,14 @@ export function createHttpTransferBridge(
           }
         }
         const handle = await plugin.addListener('transferState', (state) => {
-          if (!active) return
+          if (!isActive) {
+            return
+          }
           pending = pending
             .then(async () => {
-              if (!active) return
+              if (!isActive) {
+                return
+              }
               const context = isBatchState(state) ? contexts.get(state.transferId) : undefined
               if (!context) {
                 notify(failure(BRIDGE))
@@ -476,7 +529,7 @@ export function createHttpTransferBridge(
           status: 'success',
           value: {
             async remove(): Promise<void> {
-              active = false
+              isActive = false
               await handle.remove()
             },
           },

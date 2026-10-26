@@ -5,6 +5,7 @@ import {
   Card,
   ConfigProvider,
   Empty,
+  Flex,
   Input,
   InputNumber,
   Menu,
@@ -18,6 +19,7 @@ import {
   Typography,
   theme,
 } from 'antd'
+import type { ModalProps } from 'antd'
 import zhCN from 'antd/locale/zh_CN'
 import { ConfigProvider as MobileConfigProvider, NavBar, Popup, TabBar } from 'antd-mobile'
 import mobileZhCN from 'antd-mobile/es/locales/zh-CN'
@@ -49,6 +51,7 @@ interface Confirmation {
   readonly title: string
   readonly text: string
   readonly work: () => Promise<void>
+  readonly okType?: ModalProps['okType']
 }
 const EMPTY = emptyLibrary()
 const NAV = [
@@ -98,7 +101,9 @@ export function LibraryApp({ adapter }: { readonly adapter: UiAdapter }): React.
     if (version === generation.current) {
       snapshotRef.current = value
       setSnapshot(value)
-      if (value.warning) setError(value.warning)
+      if (value.warning) {
+        setError(value.warning)
+      }
     }
   }, [adapter])
   useEffect(() => {
@@ -111,17 +116,23 @@ export function LibraryApp({ adapter }: { readonly adapter: UiAdapter }): React.
     let isCurrent = true
     let timer: ReturnType<typeof setTimeout>
     async function poll(): Promise<void> {
-      if (!isCurrent) return
-      if (!operating.current && document.visibilityState !== 'hidden')
+      if (!isCurrent) {
+        return
+      }
+      if (!operating.current && document.visibilityState !== 'hidden') {
         try {
           await refresh()
         } catch (cause) {
-          if (isCurrent) setError(cause instanceof Error ? cause.message : '读取应用状态失败。')
+          if (isCurrent) {
+            setError(cause instanceof Error ? cause.message : '读取应用状态失败。')
+          }
         }
-      if (isCurrent)
+      }
+      if (isCurrent) {
         timer = setTimeout(() => {
           poll().catch(() => setError('刷新失败，请重试。'))
         }, 1800)
+      }
     }
     poll().catch(() => setError('读取应用失败。'))
     return () => {
@@ -131,7 +142,9 @@ export function LibraryApp({ adapter }: { readonly adapter: UiAdapter }): React.
     }
   }, [refresh, invalidate])
   function run(work: () => Promise<void>): void {
-    if (operating.current) return
+    if (operating.current) {
+      return
+    }
     operating.current = true
     generation.current++
     setIsBusy(true)
@@ -159,10 +172,10 @@ export function LibraryApp({ adapter }: { readonly adapter: UiAdapter }): React.
   )
   const localRoot = snapshot?.roots.find((item) => item.rootId === game?.rootId) ?? null
   const isActive = snapshot?.tasks.some(taskIsActive) ?? false
-  const disabled = isBusy || !snapshot
-  const localIsSource = isMobile ? upload : !upload
-  const source = localIsSource ? localLocation : remoteLocation
-  const target = localIsSource ? remoteLocation : localLocation
+  const isDisabled = isBusy || !snapshot
+  const isLocalSource = isMobile ? upload : !upload
+  const source = isLocalSource ? localLocation : remoteLocation
+  const target = isLocalSource ? remoteLocation : localLocation
   const activeNav = ['devices', 'settings'].includes(page) ? page : 'games'
   function openGame(item: LibraryGame): void {
     setGameId(item.id)
@@ -174,30 +187,41 @@ export function LibraryApp({ adapter }: { readonly adapter: UiAdapter }): React.
   }
   async function saveGame(item: LibraryGame): Promise<void> {
     const current = snapshotRef.current?.config
-    if (!current) throw new Error('配置还没有读取完成。')
+    if (!current) {
+      throw new Error('配置还没有读取完成。')
+    }
     await adapter.saveGames(current.games.map((value) => (value.id === item.id ? item : value)))
   }
-  function chooseDirectory(receive: boolean): void {
-    if (!game) return
-    if (receive)
+  function chooseDirectory(isReceive: boolean): void {
+    if (!game) {
+      return
+    }
+    if (isReceive) {
       setConfirmation({
         title: '允许接收新文件',
         text: '请选独立测试目录。同名文件会停止接收，真实存档请保持只读。',
         work: async () => {
           const result = await adapter.chooseDirectory(true)
-          if (result.status === 'error') throw new Error(result.error.message)
-          if (result.status === 'selected')
+          if (result.status === 'error') {
+            throw new Error(result.error.message)
+          }
+          if (result.status === 'selected') {
             await saveGame({ ...game, rootId: result.directory.rootId })
+          }
           setConfirmation(null)
         },
       })
-    else
+    } else {
       run(async () => {
         const result = await adapter.chooseDirectory(false)
-        if (result.status === 'error') throw new Error(result.error.message)
-        if (result.status === 'selected')
+        if (result.status === 'error') {
+          throw new Error(result.error.message)
+        }
+        if (result.status === 'selected') {
           await saveGame({ ...game, rootId: result.directory.rootId })
+        }
       })
+    }
   }
   function addGame(): void {
     run(async () => {
@@ -252,7 +276,9 @@ export function LibraryApp({ adapter }: { readonly adapter: UiAdapter }): React.
     )
   function importGame(): void {
     const choice = importable.find((item) => item.key === importKey)
-    if (!choice) return
+    if (!choice) {
+      return
+    }
     run(async () => {
       const item: LibraryGame = {
         id: crypto.randomUUID(),
@@ -268,25 +294,38 @@ export function LibraryApp({ adapter }: { readonly adapter: UiAdapter }): React.
     })
   }
   function previewError(): string {
-    if (!selectedPeer?.isConnected) return '请连接这个游戏关联的设备。'
-    if (!source || !target) return '请读取两端目录。'
-    if (!source.files.length) return '请选择当前层要传输的文件。'
+    if (!selectedPeer?.isConnected) {
+      return '请连接这个游戏关联的设备。'
+    }
+    if (!source || !target) {
+      return '请读取两端目录。'
+    }
+    if (!source.files.length) {
+      return '请选择当前层要传输的文件。'
+    }
     const names = source.files.map((file) => targetNames[file.entryId] ?? file.name)
-    if (!names.every(isPortableFileName)) return '请填写有效的单个目标文件名。'
-    if (new Set(names.map((name) => name.toLowerCase())).size !== names.length)
+    if (!names.every(isPortableFileName)) {
+      return '请填写有效的单个目标文件名。'
+    }
+    if (new Set(names.map((name) => name.toLowerCase())).size !== names.length) {
       return '本批次有重复的目标文件名。'
+    }
     if (
       target.listing.entries.some((entry) =>
         names.some((name) => name.toLowerCase() === entry.name.toLowerCase()),
       )
-    )
+    ) {
       return '目标有同名条目，请修改目标名称。'
-    if (isMobile && !upload && !snapshot?.grantedRoots.includes(target.rootId))
+    }
+    if (isMobile && !upload && !snapshot?.grantedRoots.includes(target.rootId)) {
       return '请先允许手机目录接收文件。'
+    }
     return ''
   }
   function start(): void {
-    if (!game || !source || !target || !selectedPeer) return
+    if (!game || !source || !target || !selectedPeer) {
+      return
+    }
     const problem = previewError()
     if (problem) {
       setError(problem)
@@ -312,7 +351,7 @@ export function LibraryApp({ adapter }: { readonly adapter: UiAdapter }): React.
     })
   }
   let body: React.ReactNode
-  if (page === 'devices')
+  if (page === 'devices') {
     body = (
       <>
         {snapshot?.service && (
@@ -320,9 +359,9 @@ export function LibraryApp({ adapter }: { readonly adapter: UiAdapter }): React.
             title="本机服务"
             extra={
               <Button
-                disabled={disabled}
+                disabled={isDisabled}
                 onClick={() => {
-                  if (snapshot.service?.isRunning && isActive)
+                  if (snapshot.service?.isRunning && isActive) {
                     setConfirmation({
                       title: '停止服务',
                       text: '将断开设备，并取消当前传输。',
@@ -331,7 +370,9 @@ export function LibraryApp({ adapter }: { readonly adapter: UiAdapter }): React.
                         setConfirmation(null)
                       },
                     })
-                  else run(() => adapter.service(!snapshot.service?.isRunning, port ?? 0))
+                  } else {
+                    run(() => adapter.service(!snapshot.service?.isRunning, port ?? 0))
+                  }
                 }}
               >
                 {snapshot.service.isRunning ? '停止' : '启动'}
@@ -343,8 +384,8 @@ export function LibraryApp({ adapter }: { readonly adapter: UiAdapter }): React.
                 {addressField(address)}
               </div>
             ))}
-            <details>
-              <summary>端口设置</summary>
+            <Flex align="center" style={{ margin: '16px 4px 0px' }} gap="small">
+              端口设置
               <InputNumber
                 aria-label="监听端口"
                 min={0}
@@ -355,7 +396,7 @@ export function LibraryApp({ adapter }: { readonly adapter: UiAdapter }): React.
                 onChange={setPort}
               />
               <Typography.Text type="secondary"> 0 为自动分配</Typography.Text>
-            </details>
+            </Flex>
           </Card>
         )}
         <div className="library-section-heading">
@@ -363,7 +404,7 @@ export function LibraryApp({ adapter }: { readonly adapter: UiAdapter }): React.
           {isMobile && (
             <Button
               icon={<PlusOutlined />}
-              disabled={disabled || isActive}
+              disabled={isDisabled || isActive}
               onClick={() => deviceEditor(null)}
             >
               添加电脑
@@ -374,20 +415,22 @@ export function LibraryApp({ adapter }: { readonly adapter: UiAdapter }): React.
           <div className="library-device-grid">
             {peers.map((peer) => (
               <Card key={peer.device.id} className="library-device-card">
-                <div className="library-device-icon">
-                  {isMobile ? <DesktopOutlined /> : <AndroidOutlined />}
-                </div>
-                <h3>{peer.device.name}</h3>
-                {peer.device.address && addressField(peer.device.address)}
-                <p>
-                  <Tag color={peer.isConnected ? 'success' : 'default'}>
-                    {peer.isConnected ? '已连接' : peer.device.blocked ? '已断开' : '未连接'}
-                  </Tag>
-                </p>
+                <Flex align="flex-start" gap="small">
+                  <div className="library-device-icon">
+                    {isMobile ? <DesktopOutlined /> : <AndroidOutlined />}
+                  </div>
+                  <Flex vertical={true}>
+                    <div style={{ fontWeight: 'bold' }}>{peer.device.name}</div>
+                    {peer.device.address && addressField(peer.device.address)}
+                    <Tag color={peer.isConnected ? 'success' : 'default'}>
+                      {peer.isConnected ? '已连接' : peer.device.blocked ? '已断开' : '未连接'}
+                    </Tag>
+                  </Flex>
+                </Flex>
                 <Space wrap>
                   <Button
                     disabled={
-                      disabled || isActive || (!peer.isConnected && isMobile && Boolean(online))
+                      isDisabled || isActive || (!peer.isConnected && isMobile && Boolean(online))
                     }
                     onClick={() =>
                       run(() =>
@@ -403,7 +446,7 @@ export function LibraryApp({ adapter }: { readonly adapter: UiAdapter }): React.
                           ? '允许连接'
                           : '等待手机连接'}
                   </Button>
-                  <Button disabled={disabled} onClick={() => deviceEditor(peer.device.id)}>
+                  <Button disabled={isDisabled} onClick={() => deviceEditor(peer.device.id)}>
                     管理
                   </Button>
                 </Space>
@@ -415,7 +458,7 @@ export function LibraryApp({ adapter }: { readonly adapter: UiAdapter }): React.
         )}
       </>
     )
-  else if (page === 'games')
+  } else if (page === 'games') {
     body = (
       <>
         <div className="library-section-heading">
@@ -425,7 +468,7 @@ export function LibraryApp({ adapter }: { readonly adapter: UiAdapter }): React.
           <Space>
             <Button
               icon={<DownloadOutlined />}
-              disabled={disabled || !importable.length}
+              disabled={isDisabled || !importable.length}
               onClick={() => {
                 setImportKey('')
                 setIsImportOpen(true)
@@ -433,7 +476,7 @@ export function LibraryApp({ adapter }: { readonly adapter: UiAdapter }): React.
             >
               导入游戏
             </Button>
-            <Button type="primary" icon={<PlusOutlined />} disabled={disabled} onClick={addGame}>
+            <Button type="primary" icon={<PlusOutlined />} disabled={isDisabled} onClick={addGame}>
               添加游戏
             </Button>
           </Space>
@@ -473,7 +516,7 @@ export function LibraryApp({ adapter }: { readonly adapter: UiAdapter }): React.
         )}
       </>
     )
-  else if (page === 'edit' && game)
+  } else if (page === 'edit' && game) {
     body = (
       <>
         <Card>
@@ -489,7 +532,9 @@ export function LibraryApp({ adapter }: { readonly adapter: UiAdapter }): React.
                   setError('游戏名称不能为空。')
                   return
                 }
-                if (value !== game.name) run(() => saveGame({ ...game, name: value }))
+                if (value !== game.name) {
+                  run(() => saveGame({ ...game, name: value }))
+                }
               }}
             />
           </label>
@@ -506,13 +551,13 @@ export function LibraryApp({ adapter }: { readonly adapter: UiAdapter }): React.
             <Button
               icon={<FolderOpenOutlined />}
               aria-label="选择目录"
-              disabled={disabled || isActive}
+              disabled={isDisabled || isActive}
               onClick={() => chooseDirectory(false)}
             />
           </Space.Compact>
           <Button
             className="library-receive-button"
-            disabled={disabled || isActive}
+            disabled={isDisabled || isActive}
             onClick={() => chooseDirectory(true)}
           >
             {game.rootId && snapshot?.grantedRoots.includes(game.rootId)
@@ -534,7 +579,7 @@ export function LibraryApp({ adapter }: { readonly adapter: UiAdapter }): React.
                   </p>
                 </div>
                 <Button
-                  disabled={disabled || isActive}
+                  disabled={isDisabled || isActive}
                   onClick={() =>
                     run(() =>
                       saveGame({
@@ -584,7 +629,7 @@ export function LibraryApp({ adapter }: { readonly adapter: UiAdapter }): React.
               onChange={setLinkGameId}
             />
             <Button
-              disabled={disabled || !linkPeerId || !linkGameId || isActive}
+              disabled={isDisabled || !linkPeerId || !linkGameId || isActive}
               onClick={() =>
                 run(async () => {
                   await saveGame({
@@ -605,7 +650,7 @@ export function LibraryApp({ adapter }: { readonly adapter: UiAdapter }): React.
         <Button onClick={() => setPage('devices')}>管理设备</Button>
       </>
     )
-  else if ((page === 'transfer' || page === 'preview') && game)
+  } else if ((page === 'transfer' || page === 'preview') && game) {
     body = (
       <>
         <label className="library-field">
@@ -639,8 +684,8 @@ export function LibraryApp({ adapter }: { readonly adapter: UiAdapter }): React.
             deviceId={null}
             root={localRoot}
             title={`本机${isMobile ? '手机' : '电脑'}`}
-            isSource={localIsSource}
-            isDisabled={disabled || isActive}
+            isSource={isLocalSource}
+            isDisabled={isDisabled || isActive}
             isOnline
             onLocation={setLocalLocation}
           />
@@ -650,15 +695,15 @@ export function LibraryApp({ adapter }: { readonly adapter: UiAdapter }): React.
             deviceId={peerId || null}
             root={remoteGame?.root ?? null}
             title={selectedPeer?.device.name ?? '对端设备'}
-            isSource={!localIsSource}
-            isDisabled={disabled || isActive}
+            isSource={!isLocalSource}
+            isDisabled={isDisabled || isActive}
             isOnline={Boolean(selectedPeer?.isConnected)}
             onLocation={setRemoteLocation}
           />
         </div>
         <Segmented
           block
-          disabled={disabled || isActive}
+          disabled={isDisabled || isActive}
           value={upload ? 'upload' : 'download'}
           options={[
             { label: '电脑 → 手机', value: 'download' },
@@ -689,11 +734,11 @@ export function LibraryApp({ adapter }: { readonly adapter: UiAdapter }): React.
           <Alert type="info" title="在手机发起传输，电脑显示任务与接收结果。" showIcon />
         )}
         <Space wrap>
-          <Button disabled={disabled || isActive} onClick={() => setPage('edit')}>
+          <Button disabled={isDisabled || isActive} onClick={() => setPage('edit')}>
             目录设置
           </Button>
           {isMobile && (
-            <Button disabled={disabled || isActive} onClick={() => chooseDirectory(true)}>
+            <Button disabled={isDisabled || isActive} onClick={() => chooseDirectory(true)}>
               允许手机接收
             </Button>
           )}
@@ -717,7 +762,7 @@ export function LibraryApp({ adapter }: { readonly adapter: UiAdapter }): React.
         )}
       </>
     )
-  else if (page === 'task')
+  } else if (page === 'task') {
     body = (
       <TaskView
         tasks={snapshot?.tasks ?? []}
@@ -726,8 +771,9 @@ export function LibraryApp({ adapter }: { readonly adapter: UiAdapter }): React.
         onCleanup={() => run(() => adapter.cleanup())}
       />
     )
-  else if (page === 'backup') body = <Empty description="备份与恢复将在覆盖复制开放时提供" />
-  else if (page === 'settings')
+  } else if (page === 'backup') {
+    body = <Empty description="备份与恢复将在覆盖复制开放时提供" />
+  } else if (page === 'settings') {
     body = (
       <>
         <Card title="外观">
@@ -741,7 +787,7 @@ export function LibraryApp({ adapter }: { readonly adapter: UiAdapter }): React.
                   {snapshot.roots.find((root) => root.rootId === id)?.displayName ?? '已授权目录'}
                 </span>
                 <Button
-                  disabled={disabled || isActive}
+                  disabled={isDisabled || isActive}
                   onClick={() => run(() => adapter.revokeReceive(id))}
                 >
                   撤销接收授权
@@ -755,7 +801,9 @@ export function LibraryApp({ adapter }: { readonly adapter: UiAdapter }): React.
         </Card>
       </>
     )
-  else body = <Empty description="请选择游戏" />
+  } else {
+    body = <Empty description="请选择游戏" />
+  }
   const title = {
     devices: '设备',
     games: '游戏',
@@ -879,7 +927,7 @@ export function LibraryApp({ adapter }: { readonly adapter: UiAdapter }): React.
                   type="primary"
                   block
                   disabled={
-                    disabled ||
+                    isDisabled ||
                     isActive ||
                     !isMobile ||
                     !source?.files.length ||
@@ -932,17 +980,45 @@ export function LibraryApp({ adapter }: { readonly adapter: UiAdapter }): React.
           onCancel={() => setIsDeviceEditorOpen(false)}
           onOk={() =>
             run(async () => {
-              if (editingDeviceId)
+              if (editingDeviceId) {
                 await adapter.device(
                   editingDeviceId,
                   'rename',
                   deviceName.trim(),
                   isMobile ? deviceAddress : undefined,
                 )
-              else await adapter.connect(deviceAddress)
+              } else {
+                await adapter.connect(deviceAddress)
+              }
               setIsDeviceEditorOpen(false)
             })
           }
+          footer={(_, { OkBtn, CancelBtn }) => (
+            <>
+              {editingDeviceId && (
+                <Button
+                  danger
+                  disabled={isBusy || isActive}
+                  onClick={() =>
+                    setConfirmation({
+                      title: '移除设备',
+                      text: '移除设备和相关游戏关联，保留存档文件。',
+                      okType: 'danger',
+                      work: async () => {
+                        await adapter.device(editingDeviceId, 'forget')
+                        setIsDeviceEditorOpen(false)
+                        setConfirmation(null)
+                      },
+                    })
+                  }
+                >
+                  移除设备
+                </Button>
+              )}
+              <OkBtn />
+              <CancelBtn />
+            </>
+          )}
         >
           <Space orientation="vertical" className="library-full">
             {editingDeviceId && (
@@ -964,25 +1040,6 @@ export function LibraryApp({ adapter }: { readonly adapter: UiAdapter }): React.
                   onChange={(event) => setDeviceAddress(event.target.value)}
                 />
               </label>
-            )}
-            {editingDeviceId && (
-              <Button
-                danger
-                disabled={isBusy || isActive}
-                onClick={() =>
-                  setConfirmation({
-                    title: '移除设备',
-                    text: '移除设备和相关游戏关联，保留存档文件。',
-                    work: async () => {
-                      await adapter.device(editingDeviceId, 'forget')
-                      setIsDeviceEditorOpen(false)
-                      setConfirmation(null)
-                    },
-                  })
-                }
-              >
-                移除设备
-              </Button>
             )}
           </Space>
         </Modal>
@@ -1012,12 +1069,17 @@ export function LibraryApp({ adapter }: { readonly adapter: UiAdapter }): React.
           open={Boolean(confirmation)}
           confirmLoading={isBusy}
           okText="确认"
+          okType={confirmation?.okType ?? 'primary'}
           cancelText="取消"
           onCancel={() => {
-            if (!isBusy) setConfirmation(null)
+            if (!isBusy) {
+              setConfirmation(null)
+            }
           }}
           onOk={() => {
-            if (confirmation) run(confirmation.work)
+            if (confirmation) {
+              run(confirmation.work)
+            }
           }}
         >
           <p>{confirmation?.text}</p>

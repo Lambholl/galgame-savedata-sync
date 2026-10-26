@@ -28,7 +28,9 @@ export function createArchiveHeader(file: PreparedFile): Buffer {
 const CRC_TABLE: number[] = []
 for (let value = 0; value < 256; value++) {
   let crc = value
-  for (let bit = 0; bit < 8; bit++) crc = (crc >>> 1) ^ (crc & 1 ? 0xedb88320 : 0)
+  for (let bit = 0; bit < 8; bit++) {
+    crc = (crc >>> 1) ^ (crc & 1 ? 0xedb88320 : 0)
+  }
   CRC_TABLE.push(crc >>> 0)
 }
 
@@ -37,8 +39,9 @@ export class ArchiveCrc32 {
   private state = 0xffffffff
 
   update(chunk: Buffer): void {
-    for (const byte of chunk)
+    for (const byte of chunk) {
       this.state = (this.state >>> 8) ^ (CRC_TABLE[(this.state ^ byte) & 255] ?? 0)
+    }
   }
 
   get value(): number {
@@ -59,20 +62,26 @@ export class ArchiveReader {
   }
 
   async read(size: number): Promise<Buffer> {
-    if (!Number.isSafeInteger(size) || size < 0 || size > BATCH_RESOURCES.maxBufferBytes)
+    if (!Number.isSafeInteger(size) || size < 0 || size > BATCH_RESOURCES.maxBufferBytes) {
       throw new ArchiveError('invalid-request', '归档读取缓冲大小无效。')
+    }
     const result = Buffer.alloc(size)
     let written = 0
     while (written < size) {
       checkArchiveAbort(this.signal)
       if (this.offset === this.chunk.length) {
         const next = await this.iterator.next()
-        if (next.done) throw new ArchiveError('invalid-archive', 'tar 成员或结束块被截断。')
-        if (!Buffer.isBuffer(next.value))
+        if (next.done) {
+          throw new ArchiveError('invalid-archive', 'tar 成员或结束块被截断。')
+        }
+        if (!Buffer.isBuffer(next.value)) {
           throw new ArchiveError('invalid-archive', '归档流必须是二进制字节。')
+        }
         this.chunk = next.value
         this.offset = 0
-        if (this.chunk.length === 0) continue
+        if (this.chunk.length === 0) {
+          continue
+        }
       }
       const count = Math.min(size - written, this.chunk.length - this.offset)
       this.chunk.copy(result, written, this.offset, this.offset + count)
@@ -83,14 +92,18 @@ export class ArchiveReader {
   }
 
   async expectEnd(): Promise<void> {
-    if (this.offset !== this.chunk.length)
+    if (this.offset !== this.chunk.length) {
       throw new ArchiveError('invalid-archive', 'tar 结束后存在多余内容。')
+    }
     for (;;) {
       checkArchiveAbort(this.signal)
       const next = await this.iterator.next()
-      if (next.done) return
-      if (!Buffer.isBuffer(next.value) || next.value.length !== 0)
+      if (next.done) {
+        return
+      }
+      if (!Buffer.isBuffer(next.value) || next.value.length !== 0) {
         throw new ArchiveError('invalid-archive', 'tar 结束后存在多余内容。')
+      }
     }
   }
 }

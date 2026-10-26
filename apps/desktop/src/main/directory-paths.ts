@@ -30,7 +30,9 @@ export function isWithinDirectory(rootPath: string, targetPath: string): boolean
  * 这是 Node 路径 API 的操作前检查，不提供对外部恶意并发更换命名空间的原子隔离。
  */
 export async function inspectLocalPath(path: string): Promise<BigIntStats> {
-  if (!isAbsolute(path)) throw new DirectoryAccessError('invalid-request', '目录必须是绝对路径。')
+  if (!isAbsolute(path)) {
+    throw new DirectoryAccessError('invalid-request', '目录必须是绝对路径。')
+  }
   const absolutePath = resolve(path)
   let currentPath = parse(absolutePath).root
   let stats = await lstat(currentPath, { bigint: true })

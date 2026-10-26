@@ -202,8 +202,9 @@ function peerSelect() {
 }
 function renderGames() {
   header('游戏')
-  if (state.scenario === 'empty')
+  if (state.scenario === 'empty') {
     return empty('添加第一个游戏', '为游戏选择本机存档目录，并关联设备。', 'add-game', '添加游戏')
+  }
   const count = savedPeers().filter(isConnected).length
   return `<div class="connection-strip"><span class="status-dot ${count ? '' : 'off'}"></span><span class="grow">${count} 台设备已连接</span>${button('设备 ›', 'connection', 'link')}</div>${state.task ? `<button class="task-strip" data-action="tasks">${icon('transfer')}<div class="grow"><strong>${escapeHtml(state.task.gameName)} · ${state.task.status === 'running' ? '传输中' : '查看本次结果'}</strong><small>${escapeHtml(state.task.peerName)}</small></div><span>›</span></button>` : ''}<div class="section-title"><h2>我的游戏</h2><span>${state.games.length} 个游戏</span></div><div class="project-grid">${state.games.map((item) => `<button class="game-tile" data-action="game" data-game="${item.id}"><div class="project-cover ${item.color}"><span class="cover-orbit"></span><small>${item.word}</small><b>${escapeHtml(item.name)}</b><span class="cover-caption">SAVE DATA</span></div><div class="file-name">${escapeHtml(item.name)}</div><div class="file-meta">已关联 ${item.linked[state.platform].length} 台设备</div></button>`).join('')}</div>`
 }
@@ -243,29 +244,35 @@ function filePane(side) {
   const role = state.upload === computer ? '目标' : '源'
   const entries = path.length
     ? [
-        ['save01.dat', '128 KiB', '2026-10-27 08:32'],
-        ['save02.dat', '64 KiB', '2026-10-26 22:10'],
-      ]
+      ['save01.dat', '128 KiB', '2026-10-27 08:32'],
+      ['save02.dat', '64 KiB', '2026-10-26 22:10'],
+    ]
     : [
-        ['chapter-1', '文件夹 · —', '2026-10-26 22:10'],
-        ['save01.dat', '128 KiB', '2026-10-27 08:32'],
-        ['save02.dat', '64 KiB', '2026-10-26 22:10'],
-        ['system.dat', '大小未知', '2026-10-25 19:42'],
-      ]
+      ['chapter-1', '文件夹 · —', '2026-10-26 22:10'],
+      ['save01.dat', '128 KiB', '2026-10-27 08:32'],
+      ['save02.dat', '64 KiB', '2026-10-26 22:10'],
+      ['system.dat', '大小未知', '2026-10-25 19:42'],
+    ]
   let message = ''
-  if (!own && !selectedPeer()) message = '请选择设备'
-  else if (!own && !isConnected(selectedPeer())) message = '设备未连接'
-  else if (!details.directory) message = own ? '未设置目录' : '此设备尚未配置目录'
-  else if (state.scenario === 'permission' && own) message = '授权失效'
-  else if (state.scenario === 'empty') message = '空目录'
+  if (!own && !selectedPeer()) {
+    message = '请选择设备'
+  } else if (!own && !isConnected(selectedPeer())) {
+    message = '设备未连接'
+  } else if (!details.directory) {
+    message = own ? '未设置目录' : '此设备尚未配置目录'
+  } else if (state.scenario === 'permission' && own) {
+    message = '授权失效'
+  } else if (state.scenario === 'empty') {
+    message = '空目录'
+  }
   const content = message
     ? `<div class="pane-empty">${message}</div>`
     : entries
-        .map(
-          ([name, size, modified]) =>
-            `<button class="pane-entry" data-action="${name === 'chapter-1' ? `folder-${side}` : 'file'}" data-name="${name}" data-size="${size}" data-modified="${modified}" title="${name}"><span class="pane-icon ${name === 'chapter-1' ? '' : 'document'}">${name === 'chapter-1' ? icon('folder') : '▤'}</span><span class="pane-text"><strong>${name}</strong><small>${size}</small><time>${modified}</time></span></button>`,
-        )
-        .join('')
+      .map(
+        ([name, size, modified]) =>
+          `<button class="pane-entry" data-action="${name === 'chapter-1' ? `folder-${side}` : 'file'}" data-name="${name}" data-size="${size}" data-modified="${modified}" title="${name}"><span class="pane-icon ${name === 'chapter-1' ? '' : 'document'}">${name === 'chapter-1' ? icon('folder') : '▤'}</span><span class="pane-text"><strong>${name}</strong><small>${size}</small><time>${modified}</time></span></button>`,
+      )
+      .join('')
   return `<section class="file-pane" aria-label="${computer ? '电脑' : '手机'}文件"><div class="pane-head"><div><strong>${escapeHtml(details.name)}</strong><span class="tag">${role}</span></div><small title="${escapeHtml(details.directory)}">${escapeHtml(details.directory || '未设置目录')}${path.length ? ' / chapter-1' : ''}</small></div><div class="pane-scroll">${path.length && !message ? button('‹ 上一级', `up-${side}`, 'pane-up') : ''}${content}</div></section>`
 }
 function transferBlocked() {
@@ -281,12 +288,15 @@ function renderTransfer() {
   header('传输存档', escapeHtml(game().name), 'games')
   const peer = selectedPeer()
   let hint = ''
-  if (isTaskRunning()) hint = notice('已有传输进行中。') + button('查看任务', 'tasks', 'link')
-  else if (!peer) hint = button('关联设备 ›', 'edit', 'link')
-  else if (!isConnected(peer))
+  if (isTaskRunning()) {
+    hint = notice('已有传输进行中。') + button('查看任务', 'tasks', 'link')
+  } else if (!peer) {
+    hint = button('关联设备 ›', 'edit', 'link')
+  } else if (!isConnected(peer)) {
     hint = notice(`${escapeHtml(peer.name)} 未连接。`) + button('管理设备 ›', 'connection', 'link')
-  else if (state.scenario === 'permission')
+  } else if (state.scenario === 'permission') {
     hint = notice('本机目录授权已失效。') + button('目录设置 ›', 'edit', 'link')
+  }
   $('action').innerHTML =
     `<div class="action-bar">${button('预览本次变化', 'preview', 'primary', transferBlocked() ? 'disabled' : '')}</div>`
   return `${peerSelect()}${hint}<div class="dual-files">${filePane('computer')}${filePane('phone')}</div><div class="section-title compact-title"><h2>同步方向</h2></div><div class="segments direction">${button('电脑 → 手机', 'download', !state.upload ? 'active' : '')}${button('手机 → 电脑', 'upload', state.upload ? 'active' : '')}</div><div class="compact-options"><label class="compact-option"><span>删除目标端多出的文件</span><input id="delete-extra" type="checkbox" role="switch" ${state.removeExtra ? 'checked' : ''}/></label><label class="compact-option"><span>覆盖前备份</span><input id="backup" type="checkbox" role="switch" ${state.backup ? 'checked' : ''}/></label></div>${button('目录设置 ›', 'edit', 'link')}`
@@ -321,7 +331,9 @@ function renderTasks() {
     task ? `${escapeHtml(task.gameName)} · ${escapeHtml(task.peerName)}` : '',
     'games',
   )
-  if (!task) return empty('暂无传输任务', '', 'transfer', '传输存档')
+  if (!task) {
+    return empty('暂无传输任务', '', 'transfer', '传输存档')
+  }
   const unknown = state.scenario === 'unknown'
   const cleanup = state.scenario === 'cleanup'
   const title = unknown
@@ -351,7 +363,9 @@ function renderSettings() {
 }
 function renderSheet() {
   $('sheet')?.remove()
-  if (!state.sheet) return
+  if (!state.sheet) {
+    return
+  }
   const sheet = document.createElement('div')
   sheet.id = 'sheet'
   sheet.className = 'sheet-overlay'
@@ -408,7 +422,9 @@ function showDialog(title, text, confirmAction) {
   $('dialog').showModal()
 }
 function beginTask() {
-  if (transferBlocked()) return
+  if (transferBlocked()) {
+    return
+  }
   const peer = selectedPeer()
   state.task = {
     status: 'running',
@@ -425,7 +441,9 @@ function beginTask() {
 }
 document.addEventListener('click', (event) => {
   const control = event.target.closest('[data-action]')
-  if (!control) return
+  if (!control) {
+    return
+  }
   const action = control.dataset.action
   if (NOTES[action]) {
     state.page = action
@@ -436,13 +454,19 @@ document.addEventListener('click', (event) => {
     state.backupChoice = ''
     state.restoreStatus = 'idle'
     resetBrowse()
-  } else if (action === 'close-sheet') state.sheet = false
-  else if (action === 'upload' || action === 'download') state.upload = action === 'upload'
-  else if (action === 'folder-computer') state.computerPath.push('chapter-1')
-  else if (action === 'folder-phone') state.phonePath.push('chapter-1')
-  else if (action === 'up-computer') state.computerPath.pop()
-  else if (action === 'up-phone') state.phonePath.pop()
-  else if (action === 'choose-backup') {
+  } else if (action === 'close-sheet') {
+    state.sheet = false
+  } else if (action === 'upload' || action === 'download') {
+    state.upload = action === 'upload'
+  } else if (action === 'folder-computer') {
+    state.computerPath.push('chapter-1')
+  } else if (action === 'folder-phone') {
+    state.phonePath.push('chapter-1')
+  } else if (action === 'up-computer') {
+    state.computerPath.pop()
+  } else if (action === 'up-phone') {
+    state.phonePath.pop()
+  } else if (action === 'choose-backup') {
     state.backupChoice = control.dataset.backup
     state.restoreStatus = 'idle'
   } else if (action === 'restore-confirm') {
@@ -484,9 +508,9 @@ document.addEventListener('click', (event) => {
     const address =
       state.platform === 'mobile'
         ? $('device-address')
-            .value.trim()
-            .replace(/^http:\/\//, '')
-            .replace(/\/$/, '')
+          .value.trim()
+          .replace(/^http:\/\//, '')
+          .replace(/\/$/, '')
         : ''
     if (
       !name ||
@@ -499,7 +523,9 @@ document.addEventListener('click', (event) => {
       return
     }
     const item = state.devices.find((value) => value.id === state.editingDeviceId)
-    if (state.platform === 'desktop' && !item) return
+    if (state.platform === 'desktop' && !item) {
+      return
+    }
     if (item && isDeviceBusy(item.id) && state.platform === 'mobile' && item.address !== address) {
       showDialog('传输进行中', '结束当前传输后再修改设备地址。')
       return
@@ -510,7 +536,7 @@ document.addEventListener('click', (event) => {
         item.address = address
         item.connected = false
       }
-    } else
+    } else {
       state.devices.push({
         id: `pc-${Date.now()}`,
         type: 'desktop',
@@ -518,10 +544,13 @@ document.addEventListener('click', (event) => {
         address,
         connected: false,
       })
+    }
     state.page = 'connection'
   } else if (action === 'connect-device' || action === 'disconnect-device') {
     const item = state.devices.find((value) => value.id === control.dataset.device)
-    if (isDeviceBusy(item.id)) return
+    if (isDeviceBusy(item.id)) {
+      return
+    }
     item.connected = action === 'connect-device'
     if (item.connected) {
       state.scenario = 'normal'
@@ -536,20 +565,29 @@ document.addEventListener('click', (event) => {
     return
   } else if (action === 'confirm-forget') {
     const id = state.editingDeviceId
-    if (isDeviceBusy(id)) return
+    if (isDeviceBusy(id)) {
+      return
+    }
     state.devices = state.devices.filter((item) => item.id !== id)
-    for (const item of state.games)
+    for (const item of state.games) {
       for (const platform of ['mobile', 'desktop']) {
         item.linked[platform] = item.linked[platform].filter((value) => value !== id)
-        if (item.selected[platform] === id) item.selected[platform] = ''
+        if (item.selected[platform] === id) {
+          item.selected[platform] = ''
+        }
       }
+    }
     $('dialog').close()
     state.page = 'connection'
   } else if (action === 'unlink-device') {
     const id = control.dataset.device
-    if (isDeviceBusy(id)) return
+    if (isDeviceBusy(id)) {
+      return
+    }
     game().linked[state.platform] = game().linked[state.platform].filter((value) => value !== id)
-    if (game().selected[state.platform] === id) game().selected[state.platform] = ''
+    if (game().selected[state.platform] === id) {
+      game().selected[state.platform] = ''
+    }
   } else if (action === 'pick-local') {
     if (isTaskRunning() && state.task.gameId === game().id) {
       showDialog('传输进行中', '结束当前传输后再更换这个游戏的目录。')
@@ -570,21 +608,27 @@ document.addEventListener('click', (event) => {
   } else if (action === 'confirm-start') {
     $('dialog').close()
     beginTask()
-  } else if (action === 'finish' && state.task) state.task.status = 'done'
-  else if (action === 'cancel' && state.task) state.task.status = 'cancelled'
-  else if (action === 'service') {
+  } else if (action === 'finish' && state.task) {
+    state.task.status = 'done'
+  } else if (action === 'cancel' && state.task) {
+    state.task.status = 'cancelled'
+  } else if (action === 'service') {
     if (state.serviceRunning && isTaskRunning()) {
       showDialog('停止本机服务', '将断开所有手机连接，并取消当前传输。', 'confirm-stop')
       return
     }
     state.serviceRunning = !state.serviceRunning
-    if (!state.serviceRunning)
-      for (const item of state.devices.filter((value) => value.type === 'mobile'))
+    if (!state.serviceRunning) {
+      for (const item of state.devices.filter((value) => value.type === 'mobile')) {
         item.connected = false
+      }
+    }
   } else if (action === 'confirm-stop') {
     state.serviceRunning = false
     state.task.status = 'cancelled'
-    for (const item of savedPeers()) item.connected = false
+    for (const item of savedPeers()) {
+      item.connected = false
+    }
     $('dialog').close()
   } else if (action === 'file') {
     showDialog(control.dataset.name, `${control.dataset.size} · 修改于 ${control.dataset.modified}`)
@@ -597,7 +641,9 @@ document.addEventListener('click', (event) => {
       permission: ['重新选择目录', '进入对应游戏的目录设置，通过系统选择器重新授权。'],
       'remove-game': ['移除游戏配置', '确认后移除游戏配置和设备关联，保留各设备的存档文件。'],
     }
-    if (messages[action]) showDialog(...messages[action])
+    if (messages[action]) {
+      showDialog(...messages[action])
+    }
   }
   render()
 })
@@ -609,19 +655,25 @@ document.addEventListener('change', (event) => {
       resetBrowse()
       state.backupChoice = ''
       state.restoreStatus = 'idle'
-      if (state.page === 'device') state.page = 'connection'
+      if (state.page === 'device') {
+        state.page = 'connection'
+      }
     }
   } else if (id === 'scene') {
     state.page = event.target.value
     state.sheet = false
-  } else if (id === 'delete-extra') state.removeExtra = event.target.checked
-  else if (id === 'backup') state.backup = event.target.checked
-  else if (id === 'peer-select') {
+  } else if (id === 'delete-extra') {
+    state.removeExtra = event.target.checked
+  } else if (id === 'backup') {
+    state.backup = event.target.checked
+  } else if (id === 'peer-select') {
     game().selected[state.platform] = event.target.value
     resetBrowse()
   } else if (id === 'link-device') {
     const value = event.target.value
-    if (value) game().linked[state.platform].push(value)
+    if (value) {
+      game().linked[state.platform].push(value)
+    }
   } else if (id === 'game-name') {
     const value = event.target.value.trim()
     if (!value) {
@@ -631,7 +683,9 @@ document.addEventListener('change', (event) => {
     }
     game().name = value
     return
-  } else return
+  } else {
+    return
+  }
   render()
 })
 document.addEventListener('keydown', (event) => {

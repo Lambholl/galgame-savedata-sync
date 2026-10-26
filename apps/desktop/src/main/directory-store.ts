@@ -47,11 +47,14 @@ function isRegistry(value: unknown): value is DirectoryRegistry {
     value.schemaVersion !== 1 ||
     !isOpaqueId(value.deviceId) ||
     !Array.isArray(value.roots)
-  )
+  ) {
     return false
+  }
   const roots: StoredDirectory[] = []
   for (const root of value.roots) {
-    if (!isStoredDirectory(root)) return false
+    if (!isStoredDirectory(root)) {
+      return false
+    }
     roots.push(root)
   }
   return new Set(roots.map((root) => root.rootId)).size === roots.length
@@ -72,8 +75,9 @@ export async function loadDirectoryRegistry(configPath: string): Promise<Directo
   try {
     stats = await lstat(configPath, { bigint: true })
   } catch (error) {
-    if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT')
+    if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') {
       return null
+    }
     throw error
   }
   if (!stats.isFile() || stats.isSymbolicLink() || stats.size > 1024n * 1024n) {
@@ -86,8 +90,9 @@ export async function loadDirectoryRegistry(configPath: string): Promise<Directo
         dev: stats.dev.toString(),
         ino: stats.ino.toString(),
       })
-    )
+    ) {
       throw new DirectoryAccessError('source-changed', '目录配置在读取时发生变化。')
+    }
     const value: unknown = JSON.parse(await handle.readFile('utf8'))
     if (!isRegistry(value)) {
       throw new DirectoryAccessError('invalid-request', '目录配置格式或版本无效。')

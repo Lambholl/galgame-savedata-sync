@@ -21,12 +21,16 @@ export function DirectoryPanel({ revision }: { readonly revision: number }): Rea
   const [refresh, setRefresh] = useState(0)
   const parentId = crumbs.at(-1)?.id ?? null
   useEffect(() => {
-    if (!api) return
+    if (!api) {
+      return
+    }
     let isCurrent = true
     api
       .listRoots()
       .then((result) => {
-        if (!isCurrent) return
+        if (!isCurrent) {
+          return
+        }
         if (result.status === 'error') {
           setError(result.error.message)
           return
@@ -37,7 +41,9 @@ export function DirectoryPanel({ revision }: { readonly revision: number }): Rea
         )
       })
       .catch(() => {
-        if (isCurrent) setError('读取目录列表失败。')
+        if (isCurrent) {
+          setError('读取目录列表失败。')
+        }
       })
     return () => {
       isCurrent = false
@@ -45,33 +51,48 @@ export function DirectoryPanel({ revision }: { readonly revision: number }): Rea
   }, [api, revision, refresh])
   useEffect(() => {
     setListing(null)
-    if (!api || !rootId) return
+    if (!api || !rootId) {
+      return
+    }
     let isCurrent = true
     setIsLoading(true)
     setError('')
     api
       .listDirectory(rootId, parentId)
       .then((result) => {
-        if (!isCurrent) return
-        if (result.status === 'success') setListing(result.value)
-        else setError(`${result.error.message}（${result.error.code}）`)
+        if (!isCurrent) {
+          return
+        }
+        if (result.status === 'success') {
+          setListing(result.value)
+        } else {
+          setError(`${result.error.message}（${result.error.code}）`)
+        }
       })
       .catch(() => {
-        if (isCurrent) setError('读取目录失败，请刷新。')
+        if (isCurrent) {
+          setError('读取目录失败，请刷新。')
+        }
       })
       .finally(() => {
-        if (isCurrent) setIsLoading(false)
+        if (isCurrent) {
+          setIsLoading(false)
+        }
       })
     return () => {
       isCurrent = false
     }
   }, [api, rootId, parentId, refresh])
   async function choose(): Promise<void> {
-    if (!api || isChoosing) return
+    if (!api || isChoosing) {
+      return
+    }
     setIsChoosing(true)
     try {
       const result = await api.chooseDirectory()
-      if (result.status === 'error') setError(result.error.message)
+      if (result.status === 'error') {
+        setError(result.error.message)
+      }
       if (result.status === 'selected') {
         setCrumbs([])
         setRootId(result.directory.rootId)

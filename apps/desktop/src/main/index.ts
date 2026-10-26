@@ -53,9 +53,11 @@ function createWindow(): void {
 }
 
 const hasInstanceLock = app.requestSingleInstanceLock()
-if (!hasInstanceLock) app.quit()
+if (!hasInstanceLock) {
+  app.quit()
+}
 
-if (hasInstanceLock)
+if (hasInstanceLock) {
   app
     .whenReady()
     .then(async () => {
@@ -79,14 +81,21 @@ if (hasInstanceLock)
       let canQuit = false
       let isClosing = false
       app.on('before-quit', (event) => {
-        if (canQuit) return
+        if (canQuit) {
+          return
+        }
         event.preventDefault()
-        if (isClosing) return
+        if (isClosing) {
+          return
+        }
         isClosing = true
         Promise.allSettled([httpService.stop(), publisher.stop()])
           .then((results) => {
-            for (const result of results)
-              if (result.status === 'rejected') throw toHttpError(result.reason)
+            for (const result of results) {
+              if (result.status === 'rejected') {
+                throw toHttpError(result.reason)
+              }
+            }
             canQuit = true
             app.quit()
           })
@@ -116,7 +125,9 @@ if (hasInstanceLock)
             properties: ['openDirectory', 'dontAddToRecent'],
           })
           const path = result.canceled ? null : (result.filePaths[0] ?? null)
-          if (path === null) return null
+          if (path === null) {
+            return null
+          }
           const confirmation = await dialog.showMessageBox({
             type: 'warning',
             title: '允许接收测试文件',
@@ -133,7 +144,9 @@ if (hasInstanceLock)
       app.once('will-quit', disposeServiceIpc)
       createWindow()
       app.on('activate', () => {
-        if (BrowserWindow.getAllWindows().length === 0) createWindow()
+        if (BrowserWindow.getAllWindows().length === 0) {
+          createWindow()
+        }
       })
     })
     .catch((error: unknown) => {
@@ -144,7 +157,10 @@ if (hasInstanceLock)
       dialog.showErrorBox('初始化失败', '无法读取目录配置，请检查应用数据与权限。')
       app.exit(1)
     })
+}
 
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') app.quit()
+  if (process.platform !== 'darwin') {
+    app.quit()
+  }
 })

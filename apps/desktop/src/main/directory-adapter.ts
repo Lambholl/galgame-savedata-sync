@@ -97,8 +97,9 @@ export class WindowsDirectoryAdapter {
           throw new DirectoryAccessError('invalid-request', '请选择有效的本地绝对目录。')
         }
         const stats = await inspectLocalPath(path)
-        if (!stats.isDirectory())
+        if (!stats.isDirectory()) {
           throw new DirectoryAccessError('invalid-request', '所选条目不是目录。')
+        }
         const canonicalPath = await realpath(path)
         if (isWithinDirectory(canonicalPath, this.configPath)) {
           throw new DirectoryAccessError('invalid-request', '同步目录不能包含应用的目录配置。')
@@ -195,8 +196,9 @@ export class WindowsDirectoryAdapter {
     return runDirectoryOperation(async () => {
       const root = await this.inspectRoot(reference.rootId)
       const entry = await this.inspectEntry(reference.rootId, reference.entryId)
-      if (!entry.stats.isFile())
+      if (!entry.stats.isFile()) {
         throw new DirectoryAccessError('invalid-request', '所选条目不是文件。')
+      }
       const handle = await open(entry.path, 'r')
       try {
         const stats = await handle.stat({ bigint: true })
@@ -208,11 +210,13 @@ export class WindowsDirectoryAdapter {
         const parentPath = relative(root.path, resolve(entry.path, '..'))
         const parentId =
           parentPath === '' ? null : this.entryIds.get(this.getEntryKey(root.rootId, parentPath))
-        if (parentId === undefined)
+        if (parentId === undefined) {
           throw new DirectoryAccessError('not-found', '请先展开文件所在目录。')
+        }
         const metadata = this.describeEntry(root, entry.path, stats, parentId)
-        if (metadata.kind !== 'file')
+        if (metadata.kind !== 'file') {
           throw new DirectoryAccessError('invalid-request', '所选条目不是文件。')
+        }
         return {
           metadata,
           stream: handle.createReadStream({ autoClose: true, highWaterMark: 65536 }),
@@ -248,8 +252,9 @@ export class WindowsDirectoryAdapter {
     const root = await this.inspectRoot(rootId)
     const path = parentId === null ? root.path : (await this.inspectEntry(rootId, parentId)).path
     const stats = await inspectLocalPath(path)
-    if (!stats.isDirectory())
+    if (!stats.isDirectory()) {
       throw new DirectoryAccessError('invalid-request', '目标父条目不是目录。')
+    }
     const identity = Object.freeze(getFileIdentity(stats))
     const verify = async (): Promise<void> => {
       const current = await this.inspectRoot(rootId)
@@ -257,8 +262,9 @@ export class WindowsDirectoryAdapter {
         relative(current.path, root.path) !== '' ||
         !hasSameIdentity(await inspectLocalPath(root.path), root.identity) ||
         !hasSameIdentity(await inspectLocalPath(path), identity)
-      )
+      ) {
         throw new DirectoryAccessError('source-changed', '原生目录身份已经变化。')
+      }
     }
     await verify()
     return Object.freeze({
@@ -268,16 +274,19 @@ export class WindowsDirectoryAdapter {
       identity,
       verify,
       describeFile: async (name: string, expected: FileIdentity): Promise<FileMetadata> => {
-        if (!isPortableFileName(name))
+        if (!isPortableFileName(name)) {
           throw new DirectoryAccessError('invalid-request', '新文件名称无效。')
+        }
         await verify()
         const filePath = join(path, name)
         const fileStats = await inspectLocalPath(filePath)
-        if (!fileStats.isFile() || !hasSameIdentity(fileStats, expected))
+        if (!fileStats.isFile() || !hasSameIdentity(fileStats, expected)) {
           throw new DirectoryAccessError('source-changed', '新文件身份已经变化。')
+        }
         const metadata = this.describeEntry(root, filePath, fileStats, parentId)
-        if (metadata.kind !== 'file')
+        if (metadata.kind !== 'file') {
           throw new DirectoryAccessError('source-changed', '新文件类型已经变化。')
+        }
         await verify()
         return metadata
       },
@@ -339,9 +348,13 @@ export class WindowsDirectoryAdapter {
   }
 
   private async inspectRoot(rootId: string): Promise<StoredDirectory> {
-    if (!isOpaqueId(rootId)) throw new DirectoryAccessError('invalid-request', '目录引用格式无效。')
+    if (!isOpaqueId(rootId)) {
+      throw new DirectoryAccessError('invalid-request', '目录引用格式无效。')
+    }
     const root = this.registry.roots.find((item) => item.rootId === rootId)
-    if (!root) throw new DirectoryAccessError('not-found', '目录未登记，请先选择目录。')
+    if (!root) {
+      throw new DirectoryAccessError('not-found', '目录未登记，请先选择目录。')
+    }
     const stats = await inspectLocalPath(root.path)
     if (!stats.isDirectory() || !hasSameIdentity(stats, root.identity)) {
       throw new DirectoryAccessError('source-changed', '登记目录已被替换，请重新选择。')
@@ -354,8 +367,9 @@ export class WindowsDirectoryAdapter {
     entryId: string,
   ): Promise<{ path: string; stats: BigIntStats }> {
     const root = await this.inspectRoot(rootId)
-    if (!isOpaqueId(entryId))
+    if (!isOpaqueId(entryId)) {
       throw new DirectoryAccessError('invalid-request', '条目引用格式无效。')
+    }
     const entry = this.entries.get(entryId)
     if (!entry || entry.rootId !== rootId) {
       throw new DirectoryAccessError('not-found', '条目引用已失效，请刷新目录。')
@@ -374,13 +388,16 @@ export class WindowsDirectoryAdapter {
 
 /** 初始化应用目录配置；只在配置不存在时创建身份，损坏/未知版本失败而不重置。 */
 export async function createDirectoryAdapter(configPath: string): Promise<WindowsDirectoryAdapter> {
-  if (!isAbsolute(configPath))
+  if (!isAbsolute(configPath)) {
     throw new DirectoryAccessError('invalid-request', '配置路径必须是绝对路径。')
+  }
   const registry = (await loadDirectoryRegistry(configPath)) ?? {
     schemaVersion: 1,
     deviceId: randomUUID(),
     roots: [],
   }
-  if (registry.roots.length === 0) await saveDirectoryRegistry(configPath, registry)
+  if (registry.roots.length === 0) {
+    await saveDirectoryRegistry(configPath, registry)
+  }
   return new WindowsDirectoryAdapter(configPath, registry)
 }

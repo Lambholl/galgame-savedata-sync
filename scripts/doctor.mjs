@@ -141,8 +141,11 @@ const report = { target: isDesktopOnly ? 'desktop' : 'desktop-and-android', chec
 if (process.argv.includes('--json')) {
   console.log(JSON.stringify(report, null, 2))
 } else {
-  for (const check of checks)
+  for (const check of checks) {
     console.log(`[${check.status.toUpperCase()}] ${check.name}: ${check.detail}`)
+  }
   console.log('\nThis checks installed tools; it does not prove an APK builds or runs on a device.')
 }
-if (checks.some((check) => check.status === 'fail')) process.exitCode = 1
+if (checks.some((check) => check.status === 'fail')) {
+  process.exitCode = 1
+}

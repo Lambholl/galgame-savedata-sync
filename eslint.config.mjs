@@ -5,6 +5,52 @@ import reactHooks from 'eslint-plugin-react-hooks'
 import reactRefresh from 'eslint-plugin-react-refresh'
 import tseslint from 'typescript-eslint'
 
+const booleanNamePrefixes = [
+  'is',
+  'has',
+  'can',
+  'should',
+  'was',
+  'were',
+  'did',
+  'do',
+  'will',
+  'must',
+  'may',
+  'need',
+  'require',
+  'allow',
+  'support',
+  'accept',
+  'contain',
+  'include',
+  'exist',
+  'match',
+  'use',
+  'own',
+]
+// 这些字段属于已发布的跨端 JSON 或原生事件名称，改名需要协议与数据迁移。
+const legacyBooleanNames = ['blocked', 'cancelRequested', 'dark', 'upload', 'refresh']
+const booleanNamingRule = {
+  selector: [
+    'variable',
+    'parameter',
+    'parameterProperty',
+    'classProperty',
+    'typeProperty',
+    'classicAccessor',
+  ],
+  filter: {
+    regex: `^(?!(?:${legacyBooleanNames.join('|')})$).*$`,
+    match: true,
+  },
+  types: ['boolean'],
+  format: ['PascalCase'],
+  prefix: booleanNamePrefixes,
+  leadingUnderscore: 'forbid',
+  trailingUnderscore: 'forbid',
+}
+
 export default tseslint.config(
   {
     ignores: [
@@ -76,6 +122,7 @@ export default tseslint.config(
       '@typescript-eslint/prefer-promise-reject-errors': 'error',
       '@typescript-eslint/naming-convention': [
         'error',
+        booleanNamingRule,
         { selector: 'default', format: ['camelCase'] },
         { selector: 'variable', modifiers: ['const'], format: ['camelCase', 'UPPER_CASE'] },
         { selector: 'typeLike', format: ['PascalCase'] },
@@ -92,6 +139,7 @@ export default tseslint.config(
     rules: {
       '@typescript-eslint/naming-convention': [
         'error',
+        booleanNamingRule,
         { selector: 'default', format: ['camelCase'] },
         {
           selector: 'variable',
@@ -99,6 +147,12 @@ export default tseslint.config(
           format: ['camelCase', 'PascalCase', 'UPPER_CASE'],
         },
         { selector: 'function', format: ['camelCase', 'PascalCase'] },
+        // 组件常作为参数传入（如 antd Modal footer 的 OkBtn），并允许 _ 占位参数。
+        {
+          selector: 'parameter',
+          format: ['camelCase', 'PascalCase'],
+          leadingUnderscore: 'allow',
+        },
         { selector: 'typeLike', format: ['PascalCase'] },
         { selector: 'enumMember', format: ['PascalCase'] },
         { selector: ['objectLiteralProperty', 'import'], format: null },
@@ -123,5 +177,11 @@ export default tseslint.config(
   {
     ...prettierRecommended,
     files: ['**/*.{js,mjs,cjs,ts,tsx}'],
+    rules: {
+      curly: ['error', 'all'],
+      'arrow-body-style': ['error', 'as-needed'],
+      'brace-style': 'error',
+      indent: ['error', 2],
+    },
   },
 )

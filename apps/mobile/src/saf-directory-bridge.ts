@@ -55,7 +55,9 @@ export function createSafDirectoryBridge(
 ): AndroidDirectoryApi {
   return Object.freeze({
     async chooseDirectory(): Promise<DirectorySelectionResult> {
-      if (!isAndroid()) return { status: 'error', error: UNSUPPORTED }
+      if (!isAndroid()) {
+        return { status: 'error', error: UNSUPPORTED }
+      }
       try {
         const result = await plugin.chooseDirectory()
         return isDirectorySelectionResult(result)
@@ -66,7 +68,9 @@ export function createSafDirectoryBridge(
       }
     },
     async listRoots(): Promise<OperationResult<readonly DirectoryReference[]>> {
-      if (!isAndroid()) return { status: 'error', error: UNSUPPORTED }
+      if (!isAndroid()) {
+        return { status: 'error', error: UNSUPPORTED }
+      }
       try {
         const result = await plugin.listRoots()
         return isOperationResult(result, isRootList)
@@ -86,7 +90,9 @@ export function createSafDirectoryBridge(
           error: { code: 'invalid-request', message: '目录引用格式无效。', canRetry: false },
         }
       }
-      if (!isAndroid()) return { status: 'error', error: UNSUPPORTED }
+      if (!isAndroid()) {
+        return { status: 'error', error: UNSUPPORTED }
+      }
       try {
         const result = await plugin.listDirectory({ rootId, parentId })
         if (

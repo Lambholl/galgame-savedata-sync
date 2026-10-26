@@ -37,8 +37,14 @@ const BRIDGE_ERROR: OperationError = {
 }
 
 function isRootList(value: unknown): value is readonly DirectoryReference[] {
-  if (!Array.isArray(value)) return false
-  for (const item of value) if (!isDirectoryReference(item)) return false
+  if (!Array.isArray(value)) {
+    return false
+  }
+  for (const item of value) {
+    if (!isDirectoryReference(item)) {
+      return false
+    }
+  }
   return true
 }
 

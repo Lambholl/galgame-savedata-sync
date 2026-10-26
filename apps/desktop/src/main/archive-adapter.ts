@@ -62,16 +62,19 @@ function freezeManifest(manifest: BatchManifest): BatchManifest {
 
 async function* binaryChunks(source: AsyncIterable<unknown>): AsyncGenerator<Buffer> {
   for await (const chunk of source) {
-    if (!Buffer.isBuffer(chunk)) throw new ArchiveError('io-failure', '原生流必须提供二进制数据。')
-    for (let offset = 0; offset < chunk.length; offset += BATCH_RESOURCES.maxBufferBytes)
+    if (!Buffer.isBuffer(chunk)) {
+      throw new ArchiveError('io-failure', '原生流必须提供二进制数据。')
+    }
+    for (let offset = 0; offset < chunk.length; offset += BATCH_RESOURCES.maxBufferBytes) {
       yield chunk.subarray(offset, offset + BATCH_RESOURCES.maxBufferBytes)
+    }
   }
 }
 
 function createCounter(
   job: ArchiveCacheJob,
   maximum: number,
-  store: boolean,
+  shouldStore: boolean,
   options: ArchiveOperationOptions,
   onBytes: (chunk: Buffer) => void,
 ): { stream: Transform; result: () => { sizeBytes: number; sha256: string } } {
@@ -85,7 +88,7 @@ function createCounter(
         callback(new ArchiveError('resource-limit', '归档字节数超过本机资源预算。'))
         return
       }
-      const reserve = store ? job.reserve(chunk.length) : Promise.resolve()
+      const reserve = shouldStore ? job.reserve(chunk.length) : Promise.resolve()
       reserve
         .then(() => {
           checkArchiveAbort(options.signal)
@@ -121,7 +124,9 @@ async function copyIntoJob(
     const writer = await job.writer(name)
     if (earlyError.value || signal?.aborted) {
       writer.destroy()
-      if (earlyError.value) throw earlyError.value
+      if (earlyError.value) {
+        throw earlyError.value
+      }
       checkArchiveAbort(signal)
     }
     const bounded = Readable.from(binaryChunks(input), {
@@ -157,10 +162,13 @@ async function* tarChunks(
     } finally {
       source.destroy()
     }
-    if (actual !== file.sizeBytes || hash.digest('hex') !== file.sha256)
+    if (actual !== file.sizeBytes || hash.digest('hex') !== file.sha256) {
       throw new ArchiveError('checksum-mismatch', '私有源快照校验失败。')
+    }
     const padding = (512 - (file.sizeBytes % 512)) % 512
-    if (padding) yield Buffer.alloc(padding)
+    if (padding) {
+      yield Buffer.alloc(padding)
+    }
   }
   yield Buffer.alloc(1024)
 }
@@ -168,9 +176,13 @@ async function* tarChunks(
 async function readSmall(job: ArchiveCacheJob, start: number, size: number): Promise<Buffer> {
   const source = await job.reader('archive.tar.gz', { start, end: start + size - 1 })
   const parts: Buffer[] = []
-  for await (const chunk of binaryChunks(source)) parts.push(chunk)
+  for await (const chunk of binaryChunks(source)) {
+    parts.push(chunk)
+  }
   const result = Buffer.concat(parts)
-  if (result.length !== size) throw new ArchiveError('invalid-archive', 'gzip 固定头或尾部被截断。')
+  if (result.length !== size) {
+    throw new ArchiveError('invalid-archive', 'gzip 固定头或尾部被截断。')
+  }
   return result
 }
 
@@ -186,16 +198,18 @@ export class WindowsArchiveAdapter {
 
   /** 生成独立源快照与 gzip1 归档；失败/取消清理本次缓存，成功将释放责任交给句柄。 */
   async prepare(request: unknown, options: ArchiveOperationOptions = {}): Promise<WindowsArchive> {
-    if (!isDownloadBatchRequest(request))
+    if (!isDownloadBatchRequest(request)) {
       throw new ArchiveError('invalid-request', '批量下载请求无效。')
+    }
     return this.run(async (job, counters) => {
       const files = await this.snapshot(request, job, counters, options)
       const tarSizeBytes = files.reduce(
         (sum, file) => sum + 512 + Math.ceil(file.sizeBytes / 512) * 512,
         1024,
       )
-      if (tarSizeBytes > this.cache.quota.maxTarBytes)
+      if (tarSizeBytes > this.cache.quota.maxTarBytes) {
         throw new ArchiveError('resource-limit', 'tar 原文超过资源预算。')
+      }
       const counter = createCounter(
         job,
         this.cache.quota.maxArchiveBytes,
@@ -230,8 +244,9 @@ export class WindowsArchiveAdapter {
         totalFileBytes: counters.sourceBytesRead,
         archive: { format: BATCH_ARCHIVE.format, compressionLevel: 1, ...archive, tarSizeBytes },
       }
-      if (!isBatchManifest(manifest))
+      if (!isBatchManifest(manifest)) {
         throw new ArchiveError('invalid-request', '生成的批量清单超出协议范围。')
+      }
       return this.artifact(job, freezeManifest(manifest), 'raw')
     }, options)
   }
@@ -248,17 +263,22 @@ export class WindowsArchiveAdapter {
     }
     input.on('error', rememberError)
     try {
-      if (!isBatchManifest(manifest)) throw new ArchiveError('invalid-request', '接收清单无效。')
+      if (!isBatchManifest(manifest)) {
+        throw new ArchiveError('invalid-request', '接收清单无效。')
+      }
       const snapshot = freezeManifest(manifest)
       if (
         snapshot.totalFileBytes > this.cache.quota.maxTotalFileBytes ||
         snapshot.archive.sizeBytes > this.cache.quota.maxArchiveBytes ||
         snapshot.archive.tarSizeBytes > this.cache.quota.maxTarBytes ||
         snapshot.files.some((file) => file.sizeBytes > this.cache.quota.maxFileBytes)
-      )
+      ) {
         throw new ArchiveError('resource-limit', '接收清单超过本机资源预算。')
+      }
       return await this.run(async (job, counters) => {
-        if (earlyError.value) throw earlyError.value
+        if (earlyError.value) {
+          throw earlyError.value
+        }
         const counter = createCounter(
           job,
           this.cache.quota.maxArchiveBytes,
@@ -266,8 +286,9 @@ export class WindowsArchiveAdapter {
           options,
           (chunk) => {
             counters.archiveBytesStored += chunk.length
-            if (counters.archiveBytesStored > snapshot.archive.sizeBytes)
+            if (counters.archiveBytesStored > snapshot.archive.sizeBytes) {
               throw new ArchiveError('checksum-mismatch', '压缩体长度超过清单。')
+            }
             options.onProgress?.({ ...counters })
           },
         )
@@ -276,8 +297,9 @@ export class WindowsArchiveAdapter {
         if (
           actual.sizeBytes !== snapshot.archive.sizeBytes ||
           actual.sha256 !== snapshot.archive.sha256
-        )
+        ) {
           throw new ArchiveError('checksum-mismatch', '压缩体长度或哈希与清单不符。')
+        }
         checkArchiveAbort(options.signal)
         options.onArchiveStored?.()
         await this.unpack(job, snapshot, counters, options)
@@ -343,11 +365,12 @@ export class WindowsArchiveAdapter {
         rootId: request.sourceRootId,
         entryId: selection.entryId,
       })
-      if (result.status === 'error')
+      if (result.status === 'error') {
         throw new ArchiveError(
           result.error.code === 'result-unknown' ? 'io-failure' : result.error.code,
           result.error.message,
         )
+      }
       const source = result.value
       const metadata = source.metadata
       try {
@@ -356,8 +379,9 @@ export class WindowsArchiveAdapter {
           metadata.kind !== 'file' ||
           metadata.rootId !== request.sourceRootId ||
           metadata.entryId !== selection.entryId
-        )
+        ) {
           throw new ArchiveError('invalid-request', '源文件元数据不匹配。')
+        }
         const counter = createCounter(
           job,
           this.cache.quota.maxFileBytes,
@@ -365,8 +389,9 @@ export class WindowsArchiveAdapter {
           options,
           (chunk) => {
             counters.sourceBytesRead += chunk.length
-            if (counters.sourceBytesRead > this.cache.quota.maxTotalFileBytes)
+            if (counters.sourceBytesRead > this.cache.quota.maxTotalFileBytes) {
               throw new ArchiveError('resource-limit', '原文总量超过资源预算。')
+            }
             options.onProgress?.({
               sourceBytesRead: counters.sourceBytesRead,
               archiveBytesStored: 0,
@@ -384,8 +409,9 @@ export class WindowsArchiveAdapter {
         )
         await source.verifyUnchanged()
         const actual = counter.result()
-        if (metadata.sizeBytes !== null && actual.sizeBytes !== metadata.sizeBytes)
+        if (metadata.sizeBytes !== null && actual.sizeBytes !== metadata.sizeBytes) {
           throw new ArchiveError('source-changed', '源文件长度在读取期间变化。')
+        }
         files.push({
           fileId: selection.fileId,
           sourceEntryId: metadata.entryId,
@@ -408,11 +434,14 @@ export class WindowsArchiveAdapter {
     options: ArchiveOperationOptions,
   ): Promise<void> {
     const size = manifest.archive.sizeBytes
-    if (size < 20) throw new ArchiveError('invalid-archive', 'gzip 内容过短。')
+    if (size < 20) {
+      throw new ArchiveError('invalid-archive', 'gzip 内容过短。')
+    }
     const header = await readSmall(job, 0, 10)
     const trailer = await readSmall(job, size - 8, 8)
-    if (!header.subarray(0, 8).equals(Buffer.from([31, 139, 8, 0, 0, 0, 0, 0])))
+    if (!header.subarray(0, 8).equals(Buffer.from([31, 139, 8, 0, 0, 0, 0, 0]))) {
       throw new ArchiveError('invalid-archive', 'gzip 头不符合单成员受限格式。')
+    }
     const crc = new ArchiveCrc32()
     const tarCounter = createCounter(job, this.cache.quota.maxTarBytes, false, options, (chunk) =>
       crc.update(chunk),
@@ -428,8 +457,9 @@ export class WindowsArchiveAdapter {
       async (source: AsyncIterable<unknown>) => {
         const reader = new ArchiveReader(source, options.signal)
         for (const file of manifest.files) {
-          if (!(await reader.read(512)).equals(createArchiveHeader(file)))
+          if (!(await reader.read(512)).equals(createArchiveHeader(file))) {
             throw new ArchiveError('invalid-archive', 'tar 成员、顺序、类型或规范化头无效。')
+          }
           const counter = createCounter(
             job,
             this.cache.quota.maxFileBytes,
@@ -437,8 +467,9 @@ export class WindowsArchiveAdapter {
             options,
             (chunk) => {
               counters.verifiedFileBytes += chunk.length
-              if (counters.verifiedFileBytes > this.cache.quota.maxTotalFileBytes)
+              if (counters.verifiedFileBytes > this.cache.quota.maxTotalFileBytes) {
                 throw new ArchiveError('resource-limit', '解包原文超过资源预算。')
+              }
               options.onProgress?.({ ...counters })
             },
           )
@@ -460,25 +491,30 @@ export class WindowsArchiveAdapter {
             { signal: options.signal },
           )
           const actual = counter.result()
-          if (actual.sizeBytes !== file.sizeBytes || actual.sha256 !== file.sha256)
+          if (actual.sizeBytes !== file.sizeBytes || actual.sha256 !== file.sha256) {
             throw new ArchiveError('checksum-mismatch', '解包文件内容与清单不符。')
+          }
           const padding = await reader.read((512 - (file.sizeBytes % 512)) % 512)
-          if (padding.some((byte) => byte !== 0))
+          if (padding.some((byte) => byte !== 0)) {
             throw new ArchiveError('invalid-archive', 'tar 填充包含非零数据。')
+          }
           counters.verifiedFiles++
           options.onProgress?.({ ...counters })
         }
-        if ((await reader.read(1024)).some((byte) => byte !== 0))
+        if ((await reader.read(1024)).some((byte) => byte !== 0)) {
           throw new ArchiveError('invalid-archive', 'tar 缺少两个规范结束块。')
+        }
         await reader.expectEnd()
       },
       { signal: options.signal },
     )
     const tar = tarCounter.result()
-    if (inflater.bytesWritten !== size - 18 || tar.sizeBytes !== manifest.archive.tarSizeBytes)
+    if (inflater.bytesWritten !== size - 18 || tar.sizeBytes !== manifest.archive.tarSizeBytes) {
       throw new ArchiveError('invalid-archive', 'gzip 包含拼接成员、尾随内容或长度歧义。')
-    if (trailer.readUInt32LE(0) !== crc.value || trailer.readUInt32LE(4) !== tar.sizeBytes)
+    }
+    if (trailer.readUInt32LE(0) !== crc.value || trailer.readUInt32LE(4) !== tar.sizeBytes) {
       throw new ArchiveError('invalid-archive', 'gzip CRC32 或 ISIZE 校验失败。')
+    }
   }
 
   private artifact(
@@ -497,8 +533,9 @@ export class WindowsArchiveAdapter {
       manifest,
       openArchive: () => open('archive.tar.gz'),
       openFile: (fileId: string) => {
-        if (!manifest.files.some((file) => file.fileId === fileId))
+        if (!manifest.files.some((file) => file.fileId === fileId)) {
           return Promise.reject(new ArchiveError('invalid-request', '缓存文件不属于本次清单。'))
+        }
         return open(`${prefix}-${fileId}`)
       },
       dispose: () => job.dispose(),

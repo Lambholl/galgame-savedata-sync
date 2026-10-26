@@ -79,12 +79,14 @@ export class WindowsHttpService {
 
   /** 启动完成才返回实际端口；同时启动或未完成清理时拒绝，端口冲突不会静默换端口。 */
   start(options: HttpListenOptions = {}): Promise<HttpListenerAddress> {
-    if (this.server || this.registry || this.starting || this.stopping)
+    if (this.server || this.registry || this.starting || this.stopping) {
       throw new HttpOperationError('busy', '本地服务已启动或正在清理。')
+    }
     const host = options.host ?? '127.0.0.1'
     const port = options.port ?? 0
-    if (!isIP(host) || !Number.isInteger(port) || port < 0 || port > 65535)
+    if (!isIP(host) || !Number.isInteger(port) || port < 0 || port > 65535) {
       throw new HttpOperationError('invalid-request', '监听地址或端口无效。')
+    }
     this.starting = this.listen(host, port).finally(() => {
       this.starting = null
     })
@@ -108,14 +110,17 @@ export class WindowsHttpService {
 
   /** 本机显式取消；不存在的任务抛脱敏错误，已发布文件保留。 */
   cancel(transferId: string): BatchState {
-    if (!this.registry) throw new HttpOperationError('not-found', '服务尚未启动。')
+    if (!this.registry) {
+      throw new HttpOperationError('not-found', '服务尚未启动。')
+    }
     return this.registry.cancel(transferId)
   }
 
   /** 主进程明确重试失败缓存清理；不创建 HTTP 自动重试或重放入口。 */
   async retryCleanup(): Promise<void> {
-    if (this.registry) await this.registry.retryCleanup()
-    else {
+    if (this.registry) {
+      await this.registry.retryCleanup()
+    } else {
       await this.archive.retryCleanup()
       await this.options.publisher?.retryCleanup()
     }
@@ -123,10 +128,11 @@ export class WindowsHttpService {
 
   /** 并发停止共用 Promise；清理失败保留注册表供再次 stop，已关闭端口不继续接纳。 */
   stop(): Promise<void> {
-    if (!this.stopping)
+    if (!this.stopping) {
       this.stopping = this.close().finally(() => {
         this.stopping = null
       })
+    }
     return this.stopping
   }
 
@@ -135,14 +141,14 @@ export class WindowsHttpService {
       ...this.options,
       ...(this.options.publisher && this.archive.receive
         ? {
-            receiver: {
-              archive: {
-                receive: this.archive.receive.bind(this.archive),
-                retryCleanup: this.archive.retryCleanup.bind(this.archive),
-              },
-              publisher: this.options.publisher,
+          receiver: {
+            archive: {
+              receive: this.archive.receive.bind(this.archive),
+              retryCleanup: this.archive.retryCleanup.bind(this.archive),
             },
-          }
+            publisher: this.options.publisher,
+          },
+        }
         : {}),
     })
     this.registry = registry
@@ -172,9 +178,11 @@ export class WindowsHttpService {
     })
     server.on('clientError', (error, socket) => {
       void error
-      if (socket.writable)
+      if (socket.writable) {
         socket.end('HTTP/1.1 400 Bad Request\r\nConnection: close\r\nContent-Length: 0\r\n\r\n')
-      else socket.destroy()
+      } else {
+        socket.destroy()
+      }
     })
     server.on('checkContinue', (request, response) => {
       void request
@@ -210,11 +218,14 @@ export class WindowsHttpService {
         message: '本地 HTTP 服务发生网络错误，请停止后重启。',
         canRetry: false,
       }
-      for (const socket of this.sockets) socket.destroy(error)
+      for (const socket of this.sockets) {
+        socket.destroy(error)
+      }
     })
     const address = server.address()
-    if (!address || typeof address === 'string')
+    if (!address || typeof address === 'string') {
       throw new HttpOperationError('io-failure', '本地监听地址不可用。')
+    }
     this.address = { host: address.address, port: address.port, sessionId }
     return { ...this.address }
   }
@@ -230,17 +241,23 @@ export class WindowsHttpService {
     const server = this.server
     const closed = server
       ? new Promise<void>((resolve, reject) =>
-          server.close((error) => (error ? reject(error) : resolve())),
-        )
+        server.close((error) => (error ? reject(error) : resolve())),
+      )
       : Promise.resolve()
     this.address = null
-    for (const socket of this.sockets) socket.destroy()
+    for (const socket of this.sockets) {
+      socket.destroy()
+    }
     const registry = this.registry
     // stop 在同步部分即关闭接纳并发送 abort，再等待原生 worker。
     const stopping = registry?.stop() ?? Promise.resolve()
     const results = await Promise.allSettled([closed, stopping])
     this.server = null
-    for (const result of results) if (result.status === 'rejected') throw toHttpError(result.reason)
+    for (const result of results) {
+      if (result.status === 'rejected') {
+        throw toHttpError(result.reason)
+      }
+    }
     this.registry = null
     this.options.library?.stop()
   }
@@ -252,8 +269,9 @@ export class WindowsHttpService {
     sessionId: string,
   ): Promise<void> {
     const route = inspectHttpRequest(request)
-    if (route.kind !== 'device' && request.headers[HTTP_HEADERS.sessionId] !== sessionId)
+    if (route.kind !== 'device' && request.headers[HTTP_HEADERS.sessionId] !== sessionId) {
       throw new HttpOperationError('session-mismatch', '服务会话已变化，请重新读取设备信息。')
+    }
     if (route.kind === 'device') {
       const device: DeviceDescriptor = {
         protocolVersion: PROTOCOL_VERSION,
@@ -284,10 +302,13 @@ export class WindowsHttpService {
       return
     }
     if (route.kind === 'catalog') {
-      if (!this.options.library)
+      if (!this.options.library) {
         throw new HttpOperationError('unsupported-operation', '此版本未开放游戏目录表。')
+      }
       const value = await readHttpJson(request)
-      if (!request.complete || response.destroyed) return
+      if (!request.complete || response.destroyed) {
+        return
+      }
       sendHttpJson(response, 200, {
         status: 'success',
         value: await this.options.library.exchange(
@@ -299,31 +320,39 @@ export class WindowsHttpService {
     }
     if (route.kind === 'downloads') {
       const value = await readHttpJson(request)
-      if (!request.complete || response.destroyed) return
+      if (!request.complete || response.destroyed) {
+        return
+      }
       sendHttpJson(response, 202, { status: 'success', value: registry.registerDownload(value) })
       return
     }
     if (route.kind === 'uploads') {
       const value = await readHttpJson(request)
-      if (!request.complete || response.destroyed) return
+      if (!request.complete || response.destroyed) {
+        return
+      }
       sendHttpJson(response, 201, {
         status: 'success',
         value: await registry.registerUpload(value),
       })
       return
     }
-    if (!route.id) throw new HttpOperationError('invalid-request', '任务标识无效。')
+    if (!route.id) {
+      throw new HttpOperationError('invalid-request', '任务标识无效。')
+    }
     if (route.kind === 'manifest') {
       sendHttpJson(response, 200, { status: 'success', value: registry.getManifest(route.id) })
       return
     }
     if (route.kind === 'content') {
-      if (request.method === 'PUT')
+      if (request.method === 'PUT') {
         sendHttpJson(response, 202, {
           status: 'success',
           value: await registry.receiveContent(route.id, request, response),
         })
-      else await registry.sendContent(route.id, response)
+      } else {
+        await registry.sendContent(route.id, response)
+      }
       return
     }
     const state =
@@ -335,8 +364,9 @@ export class WindowsHttpService {
   }
 
   private sendResult(response: ServerResponse, result: OperationResult<unknown>): void {
-    if (result.status === 'error')
+    if (result.status === 'error') {
       throw new HttpOperationError(result.error.code, result.error.message)
+    }
     sendHttpJson(response, 200, result)
   }
 }

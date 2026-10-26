@@ -4,9 +4,9 @@ import { Capacitor, SystemBars, SystemBarsStyle } from '@capacitor/core'
 export function startSystemTheme(): () => void {
   const preference = window.matchMedia('(prefers-color-scheme: dark)')
   const isAndroid = Capacitor.getPlatform() === 'android'
-  let nativeDarkMode: boolean | undefined
+  let isNativeDarkMode: boolean | undefined
   const updateTheme = (): void => {
-    const isDarkMode = nativeDarkMode ?? preference.matches
+    const isDarkMode = isNativeDarkMode ?? preference.matches
     document.documentElement.dataset.prefersColorScheme = isDarkMode ? 'dark' : 'light'
     document.documentElement.style.colorScheme = isDarkMode ? 'dark' : 'light'
     if (isAndroid) {
@@ -20,11 +20,13 @@ export function startSystemTheme(): () => void {
   }
   const updateNativeTheme = (event: Event): void => {
     if ('dark' in event && typeof event.dark === 'boolean') {
-      nativeDarkMode = event.dark
+      isNativeDarkMode = event.dark
       updateTheme()
     }
   }
-  if (isAndroid) window.addEventListener('savedata:theme-change', updateNativeTheme)
+  if (isAndroid) {
+    window.addEventListener('savedata:theme-change', updateNativeTheme)
+  }
   preference.addEventListener('change', updateTheme)
   updateTheme()
   return () => {

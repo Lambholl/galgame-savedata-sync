@@ -13,11 +13,14 @@ const REPO_ROOT = resolve(APP_ROOT, '../..')
  * 成功输出产物路径；读取、复制、下载或打包失败时非零退出，不发布或安装产物。
  */
 async function main() {
-  if (process.platform !== 'win32') throw new Error('请在 Windows 上构建此安装包。')
+  if (process.platform !== 'win32') {
+    throw new Error('请在 Windows 上构建此安装包。')
+  }
   const metadata = JSON.parse(await readFile(join(APP_ROOT, 'package.json'), 'utf8'))
   const config = JSON.parse(await readFile(join(APP_ROOT, 'electron-builder.json'), 'utf8'))
-  for (const entry of ['out/main/index.js', 'out/preload/index.cjs', 'out/renderer/index.html'])
+  for (const entry of ['out/main/index.js', 'out/preload/index.cjs', 'out/renderer/index.html']) {
     await access(join(APP_ROOT, entry))
+  }
 
   const reports = join(REPO_ROOT, '.reports')
   await mkdir(reports, { recursive: true })
@@ -69,7 +72,9 @@ async function main() {
       directories: { ...config.directories, app: staging, output: join(APP_ROOT, 'release') },
     },
   })
-  for (const artifact of artifacts) console.log(artifact)
+  for (const artifact of artifacts) {
+    console.log(artifact)
+  }
 }
 
 main().catch((error) => {

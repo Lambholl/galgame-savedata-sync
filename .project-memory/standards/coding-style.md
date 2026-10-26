@@ -3,7 +3,7 @@ doc_type: coding-style
 status: active
 priority: high
 owner: development
-updated: 2026-10-26
+updated: 2026-10-27
 tags: [编码规范]
 related_files: []
 ---
@@ -45,6 +45,7 @@ related_files: []
 | 类型 | 规则 | 示例 |
 | --- | --- | --- |
 | 手写 TS/JS 与 React | 遵循语言基线；React 组件 PascalCase，普通脚本与模块 kebab-case，优先命名导出 | `App.tsx`、`toolchain-policy.mjs` |
+| TypeScript 布尔值 | 变量、参数、类属性和类型属性使用语义前缀加 PascalCase 主体；允许 `is`、`has`、`can`、`should`、`was`、`were`、`did`、`do`、`will`、`must`、`may`、`need`、`require`、`allow`、`support`、`accept`、`contain`、`include`、`exist`、`match`、`use`、`own` | `isConnected`、`hasPermission`、`canRetry`、`shouldRefresh`、`wasCancelled`、`allowEmpty` |
 | 框架约定 | Vite、Capacitor、ESLint 配置按框架要求默认导出 | `vite.config.ts`、`capacitor.config.ts` |
 
 ## 4. 目录与模块规范
@@ -100,8 +101,9 @@ related_files: []
 | 全部 Markdown（含 MDX、Prettier 支持的其他 Markdown 扩展名与无扩展名 README）人工维护 | `.prettierignore`；Prettier 排除文件及其中的代码块，编码检查仍由 `pnpm check:text` 覆盖 |
 | 手写 JS/TS 的声明、严格比较、动态执行、错误对象与命名导出约束；TS 另检查类型安全、模块边界类型和未处理 Promise | `eslint.config.mjs`；JS 使用语法检查，TS 使用类型感知规则；生成目录不纳入检查 |
 | TypeScript 命名遵循语言基线；TSX 允许 PascalCase 组件；外部对象字面量键与导入名保留兼容性 | `eslint.config.mjs`；默认导出仅对当前四个 ESLint、Vite、Capacitor 配置文件豁免 |
+| TypeScript 布尔变量、参数和属性使用语义前缀；主体保持 PascalCase，保证整体名称符合 lowerCamelCase | `eslint.config.mjs` 的 `@typescript-eslint/naming-convention`；已在协议中发布的 `blocked`、`cancelRequested`、`dark`、`upload`、`refresh` 保留原名，改协议时再迁移 |
 | 编码、BOM、换行与严格类型 | `scripts/check-text.mjs`、`tsconfig.base.json`；`pnpm check:text`、`pnpm typecheck` |
 | 自动化测试准入 | 默认不新增或扩写，只有用户在当前任务明确要求时才写；长期测试只守 API、数据结构、持久化、文件安全和核心业务结果 |
 | 界面检查 | 使用实际运行、设备操作或截图；按钮、文案、DOM、CSS、颜色、布局和快照不进入长期自动化测试 |
 | 全量测试 | `pnpm test:all`；用于发布前、大范围高风险改动或用户明确要求，`pnpm check` 和普通 CI 不运行它 |
-| 文件与目录命名、布尔变量业务命名、文档语义完整性、日志脱敏、事件生命周期及 JS Promise 失败处理 | 由人工评审；当前 ESLint 配置只覆盖语法和类型规则 |
+| 文件与目录命名、JavaScript 布尔变量业务命名、文档语义完整性、日志脱敏、事件生命周期及 JS Promise 失败处理 | 由人工评审；JavaScript 无类型信息，ESLint 只检查其 lowerCamelCase 基础命名 |
