@@ -5,7 +5,7 @@ priority: medium
 owner: development
 id_prefix: BUG
 id_high_water: 1
-updated: 2026-10-25
+updated: 2026-10-26
 tags: [已知问题]
 related_files: []
 ---
@@ -16,4 +16,5 @@ related_files: []
 
 | ID | 问题 | 影响 | 临时方案 | 状态 |
 | --- | --- | --- | --- | --- |
-| BUG-001 | 待补充 | 待补充 | 待补充 | open |
+
+当前无已登记的具体代码缺陷；验证缺口见[测试覆盖缺口](../testing/coverage-gaps.md)。

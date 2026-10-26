@@ -13,11 +13,11 @@
 
 `@savedata-sync/shared` 从 `src/index.ts` 导出应用名、协议 v1 的本地目录/设备 DTO、tar.gz 批量 DTO、纯数据守卫、上下文匹配器和协议常量。共享包不包含 IO、归档编解码、HTTP 服务/客户端、任务存储或同步算法。
 
-HTTP 尚无业务消费者，用户允许直接修订数字 `PROTOCOL_VERSION=1`；不新增 v2、不保留旧单文件端点或别名。DeviceDescriptor、DirectoryReference、EntryMetadata、DirectoryListing、DirectorySelectionResult 及本地目录桥保持复用。HTTP 的 DeviceResponse 改为 `OperationResult<BatchDeviceDescriptor>`，包装本地 device 并提供 sessionId/limits。
+协议使用数字 `PROTOCOL_VERSION=1`。本地目录桥使用 DeviceDescriptor、DirectoryReference、EntryMetadata、DirectoryListing 和 DirectorySelectionResult；HTTP 的 DeviceResponse 为 `OperationResult<BatchDeviceDescriptor>`，包装本地 device 并提供 sessionId/limits。
 
-旧 TransferProgress/TransferReceipt/TransferResult/TransferState、CreateFileRequest/CreateFileResponse/TransferResponse 及对应守卫已移除。后续调用迁移为 BatchProgress/BatchState/FileOutcome、DownloadBatchRequest/ReceiveBatchRequest、BatchResponse/ManifestResponse，并在接受接收成功前执行上下文匹配。旧 content/createFile 路由及逐文件哈希/长度头由批量路由和归档校验头替换。该开发阶段原位修订不作为正式消费者出现后的兼容策略。
+传输使用 BatchProgress/BatchState/FileOutcome、DownloadBatchRequest/ReceiveBatchRequest、BatchResponse/ManifestResponse，以及批量路由和归档校验头；接受接收成功前必须执行上下文匹配。不提供单文件端点或兼容别名。无 HTTP 消费者阶段原位修订 v1 的例外不作为正式消费者出现后的兼容策略。
 
-详细目标行为见[批量协议设计](../../docs/plans/m001-tar-gzip-protocol.md)；本包实现的是其数据与关系约束，正式归档/HTTP/发布仍由后续平台包实现。
+详细目标行为见[批量协议设计](../../docs/plans/m001-tar-gzip-protocol.md)；共享包负责数据与关系约束，Windows 私有归档已实现，Java 归档、HTTP 和目标发布待后续平台包完成。
 
 ## 2. 本地目录与批量模型
 
@@ -96,7 +96,7 @@ HTTP_ERROR_STATUS 保留既有错误映射，并增加 session-mismatch/task-con
 
 - 原生层拥有流、压缩器、缓存、任务、回调和监听；向 JS 仅传 JSON 快照，不传文件内容、Base64、句柄或 URI。Android 使用 Java，long 输出前检查 JS 安全整数范围。
 - 准备时源原文先流式暂存并实测长度/哈希，再打包稳定归档；接收端完整验证归档和全部原文后才逐项发布。清单、哈希及结果只在当前会话短期存活，不保存历史基线。
-- Windows/Java 归档适配、JSON/HTTP 解析、实际源变化检查及非覆盖发布由后续包实现；共同创建名不能替代 Windows 竞争检查或 SAF 提供者语义验证。
+- Windows 私有归档及源变化检查已在[桌面适配](../../apps/desktop/README.md)实现；Java 归档、JSON/HTTP 解析和非覆盖目标发布仍待后续包。共同创建名不能替代 Windows 竞争检查或 SAF 提供者验证。
 - Android 离开前台取消本地任务并尽力取消远端，取消丢失可能留下已发布结果；返回前台核实当前目标，不恢复旧任务。共享包不控制生命周期，也不保证平台操作可立即中断。
 
 ## 6. 检查与验证边界

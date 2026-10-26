@@ -33,6 +33,8 @@ interface RegisteredEntry {
 export interface DirectoryFileRead {
   readonly metadata: FileMetadata
   readonly stream: Readable
+  /** 读完后重查原身份、大小及可观察时间；不重新读取内容，也不保证原子快照。 */
+  readonly verifyUnchanged: () => Promise<void>
 }
 
 /**
@@ -54,6 +56,19 @@ export class WindowsDirectoryAdapter {
   /** 安装内稳定身份，与 IP 和本次目录读取结果无关。 */
   get deviceId(): string {
     return this.registry.deviceId
+  }
+
+  /** 仅供主进程检查私有缓存与所有已登记根互不包含，不创建目录或暴露路径。 */
+  assertCacheIsolated(cachePath: string): void {
+    if (
+      !isAbsolute(cachePath) ||
+      this.registry.roots.some(
+        (root) =>
+          isWithinDirectory(root.path, cachePath) || isWithinDirectory(cachePath, root.path),
+      )
+    ) {
+      throw new DirectoryAccessError('path-outside-root', '归档缓存必须与已选择目录分开。')
+    }
   }
 
   /**
@@ -183,7 +198,22 @@ export class WindowsDirectoryAdapter {
         const metadata = this.describeEntry(root, entry.path, stats, parentId)
         if (metadata.kind !== 'file')
           throw new DirectoryAccessError('invalid-request', '所选条目不是文件。')
-        return { metadata, stream: handle.createReadStream({ autoClose: true }) }
+        return {
+          metadata,
+          stream: handle.createReadStream({ autoClose: true, highWaterMark: 65536 }),
+          verifyUnchanged: async () => {
+            const current = await this.inspectEntry(reference.rootId, reference.entryId)
+            await this.inspectRoot(reference.rootId)
+            if (
+              !hasSameIdentity(current.stats, getFileIdentity(stats)) ||
+              current.stats.size !== stats.size ||
+              current.stats.mtimeNs !== stats.mtimeNs ||
+              current.stats.ctimeNs !== stats.ctimeNs
+            ) {
+              throw new DirectoryAccessError('source-changed', '源文件在读取期间变化，请刷新。')
+            }
+          },
+        }
       } catch (error) {
         await handle.close()
         throw error

@@ -51,7 +51,7 @@ related_files: []
 
 | 规则 | 原因 |
 | --- | --- |
-| Agent 开发准入 | 全仓库门槛以根目录 `AGENTS.md` 为准；应用细则在 `apps/AGENTS.md`，由根文件要求在修改应用前主动读取；开发必须具备并读取 `antd` skill |
+| Agent 开发准入 | 按目标路径发现并读取实际存在且适用的 `AGENTS.md`；桌面应用规则位于 `apps/desktop/AGENTS.md`，要求完整读取 `antd` skill；编写 Ant Design 组件时按 Skill 查询实际版本 API |
 | 平台边界 | `packages/shared` 不引入 Node、Electron 或 Android 平台接口；平台能力留在各应用适配层 |
 | 原生生成工程 | Android 模板保留原生工具风格，不用 Prettier 重写；手写改动仍需检查 UTF-8 与换行 |
 | Android Java | 用户同意沿用 Java；通用基线无专属 Java 文件，适用通用编码规则、现有 Android 风格及官方 Java 约定。原生代码用 javac、Android lint、单元/仪器测试验证，不为本包引入 Kotlin 插件 |
@@ -73,7 +73,7 @@ related_files: []
 | 场景 | 规则 |
 | --- | --- |
 | 默认规则 | 遵循项目现有许可证和明确的作者署名；未明确时不新增版权主体 |
-| 项目差异 | 待补充 |
+| 项目差异 | 项目自身许可证尚未确定；不新增许可证或版权主体，第三方版权与许可声明保留原文 |
 
 ## 7. 接口与函数说明
 

@@ -87,12 +87,12 @@ Windows 构建产物的 renderer 与隔离 preload 已通过启动检查；Andro
 ## 验证范围与常见问题
 
 - `pnpm test:shared` 执行共享包的纯数据契约测试，无需连接设备或网络；类型反例随 `pnpm typecheck` 检查。完整契约、线格式和示例见[共享包说明](../packages/shared/README.md)。
-- `pnpm test:desktop` 执行 Windows 临时目录与有限 IPC 测试，已接入 `pnpm check`；接口、配置和资源责任见[桌面适配说明](../apps/desktop/README.md)。Windows 目录读取已实现，当前 UI 按钮尚未接入。
+- `pnpm test:desktop` 执行 Windows 临时目录、有限 IPC 和私有归档测试，已接入 `pnpm check`；接口、缓存及资源责任见[桌面适配说明](../apps/desktop/README.md)。目录读取和归档已实现，当前 UI 按钮尚未接入。
 - `pnpm test:mobile` 检查 SAF 桥请求/响应边界，已接入 `pnpm check`；Android 真机授权、提供者及原生流需另行仪器测试。
-- `pnpm check` 包含共享、桌面、移动桥测试及双端构建；新文件暂存发布、HTTP 服务与文件传输仍待后续工作包。真实用户目录仅做只读验证，写入/失败测试使用独立临时夹具。
+- `pnpm check` 包含共享、桌面、移动桥测试及双端构建；Windows 私有缓存不构成目标发布，目标文件写入、HTTP 和完整传输仍待后续工作包。真实用户目录仅做只读验证，写入/失败测试使用独立临时夹具。
 - `pnpm env:check --json` 提供结构化检查；`--desktop` 排除 Android 工具。WARN 不导致失败，FAIL 的退出码为 1。
-- 更换或连接多台设备时，用 `adb -s <serial>` 明确固定目标；重查实际系统版本与已安装 APK，重新选择本机目录，不复用其它设备的路径或测试结论。本轮 API 33 的 ADB 服务与设备 transport 保持稳定；旧轮中断根因尚未确认。
-- 只读检查分别比对内容、大小、mtime 和其它状态时间。本轮合成夹具首次 SAF 授权/读取阶段后，仅 3 个顶层文件 ctime 变化，原文、大小和 mtime 一致；之后重复读取完整快照一致。不能将只读接口解释为所有提供者下 ctime 必定不变。
+- 更换或连接多台设备时，用 `adb -s <serial>` 明确固定目标；重查实际系统版本与已安装 APK，重新选择本机目录，不复用其它设备的路径或测试结论。缺少完整回执的批次不作为通过证据。
+- 只读检查分别比对内容、大小、mtime 和其它状态时间。API 33 合成夹具首次 SAF 授权/读取后曾观察到 ctime 变化，原文、大小和 mtime 一致，后续重复读取完整快照一致；归因仍未确定。不能将只读接口解释为所有提供者下 ctime 必定不变。
 - 检查脚本不自动安装软件、不修改全局环境、不接受或补签 SDK licenses。
 - Electron 45 首次运行时按需下载运行时；`pnpm --filter @savedata-sync/desktop exec electron --version` 可验证下载和执行。环境检查只读取安装结果，不触发下载。
 - 移动网页预览可在缺少 Android Studio 时开发；APK 编译与真机验证需要单独完成。

@@ -5,7 +5,7 @@ priority: medium
 owner: project
 id_prefix: CR
 id_high_water: 1
-updated: 2026-10-25
+updated: 2026-10-26
 tags: [变更请求]
 related_files: []
 ---
@@ -16,4 +16,5 @@ related_files: []
 
 | ID | 变更 | 原因 | 影响 | 状态 |
 | --- | --- | --- | --- | --- |
-| CR-001 | 待补充 | 待补充 | 待补充 | proposed |
+
+当前无已登记的有效变更请求。

@@ -5,7 +5,7 @@ priority: high
 owner: project
 id_prefix: R
 id_high_water: 1
-updated: 2026-10-25
+updated: 2026-10-26
 tags: [风险]
 related_files: []
 ---
@@ -23,7 +23,8 @@ related_files: []
 
 | ID | 风险 | 概率 | 影响 | 等级 | 应对策略 | 状态 |
 | --- | --- | --- | --- | --- | --- | --- |
-| R-001 | 待补充 | low | low | low | 待补充 | open |
+
+当前无已登记的具体风险；实现边界与验证风险见[模块状态](../development/module-status.md)及[测试覆盖缺口](../testing/coverage-gaps.md)。
 
 ## 2. 降速触发器
 
