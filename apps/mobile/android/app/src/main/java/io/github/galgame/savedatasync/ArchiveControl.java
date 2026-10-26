@@ -38,7 +38,7 @@ final class ArchiveControl {
         Closeable[] closing;
         synchronized (this) { cancelled = true; closing = resources.toArray(new Closeable[0]); }
         for (Closeable resource : closing) {
-            try { resource.close(); } catch (IOException ignored) {
+            try { resource.close(); } catch (Exception ignored) {
                 // 原始 I/O 异常由工作线程报告；缓存清理由任务所有者单独执行。
             }
         }

@@ -29,6 +29,7 @@ related_files: []
 
 | 工作 | 状态 | 相关记忆文档 | 相关代码或配置 | 已完成 | 下一步 |
 | --- | --- | --- | --- | --- | --- |
+| 实现 WP-006 Android HTTP 与持续通知 | completed | development/work-packages.md、architecture/api-contracts.md、testing/test-cases.md、standards/testing-style.md | TransferJson/Schema/Http/Engine、HttpTransfersPlugin、TransferRuntime/Service、SafRuntime、TS 桥 | 原生双向编排、严格 HTTP/JSON/上下文、防重、实际角色/结果、持续通知保持已有传输及 Activity 重连已实现；77 Java/11 桥、lint/双 APK/互通及 pnpm check 通过；TC-035 正式 LAN 共 8 输出逐字节一致，6 状态/10 进度匹配，后台两轮接收/通知/重连/显式取消及原文/属性保护通过，临时服务/调试通道/测试树授权已回收；长期事实与用户测试政策已同步 | 按已授权中文规范完成本地暂存/commit，不推送；下一建议 WP-007 最小验证界面，不自动启动；真实存档只读 |
 | 实现 WP-010 Android SAF 新文件发布 | completed | development/work-packages.md、architecture/api-contracts.md、testing/test-cases.md、standards/coding-style.md | NewFilePublisher、PublicationModel/Json、SafPublicationBackend/DirectoryStore、单元/仪器测试及 debug 独立授权 | 原生授权/只读预检、新身份/父/名核实、常规 FD 身份/非截断 rw、写后回读及取消/资源保留/清理重试已实现；28 项发布单元（Java 共 58）、lint/双 APK/原生互通、2 项 API 33 设备及 12 个共享守卫结果通过；4 份成功原文外部逐字节一致，两份已有控制文件内容/大小/mtime/inode 不变，WRITE 已释放；pnpm check、记忆校验、198 文件文本与 44 份 Markdown 的 199 个链接/锚点通过，长期事实已同步 | 本轮本地暂存/commit 已获用户授权；下一建议 WP-006，不自动启动或推送，真实存档只读 |
 | 双端暗色模式适配 | completed | requirements/product.md、development/implementation-notes.md、testing/test-cases.md、standards/coding-style.md | 双端 App/main/style、桌面原生窗口、Android 主题资源、MainActivity、ThemeTest | 双端首次加载及运行时跟随系统已完成；移动端页面/启动/原生背景按用户要求统一纯黑 #000000；8 组 Chromium 及最终 API 33 深→浅→深完整通过，页面、原生背景、系统栏和模式恢复均验证；原生 uiMode 通知修复 WebView 媒体缓存；antd lint、最终 pnpm check、Java 单元/lint/双 APK 与互通检查通过；长期事实已同步 | 本轮已获本地提交授权；后续界面复用现有主题入口 |
 | 实现 WP-013 Android Java 归档 | completed | development/work-packages.md、architecture/api-contracts.md、testing/test-cases.md、standards/coding-style.md | apps/mobile Java 归档/SAF 读流、单元/仪器测试、固定格式夹具、scripts/verify-archive-interop.mjs | 严格 USTAR/gzip1、实际流快照/完整校验、预算/取消/私有缓存及 SAF 读取后复核已实现；25 项归档 JVM（Java 总 30）、lint/双 APK、5 项 API 33 设备及 Windows/JVM/设备原生互通通过；实际 SAF 四份原文经 Windows 解包逐项匹配，源身份/大小/mtime/内容外部复核一致；最终 pnpm check、记忆校验、44 份 Markdown 的 196 个链接/锚点检查通过；长期事实已同步，无新增依赖 | 本包已获本地提交授权；下一建议 WP-010 SAF 新文件发布；不自动启动下一包或推送 |
@@ -88,7 +89,7 @@ related_files: []
 | `standards/api-style.md` | API 规范 | draft | API规范 |
 | `standards/coding-style.md` | 项目级编码规范 | active | 编码规范 |
 | `standards/commit-style.md` | 提交规范 | active | 提交规范 |
-| `standards/testing-style.md` | 测试规范 | draft | 测试规范 |
+| `standards/testing-style.md` | 测试规范 | active | 测试规范 |
 | `testing/acceptance.md` | 验收标准 | active | 验收标准 |
 | `testing/coverage-gaps.md` | 测试覆盖缺口 | active | 测试缺口 |
 | `testing/regression-notes.md` | 当前回归状态 | active | 回归测试, 当前状态 |

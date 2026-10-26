@@ -39,12 +39,13 @@ related_files: []
 | Java SAF 单文件发布 | 系统 WRITE 与本次进程 grant 分开；preflight 无写入；创建前后枚举/名称等价/新 ID/父目录核实，提供者改名停止；保持空新文件 FD 身份，以 rw 不截断打开并再次核实设备/inode/零长度；64 KiB 计数/SHA 写流，关闭同步后完整回读、EOF、身份/名称/元数据前后检查后成功 | NewFilePublisher.java、SafPublicationBackend.java、PublicationModel.java；apps/mobile/README.md |
 | Java 发布结果与清理 | 原生 PublicationJson 对齐共享 FileOutcome/BatchCleanup，错误脱敏、unknown 不自动重放；失败/取消仅清理确知新建且身份匹配条目，关闭流/删除失败保留资源与进程名额至 retryCleanup；已确认成功不因晚取消或关闭失败删除；归档和发布名额独立，后续 HTTP 只编排 | PublicationJson.java、NewFilePublisherTest.java、SafPublicationTest.java；TC-034 |
 | 独立传输基准 | 仅 debug 的精确目录授权 Activity 与手动仪器用例，配合 Python 标准库私有 HTTP 对端；三样本双向比较实验共 54 组通过，含 SAF 写后回读，作为 tar.gz 决定的性能与可行性证据；默认不执行，不改只读注册表，不代表正式批量契约或写入业务包完成 | docs/experiments/transfer-benchmark-2026-10-26.md；scripts/experiments/transfer-benchmark.py；TransferBenchmarkTest.java |
-| 当前产品边界 | 已有空壳、本地/批量共享契约、双端读取适配、双端私有归档、Windows HTTP sender/receiver 与批次非覆盖发布；Android SAF 单文件发布已实现；没有项目管理、Android 网络、mDNS 或同步算法；HTTP/前台与批次聚合留 WP-006，界面未接目录按钮 | apps/desktop、apps/mobile、development/work-packages.md |
+| Android 原生 HTTP/通知 | TransferJson 严格 UTF-8/重复键/安全整数及有界 JSON，TransferSchema 独立核对任务/清单/角色/结果；无代理/缓存/重定向/自动解压，64 KiB、固定长度/SHA、60 秒网络停滞及 30 分钟总期限；丢失 POST/PUT 回执只查询。应用级 Runtime 持有任务，dataSync 服务持续通知保持传输；Activity 暂停或销毁不取消，完成/显式取消与清理后停止 | Transfer*.java、HttpTransfersPlugin、SafRuntime、TS 桥；移动 README/TC-035 |
+| 当前产品边界 | 已有空壳、本地/批量共享契约、双端读取适配、双端私有归档、Windows HTTP sender/receiver 与批次非覆盖发布；Android SAF 单文件发布已实现；Android HTTP/任务与通知保持传输已实现；没有项目管理、mDNS 或同步算法，最终界面留 WP-007，界面未接目录按钮 | apps/desktop、apps/mobile、development/work-packages.md |
 | 固定依赖 | 采用兼容的 React 18 / TypeScript 5.9；pnpm 10.34.8；精确锁定版本和 lockfile，保留严格 peer 检查 | package.json、pnpm-lock.yaml、pnpm-workspace.yaml |
 | npm 安全 | 官方 registry 对 397 项依赖复审零已知漏洞；xcode 的 uuid 定向修复为 11.1.1，已验证 CommonJS UUID 调用兼容；pnpm 独立 OSV 查询零公告 | scripts/security-check.mjs、pnpm-workspace.yaml |
 | Gradle 安全 | 升级为 8.14.6；分发 ZIP 固定官方 SHA-256，Wrapper JAR 已按官方 SHA-256 验证并更新启动器 | apps/mobile/android/gradle/wrapper/、gradlew、gradlew.bat |
 | Android 工具依赖 | AGP 8.13.2 与统一补丁策略已生效；全部可解析 Maven 配置（含各变体、测试、lint 和构建工具）与 Gradle Core 共 273 项复审零已知公告；包含 Protobuf 3.x 修复且保留 4.x 请求。移除未使用的 Google Services 构建插件 | apps/mobile/android/dependency-security.json、scripts/security-android.mjs |
-| Android 构建与读取检查 | pnpm android:test 的 58 项 Java 单元（25 归档、28 发布、4 SAF、1 基础）、Android lint 和双 APK 构建通过；实际 API 33 发布 2 项/12 原生结果、共享守卫和外部独立内容/元数据核对通过；API 29 与其它提供者仍按总体验收矩阵验证 | apps/mobile/android/app/src/test、src/androidTest；testing/regression-notes.md |
+| Android 构建与读取检查 | 既有 77 项 Java 单元、lint/双 APK/原生归档互通及 11 项移动桥通过；当前策略禁止默认新增/扩写自动化测试。实际 API 33 正式 LAN 双向 6 文件、后台 2 轮 1 MiB、持续通知截图/服务状态、Activity 重连、显式取消与外部原文/属性保护通过 | Java 既有检查、ADB 实操与截图；testing/regression-notes.md |
 
 ## 2. 注意事项
 

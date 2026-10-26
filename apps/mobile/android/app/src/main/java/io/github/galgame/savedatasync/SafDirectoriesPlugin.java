@@ -28,11 +28,9 @@ public class SafDirectoriesPlugin extends Plugin {
     private final Set<CancellationSignal> signals = ConcurrentHashMap.newKeySet();
     private final AtomicBoolean choosing = new AtomicBoolean();
     private volatile boolean foreground;
-    private SafDirectoryStore store;
 
     private SafDirectoryStore store() throws SafFailure {
-        if (store == null) store = new SafDirectoryStore(getContext());
-        return store;
+        return SafRuntime.store(getContext());
     }
 
     private interface Work { JSObject run(CancellationSignal signal) throws Exception; }

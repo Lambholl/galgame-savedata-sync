@@ -30,6 +30,8 @@ related_files: []
 | `apps/mobile/android/app/src/test/java/io/github/galgame/savedatasync/ArchiveAdapterTest.java`、`src/androidTest/java/io/github/galgame/savedatasync/ArchiveSafTest.java` | 25 项 JVM 归档故障/格式/资源及 5 项实际设备 SAF 专项 | 共用 Python 独立夹具，实际 Windows/JVM/Android 压缩器互通；合成源只读，缺少实际目录授权失败而非跳过 |
 | 同 Java 目录 `NewFilePublisher.java`、`PublicationModel.java`、`PublicationJson.java`、`SafPublicationBackend.java` | 原生显式写授权/只读预检、创建前后核实、非截断写入/回读、单文件结果及清理重试 | 只操作同根已有父目录中的确知新建条目；常规描述符身份保护已有文件；原文/URI 不跨桥，清理失败保持进程名额；接口见移动 README |
 | `NewFilePublisherTest.java`、`SafPublicationTest.java`、debug `PublicationGrantActivity.java` | 发布故障矩阵与实际系统 WRITE 选择器/SAF 原生集成 | 独立精确命名夹具、控制文件前后保护、归档读流/冲突/取消/清理重试；默认跳过交互，release 不含测试授权 Activity |
+| 同 Java 目录 `TransferJson/Schema/Http/Engine.java`、`HttpTransfersPlugin.java`、`TransferRuntime/Service.java`、`SafRuntime.java` | 严格 HTTP/JSON、双向原生编排及应用级任务、持续通知和 Activity 重连 | 文件不跨 JS；用户发起后后台继续，完整校验后逐项发布；服务不导出、不自动重启旧任务；只读桥和传输共享当前 SAF 引用 |
+| `apps/mobile/src/http-transfer-bridge.ts`、`http-transfers.ts` | 有限 TS 任务桥与 native 当前上下文/角色/结果校验、顺序事件订阅 | 浏览器不支持；通知/目标授权为显式动作，任务/清单仅存本进程；订阅 remove 不取消传输 |
 | `scripts/verify-archive-interop.mjs` | 构建前 Windows 准备、构建后 Windows 接收 Java 输出，另支持设备产物及 SAF 原文验证 | prepare/verify 纳入 android:test；只操作固定报告目录中的合成数据，测试 APK 不包含主机路径配置 |
 | `apps/mobile/src/saf-directory-bridge.ts`、`saf-directories.ts`、`test/`、`README.md` | 受限 TS 桥、原生绑定、契约测试与调用说明 | 网页预览不支持；只传公开 DTO/ID，无内容/写入方法；pnpm test:mobile 纳入 check |
 | `apps/mobile/android/app/src/test/`、`src/androidTest/` | Java 纯边界与设备仪器测试 | 默认仅独立私有夹具和桥检查；交互模式由真实选择器授权，真实目录只读 |

@@ -1,6 +1,6 @@
 # Galgame SaveData Sync
 
-Windows 与 Android 的局域网文件夹同步工具。当前已实现共享批量契约、双端目录读取与私有归档、Windows HTTP 下载及批次上传发布。服务需由可信主进程显式启动，接收需单独本机写授权；界面仍为空壳，Android 写入/网络、跨端编排和文件夹同步尚未实现。
+Windows 与 Android 的局域网文件夹同步工具。当前已实现共享批量契约、双端目录读取与私有归档、Windows HTTP 下载及批次上传发布。服务需由可信主进程显式启动，接收需单独本机写授权；Android 原生 HTTP、SAF 发布与持续通知保持传输已实现；界面仍为空壳，最终交互与文件夹同步尚未实现。
 
 ## 目录
 
@@ -14,7 +14,7 @@ Windows 与 Android 的局域网文件夹同步工具。当前已实现共享批
 
 - React 18 + TypeScript + Vite，pnpm workspace 管理双端与共享包。
 - Windows：Electron + Ant Design；Android：Capacitor 8 + Ant Design Mobile。
-- Android 最低 API 29，编译/目标 API 36，仅前台运行。
+- Android 最低 API 29，编译/目标 API 36；用户发起的传输通过持续通知/前台服务保持，切后台继续已有任务。
 - 计划通过明文 HTTP、设备发现列表与手动 IP 连接；手选方向、默认覆盖复制、可选镜像、覆盖前备份。
 - 每次仅比较当前目录，不维护历史同步基线；文件夹不递归统计大小。
 
@@ -71,4 +71,4 @@ docs/               开发指南
 
 ## 项目记忆
 
-先读取[记忆索引](.project-memory/INDEX.md)，再按任务定位需求、架构、规范与当前工作。Windows HTTP sender/receiver、双端新文件发布与私有归档及实际 SAF 集成已实现；Android HTTP/前台编排与同步功能在后续工作包实现；目录读取与私有归档接口见[桌面适配](apps/desktop/README.md)和[移动适配](apps/mobile/README.md)。
+先读取[记忆索引](.project-memory/INDEX.md)，再按任务定位需求、架构、规范与当前工作。Windows HTTP sender/receiver、双端新文件发布与私有归档及实际 SAF 集成已实现；Android HTTP 与通知保持传输已实现；最终界面与同步功能在后续工作包实现；目录读取与私有归档接口见[桌面适配](apps/desktop/README.md)和[移动适配](apps/mobile/README.md)。

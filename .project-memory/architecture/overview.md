@@ -22,8 +22,8 @@ related_files: []
 
 ## 1. 摘要
 
-- 架构风格：Windows 内置 HTTP 服务、Android 主动连接的局域网双端应用；Windows HTTP sender/receiver 与批次非覆盖发布、Android SAF 单文件发布已实现，Android 网络/前台与完整同步流程尚未实现。
-- 当前实现：双端空壳、v1 本地/批量共享契约、双端目录读取、Windows 私有归档与 HTTP sender 已建立。Windows 支持目录配置恢复、当前层枚举、源快照与受限归档编解码，有限桥不传文件字节。Java SAF 读取通过 API 33 与 API 35 的独立目录/原生流检查；Windows 单文件非覆盖发布及 HTTP receiver 批次编排已实现；Java 私有归档与 SAF 新文件发布已完成实际 API 33 集成；Android HTTP 客户端与前台编排待后续包。接口边界见[接口契约](api-contracts.md)。
+- 架构风格：Windows 内置 HTTP 服务、Android 主动连接的局域网双端应用；Windows HTTP sender/receiver 与批次非覆盖发布、Android SAF 单文件发布已实现，Android HTTP/通知保持传输已实现，最终界面及完整同步流程尚未实现。
+- 当前实现：双端空壳、v1 本地/批量共享契约、双端目录读取、Windows 私有归档与 HTTP sender 已建立。Windows 支持目录配置恢复、当前层枚举、源快照与受限归档编解码，有限桥不传文件字节。Java SAF 读取通过 API 33 与 API 35 的独立目录/原生流检查；Windows 单文件非覆盖发布及 HTTP receiver 批次编排已实现；Java 私有归档与 SAF 新文件发布已完成实际 API 33 集成；Android HTTP 客户端、应用级任务持有与 dataSync 持续通知已由 WP-006 接入。接口边界见[接口契约](api-contracts.md)。
 - 核心模块：设备与地址管理、目录映射、当前目录预览、本次差异计划、文件流传输、平台文件适配。
 - 关键约束：明文 HTTP、手选方向、无历史同步基线、目录不递归汇总大小。
 - 已选技术栈：React + TypeScript + Vite；Windows 使用 Electron + Ant Design；Android 使用 Capacitor + Ant Design Mobile，文件能力沿用 Java 原生插件，用户已接受该选择。双端框架选择见 [Q-001](../requirements/open-questions.md)。
@@ -43,7 +43,7 @@ related_files: []
 | 界面与平台能力分离 | 共用模型、当前比较逻辑和状态管理；桌面并排表格、手机列表详情、平板宽屏布局分别适配 |
 | 文件以流传输 | 文件内容通过 Node.js 或 Android 原生流读取和发送，避免将整份文件转为 Base64 跨 JS 桥传递 |
 | tar.gz 批量传输 | 双向统一将本次待传文件集合打包为 tar.gz，经 HTTP 原生流传输；接收端逐项验证内容再发布，批量边界不改变文件级结果语义 |
-| Android 仅前台 | 前台连接时允许任一端发起任务；不提供后台运行、后台传输或保活，不引入后台任务和前台服务方案 |
+| Android 活动传输 | 用户在可见界面发起，持续通知/dataSync 前台服务保持已有任务；Activity 暂停/销毁不取消；完成/显式取消及清理后退出，不引入自动后台同步或旧任务重放 |
 | 独立备份 | 备份可关闭、默认开启、保留最近 3 次；目标端备份区与同步目录分离，不参与方向或差异判定 |
 | 任务安全边界 | 同一项目避免并行写入；临时接收、校验和失败说明作为候选可靠性设计；不假设 SAF 可以原子替换整个目录 |
 
@@ -55,7 +55,7 @@ related_files: []
 | 同步项目 | 保存项目名称、可选展示信息和两端目录映射 | 首版推荐本地 JSON 存储配置，不保存历史文件索引 | proposed |
 | 预览与比较 | 读取当前条目、属性对照、生成本次差异计划 | 共用 TypeScript 模型，原生适配只负责实际读取；排序与差异筛选为界面建议 | proposed |
 | Windows 应用 | 桌面界面、目录选择、HTTP 服务、托盘 | Electron 主进程运行 Node.js 能力，界面通过受限桥调用 | active（空壳、目录读取、私有归档与 HTTP sender 已实现，单文件发布及 HTTP 接收编排已实现，最终界面待后续包） |
-| Android 应用 | 移动界面、目录授权、NSD、HTTP 客户端 | Capacitor + Java 插件；仅前台；持久目录授权与远端 IP 独立 | active（SAF 读取及 API 33/35 验证通过；其余待后续包） |
+| Android 应用 | 移动界面、目录授权、NSD、HTTP 客户端 | Capacitor + Java 插件；活动传输由持续通知保持，持久目录授权与远端 IP 独立 | active（读取/归档/发布、HTTP 与通知保持传输已实现；发现和最终界面待后续） |
 | 任务控制与传输 | 显式方向、传输进度、文件流和结果 | Android 前台连接时可接收 Windows 发起的任务；覆盖复制与镜像两种模式 | planned |
 | 备份与恢复 | 覆盖前保存目标内容，提供手工恢复 | 默认开启、保留最近 3 次；独立于同步目录和任务比较数据 | planned |
 

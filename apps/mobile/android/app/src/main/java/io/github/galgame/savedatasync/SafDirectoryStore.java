@@ -43,6 +43,8 @@ final class SafDirectoryStore {
     private final Map<String, String> documentIds = new HashMap<>();
     private final String deviceId;
 
+    String deviceId() { return deviceId; }
+
     SafDirectoryStore(Context context) throws SafFailure {
         this(context, PREFERENCES);
     }
