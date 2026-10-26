@@ -36,13 +36,15 @@ related_files: []
 | Java SAF 读取 | 已实现只读系统选择器、稳定根/设备 ID 与权限恢复、当前层元数据和原生 InputStream；URI 不出原生层，未保存历史条目/哈希；API 33 合成夹具与旧 API 35 真实目录分别通过读取、选择/取消及重启恢复；首次访问 ctime 的未确定归因见回归状态 | apps/mobile/README.md、apps/mobile/src/saf-*、Android Java 源码及测试 |
 | Java 私有归档 | 已实现实际流原文快照、未知长度计数/读取后 SAF 观察复核、规范 USTAR/gzip1；显式原始 inflater 消耗边界及 CRC/ISIZE/物理 EOF，全部逐文件 SHA 和精确 tar 结束通过才返回句柄。固定 v1 原生不可变模型不承担网络 JSON 解码 | ArchiveAdapter.java、ArchiveModel.java、ArchiveFormat.java、SafArchiveSource.java；apps/mobile/README.md |
 | Java 缓存及验证 | 可信 Context 先解析系统私有路径别名；其下缓存标记/随机任务/链接及未知条目失败关闭；进程任务独占直到句柄释放或清理成功，主错误/清理错误分开，可重试和启动孤儿恢复；64 KiB 实际流预算，取消关闭源/查询。25 项 JVM、5 项 API 33 设备、双向原生互通通过，源原文受外部独立复核 | ArchiveCache.java、ArchiveControl.java、ArchiveFailure.java、ArchiveAdapterTest.java、ArchiveSafTest.java、scripts/verify-archive-interop.mjs |
+| Java SAF 单文件发布 | 系统 WRITE 与本次进程 grant 分开；preflight 无写入；创建前后枚举/名称等价/新 ID/父目录核实，提供者改名停止；保持空新文件 FD 身份，以 rw 不截断打开并再次核实设备/inode/零长度；64 KiB 计数/SHA 写流，关闭同步后完整回读、EOF、身份/名称/元数据前后检查后成功 | NewFilePublisher.java、SafPublicationBackend.java、PublicationModel.java；apps/mobile/README.md |
+| Java 发布结果与清理 | 原生 PublicationJson 对齐共享 FileOutcome/BatchCleanup，错误脱敏、unknown 不自动重放；失败/取消仅清理确知新建且身份匹配条目，关闭流/删除失败保留资源与进程名额至 retryCleanup；已确认成功不因晚取消或关闭失败删除；归档和发布名额独立，后续 HTTP 只编排 | PublicationJson.java、NewFilePublisherTest.java、SafPublicationTest.java；TC-034 |
 | 独立传输基准 | 仅 debug 的精确目录授权 Activity 与手动仪器用例，配合 Python 标准库私有 HTTP 对端；三样本双向比较实验共 54 组通过，含 SAF 写后回读，作为 tar.gz 决定的性能与可行性证据；默认不执行，不改只读注册表，不代表正式批量契约或写入业务包完成 | docs/experiments/transfer-benchmark-2026-10-26.md；scripts/experiments/transfer-benchmark.py；TransferBenchmarkTest.java |
-| 当前产品边界 | 已有空壳、本地/批量共享契约、双端读取适配、双端私有归档、Windows HTTP sender/receiver 与批次非覆盖发布；没有项目管理、Android 目标发布/网络、mDNS 或同步算法；Android 写入单列 WP-010，界面未接目录按钮 | apps/desktop、apps/mobile、development/work-packages.md |
+| 当前产品边界 | 已有空壳、本地/批量共享契约、双端读取适配、双端私有归档、Windows HTTP sender/receiver 与批次非覆盖发布；Android SAF 单文件发布已实现；没有项目管理、Android 网络、mDNS 或同步算法；HTTP/前台与批次聚合留 WP-006，界面未接目录按钮 | apps/desktop、apps/mobile、development/work-packages.md |
 | 固定依赖 | 采用兼容的 React 18 / TypeScript 5.9；pnpm 10.34.8；精确锁定版本和 lockfile，保留严格 peer 检查 | package.json、pnpm-lock.yaml、pnpm-workspace.yaml |
 | npm 安全 | 官方 registry 对 397 项依赖复审零已知漏洞；xcode 的 uuid 定向修复为 11.1.1，已验证 CommonJS UUID 调用兼容；pnpm 独立 OSV 查询零公告 | scripts/security-check.mjs、pnpm-workspace.yaml |
 | Gradle 安全 | 升级为 8.14.6；分发 ZIP 固定官方 SHA-256，Wrapper JAR 已按官方 SHA-256 验证并更新启动器 | apps/mobile/android/gradle/wrapper/、gradlew、gradlew.bat |
 | Android 工具依赖 | AGP 8.13.2 与统一补丁策略已生效；全部可解析 Maven 配置（含各变体、测试、lint 和构建工具）与 Gradle Core 共 273 项复审零已知公告；包含 Protobuf 3.x 修复且保留 4.x 请求。移除未使用的 Google Services 构建插件 | apps/mobile/android/dependency-security.json、scripts/security-android.mjs |
-| Android 构建与读取检查 | pnpm android:test 的 30 项 Java 单元（25 项归档、4 项 SAF、1 项基础）、Android lint 和双 APK 构建通过；API 33 合成夹具及 API 35 真实目录分别验证读取、选择/取消和进程重启恢复，API 29 与其它提供者仍未验证 | apps/mobile/android/app/src/test、src/androidTest；testing/regression-notes.md |
+| Android 构建与读取检查 | pnpm android:test 的 58 项 Java 单元（25 归档、28 发布、4 SAF、1 基础）、Android lint 和双 APK 构建通过；实际 API 33 发布 2 项/12 原生结果、共享守卫和外部独立内容/元数据核对通过；API 29 与其它提供者仍按总体验收矩阵验证 | apps/mobile/android/app/src/test、src/androidTest；testing/regression-notes.md |
 
 ## 2. 注意事项
 

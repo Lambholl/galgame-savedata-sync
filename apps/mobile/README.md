@@ -1,4 +1,4 @@
-# Android 目录读取与原生归档
+# Android 目录读取、原生归档与新文件发布
 
 ## 目录
 
@@ -6,6 +6,7 @@
 - [系统明暗主题](#系统明暗主题)
 - [原生边界](#原生边界)
 - [原生归档接口](#原生归档接口)
+- [原生新文件发布](#原生新文件发布)
 - [验证](#验证)
 
 ## 界面入口
@@ -44,7 +45,7 @@ Android 使用日夜主题及 `values`/`values-night` 的窗口/启动背景，W
 - 当前层查询不扫描后代；目录 sizeBytes=null，未知文件大小=null，空文件=0。SAF 日期 0 表示未知，映射 null；超出 JS 安全范围的数字拒绝。写入、新建、重命名、删除能力均为 unsupported；未知提供者能力不冒充支持。
 - `openFile(rootId, entryId, signal)` 仅供同包原生代码使用：重查授权、文件类型和已观察到的名称/大小/日期，以 `r` 打开 `InputStream`。调用者拥有并必须关闭流；取消在读取时检查，未来传输生命周期所有者还必须关闭阻塞流。异常为 `SafFailure`，原始 cause 仅留原生层，JS 仅见脱敏码/消息。
 
-URI 与 documentId 不转换为文件系统路径；文件内容不进入 JavaScript/Base64。文件 ID 由提供者维护；属性检查不能保证恶意并发修改下的原子内容快照，后续传输仍须校验实际字节/哈希。正式接口当前没有新文件写入或 HTTP 传输实现；独立调试基准仅验证测试目录内的机制，不向现有只读桥加入写方法。
+URI 与 documentId 不转换为文件系统路径；文件内容不进入 JavaScript/Base64。文件 ID 由提供者维护；属性检查不能保证恶意并发修改下的原子内容快照，传输仍须校验实际字节/哈希。原生新文件发布使用下述独立入口；HTTP 传输与最终界面尚未接入，只读桥保持三个方法。
 
 ## 原生归档接口
 
@@ -71,19 +72,46 @@ try (ArchiveAdapter.Artifact prepared = adapter.prepare(transferId, deviceId, ro
 - `ArchiveCache` 仅在可信 Context 的真实私有缓存路径创建 `transfer-archives-v1`，根/随机任务都有所有权标记，拒绝其下链接/未知条目。每个进程只允许一个任务，句柄和清理失败均占名额。重启只清除可验证的孤儿缓存；不恢复旧结果。`ArchiveCache.retryOrphanCleanup()` 只重试已核实的启动孤儿，不关闭活动任务。
 - `ArchiveFailure.code` 为稳定错误码，原始 cause 仅留原生层；取消以 `cancelled=true` 区分，清理失败保留主错误并放入 `cleanupFailure`。关闭读流后可调用 `adapter.retryCleanup()`；确认成功的内容校验不会被清理状态伪装成未发生。回调在同一 I/O 线程接收阶段、实际字节数及可空总量，未知长度不伪造百分比。
 
-该包已完成实际 API 33 SAF 读流集成与设备验收；HTTP、SAF 目标新文件发布及前台网络编排分别由 WP-006/WP-010 承接。
+该包已完成实际 API 33 SAF 读流集成与设备验收；原生目标发布可直接消费 `Artifact.openFile`，HTTP 与前台网络编排由 WP-006 承接。
+
+## 原生新文件发布
+
+同包 `NewFilePublisher`/`SafPublicationBackend` 供可信原生 I/O 工作线程调用。系统 WRITE 权限与本次进程显式写授权分别检查；读取登记、HTTP 接收能力和已存在的系统权限都不自动授予发布权限。调用方先通过真实系统选择器取得目标根的持久 READ/WRITE，再显式 `grant(rootId)`；当前仅授权独立合成目标，真实存档仍只读。
+
+```java
+NewFilePublisher publisher = new NewFilePublisher(new SafPublicationBackend(context, store));
+publisher.grant(targetRootId); // 可信原生用户动作，不接受网络自行授权。
+PublicationModel.Request request = new PublicationModel.Request(
+    file.fileId, targetRootId, targetParentId, newName, file.sizeBytes, file.sha256);
+publisher.preflight(request, control); // 只读检查，不创建文件或目录。
+PublicationModel.Result result = publisher.publish(request,
+    () -> verifiedArchive.openFile(file.fileId), progress, control);
+// PublicationJson.result(result) 输出 outcome、cleanupStatus、cleanupError，供后续批次聚合。
+```
+
+- `parentId` 只能来自同一根当前实例已枚举的已有目录，null 表示根层；不创建目录。每次重新核实系统授权、目录身份/名称/类型及新建能力。请求校验不透明 ID、单文件名、小写 SHA-256 和非负长度；单项上限 256 MiB，当前层最多 32768 条，实际流缓冲 64 KiB。
+- 创建前拒绝已存在的同名及常见 NFC/大小写等价名称，不改写输入名。调用 `createDocument` 后重新枚举，只有返回 ID 不在创建前集合、确实位于指定父目录、实际名精确匹配且无名称竞争时才写入。自动改名或竞争失败只清理已知新建条目；返回已有 ID、空/未知回执或归属无法确认时返回 unknown，不猜测删除或重放。
+- 后端只支持可确认为常规文件的描述符。先保持新空文件的只读描述符作为设备/inode 身份基线，再用不截断的 `rw` 打开并比对身份/空长度，之后才写入；不使用覆盖或重命名原语。空间预检不能代替实际 IO/ENOSPC/EDQUOT 处理。
+- 按实际长度/EOF/SHA-256 校验输入，关闭并同步输出，再重新打开实际目标回读完整内容，同时前后核实身份、名称、父目录、长度和可观察修改时间；完成后才报告 succeeded。成功确认之后的取消或句柄清理失败不删除最终文件。
+- 失败/取消只删除本次已知新建且身份仍匹配的条目，清理结果与发布结果分开。所有输入/输出/回读流均由发布器接管并关闭；关闭或删除失败保留资源和进程发布名额，`retryCleanup()` 仅重试清理。归档与发布使用独立名额，可边持有已验证归档边发布其私有原文流。
+- `cancel()`/`revoke(rootId)` 关闭已登记流和查询信号；无法中断的系统创建必须等待回执后确认归属。`stop()` 撤销进程授权并请求取消，活动调用未返回时为 false；生命周期所有者须等待工作线程，再确认停止/清理。复用 `ArchiveControl` 的绝对期限，外层所有者负责期限或前台退出时主动 cancel 唤醒阻塞 IO。
+- `PublicationJson` 对齐共享 `FileOutcome`/`BatchCleanup`；错误脱敏且不授权自动重试。原生接口不承担 HTTP、整批验证、历史恢复或 UI；批次调用者必须先完整验证全部归档原文再调用发布。
+
+SAF 没有通用排他创建或比较后删除原语；这些复核用于发现可观察竞争，不承诺对恶意提供者或并发命名空间变更的原子隔离。未知身份时拒绝写入/删除；不能验证常规描述符身份的提供者失败关闭。平台依据见 [DocumentsContract](https://developer.android.com/reference/android/provider/DocumentsContract) 和 [ContentResolver.openFileDescriptor](https://developer.android.com/reference/android/content/ContentResolver#openFileDescriptor(android.net.Uri,java.lang.String,android.os.CancellationSignal))。
 
 ## 验证
 
 - `pnpm test:mobile`：可注入 TS 桥的契约与失败边界，纳入 `pnpm check`。
-- `pnpm android:test`：同步 Web 工程，生成 Windows 原生归档供 Java 消费，执行 Java 单元测试、Android lint，构建调试 APK 与仪器测试 APK，最后用 Windows 原生 receiver 解包 Java 产物；CI 同样执行，不自动连接设备。共 30 项 Java 单元，其中 25 项为归档专项。
+- `pnpm android:test`：同步 Web 工程，生成 Windows 原生归档供 Java 消费，执行 Java 单元测试、Android lint，构建调试 APK 与仪器测试 APK，最后用 Windows 原生 receiver 解包 Java 产物；CI 同样执行，不自动连接设备。共 58 项 Java 单元，其中 25 项归档、28 项发布、4 项 SAF 边界及 1 项基础。
 - 安装两个调试 APK 后，`adb shell am instrument -w io.github.galgame.savedatasync.test/androidx.test.runner.AndroidJUnitRunner` 执行独立私有夹具与原生桥参数验证。交互用例默认跳过。
 - 对 `io.github.galgame.savedatasync.SafDirectoriesTest#pickerSelectionAndNativeRead` 设置 `-e safMode select` 后，由用户在实际系统选择器中选目录；可用 `-e safExpectedName <显示名>` 在读取前检查所选目录。仅当前层元数据与原生读取，重复内容校验不输出路径/文件名/哈希。
 - 强制停止应用后运行 `processRestartRestoresTheReadGrantAndIdentity`（`-e safMode restore`）验证持久读取授权和身份；`pickerCancellationPreservesRoots`（`-e safMode cancel`）验证取消不丢目录。
+- `SafPublicationTest` 通过真实系统选择器验证独立目标发布。先在设备 Download 新建 `SaveDataSync-Publish-<16位小写十六进制>`，放入 `control.sav` 及已有 `existing-parent/control-nested.sav`，从设备外记录原文/大小/mtime/inode；以 `-e publicationToken <后缀> -e class io.github.galgame.savedatasync.SafPublicationTest#selectExactIsolatedPublicationFixture` 运行并在选择器授权精确目录，再用同 token 运行 `#actualSafPublicationPermissionCollisionCancellationAndArchiveIntegration`。没有 token 时交互用例跳过，传入后未授权或失败必须报错。重复选择先清除旧回执，防止把上一轮 READ 当成新 WRITE。
+- 实际 API 33 外部存储提供者完整通过 2 项发布设备用例及 12 个原生结果：空/Unicode/131073 字节与归档读流发布、已有名称保护、真实提供者自动改名、创建/写入/回读取消、源校验失败、返回已有 ID，以及清理失败保留名额/显式重试。`cache/publication-device-results.json` 只含公开 DTO；取回后经共享 `isFileOutcome`/`isBatchState` 验证。设备外独立比对 4 份成功输出逐字节原文、竞争者内容、精确本轮文件集合及两份已有控制文件的原文/大小/mtime/inode；失败/取消无残留，写授权释放，测试配置隔离。授权 Activity 只在 debug 编入且不导出。
 - `TransferBenchmarkTest` 为手工启用的 LAN/SAF 写入基准，默认跳过。只授权精确匹配的新测试目录，在前台执行有限缓冲传输、新建和写后回读，结束后释放该写授权并清理独立数据；不改只读注册表。授权 Activity 只编入 debug 且不导出。方法、控制端及实测结果见[基准报告](../../docs/experiments/transfer-benchmark-2026-10-26.md)。
 - `ArchiveSafTest` 的 5 项设备专项共同验证 Python/Windows 固定产物、Java 原生编码、真实 SAF 流的已知/未知长度两轮快照、含已有子目录的同名文件、取消/复用、权限/类型与损坏归档拒绝；全部使用私有缓存且没有 SAF 写权限。运行前通过既有 `SafDirectoriesTest#pickerSelectionAndNativeRead` 用例选择 `SaveDataSync-Archive-<随机后缀>` 合成目录，再以 `-e class io.github.galgame.savedatasync.ArchiveSafTest -e archiveExpectedName <精确显示名>` 运行；缺少授权或夹具将失败，不跳过。
 - 该合成目录顶层为 0 字节空文件、12 字节 UTF-8 内容、131073 字节二进制文件和一个已有子目录；子目录再含同名空文件名的 11 字节控制文件，总计 4 文件、131096 字节。测试前后从设备外复核全部合成源内容，原生层复核身份和元数据。未知长度轮只隐藏元数据长度，仍使用实际提供者的原生流实测。
 - `scripts/verify-archive-interop.mjs prepare|verify` 已纳入 `pnpm android:test`。测试 APK 只打包共享固定夹具和生成的 Windows 清单/二进制，不包含主机目录配置或缓存。设备专项在私有 `cache/archive-device-java.gz` 输出独立格式夹具；以二进制取回到 `.reports/wp013-device/java.gz` 后运行 `node --experimental-strip-types scripts/verify-archive-interop.mjs verify-device`，由 Windows 原生解包器验证设备压缩器产物及独立内容期望。
 - 实际 SAF 专项另外输出私有 `cache/archive-device-saf.gz` 与 `cache/archive-device-saf.json`；二进制取回到 `.reports/wp013-device/saf.gz`、`saf-manifest.json`，保留原本四份上传合成源为 `empty.sav`、`unicode.sav`、`large.sav`、`control.sav` 后，`verify-device-saf` 模式用 Windows 原生接收器逐项核对原文。设备报告副本验证后可删除，受管理归档任务在每项测试结束时已清理。
 
-真实存档禁止写入、修改或删除。损坏配置/失效权限夹具使用独立的应用私有配置；不会撤销真实根授权。Android 10、其它提供者、HTTP、写入及最终界面需在后续矩阵单独验证。
+真实存档禁止写入、修改或删除。损坏配置/失效权限夹具使用独立的应用私有配置；不会撤销真实根授权。Android 10、其它提供者、HTTP/前台及最终界面需在后续矩阵验证；本包实际 SAF 发布已随代码一起验收。

@@ -13,10 +13,10 @@
 
 ## 1. 状态与边界
 
-- 更新日期：2026-10-26。共享本地/批量契约、双端目录读取及私有归档、Windows HTTP sender/receiver 与批次非覆盖发布已实现；WP-013 的实际 API 33 SAF 原生快照与 Windows/JVM/设备互通已通过。接口和验证边界见[共享包说明](../../packages/shared/README.md)、[桌面适配](../../apps/desktop/README.md)及[移动适配](../../apps/mobile/README.md)。SAF 目标发布、Android 网络、界面集成及完整真机矩阵仍由后续包交付。
+- 更新日期：2026-10-26。共享本地/批量契约、双端目录读取及私有归档、Windows HTTP sender/receiver 与批次非覆盖发布已实现；WP-013 的实际 API 33 SAF 原生快照与 Windows/JVM/设备互通已通过。接口和验证边界见[共享包说明](../../packages/shared/README.md)、[桌面适配](../../apps/desktop/README.md)及[移动适配](../../apps/mobile/README.md)。SAF 单文件发布及实际设备验证已由 WP-010 完成；Android 网络、界面集成及完整真机矩阵由后续包交付。
 - 已确认基线：[产品需求](../../.project-memory/requirements/product.md)、[项目范围](../../.project-memory/requirements/scope.md)、[架构总览](../../.project-memory/architecture/overview.md)。Windows 提供 HTTP 服务，Android 主动连接；双端应用技术栈保持既定方案。
-- 当前执行边界：WP-005 已提交 9c4614c；WP-013 已实现并完成实际 SAF 设备验收，本包已获本地提交授权；下一建议 WP-010。授权与当前检查点见[章程](../../.project-memory/project/charter.md)及[记忆索引](../../.project-memory/INDEX.md)。M-001 后续写入限独立夹具，真实存档保持只读。
-- 传输方案为双向唯一 tar.gz，见[批量契约](m001-tar-gzip-protocol.md)。v1 共享声明、双端私有归档及 Windows HTTP/发布均已实现；下一 WP-010 SAF 新文件发布，之后接 WP-006 Android 网络及前台编排。
+- 当前执行边界：WP-005 已提交 9c4614c；双端归档与 Android SAF 单文件发布已实现并完成独立实际 SAF 验证；本轮发布包已获本地提交授权，下一建议 WP-006。授权与当前检查点见[章程](../../.project-memory/project/charter.md)及[记忆索引](../../.project-memory/INDEX.md)。M-001 后续写入限独立夹具，真实存档保持只读。
+- 传输方案为双向唯一 tar.gz，见[批量契约](m001-tar-gzip-protocol.md)。v1 共享声明、双端私有归档及 Windows HTTP/发布均已实现；SAF 单文件发布已实现，下一接 WP-006 Android 网络及前台编排。
 - 目标：验证用户选定目录可访问、元数据可读、文件可通过明文 HTTP 双向传输，以及 Android 前台边界。优先消除原生文件能力的不确定性。
 - 本期交付：共享契约、双端目录适配、Windows HTTP 服务、Android 原生流客户端、最小验证界面及验收证据。
 - 使用专用、可丢弃的测试目录及合成文件；文件接收只允许创建新文件，同名冲突明确失败。覆盖、删除同步和备份尚未实现前，不对真实游戏存档执行写入。
@@ -29,7 +29,7 @@
 | --- | --- | --- |
 | 共享模型 | 设备描述、目录引用、条目元数据、能力、任务进度、错误与传输回执 | 不导入 Electron、Node 文件 API 或 Android 类型；内容不通过 JS 桥传递 |
 | Windows 本地适配 | WP-002 选择目录、登记 rootId、读取当前层及原生只读流；WP-009 已实现独立原生新文件暂存发布 | Renderer 仅调用受限 preload；网络端不能传入主机绝对路径；只读目录桥没有写入/删除 API，原生写授权仅在独立测试目录验证 |
-| Android 本地适配 | Java 插件通过 SAF 获取只读目录授权、恢复、查询当前层及原生读流；新文件写入另由 WP-010 实现 | content URI 作为平台内部引用，不能转成磁盘绝对路径；每次恢复与操作核实授权和提供者能力；root 不替代系统授权 |
+| Android 本地适配 | Java 插件通过 SAF 获取只读目录授权、恢复、查询当前层及原生读流；WP-010 已实现独立新文件发布与实际提供者验证 | content URI 作为平台内部引用，不能转成磁盘绝对路径；每次恢复与操作核实授权和提供者能力；root 不替代系统授权 |
 | 双端归档 | WP-012/WP-013 在私有缓存准备原文快照、打包受限 USTAR/gzip1 或完整解包校验 | 归档成员名为 fileId，目标映射单独验证；有限缓冲及硬限计数，不发布目标或实现网络 |
 | Windows HTTP | 描述设备/会话、读取登记目录、准备/发送归档、接收归档、查询/取消任务 | WP-004/005 编排归档及发布；仅处理已登记根与获写授权的独立夹具，不提供全磁盘接口 |
 | Android HTTP | WP-006 原生编排双向归档、网络、校验及 SAF 发布，向 JS 发出进度和实际结果 | 复用 WP-013/WP-010；不传 Base64；离开前台取消，返回后核实当前状态 |
@@ -74,7 +74,7 @@ Android 离开前台时停止新操作、取消网络与文件任务，并通知
 
 ## 4. 工作包设计
 
-仍有实现或验证交接的工作包见[工作包登记](../../.project-memory/development/work-packages.md)，共享契约及双端归档作为已实现前置模块复用。下一推荐顺序为 WP-010、WP-006、WP-007、WP-008；双端归档与发布各自验证。该拆分不授权并行 Agent。
+仍有实现或验证交接的工作包见[工作包登记](../../.project-memory/development/work-packages.md)，共享契约及双端归档作为已实现前置模块复用。下一推荐顺序为 WP-006、WP-007、WP-008；双端归档与发布各自验证。该拆分不授权并行 Agent。
 
 | 工作包 | 实现范围与交付物 | 必须通过的包内检查 | 不在该包内 |
 | --- | --- | --- | --- |

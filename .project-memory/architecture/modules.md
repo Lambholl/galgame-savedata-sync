@@ -17,7 +17,7 @@ related_files: []
 
 ## 1. 设计状态
 
-v1 本地/批量共享契约、双端目录读取、双端私有归档及 Windows HTTP sender/receiver 和新文件发布已实现。WP-013 连同实际 API 33 SAF 原生读流集成验证已交付；SAF 目标发布、Android 网络及界面集成仍待实现。tar.gz 批量设计位于仓库根目录的 `docs/plans/m001-tar-gzip-protocol.md`；Windows/Java 归档与目标发布各自独立验证，网络包只负责集成编排。当前实现与验证状态见[模块状态](../development/module-status.md)，依赖与退出条件见[工作包](../development/work-packages.md)。
+v1 本地/批量共享契约、双端目录读取、双端私有归档及 Windows HTTP sender/receiver 和新文件发布已实现。WP-013 连同实际 API 33 SAF 原生读流集成验证已交付；Android SAF 单文件发布已实现；Android 网络及界面集成仍待实现。tar.gz 批量设计位于仓库根目录的 `docs/plans/m001-tar-gzip-protocol.md`；Windows/Java 归档与目标发布各自独立验证，网络包只负责集成编排。当前实现与验证状态见[模块状态](../development/module-status.md)，依赖与退出条件见[工作包](../development/work-packages.md)。
 
 ## 2. M-001 模块边界
 
@@ -27,7 +27,7 @@ v1 本地/批量共享契约、双端目录读取、双端私有归档及 Window
 | Windows 目录读取适配 | 已实现选择登记与恢复、当前层查询、根内原生只读流 | 主进程选择器路径或本地 rootId/entryId | 公开 DTO 或仅主进程持有的 Readable | WP-002；无源目录写入入口 | apps/desktop 主进程与 preload |
 | Windows 新文件暂存发布 | 已实现显式写授权/只读预检、同目录候选、排他硬链接发布、最终回读与失败/取消清理 | 独立测试目录与新文件请求 | 共享 FileOutcome 与独立清理状态/残留 | WP-009；原生授权不持久化，无覆盖/删除或 HTTP；WP-005 负责整批编排 | apps/desktop/src/main/new-file-publisher.ts、publication-errors.ts、目录原生定位及测试 |
 | Android SAF 读取适配 | 已实现只读授权/恢复、当前层元数据、原生读流，API 33/35 读取验证通过 | 系统选择结果、本地目录引用 | 当前条目、原生 InputStream 和能力/错误 | WP-003；Java、SAF、ContentResolver | apps/mobile 原生插件；apps/mobile/README.md |
-| Android SAF 新文件写入 | 候选写授权、新建、原生写流与残留处理 | 独立测试目录与新文件请求 | 校验后的实际结果/残留 | WP-010；依赖 WP-003，先于 WP-006 | apps/mobile 后续原生适配 |
+| Android SAF 新文件写入 | 已实现系统/进程授权分离、只读预检、新身份核实、非截断原生写流/最终回读和残留清理 | 已登记独立目标根/已有父目录、单文件请求及已验证私有原文流 | PublicationModel.Result 与 PublicationJson 单文件 outcome/cleanup，URI 留原生层 | WP-010；依赖 WP-003，供 WP-006 聚合；不恢复旧任务或覆盖/重命名 | apps/mobile Java NewFilePublisher、PublicationModel/Json、SafPublicationBackend、SafDirectoryStore 及测试 |
 | Windows 私有归档 | 已实现源快照/变化检查、受限 USTAR/gzip1 编解码、完整计数/哈希/结束校验和缓存所有权/取消清理 | 本次源引用或清单/归档流、可选 signal/进度回调 | 主进程私有只读流句柄、实测清单；完整验证后返回，不发布目标 | WP-012；Windows 读取/共享批量契约；固定夹具供 Java 复用 | apps/desktop/src/main/archive-*.ts、独立合成夹具 |
 | Android Java 私有归档 | 已实现原生源快照、未知长度实测/变化检查、严格 USTAR/gzip1、计数/取消/期限与缓存所有权及清理重试 | 本次 SAF 原生源引用或固定 v1 原生清单/归档流 | 完整校验后仅原生持有的不可变清单和私有只读句柄 | WP-013；复用 Android 读取及独立固定夹具，JVM/设备与 Windows 原生互通；不写 SAF 目标 | apps/mobile Java Archive*.java、SafArchiveSource.java 及测试；移动 README |
 | Windows HTTP 读取与任务注册 | 已实现显式服务启停/会话、目录、异步下载/单次 content、状态/取消、期限与清理；默认不监听 | 经验证的引用、本次集合 | 设备/会话描述、当前层、tar.gz 流及 sender 实际状态 | WP-004；Windows 读取、共享批量契约与 WP-012 | apps/desktop/src/main/http-*.ts、transfer-registry.ts、index.ts、HTTP 集成测试 |

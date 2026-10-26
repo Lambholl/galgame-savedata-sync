@@ -258,6 +258,46 @@ final class SafDirectoryStore {
         return entry;
     }
 
+    /** 发布器专用原生定位；只读 JS 桥不调用此入口，也不导出其中的 URI。 */
+    static final class PublicationDirectory implements NewFilePublisher.Directory {
+        final String rootId, parentId, documentId, name;
+        final Uri tree, uri;
+        PublicationDirectory(String rootId, String parentId, String documentId, String name, Uri tree) {
+            this.rootId = rootId; this.parentId = parentId; this.documentId = documentId; this.name = name;
+            this.tree = tree; uri = DocumentsContract.buildDocumentUriUsingTree(tree, documentId);
+        }
+    }
+
+    synchronized PublicationDirectory publicationDirectory(String rootId, String parentId, CancellationSignal signal) throws SafFailure {
+        try {
+            Root root = requireRoot(rootId);
+            boolean write = false;
+            for (UriPermission permission : resolver.getPersistedUriPermissions()) {
+                if (permission.getUri().equals(root.uri) && permission.isWritePermission()) write = true;
+            }
+            if (!write) throw new SafFailure("permission-denied", "系统尚未授予该目录持久写权限");
+            Entry parent = parentId == null ? null : requireEntry(rootId, parentId);
+            String id = parent == null ? DocumentsContract.getTreeDocumentId(root.uri) : parent.documentId;
+            Snapshot current = query(root, id, signal);
+            if (!current.isDirectory || current.isVirtual) throw new SafFailure("unsupported-operation", "目标不是普通目录");
+            String expected = parent == null ? root.name : parent.snapshot.name;
+            if (!expected.equals(current.name)) throw new SafFailure("source-changed", "目标目录名称已变化");
+            if ((current.flags & Document.FLAG_DIR_SUPPORTS_CREATE) == 0) {
+                throw new SafFailure("unsupported-operation", "提供者未声明支持新建文件");
+            }
+            return new PublicationDirectory(rootId, parentId, id, current.name, root.uri);
+        } catch (Exception cause) { throw SafFailure.from(cause); }
+    }
+
+    synchronized PublicationModel.Entry publicationEntry(PublicationDirectory directory, Snapshot snapshot) throws SafFailure {
+        requireRoot(directory.rootId);
+        String key = directory.rootId + "\n" + snapshot.documentId;
+        String entryId = documentIds.get(key);
+        if (entryId == null) { entryId = UUID.randomUUID().toString(); documentIds.put(key, entryId); }
+        entries.put(entryId, new Entry(directory.rootId, snapshot.documentId, directory.parentId, snapshot));
+        return new PublicationModel.Entry(directory.rootId, directory.parentId, entryId, snapshot.name, snapshot.size, snapshot.modified);
+    }
+
     /**
      * 归档读取前后重新查询授权、身份、类型及可观察属性。只返回原生观察模型；
      * 未知长度保留 null，不能以新查询覆盖枚举时的基线后继续读取已变化的源。
@@ -372,7 +412,7 @@ final class SafDirectoryStore {
             flags != null,
             flags != null && (flags & Document.FLAG_VIRTUAL_DOCUMENT) != 0,
             directory ? null : SafValues.size(optionalLong(cursor, Document.COLUMN_SIZE)),
-            SafValues.modified(optionalLong(cursor, Document.COLUMN_LAST_MODIFIED)));
+            SafValues.modified(optionalLong(cursor, Document.COLUMN_LAST_MODIFIED)), flags == null ? 0 : flags);
     }
 
     static JSObject metadata(String rootId, String entryId, String parentId, Snapshot snapshot) {
@@ -420,9 +460,13 @@ final class SafDirectoryStore {
         final boolean isVirtual;
         final Long size;
         final Long modified;
+        final long flags;
         Snapshot(String documentId, String name, boolean isDirectory, boolean hasFlags, boolean isVirtual, Long size, Long modified) {
+            this(documentId, name, isDirectory, hasFlags, isVirtual, size, modified, 0);
+        }
+        Snapshot(String documentId, String name, boolean isDirectory, boolean hasFlags, boolean isVirtual, Long size, Long modified, long flags) {
             this.documentId = documentId; this.name = name; this.isDirectory = isDirectory;
-            this.hasFlags = hasFlags; this.isVirtual = isVirtual; this.size = size; this.modified = modified;
+            this.hasFlags = hasFlags; this.isVirtual = isVirtual; this.size = size; this.modified = modified; this.flags = flags;
         }
     }
 }

@@ -23,7 +23,7 @@ related_files: []
 - 核心问题：在 Windows 与 Android 设备之间手工往返复制游戏存档不便。
 - 目标用户：同一局域网内在电脑和 Android 设备之间切换的使用者。
 - 核心价值：将文件夹映射保存为项目，浏览两端当前文件，手动选择方向后同步。
-- 当前范围：以下 active 需求及方案选择已由用户确认；基础设施、双端空壳、共享批量契约、双端目录读取、Windows 私有归档及 HTTP sender 已建立，Windows 原生非覆盖发布及 HTTP receiver 批次编排已实现；Android 目标发布/网络、跨端编排与同步业务尚未实现。已解答问题保留在[开放问题](open-questions.md)，当前方案见[架构总览](../architecture/overview.md)。
+- 当前范围：以下 active 需求及方案选择已由用户确认；基础设施、双端空壳、共享批量契约、双端目录读取、双端私有归档、Windows HTTP sender/receiver 与批次非覆盖发布、Android SAF 单文件发布已实现；Android 网络/前台、跨端编排与同步业务尚未实现。已解答问题保留在[开放问题](open-questions.md)，当前方案见[架构总览](../architecture/overview.md)。
 
 ## 2. 需求清单
 

@@ -22,11 +22,11 @@ related_files:
 
 ## 1. 状态与入口
 
-Windows HTTP 接收已完成。当前用户授权推进 WP-013 Java 归档的代码、测试、说明及记忆同步，并明确要求连同实际 SAF 读流集成及设备验证一起完成，不将其延期作为本包完成依据。允许独立合成夹具及私有缓存验证；已获 Git 暂存和本地提交授权；不含 HTTP、SAF 目标发布、最终界面或推送。真实存档保持只读，缓存不得位于所选源目录内。
+双端归档及暗色主题已分别提交 bf4e5ba、1ac7309。当前用户确认推进 WP-010 Android SAF 新文件发布，授权代码、测试、说明、记忆同步及完成后的本地暂存/commit；实际 SAF 独立合成目录验证一起完成。只允许明确授权的独立目标夹具，真实存档保持只读；不含 HTTP、最终界面、覆盖/删除同步或推送。
 
-详细范围与流程位于 `docs/plans/m001-directory-http.md`；[接口契约](../architecture/api-contracts.md)与[模块设计](../architecture/modules.md)维护当前边界。共享与平台说明见 `packages/shared/README.md`、`apps/desktop/README.md`、`apps/mobile/README.md`。基础设施、本地/批量共享契约、双端目录读取及 Windows 私有归档已实现；Java SAF 的 API 33 合成夹具与 API 35 真实目录证据分别适用。Windows HTTP sender/receiver 及批次新文件发布已实现；Android 目标发布/网络与同步流程未实现；桌面测试路径修复仍待远端 CI 复验。
+详细范围与流程位于 `docs/plans/m001-directory-http.md`；[接口契约](../architecture/api-contracts.md)与[模块设计](../architecture/modules.md)维护当前边界。共享与平台说明见 `packages/shared/README.md`、`apps/desktop/README.md`、`apps/mobile/README.md`。基础设施、本地/批量共享契约、双端目录读取及 Windows 私有归档已实现；Java SAF 的 API 33 合成夹具与 API 35 真实目录证据分别适用。Windows HTTP sender/receiver 及批次新文件发布已实现；Android SAF 单文件发布已实现并完成实际 API 33 验证；Android 网络与同步流程未实现；桌面测试路径修复仍待远端 CI 复验。
 
-双向唯一 tar.gz 方案见[Q-008](../requirements/open-questions.md)，详细设计位于仓库根目录的 `docs/plans/m001-tar-gzip-protocol.md`。共享批量契约、双端私有归档及 Windows HTTP sender/receiver 和非覆盖发布均已实现；WP-013 连同实际 API 33 SAF 集成、JVM/设备与 Windows 原生互通验证一起完成。下一实现起点 WP-010 SAF 新文件发布；planned 不表示已授权实现或检查通过。表中只保留仍有实现或验证交接的工作包；已闭环共享契约的当前事实见[模块状态](module-status.md)和[接口契约](../architecture/api-contracts.md)，编号高水位保持 13。
+双向唯一 tar.gz 方案见[Q-008](../requirements/open-questions.md)，详细设计位于仓库根目录的 `docs/plans/m001-tar-gzip-protocol.md`。共享批量契约、双端私有归档及 Windows HTTP sender/receiver 和非覆盖发布均已实现；WP-013 连同实际 API 33 SAF 集成、JVM/设备与 Windows 原生互通验证一起完成。WP-010 连同实际系统 WRITE/SAF、取消/清理重试与已有文件保护验证完成；下一实现起点 WP-006 Android 原生 HTTP/前台；planned 不表示已授权实现或检查通过。表中只保留仍有实现或验证交接的工作包；已闭环共享契约的当前事实见[模块状态](module-status.md)和[接口契约](../architecture/api-contracts.md)，编号高水位保持 13。
 
 ## 2. M-001 工作包
 
@@ -40,13 +40,13 @@ Windows HTTP 接收已完成。当前用户授权推进 WP-013 Java 归档的代
 | WP-007 | 最小验证界面 | WP-004、WP-005、WP-006 | apps/desktop renderer、apps/mobile/src | 目录选择/元数据、服务状态、手动 IP、双向传输及结果可操作；双端构建通过 | planned | 无实现；桌面 antd 与移动 antd-mobile 分别适配 |
 | WP-008 | 真机验收与 M-001 结论 | 已实现共享契约及目录/归档/发布/HTTP/界面模块；对应设备验证授权 | 测试设备与 testing/ 文档 | Android 10 及较新真机矩阵、实际 LAN HTTP、授权恢复、内容校验和故障用例通过 | planned | 需要设备；缺少平台仍保留缺口，不关闭 M-001 |
 | WP-009 | Windows 新文件暂存与发布 | WP-002 | apps/desktop 主进程与测试 | 独立测试目录内验证写流、同名拒绝、发布竞争、失败/取消清理；不触碰真实存档 | done | 原生显式写授权/只读预检、同父目录 wx 候选、sync/link/最终回读已实现；24 项专项与完整 pnpm check 通过，最新总数见回归状态；无新增依赖；已提交 63ddb34；HTTP receiver 已由 WP-005 集成；其他卷/命名等价、强杀孤儿候选与规模实测保留缺口 |
-| WP-010 | Android SAF 新文件写入 | WP-003 | apps/mobile 原生适配及测试 | 独立测试目录内验证写授权、新建、校验、名称冲突及失败残留；原生流不跨 JS | planned | 从 WP-003 拆出；独立调试基准未交付正式发布适配。保留平台内部单文件边界，由 WP-006 聚合批次；需设备验证提供者改名/歧义与不修改既有文件，不承诺 SAF 排他创建；真实存档保持只读 |
+| WP-010 | Android SAF 新文件写入 | WP-003 | apps/mobile Java 发布器/SAF 后端及单元/仪器测试 | 独立测试目录内验证写授权、新建、校验、名称冲突及失败残留；原生流不跨 JS，实际 SAF 验证一起完成 | done | 显式进程/系统授权分离、只读预检、新 ID/父/名核实、常规 FD 身份/非截断 rw、写后回读/元数据及独立清理重试已实现；28 项发布单元（Java 共 58）、lint/双 APK、原生互通、2 项实际 API 33 设备/12 结果共享守卫及外部逐字节/控制属性核对全部通过，WRITE 已释放；仅新建，不覆盖/重命名，真实存档只读；完成后本地 commit 已授权，无新增依赖；下一 WP-006 |
 | WP-012 | Windows 原生归档与私有暂存 | WP-002、已实现共享批量契约 | apps/desktop/src/main/archive-*.ts、目录读流检查点、独立格式夹具与测试、README.md | 按流源快照、受限 USTAR/gzip1 打包、完整解包校验、非法归档/计数/空间/取消/清理；固定跨端夹具与独立内容期望通过 | done | 20 项归档专项及完整 pnpm check 通过；独立 Python 夹具、源变化、实际流硬限、取消/清理失败/所有权和并发释放通过；无新增依赖，无 HTTP/目标发布/ADB；已提交 b507547；供 WP-004 复用 |
 | WP-013 | Android Java 原生归档与私有暂存 | WP-003、已实现共享批量契约；复用 WP-012 固定夹具 | apps/mobile Java Archive*.java、SafArchiveSource、单元/仪器测试及共用格式夹具、原生互通检查脚本 | 与 Windows 同一归档语义/故障矩阵、未知源长度实测、有限缓冲及缓存清理；Java 单元/lint/双 APK 与实际 SAF 设备集成全部通过 | done | 25 项归档 JVM（Java 总 30）、lint/双 APK、5 项 API 33 设备及双向 Windows/JVM/设备互通通过；含 131073 字节、实际 SAF 4 文件/子目录、未知长度、取消/复用/进程恢复及缓存释放；源身份/大小/mtime/原文外部复核一致；无新依赖，无 HTTP/目标发布；已获本地提交授权 |
 
 ## 3. 执行与拆分规则
 
-- 后续推荐实现顺序为 WP-010、WP-006、WP-007、WP-008；共享契约与双端私有归档作为已实现前置模块复用。具体依赖见上表，不授权并行 Agent。
+- 后续推荐实现顺序为 WP-006、WP-007、WP-008；共享契约与双端私有归档作为已实现前置模块复用。具体依赖见上表，不授权并行 Agent。
 - 一包只承担一个主要能力边界。跨平台契约变更、提供者差异、无法独立验证或新增依赖/配置迁移使范围扩大时先拆包；保留原包交接，新包不重复承诺。详细规则见 `docs/plans/m001-directory-http.md` 第 6 节；新 ID 从 WP-014 起分配，不回退高水位。
 - 实现前发现并读取目标路径实际存在且适用的 AGENTS.md、项目及目标语言编码规范；桌面应用规则位于 apps/desktop/AGENTS.md，要求完整读取 antd skill。设计授权不能当作实现或提交授权。
 - 工作包完成以针对性检查、受影响工程检查及明确剩余缺口为证据；真机未测不能写成产品通过。完成、阻塞和下一步同步 INDEX、模块状态、用例和回归状态。

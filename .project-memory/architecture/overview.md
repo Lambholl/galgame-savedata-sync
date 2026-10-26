@@ -22,8 +22,8 @@ related_files: []
 
 ## 1. 摘要
 
-- 架构风格：Windows 内置 HTTP 服务、Android 主动连接的局域网双端应用；Windows HTTP sender/receiver 与批次非覆盖发布已实现，Android 目标发布/网络与完整同步流程尚未实现。
-- 当前实现：双端空壳、v1 本地/批量共享契约、双端目录读取、Windows 私有归档与 HTTP sender 已建立。Windows 支持目录配置恢复、当前层枚举、源快照与受限归档编解码，有限桥不传文件字节。Java SAF 读取通过 API 33 与 API 35 的独立目录/原生流检查；Windows 单文件非覆盖发布及 HTTP receiver 批次编排已实现；Java 私有归档已实现；SAF 发布与 Android 客户端待后续包。接口边界见[接口契约](api-contracts.md)。
+- 架构风格：Windows 内置 HTTP 服务、Android 主动连接的局域网双端应用；Windows HTTP sender/receiver 与批次非覆盖发布、Android SAF 单文件发布已实现，Android 网络/前台与完整同步流程尚未实现。
+- 当前实现：双端空壳、v1 本地/批量共享契约、双端目录读取、Windows 私有归档与 HTTP sender 已建立。Windows 支持目录配置恢复、当前层枚举、源快照与受限归档编解码，有限桥不传文件字节。Java SAF 读取通过 API 33 与 API 35 的独立目录/原生流检查；Windows 单文件非覆盖发布及 HTTP receiver 批次编排已实现；Java 私有归档与 SAF 新文件发布已完成实际 API 33 集成；Android HTTP 客户端与前台编排待后续包。接口边界见[接口契约](api-contracts.md)。
 - 核心模块：设备与地址管理、目录映射、当前目录预览、本次差异计划、文件流传输、平台文件适配。
 - 关键约束：明文 HTTP、手选方向、无历史同步基线、目录不递归汇总大小。
 - 已选技术栈：React + TypeScript + Vite；Windows 使用 Electron + Ant Design；Android 使用 Capacitor + Ant Design Mobile，文件能力沿用 Java 原生插件，用户已接受该选择。双端框架选择见 [Q-001](../requirements/open-questions.md)。

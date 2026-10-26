@@ -21,9 +21,9 @@ related_files: []
 
 - 项目目标：在 Windows 电脑与 Android 设备之间，通过局域网手动选择方向同步文件夹，减少游玩 galgame 时手工复制存档的操作。
 - 目标用户：在电脑与 Android 设备之间切换、需要管理多个游戏或文件夹的使用者。
-- 当前阶段：基础设施、双端空壳、v1 批量共享契约、双端目录读取与 Windows 私有归档已实现；Java SAF 在 API 33 合成夹具和 API 35 真实目录分别验证读取与授权恢复。Windows HTTP sender/receiver、会话注册与批次非覆盖发布已实现；Java 私有归档已实现；SAF 发布、Android 网络和同步流程尚未实现。实现见[实现细节](../development/implementation-notes.md)，验证边界见[回归状态](../testing/regression-notes.md)。
+- 当前阶段：基础设施、双端空壳、v1 批量共享契约、双端目录读取与 Windows 私有归档已实现；Java SAF 在 API 33 合成夹具和 API 35 真实目录分别验证读取与授权恢复。Windows HTTP sender/receiver、会话注册与批次非覆盖发布已实现；Java 私有归档与 SAF 单文件发布已实现；Android 网络和同步流程尚未实现。实现见[实现细节](../development/implementation-notes.md)，验证边界见[回归状态](../testing/regression-notes.md)。
 - 成功标准：见[验收标准](../testing/acceptance.md)。
-- 当前授权：本轮 WP-013 Java 归档代码、测试、说明与记忆同步已授权，用户要求实际 SAF 集成和设备验证一起完成；25 项归档 JVM、5 项 API 33 设备、原生跨端互通、lint/双 APK 已通过。仅独立合成源与私有缓存，不申请 SAF 目标写权限；已获 Git 暂存和本地提交授权；未授权推送或下一工作包。下一建议 WP-010，真实存档保持只读。
+- 当前授权：本轮推进 WP-010 SAF 新文件发布，用户授权实现、自动化及实际设备验证、说明/记忆同步，并在完成后按中文规范暂存和本地 commit；只在精确独立合成目标取得系统 WRITE，真实存档保持只读。HTTP/最终界面、覆盖/镜像删除、推送及下一包未授权；当前检查点见 INDEX，后续建议 WP-006。
 
 ## 2. 项目目标
 

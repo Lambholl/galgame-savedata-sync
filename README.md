@@ -71,4 +71,4 @@ docs/               开发指南
 
 ## 项目记忆
 
-先读取[记忆索引](.project-memory/INDEX.md)，再按任务定位需求、架构、规范与当前工作。Windows HTTP sender/receiver 与新文件发布、双端私有归档及实际 SAF 读流集成已实现；Android 目标发布/网络与同步功能在后续工作包实现；目录读取与私有归档接口见[桌面适配](apps/desktop/README.md)和[移动适配](apps/mobile/README.md)。
+先读取[记忆索引](.project-memory/INDEX.md)，再按任务定位需求、架构、规范与当前工作。Windows HTTP sender/receiver、双端新文件发布与私有归档及实际 SAF 集成已实现；Android HTTP/前台编排与同步功能在后续工作包实现；目录读取与私有归档接口见[桌面适配](apps/desktop/README.md)和[移动适配](apps/mobile/README.md)。
