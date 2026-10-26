@@ -1,7 +1,7 @@
 def dependencySecurity = new groovy.json.JsonSlurper().parse(file('dependency-security.json'))
 
-// Apply before each project buildscript resolves, including Capacitor's generated projects.
-// Netty stays on its compatible 4.1 line; keep related crypto artifacts aligned.
+// 在每个项目解析 buildscript 前应用此策略，包括 Capacitor 生成的项目。
+// Netty 保持兼容的 4.1 系列；相关加密组件的版本也须对齐。
 gradle.beforeProject { project ->
     [project.buildscript.configurations, project.configurations].each { configurations ->
         configurations.configureEach { configuration ->

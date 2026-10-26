@@ -9,9 +9,9 @@ import android.view.WindowManager;
 import android.widget.TextView;
 
 /**
- * Debug-only chooser for a newly created benchmark fixture. Never registered in release builds.
- * A write grant is accepted only for the exact external-storage document ID supplied by the test.
- * Uses separate private test settings; it cannot modify the production read-only registry.
+ * 仅供调试版本为新建基准夹具选择目录；不会在发布版本中注册。
+ * 仅接受与测试提供的外部存储文档 ID 完全匹配的写入授权。
+ * 使用独立的私有测试设置，不能修改正式功能的只读登记表。
  */
 public class BenchmarkGrantActivity extends Activity {
     static final String SETTINGS = "transfer-benchmark-grant";

@@ -1,6 +1,6 @@
 package io.github.galgame.savedatasync;
 
-/** Pure boundary checks shared by provider decoding and native unit tests. */
+/** 提供者解码与原生单元测试共用的纯边界检查。 */
 final class SafValues {
     private static final long MAX_SAFE_INTEGER = 9007199254740991L;
     private static final long MAX_DATE = 8640000000000000L;
@@ -25,7 +25,7 @@ final class SafValues {
     }
 
     static Long modified(Long value) {
-        // DocumentsContract defines zero as an unknown modification time.
+        // DocumentsContract 将零定义为未知修改时间。
         if (value == null || value == 0) return null;
         if (value < -MAX_DATE || value > MAX_DATE) throw new IllegalArgumentException("Unsafe date");
         return value;

@@ -4,7 +4,7 @@ import android.os.OperationCanceledException;
 import com.getcapacitor.JSObject;
 import java.io.FileNotFoundException;
 
-/** Stable, sanitized bridge error; native causes are retained but never sent to JavaScript. */
+/** 稳定且已脱敏的桥接错误；保留原生错误原因，但不发送给 JavaScript。 */
 final class SafFailure extends Exception {
     final String code;
 

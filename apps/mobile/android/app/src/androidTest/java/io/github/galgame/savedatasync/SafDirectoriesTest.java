@@ -28,9 +28,9 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 /**
- * Device tests. Default run uses private fixtures only. Interactive modes select/read/cancel
- * require a human using the real system picker; they never use root or synthetic grant injection.
- * All source access is read-only. Reports contain counts, never source paths, names or hashes.
+ * 真机测试默认仅使用私有夹具；select/read/cancel 交互模式要求人工操作真实系统选择器，
+ * 不使用 root 或伪造授权注入。
+ * 所有源访问均为只读；报告仅含计数，不包含源路径、名称或哈希。
  */
 @RunWith(AndroidJUnit4.class)
 public class SafDirectoriesTest {
@@ -207,7 +207,7 @@ public class SafDirectoriesTest {
         SafFailure invalid = assertThrows(SafFailure.class,
             () -> store.openFile(rootId, "unknown-entry", new CancellationSignal()));
         assertEquals("not-found", invalid.code);
-        // A new native instance has no old entry table; it requires fresh enumeration.
+        // 新原生实例不保留旧条目表，必须重新枚举。
         if (entries.length() > 0) {
             SafDirectoryStore restored = new SafDirectoryStore(context());
             SafFailure stale = assertThrows(SafFailure.class,

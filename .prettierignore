@@ -7,7 +7,7 @@ apps/mobile/android/
 dev.local.json
 .reports/
 
-# Markdown is maintained manually, including embedded code blocks.
+# Markdown 由人工维护，包括其中嵌入的代码块。
 *.[mM][dD]
 *.[mM][dD][xX]
 *.[mM][aA][rR][kK][dD][oO][wW][nN]

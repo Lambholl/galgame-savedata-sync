@@ -19,8 +19,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import org.json.JSONObject;
 
 /**
- * Foreground-only metadata bridge. No URI, path, file bytes or write methods are exposed.
- * Provider I/O is serialized off the UI thread. Leaving the foreground cancels active queries.
+ * 仅在前台可用的元数据桥；不暴露 URI、路径、文件字节或写入方法。
+ * 提供者 I/O 在 UI 线程之外串行执行；离开前台时取消活动查询。
  */
 @CapacitorPlugin(name = "SafDirectories")
 public class SafDirectoriesPlugin extends Plugin {
@@ -76,7 +76,7 @@ public class SafDirectoriesPlugin extends Plugin {
         return result;
     }
 
-    /** Launches the system picker with READ only. Cancellation preserves all saved roots. */
+    /** 仅以 READ 权限启动系统选择器；取消时保留所有已保存的根目录。 */
     @PluginMethod
     public void chooseDirectory(PluginCall call) {
         if (!noArguments(call)) return;
@@ -84,7 +84,7 @@ public class SafDirectoriesPlugin extends Plugin {
             call.resolve(new SafFailure("unsupported-operation", "请在应用前台完成当前目录选择").result());
             return;
         }
-        // Validate the registry before launching a chooser that can grant a permission.
+        // 启动可授予权限的选择器前，先校验登记表。
         submit(call, true, signal -> {
             store();
             signal.throwIfCanceled();
@@ -104,7 +104,7 @@ public class SafDirectoriesPlugin extends Plugin {
         });
     }
 
-    /** Receives only system activity results; a lost JS call never fabricates selection success. */
+    /** 仅接收系统 Activity 返回的结果；JS 调用丢失时不会伪造选择成功。 */
     @ActivityCallback
     private void onDirectoryChosen(PluginCall call, ActivityResult activityResult) {
         choosing.set(false);
@@ -120,7 +120,7 @@ public class SafDirectoriesPlugin extends Plugin {
             call.resolve(new SafFailure("permission-denied", "系统未返回有效的目录授权").result());
             return;
         }
-        // Activity results can arrive just before onResume; grant registration itself is allowed then.
+        // Activity 结果可能在 onResume 之前到达；此时允许登记授权。
         submit(call, false, signal -> {
             JSObject result = new JSObject();
             result.put("status", "selected");
@@ -129,13 +129,13 @@ public class SafDirectoriesPlugin extends Plugin {
         });
     }
 
-    /** Resolves a shared RootsResponse, including expired saved references. */
+    /** 返回共享 RootsResponse，其中包含已过期的保存引用。 */
     @PluginMethod
     public void listRoots(PluginCall call) {
         if (noArguments(call)) submit(call, true, signal -> success(store().listRoots(signal)));
     }
 
-    /** Accepts exactly rootId and nullable parentId; unknown IDs never become arbitrary provider URIs. */
+    /** 仅接受 rootId 和可为 null 的 parentId；未知 ID 不会转换为任意提供者 URI。 */
     @PluginMethod
     public void listDirectory(PluginCall call) {
         JSObject data = call.getData();

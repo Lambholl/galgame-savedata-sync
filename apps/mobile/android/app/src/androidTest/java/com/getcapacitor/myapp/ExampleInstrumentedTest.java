@@ -9,16 +9,16 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 /**
- * Instrumented test, which will execute on an Android device.
+ * 在 Android 设备上执行的仪器测试。
  *
- * @see <a href="http://d.android.com/tools/testing">Testing documentation</a>
+ * @see <a href="http://d.android.com/tools/testing">测试文档</a>
  */
 @RunWith(AndroidJUnit4.class)
 public class ExampleInstrumentedTest {
 
     @Test
     public void useAppContext() throws Exception {
-        // Context of the app under test.
+        // 被测应用的上下文。
         Context appContext = InstrumentationRegistry.getInstrumentation().getTargetContext();
 
         assertEquals("io.github.galgame.savedatasync", appContext.getPackageName());

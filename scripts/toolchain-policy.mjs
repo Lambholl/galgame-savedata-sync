@@ -2,10 +2,10 @@
 export const NODE_SECURITY_BASELINES = Object.freeze({ 22: [22, 23, 4], 24: [24, 22, 1] })
 
 /**
- * Checks a numeric Node version against the project's known security patch floor.
- * Returns false for malformed versions or unsupported major lines; performs no I/O.
- * @param {string} version Numeric major.minor.patch version without a v prefix.
- * @returns {boolean} Whether the version meets a supported LTS patch floor.
+ * 检查数字形式的 Node 版本是否达到项目已知的安全补丁下限。
+ * 版本格式错误或主版本不受支持时返回 false；不执行 I/O。
+ * @param {string} version 不含 v 前缀的 major.minor.patch 数字版本。
+ * @returns {boolean} 版本是否达到受支持 LTS 的补丁下限。
  */
 export function isNodeSecurityBaselineMet(version) {
   const actual = version.split('.').map(Number)

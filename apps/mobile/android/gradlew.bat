@@ -19,26 +19,26 @@
 @if "%DEBUG%"=="" @echo off
 @rem ##########################################################################
 @rem
-@rem  Gradle startup script for Windows
+@rem  Gradle 的 Windows 启动脚本
 @rem
 @rem ##########################################################################
 
-@rem Set local scope for the variables with windows NT shell
+@rem 在 Windows NT shell 中设置变量的局部作用域
 if "%OS%"=="Windows_NT" setlocal
 
 set DIRNAME=%~dp0
 if "%DIRNAME%"=="" set DIRNAME=.
-@rem This is normally unused
+@rem 此变量通常未使用
 set APP_BASE_NAME=%~n0
 set APP_HOME=%DIRNAME%
 
-@rem Resolve any "." and ".." in APP_HOME to make it shorter.
+@rem 解析 APP_HOME 中的 "." 和 ".."，以缩短路径。
 for %%i in ("%APP_HOME%") do set APP_HOME=%%~fi
 
-@rem Add default JVM options here. You can also use JAVA_OPTS and GRADLE_OPTS to pass JVM options to this script.
+@rem 在此添加默认 JVM 选项；也可通过 JAVA_OPTS 和 GRADLE_OPTS 向此脚本传入 JVM 选项。
 set DEFAULT_JVM_OPTS="-Xmx64m" "-Xms64m"
 
-@rem Find java.exe
+@rem 查找 java.exe
 if defined JAVA_HOME goto findJavaFromJavaHome
 
 set JAVA_EXE=java.exe
@@ -68,21 +68,21 @@ echo location of your Java installation. 1>&2
 goto fail
 
 :execute
-@rem Setup the command line
+@rem 配置命令行
 
 set CLASSPATH=
 
 
-@rem Execute Gradle
+@rem 执行 Gradle
 "%JAVA_EXE%" %DEFAULT_JVM_OPTS% %JAVA_OPTS% %GRADLE_OPTS% "-Dorg.gradle.appname=%APP_BASE_NAME%" -classpath "%CLASSPATH%" -jar "%APP_HOME%\gradle\wrapper\gradle-wrapper.jar" %*
 
 :end
-@rem End local scope for the variables with windows NT shell
+@rem 结束 Windows NT shell 中变量的局部作用域
 if %ERRORLEVEL% equ 0 goto mainEnd
 
 :fail
-rem Set variable GRADLE_EXIT_CONSOLE if you need the _script_ return code instead of
-rem the _cmd.exe /c_ return code!
+rem 如需获取脚本自身的返回码，而非 cmd.exe /c 的返回码，
+rem 请设置变量 GRADLE_EXIT_CONSOLE。
 set EXIT_CODE=%ERRORLEVEL%
 if %EXIT_CODE% equ 0 set EXIT_CODE=1
 if not ""=="%GRADLE_EXIT_CONSOLE%" exit %EXIT_CODE%

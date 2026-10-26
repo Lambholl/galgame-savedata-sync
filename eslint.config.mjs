@@ -67,7 +67,7 @@ export default tseslint.config(
       '@typescript-eslint/no-floating-promises': ['error', { ignoreVoid: false }],
       '@typescript-eslint/no-misused-promises': 'error',
       '@typescript-eslint/no-non-null-assertion': 'error',
-      // Type-aware rules replace the core checks for TypeScript sources.
+      // 对 TypeScript 源码使用具备类型信息的规则替代基础检查。
       'no-implied-eval': 'off',
       '@typescript-eslint/no-implied-eval': 'error',
       'no-throw-literal': 'off',
@@ -80,7 +80,7 @@ export default tseslint.config(
         { selector: 'variable', modifiers: ['const'], format: ['camelCase', 'UPPER_CASE'] },
         { selector: 'typeLike', format: ['PascalCase'] },
         { selector: 'enumMember', format: ['PascalCase'] },
-        // Object literals and imports may use names defined by external APIs.
+        // 对象字面量和导入可使用外部 API 定义的名称。
         { selector: ['objectLiteralProperty', 'import'], format: null },
         { selector: 'property', modifiers: ['requiresQuotes'], format: null },
       ],
@@ -110,7 +110,7 @@ export default tseslint.config(
     },
   },
   {
-    // These tools load their configuration through a default export.
+    // 这些工具通过默认导出加载配置。
     files: [
       'eslint.config.mjs',
       'apps/desktop/electron.vite.config.ts',
@@ -119,7 +119,7 @@ export default tseslint.config(
     ],
     rules: { 'no-restricted-exports': 'off' },
   },
-  // Keep formatting in .prettierrc.json and disable conflicting ESLint rules last.
+  // 格式统一由 .prettierrc.json 定义，并在最后禁用冲突的 ESLint 规则。
   {
     ...prettierRecommended,
     files: ['**/*.{js,mjs,cjs,ts,tsx}'],

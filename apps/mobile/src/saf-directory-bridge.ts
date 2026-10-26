@@ -13,14 +13,14 @@ import type {
   OperationResult,
 } from '@savedata-sync/shared'
 
-/** Native plugin transport is private to the binding; it never returns file bytes or URIs. */
+/** 原生插件传输仅供绑定内部使用，不返回文件字节或 URI。 */
 export interface SafNativePlugin {
   chooseDirectory(): Promise<unknown>
   listRoots(): Promise<unknown>
   listDirectory(options: { rootId: string; parentId: string | null }): Promise<unknown>
 }
 
-/** Foreground metadata API. Promises resolve with sanitized results, including unavailable bridges. */
+/** 前台元数据 API；Promise 返回已脱敏的结果，包括桥不可用的情况。 */
 export interface AndroidDirectoryApi {
   chooseDirectory(): Promise<DirectorySelectionResult>
   listRoots(): Promise<OperationResult<readonly DirectoryReference[]>>
@@ -46,8 +46,8 @@ function isRootList(value: unknown): value is readonly DirectoryReference[] {
 }
 
 /**
- * Creates a finite, frozen bridge. Validates both sides and binds listing results to the request.
- * No subscriptions or owned native streams; provider I/O and cancellation stay in the plugin.
+ * 创建能力有限且已冻结的桥；校验两端数据，并将枚举结果绑定到请求。
+ * 不创建订阅或持有原生流；提供者 I/O 和取消操作均由插件管理。
  */
 export function createSafDirectoryBridge(
   plugin: SafNativePlugin,

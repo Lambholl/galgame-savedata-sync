@@ -47,12 +47,12 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 /**
- * Opt-in LAN experiment, NOT the product HTTP/write adapter. No new dependencies.
- * Requires benchBase (private LAN HTTP URL), benchToken (new fixture), and a human SAF grant.
- * Only flat, known-size regular files in the supplied manifest are accepted. Archives use
- * the bounded USTAR subset created by this experiment. No general archive extraction API.
- * Stages before publishing, checks every file's SHA-256 and reads back actual written content.
- * All buffers are bounded; bytes/URIs never enter a JS bridge. Default test runs skip this test.
+ * 需显式启用的局域网实验，不作为产品 HTTP/写入适配器；不新增依赖。
+ * 需要 benchBase（私有局域网 HTTP URL）、benchToken（新夹具）和人工 SAF 授权。
+ * 仅接受所提供清单中无嵌套、大小已知的普通文件；归档使用本实验定义的受限 USTAR 子集，
+ * 不提供通用归档解压 API。
+ * 发布前先暂存，校验每个文件的 SHA-256，并回读实际写入内容。
+ * 所有缓冲区均有大小限制；字节和 URI 不进入 JS 桥；默认测试运行跳过本测试。
  */
 @RunWith(AndroidJUnit4.class)
 public class TransferBenchmarkTest {
@@ -77,14 +77,14 @@ public class TransferBenchmarkTest {
         cache = new File(context.getCacheDir(), "transfer-benchmark-" + token);
         assertTrue("Cache must be a new private directory", cache.mkdir());
         Intent intent = new Intent(context, BenchmarkGrantActivity.class).putExtra("token", token);
-        // MIUI blocks an instrumentation process from starting an Activity while in the
-        // background. Launch the already exported app entry as shell, then open the private
-        // chooser from the foreground. This changes no system permission or exported surface.
+        // MIUI 阻止后台仪器测试进程启动 Activity；先通过 shell 启动已导出的应用入口，
+        // 再从前台打开私有选择器。
+        // 此操作不更改系统权限或导出范围。
         try (ParcelFileDescriptor descriptor = InstrumentationRegistry.getInstrumentation().getUiAutomation()
                 .executeShellCommand("am start -W -n io.github.galgame.savedatasync/.MainActivity");
              InputStream launched = new ParcelFileDescriptor.AutoCloseInputStream(descriptor)) {
             byte[] buffer = new byte[1024];
-            while (launched.read(buffer) != -1) { /* Wait until ActivityManager completes launch. */ }
+            while (launched.read(buffer) != -1) { /* 等待 ActivityManager 完成启动。 */ }
         }
         try (ActivityScenario<BenchmarkGrantActivity> scenario = ActivityScenario.launch(intent)) {
             long deadline = System.nanoTime() + 240000000000L;
@@ -272,7 +272,7 @@ public class TransferBenchmarkTest {
             checkedCopy(in, out, size, hash);
             assertEquals("Download has extra bytes", -1, in.read());
         }
-        // Closing the fully consumed body returns the connection to Android's keep-alive pool.
+        // 完整消费响应体并关闭后，连接会归还 Android 的持久连接池。
     }
 
     private void upload(String route, InputStream in, long size, String hash) throws Exception {

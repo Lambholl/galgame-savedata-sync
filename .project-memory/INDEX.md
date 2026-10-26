@@ -29,6 +29,7 @@ related_files: []
 
 | 工作 | 状态 | 相关记忆文档 | 相关代码或配置 | 已完成 | 下一步 |
 | --- | --- | --- | --- | --- | --- |
+| 统一中文代码注释 | completed | standards/coding-style.md；Skill 通用编码规则 | 全仓库已跟踪源码、配置及文档代码块 | 已补充跨语言中文注释规则及适用范围，同步语言示例；仓库 29 个源码/配置文件完成翻译，复扫仅保留许可、指令、URL 与代码示例；去注释代码及 Python 去文档字符串 AST 一致；pnpm check、Android 单元/lint/调试与测试 APK、Skill 与记忆校验通过 | 未提交；后续修改继续遵循中文注释规则；Capacitor 同步会重生成两份配置的文件头，需按规则处理；项目自身许可证仍在讨论，未添加 |
 | 修复 CI 桌面目录测试路径差异 | completed | testing/regression-notes.md、testing/test-cases.md、development/implementation-notes.md | apps/desktop/test 两套夹具及新增 temporary-paths.test.mjs、apps/desktop/README.md | 原默认 15 项通过；本机 8.3 短路径环境复现与 CI 相同的 9 项失败；夹具改用异步 realpath 临时根，正常/短路径均 16 项通过无跳过，pnpm check 通过；业务路径检查未放宽 | 本轮修复随获授权的本地提交进入 Git 历史；远端 CI 仍需重跑确认；不推送，不操作真实存档 |
 | 确定 tar.gz 传输方案 | completed | requirements/open-questions.md、requirements/product.md、architecture/、development/work-packages.md、testing/、project/ | 本轮仅维护项目记忆 | 双向唯一 tar.gz 已登记为 REQ-018，Q-008 已关闭；已清理其他传输备选和格式未决表述，同步架构/工作包/路线图与正式契约缺口；记忆、文本及差异检查通过 | 下一步细化 tar.gz 批量契约并独立拆包，再进入 HTTP 实现；实验报告保留比较证据；未改产品代码，未提交 |
 | 小文件传输方式快速基准 | completed | requirements/open-questions.md、testing/regression-notes.md、testing/test-cases.md | debug SAF 授权 Activity、TransferBenchmarkTest、scripts/experiments/transfer-benchmark.py；docs/experiments/transfer-benchmark-2026-10-26.md/CSV | 三个真实只读样本双向比较实验共 54 组通过，包含 5,526 个 SAF 新建写后回读；每组 TCP 连接=1；原目录列表/内容/大小/mtime/身份一致；数据副本、服务与本轮写授权已清理；pnpm check、Java 单元/lint/双 APK、release Manifest 隔离与默认跳过检查通过 | 已据此确定唯一 tar.gz 方案，Q-008 已关闭；正式批量契约与实现仍待独立设计/分包，不将实验当作 WP-010/HTTP 完成；未提交 |

@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import { dirname, isAbsolute, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-/** Absolute checkout root; callers must keep generated project files inside it. */
+/** 仓库检出根目录的绝对路径；调用者必须将生成的项目文件保留在此目录内。 */
 export const REPO_ROOT = fileURLToPath(new URL('../', import.meta.url))
 
 function readLocalSettings() {
@@ -27,10 +27,10 @@ function readLocalSettings() {
 }
 
 /**
- * Resolves machine-local Android paths and an optional unauthenticated HTTP proxy for Gradle.
- * Does not change system environment variables or accept proxy credentials in the local file.
- * Local settings override environment variables. Returned paths may not exist; callers
- * must validate the tools they use. Rejects malformed dev.local.json by throwing.
+ * 解析本机 Android 路径，以及供 Gradle 使用的可选无认证 HTTP 代理。
+ * 不修改系统环境变量，也不接受本地文件中的代理凭据。
+ * 本地设置优先于环境变量；返回路径可能不存在，调用者必须校验实际使用的工具。
+ * dev.local.json 格式错误时抛出异常。
  */
 export function getAndroidEnvironment() {
   const settings = readLocalSettings()

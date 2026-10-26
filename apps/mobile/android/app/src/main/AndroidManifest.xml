@@ -36,7 +36,7 @@
         </provider>
     </application>
 
-    <!-- Permissions -->
+    <!-- 权限 -->
 
     <uses-permission android:name="android.permission.INTERNET" />
 </manifest>

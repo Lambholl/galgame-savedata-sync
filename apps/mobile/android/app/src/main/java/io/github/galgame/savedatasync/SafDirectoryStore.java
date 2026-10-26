@@ -26,9 +26,9 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 /**
- * Read-only SAF registry. Call on an I/O worker, never on the UI thread.
- * Only root grants are persisted; entry IDs and metadata live in this instance.
- * Provider IDs stay opaque and are never converted to filesystem paths.
+ * 只读 SAF 登记表；必须在 I/O 工作线程调用，不得在 UI 线程调用。
+ * 仅持久化根目录授权；条目 ID 和元数据只保留在当前实例中。
+ * 提供者 ID 始终作为不透明标识处理，不转换为文件系统路径。
  */
 final class SafDirectoryStore {
     static final String PREFERENCES = "saf-directories-v1";
@@ -47,7 +47,7 @@ final class SafDirectoryStore {
         this(context, PREFERENCES);
     }
 
-    /** Alternate preference name isolates instrumented fixtures from user settings. */
+    /** 使用单独的偏好设置名称，将仪器测试夹具与用户设置隔离。 */
     SafDirectoryStore(Context context, String preferencesName) throws SafFailure {
         resolver = context.getApplicationContext().getContentResolver();
         preferences = context.getSharedPreferences(preferencesName, Context.MODE_PRIVATE);
@@ -138,7 +138,7 @@ final class SafDirectoryStore {
         return value;
     }
 
-    /** Persists only READ from an actual system-picker result; existing grants are never revoked. */
+    /** 仅持久化真实系统选择器结果中的 READ 权限；不会撤销已有授权。 */
     synchronized JSObject register(Uri selected, int flags, CancellationSignal signal) throws SafFailure {
         Root candidate = null;
         boolean hadGrant = false;
@@ -172,14 +172,14 @@ final class SafDirectoryStore {
                 try {
                     resolver.releasePersistableUriPermission(candidate.uri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
                 } catch (SecurityException ignored) {
-                    // Failed acquisition has no grant to release. No existing grant is touched.
+                    // 获取失败时没有需要释放的新授权；不触碰任何已有授权。
                 }
             }
             throw SafFailure.from(cause);
         }
     }
 
-    /** Returns only registered roots, preserving expired/unavailable references for recovery. */
+    /** 仅返回已登记根目录；保留已过期或不可用的引用以供恢复。 */
     synchronized JSONArray listRoots(CancellationSignal signal) throws SafFailure {
         JSONArray result = new JSONArray();
         try {
@@ -204,7 +204,7 @@ final class SafDirectoryStore {
         }
     }
 
-    /** Lists exactly one layer. Unknown attributes remain null; provider failure is never an empty list. */
+    /** 仅枚举当前层；未知属性保留为 null，提供者失败不会返回空列表。 */
     synchronized JSObject listDirectory(String rootId, String parentId, CancellationSignal signal) throws SafFailure {
         try {
             Root root = requireRoot(rootId);
@@ -259,9 +259,9 @@ final class SafDirectoryStore {
     }
 
     /**
-     * Opens a current, enumerated file in mode r. Caller owns and MUST close the returned stream.
-     * Cancellation is checked on every read; lifecycle owners must also close a blocked stream.
-     * Bytes never cross the JS bridge. Size/date checks detect observed source changes, not atomic snapshots.
+     * 以 r 模式打开当前已枚举的文件；返回流归调用者所有，调用者必须关闭。
+     * 每次读取均检查取消状态；生命周期管理方还必须关闭阻塞中的流。
+     * 字节不经过 JS 桥；大小和日期检查仅用于发现可观察的源变化，不提供原子快照。
      */
     synchronized InputStream openFile(String rootId, String entryId, CancellationSignal signal) throws SafFailure {
         try {

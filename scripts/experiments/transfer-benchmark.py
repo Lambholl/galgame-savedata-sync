@@ -1,8 +1,8 @@
-"""One-shot private-LAN SAF experiment. Sources are read-only; only owned fixtures are cleaned.
+"""单次私有局域网 SAF 实验；源目录保持只读，仅清理本次创建的夹具。
 
-The three input paths are CLI arguments, never included in the anonymized result JSON.
-The server exposes only manifest-indexed files behind a random URL path on one LAN IP.
-No ADB reverse/forward carries measured data. ADB is used only for deployment/control.
+三个输入路径由 CLI 参数提供，不写入匿名化结果 JSON。
+服务仅在一个局域网 IP 的随机 URL 路径下暴露清单中已索引的文件。
+测量数据不经过 ADB reverse/forward；ADB 仅用于部署和控制。
 """
 
 import argparse
@@ -29,7 +29,7 @@ BASE: Path
 
 
 def hash_file(path: Path) -> str:
-    """Hash a regular file in bounded chunks without modifying it."""
+    """分块计算普通文件的哈希，限制每块大小且不修改文件。"""
     digest = hashlib.sha256()
     with path.open("rb") as stream:
         while chunk := stream.read(65536):
@@ -38,7 +38,7 @@ def hash_file(path: Path) -> str:
 
 
 def snapshot(root: Path) -> dict:
-    """Reject reparse points/non-flat inputs and retain content plus identity/mtime in memory."""
+    """拒绝重解析点或非平面输入，并在内存中保留内容摘要、文件身份及 mtime。"""
     result = {}
     for path in sorted(root.iterdir()):
         info = path.lstat()
@@ -59,7 +59,7 @@ def snapshot(root: Path) -> dict:
 
 
 def clean_owned(path: Path) -> None:
-    """Recursively remove only a strict descendant of this newly created temporary root."""
+    """仅递归删除本次新建临时根目录下的严格后代路径。"""
     resolved = path.resolve()
     if resolved == BASE or not resolved.is_relative_to(BASE):
         raise RuntimeError("Unsafe cleanup target")
@@ -173,7 +173,7 @@ class State:
 
 
 class DigestWriter:
-    """Hash archive bytes while writing, without an extra archive reread in the timed path."""
+    """写入归档时同步计算字节哈希，避免在计时流程中额外回读归档。"""
 
     def __init__(self, stream, digest):
         self.stream, self.digest = stream, digest
@@ -324,7 +324,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
 
 def run(args):
-    """Prepare isolated copies, run one real-device experiment, then verify and clean owned data."""
+    """准备隔离副本，执行一次真机实验，随后校验并清理本次创建的数据。"""
     global STATE
     STATE = State(args)
     server = None
@@ -365,10 +365,10 @@ def run(args):
             try:
                 preserved = snapshot(data["source"]) == data["baseline"] and preserved
             except Exception:
-                # Still clean only our private copies if a source disappears or changes shape.
+                # 即使源目录消失或结构发生变化，也只清理本次创建的私有副本。
                 preserved = False
         print(json.dumps({"originalSourcesUnchanged": preserved}), flush=True)
-        # A single exact fixture root, created by this invocation; no user path is deleted.
+        # 仅清理本次调用创建的唯一夹具根目录，不删除任何用户路径。
         remote = STATE.remote
         if not remote.startswith("/storage/emulated/0/Download/SaveDataSync-NetBench-") or remote.rsplit("-", 1)[-1] != STATE.token:
             raise RuntimeError("Unsafe device cleanup root")
