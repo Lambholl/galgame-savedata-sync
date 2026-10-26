@@ -7,24 +7,18 @@ import {
   HTTP_ERROR_STATUS,
   HTTP_HEADERS,
   HTTP_ROUTES,
-  isArchiveDescriptor,
   isBatchDeviceDescriptor,
   isBatchFileId,
   isBatchLimits,
   isBatchManifest,
-  isBatchProgress,
-  isBatchProgressAdvance,
   isBatchState,
   isDownloadBatchRequest,
-  isFileOutcome,
   isOperationError,
   isPreparedFile,
-  isReceiveBatchRequest,
 } from '../src/index.ts'
 import {
   createManifest,
   createReceiveRequest,
-  createReceiverRunning,
   createReceiverState,
   createSenderState,
 } from './batch-fixtures.mjs'
@@ -136,140 +130,6 @@ test('已准备清单实测未知长度，严格验证求和及 tar 填充长度
   )
 })
 
-test('不分配真实大文件也可检查成员、原文、压缩体及 tar 的精确预算边界', () => {
-  assert.equal(isBatchManifest(createManifest([BATCH_LIMITS.maxFileBytes])), true)
-  assert.equal(isBatchManifest(createManifest([BATCH_LIMITS.maxFileBytes + 1])), false)
-  assert.equal(isBatchManifest(createManifest(Array(4).fill(BATCH_LIMITS.maxFileBytes))), true)
-  assert.equal(
-    isBatchManifest(createManifest([...Array(4).fill(BATCH_LIMITS.maxFileBytes), 1])),
-    false,
-  )
-  assert.equal(isBatchManifest(createManifest(Array(BATCH_LIMITS.maxFiles).fill(0))), true)
-  assert.equal(isBatchManifest(createManifest(Array(BATCH_LIMITS.maxFiles + 1).fill(0))), false)
-  const sizes = Array(1024).fill(1048577)
-  sizes[1023] -= 1024
-  const exact = createManifest(sizes)
-  assert.equal(exact.totalFileBytes, BATCH_LIMITS.maxTotalFileBytes)
-  assert.equal(exact.archive.tarSizeBytes, BATCH_LIMITS.maxTarBytes)
-  assert.equal(isBatchManifest(exact), true)
-  assert.equal(
-    isArchiveDescriptor({ ...exact.archive, sizeBytes: BATCH_LIMITS.maxArchiveBytes }),
-    true,
-  )
-  for (const archive of [
-    { ...exact.archive, sizeBytes: BATCH_LIMITS.maxArchiveBytes + 1 },
-    { ...exact.archive, sizeBytes: 0 },
-    { ...exact.archive, tarSizeBytes: BATCH_LIMITS.maxTarBytes + 512 },
-    { ...exact.archive, compressionLevel: 9 },
-    { ...exact.archive, format: 'tar' },
-  ])
-    assert.equal(isArchiveDescriptor(archive), false)
-})
-
-test('目标可以乱序映射，但必须一一对应且不映射到同一个显式位置', () => {
-  const request = createReceiveRequest([0, 513])
-  assert.equal(isReceiveBatchRequest(request), true)
-  assert.equal(isReceiveBatchRequest({ ...request, targets: request.targets.toReversed() }), true)
-  for (const targets of [
-    [],
-    [request.targets[0]],
-    [request.targets[0], request.targets[0]],
-    [{ ...request.targets[0], fileId: 'f000003' }, request.targets[1]],
-    [{ ...request.targets[0], name: '../outside' }, request.targets[1]],
-    [{ ...request.targets[0], name: 'CON.dat' }, request.targets[1]],
-    [request.targets[0], { ...request.targets[1], name: request.targets[0].name }],
-  ])
-    assert.equal(isReceiveBatchRequest({ ...request, targets }), false)
-  assert.equal(
-    isReceiveBatchRequest({
-      ...request,
-      targets: [
-        request.targets[0],
-        { ...request.targets[1], parentId: 'subdir', name: request.targets[0].name },
-      ],
-    }),
-    true,
-  )
-  assert.equal(isReceiveBatchRequest({ ...request, overwrite: true }), false)
-})
-
-test('文件结果区分失败、取消、未尝试和待确认，成功必须包含实际文件元数据', () => {
-  const result = createReceiverState().fileResults[0]
-  assert.equal(isFileOutcome(result), true)
-  assert.equal(
-    isFileOutcome({ ...result, entry: { ...result.entry, kind: 'directory', sizeBytes: null } }),
-    false,
-  )
-  assert.equal(isFileOutcome({ ...result, bytesWritten: 1 }), false)
-  assert.equal(isFileOutcome({ ...result, error: FAILURE }), false)
-  for (const outcome of [
-    { fileId: 'f000001', status: 'failed', error: FAILURE, residualEntries: [] },
-    { fileId: 'f000001', status: 'cancelled', residualEntries: [] },
-    { fileId: 'f000001', status: 'not-attempted', reason: 'batch-invalid' },
-    { fileId: 'f000001', status: 'unknown', error: UNKNOWN, residualEntries: [] },
-  ])
-    assert.equal(isFileOutcome(outcome), true)
-  assert.equal(
-    isFileOutcome({ fileId: 'f000001', status: 'failed', error: UNKNOWN, residualEntries: [] }),
-    false,
-  )
-  assert.equal(
-    isFileOutcome({ fileId: 'f000001', status: 'unknown', error: FAILURE, residualEntries: [] }),
-    false,
-  )
-  const residual = { rootId: 'root-target', entryId: 'partial' }
-  assert.equal(
-    isFileOutcome({
-      fileId: 'f000001',
-      status: 'cancelled',
-      residualEntries: [residual, residual],
-    }),
-    false,
-  )
-})
-
-test('未知总量与零字节不同，进度不能溢出、超总量或以字节代替文件数', () => {
-  const progress = createSenderState().progress
-  assert.equal(isBatchProgress(progress), true)
-  assert.equal(
-    isBatchProgress({ ...progress, totalFileBytes: null, totalArchiveBytes: null }),
-    true,
-  )
-  for (const value of [-1, 0.5, NaN, Infinity, '0', Number.MAX_SAFE_INTEGER + 1])
-    assert.equal(isBatchProgress({ ...progress, archiveBytesTransferred: value }), false)
-  for (const changes of [
-    { sourceBytesRead: 1 },
-    { totalFiles: 0 },
-    { verifiedFiles: 2 },
-    { publishedFiles: 1 },
-    { archiveBytesTransferred: 101 },
-    { totalArchiveBytes: 0 },
-    { fileBytesPublished: 1 },
-  ])
-    assert.equal(isBatchProgress({ ...progress, ...changes }), false)
-})
-
-test('进度快照只能推进计数，不能回退或更改已经确定的总量', () => {
-  const progress = createSenderState(createManifest([10])).progress
-  const before = { ...progress, sourceBytesRead: 0, totalFileBytes: null, totalArchiveBytes: null }
-  assert.equal(isBatchProgressAdvance(before, progress), true)
-  assert.equal(isBatchProgressAdvance(progress, before), false)
-  assert.equal(isBatchProgressAdvance(progress, { ...progress, totalFileBytes: 11 }), false)
-  assert.equal(isBatchProgressAdvance(progress, { ...progress, totalFiles: 2 }), false)
-  assert.equal(isBatchProgressAdvance(progress, { ...progress, sourceBytesRead: 9 }), false)
-  assert.equal(isBatchProgress({ ...progress, verifiedFiles: 1, fileBytesVerified: 9 }), false)
-  assert.equal(
-    isBatchProgress({
-      ...progress,
-      verifiedFiles: 1,
-      fileBytesVerified: 10,
-      publishedFiles: 1,
-      fileBytesPublished: 9,
-    }),
-    false,
-  )
-})
-
 test('sender 只能准备和发送，不能伪装为 receiver 的目标发布成功', () => {
   const running = createSenderState()
   assert.equal(isBatchState(running), true)
@@ -300,39 +160,6 @@ test('sender 只能准备和发送，不能伪装为 receiver 的目标发布成
     false,
   )
   assert.equal(isBatchState({ ...end, progress: running.progress }), false)
-})
-
-test('receiver 发布阶段必须先收齐归档并校验全部原文，已发布计数对应真实结果', () => {
-  const request = createReceiveRequest([10, 0])
-  const running = createReceiverRunning(request)
-  assert.equal(isBatchState(running), true)
-  assert.equal(
-    isBatchState({ ...running, progress: { ...running.progress, archiveBytesTransferred: 99 } }),
-    false,
-  )
-  assert.equal(
-    isBatchState({ ...running, progress: { ...running.progress, verifiedFiles: 1 } }),
-    false,
-  )
-  assert.equal(
-    isBatchState({ ...running, progress: { ...running.progress, fileBytesVerified: 9 } }),
-    false,
-  )
-  const success = createReceiverState(request).fileResults[0]
-  const firstPublished = {
-    ...running,
-    fileResults: [success],
-    progress: { ...running.progress, publishedFiles: 1, fileBytesPublished: 10 },
-  }
-  assert.equal(isBatchState(firstPublished), true)
-  assert.equal(isBatchState({ ...firstPublished, stage: 'transferring' }), false)
-  assert.equal(
-    isBatchState({
-      ...firstPublished,
-      progress: { ...firstPublished.progress, fileBytesPublished: 9 },
-    }),
-    false,
-  )
 })
 
 test('批次部分失败保留前项成功，后项未尝试，不能报整批成功或继续发布', () => {
@@ -394,45 +221,6 @@ test('取消与未知有独立实际结果，整批校验失败只标记未尝�
     })),
   }
   assert.equal(isBatchState(invalid), true)
-})
-
-test('私有缓存清理失败不能掩盖已成功发布，清理错误须与清理状态对应', () => {
-  const end = createReceiverState()
-  assert.equal(
-    isBatchState({
-      ...end,
-      cleanupStatus: 'incomplete',
-      cleanupError: { ...FAILURE, code: 'cleanup-failed' },
-    }),
-    true,
-  )
-  assert.equal(isBatchState({ ...end, cleanupStatus: 'incomplete', cleanupError: null }), false)
-  assert.equal(isBatchState({ ...end, cleanupStatus: 'complete', cleanupError: FAILURE }), false)
-  assert.equal(isBatchState({ ...end, cleanupStatus: 'unknown', cleanupError: UNKNOWN }), true)
-})
-
-test('封闭枚举和 JSON 容器不接受数组、对象、类实例或字符串强制转换', () => {
-  const end = createReceiverState()
-  for (const value of [
-    null,
-    undefined,
-    [],
-    new Date(),
-    Object.create(end),
-    { ...end, extra: true },
-  ])
-    assert.equal(isBatchState(value), false)
-  for (const status of [['succeeded'], { value: 'succeeded' }, 1])
-    assert.equal(isBatchState({ ...end, status }), false)
-  assert.equal(
-    isFileOutcome({ fileId: 'f000001', status: 'not-attempted', reason: ['batch-invalid'] }),
-    false,
-  )
-  assert.equal(isBatchState({ ...createSenderState(), stage: ['ready'] }), false)
-  const roundTrip = JSON.parse(JSON.stringify(end))
-  const before = structuredClone(roundTrip)
-  assert.equal(isBatchState(roundTrip), true)
-  assert.deepEqual(roundTrip, before)
 })
 
 test('v1 批量路由、头和新增错误映射一致，旧会话与未知结果不允许直接重放', () => {

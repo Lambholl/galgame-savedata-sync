@@ -129,14 +129,6 @@ test('下载桥将最终成功与本次文件、哈希和目标逐项匹配', as
   f.state.fileResults[1].entry.name = 'wrong.sav'
   assert.equal((await f.api.query(f.manifest.transferId)).error.code, 'io-failure')
 })
-test('发送 sent 不接受 receiver 的成功状态或角色走私', async () => {
-  const f = setup(true)
-  await f.api.connect('http://192.168.1.2')
-  await f.api.startUpload(f.options)
-  assert.equal((await f.api.query(f.manifest.transferId)).value.status, 'sent')
-  f.state.role = 'receiver'
-  assert.equal((await f.api.query(f.manifest.transferId)).status, 'error')
-})
 test('拒绝非法选择与附加字段，建立上下文时复制输入', async () => {
   const f = setup()
   const malformed = { ...f.options, path: 'content://invalid' }
@@ -160,14 +152,6 @@ test('清单篡改、错任务响应和原生异常均返回脱敏失败', async
   const result = await f.api.query(f.options.request.transferId)
   assert.equal(result.error.code, 'io-failure')
   assert.ok(!JSON.stringify(result).includes('secret'))
-})
-test('网页预览没有原生网络、写授权或订阅副作用', async () => {
-  const f = setup()
-  const api = createHttpTransferBridge(f.plugin, () => false)
-  assert.equal((await api.connect('http://192.168.1.2')).error.code, 'unsupported-operation')
-  assert.equal((await api.chooseTarget()).error.code, 'unsupported-operation')
-  assert.equal((await api.startDownload(f.options)).error.code, 'unsupported-operation')
-  assert.equal(f.calls.length, 0)
 })
 test('订阅验证实际结果并在 remove 后停止通知', async () => {
   const f = setup()

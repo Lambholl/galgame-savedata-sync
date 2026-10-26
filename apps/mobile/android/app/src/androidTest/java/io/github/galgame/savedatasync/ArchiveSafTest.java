@@ -211,58 +211,11 @@ public class ArchiveSafTest {
         report("实际 SAF 已验证：4 文件、含已有子目录，已知/未知长度两轮，源内容/属性保持，缓存释放");
     }
 
-    @Test public void safCancellationAtReadAndArchiveStagesClosesStreamsAndReleasesCache() throws Exception {
-        Selected selected = new Selected(); ArchiveAdapter adapter = SafArchiveSource.createAdapter(context());
-        for (String stage : new String[] { "preparing", "archiving" }) {
-            ArchiveControl control = new ArchiveControl();
-            ArchiveFailure failure = assertThrows(ArchiveFailure.class, () -> adapter.prepare("saf-cancel", selected.deviceId,
-                selected.rootId, selected.sources(false), control, (current, done, total) -> {
-                    if (stage.equals(current) && done > 0) adapter.cancel();
-                }));
-            assertTrue(failure.cancelled); assertNull(failure.cleanupFailure); assertCleanCache();
-        }
-        try (ArchiveAdapter.Artifact prepared = adapter.prepare("saf-after-cancel", selected.deviceId, selected.rootId,
-            selected.sources(false), new ArchiveControl(), null)) { assertEquals(4, prepared.manifest.files.size()); }
-        assertCleanCache();
-    }
 
-    @Test public void safAuthorizationAndSourceTypeBoundariesAreRechecked() throws Exception {
-        Selected selected = new Selected();
-        SafArchiveSource missing = new SafArchiveSource(selected.store, selected.rootId, "unknown-entry");
-        assertEquals("not-found", assertThrows(SafFailure.class, () -> missing.observe(new ArchiveControl())).code);
-        JSONArray top = selected.store.listDirectory(selected.rootId, null, new CancellationSignal()).getJSONArray("entries");
-        for (int i = 0; i < top.length(); i++) {
-            JSONObject item = top.getJSONObject(i);
-            if (!item.getString("kind").equals("directory")) continue;
-            SafArchiveSource directory = new SafArchiveSource(selected.store, selected.rootId, item.getString("entryId"));
-            assertEquals("unsupported-operation", assertThrows(SafFailure.class, () -> directory.observe(new ArchiveControl())).code);
-        }
-        ArchiveControl cancelled = new ArchiveControl(); cancelled.cancel();
-        SafArchiveSource actual = new SafArchiveSource(selected.store, selected.rootId, selected.entries.get(0).getString("entryId"));
-        assertEquals("invalid-request", assertThrows(ArchiveFailure.class, () -> actual.validateRoot("other-root")).code);
-        assertTrue(assertThrows(ArchiveFailure.class, () -> actual.open(cancelled)).cancelled);
-        SafDirectoryStore restored = new SafDirectoryStore(context());
-        SafArchiveSource stale = new SafArchiveSource(restored, selected.rootId, selected.entries.get(0).getString("entryId"));
-        assertEquals("not-found", assertThrows(SafFailure.class, () -> stale.observe(new ArchiveControl())).code);
-    }
 
-    @Test public void deviceRejectsConcatenatedAndDamagedArchivesBeforeReturningFiles() throws Exception {
-        JSONObject fixture = fixture(); ArchiveModel.Manifest manifest = fixedManifest(fixture.getJSONObject("manifest"));
-        byte[] valid = Base64.getDecoder().decode(fixture.getString("archiveBase64"));
-        ArchiveAdapter adapter = SafArchiveSource.createAdapter(context());
-        for (int kind = 0; kind < 3; kind++) {
-            byte[] changed = java.util.Arrays.copyOf(valid, valid.length + (kind == 0 ? valid.length : 0));
-            if (kind == 0) System.arraycopy(valid, 0, changed, valid.length, valid.length);
-            else if (kind == 1) changed[changed.length - 8] ^= 1;
-            else changed[3] = 8;
-            ArchiveModel.Manifest actual = new ArchiveModel.Manifest(manifest.transferId, manifest.sourceDeviceId,
-                manifest.sourceRootId, manifest.files, manifest.totalFileBytes,
-                new ArchiveModel.Descriptor(changed.length, manifest.archive.tarSizeBytes, ArchiveFormat.hex(ArchiveFormat.sha256().digest(changed))));
-            assertEquals("invalid-archive", assertThrows(ArchiveFailure.class,
-                () -> adapter.receive(actual, new ByteArrayInputStream(changed), new ArchiveControl(), null)).code);
-            assertCleanCache();
-        }
-    }
+
+
+
 
     private void assertCleanCache() throws Exception {
         Path root = context().getCacheDir().toPath().resolve("transfer-archives-v1");

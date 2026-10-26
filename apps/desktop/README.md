@@ -17,15 +17,15 @@
 
 ## 1. 范围与入口
 
-`src/main/directory-adapter.ts` 提供 Windows 本机的目录登记、恢复、当前层元数据和原生只读文件流。目录通过系统选择器进入主进程，Renderer 不提交绝对路径；界面按钮与浏览布局在后续界面工作包接入。
+`src/main/directory-adapter.ts` 提供 Windows 本机的目录登记、恢复、当前层元数据和原生只读文件流。目录通过系统选择器进入主进程，Renderer 不提交绝对路径；界面还没提供目录按钮和浏览布局。
 
-目录模块保持源只读；私有归档负责快照、编解码和缓存清理；HTTP 读取服务编排设备/目录查询、下载准备、单次内容领取及状态/取消。独立原生发布模块已实现显式写授权和单文件非覆盖发布，已接入可选 HTTP receiver，UI 尚未接入；覆盖和删除同步未实现。真实用户目录保持只读，写入验证仅使用自有临时夹具。
+目录模块保持源只读；私有归档负责快照、编解码和缓存清理；HTTP 读取服务负责设备/目录查询、下载准备、单次内容领取及状态/取消。独立发布模块提供显式写授权和单文件非覆盖发布，并已连接到可选 HTTP receiver；桌面界面还没完成。覆盖和删除同步也还没实现。真实用户目录保持只读，写入测试只使用自有临时夹具。
 
 ## 系统明暗主题
 
 当前界面默认跟随 Windows 系统外观。Renderer 首次渲染读取 `prefers-color-scheme`，运行时订阅变化并切换 antd 的 `defaultAlgorithm`/`darkAlgorithm`，组件卸载释放监听。页面初始底色及原生 `BrowserWindow.backgroundColor` 同步采用对应明暗底色；原生主题监听在窗口关闭时释放。
 
-主题使用现有组件库的语义色，不改变目录/传输接口；当前没有手动主题开关或持久化主题偏好。
+主题使用现有组件库的语义色，目录与传输接口不受影响；手动主题开关和偏好持久化还没做。
 
 ## 2. 主进程接口
 
@@ -34,10 +34,10 @@
 | createDirectoryAdapter(configPath) | 主进程控制的绝对配置路径，返回适配器 | 不存在时创建身份；损坏/未知 schema、无效文件或权限失败抛异常，不重置原配置 |
 | adapter.deviceId | 返回安装内稳定设备 ID | 与 IP 无关，不从机器 MAC 生成 |
 | adapter.registerDirectory(path) | 仅系统选择器/受信任本地调用传入绝对目录；返回 OperationResult&lt;DirectoryReference&gt; | 配置保存后才更新内存；再次明确选择同一路径保留 rootId，重新核实身份并清除该根的旧条目引用 |
-| adapter.listRoots() | 返回公开根引用列表 | 重查根身份；失效根标 unavailable，仍保留配置，不冒充空目录 |
-| adapter.listDirectory(rootId, parentId=null) | 当前层 DirectoryListing | 根层 parentId=null；子层必须使用已采集目录的 entryId。不会递归读取后代，不汇总目录大小；不支持的链接/类型及读取失败返回错误 |
-| adapter.openFile(reference) | 本进程有效的 EntryReference，返回 metadata、Node Readable 和 verifyUnchanged() | 调用者消费/关闭流后调用检查点，重查原身份、大小、mtime/ctime；不重新读内容，不保证发现任意并发写入；流自动关闭句柄 |
-| adapter.assertCacheIsolated(path) | 仅主进程传入缓存绝对路径 | 拒绝缓存与任何已登记根互相包含；不创建目录或向 IPC 暴露路径 |
+| adapter.listRoots() | 返回公开根引用列表 | 重查根身份；失效根标 unavailable，并保留配置 |
+| adapter.listDirectory(rootId, parentId=null) | 当前层 DirectoryListing | 根层 parentId=null；子层必须使用已采集目录的 entryId。只读当前层，不汇总目录大小；不支持的链接/类型及读取失败返回错误 |
+| adapter.openFile(reference) | 本进程有效的 EntryReference，返回 metadata、Node Readable 和 verifyUnchanged() | 调用者消费/关闭流后调用检查点，重查原身份、大小、mtime/ctime；不重新读内容。可观察的身份、大小和时间变化会发现，中途同大小改写可能漏过；流自动关闭句柄 |
+| adapter.assertCacheIsolated(path) | 仅主进程传入缓存绝对路径 | 拒绝缓存与任何已登记根互相包含；只做隔离检查，不创建目录，也不向 IPC 暴露路径 |
 
 除初始化工厂外，异步操作失败均返回稳定错误包络；内部 `DirectoryAccessError` 保留 cause，IPC 只输出脱敏后的 code/message/canRetry，不包含主机路径、堆栈或文件内容。
 
@@ -66,67 +66,67 @@ preload 通过 `window.desktopDirectories` 暴露冻结的 `DesktopDirectoryApi`
 
 固定通道为 directories:choose、directories:roots、directories:list。主进程检查窗口登记、主 frame 身份及精确 renderer URL；选择器返回后再次核实来源。子 frame、导航后的页面、额外参数、非法 ID 和附加路径字段均被拒绝。preload 另检查输入和响应结构，异常映射为脱敏错误；不会暴露 ipcRenderer、通用 invoke、Node 句柄或文件字节。
 
-应用退出时移除 handler，窗口关闭时删除可信窗口记录；应用采用单实例锁避免通常情况下多个应用实例同时更新同一配置。该包没有事件订阅，网页调用者不持有需要释放的文件句柄。
+应用退出时移除 handler，窗口关闭时删除可信窗口记录；应用采用单实例锁，常态下只有一个实例更新配置。该包只提供三个请求式方法，没有事件订阅；网页调用者不持有需要释放的文件句柄。
 
 ## 4. 配置与路径边界
 
 应用在 `app.getPath('userData')/directory-config.json` 保存 schemaVersion=1、deviceId 与 roots。内部根记录仅含 rootId、规范路径和 bigint dev/ino 的字符串身份；绝对路径不传到 Renderer，也不写进项目记忆。条目 ID/相对路径映射只在本进程内有效，不保存历史元数据或哈希，重启后重新枚举。
 
-配置写入使用同目录独占临时文件、sync 和 rename；同进程登记串行处理，成功前不更新内存。配置不能位于任何所选根目录内，损坏或未知版本一律停止初始化。配置目录必须由应用控制，本实现不提供跨外部进程的配置事务或锁。
+配置写入使用同目录独占临时文件、sync 和 rename；同进程登记串行处理，成功前不更新内存。配置必须位于所选根目录之外；目录损坏或版本未知时停止初始化。配置目录由应用控制，跨外部进程的配置事务或锁不在当前实现内。
 
-每次读取重新检查根身份；路径逐段 lstat，拒绝 symlink/junction，核对 realpath 与根范围，读取句柄再核对身份。文件/目录替换使旧引用失效，需要刷新或明确重新选择。当前策略拒绝所有遇到的链接，不自动跟随根内链接；不支持的条目导致该层读取失败，不能静默显示为空目录。
+每次读取重新检查根身份；路径逐段 lstat，拒绝 symlink/junction，核对 realpath 与根范围，读取句柄再核对身份。文件/目录替换使旧引用失效，需要刷新或明确重新选择。当前策略拒绝所有遇到的链接，不跟随根内链接；不支持的条目会让该层读取返回错误，不显示成空目录。
 
-Node 的路径检查与文件打开不是同一个原子操作。本实现检查可观察到的替换和越界，不承诺在外部进程恶意并发重排命名空间时提供内核级隔离；不引入目录级原子替换承诺。内容哈希与源变化校验由下述私有归档模块处理，写入授权和发布竞争由第 10 节的独立原生发布模块处理。
+Node 的路径检查与文件打开是两个操作。本实现检查可观察到的替换和越界；外部进程恶意并发重排命名空间时，当前实现不提供内核级隔离，也不提供目录级原子替换。内容哈希与源变化校验由下述私有归档模块处理，写入授权和发布竞争由第 10 节的独立原生发布模块处理。
 
 Electron 构建显式内联 workspace 共享包，避免 sandbox preload 在运行时 require TypeScript 源码。preload 保留 CJS 输出，contextIsolation/sandbox 开启，Renderer 无 Node 集成。
 
 ## 5. 验证
 
-`pnpm test:desktop` 执行 114 项测试（16 目录/IPC、20 归档、25 HTTP sender、24 发布、29 HTTP receiver），纳入 `pnpm check`。目录覆盖 Unicode/空文件、配置恢复、当前层、身份/链接越界、读流释放和有限 IPC；归档覆盖独立格式夹具、故障/超限、源变化、取消与所有权；HTTP 检查见第 9 节。临时夹具基于 realpath 的系统临时根，避免 Windows 8.3 别名差异，不记录真实存档路径。
+`pnpm test:desktop` 执行目录/IPC、归档、HTTP 和发布的最小长期回归，不纳入 `pnpm check`。测试只覆盖公开接口、数据关系、文件安全和关键传输结果；界面、日志文本和内部调用顺序不进入长期测试。临时夹具基于 realpath 的系统临时根，不记录真实存档路径。
 
-Windows 短路径回归通过 PowerShell 调用 GetShortPathName，生成真实 8.3 别名，并在只影响子进程的 TEMP/TMP 环境中重跑目录与 IPC 用例，要求全部通过。非 Windows 或卷未生成不同短名时明确跳过此项；常规用例仍执行。此修复只调整测试夹具，不放宽业务代码的链接、根范围和身份检查。
+Windows 短路径检查通过 PowerShell 调用 GetShortPathName，生成真实 8.3 别名，并在只影响子进程的 TEMP/TMP 环境中重跑目录与 IPC 用例。非 Windows 或卷未生成不同短名时会跳过这一项，常规用例继续执行。这里只调整测试夹具，业务代码的链接、根范围和身份检查保持不变。
 
-额外只读验证通过用户授权的真实 Windows 目录执行：读取前后文件内容哈希、条目和目录修改时间一致，原生读流一致，配置恢复成功；具体路径及文件哈希不进入仓库。该检查不代表 Android、HTTP 传输、原生选择器人工点击或完整界面已验收。
+额外只读验证通过用户授权的真实 Windows 目录执行：读取前后文件内容哈希、条目和目录修改时间一致，原生读流一致，配置恢复成功；具体路径及文件哈希不进入仓库。Android、HTTP 传输、原生选择器人工点击和完整界面由对应专项验收。
 
 参考：[Node 文件系统](https://nodejs.org/docs/latest-v22.x/api/fs.html)、[Electron IPC 来源校验](https://www.electronjs.org/docs/latest/tutorial/security#17-validate-the-sender-of-all-ipc-messages)、[系统目录选择器](https://www.electronjs.org/docs/latest/api/dialog)。
 
 ## 6. 私有归档接口
 
-`src/main/archive-adapter.ts` 仅供主进程调用，使用内置 fs/stream/zlib/crypto，无新增依赖。HTTP 下载准备/发送及上传接收/全原文校验已复用此模块，UI 尚未接入。所有文件、缓存和流留在原生层，不把归档对象或文件内容跨 preload/JS 桥传递。
+`src/main/archive-adapter.ts` 仅供主进程调用，使用内置 fs/stream/zlib/crypto，无新增依赖。HTTP 下载准备/发送及上传接收/全原文校验会复用此模块。文件、缓存和流留在原生层，归档对象和文件内容不跨 preload/JS 桥。
 
 | 接口 | 输入/输出 | 所有权与失败 |
 | --- | --- | --- |
 | createWindowsArchiveAdapter(source, privateDirectory, options?) | 目录读取适配器与既有应用私有绝对目录；返回归档适配器 | 缓存固定放 transfer-archives-v1 子目录，不能与任何已登记源根重叠；启动只清理验证过的孤儿缓存；失败抛脱敏 ArchiveError |
 | archive.prepare(request, options?) | DownloadBatchRequest，返回 WindowsArchive | 按流复制源至私有快照，实测长度/SHA-256并核实读取后元数据，再打包 gzip1；成功后调用者持有缓存，必须 dispose |
 | archive.receive(manifest, input, options?) | BatchManifest 和原始 Node Readable；返回 WindowsArchive | 从调用起接管并最终关闭 input；完整保存/校验压缩体及全部原文后才返回句柄；失败不提供可发布结果 |
-| artifact.manifest | 冻结的本次清单、实际长度/哈希 | 仅当前任务使用，不持久化为历史基线；压缩字节不保证与另一压缩器相同 |
+| artifact.manifest | 冻结的本次清单、实际长度/哈希 | 当前任务专用，不持久化为历史基线；不同压缩器会生成不同字节，接收端以本次清单为准 |
 | artifact.openArchive() / openFile(fileId) | 只读流；fileId 必须属于本清单 | 调用者必须消费或 destroy；未关闭读流会使 dispose 报 busy；不返回缓存路径 |
 | artifact.dispose() | Promise&lt;void&gt; | 幂等并合并并发清理；失败保留互斥，禁止新任务，允许再次 dispose 或 retryCleanup |
 | archive.retryCleanup() | 重试本缓存根的失败清理 | 不删除其他缓存根或仍在操作/仍有读流的任务；清理成功后才释放进程互斥 |
 
 操作 options 可传 signal 和 onProgress；期限由上层管理，预先/处理中取消均关闭可中断的流。普通 abort 抛 ArchiveCancelledError，TimeoutError signal 映射 timeout；若清理也失败，原错误保留，独立 cleanupError=cleanup-failed。普通 ArchiveError 的 operationError 只含共享稳定码/脱敏消息，内部 cause 不传到界面。
 
-进度快照分开源读取、压缩体已暂存、原文校验字节与已校验文件数；已暂存不等于网络已发送，已解包不等于目标已发布。回调由原生任务调用，不在 Renderer 执行 IO；抛异常会中止并清理任务。
+进度快照分开源读取、压缩体已暂存、原文校验字节与已校验文件数。暂存、解包和目标发布是三个不同阶段，只有文件结果表示最终发布。回调由原生任务调用，不在 Renderer 执行 IO；抛异常会中止并清理任务。
 
 ## 7. 缓存与格式边界
 
-默认执行共享包的每文件/总原文/tar/压缩体上限、64 KiB 显式 IO 缓冲及 3 GiB 私有缓存预算。options.quota 可进一步收紧本机预算，不能放宽协议；options.io 仅供受信任主进程注入磁盘空间检查和删除能力。每次写入先计数/检查可用空间，仍处理实际 IO 错误；测试以小预算和有界流验证边界，不分配 GiB 文件。未测整进程峰值内存或全量大存档性能。
+默认执行共享包的每文件/总原文/tar/压缩体上限、64 KiB 显式 IO 缓冲及 3 GiB 私有缓存预算。options.quota 可以进一步收紧本机预算，上限仍沿用协议值；options.io 仅供受信任主进程注入磁盘空间检查和删除能力。每次写入先计数并检查可用空间，写入失败按实际 IO 错误处理；测试以小预算和有界流验证边界，不分配 GiB 文件。整进程峰值内存和全量大存档性能还没实测。
 
-源快照和解包仅写到随机任务目录。根/任务都有所有权标记并检查目录身份，进程内仅一份活动缓存，成功句柄未释放也占用名额。清理先核实所有成员，再逐个 unlink 普通文件并 rmdir 空任务目录；拒绝陌生文件、子目录、链接和多重硬链接，不递归展开归档路径。不确定所有权或初始化身份时失败关闭；不声称对抗外部恶意并发重排私有命名空间。
+源快照和解包只写到随机任务目录。根/任务都有所有权标记并检查目录身份，进程内一份活动缓存，成功句柄未释放也会占用名额。清理先核实所有成员，再逐个 unlink 普通文件并 rmdir 空任务目录；拒绝陌生文件、子目录、链接和多重硬链接，不递归展开归档路径。所有权或初始化身份无法确认时停止操作；外部恶意并发重排私有命名空间不在防护范围。
 
-归档严格按[批量协议](../../docs/plans/m001-tar-gzip-protocol.md)的规范化 USTAR 头、顺序 fileId、零填充和两个结束块生成/校验。gzip 限制固定头和单 member，使用原始 DEFLATE 解码并核对实际消耗字节、CRC32/ISIZE、完整 tar 长度及每文件 SHA-256；拒绝拼接、尾随、损坏、截断、链接及扩展头。全体验证通过后才返回私有句柄；目标新文件发布及 HTTP receiver 编排均已实现，Android/实际 LAN 仍待后续包。
+归档严格按[批量协议](../../docs/plans/m001-tar-gzip-protocol.md)的规范化 USTAR 头、顺序 fileId、零填充和两个结束块生成/校验。gzip 限制固定头和单 member，使用原始 DEFLATE 解码并核对实际消耗字节、CRC32/ISIZE、完整 tar 长度及每文件 SHA-256；拒绝拼接、尾随、损坏、截断、链接及扩展头。全体验证通过后才返回私有句柄。目标新文件发布及 HTTP receiver 编排已经可用，双端实际 LAN 的结果见移动说明。
 
 `test/fixtures/archive-v1.json` 由 Python 标准库独立生成，包含三份合成原文、规范 tar 和 gzip；测试验证 Node 编码的 tar 精确匹配独立预期，也验证 Node 解码 Python gzip，后续 Java 包复用这份夹具。测试中的完整 Buffer/gunzipSync 仅用于小夹具，产品路径使用有限缓冲流式 IO。
 
 ## 8. HTTP 服务与任务生命周期
 
-`src/main/http-service.ts` 提供仅供可信主进程调用的 `WindowsHttpService`；构造不监听网络。当前应用初始化目录/归档/服务对象，退出时等待 stop；服务控制按钮与 IPC 留 WP-007。默认回环地址和动态端口；需要 LAN 时由本机控制显式指定监听地址，测试仅监听 127.0.0.1。
+`src/main/http-service.ts` 提供可信主进程调用的 `WindowsHttpService`；构造对象时不会监听网络。当前应用初始化目录/归档/服务对象，退出时等待 stop；服务控制按钮与 IPC 留 WP-007。默认使用回环地址和动态端口；需要 LAN 时由本机控制显式指定监听地址，测试使用 127.0.0.1。
 
 | 原生 API | 输入/返回 | 责任 |
 | --- | --- | --- |
 | new WindowsHttpService(source, archive, options?) | 目录读取/归档适配器；可选 publisher、displayName、时钟、仅收紧的期限/会话容量 | 不改变目录授权；同时有 publisher 及 archive.receive 才启用上传，目标须单独本机写授权；网络层只使用 Node 内置 HTTP/流/哈希 |
 | service.start({host?, port?}) | host 为 IP 地址，默认 127.0.0.1；port 默认 0；返回实际 host/port/sessionId | 端口冲突明确失败，不换端口重试；启动/停止并发受限；每次重新启动生成会话 |
-| service.getAddress() / getError() | 监听快照或 null；脱敏运行时错误或 null | 地址不作为设备身份；sessionId 用于重启检测，不是认证 |
+| service.getAddress() / getError() | 监听快照或 null；脱敏运行时错误或 null | 设备身份用 deviceId；sessionId 只用于识别服务重启，认证不在这层 |
 | service.stop() | Promise&lt;void&gt; | 停止接纳、关闭连接、取消并等待 worker/缓存清理；并发 stop 共用 Promise；失败保留所有权，下次 stop 重试 |
 | service.retryCleanup() | Promise&lt;void&gt; | 主进程明确重试终态缓存；活动任务报 busy；不重放请求或内容 |
 
@@ -144,15 +144,15 @@ HTTP 已实现设备、根/当前层、POST downloads、GET manifest/content、G
 
 `transfer-registry.ts` 原子接纳后占用单次 ID；下载内容仅 sender ready 可原子领取一次；上传内容只允许 receiver awaiting-content，见第 11 节。每个进程仅一个活动批次，覆盖准备、ready、发送、取消和清理；即使构造多个监听实例也共享名额。ready 10 分钟、总期限 30 分钟、发送无进展 60 秒，查询不续期；另有限制请求/响应无进展 60 秒、整个 HTTP 请求 30 分钟、请求头 15 秒及 16 KiB 头预算。终态保留 10 分钟，随后删除状态与清单/哈希，已用 ID 保留到服务停止；最多 4096 个，不淘汰防重记录。
 
-归档从固定私有快照发送，发送时再核对实际长度/SHA-256。进度区分源读取和写入 HTTP 流的归档字节；sender 的校验/发布计数始终为 0，sent 仅表示本机发送流完成，不证明 Android 接收或发布。失败、取消和超时等待实际 IO 结束再清理；原始失败与清理错误分开。清理失败保留互斥，即使公开结果到期仍阻止新任务，明确重试成功后才释放。
+归档从固定私有快照发送，发送时再核对实际长度/SHA-256。进度区分源读取和写入 HTTP 流的归档字节；sender 的校验/发布计数始终为 0，sent 表示本机发送流完成，Android 是否接收或发布要看 receiver 的结果。失败、取消和超时等待实际 IO 结束再清理；原始失败与清理错误分开。清理失败保留互斥，即使公开结果到期仍阻止新任务，明确重试成功后才释放。
 
 主进程 before-quit 同时等待 HTTP 服务与发布适配器停止，成功后继续退出；清理失败显示错误并保留重试机会。页面没有服务控制、任意路径、文件字节或写入入口。
 
 ## 9. HTTP 验证边界
 
-`test/http-service.test.mjs` 的 25 项用例使用真实回环 HTTP/TCP 和独立临时源/缓存，覆盖下载内容与哈希、异步状态、并发 ID/单次领取、进程活动名额、路由/会话/畸形头、重复键/非法编码、JSON 精确上限与超限、取消/断流/校验失败、期限/结果到期/容量、清理失败及重试、停止/重启和端口冲突。时间边界由原生时钟与仅收紧的期限注入，不等待实际 30 分钟；大归档内存与性能仍需专项实测。
+`test/http-service.test.mjs` 使用真实回环 HTTP/TCP 和独立临时源/缓存，覆盖下载内容与哈希、异步状态、单次领取、路由/会话、取消、清理、停止与重启。时间边界由原生时钟与仅收紧的期限注入，不等待实际 30 分钟；大归档内存与性能仍需专项实测。
 
-这些检查验证 Windows sender 与服务原语；receiver 专项见第 11 节，Android Java/SAF、实际 LAN 及最终界面/实际窗口退出仍待验收。应用不自动监听 LAN，未执行设备操作，也未向真实存档写入。
+这些检查覆盖 Windows sender 与服务原语；receiver 见第 11 节。Android Java/SAF、实际 LAN、最终界面和实际窗口退出由对应专项验收。应用不会自动监听 LAN，也不会改动真实存档。
 
 ## 10. 原生新文件发布
 
@@ -185,19 +185,19 @@ await publisher.stop()
 
 发布在目标父目录以 `wx` 创建随机 `.savedata-new-<UUID>.tmp` 候选，因此候选和最终文件在同一卷；输入按不超过 64 KiB 分块、检查可用空间，实测长度/SHA-256、sync 并关闭后才进入发布点。最终名称通过 `fs.link(candidate, target)` 排他创建；同名检查用于早期反馈，实际不覆盖保证由 link 提供。成功后读取最终文件至 EOF，复验身份、属性、长度及 SHA-256，再登记实际元数据。只有此时报告 succeeded；候选 unlink 只移除临时名称，保留最终文件。
 
-硬链接及卷限制参见 [Node fsPromises.link](https://nodejs.org/docs/latest-v22.x/api/fs.html#fspromiseslinkexistingpath-newpath)、[Windows CreateHardLinkW](https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-createhardlinkw)。只验证了本机临时卷；其他卷或网络文件系统未验收，不支持安全发布时明确失败。比较键使用物理父目录身份及小写名称，排他创建仍须交给文件系统；特殊 Unicode/8.3 名称等价矩阵尚待补充。
+硬链接及卷限制参见 [Node fsPromises.link](https://nodejs.org/docs/latest-v22.x/api/fs.html#fspromiseslinkexistingpath-newpath)、[Windows CreateHardLinkW](https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-createhardlinkw)。当前验证范围是本机临时卷；其他卷或网络文件系统要另行验收，无法安全硬链接时发布失败。比较键使用物理父目录身份及小写名称，排他创建交给文件系统；特殊 Unicode/8.3 名称的覆盖还没补齐。
 
-发布点前取消会关闭输入并清理候选；link 成功后完成有界回读，以实际结果报告成功或 unknown，不因取消删除最终文件。发布已经发生但回执、身份或回读无法确认时保留当前最终条目并返回 result-unknown；不把失败查询当作“未写入”。清理失败独立于成功/失败/取消结果，确知属于本次的残留可返回引用；引用为空也不能证明没有残留。
+发布点前取消会关闭输入并清理候选；link 成功后完成有界回读，按实际结果报告成功或 unknown，已经 link 成功的最终文件会保留。发布已经发生但回执、身份或回读无法确认时，保留当前最终条目并返回 result-unknown；查询失败时目标可能已经写入，要重新核实。清理失败独立于成功/失败/取消结果，确知属于本次的残留可返回引用；引用为空只说明没有已知残留。
 
 同进程只允许一个原生发布操作或待清理候选，名额与归档缓存独立，允许 receiver 持有已校验归档并逐文件发布。候选删除前重新验证父目录、普通文件及原身份；身份被替换时停止清理，保留互斥，不删除未知条目。进度只报告候选写入、最终回读与已确认发布的字节，不应重复累加为批次归档校验进度。
 
-`test/new-file-publisher.test.mjs` 的 24 项专项覆盖真实非覆盖发布、已有/竞争文件保护、只读预检/物理父目录去重、目录与候选身份变化、流长度/哈希、空间/sync/不支持卷错误、取消与发布竞争、unknown、清理失败/并发重试/撤权/停止及私有归档读流衔接；每项均复验独立只读源的内容和属性。Windows HTTP 接收及批次部分发布另通过第 11 节集成检查；实际 LAN/Android 与最终界面仍待验收。
+`test/new-file-publisher.test.mjs` 覆盖真实非覆盖发布、已有/竞争文件保护、流长度与哈希、取消、unknown 和清理重试。每项复验独立只读源的内容和属性；Windows HTTP 接收及批次部分发布另见第 11 节。
 
-所有权与写授权均不跨进程保存。崩溃或强制退出可能留下目标卷候选；重启不扫描、猜测或删除此类条目，也不恢复旧任务，需另行核实。正常退出/失败/取消的进程内清理已验证，跨进程候选恢复、真实断电、其他文件系统及大文件资源实测仍保留缺口。Node 路径检查不提供对恶意并发重排命名空间的内核级隔离。
+所有权与写授权只在当前进程内有效。崩溃或强制退出可能留下目标卷候选；重启后会保留现状，由人核实，不按名称猜测或删除，也不恢复旧任务。正常退出、失败和取消时的进程内清理已验证；跨进程候选恢复、真实断电、其他文件系统及大文件资源还没实测。Node 路径检查不提供对恶意并发重排命名空间的内核级隔离。
 
 ## 11. HTTP 接收与批次结果
 
-可信主进程通过 `new WindowsHttpService(source, archive, { publisher })` 启用 Windows receiver；archive 须支持 receive。未注入时保持只读服务。设备能力表示是否有接收适配，实际目标仍须由本机 `publisher.grant(rootId)` 授权；HTTP 没有 grant、任意路径或远程覆盖入口。当前应用初始化时注入适配器，但不自动监听、不自动授予写权限，最终操作界面留后续包。
+可信主进程通过 `new WindowsHttpService(source, archive, { publisher })` 启用 Windows receiver；archive 须支持 receive。未注入时服务保持只读。设备能力表示是否有接收适配，实际目标仍须由本机 `publisher.grant(rootId)` 授权。HTTP 没有 grant、任意路径或远程覆盖入口。当前应用初始化时会注入适配器，但不会自动监听或授予写权限；最终操作界面还没完成。
 
 ```ts
 // source、archive 和专用测试根由可信主进程准备；写权限不从网络请求取得。
@@ -210,18 +210,18 @@ await service.stop()
 await publisher.stop()
 ```
 
-POST uploads 严格验证 ReceiveBatchRequest，逐项调用只读目标预检并以物理父目录/小写名称键检查重复实际目标。异步预检期间保留进程名额，同 ID 并发只接受一次；失败不占已用 ID，成功后进入 awaiting-content 并返回 201。源端引用只作清单上下文，不解析成本机路径。201 不代表存在归档或已写入文件。
+POST uploads 严格验证 ReceiveBatchRequest，逐项调用只读目标预检，并以物理父目录/小写名称键检查重复实际目标。异步预检期间保留进程名额，同 ID 并发只接受一次；失败不占已用 ID，成功后进入 awaiting-content 并返回 201。源端引用只作清单上下文，不解析成本机路径。201 表示任务已登记；此时还没有归档，也没有写入文件。
 
 PUT content 只允许 receiver awaiting-content，校验唯一的 application/gzip、Content-Length 和 x-archive-sha256 与已登记压缩体一致；拒绝 Transfer-Encoding、Content-Encoding、Range、歧义头和非法参数。头校验成功后在任何 await 前领取唯一内容入口。接收通过不超过 64 KiB 的输入桥流向原生归档，按背压暂停/继续读取；取消、连接断开或超时显式结束接收等待，不依赖下一块数据到达。
 
-`ArchiveReceiveOptions.onArchiveStored` 是原生检查点，只在压缩体完整落盘、正常消息结束且长度/SHA-256 匹配后触发。HTTP 在此返回 202 的 verifying 快照；gzip/tar/CRC/全部逐文件原文尚未全部确认时不能报告成功。归档适配继续异步完成受限解包和完整校验，只有返回已验证句柄后，`upload-receiver.ts` 才按清单顺序调用独立发布模块。发布前整批校验失败不进行目标发布，结果全部为 not-attempted/batch-invalid；用户取消则标明 cancelled。
+`ArchiveReceiveOptions.onArchiveStored` 是原生检查点，只在压缩体完整落盘、正常消息结束且长度/SHA-256 匹配后触发。HTTP 在此返回 202 的 verifying 快照；此时 gzip、tar、CRC 和逐文件原文还没全部确认。归档适配继续异步完成受限解包和完整校验，返回已验证句柄后，`upload-receiver.ts` 才按清单顺序调用独立发布模块。整批校验失败时不发布目标，结果全部为 not-attempted/batch-invalid；用户取消则标明 cancelled。
 
-任务注册表复用 sender 的会话、单次 ID、通用查询/取消和进程名额，receiver 等内容期限为 2 分钟，总期限 30 分钟、网络无进展 60 秒。查询不续期；终态/清单保留 10 分钟后清除，已用 ID 保留到服务停止。完整消息收齐之后，响应连接丢失不取消本机后续校验/发布；调用者查询实际结果，不能重放 PUT 或 POST。服务重启清除会话任务，不恢复旧请求；同进程 publisher 的授权单独存活到 revoke/stop，应用退出同时停止两者。
+任务注册表复用 sender 的会话、单次 ID、通用查询/取消和进程名额，receiver 等内容期限为 2 分钟，总期限 30 分钟、网络无进展 60 秒。查询不续期；终态/清单保留 10 分钟后清除，已用 ID 保留到服务停止。完整消息收齐后，即使响应连接丢失，本机仍继续校验和发布；调用者查询实际结果，POST/PUT 不重放。服务重启会清除会话任务，不恢复旧请求；同进程 publisher 的授权独立存活到 revoke/stop，应用退出时两者一起停止。
 
-receiver 的 sourceBytesRead 始终为 0，接收/原文校验/最终发布字节分别计数，文件成功必须匹配本次 SHA-256、根、父目录、名称和实际条目。前项成功、当前失败/取消/unknown 与后项未尝试逐项反馈；首项非成功后停止继续发布。最后一个文件在取消竞争中仍完整发布并回读成功时，可按实际结果报告 succeeded，不伪造回滚。unknown 和空残留数组都不能证明没有写入。
+receiver 的 sourceBytesRead 始终为 0，接收/原文校验/最终发布字节分别计数，文件成功必须匹配本次 SHA-256、根、父目录、名称和实际条目。前项成功、当前失败/取消/unknown 与后项未尝试逐项反馈；首项非成功后停止继续发布。最后一个文件在取消竞争中仍完整发布并回读成功时，按实际结果报告 succeeded；已经发布的文件不回滚。结果 unknown 或残留列表为空时，都可能有未确认写入，要重读目标确认。
 
 发布或缓存清理失败独立报告，已确认成功项不改报未写入；即使全部成功，清理失败仍保留进程名额。前项候选清理阻止继续发布时，已成功项保留，下一项报告无法启动的 cleanup-failed，后项为 prior-failure。明确调用 service.retryCleanup 后才释放任务名额；原生发布和归档各自只清理确知所有权的内容，目标文件不回滚。
 
-`test/http-receiver.test.mjs` 的 29 项专项使用独立 Python 格式夹具、真实回环 HTTP/TCP 和自有源/目标/缓存，覆盖两阶段确认、未授权/重复目标/并发 ID、单次 PUT/严格头、实际哈希/非法末尾、全部校验前零发布、部分失败/取消/unknown、私有及候选清理失败、响应丢失、连接中断/无进展/总期限、预检/收体期间停止、重启和超过缓冲区的不可压缩上传。原有 25 项 sender 回归继续通过，源内容和属性逐项复验。
+`test/http-receiver.test.mjs` 使用独立格式夹具、真实回环 HTTP/TCP 和自有源/目标/缓存，覆盖两阶段确认、单次 PUT、全部校验前零发布、部分失败/取消/unknown、响应丢失、停止与重启。sender 相关回归继续通过，源内容和属性逐项复验。
 
-这是 Windows receiver 的本地闭环，尚非 Android/实际 LAN 或完整同步产品验收。SAF 写入、Android 前台/网络、其他文件系统/特殊名称等价、跨进程候选恢复、全量 GiB/峰值内存和最终界面仍保留缺口；真实存档没有写入。后续 Java 归档复用固定夹具，再接入 SAF 与 Android 网络。
+以上是 Windows receiver 的本地验证。双端正式 LAN 已按移动说明完成；其他文件系统、特殊名称等价、跨进程候选恢复、全量 GiB、峰值内存和最终界面仍有缺口。真实存档没有写入。

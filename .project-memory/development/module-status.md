@@ -19,26 +19,26 @@ related_files: []
 
 ## 1. 当前模块
 
-已实现工程基础设施、双端空壳、本地/批量共享契约、双端目录读取、Windows 私有归档及 HTTP sender；Windows 原生非覆盖发布及 HTTP receiver 批次编排已实现；Java 私有归档与 SAF 单文件发布已实现并完成实际 API 33 集成；Android HTTP、任务编排和持续通知已实现；最终界面与同步流程尚未实现。后续顺序见[路线图](../project/roadmap.md)与[工作包](work-packages.md)。双端真实目录只读检查通过；Android API 33 与 API 35 的选择/取消和重启授权恢复分别通过，API 29 与其它提供者仍待矩阵验证。done 仅表示对应模块范围完成，不代表完整产品可用。
+工程基础设施、双端空壳、本地/批量共享模型、双端目录读取、Windows 私有归档及 HTTP sender 已经可用；Windows 原生非覆盖发布及 HTTP receiver 批次编排可用；Java 私有归档与 SAF 单文件发布完成实际 API 33 集成；Android HTTP、任务编排和持续通知可用；最终界面与同步流程还没完成。后续顺序见[路线图](../project/roadmap.md)与[工作包](work-packages.md)。双端真实目录只读检查通过；Android API 33 与 API 35 的选择/取消和重启授权恢复通过，API 29 与其它提供者还要验证。done 表示模块范围内的工作完成；完整产品仍取决于未完成工作包。
 
 | 模块 | 状态 | 负责人 | 相关文件 | 风险 | 下一步 |
 | --- | --- | --- | --- | --- | --- |
-| Android HTTP 与持续通知 | done | 开发 | TransferJson/Schema/Http/Engine、HttpTransfersPlugin、TransferRuntime/Service、SafRuntime、TS 桥及既有检查 | 全校验前不发布，sender sent 与 receiver 成功分开；应用级任务持有，Activity 暂停/销毁不取消，通知显式取消；不自动调度/重放 | 77 项 Java、11 项桥、lint/双 APK/互通、pnpm check 与 TC-035 正式 LAN/后台/重连/取消/外部内容属性核对通过；供 WP-007 界面复用 |
+| Android HTTP 与持续通知 | done | 开发 | TransferJson/Schema/Http/Engine、HttpTransfersPlugin、TransferRuntime/Service、SafRuntime、TS 桥及最小检查 | 全校验前不发布，sender sent 与 receiver 成功分开；应用级任务持有，Activity 暂停/销毁时任务继续，通知提供显式取消；任务只由用户发起，不调度或重放旧任务 | Java/TS 桥、lint/双 APK/互通及 TC-011 的正式 LAN、后台、重连、取消和外部内容属性核对通过；供 WP-007 界面复用 |
 | 工作区与质量配置 | done | 开发 | 根目录配置、packages/shared、scripts/check-text.mjs | — | 维护质量检查与固定依赖 |
-| Android SAF 单文件发布 | done | 开发 | NewFilePublisher、PublicationModel/Json、SafPublicationBackend/DirectoryStore、单元/仪器测试及 debug 授权夹具 | 提供者不保证排他创建；未知归属不得写入/删除，不跨进程恢复目标所有权；仅明确授权合成根 | 28 项专项/Java 共 58、lint/双 APK/原生互通及 2 项 API 33 设备、12 个共享守卫结果与外部逐字节/控制属性核对通过；本地提交已授权，供 WP-006 原生 HTTP 复用 |
-| 双端系统明暗主题 | done | 开发 | 桌面 App/use-system-dark-mode/main/style；移动 system-theme/main/style、MainActivity、日夜主题/颜色资源、ThemeTest | 当前跟随系统，不增加手动开关或主题偏好存储 | 双端 8 组浏览器初次/动态切换和 API 33 真机深→浅→深、原生背景/系统栏同步通过；antd lint、pnpm check 及 Android 构建检查通过；本轮已获本地提交授权 |
-| 本地设备/目录共享模型 | done | 开发 | packages/shared/src/contracts.ts、validation.ts、protocol.ts | 纯 DTO 不保证平台权限/实际 IO | 本地 DTO 与有限桥继续复用，传输使用独立批量模型 |
-| 共享批量契约 | done | 开发 | packages/shared/src/batch-*.ts、data-validation.ts、test、README.md | 只验证数据/上下文，不解析归档/JSON 文本或执行网络、发布、计时 | v1 批量模型、32 项运行时与 16 项类型反例通过；供后续 HTTP/Java 归档包复用 |
-| Windows 私有归档 | done | 开发 | apps/desktop/src/main/archive-*.ts、目录读流、test/fixtures/archive-v1.json、归档测试、README.md | 归档模块不负责 HTTP/目标发布；没有全量 GiB 或峰值内存/功耗证据；不承诺恶意并发命名空间隔离 | 20 项归档专项通过，源只读、缓存独占/所有权/取消与重试成立；HTTP sender/receiver 与新文件发布已复用 |
-| Windows HTTP sender 与任务注册 | done | 开发 | apps/desktop/src/main/http-*.ts、transfer-registry.ts、index.ts、HTTP 集成测试 | 默认不监听；真实 LAN/Android 已通过 TC-035，最终界面待 WP-007 | 25 项回环/TCP 与原生期限/清理专项通过，已提交 096dfec；receiver 已由 WP-005 集成 |
-| Windows 原生新文件发布 | done | 开发 | new-file-publisher.ts、publication-errors.ts、目录原生定位、退出收尾及专项测试 | 仅明确授权的独立测试根；原生模块不处理 HTTP/UI、覆盖或目录删除；不跨进程恢复候选所有权 | 24 项专项通过，HTTP receiver 已复用；不支持 link 时失败；其他卷/名称等价、强杀恢复与资源矩阵缺口保留 |
-| Windows HTTP receiver 与批次发布 | done | 开发 | upload-receiver.ts、transfer-registry.ts、http-*.ts、archive-adapter.ts、test/http-receiver.test.mjs | 默认不监听/授予写权限；202 只确认压缩体，须查询终态；不自动重放或回滚目标；LAN/Android 已通过 TC-035，资源规模待 WP-008 | 29 项专项及 pnpm check（114 桌面/32 共享/5 移动桥与双端构建）通过；已提交 9c4614c；Java 归档与 SAF 单文件发布均已完成，HTTP/通知已由 WP-006 集成，下一 WP-007 |
-| Android 私有归档 | done | 开发 | ArchiveAdapter/Model/Format/Cache/Control/Failure.java、SafArchiveSource.java、单元/仪器测试与互通脚本 | 仅原生归档与私有缓存，不承担 JSON/HTTP/目标发布或前台网络调度；固定预算是技术限制 | 25 项归档 JVM、lint/双 APK、5 项 API 33 设备、Windows/JVM/设备互通及实际 SAF 四份原文/源属性复核通过；由 WP-006 复用；目标发布已由 WP-010 独立实现/设备验证 |
-| Windows 目录读取适配 | done | 开发 | apps/desktop/src/main/directory-*.ts、src/directory-bridge.ts、preload、test | 无源目录写入或 HTTP；系统选择器人工交互待界面阶段；路径检查不提供恶意并发命名空间隔离 | 16 项目录/IPC 测试、真实目录只读校验及 preload 构建隔离加载通过；原生定位/身份/元数据供独立发布适配复用，读取桥不增加写入口 |
-| Windows 空壳 | done | 开发 | apps/desktop | 尚无项目管理、服务控制和最终目录操作界面 | WP-007 接入目录与传输验证界面 |
-| Android 网页空壳 | done | 开发 | apps/mobile/src、Vite/Capacitor 配置 | SAF 桥已存在，界面尚未接入目录按钮或同步功能 | 在业务实现授权后继续 |
-| Java SAF 读取适配 | done | 开发 | apps/mobile/README.md、原生插件、src/saf-* 与测试 | 无写入/HTTP；API 29、其它提供者及实际撤权/目录移除待矩阵；流调用者必须关闭资源 | 5 项桥、Java 单元、lint/双 APK、API 35 真实目录及 API 33 合成夹具验证通过；属性边界见回归状态；写入由独立 WP-010 模块实现/设备验证，读取桥保持只读 |
-| Android 原生工程与审计 | done | 开发 | apps/mobile/android、scripts/android-inventory.gradle | 既有审计证据不代表全部系统/提供者能力通过 | 维持 pnpm android:test，依赖变化后复审 |
+| Android SAF 单文件发布 | done | 开发 | NewFilePublisher、PublicationModel/Json、SafPublicationBackend/DirectoryStore、单元测试及既有原生集成 | 排他创建取决于提供者能力；未知归属不写入或删除，目标所有权只在当前进程内有效；写入限定在明确授权的合成根 | 单元、lint/双 APK/原生互通及 API 33 实际 SAF 发布、外部原文与控制属性核对通过；供 WP-006 原生 HTTP 复用 |
+| 双端系统明暗主题 | done | 开发 | 桌面 App/use-system-dark-mode/main/style；移动 system-theme/main/style、MainActivity、日夜主题/颜色资源 | 当前跟随系统，不增加手动开关或主题偏好存储 | 双端浏览器与 API 33 真机的初次加载、动态切换、原生背景和系统栏同步已通过实际操作与截图验收；未保留界面自动化测试 |
+| 本地设备/目录共享模型 | done | 开发 | packages/shared/src/contracts.ts、validation.ts、protocol.ts | 纯 DTO 只描述数据；平台权限和实际 IO 由适配器处理 | 本地 DTO 与有限桥继续复用，传输使用独立批量模型 |
+| 共享批量模型 | done | 开发 | packages/shared/src/batch-*.ts、data-validation.ts、test、README.md | 处理数据与上下文；归档/JSON 解析、网络、发布和计时由其他模块负责 | v1 批量模型与稳定数据关系测试通过；供 HTTP、Java 归档和原生发布复用 |
+| Windows 私有归档 | done | 开发 | apps/desktop/src/main/archive-*.ts、目录读流、test/fixtures/archive-v1.json、归档测试、README.md | 归档模块只处理私有缓存；HTTP 和目标发布由其他模块负责。全量 GiB、峰值内存/功耗还没测；恶意并发重排命名空间不在隔离范围内 | 源只读、缓存独占/所有权/取消与重试成立；独立格式夹具与 HTTP/发布模块复用通过 |
+| Windows HTTP sender 与任务注册 | done | 开发 | apps/desktop/src/main/http-*.ts、transfer-registry.ts、index.ts、HTTP 回归 | 默认不监听；真实 LAN/Android 已通过 TC-007，最终界面待 WP-007 | 最小 HTTP 回归覆盖公开协议、单次领取、期限和清理；receiver 已由 WP-005 集成 |
+| Windows 原生新文件发布 | done | 开发 | new-file-publisher.ts、publication-errors.ts、目录原生定位、退出收尾及回归 | 写入限定在明确授权的独立测试根；HTTP/UI、覆盖和目录删除由其他模块处理；候选所有权只在当前进程内有效 | 非覆盖发布、最终回读和清理回归通过；不支持 link 时失败；其他卷、名称等价与强杀恢复仍待验证 |
+| Windows HTTP receiver 与批次发布 | done | 开发 | upload-receiver.ts、transfer-registry.ts、http-*.ts、archive-adapter.ts、test/http-receiver.test.mjs | 服务默认不监听，也不授予写权限；202 确认压缩体已收齐，终态另行查询；请求只查询，目标不回滚；LAN/Android 已通过 TC-007，资源规模待 WP-008 | 最小接收回归及双端构建通过；Java 归档、SAF 发布和 Android HTTP 已集成，下一 WP-007 |
+| Android 私有归档 | done | 开发 | ArchiveAdapter/Model/Format/Cache/Control/Failure.java、SafArchiveSource.java、单元/设备测试与互通脚本 | 处理原生归档与私有缓存；JSON/HTTP、目标发布和前台网络调度由其他模块负责；固定预算是技术限制 | Java 单元、lint/双 APK、固定夹具、实际 SAF 快照与 Windows/JVM 互通通过；由 WP-006 复用 |
+| Windows 目录读取适配 | done | 开发 | apps/desktop/src/main/directory-*.ts、src/directory-bridge.ts、preload、test | 源目录只读；系统选择器人工交互留到界面阶段；路径检查覆盖可观察边界，恶意并发重排命名空间不在隔离范围内 | 目录/IPC 回归、真实目录只读校验及 preload 构建隔离加载通过；原生定位与元数据供发布适配复用 |
+| Windows 空壳 | done | 开发 | apps/desktop | 界面目前为空壳；项目管理、服务控制和目录操作还没做 | WP-007 完成目录与传输验证界面 |
+| Android 网页空壳 | done | 开发 | apps/mobile/src、Vite/Capacitor 配置 | SAF 桥可用；界面还没有目录按钮或同步功能 | 在业务实现授权后继续 |
+| Java SAF 读取适配 | done | 开发 | apps/mobile/README.md、原生插件、src/saf-* 与最小回归 | 只开放只读读取；API 29、其它提供者及实际撤权/目录移除还要验证；流调用者负责关闭资源 | TS 桥、Java 单元、lint/双 APK、API 35 真实目录及 API 33 合成夹具验证通过；属性边界见回归状态；读取桥保持只读 |
+| Android 原生工程与审计 | done | 开发 | apps/mobile/android、scripts/android-inventory.gradle | 审计覆盖依赖公告；系统/提供者能力另按设备验证 | 维持 pnpm android:test，依赖变化后复审 |
 | 工具链安全检查 | done | 开发 | scripts/security-*、scripts/toolchain-policy* | — | 依赖变更后重新审计与构建 |
 
 ## 2. 状态说明

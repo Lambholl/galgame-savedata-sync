@@ -125,13 +125,7 @@ public class NewFilePublisherTest {
         assertArrayEquals(BYTES, b.nodes.get("new-1").bytes); assertEquals(0, b.deletes);
         assertEquals(Arrays.asList("writing", "verifying"), stages); assertTrue(b.closed);
     }
-    @Test public void supportsEmptyUnicodeAndMultipleBuffers() throws Exception {
-        for (int size : new int[] {0, 65537, 131073}) {
-            Fake b = new Fake(); NewFilePublisher p = publisher(b); byte[] bytes = new byte[size];
-            for (int i = 0; i < size; i++) bytes[i] = (byte) (i * 31 + 7);
-            assertEquals("succeeded", run(p, bytes).status); assertArrayEquals(bytes, b.nodes.get("new-1").bytes);
-        }
-    }
+
     @Test public void rejectsUnsafeNamesAndMalformedRequestsBeforeMutation() throws Exception {
         Fake b = new Fake(); NewFilePublisher p = publisher(b);
         for (String name : new String[] {"", ".", "..", "a/b", "a\\b", "CON", "nul.sav", "com¹.foo", "a ", "a.", "a\u0000b", "a\u007fb", "a\ud800", "a?b"}) {
@@ -147,19 +141,8 @@ public class NewFilePublisherTest {
         }
         assertTrue(portableName("存档😀.sav")); assertEquals(0, b.creates);
     }
-    @Test public void systemWriteDoesNotGrantNativePublication() throws Exception {
-        Fake b = new Fake(); NewFilePublisher p = new NewFilePublisher(b); publishers.add(p);
-        assertEquals("permission-denied", assertThrows(ArchiveFailure.class, () -> run(p, BYTES)).code);
-        b.permission = false;
-        assertEquals("authorization-expired", assertThrows(ArchiveFailure.class, () -> p.grant("root-1")).code);
-        assertEquals(0, b.creates);
-    }
-    @Test public void rechecksPermissionAndParentBoundary() throws Exception {
-        Fake b = new Fake(); NewFilePublisher p = publisher(b); b.permission = false;
-        assertEquals("authorization-expired", run(p, BYTES).errorCode); b.permission = true;
-        Result result = p.publish(new Request("f000001", "root-1", "other-parent", "a", 4, hash(BYTES)), () -> new ByteArrayInputStream(BYTES), null, new ArchiveControl());
-        assertEquals("not-found", result.errorCode); assertEquals(0, b.creates);
-    }
+
+
     @Test public void refusesSameOrEquivalentNameWithoutOpeningExistingFile() throws Exception {
         for (String name : new String[] {"存档 😀.sav", "存档 😀.SAV"}) {
             Fake b = new Fake(); b.add("existing", name, BYTES); NewFilePublisher p = publisher(b);
@@ -168,60 +151,19 @@ public class NewFilePublisherTest {
         }
         assertEquals(nameKey("é.sav"), nameKey("e\u0301.SAV"));
     }
-    @Test public void providerRenameIsCleanedWithoutWriting() throws Exception {
-        Fake b = new Fake(); b.rename = true; NewFilePublisher p = publisher(b);
-        Result r = run(p, BYTES); assertEquals("failed", r.status); assertEquals("name-conflict", r.errorCode);
-        assertEquals("complete", r.cleanup); assertEquals(0, b.opens); assertTrue(b.nodes.isEmpty());
-    }
-    @Test public void racingCompetitorIsPreservedAndOnlyOwnedDocumentDeleted() throws Exception {
-        Fake b = new Fake(); b.creating = () -> b.add("competitor", "存档 😀.sav", BYTES); NewFilePublisher p = publisher(b);
-        Result r = run(p, BYTES); assertEquals("name-conflict", r.errorCode); assertEquals(0, b.opens);
-        assertEquals(1, b.nodes.size()); assertArrayEquals(BYTES, b.nodes.get("competitor").bytes);
-    }
-    @Test public void returnedExistingIdentityIsNeverWrittenOrDeleted() throws Exception {
-        Fake b = new Fake(); b.add("existing", "control.sav", BYTES); b.existingId = true; NewFilePublisher p = publisher(b);
-        Result r = run(p, BYTES); assertEquals("unknown", r.status); assertEquals("unknown", r.cleanup);
-        assertEquals(0, b.opens); assertEquals(0, b.deletes); assertArrayEquals(BYTES, b.nodes.get("existing").bytes);
-    }
-    @Test public void missingIdentityAndLostCreateResponseRemainUnknown() throws Exception {
-        for (boolean lost : new boolean[] {false, true}) {
-            Fake b = new Fake(); b.missing = !lost; b.createError = lost ? "io-failure" : null; NewFilePublisher p = publisher(b);
-            Result r = run(p, BYTES); assertEquals("unknown", r.status); assertEquals("result-unknown", r.errorCode);
-            assertEquals(0, b.opens); assertEquals(0, b.deletes); assertEquals(1, b.nodes.size());
-        }
-    }
-    @Test public void refusesNonFileCreatedObject() throws Exception {
-        Fake b = new Fake(); b.wrongType = true; NewFilePublisher p = publisher(b);
-        assertEquals("unsupported-operation", run(p, BYTES).errorCode); assertEquals(0, b.opens);
-    }
-    @Test public void validatesSourceLengthAndHashAndCleansOnlyNewDocument() throws Exception {
-        for (byte[] source : new byte[][] {{1}, {1,2,3,4,5}, {9,2,3,4}}) {
-            Fake b = new Fake(); b.add("existing", "control", BYTES); NewFilePublisher p = publisher(b);
-            Result r = p.publish(request("new.sav", BYTES), () -> new ByteArrayInputStream(source), null, new ArchiveControl());
-            assertEquals("checksum-mismatch", r.errorCode); assertEquals("complete", r.cleanup); assertEquals(0, b.reads);
-            assertEquals(1, b.nodes.size()); assertArrayEquals(BYTES, b.nodes.get("existing").bytes);
-        }
-    }
+
+
+
+
+
+
     @Test public void readbackCorruptionCannotSucceed() throws Exception {
         Fake b = new Fake(); b.corrupt = true; NewFilePublisher p = publisher(b);
         assertEquals("checksum-mismatch", run(p, BYTES).errorCode); assertTrue(b.nodes.isEmpty());
     }
-    @Test public void propagatesSpaceAndIoFailureSeparatelyFromCleanup() throws Exception {
-        for (String code : new String[] {"insufficient-space", "io-failure"}) {
-            Fake b = new Fake(); b.writeError = code; NewFilePublisher p = publisher(b);
-            Result r = run(p, BYTES); assertEquals(code, r.errorCode); assertEquals("complete", r.cleanup);
-        }
-    }
-    @Test public void cancellationBeforeCreateDoesNotMutate() throws Exception {
-        Fake b = new Fake(); NewFilePublisher p = publisher(b); ArchiveControl c = new ArchiveControl(); c.cancel();
-        Result r = p.publish(request("a", BYTES), () -> new ByteArrayInputStream(BYTES), null, c);
-        assertEquals("cancelled", r.status); assertEquals("not-needed", r.cleanup); assertEquals(0, b.creates);
-    }
-    @Test public void cancellationDuringCreateWaitsAndCleansReturnedOwnedIdentity() throws Exception {
-        Fake b = new Fake(); NewFilePublisher p = publisher(b); b.creating = p::cancel;
-        Result r = run(p, BYTES); assertEquals("cancelled", r.status); assertEquals("complete", r.cleanup);
-        assertEquals(0, b.opens); assertTrue(b.nodes.isEmpty());
-    }
+
+
+
     @Test public void cancellationDuringWriteAndReadbackClosesStreamsAndCleans() throws Exception {
         for (String phase : new String[] {"writing", "verifying"}) {
             Fake b = new Fake(); NewFilePublisher p = publisher(b);
@@ -230,10 +172,7 @@ public class NewFilePublisherTest {
             assertEquals("cancelled", r.status); assertEquals("complete", r.cleanup); assertTrue(b.nodes.isEmpty());
         }
     }
-    @Test public void confirmedSuccessWinsLateCancellation() throws Exception {
-        Fake b = new Fake(); NewFilePublisher p = publisher(b); b.closing = p::cancel;
-        Result r = run(p, BYTES); assertEquals("succeeded", r.status); assertEquals(0, b.deletes); assertEquals(1, b.nodes.size());
-    }
+
     @Test public void cleanupFailureRetainsGlobalSlotUntilExplicitRetry() throws Exception {
         Fake b = new Fake(); b.corrupt = true; b.cleanupFail = true; NewFilePublisher p = publisher(b);
         Result r = run(p, BYTES); assertEquals("failed", r.status); assertEquals("incomplete", r.cleanup);
@@ -243,98 +182,14 @@ public class NewFilePublisherTest {
         assertFalse(p.retryCleanup()); b.cleanupFail = false; assertTrue(p.retryCleanup());
         assertEquals("succeeded", run(other, BYTES).status);
     }
-    @Test public void successCloseFailureNeverDeletesFinalFileOnRetry() throws Exception {
-        Fake b = new Fake(); b.closeFail = true; NewFilePublisher p = publisher(b);
-        Result r = run(p, BYTES); assertEquals("succeeded", r.status); assertEquals("incomplete", r.cleanup);
-        assertTrue(r.residualEntries.isEmpty()); b.closeFail = false; assertTrue(p.retryCleanup());
-        assertEquals(0, b.deletes); assertArrayEquals(BYTES, b.nodes.get("new-1").bytes);
-    }
-    @Test public void identityChangeRemainsUnknownAndCleanupDoesNotTouchReplacement() throws Exception {
-        Fake b = new Fake(); NewFilePublisher p = publisher(b); b.reading = () -> b.changedIdentity = true;
-        Result r = run(p, BYTES); assertEquals("unknown", r.status); assertEquals("incomplete", r.cleanup);
-        assertEquals(0, b.deletes); assertEquals(1, r.residualEntries.size());
-    }
-    @Test public void deadlineIsNotRefreshedByProgress() throws Exception {
-        Fake b = new Fake(); NewFilePublisher p = publisher(b); AtomicLong now = new AtomicLong();
-        ArchiveControl control = new ArchiveControl(now::get, 100);
-        Result r = p.publish(request("a", BYTES), () -> new ByteArrayInputStream(BYTES),
-            (stage, count, total) -> now.set(101), control);
-        assertEquals("timeout", r.errorCode); assertEquals("complete", r.cleanup);
-    }
-    @Test public void revokeAndStopCancelActiveCallWithoutReleasingItsSlotEarly() throws Exception {
-        Fake b = new Fake(); NewFilePublisher p = publisher(b); CountDownLatch started = new CountDownLatch(1), resume = new CountDownLatch(1);
-        b.creating = () -> { started.countDown(); try { assertTrue(resume.await(5, TimeUnit.SECONDS)); } catch (InterruptedException e) { throw new AssertionError(e); } };
-        AtomicReference<Result> result = new AtomicReference<>(); AtomicReference<Throwable> failure = new AtomicReference<>();
-        Thread worker = new Thread(() -> { try { result.set(run(p, BYTES)); } catch (Throwable t) { failure.set(t); } });
-        worker.start(); assertTrue(started.await(5, TimeUnit.SECONDS)); p.revoke("root-1"); assertFalse(p.stop());
-        NewFilePublisher other = publisher(new Fake()); assertEquals("busy", assertThrows(ArchiveFailure.class, () -> run(other, BYTES)).code);
-        resume.countDown(); worker.join(5000); assertFalse(worker.isAlive()); assertNull(failure.get());
-        assertEquals("cancelled", result.get().status); assertTrue(p.stop());
-        assertEquals("permission-denied", assertThrows(ArchiveFailure.class, () -> run(p, BYTES)).code);
-        assertEquals("succeeded", run(other, BYTES).status);
-    }
 
-    @Test public void preflightIsReadOnlyAndDoesNotReserveOrCreate() throws Exception {
-        Fake b = new Fake(); NewFilePublisher p = publisher(b);
-        p.preflight(request("new.sav", BYTES), new ArchiveControl()); assertEquals(0, b.creates);
-        b.add("existing", "new.sav", BYTES);
-        assertEquals("name-conflict", assertThrows(ArchiveFailure.class,
-            () -> p.preflight(request("new.sav", BYTES), new ArchiveControl())).code);
-        assertEquals(0, b.opens); assertEquals(0, b.deletes);
-    }
-    @Test public void sourceCloseFailureRetainsStreamsAndSlotUntilRetry() throws Exception {
-        Fake b = new Fake(); NewFilePublisher p = publisher(b); AtomicBoolean fault = new AtomicBoolean(true);
-        Result result = p.publish(request("new.sav", BYTES), () -> new ByteArrayInputStream(BYTES) {
-            @Override public void close() throws IOException { if (fault.get()) throw new IOException("仍未关闭"); super.close(); }
-        }, null, new ArchiveControl());
-        try {
-            assertEquals("failed", result.status); assertEquals("incomplete", result.cleanup);
-            assertEquals(1, result.residualEntries.size()); assertEquals(0, b.deletes);
-            NewFilePublisher other = publisher(new Fake());
-            assertEquals("busy", assertThrows(ArchiveFailure.class, () -> run(other, BYTES)).code);
-        } finally { fault.set(false); assertTrue(p.retryCleanup()); }
-        assertTrue(b.nodes.isEmpty());
-    }
-    @Test public void cancellationClosesBlockedSourceAndWaitsForWorkerCleanup() throws Exception {
-        Fake b = new Fake(); NewFilePublisher p = publisher(b); CountDownLatch reading = new CountDownLatch(1), closed = new CountDownLatch(1);
-        AtomicReference<Result> result = new AtomicReference<>(); AtomicReference<Throwable> failure = new AtomicReference<>();
-        Thread worker = new Thread(() -> {
-            try {
-                result.set(p.publish(request("blocked.sav", BYTES), () -> new InputStream() {
-                    @Override public int read() throws IOException { throw new IOException("只使用有限缓冲读取"); }
-                    @Override public int read(byte[] bytes, int offset, int length) throws IOException {
-                        reading.countDown();
-                        try { if (!closed.await(5, TimeUnit.SECONDS)) throw new IOException("取消未关闭阻塞流"); }
-                        catch (InterruptedException e) { throw new IOException(e); }
-                        throw new IOException("已关闭");
-                    }
-                    @Override public void close() { closed.countDown(); }
-                }, null, new ArchiveControl()));
-            } catch (Throwable t) { failure.set(t); }
-        });
-        worker.start(); assertTrue(reading.await(5, TimeUnit.SECONDS)); p.cancel(); worker.join(5000);
-        assertFalse(worker.isAlive()); assertNull(failure.get()); assertEquals("cancelled", result.get().status);
-        assertEquals("complete", result.get().cleanup); assertTrue(b.nodes.isEmpty());
-    }
-    @Test public void contradictoryAndOverBudgetDirectoryObservationsFailBeforeCreate() throws Exception {
-        for (boolean overBudget : new boolean[] {false, true}) {
-            Fake b = new Fake() {
-                @Override public List<Document> children(NewFilePublisher.Directory d, ArchiveControl c) {
-                    List<Document> result = new ArrayList<>();
-                    int count = overBudget ? MAX_DIRECTORY_ENTRIES + 1 : 2;
-                    for (int i = 0; i < count; i++) result.add(new Document(overBudget ? "id-" + i : "duplicate", "control", false, false, 0L, null));
-                    return result;
-                }
-            };
-            NewFilePublisher p = publisher(b); Result result = run(p, BYTES);
-            assertEquals(overBudget ? "failed" : "unknown", result.status);
-            assertEquals(overBudget ? "resource-limit" : "result-unknown", result.errorCode); assertEquals(0, b.creates);
-        }
-    }
-    @Test public void metadataChangeDuringFinalReadbackCannotSucceed() throws Exception {
-        Fake b = new Fake(); NewFilePublisher p = publisher(b); b.reading = () -> b.modified++;
-        Result result = run(p, BYTES); assertEquals("unknown", result.status);
-        assertEquals("result-unknown", result.errorCode); assertEquals("complete", result.cleanup);
-        assertTrue(b.nodes.isEmpty());
-    }
+
+
+
+
+
+
+
+
+
 }

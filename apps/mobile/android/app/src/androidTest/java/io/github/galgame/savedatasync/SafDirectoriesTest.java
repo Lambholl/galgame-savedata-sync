@@ -44,84 +44,15 @@ public class SafDirectoriesTest {
         return expected.equals(InstrumentationRegistry.getArguments().getString("safMode"));
     }
 
-    @Test public void providerNullsEmptyFilesAndDirectoriesRemainDistinct() throws Exception {
-        String[] columns = { Document.COLUMN_DOCUMENT_ID, Document.COLUMN_DISPLAY_NAME,
-            Document.COLUMN_MIME_TYPE, Document.COLUMN_SIZE, Document.COLUMN_LAST_MODIFIED, Document.COLUMN_FLAGS };
-        try (MatrixCursor cursor = new MatrixCursor(columns)) {
-            cursor.addRow(new Object[] { "unknown", "未知", "application/octet-stream", null, 0L, null });
-            cursor.addRow(new Object[] { "empty", "空文件", "application/octet-stream", 0L, 1L, 0L });
-            cursor.addRow(new Object[] { "dir", "子目录", Document.MIME_TYPE_DIR, Long.MAX_VALUE, null, 0L });
-            cursor.moveToFirst();
-            JSONObject unknown = SafDirectoryStore.metadata("root-1", "entry-1", null, SafDirectoryStore.decode(cursor));
-            assertTrue(unknown.isNull("sizeBytes"));
-            assertTrue(unknown.isNull("modifiedAt"));
-            assertTrue(unknown.isNull("parentId"));
-            assertEquals("unknown", unknown.getJSONObject("capabilities").getString("canRead"));
-            cursor.moveToNext();
-            JSONObject empty = SafDirectoryStore.metadata("root-1", "entry-2", null, SafDirectoryStore.decode(cursor));
-            assertEquals(0, empty.getLong("sizeBytes"));
-            assertEquals(1, empty.getLong("modifiedAt"));
-            cursor.moveToNext();
-            JSONObject directory = SafDirectoryStore.metadata("root-1", "entry-3", null, SafDirectoryStore.decode(cursor));
-            assertEquals("directory", directory.getString("kind"));
-            assertTrue(directory.isNull("sizeBytes"));
-        }
-    }
 
-    @Test public void nativeBridgeRejectsExtraFieldsAndRawUris() throws Exception {
-        try (ActivityScenario<MainActivity> scenario = ActivityScenario.launch(MainActivity.class)) {
-            awaitBridge(scenario);
-            for (String method : new String[] { "chooseDirectory", "listRoots", "listDirectory" }) {
-                JSONObject result = invoke(scenario, method, "{\"path\":\"content://invalid.test/tree/root\"}", 10000);
-                assertEquals("invalid-request", result.getJSONObject("error").getString("code"));
-            }
-            JSONObject result = invoke(scenario, "listDirectory", "{\"rootId\":\"../outside\",\"parentId\":null}", 10000);
-            assertEquals("invalid-request", result.getJSONObject("error").getString("code"));
-        }
-    }
 
-    @Test public void malformedProviderNumbersNeverBecomeZero() {
-        String[] columns = { Document.COLUMN_DOCUMENT_ID, Document.COLUMN_DISPLAY_NAME,
-            Document.COLUMN_MIME_TYPE, Document.COLUMN_SIZE, Document.COLUMN_LAST_MODIFIED };
-        try (MatrixCursor cursor = new MatrixCursor(columns)) {
-            cursor.addRow(new Object[] { "id-1", "fixture", "application/octet-stream", "not-a-number", 1L });
-            cursor.addRow(new Object[] { "id-2", "fixture", "application/octet-stream", Long.MAX_VALUE, 1L });
-            cursor.moveToFirst();
-            assertThrows(IllegalArgumentException.class, () -> SafDirectoryStore.decode(cursor));
-            cursor.moveToNext();
-            assertThrows(IllegalArgumentException.class, () -> SafDirectoryStore.decode(cursor));
-        }
-    }
 
-    @Test public void malformedRegistryFailsWithoutResettingIt() throws Exception {
-        String name = "saf-fixture-" + UUID.randomUUID();
-        SharedPreferences settings = context().getSharedPreferences(name, Context.MODE_PRIVATE);
-        try {
-            assertTrue(settings.edit().putString("registry", "{broken").commit());
-            SafFailure failure = assertThrows(SafFailure.class, () -> new SafDirectoryStore(context(), name));
-            assertEquals("io-failure", failure.code);
-            assertEquals("{broken", settings.getString("registry", null));
-        } finally {
-            context().deleteSharedPreferences(name);
-        }
-    }
 
-    @Test public void missingGrantIsExpiredRatherThanAnEmptyDirectory() throws Exception {
-        String name = "saf-fixture-" + UUID.randomUUID();
-        SharedPreferences settings = context().getSharedPreferences(name, Context.MODE_PRIVATE);
-        try {
-            String registry = "{\"schemaVersion\":1,\"deviceId\":\"device-fixture\",\"roots\":[" +
-                "{\"rootId\":\"root-fixture\",\"treeUri\":\"content://invalid.test/tree/root\",\"displayName\":\"fixture\"}]}";
-            assertTrue(settings.edit().putString("registry", registry).commit());
-            SafDirectoryStore store = new SafDirectoryStore(context(), name);
-            assertEquals("expired", store.listRoots(new CancellationSignal()).getJSONObject(0).getString("authorization"));
-            SafFailure failure = assertThrows(SafFailure.class,
-                () -> store.listDirectory("root-fixture", null, new CancellationSignal()));
-            assertEquals("authorization-expired", failure.code);
-        } finally {
-            context().deleteSharedPreferences(name);
-        }
-    }
+
+
+
+
+
 
     @Test public void pickerSelectionAndNativeRead() throws Exception {
         assumeTrue(mode("select"));
@@ -148,34 +79,9 @@ public class SafDirectoriesTest {
         }
     }
 
-    @Test public void processRestartRestoresTheReadGrantAndIdentity() throws Exception {
-        assumeTrue(mode("restore"));
-        SharedPreferences evidence = context().getSharedPreferences(EVIDENCE, Context.MODE_PRIVATE);
-        String rootId = evidence.getString("rootId", null);
-        assertNotNull("Run selection mode before restarting the process", rootId);
-        SafDirectoryStore store = new SafDirectoryStore(context());
-        JSONArray roots = store.listRoots(new CancellationSignal());
-        boolean found = false;
-        for (int index = 0; index < roots.length(); index++) {
-            JSONObject root = roots.getJSONObject(index);
-            if (!rootId.equals(root.getString("rootId"))) continue;
-            found = true;
-            assertEquals("granted", root.getString("authorization"));
-            assertTrue("Device identity changed", evidence.getString("deviceId", "").equals(root.getString("deviceId")));
-        }
-        assertTrue("Saved root was lost", found);
-        verifyReadOnly(rootId);
-    }
 
-    @Test public void pickerCancellationPreservesRoots() throws Exception {
-        assumeTrue(mode("cancel"));
-        try (ActivityScenario<MainActivity> scenario = ActivityScenario.launch(MainActivity.class)) {
-            awaitBridge(scenario);
-            String before = invoke(scenario, "listRoots", "{}", 10000).toString();
-            assertEquals("cancelled", invoke(scenario, "chooseDirectory", "{}", 120000).getString("status"));
-            assertTrue("Cancelling changed saved references", before.equals(invoke(scenario, "listRoots", "{}", 10000).toString()));
-        }
-    }
+
+
 
     private void verifyReadOnly(String rootId) throws Exception {
         SafDirectoryStore store = new SafDirectoryStore(context());

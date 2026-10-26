@@ -10,6 +10,48 @@ metadata:
 
 # 中文 Git 提交规范
 
+## 目录
+
+- [1. Conventional Commits 中文适配](#1-conventional-commits-中文适配)
+  - [类型（type）定义](#类型type定义)
+  - [原则](#原则)
+- [2. 中文 commit message 模板](#2-中文-commit-message-模板)
+  - [完整示例](#完整示例)
+- [3. Subject 行规范](#3-subject-行规范)
+  - [格式](#格式)
+  - [规则](#规则)
+  - [好的示例](#好的示例)
+  - [反面示例](#反面示例)
+- [4. Body 编写规范](#4-body-编写规范)
+  - [编写要点](#编写要点)
+  - [Body 模板](#body-模板)
+- [5. Breaking Changes 标注](#5-breaking-changes-标注)
+  - [格式一：footer 标注](#格式一footer-标注)
+  - [格式二：type 后加感叹号](#格式二type-后加感叹号)
+  - [团队约定](#团队约定)
+- [6. Issue 关联](#6-issue-关联)
+  - [GitHub 格式](#github-格式)
+  - [Gitee 格式](#gitee-格式)
+  - [Coding 格式](#coding-格式)
+  - [通用写法](#通用写法)
+- [7. Changelog 自动生成配置](#7-changelog-自动生成配置)
+  - [安装 conventional-changelog](#安装-conventional-changelog)
+  - [package.json 脚本](#packagejson-脚本)
+  - [.versionrc.js 中文配置](#versionrcjs-中文配置)
+- [8. commitlint 中文配置](#8-commitlint-中文配置)
+  - [安装](#安装)
+  - [commitlint.config.js](#commitlintconfigjs)
+- [9. husky + lint-staged 集成](#9-husky--lint-staged-集成)
+  - [安装与初始化](#安装与初始化)
+  - [配置 commit-msg 钩子](#配置-commit-msg-钩子)
+  - [配置 pre-commit 钩子](#配置-pre-commit-钩子)
+  - [lint-staged 配置（package.json）](#lint-staged-配置packagejson)
+  - [交互式提交（可选）](#交互式提交可选)
+- [10. 团队规范检查清单](#10-团队规范检查清单)
+  - [提交前自查](#提交前自查)
+  - [团队启用步骤](#团队启用步骤)
+  - [常见问题](#常见问题)
+
 ## 1. Conventional Commits 中文适配
 
 基于 Conventional Commits 1.0.0 规范，针对中文团队的实际使用习惯进行适配。
@@ -349,7 +391,7 @@ npm install -D commitizen cz-conventional-changelog
 - [ ] 相关 Issue 是否已关联
 - [ ] 一次提交是否只做了一件事（原子性）
 
-### 团队落地步骤
+### 团队启用步骤
 
 1. **工具链配置**：按上述步骤配置 commitlint + husky，让规范可执行
 2. **模板共享**：将 `.commitlintrc`、`.husky/` 等配置提交到仓库

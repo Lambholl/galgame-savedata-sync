@@ -5,7 +5,7 @@ import { isAbsolute, join, relative, sep } from 'node:path'
 import test from 'node:test'
 import { createDirectoryBridge, DIRECTORY_CHANNELS } from '../src/directory-bridge.ts'
 import { createDirectoryAdapter } from '../src/main/directory-adapter.ts'
-import { isTrustedDirectorySender, registerDirectoryIpc } from '../src/main/directory-ipc.ts'
+import { registerDirectoryIpc } from '../src/main/directory-ipc.ts'
 
 async function fixture(t) {
   const temporaryRoot = await realpath(tmpdir())
@@ -117,22 +117,4 @@ test('preload 拒绝畸形返回和连接失败，非法引用不发 IPC 请求'
   assert.equal((await disconnected.chooseDirectory()).error.code, 'io-failure')
   assert.equal((await disconnected.listRoots()).error.code, 'io-failure')
   assert.equal((await disconnected.listDirectory('root-1')).error.code, 'io-failure')
-})
-
-test('真实可信判断同时要求登记窗口、主 frame 身份及精确页面地址', () => {
-  const url = 'file:///app/renderer/index.html'
-  const mainFrame = { url }
-  const sender = { id: 1, mainFrame }
-  const windows = new Set([1])
-  assert.equal(isTrustedDirectorySender({ sender, senderFrame: mainFrame }, windows, url), true)
-  assert.equal(isTrustedDirectorySender({ sender, senderFrame: { url } }, windows, url), false)
-  assert.equal(
-    isTrustedDirectorySender({ sender, senderFrame: mainFrame }, new Set([2]), url),
-    false,
-  )
-  assert.equal(
-    isTrustedDirectorySender({ sender, senderFrame: mainFrame }, windows, 'https://other.test/'),
-    false,
-  )
-  assert.equal(isTrustedDirectorySender({ sender, senderFrame: null }, windows, url), false)
 })

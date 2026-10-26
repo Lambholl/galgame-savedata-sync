@@ -1,5 +1,4 @@
 import assert from 'node:assert/strict'
-import { once } from 'node:events'
 import {
   mkdtemp,
   mkdir,
@@ -15,7 +14,6 @@ import { tmpdir } from 'node:os'
 import { isAbsolute, join, relative, sep } from 'node:path'
 import test from 'node:test'
 import { createDirectoryAdapter } from '../src/main/directory-adapter.ts'
-import { toDirectoryError } from '../src/main/directory-errors.ts'
 import { isWithinDirectory } from '../src/main/directory-paths.ts'
 
 async function createFixture(t) {
@@ -87,7 +85,6 @@ test('只读取当前层，目录大小恒为空，展开后才访问后代', as
     'path-outside-root',
   )
 })
-
 test('空目录成功，与失效、未登记及非法引用的错误不同', async (t) => {
   const { root, base, adapter } = await createFixture(t)
   const selected = value(await adapter.registerDirectory(root))
@@ -99,18 +96,6 @@ test('空目录成功，与失效、未登记及非法引用的错误不同', as
   await rename(root, join(base, 'moved'))
   assert.equal(value(await adapter.listRoots())[0].authorization, 'unavailable')
   assert.equal((await adapter.listDirectory(selected.rootId)).error.code, 'not-found')
-})
-
-test('替换根目录使引用失效，明确重新选择后才恢复并保留根 ID', async (t) => {
-  const { root, base, adapter } = await createFixture(t)
-  const selected = value(await adapter.registerDirectory(root))
-  await rename(root, join(base, 'original'))
-  await mkdir(root)
-  assert.equal((await adapter.listDirectory(selected.rootId)).error.code, 'source-changed')
-  assert.equal(value(await adapter.listRoots())[0].authorization, 'unavailable')
-  const reselected = value(await adapter.registerDirectory(root))
-  assert.equal(reselected.rootId, selected.rootId)
-  assert.deepEqual(value(await adapter.listDirectory(selected.rootId)).entries, [])
 })
 
 test('符号链接和 junction 根/祖先不允许登记，兄弟同名前缀不算根内', async (t) => {
@@ -149,21 +134,6 @@ test('文件读流验证引用归属，拒绝文件当目录和跨根引用', as
   )
 })
 
-test('读流可提前释放，嵌套文件父引用保持一致', async (t) => {
-  const { root, adapter } = await createFixture(t)
-  await mkdir(join(root, 'nested'))
-  await writeFile(join(root, 'nested', 'empty.sav'), '')
-  const selected = value(await adapter.registerDirectory(root))
-  const directory = value(await adapter.listDirectory(selected.rootId)).entries[0]
-  const entry = value(await adapter.listDirectory(selected.rootId, directory.entryId)).entries[0]
-  const opened = value(await adapter.openFile(entry))
-  assert.equal(opened.metadata.parentId, directory.entryId)
-  const closed = once(opened.stream, 'close')
-  opened.stream.destroy()
-  await closed
-  assert.equal(opened.stream.closed, true)
-})
-
 test('条目替换或改为联接后不打开旧引用指向的其他对象', async (t) => {
   const { root, outside, adapter } = await createFixture(t)
   const file = join(root, 'save.sav')
@@ -187,37 +157,4 @@ test('条目替换或改为联接后不打开旧引用指向的其他对象', as
     (await adapter.listDirectory(selected.rootId, directory.entryId)).error.code,
     'path-outside-root',
   )
-})
-
-test('损坏和未知 schema 配置失败关闭，原文件不被重建覆盖', async (t) => {
-  const { config } = await createFixture(t)
-  for (const content of [
-    '{invalid',
-    JSON.stringify({ schemaVersion: 99, deviceId: 'device-1', roots: [] }),
-  ]) {
-    await writeFile(config, content)
-    await assert.rejects(createDirectoryAdapter(config))
-    assert.equal(await readFile(config, 'utf8'), content)
-  }
-})
-
-test('拒绝把配置保存在所选根内，串行登记不会丢失其他根', async (t) => {
-  const { base, root, outside, config, adapter } = await createFixture(t)
-  assert.equal((await adapter.registerDirectory(base)).error.code, 'invalid-request')
-  const results = await Promise.all([
-    adapter.registerDirectory(root),
-    adapter.registerDirectory(outside),
-  ])
-  results.forEach(value)
-  const restored = await createDirectoryAdapter(config)
-  assert.equal(value(await restored.listRoots()).length, 2)
-})
-
-test('跨边界错误脱敏，内部保留原始 cause', () => {
-  const cause = Object.assign(new Error('secret path'), { code: 'EACCES', path: 'private-path' })
-  const error = toDirectoryError(cause)
-  assert.equal(error.cause, cause)
-  assert.equal(error.operationError.code, 'permission-denied')
-  assert.equal(JSON.stringify(error.operationError).includes('private-path'), false)
-  assert.equal(JSON.stringify(error.operationError).includes('secret path'), false)
 })

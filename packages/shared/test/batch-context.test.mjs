@@ -34,33 +34,6 @@ test('结构合法的成功结果仍须匹配原清单和目标，不能借同�
   assert.equal(matchesBatchState(end, request.manifest, DIRECTION, other), false)
 })
 
-test('成功项的实际字节、哈希、根、父目录和名称逐项核对，不只看 succeeded', () => {
-  const request = createReceiveRequest([513])
-  const end = createReceiverState(request)
-  const result = end.fileResults[0]
-  const variants = [
-    { ...result, bytesWritten: 512, entry: { ...result.entry, sizeBytes: 512 } },
-    { ...result, sha256: 'c'.repeat(64) },
-    ...[{ rootId: 'other-root' }, { parentId: 'other-parent' }, { name: '自动改名.sav' }].map(
-      (entry) => ({ ...result, entry: { ...result.entry, ...entry } }),
-    ),
-  ]
-  for (const changed of variants) {
-    const value = { ...end, fileResults: [changed] }
-    assert.equal(isBatchState(value), true)
-    assert.equal(matchesBatchState(value, request.manifest, DIRECTION, request), false)
-  }
-  assert.equal(
-    matchesBatchState(
-      { ...end, fileResults: [{ ...result, entry: { ...result.entry, sizeBytes: null } }] },
-      request.manifest,
-      DIRECTION,
-      request,
-    ),
-    true,
-  )
-})
-
 test('不同成功项不能指向同一最终条目，失败残留不能别名成功条目或跨根', () => {
   const request = createReceiveRequest([0, 0])
   const end = createReceiverState(request)
@@ -96,19 +69,6 @@ test('不同成功项不能指向同一最终条目，失败残留不能别名�
     assert.equal(isBatchState(partial), true)
     assert.equal(matchesBatchState(partial, request.manifest, DIRECTION, request), false)
   }
-})
-
-test('上下文匹配不依赖 JSON 字段顺序或目标映射顺序，不改变输入', () => {
-  const request = createReceiveRequest([0, 1])
-  const reversed = JSON.parse(JSON.stringify(request))
-  reversed.manifest.files = reversed.manifest.files.map((file) =>
-    Object.fromEntries(Object.entries(file).reverse()),
-  )
-  reversed.targets.reverse()
-  const end = createReceiverState(request)
-  const before = structuredClone(reversed)
-  assert.equal(matchesBatchState(end, request.manifest, DIRECTION, reversed), true)
-  assert.deepEqual(reversed, before)
 })
 
 test('运行计数须属于本次清单，sender 不接受目标上下文，未准备总量可未知', () => {

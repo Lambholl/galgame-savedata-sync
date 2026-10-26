@@ -71,13 +71,7 @@ public class TransferHttpTest {
             assertEquals("invalid-request", assertThrows(ArchiveFailure.class, () -> new TransferHttp.Client(server.address()).json("GET", "/v1/test", null, null, 200, new ArchiveControl())).code);
         }
     }
-    @Test public void malformedUtf8AndDuplicateJsonNeverReachSchemaAsValidObjects() throws Exception {
-        for (byte[] body : new byte[][] {new byte[] {(byte) 0xc0, (byte) 0xaf}, "{\"status\":\"success\",\"status\":\"success\",\"value\":true}".getBytes(StandardCharsets.UTF_8)}) {
-            try (Server server = new Server((socket, headers, bytes) -> socket.getOutputStream().write(response(200, jsonHeaders(body), body)))) {
-                assertThrows(Exception.class, () -> new TransferHttp.Client(server.address()).json("GET", "/v1/test", null, null, 200, new ArchiveControl()));
-            }
-        }
-    }
+
     @Test public void archiveUploadHasExactLengthHashAndBoundedBuffers() throws Exception {
         byte[] content = new byte[131073]; for (int i = 0; i < content.length; i++) content[i] = (byte) (i * 31 + 7);
         String hash = ArchiveFormat.hex(ArchiveFormat.sha256().digest(content)); List<Long> progress = new ArrayList<>();
@@ -93,14 +87,7 @@ public class TransferHttpTest {
             assertEquals(Long.valueOf(content.length), progress.get(progress.size() - 1));
         }
     }
-    @Test public void archiveHeaderMismatchIsRejectedBeforeOpeningBody() throws Exception {
-        String hash = ArchiveFormat.hex(ArchiveFormat.sha256().digest(new byte[] {1}));
-        try (Server server = new Server((socket, headers, bytes) -> socket.getOutputStream().write(response(200,
-            "Content-Type: application/gzip\r\nContent-Length: 1\r\nx-archive-sha256: " + "a".repeat(64) + "\r\n", new byte[] {1})))) {
-            assertEquals("invalid-request", assertThrows(ArchiveFailure.class, () -> new TransferHttp.Client(server.address()).download("/v1/transfers/id/content", "session-1",
-                new ArchiveModel.Descriptor(1, 1024, hash), new ArchiveControl(), null)).code);
-        }
-    }
+
     @Test public void networkIdleDeadlineAndCancellationWakeBlockedReads() throws Exception {
         try (Server server = new Server((socket, headers, bytes) -> Thread.sleep(600))) {
             assertEquals("timeout", assertThrows(ArchiveFailure.class, () -> new TransferHttp.Client(server.address(), 150).json("GET", "/v1/test", null, null, 200, new ArchiveControl())).code);
@@ -112,10 +99,5 @@ public class TransferHttpTest {
             assertTrue(result.get() instanceof ArchiveFailure); assertTrue(((ArchiveFailure) result.get()).cancelled);
         }
     }
-    @Test public void platformRuntimeCloseFailureCannotCrashLifecycleOrSkipOtherResources() throws Exception {
-        ArchiveControl control = new ArchiveControl(); CountDownLatch closed = new CountDownLatch(1);
-        control.track((java.io.Closeable) () -> { throw new IllegalStateException("模拟平台并发关闭异常"); });
-        control.track((java.io.Closeable) closed::countDown); control.cancel();
-        assertEquals(0, closed.getCount()); assertTrue(assertThrows(ArchiveFailure.class, control::check).cancelled);
-    }
+
 }

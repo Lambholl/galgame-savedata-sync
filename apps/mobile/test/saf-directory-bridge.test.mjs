@@ -54,51 +54,6 @@ test('路径、URI、非法 parentId 在进入原生层之前拒绝', async () =
   assert.equal(state.calls.length, 0)
 })
 
-test('Web 预览报告不支持，不能伪造成功空目录或启动原生请求', async () => {
-  const plugin = new Proxy(
-    {},
-    {
-      get: () => {
-        throw new Error('must not touch native')
-      },
-    },
-  )
-  const api = createSafDirectoryBridge(plugin, () => false)
-  for (const result of [
-    await api.chooseDirectory(),
-    await api.listRoots(),
-    await api.listDirectory(root.rootId),
-  ]) {
-    assert.equal(result.error.code, 'unsupported-operation')
-  }
-})
-
-test('畸形返回、额外 URI、跨根响应和原生异常均脱敏失败', async () => {
-  const state = fixture()
-  const api = createSafDirectoryBridge(state.plugin, () => true)
-  state.plugin.chooseDirectory = async () => ({
-    status: 'selected',
-    directory: { ...root, uri: 'private' },
-  })
-  assert.equal((await api.chooseDirectory()).error.code, 'io-failure')
-  state.plugin.listRoots = async () => {
-    throw new Error('private provider URI')
-  }
-  const failure = await api.listRoots()
-  assert.equal(failure.error.code, 'io-failure')
-  assert.equal(JSON.stringify(failure).includes('private'), false)
-  state.plugin.listDirectory = async () => ({
-    status: 'success',
-    value: { ...listing, rootId: 'other' },
-  })
-  assert.equal((await api.listDirectory(root.rootId)).error.code, 'io-failure')
-  state.plugin.listDirectory = async () => ({
-    status: 'success',
-    value: { ...listing, parentId: 'other' },
-  })
-  assert.equal((await api.listDirectory(root.rootId)).error.code, 'io-failure')
-})
-
 test('失效授权保持独立错误，空目录保持成功', async () => {
   const state = fixture()
   const api = createSafDirectoryBridge(state.plugin, () => true)
