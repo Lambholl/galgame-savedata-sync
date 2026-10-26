@@ -20,8 +20,6 @@ body {
   min-height: 100vh;
   background: var(--adm-color-background);
   color: var(--adm-color-text);
-  padding-top: env(safe-area-inset-top);
-  padding-bottom: env(safe-area-inset-bottom);
 }
 
 .app-content {

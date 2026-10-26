@@ -23,6 +23,7 @@ import { inspectHttpRequest, readHttpJson, sendHttpFailure, sendHttpJson } from 
 import { WindowsTransferRegistry } from './transfer-registry.ts'
 import type { TransferRegistryOptions } from './transfer-registry.ts'
 import type { WindowsNewFilePublisher } from './new-file-publisher.ts'
+import type { DesktopLibrary } from './library-store.ts'
 
 type HttpDirectorySource = Pick<WindowsDirectoryAdapter, 'deviceId' | 'listRoots' | 'listDirectory'>
 type HttpArchiveProvider = Pick<WindowsArchiveAdapter, 'prepare' | 'retryCleanup'> &
@@ -43,6 +44,7 @@ export interface HttpListenerAddress {
 
 /** 本机缩紧预算/时钟注入见任务注册表，不会经 HTTP 或 Renderer 暴露。 */
 export interface WindowsHttpOptions extends Omit<TransferRegistryOptions, 'receiver'> {
+  readonly library?: DesktopLibrary
   readonly displayName?: string
   readonly publisher?: Pick<WindowsNewFilePublisher, 'checkTarget' | 'publish' | 'retryCleanup'>
 }
@@ -240,6 +242,7 @@ export class WindowsHttpService {
     this.server = null
     for (const result of results) if (result.status === 'rejected') throw toHttpError(result.reason)
     this.registry = null
+    this.options.library?.stop()
   }
 
   private async handle(
@@ -278,6 +281,20 @@ export class WindowsHttpService {
     }
     if (route.kind === 'entries' && route.id) {
       this.sendResult(response, await this.source.listDirectory(route.id, route.parentId))
+      return
+    }
+    if (route.kind === 'catalog') {
+      if (!this.options.library)
+        throw new HttpOperationError('unsupported-operation', '此版本未开放游戏目录表。')
+      const value = await readHttpJson(request)
+      if (!request.complete || response.destroyed) return
+      sendHttpJson(response, 200, {
+        status: 'success',
+        value: await this.options.library.exchange(
+          value,
+          registry.getStates().some((item) => item.status === 'running'),
+        ),
+      })
       return
     }
     if (route.kind === 'downloads') {

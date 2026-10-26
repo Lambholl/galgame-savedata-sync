@@ -1,0 +1,29 @@
+{
+  "appId": "io.github.galgame.savedatasync",
+  "productName": "存档同步",
+  "copyright": "",
+  "asar": true,
+  "npmRebuild": false,
+  "directories": { "output": "release" },
+  "files": ["out/**/*", "package.json"],
+  "win": {
+    "executableName": "SavedataSync",
+    "signAndEditExecutable": false,
+    "target": [
+      { "target": "nsis", "arch": ["x64"] },
+      { "target": "portable", "arch": ["x64"] }
+    ]
+  },
+  "nsis": {
+    "artifactName": "SavedataSync-${version}-Setup-${arch}.${ext}",
+    "oneClick": false,
+    "perMachine": false,
+    "allowToChangeInstallationDirectory": true,
+    "deleteAppDataOnUninstall": false,
+    "runAfterFinish": false
+  },
+  "portable": {
+    "artifactName": "SavedataSync-${version}-Portable-${arch}.${ext}",
+    "requestExecutionLevel": "user"
+  }
+}

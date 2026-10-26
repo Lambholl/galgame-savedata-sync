@@ -10,6 +10,8 @@ import { WindowsHttpService } from './http-service.ts'
 import { toHttpError } from './http-errors.ts'
 import { WindowsNewFilePublisher } from './new-file-publisher.ts'
 import { registerServiceIpc } from './service-ipc.ts'
+import { DesktopLibrary } from './library-store.ts'
+import { registerLibraryIpc } from './library-ipc.ts'
 
 const trustedWindows = new Set<number>()
 const rendererUrl = process.env.ELECTRON_RENDERER_URL
@@ -65,7 +67,15 @@ if (hasInstanceLock)
       const archive = await createWindowsArchiveAdapter(adapter, privateDirectory)
       // 网络监听与测试根写授权均由本机界面显式发起。
       const publisher = new WindowsNewFilePublisher(adapter)
-      const httpService = new WindowsHttpService(adapter, archive, { publisher })
+      const library = new DesktopLibrary(join(privateDirectory, 'game-library.json'), adapter)
+      await library.load()
+      const httpService = new WindowsHttpService(adapter, archive, { publisher, library })
+      app.once(
+        'will-quit',
+        registerLibraryIpc(ipcMain, library, httpService, (event) =>
+          isTrustedDirectorySender(event, trustedWindows, expectedRendererUrl),
+        ),
+      )
       let canQuit = false
       let isClosing = false
       app.on('before-quit', (event) => {

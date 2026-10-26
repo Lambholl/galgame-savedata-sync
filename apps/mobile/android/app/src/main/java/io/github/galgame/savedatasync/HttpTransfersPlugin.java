@@ -70,6 +70,13 @@ public class HttpTransfersPlugin extends Plugin {
     }
     @PluginMethod public void connect(PluginCall call) { submit(call, true, c -> { Map<String, Object> a = arguments(call, "address"); return engine().connect(new TransferHttp.Client(string(a.get("address"))), c); }); }
     @PluginMethod public void disconnect(PluginCall call) { submit(call, true, c -> { arguments(call); engine().disconnect(); return null; }); }
+    @PluginMethod public void connections(PluginCall call) { submit(call, true, c -> { arguments(call); return engine().connections(); }); }
+    @PluginMethod public void selectDevice(PluginCall call) { submit(call, true, c -> engine().selectDevice(id(arguments(call, "deviceId").get("deviceId")))); }
+    @PluginMethod public void disconnectDevice(PluginCall call) { submit(call, true, c -> { engine().disconnectDevice(id(arguments(call, "deviceId").get("deviceId")), c); return null; }); }
+    @PluginMethod public void exchangeCatalog(PluginCall call) { submit(call, true, c -> {
+        Map<String, Object> a = arguments(call, "deviceId", "catalog");
+        return engine().exchangeCatalog(id(a.get("deviceId")), a.get("catalog"), android.os.Build.MODEL, c);
+    }); }
     @PluginMethod public void listRemoteRoots(PluginCall call) { submit(call, true, c -> { arguments(call); return engine().roots(c); }); }
     @PluginMethod public void listRemoteDirectory(PluginCall call) { submit(call, true, c -> { Map<String, Object> a = arguments(call, "rootId", "parentId"); return engine().directory(id(a.get("rootId")), parent(a.get("parentId")), c); }); }
     @PluginMethod public void startDownload(PluginCall call) { submit(call, true, c -> { engine(); return runtime.start(arguments(call, "request", "targetRootId", "targets"), false); }); }

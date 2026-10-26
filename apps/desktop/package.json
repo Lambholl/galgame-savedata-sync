@@ -7,18 +7,22 @@
   "scripts": {
     "dev": "electron-vite dev",
     "build": "electron-vite build",
+    "package:win": "pnpm build && node scripts/package-windows.mjs",
     "preview": "electron-vite preview",
     "typecheck": "tsc --noEmit",
     "test": "node --experimental-strip-types --test test/*.test.mjs"
   },
   "dependencies": {
+    "@ant-design/icons": "6.3.4",
     "@savedata-sync/shared": "workspace:*",
+    "@savedata-sync/ui": "workspace:*",
     "antd": "6.6.7",
     "react": "18.3.1",
     "react-dom": "18.3.1"
   },
   "devDependencies": {
     "electron": "45.0.0",
+    "electron-builder": "26.18.0",
     "electron-vite": "6.0.0"
   }
 }

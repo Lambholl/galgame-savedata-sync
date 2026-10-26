@@ -4,7 +4,7 @@ status: active
 priority: high
 owner: development
 id_prefix: WP
-id_high_water: 13
+id_high_water: 15
 updated: 2026-10-27
 tags: [工作包, M-001, 设计]
 related_files:
@@ -32,6 +32,8 @@ related_files:
 
 | ID | 工作包 | 依赖 | 代码范围 | 退出条件与验证 | 状态 | 已完成 / 下一步 |
 | --- | --- | --- | --- | --- | --- | --- |
+| WP-014 | 多设备与游戏目录元数据 | WP-007 的目录/服务/任务桥 | packages/shared、桌面 HTTP/IPC、Android 原生连接与桥 | 保存多台设备与游戏关联，首期仅一个连接；本机目录持久化、远端目录元数据交换；任务固定原设备 | implemented | 已接入有限 IPC/catalog 交换与单连接限制；56 项既有 JS 测试和最新构建通过，新增交互由用户验收 |
+| WP-015 | 设备/游戏/设置双端正式界面 | WP-014、WP-007 | packages/ui、双端适配器、样式、README | antd/antd-mobile 页面、游戏面板、紧凑目录/地址及复制、并列文件、方向和真实任务可用 | implemented | 正式应用已按最后批注接入；最新双端与 Android 构建成功，APK 已更新安装。用户要求自行检查，界面/跨端验收待用户完成；覆盖、镜像删除、备份恢复随对应后续业务开放 |
 | WP-002 | Windows 目录读取适配 | 共享本地模型 | apps/desktop 主进程、preload 与最小回归 | 目录引用持久化、当前层元数据、根内读流、路径与 IPC 边界；真实目录只读验证 | done | 目录/IPC 回归、preload 隔离加载和真实目录只读检查通过；系统选择器与最小目录界面已由 WP-007 实操验证，发布留 WP-009 |
 | WP-003 | Android SAF 读取适配 | 共享本地模型 | apps/mobile Java 原生插件、TS 桥与测试 | 只读选择、持久授权/恢复、当前层元数据和原生读流；桥/单元/构建与设备验证，平台缺口单列 | done | 桥、Java 单元、lint/双 APK 和 API 33/35 独立读取证据通过；API 29/其它提供者、实际撤权/目录移除还要验证；写入留 WP-010 |
 | WP-004 | Windows HTTP 读取与任务注册 | WP-002、共享批量模型、WP-012 | apps/desktop 主进程及 HTTP 回归 | /v1 设备/当前层接口、异步下载准备/清单/content、通用查询/取消、会话及单次 ID、端口冲突与退出清理通过；手机发布结果以 receiver succeeded 为准 | done | 严格 JSON/头/路由/会话、异步下载与单次领取、查询/取消/期限、进程名额及退出/失败清理已实现；最小 HTTP 回归和工程检查通过；已提交 096dfec；LAN/Android/最终界面验证由后续包覆盖 |

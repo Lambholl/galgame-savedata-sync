@@ -14,9 +14,12 @@
     "android:open": "cap open android"
   },
   "dependencies": {
+    "@savedata-sync/ui": "workspace:*",
+    "@ant-design/icons": "6.3.4",
     "@capacitor/android": "8.5.3",
     "@capacitor/core": "8.5.3",
     "@savedata-sync/shared": "workspace:*",
+    "antd": "6.6.7",
     "antd-mobile": "5.43.0",
     "react": "18.3.1",
     "react-dom": "18.3.1"

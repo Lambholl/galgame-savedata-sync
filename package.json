@@ -12,6 +12,7 @@
     "dev:desktop": "pnpm --filter @savedata-sync/desktop dev",
     "dev:mobile": "pnpm --filter @savedata-sync/mobile dev",
     "build": "pnpm -r build",
+    "desktop:package": "pnpm --filter @savedata-sync/desktop package:win",
     "typecheck": "pnpm -r typecheck",
     "test:infra": "node --test scripts/toolchain-policy.test.mjs",
     "test:shared": "pnpm --filter @savedata-sync/shared test",

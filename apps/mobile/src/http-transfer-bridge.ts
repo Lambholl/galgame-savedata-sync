@@ -10,6 +10,8 @@ import {
   isOperationResult,
   isTargetSelection,
   matchesBatchState,
+  isCatalogPush,
+  isCatalogReply,
 } from '@savedata-sync/shared'
 import type {
   BatchDeviceDescriptor,
@@ -22,6 +24,8 @@ import type {
   OperationError,
   OperationResult,
   TargetSelection,
+  CatalogPush,
+  CatalogReply,
 } from '@savedata-sync/shared'
 
 /** 同一批内 source/target 分开；实际方向由方法确定，不接受路径、URI 或字节。 */
@@ -44,6 +48,10 @@ export interface TransferSubscription {
 }
 /** Capacitor 内部绑定；未知响应必须先经过守卫和本次上下文匹配。 */
 export interface HttpTransferNativePlugin {
+  connections(): Promise<unknown>
+  selectDevice(options: { deviceId: string }): Promise<unknown>
+  disconnectDevice(options: { deviceId: string }): Promise<unknown>
+  exchangeCatalog(options: { deviceId: string; catalog: CatalogPush }): Promise<unknown>
   connect(options: { address: string }): Promise<unknown>
   disconnect(): Promise<unknown>
   chooseTarget(): Promise<unknown>
@@ -65,6 +73,10 @@ export interface HttpTransferNativePlugin {
 }
 /** 所有 Promise resolve 脱敏结果；任务 ID 单次使用，取消及查询均不自动重放网络请求。 */
 export interface AndroidTransferApi {
+  connections(): Promise<OperationResult<readonly BatchDeviceDescriptor[]>>
+  selectDevice(deviceId: string): Promise<OperationResult<BatchDeviceDescriptor>>
+  disconnectDevice(deviceId: string): Promise<OperationResult<null>>
+  exchangeCatalog(deviceId: string, catalog: CatalogPush): Promise<OperationResult<CatalogReply>>
   connect(address: string): Promise<OperationResult<BatchDeviceDescriptor>>
   disconnect(): Promise<OperationResult<null>>
   chooseTarget(): Promise<DirectorySelectionResult>
@@ -291,13 +303,47 @@ export function createHttpTransferBridge(
     return response
   }
   return Object.freeze({
+    connections: (): Promise<OperationResult<readonly BatchDeviceDescriptor[]>> =>
+      invoke(
+        () => plugin.connections(),
+        (value): value is readonly BatchDeviceDescriptor[] =>
+          Array.isArray(value) &&
+          value.length <= 1 &&
+          value.every(isBatchDeviceDescriptor) &&
+          value.every((item) => item.device.platform === 'windows'),
+      ),
+    async selectDevice(deviceId: string): Promise<OperationResult<BatchDeviceDescriptor>> {
+      if (!isOpaqueId(deviceId)) return failure(INVALID)
+      const result = await invoke(() => plugin.selectDevice({ deviceId }), isBatchDeviceDescriptor)
+      if (result.status === 'success') {
+        if (result.value.device.deviceId !== deviceId || result.value.device.platform !== 'windows')
+          return failure(BRIDGE)
+        device = structuredClone(result.value)
+      }
+      return result
+    },
+    async disconnectDevice(deviceId: string): Promise<OperationResult<null>> {
+      if (!isOpaqueId(deviceId)) return failure(INVALID)
+      const result = await invoke(
+        () => plugin.disconnectDevice({ deviceId }),
+        (value): value is null => value === null,
+      )
+      if (result.status === 'success' && device?.device.deviceId === deviceId) device = undefined
+      return result
+    },
+    exchangeCatalog: (
+      deviceId: string,
+      catalog: CatalogPush,
+    ): Promise<OperationResult<CatalogReply>> =>
+      isOpaqueId(deviceId) && isCatalogPush(catalog)
+        ? invoke(() => plugin.exchangeCatalog({ deviceId, catalog }), isCatalogReply)
+        : Promise.resolve(failure(INVALID)),
     async connect(address: string): Promise<OperationResult<BatchDeviceDescriptor>> {
       if (typeof address !== 'string' || address.length > 256) return failure(INVALID)
       const response = await invoke(() => plugin.connect({ address }), isBatchDeviceDescriptor)
       if (response.status === 'success') {
         if (response.value.device.platform !== 'windows') return failure(BRIDGE)
         device = structuredClone(response.value)
-        contexts.clear()
       }
       return response
     },

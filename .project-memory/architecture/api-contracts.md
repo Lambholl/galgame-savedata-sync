@@ -18,12 +18,13 @@ related_files: []
 - [4. 本地桥与错误边界](#4-本地桥与错误边界)
 - [5. 版本与线格式](#5-版本与线格式)
 - [6. 检查与验证边界](#6-检查与验证边界)
+- [7. 游戏设备元数据与界面](#7-游戏设备元数据与界面)
 
 ## 1. 状态与范围
 
 版本 1 的本地/批量共享模型、双端目录读取、双端私有归档、Windows HTTP sender/receiver 和非覆盖发布已经可用。WP-013 完成 Java 实际 SAF 原生读流集成，验证见 TC-032；Android SAF 单文件发布已实现并通过设备验证，见 TC-034；Android HTTP、任务编排与持续通知保持传输可用，见 TC-035。平台说明见 `apps/desktop/README.md`、`apps/mobile/README.md`，共享字段与线格式见 `packages/shared/README.md`；范围与依赖见[工作包](../development/work-packages.md)。
 
-M-001 的范围是专用测试目录内的新文件往返；同步项目 CRUD、覆盖、镜像删除、备份、mDNS 和 Windows 发起任务的控制通道属于后续里程碑。Windows 为服务端，Android 原生层为 HTTP 客户端。
+M-001 的文件操作范围是专用测试目录内的新文件往返。WP-014/015 按用户授权提前接入游戏与设备配置、三页导航和并列目录视图；覆盖、镜像删除、备份、mDNS 和 Windows 发起任务的控制通道继续按后续里程碑推进。Windows 为服务端，Android 原生层为 HTTP 客户端。
 
 用户已在[Q-008](../requirements/open-questions.md)确定双向统一采用 tar.gz。完整设计位于仓库根目录的 `docs/plans/m001-tar-gzip-protocol.md`；v1 批量共享数据与双端私有归档编解码可用。Windows 提供 v1 读取、sender 和上传 receiver 端点，当前只有批量接口；Windows 原生新文件发布及批次编排可用；Android 原生新文件发布可用，原生 HTTP 与通知保持传输由 WP-006 完成，WP-007 最小界面已经接入并通过实操，完整平台组合留 WP-008。
 
@@ -111,3 +112,13 @@ packages/shared 保留本地目录/设备/错误/选择结果守卫，并提供�
 `pnpm check` 只执行文本、格式、lint、严格类型和双端构建。`pnpm test:all` 运行完整自动化测试与 Android 原生测试，日常检查不运行它。默认不新增或扩写自动化测试；功能验证优先编译、实际运行、ADB 操作和截图。
 
 Windows 目录与 IPC 回归包含真实 8.3 短路径环境；授权真实目录的只读原生流与配置恢复检查中，前后内容哈希与修改时间一致。系统选择器人工交互及最终目录界面等界面包验证；真实目录保持只读，测试配置与夹具独立存放，不保存真实路径或文件哈希。
+
+## 7. 游戏设备元数据与界面
+
+`packages/shared/src/library.ts` 定义本机 `LibraryConfig`、公开 `CatalogGame`、游戏关联及目录查询/应答。一个游戏在每台设备对应一个目录，关联多个稳定设备 ID；首期同时连接一个对端，开始后的传输固定原连接。配置不保存文件清单、哈希或平台路径。
+
+Windows 的 `DesktopLibrary` 在应用私有目录原子保存游戏/设备配置，通过有限 `desktopLibrary` IPC 提供读取、保存游戏、设备管理和手机当前层查询。新建 `POST /v1/catalog` 使用既有会话头、严格 JSON 边界与独立 DTO 校验；手机提交自己的游戏目录表和明确的游戏关联，取回电脑目录表及至多一个当前层查询。目录应答要求请求 ID、根 ID 和父 ID 全部匹配；父目录必须来自已读条目。查询 8 秒超时，15 秒无前台元数据更新标为离线。手机原生 `exchangeCatalog` 绑定已连接电脑，原生填写本机设备 ID，不接受任意 URL。
+
+Android 桥新增 `connections`、`selectDevice`、`disconnectDevice`、`exchangeCatalog`；原生和界面均限制单连接，断开通知电脑释放名额。Activity 重建查询原生连接和当前任务，文件通道、持续通知和任务结果语义沿用 WP-006。对端主动关联只合并公开元数据，不授予本机目录写权限；本机解除关联后记录排除项，避免下一次元数据交换自动加回。
+
+正式界面共用 `packages/ui`，桌面和手机通过各自 `library-adapter.ts` 接入。接收授权继续独立确认；覆盖、镜像删除、备份恢复尚未开放，文件传输保持仅新建语义。最终运行验收按用户要求由用户执行。

@@ -6,7 +6,15 @@ import { HttpOperationError, toHttpError } from './http-errors.ts'
 /** 解码一次的封闭路由；不使用会归一化点段的 URL 路径解析。 */
 export interface HttpRoute {
   readonly kind:
-    'device' | 'roots' | 'entries' | 'downloads' | 'uploads' | 'manifest' | 'content' | 'transfer'
+    | 'device'
+    | 'roots'
+    | 'entries'
+    | 'downloads'
+    | 'uploads'
+    | 'manifest'
+    | 'content'
+    | 'transfer'
+    | 'catalog'
   readonly id: string | null
   readonly parentId: string | null
 }
@@ -56,6 +64,7 @@ export function inspectHttpRequest(request: IncomingMessage): HttpRoute {
   let kind: HttpRoute['kind']
   if (version !== 'v1') invalid()
   if (segments.length === 2 && resource === 'device' && method === 'GET') kind = 'device'
+  else if (segments.length === 2 && resource === 'catalog' && method === 'POST') kind = 'catalog'
   else if (segments.length === 2 && resource === 'roots' && method === 'GET') kind = 'roots'
   else if (
     segments.length === 4 &&
@@ -94,6 +103,7 @@ export function inspectHttpRequest(request: IncomingMessage): HttpRoute {
   if (
     kind !== 'downloads' &&
     kind !== 'uploads' &&
+    kind !== 'catalog' &&
     !(method === 'PUT' && kind === 'content') &&
     (encoding !== undefined || (length !== undefined && length !== '0'))
   )

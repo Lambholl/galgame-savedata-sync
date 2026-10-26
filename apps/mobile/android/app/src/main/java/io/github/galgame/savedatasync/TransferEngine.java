@@ -43,6 +43,12 @@ final class TransferEngine {
     private TransferHttp http;
     private Map<String, Object> remoteDevice;
     private String session, remoteDeviceId;
+    private static final class Connection {
+        final TransferHttp http;
+        final Map<String, Object> descriptor;
+        Connection(TransferHttp http, Map<String, Object> descriptor) { this.http = http; this.descriptor = descriptor; }
+    }
+    private final Map<String, Connection> connections = new LinkedHashMap<>();
     private Job active;
     private boolean foreground, closed, connecting;
     private static final class Job {
@@ -102,18 +108,59 @@ final class TransferEngine {
     }
     private synchronized void available() throws ArchiveFailure { if (closed || !foreground) throw fail("unsupported-operation"); }
     Map<String, Object> connect(TransferHttp client, ArchiveControl control) throws Exception {
-        synchronized (this) { available(); if (active != null || connecting) throw fail("busy"); connecting = true; http = null; }
+        synchronized (this) { available(); if (active != null || connecting || !connections.isEmpty()) throw fail("busy"); connecting = true; http = null; }
         try {
             Map<String, Object> descriptor = device(client.json("GET", "/v1/device", null, null, 200, control));
             synchronized (this) {
                 available(); control.check(); http = client; remoteDevice = descriptor; session = string(descriptor.get("sessionId"));
-                remoteDeviceId = string(map(descriptor.get("device")).get("deviceId")); remoteRoots.clear(); remoteEntries.clear();
+                remoteDeviceId = string(map(descriptor.get("device")).get("deviceId"));
+                if (!connections.containsKey(remoteDeviceId) && connections.size() >= 32) throw fail("resource-limit");
+                connections.put(remoteDeviceId, new Connection(client, descriptor)); remoteRoots.clear(); remoteEntries.clear();
             }
             return map(copy(descriptor));
         } finally { synchronized (this) { connecting = false; } }
     }
     synchronized void disconnect() throws ArchiveFailure {
-        available(); if (active != null || connecting) throw fail("busy"); http = null; remoteDevice = null; session = null; remoteRoots.clear(); remoteEntries.clear();
+        available(); if (active != null || connecting) throw fail("busy"); connections.remove(remoteDeviceId); http = null; remoteDevice = null; session = null; remoteRoots.clear(); remoteEntries.clear();
+    }
+    synchronized List<Object> connections() throws Exception {
+        available(); List<Object> result = new ArrayList<>();
+        for (Connection value : connections.values()) result.add(copy(value.descriptor));
+        return result;
+    }
+    synchronized Map<String, Object> selectDevice(String id) throws Exception {
+        available(); if (connecting) throw fail("busy"); Connection value = connections.get(id);
+        if (value == null) throw fail("not-found");
+        http = value.http; remoteDevice = value.descriptor; remoteDeviceId = id;
+        session = string(remoteDevice.get("sessionId")); remoteRoots.clear(); remoteEntries.clear();
+        return map(copy(remoteDevice));
+    }
+    void disconnectDevice(String id, ArchiveControl control) throws Exception {
+        Connection value;
+        synchronized (this) { available(); if (connecting || active != null) throw fail("busy"); value = connections.get(id); }
+        if (value != null) try {
+            value.http.json("POST", "/v1/catalog", string(value.descriptor.get("sessionId")), object("deviceId", local.deviceId(), "goodbye", true), 200, control);
+        } catch (Exception ignored) { /* 本机仍断开；电脑收不到告别时由在线期限释放名额。 */ }
+        synchronized (this) {
+            connections.remove(id);
+            if (id.equals(remoteDeviceId)) { http = null; remoteDevice = null; session = null; remoteRoots.clear(); remoteEntries.clear(); }
+        }
+    }
+    /** 每台电脑独立交换目录元数据；不会改变当前浏览连接或活动任务。 */
+    Object exchangeCatalog(String id, Object payload, String name, ArchiveControl control) throws Exception {
+        Connection value; synchronized (this) { available(); value = connections.get(id); }
+        if (value == null) throw fail("not-found");
+        Map<String, Object> catalog = shape(copy(payload), "games", "links", "answer");
+        List<Object> games = list(catalog.get("games")); require(games.size() <= 128 && list(catalog.get("links")).size() <= 128);
+        List<Object> roots = new ArrayList<>(); Set<String> rootIds = new HashSet<>();
+        for (Object entry : games) {
+            Map<String, Object> game = shape(entry, "id", "name", "root"); id(game.get("id"));
+            require(string(game.get("name")).length() <= 128);
+            if (game.get("root") != null && rootIds.add(id(map(game.get("root")).get("rootId")))) roots.add(game.get("root"));
+        }
+        TransferSchema.roots(roots, local.deviceId());
+        Map<String, Object> hello = object("deviceId", local.deviceId(), "name", name, "games", games, "links", catalog.get("links"), "answer", catalog.get("answer"));
+        return value.http.json("POST", "/v1/catalog", string(value.descriptor.get("sessionId")), hello, 200, control);
     }
     private synchronized TransferHttp connected() throws ArchiveFailure { available(); if (connecting) throw fail("busy"); if (http == null) throw fail("not-found"); return http; }
     List<Object> roots(ArchiveControl control) throws Exception {

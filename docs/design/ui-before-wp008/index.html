@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>存档同步 · UI 设计稿</title>
+    <link rel="stylesheet" href="./prototype.css" />
+  </head>
+  <body>
+    <header class="workbench">
+      <div>
+        <strong>存档同步 / UI 设计</strong
+        ><small>交互原型 · 示例数据 · 完整同步能力按后续里程碑接入</small>
+      </div>
+      <div class="controls">
+        <label
+          >画幅
+          <select id="platform">
+            <option value="mobile">Android 手机</option>
+            <option value="desktop">Windows 桌面</option>
+          </select></label
+        >
+        <label
+          >主题
+          <select id="theme">
+            <option value="light">浅色</option>
+            <option value="dark">深色</option>
+          </select></label
+        >
+        <label
+          >页面
+          <select id="scene">
+            <option value="games">游戏列表</option>
+            <option value="connection">设备管理</option>
+            <option value="device">设备信息</option>
+            <option value="transfer">传输设置</option>
+            <option value="preview">操作预览</option>
+            <option value="tasks">传输结果</option>
+            <option value="edit">游戏目录配置</option>
+            <option value="restore">备份与恢复</option>
+            <option value="settings">设置</option>
+          </select></label
+        >
+        <label
+          >状态
+          <select id="scenario">
+            <option value="normal">正常</option>
+            <option value="empty">空目录</option>
+            <option value="offline">断开连接</option>
+            <option value="permission">目录授权失效</option>
+            <option value="conflict">同名冲突</option>
+            <option value="unknown">结果待确认</option>
+            <option value="cleanup">清理失败</option>
+          </select></label
+        >
+      </div>
+    </header>
+    <div class="canvas">
+      <div class="device mobile" id="device">
+        <div class="system-bar"><span>09:41</span><span>● ▰</span></div>
+        <aside class="sidebar" id="sidebar"></aside>
+        <div class="surface">
+          <header class="page-header" id="header"></header>
+          <main id="content"></main>
+          <div id="action"></div>
+        </div>
+        <nav class="bottom-nav" id="bottom-nav" aria-label="主导航"></nav>
+      </div>
+      <aside class="notes">
+        <span class="eyebrow">DESIGN NOTE / 01</span>
+        <h2 id="note-title"></h2>
+        <p id="note-body"></p>
+        <div class="note-rule"></div>
+        <p>游戏页选择游戏，传输页并排查看两端文件，再预览本次变化。</p>
+        <a href="./design.md">查看完整设计说明 ↗</a
+        ><small>顶部工具条仅用于审阅设计，正式应用跟随系统主题。</small>
+      </aside>
+    </div>
+    <dialog id="dialog">
+      <div id="dialog-content"></div>
+      <form method="dialog"><button class="primary">知道了</button></form>
+    </dialog>
+    <script type="module" src="./prototype.js"></script>
+  </body>
+</html>

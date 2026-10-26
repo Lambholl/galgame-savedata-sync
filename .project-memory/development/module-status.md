@@ -23,6 +23,8 @@ related_files: []
 
 | 模块 | 状态 | 负责人 | 相关文件 | 风险 | 下一步 |
 | --- | --- | --- | --- | --- | --- |
+| Windows 分发包 | done | 开发 | apps/desktop/electron-builder.json、scripts/package-windows.mjs、双层 package.json、pnpm-lock.yaml | 当前未配置代码签名；使用已编译资源与隔离的最小应用清单 | 桌面资源编译及 electron-builder x64 安装版/免安装版打包成功，产物位于 apps/desktop/release；新增依赖 npm 审计通过；安装运行由用户验收 |
+| 正式设备/游戏/设置界面 | implemented | 开发 | packages/ui、双端 App/library-adapter、library-bridge、library-ipc/store、共享 library.ts | 一个游戏关联多台设备，首期仅一个连接；覆盖/删除/备份恢复仍按 M-004 开放 | 按用户要求由用户验收；实现前半段 pnpm check、antd、既有 56 项 JS 测试和依赖审计通过，最终以交付构建为准 |
 | Android HTTP 与持续通知 | done | 开发 | TransferJson/Schema/Http/Engine、HttpTransfersPlugin、TransferRuntime/Service、SafRuntime、TS 桥及最小检查 | 全校验前不发布，sender sent 与 receiver 成功分开；应用级任务持有，Activity 暂停/销毁时任务继续，通知提供显式取消；任务只由用户发起，不调度或重放旧任务 | Java/TS 桥、lint/双 APK/互通及 TC-011 的正式 LAN、后台、重连、取消和外部内容属性核对通过；供 WP-007 界面复用 |
 | 工作区与质量配置 | done | 开发 | 根目录配置、packages/shared、scripts/check-text.mjs | — | 维护质量检查与固定依赖 |
 | Android SAF 单文件发布 | done | 开发 | NewFilePublisher、PublicationModel/Json、SafPublicationBackend/DirectoryStore、单元测试及既有原生集成 | 排他创建取决于提供者能力；未知归属不写入或删除，目标所有权只在当前进程内有效；写入限定在明确授权的合成根 | 单元、lint/双 APK/原生互通及 API 33 实际 SAF 发布、外部原文与控制属性核对通过；供 WP-006 原生 HTTP 复用 |
