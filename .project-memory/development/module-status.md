@@ -24,6 +24,7 @@ related_files: []
 | 模块 | 状态 | 负责人 | 相关文件 | 风险 | 下一步 |
 | --- | --- | --- | --- | --- | --- |
 | 工作区与质量配置 | done | 开发 | 根目录配置、packages/shared、scripts/check-text.mjs | — | 维护质量检查与固定依赖 |
+| 双端系统明暗主题 | done | 开发 | 桌面 App/use-system-dark-mode/main/style；移动 system-theme/main/style、MainActivity、日夜主题/颜色资源、ThemeTest | 当前跟随系统，不增加手动开关或主题偏好存储 | 双端 8 组浏览器初次/动态切换和 API 33 真机深→浅→深、原生背景/系统栏同步通过；antd lint、pnpm check 及 Android 构建检查通过；本轮已获本地提交授权 |
 | 本地设备/目录共享模型 | done | 开发 | packages/shared/src/contracts.ts、validation.ts、protocol.ts | 纯 DTO 不保证平台权限/实际 IO | 本地 DTO 与有限桥继续复用，传输使用独立批量模型 |
 | 共享批量契约 | done | 开发 | packages/shared/src/batch-*.ts、data-validation.ts、test、README.md | 只验证数据/上下文，不解析归档/JSON 文本或执行网络、发布、计时 | v1 批量模型、32 项运行时与 16 项类型反例通过；供后续 HTTP/Java 归档包复用 |
 | Windows 私有归档 | done | 开发 | apps/desktop/src/main/archive-*.ts、目录读流、test/fixtures/archive-v1.json、归档测试、README.md | 归档模块不负责 HTTP/目标发布；没有全量 GiB 或峰值内存/功耗证据；不承诺恶意并发命名空间隔离 | 20 项归档专项通过，源只读、缓存独占/所有权/取消与重试成立；HTTP sender/receiver 与新文件发布已复用 |

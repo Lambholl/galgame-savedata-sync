@@ -3,6 +3,7 @@
 ## 目录
 
 - [界面入口](#界面入口)
+- [系统明暗主题](#系统明暗主题)
 - [原生边界](#原生边界)
 - [原生归档接口](#原生归档接口)
 - [验证](#验证)
@@ -25,6 +26,14 @@ const roots = await androidDirectories.listRoots()
 `chooseDirectory()` 返回共享 `DirectorySelectionResult`；取消保留既有目录。`listRoots()` 返回 `OperationResult<readonly DirectoryReference[]>`；保存的引用失去权限时仍存在，authorization 为 expired。`listDirectory(rootId, parentId = null)` 返回当前层 `OperationResult<DirectoryListing>`，parentId 只能来自当前原生会话枚举出的目录条目。重建插件后先重新列目录，不复用旧 entryId。
 
 TS 桥校验请求与响应，拒绝路径/URI、附加字段及跨根/跨层响应；原生插件也独立校验请求。未安装插件、畸形返回和连接异常转为脱敏错误。网页预览返回 unsupported-operation。当前空壳尚未接入这些按钮，最终界面由后续工作包完成。
+
+## 系统明暗主题
+
+页面首次挂载前读取 `prefers-color-scheme`，通过 antd-mobile 的 `data-prefers-color-scheme` 属性切换完整主题，并监听运行时变化；热更新时释放旧监听。按用户要求，移动端暗色页面、启动及原生窗口背景统一为纯黑 `#000000`；文字和空状态说明使用组件库的明暗语义色，浏览器原生控件随主题切换。
+
+Android 使用日夜主题及 `values`/`values-night` 的窗口/启动背景，WebView 为透明底色；运行中以 MainActivity 的 `savedata:theme-change` 原生通知（仅含 `dark: boolean`）为准修正 WebView 缓存的媒体查询，并用 Capacitor 内置 `SystemBars` 显式同步系统栏图标颜色。媒体与原生事件监听均可清理。应用自行渲染暗色，关闭原生自动反色。当前没有手动开关或持久化主题偏好。
+
+`ThemeTest` 通过应用局部的 AppCompat 日夜模式验证深色启动、浅色切换及再次深色：同时检查原生 uiMode、页面主题属性/color-scheme、页面/说明文字颜色、原生背景与状态栏/导航栏图标。结束后恢复应用原模式，不修改设备全局外观；通过单独指定该测试类在已解锁设备上运行。
 
 ## 原生边界
 

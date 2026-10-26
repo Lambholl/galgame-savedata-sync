@@ -8,7 +8,7 @@ export function App(): React.JSX.Element {
     <ConfigProvider locale={zhCN}>
       <NavBar backIcon={false}>{APP_NAME}</NavBar>
       <main className="app-content">
-        <Empty description="尚未添加同步项目" />
+        <Empty description={<span className="empty-description">尚未添加同步项目</span>} />
       </main>
     </ConfigProvider>
   )

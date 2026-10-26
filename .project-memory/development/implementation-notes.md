@@ -20,6 +20,7 @@ related_files: []
 | 主题 | 结论 | 相关文件 |
 | --- | --- | --- |
 | 基础设施 | pnpm 工作区、双端 React 空壳、共享入口、严格 TS / ESLint / Prettier、编码检查和 Windows CI 已建立 | 根目录配置、apps/、packages/shared、scripts/、.github/workflows/ci.yml |
+| 双端明暗主题 | 桌面用系统媒体查询与 React 订阅切换 antd 算法，原生窗口底色同步并在关闭时释放监听；移动端在挂载前设置 antd-mobile 官方主题属性，运行时同步，热更新释放监听；移动端暗色页面/启动/原生背景统一 #000000，透明 WebView 配合；运行中接收原生 uiMode 通知修正 WebView 缓存的媒体查询，系统栏显式同步图标颜色；空状态说明使用语义文字色，无偏好持久化 | 双端 App/main/style、use-system-dark-mode.ts、system-theme.ts、桌面主进程、Android 主题/颜色资源、ThemeTest.java |
 | 共享本地/批量契约 | 数字 v1 同时提供本地设备/目录 DTO 与批量传输模型；批量清单/映射/状态/结果、路由/头/错误/预算常量、封闭守卫及上下文匹配已实现。sender sent 与 receiver succeeded 分开，实际文件哈希/根/父/名需匹配本任务；无平台 IO，不计算实际哈希 | packages/shared/src/contracts.ts、protocol.ts、validation.ts、batch-*.ts、data-validation.ts；packages/shared/README.md |
 | 共享检查入口 | pnpm test:shared 的 32 项运行时测试（12 项基础、20 项批量/上下文）、16 项类型反例及 pnpm check 通过；包含全部原有目录桥和双端构建。共享只用 ES2022、无自动平台类型、启用 erasableSyntaxOnly；未新增依赖 | package.json、tsconfig.base.json、packages/shared/tsconfig.json、packages/shared/test |
 | Windows 目录读取 | schema 1 配置在应用 userData，保存稳定设备/根 ID 与 bigint dev/ino 身份；配置不位于所选根内，未知版本/坏配置不重置。条目映射仅存内存；当前层读取、身份重查及原生只读流已实现 | apps/desktop/src/main/directory-adapter.ts、directory-store.ts、directory-paths.ts；完整说明见 apps/desktop/README.md |

@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, nativeTheme } from 'electron'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createDirectoryAdapter } from './directory-adapter.ts'
@@ -15,12 +15,14 @@ const rendererFileUrl = new URL('../renderer/index.html', import.meta.url)
 const expectedRendererUrl = rendererUrl ? new URL(rendererUrl).href : rendererFileUrl.href
 
 function createWindow(): void {
+  const getBackgroundColor = (): string => (nativeTheme.shouldUseDarkColors ? '#000000' : '#f5f5f5')
   const window = new BrowserWindow({
     width: 1100,
     height: 760,
     minWidth: 720,
     minHeight: 520,
     title: '存档同步',
+    backgroundColor: getBackgroundColor(),
     webPreferences: {
       preload: fileURLToPath(new URL('../preload/index.cjs', import.meta.url)),
       contextIsolation: true,
@@ -30,7 +32,12 @@ function createWindow(): void {
   })
   trustedWindows.add(window.webContents.id)
   const webContentsId = window.webContents.id
-  window.on('closed', () => trustedWindows.delete(webContentsId))
+  const updateBackground = (): void => window.setBackgroundColor(getBackgroundColor())
+  nativeTheme.on('updated', updateBackground)
+  window.once('closed', () => {
+    trustedWindows.delete(webContentsId)
+    nativeTheme.removeListener('updated', updateBackground)
+  })
 
   const loading = rendererUrl
     ? window.loadURL(rendererUrl)

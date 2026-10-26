@@ -4,7 +4,7 @@ status: active
 priority: high
 owner: product
 id_prefix: REQ
-id_high_water: 18
+id_high_water: 19
 updated: 2026-10-26
 tags: [产品需求]
 related_files: []
@@ -47,6 +47,7 @@ related_files: []
 | REQ-016 | Android 仅支持前台；前台连接时允许两端发起同步 | P0 | active | Android 前台可从任一端发起任务；不提供后台同步服务或后台传输能力 |
 | REQ-017 | 检查所有项目依赖版本，避免引入已知漏洞版本，包括开发、间接依赖和 Android 构建依赖 | P0 | active | 依赖变更后执行官方 npm / OSV 审计与上游安全公告核对；已知漏洞需修复；网络或依赖解析失败不计作审计通过 |
 | REQ-018 | 双向统一采用 tar.gz 作为唯一文件传输方案，按本次待传集合合批 | P0 | active | Windows 与 Android 原生层打包/解包，经 HTTP 流传输；接收端逐文件校验并反馈实际结果；格式决定不改变当前状态判定、复制模式、备份与前台边界 |
+| REQ-019 | Windows 与 Android 界面适配明暗主题 | P1 | active | 默认跟随系统，首次加载及运行时切换均同步组件、页面背景、文字及原生窗口背景；移动端暗色页面、启动及原生窗口背景按用户要求统一纯黑 #000000；Android 状态栏/导航栏图标可读；当前不增加手动开关或持久化主题偏好 |
 
 ## 3. 约束
 
