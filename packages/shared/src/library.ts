@@ -256,12 +256,12 @@ export function mergeCatalogLinks(
       }
       return link && !item.excludedDevices?.includes(deviceId)
         ? {
-          ...item,
-          links: [
-            ...item.links.filter((value) => value.deviceId !== deviceId),
-            { deviceId, gameId: link.localGameId },
-          ],
-        }
+            ...item,
+            links: [
+              ...item.links.filter((value) => value.deviceId !== deviceId),
+              { deviceId, gameId: link.localGameId },
+            ],
+          }
         : item
     }),
   }

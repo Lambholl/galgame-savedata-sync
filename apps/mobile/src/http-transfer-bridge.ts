@@ -269,11 +269,11 @@ export function createHttpTransferBridge(
     const receiver = isSender
       ? undefined
       : {
-        protocolVersion: 1 as const,
-        manifest,
-        targetRootId: context.options.targetRootId,
-        targets: context.options.targets,
-      }
+          protocolVersion: 1 as const,
+          manifest,
+          targetRootId: context.options.targetRootId,
+          targets: context.options.targets,
+        }
     return matchesBatchState(value, manifest, direction, receiver)
       ? { status: 'success', value }
       : failure(BRIDGE)

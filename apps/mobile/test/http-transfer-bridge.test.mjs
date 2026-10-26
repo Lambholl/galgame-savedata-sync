@@ -37,27 +37,27 @@ function setup(upload = false) {
     fileResults: upload
       ? null
       : manifest.files.map((file, index) => ({
-        fileId: file.fileId,
-        status: 'succeeded',
-        bytesWritten: file.sizeBytes,
-        sha256: file.sha256,
-        entry: {
-          rootId: targetRootId,
-          entryId: `published-${index}`,
-          parentId: null,
-          name: targets[index].name,
-          kind: 'file',
-          sizeBytes: file.sizeBytes,
-          modifiedAt: null,
-          capabilities: {
-            canRead: 'supported',
-            canList: 'unsupported',
-            canCreate: 'unsupported',
-            canRename: 'unsupported',
-            canDelete: 'unsupported',
+          fileId: file.fileId,
+          status: 'succeeded',
+          bytesWritten: file.sizeBytes,
+          sha256: file.sha256,
+          entry: {
+            rootId: targetRootId,
+            entryId: `published-${index}`,
+            parentId: null,
+            name: targets[index].name,
+            kind: 'file',
+            sizeBytes: file.sizeBytes,
+            modifiedAt: null,
+            capabilities: {
+              canRead: 'supported',
+              canList: 'unsupported',
+              canCreate: 'unsupported',
+              canRename: 'unsupported',
+              canDelete: 'unsupported',
+            },
           },
-        },
-      })),
+        })),
   }
   const calls = []
   let callback,

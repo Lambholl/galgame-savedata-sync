@@ -1,6 +1,7 @@
 node_modules/
 dist/
 out/
+release/
 pnpm-lock.yaml
 .project-memory/
 apps/mobile/android/

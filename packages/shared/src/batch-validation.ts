@@ -326,15 +326,15 @@ export function isFileOutcome(value: unknown): value is FileOutcome {
 
 function hasValidCleanup(value: Record<string, unknown>): boolean {
   switch (value.cleanupStatus) {
-  case 'not-needed':
-  case 'complete':
-    return value.cleanupError === null
-  case 'incomplete':
-    return isOperationError(value.cleanupError) && value.cleanupError.code === 'cleanup-failed'
-  case 'unknown':
-    return isOperationError(value.cleanupError) && value.cleanupError.code === 'result-unknown'
-  default:
-    return false
+    case 'not-needed':
+    case 'complete':
+      return value.cleanupError === null
+    case 'incomplete':
+      return isOperationError(value.cleanupError) && value.cleanupError.code === 'cleanup-failed'
+    case 'unknown':
+      return isOperationError(value.cleanupError) && value.cleanupError.code === 'result-unknown'
+    default:
+      return false
   }
 }
 

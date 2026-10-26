@@ -698,9 +698,9 @@ export class WindowsTransferRegistry {
       fileResults: results,
       ...(cleanupError
         ? {
-          cleanupStatus: 'incomplete' as const,
-          cleanupError: { ...cleanupError, code: 'cleanup-failed' as const },
-        }
+            cleanupStatus: 'incomplete' as const,
+            cleanupError: { ...cleanupError, code: 'cleanup-failed' as const },
+          }
         : { cleanupStatus: 'complete' as const, cleanupError: null }),
     }
     const terminal = {

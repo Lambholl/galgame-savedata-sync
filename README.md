@@ -61,7 +61,7 @@ Windows PowerShell 若限制执行 `.ps1` 启动器，可使用 `pnpm.cmd` 执�
 | `pnpm security:check`      | 官方 npm 全量审计、固定 pnpm 的 OSV 检查及 Node.js 安全补丁基线   |
 | `pnpm security:npm`        | 审计项目全部 npm 直接和间接依赖，包括开发依赖                     |
 | `pnpm security:android`    | Gradle 解析 Android 运行、测试及构建依赖后通过 OSV 检查 Maven 包  |
-| `pnpm format`              | 格式化手写代码；Markdown 与生成的 Android 工程单独维护          |
+| `pnpm format`              | 先修复 ESLint 问题，再用 Prettier 排版；Markdown 与生成的 Android 工程单独维护 |
 | `pnpm android:sync`        | 构建移动网页并同步到已纳入仓库的 Android 工程                     |
 | `pnpm android:build`       | 同步资源后使用项目 Gradle Wrapper 构建 debug APK                  |
 | `pnpm android:test`        | Java 单元、跨端原生归档互通、Android lint 及调试/仪器测试 APK 构建，不自动连接设备 |

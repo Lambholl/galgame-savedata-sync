@@ -29,14 +29,14 @@ export function registerServiceIpc(
     const address = service.getAddress()
     const addresses = address
       ? [
-        ...new Set(
-          Object.values(networkInterfaces()).flatMap((items) =>
-            (items ?? [])
-              .filter((item) => item.family === 'IPv4' && !item.internal)
-              .map((item) => `http://${item.address}:${address.port}`),
+          ...new Set(
+            Object.values(networkInterfaces()).flatMap((items) =>
+              (items ?? [])
+                .filter((item) => item.family === 'IPv4' && !item.internal)
+                .map((item) => `http://${item.address}:${address.port}`),
+            ),
           ),
-        ),
-      ]
+        ]
       : []
     return {
       status: 'success',

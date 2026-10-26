@@ -96,16 +96,16 @@ export class DesktopLibrary {
         action === 'forget'
           ? current.devices.filter((item) => item.id !== id)
           : current.devices.map((item) =>
-            item.id === id
-              ? { ...item, ...(name ? { name } : {}), blocked: action === 'block' }
-              : item,
-          ),
+              item.id === id
+                ? { ...item, ...(name ? { name } : {}), blocked: action === 'block' }
+                : item,
+            ),
       games:
         action === 'forget'
           ? current.games.map((item) => ({
-            ...item,
-            links: item.links.filter((link) => link.deviceId !== id),
-          }))
+              ...item,
+              links: item.links.filter((link) => link.deviceId !== id),
+            }))
           : current.games,
     }))
     if (action !== 'allow') {
@@ -163,9 +163,9 @@ export class DesktopLibrary {
           devices: current.devices.some((item) => item.id === hello.deviceId)
             ? current.devices
             : [
-              ...current.devices,
-              { id: hello.deviceId, name: hello.name, address: null, blocked: false },
-            ],
+                ...current.devices,
+                { id: hello.deviceId, name: hello.name, address: null, blocked: false },
+              ],
         },
         hello.deviceId,
         hello.links.filter((link) => hello.games.some((item) => item.id === link.localGameId)),

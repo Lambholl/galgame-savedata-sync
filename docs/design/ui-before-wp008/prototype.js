@@ -244,15 +244,15 @@ function filePane(side) {
   const role = state.upload === computer ? '目标' : '源'
   const entries = path.length
     ? [
-      ['save01.dat', '128 KiB', '2026-10-27 08:32'],
-      ['save02.dat', '64 KiB', '2026-10-26 22:10'],
-    ]
+        ['save01.dat', '128 KiB', '2026-10-27 08:32'],
+        ['save02.dat', '64 KiB', '2026-10-26 22:10'],
+      ]
     : [
-      ['chapter-1', '文件夹 · —', '2026-10-26 22:10'],
-      ['save01.dat', '128 KiB', '2026-10-27 08:32'],
-      ['save02.dat', '64 KiB', '2026-10-26 22:10'],
-      ['system.dat', '大小未知', '2026-10-25 19:42'],
-    ]
+        ['chapter-1', '文件夹 · —', '2026-10-26 22:10'],
+        ['save01.dat', '128 KiB', '2026-10-27 08:32'],
+        ['save02.dat', '64 KiB', '2026-10-26 22:10'],
+        ['system.dat', '大小未知', '2026-10-25 19:42'],
+      ]
   let message = ''
   if (!own && !selectedPeer()) {
     message = '请选择设备'
@@ -268,11 +268,11 @@ function filePane(side) {
   const content = message
     ? `<div class="pane-empty">${message}</div>`
     : entries
-      .map(
-        ([name, size, modified]) =>
-          `<button class="pane-entry" data-action="${name === 'chapter-1' ? `folder-${side}` : 'file'}" data-name="${name}" data-size="${size}" data-modified="${modified}" title="${name}"><span class="pane-icon ${name === 'chapter-1' ? '' : 'document'}">${name === 'chapter-1' ? icon('folder') : '▤'}</span><span class="pane-text"><strong>${name}</strong><small>${size}</small><time>${modified}</time></span></button>`,
-      )
-      .join('')
+        .map(
+          ([name, size, modified]) =>
+            `<button class="pane-entry" data-action="${name === 'chapter-1' ? `folder-${side}` : 'file'}" data-name="${name}" data-size="${size}" data-modified="${modified}" title="${name}"><span class="pane-icon ${name === 'chapter-1' ? '' : 'document'}">${name === 'chapter-1' ? icon('folder') : '▤'}</span><span class="pane-text"><strong>${name}</strong><small>${size}</small><time>${modified}</time></span></button>`,
+        )
+        .join('')
   return `<section class="file-pane" aria-label="${computer ? '电脑' : '手机'}文件"><div class="pane-head"><div><strong>${escapeHtml(details.name)}</strong><span class="tag">${role}</span></div><small title="${escapeHtml(details.directory)}">${escapeHtml(details.directory || '未设置目录')}${path.length ? ' / chapter-1' : ''}</small></div><div class="pane-scroll">${path.length && !message ? button('‹ 上一级', `up-${side}`, 'pane-up') : ''}${content}</div></section>`
 }
 function transferBlocked() {
@@ -508,9 +508,9 @@ document.addEventListener('click', (event) => {
     const address =
       state.platform === 'mobile'
         ? $('device-address')
-          .value.trim()
-          .replace(/^http:\/\//, '')
-          .replace(/\/$/, '')
+            .value.trim()
+            .replace(/^http:\/\//, '')
+            .replace(/\/$/, '')
         : ''
     if (
       !name ||

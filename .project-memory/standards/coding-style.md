@@ -38,7 +38,7 @@ related_files: []
 | --- | --- | --- |
 | 通用语言规范基线 | Skill 自身 `references/general-standards/` | 不在项目模板中私自修改 |
 | 项目级覆盖和差异 | 本文件或同目录规范文件 | 记录差异原因、适用范围和生效条件 |
-| 自动化格式规则 | `.prettierrc.json`、`.editorconfig` | 格式只维护一份；ESLint 通过 `eslint-plugin-prettier/recommended` 读取 Prettier 配置并关闭冲突规则 |
+| 自动化格式规则 | `.prettierrc.json`、`.editorconfig` | 排版设置维护一份；ESLint 使用 `eslint-config-prettier/flat` 关闭冲突规则，随后为 TS/TSX 启用 `curly: all` 和 `arrow-body-style: as-needed` |
 
 ## 3. 命名规范
 
@@ -97,7 +97,7 @@ related_files: []
 
 | 目标与范围 | 执行入口与证据 |
 | --- | --- |
-| 手写 JS/MJS/CJS/TS/TSX 的统一格式；按用户要求不使用行尾分号，保留必要的 ASI 防护分号 | `.prettierrc.json`、`.editorconfig`；`pnpm format`、`pnpm format:check`、`pnpm lint` 与 `eslint --fix` 共用配置 |
+| 手写 JS/MJS/CJS/TS/TSX 的统一格式；按用户要求不使用行尾分号，保留必要的 ASI 防护分号 | `.prettierrc.json`、`.editorconfig`；`pnpm format` 先执行 `eslint . --fix`，再执行 `prettier . --write`；`pnpm format:check` 检查排版，`pnpm lint` 检查 ESLint 规则 |
 | 全部 Markdown（含 MDX、Prettier 支持的其他 Markdown 扩展名与无扩展名 README）人工维护 | `.prettierignore`；Prettier 排除文件及其中的代码块，编码检查仍由 `pnpm check:text` 覆盖 |
 | 手写 JS/TS 的声明、严格比较、动态执行、错误对象与命名导出约束；TS 另检查类型安全、模块边界类型和未处理 Promise | `eslint.config.mjs`；JS 使用语法检查，TS 使用类型感知规则；生成目录不纳入检查 |
 | TypeScript 命名遵循语言基线；TSX 允许 PascalCase 组件；外部对象字面量键与导入名保留兼容性 | `eslint.config.mjs`；默认导出仅对当前四个 ESLint、Vite、Capacitor 配置文件豁免 |

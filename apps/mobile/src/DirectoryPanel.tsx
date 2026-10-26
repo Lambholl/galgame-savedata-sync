@@ -94,7 +94,7 @@ export function DirectoryPanel({
     // 远端刷新根列表会清空条目引用；依次重读祖先，恢复当前父目录的有效引用。
     async function readCurrent(): Promise<
       Awaited<ReturnType<AndroidDirectoryApi['listDirectory']>>
-      > {
+    > {
       for (const ancestor of [null, ...crumbs.slice(0, -1).map((crumb) => crumb.id)]) {
         if (parentId === null) {
           break
@@ -135,15 +135,15 @@ export function DirectoryPanel({
     onChange(
       listing && listing.rootId === rootId && listing.parentId === parentId
         ? {
-          rootId,
-          parentId,
-          label,
-          listing,
-          files: listing.entries.filter(
-            (entry): entry is FileMetadata =>
-              entry.kind === 'file' && selected.includes(entry.entryId),
-          ),
-        }
+            rootId,
+            parentId,
+            label,
+            listing,
+            files: listing.entries.filter(
+              (entry): entry is FileMetadata =>
+                entry.kind === 'file' && selected.includes(entry.entryId),
+            ),
+          }
         : null,
     )
   }, [listing, rootId, parentId, label, selected, onChange])

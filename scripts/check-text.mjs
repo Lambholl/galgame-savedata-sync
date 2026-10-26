@@ -11,6 +11,7 @@ const ignoredDirectories = new Set([
   'dist',
   'out',
   'build',
+  'release',
   'coverage',
 ])
 const textExtensions = new Set([

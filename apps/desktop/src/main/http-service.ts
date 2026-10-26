@@ -141,14 +141,14 @@ export class WindowsHttpService {
       ...this.options,
       ...(this.options.publisher && this.archive.receive
         ? {
-          receiver: {
-            archive: {
-              receive: this.archive.receive.bind(this.archive),
-              retryCleanup: this.archive.retryCleanup.bind(this.archive),
+            receiver: {
+              archive: {
+                receive: this.archive.receive.bind(this.archive),
+                retryCleanup: this.archive.retryCleanup.bind(this.archive),
+              },
+              publisher: this.options.publisher,
             },
-            publisher: this.options.publisher,
-          },
-        }
+          }
         : {}),
     })
     this.registry = registry
@@ -241,8 +241,8 @@ export class WindowsHttpService {
     const server = this.server
     const closed = server
       ? new Promise<void>((resolve, reject) =>
-        server.close((error) => (error ? reject(error) : resolve())),
-      )
+          server.close((error) => (error ? reject(error) : resolve())),
+        )
       : Promise.resolve()
     this.address = null
     for (const socket of this.sockets) {

@@ -151,13 +151,13 @@ export function createMobileLibraryAdapter(): UiAdapter {
           const response: OperationResult<DirectoryListing> = isAllowed
             ? await androidDirectories.listDirectory(request.rootId, request.parentId)
             : {
-              status: 'error',
-              error: {
-                code: 'permission-denied',
-                message: '这个目录未配置到游戏。',
-                canRetry: false,
-              },
-            }
+                status: 'error',
+                error: {
+                  code: 'permission-denied',
+                  message: '这个目录未配置到游戏。',
+                  canRetry: false,
+                },
+              }
           answers.set(id, { requestId: request.requestId, result: response })
         }
       }
@@ -271,10 +271,10 @@ export function createMobileLibraryAdapter(): UiAdapter {
         devices: load().devices.map((item) =>
           item.id === id
             ? {
-              ...item,
-              name: name ?? item.name,
-              ...(address !== undefined ? { address: normalizeHttpAddress(address) } : {}),
-            }
+                ...item,
+                name: name ?? item.name,
+                ...(address !== undefined ? { address: normalizeHttpAddress(address) } : {}),
+              }
             : item,
         ),
       })

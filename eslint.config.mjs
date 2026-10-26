@@ -1,5 +1,5 @@
 import js from '@eslint/js'
-import prettierRecommended from 'eslint-plugin-prettier/recommended'
+import prettierConfig from 'eslint-config-prettier/flat'
 import globals from 'globals'
 import reactHooks from 'eslint-plugin-react-hooks'
 import reactRefresh from 'eslint-plugin-react-refresh'
@@ -57,6 +57,7 @@ export default tseslint.config(
       '**/node_modules/**',
       '**/dist/**',
       '**/out/**',
+      '**/release/**',
       '.reports/**',
       'apps/mobile/android/**',
     ],
@@ -173,15 +174,16 @@ export default tseslint.config(
     ],
     rules: { 'no-restricted-exports': 'off' },
   },
-  // 格式统一由 .prettierrc.json 定义，并在最后禁用冲突的 ESLint 规则。
+  // 排版由 .prettierrc.json 定义；关闭冲突规则后，再启用兼容的代码结构规则。
   {
-    ...prettierRecommended,
+    ...prettierConfig,
     files: ['**/*.{js,mjs,cjs,ts,tsx}'],
+  },
+  {
+    files: ['**/*.{ts,tsx}'],
     rules: {
       curly: ['error', 'all'],
       'arrow-body-style': ['error', 'as-needed'],
-      'brace-style': 'error',
-      indent: ['error', 2],
     },
   },
 )

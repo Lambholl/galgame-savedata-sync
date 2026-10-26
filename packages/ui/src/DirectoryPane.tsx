@@ -94,14 +94,14 @@ export function DirectoryPane({
     onLocation(
       listing && rootId && isOnline
         ? {
-          rootId,
-          parentId,
-          listing,
-          files: listing.entries.filter(
-            (item): item is FileMetadata =>
-              item.kind === 'file' && selected.includes(item.entryId),
-          ),
-        }
+            rootId,
+            parentId,
+            listing,
+            files: listing.entries.filter(
+              (item): item is FileMetadata =>
+                item.kind === 'file' && selected.includes(item.entryId),
+            ),
+          }
         : null,
     )
   }, [listing, rootId, parentId, selected, isOnline, onLocation])
@@ -157,18 +157,18 @@ export function DirectoryPane({
         }}
         {...(isSource
           ? {
-            rowSelection: {
-              columnWidth: 26,
-              selectedRowKeys: [...selected],
-              getCheckboxProps: (item: EntryMetadata) => ({
-                disabled:
+              rowSelection: {
+                columnWidth: 26,
+                selectedRowKeys: [...selected],
+                getCheckboxProps: (item: EntryMetadata) => ({
+                  disabled:
                     isDisabled ||
                     item.kind !== 'file' ||
                     item.capabilities.canRead === 'unsupported',
-              }),
-              onChange: (keys: React.Key[]) => setSelected(keys.map(String)),
-            },
-          }
+                }),
+                onChange: (keys: React.Key[]) => setSelected(keys.map(String)),
+              },
+            }
           : {})}
         columns={[
           {
