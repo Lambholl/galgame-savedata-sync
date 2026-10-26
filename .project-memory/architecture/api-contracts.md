@@ -3,7 +3,7 @@ doc_type: api-contracts
 status: active
 priority: medium
 owner: architecture
-updated: 2026-10-26
+updated: 2026-10-27
 tags: [API, 接口约定]
 related_files: []
 ---
@@ -25,7 +25,7 @@ related_files: []
 
 M-001 的范围是专用测试目录内的新文件往返；同步项目 CRUD、覆盖、镜像删除、备份、mDNS 和 Windows 发起任务的控制通道属于后续里程碑。Windows 为服务端，Android 原生层为 HTTP 客户端。
 
-用户已在[Q-008](../requirements/open-questions.md)确定双向统一采用 tar.gz。完整设计位于仓库根目录的 `docs/plans/m001-tar-gzip-protocol.md`；v1 批量共享数据与双端私有归档编解码可用。Windows 提供 v1 读取、sender 和上传 receiver 端点，当前只有批量接口；Windows 原生新文件发布及批次编排可用；Android 原生新文件发布可用，原生 HTTP 与通知保持传输由 WP-006 完成，下一步是 WP-007 界面。
+用户已在[Q-008](../requirements/open-questions.md)确定双向统一采用 tar.gz。完整设计位于仓库根目录的 `docs/plans/m001-tar-gzip-protocol.md`；v1 批量共享数据与双端私有归档编解码可用。Windows 提供 v1 读取、sender 和上传 receiver 端点，当前只有批量接口；Windows 原生新文件发布及批次编排可用；Android 原生新文件发布可用，原生 HTTP 与通知保持传输由 WP-006 完成，WP-007 最小界面已经接入并通过实操，完整平台组合留 WP-008。
 
 真实 LAN、SAF 写后回读、后台通知和取消已完成实际设备验证。长期协议资料使用当前实现、固定夹具和验收场景；一次性实验脚本和报告只在 Git 历史中保留。
 
@@ -74,14 +74,16 @@ transferId 只属于当前会话，不是历史同步基线。服务以每次启
 | 边界 | 可传递的内容 | 限制 |
 | --- | --- | --- |
 | Electron preload | chooseDirectory、listRoots、listDirectory；只接受 ID，返回公开 DTO；系统选择器在主进程执行 | 无 fs/shell/Node、绝对路径、内容或写入接口；校验登记窗口、主 frame 与精确 URL；退出移除 handler |
+| Electron 服务桥 | desktopService 的 status/start/stop/chooseTarget/revokeTarget/cancel/retryCleanup；状态含实际端口/IPv4 地址、错误、已授权接收根和会话任务 | 窗口/主 frame/精确 URL 与参数/DTO 校验；start 端口为 0..65535，显式监听 0.0.0.0；选择器与本机确认后才 grant；没有路径/内容或通用 invoke，卸载停止轮询，退出移除 handler |
 | Electron 主进程原生读取 | registerDirectory 登记系统选中路径，listDirectory 返回当前层，openFile 返回本进程只读流 | 配置独立存放，没有历史清单；调用者消费或 destroy 流；逐段拒绝 symlink/junction，重查根/条目/句柄身份；恶意并发命名空间不在原子隔离范围内 |
-| Windows HTTP 原生服务（sender/receiver） | WindowsHttpService 显式 start/stop、地址/错误查询与清理重试；通用注册表负责两角色状态/取消/期限；receiver 完整校验后顺序发布，保留逐项结果 | 注入 publisher 及 archive.receive 才支持接收；能力不授予根写权限；构造及应用启动不监听网络，默认回环；UI/服务控制 IPC 留 WP-007；应用退出等待 HTTP 与发布模块停止；无文件字节跨桥 |
+| Windows HTTP 原生服务（sender/receiver） | WindowsHttpService 显式 start/stop、地址/错误查询与清理重试；通用注册表负责两角色状态/取消/期限；receiver 完整校验后顺序发布，保留逐项结果 | 注入 publisher 及 archive.receive 才支持接收；能力不授予根写权限；构造及应用启动不监听网络，默认回环；WP-007 用受限 IPC 提供服务控制与任务快照，getStates 不延长期限；应用退出等待 HTTP 与发布模块停止；无文件字节跨桥 |
 | Windows 原生新文件发布 | WindowsNewFilePublisher 的 grant/revoke、checkTarget、publish、retryCleanup/stop；单文件结果与清理分开；只在本机显式授权的专用测试根写入 | HTTP 和 UI 由 receiver 编排；读取登记不会授予写权限，授权/候选所有权只在当前进程内有效；同目录 wx 候选经哈希/sync 后排他 link，最终回读才成功；无法硬链接的卷会失败，未核实发布返回 unknown；输入关闭后返回，没有覆盖、删除或自动恢复 |
 | Windows 私有归档 | createWindowsArchiveAdapter、prepare/receive、不可变清单、openArchive/openFile/dispose/retryCleanup；onArchiveStored 只确认压缩体检查点；source 仍只读；目录流提供 verifyUnchanged 与缓存隔离检查 | 不返回可供 Renderer 使用的路径/句柄；完整 gzip/原文校验后返回私有缓存；HTTP 和目标发布交给上层；调用者关闭流并 dispose，异常用 operationError，清理失败另报 cleanupError |
 | Capacitor Java SAF 插件（API 33/35 读取验证通过） | chooseDirectory/listRoots/listDirectory；READ 持久授权、当前层元数据和本地 ID | URI/documentId 留在原生层，不接收任意路径；写入能力均不支持；原生只读流由同包调用者消费并关闭，不将内容或 Base64 交给 JS |
 | Java 私有归档 | ArchiveAdapter.prepare/receive、不可变 ArchiveModel、Artifact.openArchive/openFile/close；SafArchiveSource 从本次 SAF 引用原生读取并前后复核；控制器取消关闭读流/查询，资源、期限与清理错误分别检查 | 固定 v1 原生模型，完整校验后才返回句柄；私有真实缓存路径/所有权与进程独占，清理失败保留名额可重试；无 URI/内容跨桥；JSON 解码/网络、目标发布与前台调度分别留对应包；用法见移动说明 |
 | Java SAF 新文件发布 | NewFilePublisher 的 grant/revoke、preflight/publish、cancel/retryCleanup/stop；SafPublicationBackend 仅定位已有根/父目录，PublicationJson 对齐单文件结果和独立清理 | 系统 WRITE 与本次显式授权分开；创建前后核实 ID/父/名，常规 FD 身份及非截断 rw，关闭后 EOF/SHA-256/元数据回读；仅清理身份匹配的新条目，未知不重放，清理失败保留进程名额；无内容/URI 跨桥，原生流可来自已验证归档 |
 | Android 原生 HTTP/任务 | HttpTransfersPlugin、TransferJson/Schema/Http/Engine、TS 桥；connect、远端当前层、双向 start、query/queryRemote/getManifest/current、cancel/retryCleanup/订阅 | 严格 JSON/头/预算、会话及本次上下文；单次 ID/内容，回执丢失只查询；完整验证后逐项 SAF 发布；sender sent 与 receiver 成功分开，URI/字节不跨桥；用法见移动 README |
+| 清单前终态 | Android 下载在清单生成前取消/失败，生成逐文件 not-attempted 的接收终态 | TS 桥仅在本地下载终态、缺少清单、文件 ID/顺序/数量和原因均匹配时接纳；任何已写入结果继续要求完整清单/目标校验 |
 | 生命周期 | 可见界面发起任务，TransferRuntime 应用级持有；dataSync 前台服务与持续通知保持已有传输，Activity 暂停/销毁不会取消 | 通知权限经用户允许；完成/显式取消和清理后退出；没有自动调度或旧任务重放，current 只重新取得原任务上下文 |
 
 错误覆盖非法输入、版本不符、权限失效、不存在、不可读、不支持、名称冲突、路径越界、源变化、校验失败、网络失败、存储不足、IO/清理失败和结果待确认。未知属性是成功读取中的 null；选择取消和任务取消是独立结果，与读取错误分开。

@@ -17,9 +17,9 @@
 
 ## 1. 范围与入口
 
-`src/main/directory-adapter.ts` 提供 Windows 本机的目录登记、恢复、当前层元数据和原生只读文件流。目录通过系统选择器进入主进程，Renderer 不提交绝对路径；界面还没提供目录按钮和浏览布局。
+`src/main/directory-adapter.ts` 提供 Windows 本机的目录登记、恢复、当前层元数据和原生只读文件流。界面通过系统选择器选择目录，支持切换根目录、进入子目录、返回和刷新；文件夹大小显示“—”，未知文件属性显示“未知”。
 
-目录模块保持源只读；私有归档负责快照、编解码和缓存清理；HTTP 读取服务负责设备/目录查询、下载准备、单次内容领取及状态/取消。独立发布模块提供显式写授权和单文件非覆盖发布，并已连接到可选 HTTP receiver；桌面界面还没完成。覆盖和删除同步也还没实现。真实用户目录保持只读，写入测试只使用自有临时夹具。
+目录模块保持源只读；私有归档负责快照、编解码和缓存清理；HTTP 服务负责设备/目录查询、双向批次传输及状态/取消。桌面提供服务启停、实际地址/端口、接收目录授权/撤销、任务状态、取消和清理重试。传输由手机发起，接收只在本机确认的独立测试目录中创建新文件。同名目标报错，真实存档保持只读。
 
 ## 系统明暗主题
 
@@ -68,9 +68,15 @@ preload 通过 `window.desktopDirectories` 暴露冻结的 `DesktopDirectoryApi`
 
 应用退出时移除 handler，窗口关闭时删除可信窗口记录；应用采用单实例锁，常态下只有一个实例更新配置。该包只提供三个请求式方法，没有事件订阅；网页调用者不持有需要释放的文件句柄。
 
+服务控制另由 `window.desktopService` 的冻结 `DesktopServiceApi` 提供：`status()`、`start(port)`、`stop()`、`chooseTarget()`、`revokeTarget(rootId)`、`cancel(transferId)`、`retryCleanup()`。固定通道与响应守卫在 `src/service-bridge.ts`，主进程来源/参数校验在 `src/main/service-ipc.ts`。`start` 接受 0 到 65535 的整数，本机显式启动后监听 `0.0.0.0`；0 使用动态端口，冲突返回错误。快照含实际端口、局域网 IPv4 地址、运行错误、本进程接收根和当前会话任务；没有 sessionId、私有路径或文件内容。
+
+`chooseTarget()` 在原生系统选择器之后显示独立测试目录确认，成功才执行 `publisher.grant`，取消保留既有授权。`revokeTarget` 撤销新写入授权并收尾该根的当前发布。其他操作返回 `OperationResult<DesktopServiceSnapshot>`；选择器返回 `DirectorySelectionResult`。全部 Promise 将失败转为脱敏错误，无事件或原生句柄需要调用者释放。界面每秒读取状态，卸载停止轮询。`getStates()` 只取当前会话快照，不延长任务保留期；`cancel()` 保留已经发布的文件。
+
 ## 4. 配置与路径边界
 
 应用在 `app.getPath('userData')/directory-config.json` 保存 schemaVersion=1、deviceId 与 roots。内部根记录仅含 rootId、规范路径和 bigint dev/ino 的字符串身份；绝对路径不传到 Renderer，也不写进项目记忆。条目 ID/相对路径映射只在本进程内有效，不保存历史元数据或哈希，重启后重新枚举。
+
+应用启动先创建并解析系统提供的 userData 实际位置，再初始化配置和私有缓存，以兼容系统目录重定向。用户选定的存档根仍执行逐段路径、链接和身份检查。
 
 配置写入使用同目录独占临时文件、sync 和 rename；同进程登记串行处理，成功前不更新内存。配置必须位于所选根目录之外；目录损坏或版本未知时停止初始化。配置目录由应用控制，跨外部进程的配置事务或锁不在当前实现内。
 
@@ -120,7 +126,7 @@ Windows 短路径检查通过 PowerShell 调用 GetShortPathName，生成真实 
 
 ## 8. HTTP 服务与任务生命周期
 
-`src/main/http-service.ts` 提供可信主进程调用的 `WindowsHttpService`；构造对象时不会监听网络。当前应用初始化目录/归档/服务对象，退出时等待 stop；服务控制按钮与 IPC 留 WP-007。默认使用回环地址和动态端口；需要 LAN 时由本机控制显式指定监听地址，测试使用 127.0.0.1。
+`src/main/http-service.ts` 提供可信主进程调用的 `WindowsHttpService`；构造对象时不会监听网络。应用初始化目录/归档/服务对象，用户点服务按钮后通过有限 IPC 启动，退出时等待 stop。原生 API 缺省回环地址和动态端口，桌面按钮显式选择 LAN 监听；自动化 HTTP 检查使用 127.0.0.1。
 
 | 原生 API | 输入/返回 | 责任 |
 | --- | --- | --- |
@@ -146,13 +152,13 @@ HTTP 已实现设备、根/当前层、POST downloads、GET manifest/content、G
 
 归档从固定私有快照发送，发送时再核对实际长度/SHA-256。进度区分源读取和写入 HTTP 流的归档字节；sender 的校验/发布计数始终为 0，sent 表示本机发送流完成，Android 是否接收或发布要看 receiver 的结果。失败、取消和超时等待实际 IO 结束再清理；原始失败与清理错误分开。清理失败保留互斥，即使公开结果到期仍阻止新任务，明确重试成功后才释放。
 
-主进程 before-quit 同时等待 HTTP 服务与发布适配器停止，成功后继续退出；清理失败显示错误并保留重试机会。页面没有服务控制、任意路径、文件字节或写入入口。
+主进程 before-quit 同时等待 HTTP 服务与发布适配器停止，成功后继续退出；清理失败显示错误并保留重试机会。页面通过固定服务方法启停、授权、取消和重试清理；文件路径、字节和发布流由原生层持有。
 
 ## 9. HTTP 验证边界
 
 `test/http-service.test.mjs` 使用真实回环 HTTP/TCP 和独立临时源/缓存，覆盖下载内容与哈希、异步状态、单次领取、路由/会话、取消、清理、停止与重启。时间边界由原生时钟与仅收紧的期限注入，不等待实际 30 分钟；大归档内存与性能仍需专项实测。
 
-这些检查覆盖 Windows sender 与服务原语；receiver 见第 11 节。Android Java/SAF、实际 LAN、最终界面和实际窗口退出由对应专项验收。应用不会自动监听 LAN，也不会改动真实存档。
+这些检查覆盖 Windows sender 与服务原语；receiver 见第 11 节。WP-007 另通过实际桌面窗口/系统选择器与 Android API 33 的 LAN 双向、取消、清理重试和界面结果检查；完整平台组合留 WP-008。应用默认停止服务，真实存档保持只读。
 
 ## 10. 原生新文件发布
 
@@ -197,7 +203,7 @@ await publisher.stop()
 
 ## 11. HTTP 接收与批次结果
 
-可信主进程通过 `new WindowsHttpService(source, archive, { publisher })` 启用 Windows receiver；archive 须支持 receive。未注入时服务保持只读。设备能力表示是否有接收适配，实际目标仍须由本机 `publisher.grant(rootId)` 授权。HTTP 没有 grant、任意路径或远程覆盖入口。当前应用初始化时会注入适配器，但不会自动监听或授予写权限；最终操作界面还没完成。
+可信主进程通过 `new WindowsHttpService(source, archive, { publisher })` 启用 Windows receiver；archive 须支持 receive。未注入时服务保持只读。设备能力表示是否有接收适配，实际目标仍须由本机 `publisher.grant(rootId)` 授权。HTTP 没有 grant、任意路径或远程覆盖入口。当前应用初始化时注入适配器，用户在桌面显式启动服务、选择并确认独立接收目录后才授予本进程写权限。
 
 ```ts
 // source、archive 和专用测试根由可信主进程准备；写权限不从网络请求取得。
@@ -224,4 +230,4 @@ receiver 的 sourceBytesRead 始终为 0，接收/原文校验/最终发布字�
 
 `test/http-receiver.test.mjs` 使用独立格式夹具、真实回环 HTTP/TCP 和自有源/目标/缓存，覆盖两阶段确认、单次 PUT、全部校验前零发布、部分失败/取消/unknown、响应丢失、停止与重启。sender 相关回归继续通过，源内容和属性逐项复验。
 
-以上是 Windows receiver 的本地验证。双端正式 LAN 已按移动说明完成；其他文件系统、特殊名称等价、跨进程候选恢复、全量 GiB、峰值内存和最终界面仍有缺口。真实存档没有写入。
+以上是 Windows receiver 的本地验证。双端正式 LAN 与最小界面已通过实际操作；其他文件系统、特殊名称等价、跨进程候选恢复、全量 GiB 和峰值内存仍有缺口。真实存档没有写入。

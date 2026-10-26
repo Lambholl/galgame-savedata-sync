@@ -1,6 +1,7 @@
 import { app, BrowserWindow, dialog, ipcMain, nativeTheme } from 'electron'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { mkdir, realpath } from 'node:fs/promises'
 import { createDirectoryAdapter } from './directory-adapter.ts'
 import { isTrustedDirectorySender, registerDirectoryIpc } from './directory-ipc.ts'
 import { toDirectoryError } from './directory-errors.ts'
@@ -8,6 +9,7 @@ import { createWindowsArchiveAdapter } from './archive-adapter.ts'
 import { WindowsHttpService } from './http-service.ts'
 import { toHttpError } from './http-errors.ts'
 import { WindowsNewFilePublisher } from './new-file-publisher.ts'
+import { registerServiceIpc } from './service-ipc.ts'
 
 const trustedWindows = new Set<number>()
 const rendererUrl = process.env.ELECTRON_RENDERER_URL
@@ -55,12 +57,13 @@ if (hasInstanceLock)
   app
     .whenReady()
     .then(async () => {
-      const adapter = await createDirectoryAdapter(
-        join(app.getPath('userData'), 'directory-config.json'),
-      )
-      const archive = await createWindowsArchiveAdapter(adapter, app.getPath('userData'))
-      // 网络服务由后续可信界面显式启动；应用退出须等待私有缓存和连接释放。
-      // 发布适配器没有默认写授权，后续仅由可信本机操作显式 grant。
+      // 平台提供的应用私有目录可能经过系统重定向；先解析它，再执行缓存的逐段检查。
+      // 用户选择的存档目录仍由目录适配器独立拒绝链接和越界。
+      await mkdir(app.getPath('userData'), { recursive: true })
+      const privateDirectory = await realpath(app.getPath('userData'))
+      const adapter = await createDirectoryAdapter(join(privateDirectory, 'directory-config.json'))
+      const archive = await createWindowsArchiveAdapter(adapter, privateDirectory)
+      // 网络监听与测试根写授权均由本机界面显式发起。
       const publisher = new WindowsNewFilePublisher(adapter)
       const httpService = new WindowsHttpService(adapter, archive, { publisher })
       let canQuit = false
@@ -94,6 +97,30 @@ if (hasInstanceLock)
           isTrustedDirectorySender(event, trustedWindows, expectedRendererUrl),
       })
       app.once('will-quit', disposeDirectoryIpc)
+      const disposeServiceIpc = registerServiceIpc(ipcMain, adapter, httpService, publisher, {
+        isTrustedSender: (event) =>
+          isTrustedDirectorySender(event, trustedWindows, expectedRendererUrl),
+        chooseTargetPath: async () => {
+          const result = await dialog.showOpenDialog({
+            title: '选择独立测试接收目录',
+            properties: ['openDirectory', 'dontAddToRecent'],
+          })
+          const path = result.canceled ? null : (result.filePaths[0] ?? null)
+          if (path === null) return null
+          const confirmation = await dialog.showMessageBox({
+            type: 'warning',
+            title: '允许接收测试文件',
+            message: '请确认这是独立测试目录',
+            detail: `${path}\n\n本次运行允许在该目录及子目录中创建新文件。同名文件会拒绝接收。请勿选择真实游戏存档。`,
+            buttons: ['取消', '允许接收'],
+            defaultId: 0,
+            cancelId: 0,
+            noLink: true,
+          })
+          return confirmation.response === 1 ? path : null
+        },
+      })
+      app.once('will-quit', disposeServiceIpc)
       createWindow()
       app.on('activate', () => {
         if (BrowserWindow.getAllWindows().length === 0) createWindow()

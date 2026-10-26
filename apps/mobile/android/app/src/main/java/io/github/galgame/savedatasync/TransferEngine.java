@@ -20,7 +20,7 @@ import static io.github.galgame.savedatasync.TransferSchema.*;
 /**
  * 原生双向任务所有者。界面可见时 start，已发起的任务由持续通知服务持有，不随 Activity 暂停取消。
  * 不持久化地址、清单或历史哈希；query 只读快照，失败响应不授权重发 POST/PUT。
- * 下载准备清单前 local state 尚不存在，query 返回 task-conflict；可查询远端 sender 进度。
+ * 下载准备清单前 query 返回 task-conflict；此时取消/失败仍生成全项未尝试的本地终态。
  */
 final class TransferEngine {
     interface Local {
@@ -417,7 +417,7 @@ final class TransferEngine {
             String status = failure.cancelled ? "cancelled" : job.uploadBodyAttempted && job.transferred > 0 ? "unknown" : "failed";
             job.state = terminal(job, status, status.equals("unknown") ? "result-unknown" : failure.cancelled ? null : failure.code, null); return;
         }
-        if (job.manifest == null) return;
+        // 清单取得前没有目标创建；失败/取消也须生成终态，供重建后的界面查询。
         List<Object> values = outcomes.computeIfAbsent(job.id, ignored -> new ArrayList<>());
         String status = "succeeded", code = null, reason = null;
         for (Object value : values) {

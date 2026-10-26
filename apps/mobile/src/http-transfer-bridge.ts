@@ -214,6 +214,22 @@ export function createHttpTransferBridge(
     if (!context.manifest) {
       const response = await getManifest(id)
       if (response.status === 'error') {
+        // 原生下载在清单生成前结束时，逐文件只能是本次选择的“未尝试”。
+        if (
+          !remote &&
+          !context.upload &&
+          value.role === 'receiver' &&
+          response.error.code === 'task-conflict' &&
+          (value.status === 'failed' || value.status === 'cancelled') &&
+          value.fileResults.length === context.options.request.files.length &&
+          value.fileResults.every(
+            (result, index) =>
+              result.fileId === context.options.request.files[index]?.fileId &&
+              result.status === 'not-attempted' &&
+              result.reason === (value.status === 'cancelled' ? 'cancelled' : 'batch-invalid'),
+          )
+        )
+          return { status: 'success', value }
         if (
           sender &&
           response.error.code === 'task-conflict' &&

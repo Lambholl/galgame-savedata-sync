@@ -3,7 +3,7 @@ doc_type: architecture-modules
 status: draft
 priority: high
 owner: architecture
-updated: 2026-10-26
+updated: 2026-10-27
 tags: [模块]
 related_files: []
 ---
@@ -17,7 +17,7 @@ related_files: []
 
 ## 1. 设计状态
 
-v1 本地/批量共享模型、双端目录读取、双端私有归档、Windows HTTP sender/receiver 和新文件发布已经可用。WP-013 完成了实际 API 33 SAF 原生读流集成；Android SAF 单文件发布和 HTTP/通知保持传输已经可用；最终界面还没集成。tar.gz 批量设计位于仓库根目录的 `docs/plans/m001-tar-gzip-protocol.md`；Windows/Java 归档与目标发布分别验证，网络包负责集成编排。当前实现与验证状态见[模块状态](../development/module-status.md)，依赖与退出条件见[工作包](../development/work-packages.md)。
+v1 本地/批量共享模型、双端目录读取、双端私有归档、Windows HTTP sender/receiver 和新文件发布已经可用。WP-013 完成了实际 API 33 SAF 原生读流集成；Android SAF 单文件发布和 HTTP/通知保持传输已经可用；WP-007 最小目录、连接与传输界面已集成。tar.gz 批量设计位于仓库根目录的 `docs/plans/m001-tar-gzip-protocol.md`；Windows/Java 归档与目标发布分别验证，网络包负责集成编排。当前实现与验证状态见[模块状态](../development/module-status.md)，依赖与退出条件见[工作包](../development/work-packages.md)。
 
 ## 2. M-001 模块边界
 

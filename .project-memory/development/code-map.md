@@ -3,7 +3,7 @@ doc_type: code-map
 status: active
 priority: medium
 owner: development
-updated: 2026-10-26
+updated: 2026-10-27
 tags: [代码地图]
 related_files: []
 ---
@@ -13,7 +13,7 @@ related_files: []
 | 路径 | 作用 | 重要约定 |
 | --- | --- | --- |
 | `package.json`、`pnpm-workspace.yaml`、`pnpm-lock.yaml` | pnpm 工作区、固定版本与工程入口 | 私有工作区；使用指定 pnpm，不依赖系统全局 Gradle |
-| `apps/desktop/` | Electron 主进程、preload 和 antd 空壳 | Renderer 无 Node 集成；contextIsolation 和 sandbox 开启 |
+| `apps/desktop/` | Electron 主进程、preload 和 antd 最小验证界面 | Renderer 无 Node 集成；contextIsolation 和 sandbox 开启 |
 | `apps/desktop/src/main/directory-adapter.ts`、`directory-store.ts`、`directory-paths.ts`、`directory-errors.ts` | 目录选择登记、独立配置、当前层元数据、根内原生读流及脱敏错误 | 没有源目录写入 API；拒绝 symlink/junction 与失效身份，配置不保存历史文件索引 |
 | `apps/desktop/src/main/archive-adapter.ts`、`archive-cache.ts`、`archive-format.ts`、`archive-errors.ts` | 私有源快照、受限 USTAR/gzip1 编解码、逐层校验、资源/取消与缓存所有权/清理 | 无 HTTP 或目标发布；缓存与源根互不包含；句柄持有缓存，读流关闭后 dispose；清理失败阻止新任务 |
 | `apps/desktop/test/archive-adapter.test.mjs`、`test/fixtures/archive-v1.json` | Windows 私有归档的格式、资源与故障回归，以及独立格式夹具 | 合成数据，不操作真实存档；Java 复用固定字节与原文期望；各自自我往返不算互通证据 |
@@ -22,8 +22,10 @@ related_files: []
 | `apps/desktop/src/main/upload-receiver.ts`、`test/http-receiver.test.mjs` | 单次上传背压/断流/取消、压缩体检查点与异步完整归档校验、顺序发布/部分结果与上下文核对 | 接收适配与本机写授权分开，全部原文验证前零发布；202 时发布结果另行查询；清理失败保留名额，响应/结果丢失不重放 |
 | `apps/desktop/test/http-service.test.mjs` | 真实回环 HTTP/TCP、异步结果、单次领取、期限与清理回归 | 独立临时夹具；Android、LAN 和最终界面另做验收 |
 | `apps/desktop/src/directory-bridge.ts`、`src/main/directory-ipc.ts`、`src/preload/index.ts` | 三个有限目录方法与 IPC 来源/参数/返回校验 | 绝对路径和文件内容不跨桥；handler 在退出时移除；main/preload 内联共享包 |
+| `apps/desktop/src/service-bridge.ts`、`src/main/service-ipc.ts`、`src/renderer/src/DirectoryPanel.tsx`、`TaskPanel.tsx` | 本机服务启停/接收根授权/任务桥与目录、结果界面 | 系统选择及本机确认后授权，校验来源与 DTO；不传私有路径/字节；会话任务到期语义不变 |
 | `apps/desktop/test/`、`apps/desktop/README.md` | Windows 目录、归档、HTTP 与发布的最小长期回归及接口说明 | pnpm check 不含 pnpm test:desktop；真实目录仅只读验证，机器路径不提交 |
-| `apps/mobile/` | antd-mobile 空壳、Vite 与 Capacitor 配置 | Android 原生能力在设备上验证 |
+| `apps/mobile/` | antd-mobile 最小验证界面、Vite 与 Capacitor 配置 | Android 原生能力在设备上验证 |
+| `apps/mobile/src/DirectoryPanel.tsx`、`TaskPanel.tsx`、`use-transfer-task.ts`、`App.tsx` | 双端目录、手动连接、文件/方向/目标映射和原生任务显示 | 仅当前层浏览；后台停止网页轮询，重载查询同一原生任务；源文件内容不经过网页 |
 | `apps/mobile/android/` | Capacitor 生成的原生工程与项目 Wrapper | minSdk 29、compile/target 36；Manifest 明文 HTTP；包含用户发起传输使用的 dataSync 前台服务 |
 | `apps/mobile/android/app/src/main/java/io/github/galgame/savedatasync/` | Java SAF 只读选择、权限/配置恢复、当前层元数据和原生流 | URI 留原生层，READ 持久授权，原生流调用者负责关闭；配置不保存条目或哈希 |
 | 同目录 `ArchiveAdapter.java`、`ArchiveModel.java`、`ArchiveFormat.java`、`ArchiveCache.java`、`ArchiveControl.java`、`ArchiveFailure.java`、`SafArchiveSource.java` | Java 私有源快照、严格 USTAR/单 gzip、固定预算/取消/期限与缓存归属/恢复/重试；SAF 读取后复核 | 无 JSON/HTTP/目标发布或文件内容跨桥；句柄关闭读流后 close；进程独占覆盖待清理资源 |

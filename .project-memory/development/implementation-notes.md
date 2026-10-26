@@ -3,7 +3,7 @@ doc_type: implementation-notes
 status: active
 priority: medium
 owner: development
-updated: 2026-10-26
+updated: 2026-10-27
 tags: [实现细节]
 related_files: []
 ---
@@ -28,10 +28,10 @@ related_files: []
 | 私有缓存与取消 | 固定应用私有缓存根和随机任务目录带所有权标记，拒绝与所选源根重叠；一份活动缓存覆盖返回句柄生命周期；显式缓冲不超过 64 KiB，预算可本机收紧，实际写入前计数/空间检查；失败/取消只清理本次缓存，清理失败独立报告并阻止新任务，关闭读流后重试；无源/目标发布写入 | archive-cache.ts、archive-errors.ts；仅内部句柄，不经 IPC；孤儿缓存不恢复历史任务 |
 | Windows HTTP sender | Node 内置 HTTP；只处理登记根、异步准备/清单/单次 gzip、状态与取消；严格 JSON 键/UTF-8/字节及路由/头/会话；注册前同步占用 ID/进程名额；期限和清理失败独立处理；保留有限 ID 防重，重启更换会话 | apps/desktop/src/main/http-*.ts、transfer-registry.ts、test/http-service.test.mjs |
 | Windows HTTP receiver | POST 异步全目标预检，物理父目录/名称去重后 201；PUT 唯一领取，64 KiB 背压桥显式终止停滞等待；压缩体落盘/长度/SHA-256 通过后 202，完整 gzip/tar/原文校验后才顺序发布；部分结果/清理分开，最后提交可赢得取消竞争；输入完整后响应丢失不终止本机发布 | upload-receiver.ts、transfer-registry.ts、archive-adapter.ts、test/http-receiver.test.mjs |
-| 服务启停与退出 | 构造时不监听，可信主进程显式 start，默认回环/动态端口；应用 before-quit 等待 stop，失败保留清理重试；UI/控制 IPC 留后续包；真实回环覆盖本机服务，LAN/Android 另行验证 | apps/desktop/src/main/index.ts；apps/desktop/README.md |
+| 服务启停与退出 | 构造时不监听，可信主进程显式 start，默认回环/动态端口；应用 before-quit 等待 stop，失败保留清理重试；WP-007 有限 IPC 提供显式 LAN 启停、接收根授权/撤销、任务快照/取消及清理重试，界面轮询卸载时停止；真实回环覆盖本机服务，LAN/Android 另行验证 | apps/desktop/src/main/index.ts；apps/desktop/README.md |
 | Windows 新文件发布 | 进程内显式根写授权与只读目标预检；同父目录 wx 候选逐块实测长度/哈希并 sync；link 排他发布后回读最终身份/EOF/SHA-256；成功/取消/unknown 与清理状态分开；仅删除身份匹配的自有候选，清理失败占名额至重试成功 | new-file-publisher.ts、publication-errors.ts；目录 locateNativeDirectory 只读 |
 | 发布恢复与平台边界 | 不支持安全 link 的文件系统失败关闭；候选所有权/写授权仅存本进程，正常退出等待停止，强杀后不猜测或自动删除目标卷候选；不恢复旧任务，跨进程恢复/其他卷/特殊名称等价未验收 | apps/desktop/README.md；testing/coverage-gaps.md |
-| 有限 Electron 桥 | 只暴露 chooseDirectory/listRoots/listDirectory；主窗口、主 frame、精确 URL 和参数/返回 DTO 均校验；无任意路径、内容、写入或删除入口。workspace 共享包在 main/preload 构建内联，preload 仅需 Electron require | apps/desktop/src/directory-bridge.ts、src/main/directory-ipc.ts、src/preload/index.ts、electron.vite.config.ts |
+| 有限 Electron 桥 | 目录桥暴露 chooseDirectory/listRoots/listDirectory；独立服务桥提供 status/start/stop/chooseTarget/revokeTarget/cancel/retryCleanup；主窗口、主 frame、精确 URL 和参数/返回 DTO 均校验；系统选择及独立目录确认后才授予本进程接收权限，路径/内容由原生持有。workspace 共享包在 main/preload 构建内联，preload 仅需 Electron require | apps/desktop/src/directory-bridge.ts、src/main/directory-ipc.ts、src/preload/index.ts、electron.vite.config.ts |
 | Windows 检查 | pnpm test:desktop 的最小回归覆盖目录/IPC、归档、HTTP 和发布；不纳入 pnpm check。夹具统一采用异步 realpath 临时根；既有真实存档只读检查内容与 mtime 一致，具体路径/哈希不保存 | apps/desktop/test；testing/regression-notes.md |
 | Java SAF 读取 | 提供只读系统选择器、稳定根/设备 ID 与权限恢复、当前层元数据和原生 InputStream；URI 不出原生层，不保存历史条目/哈希；API 33 合成夹具与旧 API 35 真实目录分别通过读取、选择/取消及重启恢复；首次访问 ctime 的未确定归因见回归状态 | apps/mobile/README.md、apps/mobile/src/saf-*、Android Java 源码及测试 |
 | Java 私有归档 | 从实际流建立原文快照，统计未知长度并在读取后复核 SAF 观察值，再生成规范 USTAR/gzip1；显式原始 inflater 消耗边界及 CRC/ISIZE/物理 EOF，全部逐文件 SHA 和精确 tar 结束通过才返回句柄。固定 v1 原生不可变模型不承担网络 JSON 解码 | ArchiveAdapter.java、ArchiveModel.java、ArchiveFormat.java、SafArchiveSource.java；apps/mobile/README.md |
@@ -39,7 +39,8 @@ related_files: []
 | Java SAF 单文件发布 | 系统 WRITE 与本次进程 grant 分开；preflight 无写入；创建前后枚举/名称等价/新 ID/父目录核实，提供者改名停止；保持空新文件 FD 身份，以 rw 不截断打开并再次核实设备/inode/零长度；64 KiB 计数/SHA 写流，关闭同步后完整回读、EOF、身份/名称/元数据前后检查后成功 | NewFilePublisher.java、SafPublicationBackend.java、PublicationModel.java；apps/mobile/README.md |
 | Java 发布结果与清理 | 原生 PublicationJson 对齐共享 FileOutcome/BatchCleanup，错误脱敏、unknown 不自动重放；失败/取消仅清理确知新建且身份匹配条目，关闭流/删除失败保留资源与进程名额至 retryCleanup；已确认成功不因晚取消或关闭失败删除；归档和发布名额独立，后续 HTTP 只编排 | PublicationJson.java、NewFilePublisherTest.java；TC-008 |
 | Android 原生 HTTP/通知 | TransferJson 严格 UTF-8/重复键/安全整数及有界 JSON，TransferSchema 独立核对任务/清单/角色/结果；无代理/缓存/重定向/自动解压，64 KiB、固定长度/SHA、60 秒网络停滞及 30 分钟总期限；丢失 POST/PUT 回执只查询。应用级 Runtime 持有任务，dataSync 服务持续通知保持传输；Activity 暂停或销毁不取消，完成/显式取消与清理后停止 | Transfer*.java、HttpTransfersPlugin、SafRuntime、TS 桥；移动 README/TC-035 |
-| 当前产品状态 | 已有空壳、本地/批量共享模型、双端读取适配、双端私有归档、Windows HTTP sender/receiver 与批次非覆盖发布；Android SAF 单文件发布及 HTTP/通知保持传输已经可用；项目管理、mDNS 和同步算法还没实现，最终界面留 WP-007 | apps/desktop、apps/mobile、development/work-packages.md |
+| 最小界面与恢复 | 双端使用既有受限目录/传输桥；源文件显式选择，目标用已有父目录与单文件名映射，真实计数和 sender/receiver 分别显示；Android 后台暂停网页轮询，重载从 current 重新查询同一原生任务；清单生成前取消/失败仍返回全项未尝试终态；系统提供的桌面 userData 先 realpath，再进行私有缓存检查 | 双端 DirectoryPanel/TaskPanel、mobile/use-transfer-task、TransferEngine.java、桌面 main/index/service-ipc、service-bridge.ts |
+| 当前产品状态 | 已有空壳、本地/批量共享模型、双端读取适配、双端私有归档、Windows HTTP sender/receiver 与批次非覆盖发布；Android SAF 单文件发布及 HTTP/通知保持传输已经可用；项目管理、mDNS 和同步算法还没实现，WP-007 已完成双端目录、手动连接、双向传输及结果界面，下一步为 WP-008 总体验收 | apps/desktop、apps/mobile、development/work-packages.md |
 | 固定依赖 | 采用兼容的 React 18 / TypeScript 5.9；pnpm 10.34.8；精确锁定版本和 lockfile，保留严格 peer 检查 | package.json、pnpm-lock.yaml、pnpm-workspace.yaml |
 | npm 安全 | 官方 registry 对 397 项依赖复审零已知漏洞；xcode 的 uuid 定向修复为 11.1.1，已验证 CommonJS UUID 调用兼容；pnpm 独立 OSV 查询零公告 | scripts/security-check.mjs、pnpm-workspace.yaml |
 | Gradle 安全 | 升级为 8.14.6；分发 ZIP 固定官方 SHA-256，Wrapper JAR 已按官方 SHA-256 验证并更新启动器 | apps/mobile/android/gradle/wrapper/、gradlew、gradlew.bat |

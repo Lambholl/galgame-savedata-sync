@@ -5,7 +5,7 @@ priority: medium
 owner: testing
 id_prefix: TC
 id_high_water: 35
-updated: 2026-10-26
+updated: 2026-10-27
 tags: [测试用例]
 related_files: []
 ---
@@ -26,6 +26,6 @@ related_files: []
 | TC-011 | Android 后台传输与显式取消 | 真机、通知和实际局域网 | 切后台或 Activity 重建不取消已有任务；完成或显式取消后释放通知和服务 | passed |
 | TC-012 | 结果未知与会话重启 | 相关既有测试加手工核实 | 响应丢失只查询，写入不重放；未知结果要重读目标确认 | partial |
 | TC-014 | Android 平台组合 | Android 10 与较新系统的真机 | 目录、归档、发布和 HTTP 行为在各目标系统上单独记录 | pending |
-| TC-015 | 最小界面与当前状态边界 | 实际运行与截图 | 目录、方向、进度和结果可操作；历史同步基线不参与结果判断 | pending |
+| TC-015 | 最小界面与当前状态边界 | Windows 实际窗口/选择器、API 33 界面及 LAN 操作/截图，外部 SHA-256 核对 | 双向空文件/中文名、子目录刷新后传输、同名冲突、准备前取消/清理重试、页面重载恢复及 64 MiB 后台上传通过；目录不汇总大小；完整平台组合见 TC-014 | passed |
 
 `partial` 表示已有真机证据，但仍有系统版本或场景未覆盖。`pnpm check` 不运行这些自动化测试；完整回归使用 `pnpm test:all`。

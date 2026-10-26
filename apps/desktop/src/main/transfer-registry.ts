@@ -336,6 +336,12 @@ export class WindowsTransferRegistry {
     return clone(this.find(id).state)
   }
 
+  /** 本机界面读取当前会话快照；遵守既有到期清理，不延长任务保留期。 */
+  getStates(): readonly BatchState[] {
+    this.sweep()
+    return [...this.tasks.values()].map((task) => clone(task.state))
+  }
+
   /** 仅在 ready 之后或仍保留清单的终态可读，准备阶段返回 task-conflict。 */
   getManifest(id: string): BatchManifest {
     const task = this.find(id)

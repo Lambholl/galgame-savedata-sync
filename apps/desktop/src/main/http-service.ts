@@ -10,7 +10,12 @@ import {
   HTTP_HEADERS,
   PROTOCOL_VERSION,
 } from '@savedata-sync/shared'
-import type { DeviceDescriptor, OperationError, OperationResult } from '@savedata-sync/shared'
+import type {
+  BatchState,
+  DeviceDescriptor,
+  OperationError,
+  OperationResult,
+} from '@savedata-sync/shared'
 import type { WindowsArchiveAdapter } from './archive-adapter.ts'
 import type { WindowsDirectoryAdapter } from './directory-adapter.ts'
 import { HttpOperationError, toHttpError } from './http-errors.ts'
@@ -44,7 +49,7 @@ export interface WindowsHttpOptions extends Omit<TransferRegistryOptions, 'recei
 
 /**
  * v1 HTTP 服务；显式注入发布适配后接收上传，写授权仍须由本机 grant，不自动重放。
- * start/stop 为受信任原生控制，UI 接入留后续包；start 失败抛脱敏 HttpOperationError。
+ * start/stop 为受信任原生控制，界面通过有限 IPC 调用；start 失败抛脱敏 HttpOperationError。
  * stop 关闭所有连接、取消并等待任务及缓存清理；失败可再次 stop 重试，不提前丢弃所有权。
  * 主进程退出必须 await stop；调用示例和 LAN/回环边界见桌面 README。
  */
@@ -92,6 +97,17 @@ export class WindowsHttpService {
   /** 运行时网络错误只含稳定消息，调用者可显示并停止/重启服务。 */
   getError(): OperationError | null {
     return this.runtimeError ? { ...this.runtimeError } : null
+  }
+
+  /** 本机控制读取会话内任务，不通过网络查询或延长期限。 */
+  getStates(): readonly BatchState[] {
+    return this.registry?.getStates() ?? []
+  }
+
+  /** 本机显式取消；不存在的任务抛脱敏错误，已发布文件保留。 */
+  cancel(transferId: string): BatchState {
+    if (!this.registry) throw new HttpOperationError('not-found', '服务尚未启动。')
+    return this.registry.cancel(transferId)
   }
 
   /** 主进程明确重试失败缓存清理；不创建 HTTP 自动重试或重放入口。 */

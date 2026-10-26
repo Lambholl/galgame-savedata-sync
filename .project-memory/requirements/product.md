@@ -5,7 +5,7 @@ priority: high
 owner: product
 id_prefix: REQ
 id_high_water: 19
-updated: 2026-10-26
+updated: 2026-10-27
 tags: [产品需求]
 related_files: []
 ---
@@ -23,7 +23,7 @@ related_files: []
 - 核心问题：在 Windows 与 Android 设备之间手工往返复制游戏存档不便。
 - 目标用户：同一局域网内在电脑和 Android 设备之间切换的使用者。
 - 核心价值：将文件夹映射保存为项目，浏览两端当前文件，手动选择方向后同步。
-- 当前范围：以下 active 需求及方案选择已由用户确认。基础设施、双端空壳、共享批量模型、双端目录读取与私有归档、Windows HTTP sender/receiver、批次非覆盖发布、Android SAF 单文件发布、Android HTTP/跨端传输编排和持续通知保持已经可用；最终界面及同步业务还没完成。已解答问题保留在[开放问题](open-questions.md)，当前方案见[架构总览](../architecture/overview.md)。
+- 当前范围：以下 active 需求及方案选择已由用户确认。基础设施、共享批量模型、双端目录读取与私有归档、Windows HTTP sender/receiver、批次非覆盖发布、Android SAF 单文件发布、Android HTTP/跨端传输编排和持续通知保持已经可用；WP-007 最小目录/连接/传输界面已完成，完整同步业务还没实现。已解答问题保留在[开放问题](open-questions.md)，当前方案见[架构总览](../architecture/overview.md)。
 
 ## 2. 需求清单
 
@@ -55,5 +55,5 @@ related_files: []
 | --- | --- |
 | 不依赖游戏引擎、运行器或存档格式 | 用户选择要处理的目录，工具执行通用文件操作 |
 | 文件夹大小不递归统计 | 文件级大小仍可读取；为同步枚举子目录与为目录汇总大小是不同操作 |
-| 已选 React 双端技术栈 | 需求与方案已确认；目录、归档、发布与 HTTP 原生模块已经可用；最终界面与同步业务按后续工作包推进 |
+| 已选 React 双端技术栈 | 需求与方案已确认；目录、归档、发布、HTTP 原生模块和最小验证界面已经可用；完整同步业务按后续工作包推进 |
 | Android 传输生命周期 | 用户发起的活动传输由持续通知保持，后台自动同步与定时/开机启动不在范围内 |

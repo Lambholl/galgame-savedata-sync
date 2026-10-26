@@ -15,8 +15,8 @@
 
 - 更新日期：2026-10-26。共享本地/批量模型、双端目录读取及私有归档、Windows HTTP sender/receiver 与批次非覆盖发布可用；WP-013 的实际 API 33 SAF 原生快照与 Windows/JVM/设备互通已通过。接口和验证边界见[共享包说明](../../packages/shared/README.md)、[桌面适配](../../apps/desktop/README.md)及[移动适配](../../apps/mobile/README.md)。SAF 单文件发布已由 WP-010 完成并通过实际设备验证；Android 网络、界面集成和完整设备组合由后续包交付。
 - 已确认基线：[产品需求](../../.project-memory/requirements/product.md)、[项目范围](../../.project-memory/requirements/scope.md)、[架构总览](../../.project-memory/architecture/overview.md)。Windows 提供 HTTP 服务，Android 主动连接；双端应用技术栈保持既定方案。
-- 当前执行边界：WP-005 已提交 9c4614c；双端归档与 Android SAF 单文件发布已完成独立实际 SAF 验证；下一项建议 WP-007。授权与当前检查点见[章程](../../.project-memory/project/charter.md)及[记忆索引](../../.project-memory/INDEX.md)。M-001 后续写入限独立夹具，真实存档保持只读。
-- 传输方案为双向唯一 tar.gz，见[批量协议](m001-tar-gzip-protocol.md)。v1 共享模型、双端私有归档及 Windows HTTP/发布已可用；SAF 单文件发布已可用，WP-006 原生 HTTP 与持续通知保持传输也已完成；下一步是 WP-007 界面。
+- 当前执行边界：WP-005 已提交 9c4614c；双端归档与 Android SAF 单文件发布已完成独立实际 SAF 验证；WP-007 最小界面已完成，下一项为 WP-008 总体验收。授权与当前检查点见[章程](../../.project-memory/project/charter.md)及[记忆索引](../../.project-memory/INDEX.md)。M-001 后续写入限独立夹具，真实存档保持只读。
+- 传输方案为双向唯一 tar.gz，见[批量协议](m001-tar-gzip-protocol.md)。v1 共享模型、双端私有归档及 Windows HTTP/发布已可用；SAF 单文件发布已可用，WP-006 原生 HTTP 与持续通知保持传输也已完成；WP-007 最小界面已完成并通过双端实际操作。
 - 目标：验证用户选定目录可访问、元数据可读、文件可通过明文 HTTP 双向传输，以及 Android 前台边界。本轮先确认原生文件能力。
 - 本期交付：共享模型、双端目录适配、Windows HTTP 服务、Android 原生流客户端、最小验证界面及验收证据。
 - 使用专用、可丢弃的测试目录及合成文件；文件接收只创建新文件，同名冲突明确失败。覆盖、删除同步和备份完成前，真实游戏存档保持只读。
@@ -74,7 +74,7 @@ Android 界面不可见时不新增任务，已有传输由持续通知/dataSync
 
 ## 4. 工作包设计
 
-仍有实现或验证交接的工作包见[工作包登记](../../.project-memory/development/work-packages.md)，共享模型及双端归档作为已完成的前置模块复用。下一推荐顺序为 WP-007、WP-008；双端归档与发布分别验证。该拆分不授权并行 Agent。
+仍有实现或验证交接的工作包见[工作包登记](../../.project-memory/development/work-packages.md)，共享模型及双端归档作为已完成的前置模块复用。下一项为 WP-008 总体验收；双端归档与发布分别验证。该拆分不授权并行 Agent。
 
 | 工作包 | 实现范围与交付物 | 必须通过的包内检查 | 不在该包内 |
 | --- | --- | --- | --- |

@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 owner: project
-updated: 2026-10-26
+updated: 2026-10-27
 tags: [Agent导航, 项目记忆]
 related_files: []
 ---
@@ -29,6 +29,8 @@ related_files: []
 
 | 工作 | 状态 | 相关记忆文档 | 相关代码或配置 | 已完成 | 下一步 |
 | --- | --- | --- | --- | --- | --- |
+| WP-008 前的双端 UI 设计 | in_progress | development/work-packages.md、requirements/product.md、project/roadmap.md | docs/design/ui-before-wp008/ | 已读取参考截图、双端界面及当前能力；按用户最新说明，WP-007 仍在推进，既有完成表述暂不作为关闭依据 | 完成页面原型、交互与实现对照说明；本次设计建议保持 draft |
+| WP-007 最小验证界面 | completed | development/work-packages.md、development/module-status.md、architecture/api-contracts.md、testing/test-cases.md、testing/coverage-gaps.md | apps/desktop/src、apps/mobile/src、TransferEngine.java、双端 README | 双端目录/连接/传输与结果界面完成；桌面服务/接收授权桥完成；修正清单前终态、连接时目标丢失、子目录刷新和结果保留；实际 Windows 选择器、正常启动、API 33 LAN 双向与 SHA-256、冲突、取消/清理、页面重载和 64 MiB 后台上传通过；pnpm check、antd、既有桌面/移动套件、Android 单元/lint/双 APK/互通、记忆校验通过；说明与记忆已同步，用户已授权本地提交 | 下一项 WP-008：Android 10/较新系统与其它提供者组合、规模资源和 M-001 总体验收 |
 | 按 humanizer-zh 清理文档表达 | completed | 全部项目记忆文档、architecture/api-contracts.md、development/*、testing/*、standards/testing-style.md | README.md、docs/**、apps/*/README.md、packages/shared/README.md、.project-memory/** | 清理用户说明、设计文档和项目记忆中的防御性声明、状态播报及工程套话；保留真实限制；`pnpm check`、项目记忆校验、本地 Markdown 链接检查和 `git diff --check` 通过 | 后续文档按 humanizer-zh 维护 |
 | 精简测试并重写测试规范 | completed | standards/testing-style.md、testing/strategy.md、testing/test-cases.md、testing/regression-notes.md、testing/coverage-gaps.md | package.json、.github/workflows/ci.yml、各包测试目录、README 与开发文档 | 删除界面、实验、模板和重复故障场景，长期套件只保留稳定边界；`pnpm check` 改为静态检查与构建，新增发布用 `pnpm test:all`，CI 改用 `android:build`；`pnpm check`、三个最小 JS 套件、Android 既有检查、记忆校验和本地 Markdown 链接检查通过 | 后续功能按新测试规范执行 |
 

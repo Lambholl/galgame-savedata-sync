@@ -5,7 +5,7 @@ priority: high
 owner: project
 id_prefix: M
 id_high_water: 4
-updated: 2026-10-26
+updated: 2026-10-27
 tags: [路线图, 里程碑]
 related_files: []
 ---
@@ -24,7 +24,7 @@ related_files: []
 
 | 里程碑 | 目标 | 计划时间 | 状态 |
 | --- | --- | --- | --- |
-| M-001 | 已选 React 技术栈下验证目录与 HTTP：Android 授权目录、元数据读取、通知保持的文件往返、明文访问；验证目录不递归统计大小 | 共享模型、双端读取与 Windows 私有归档可用；Windows HTTP sender/receiver 与批次非覆盖发布可用；Java 私有归档与 SAF 单文件发布可用并完成实际 API 33 集成；Android HTTP/通知保持传输完成实际 API 33 LAN 验证；最终界面和完整真机组合待后续包 | active |
+| M-001 | 已选 React 技术栈下验证目录与 HTTP：Android 授权目录、元数据读取、通知保持的文件往返、明文访问；验证目录不递归统计大小 | 共享模型、双端读取与 Windows 私有归档可用；Windows HTTP sender/receiver 与批次非覆盖发布可用；Java 私有归档与 SAF 单文件发布可用并完成实际 API 33 集成；Android HTTP/通知保持传输完成实际 API 33 LAN 验证；WP-007 最小界面已通过 Windows/API 33 实操，完整真机组合留 WP-008 | active |
 | M-002 | 最小可用双端：项目与目录映射、手动 IP、方向按钮、两端文件预览、经确认的复制规则、进度和结果 | M-001 通过后安排 | planned |
 | M-003 | 地址变更与重连：mDNS/DNS-SD 自动发现列表、稳定设备关联、手动 IP 入口和改址保留配置 | M-002 后安排 | planned |
 | M-004 | 完整首版：补齐镜像模式及删除预览、默认开启的最近 3 次备份与手工恢复、两端发起及预览体验；Android 活动传输由持续通知保持 | 核心同步流程完成后安排 | planned |
@@ -33,7 +33,7 @@ related_files: []
 
 | 优先级 | 事项 | 依赖 | 状态 |
 | --- | --- | --- | --- |
-| P0 | 下一实现起点 WP-007 最小验证界面，随后 WP-008 总体验收 | 共享模型、双端归档/发布/HTTP、Android 通知保持传输已经可用；正式 LAN/SAF、后台继续、Activity 重连和显式取消验证通过；[工作包](../development/work-packages.md) | planned |
+| P0 | 下一项 WP-008 真机组合与 M-001 总体验收 | 共享模型、双端归档/发布/HTTP、Android 通知保持传输已经可用；正式 LAN/SAF、后台继续、Activity 重连和显式取消验证通过；[工作包](../development/work-packages.md) | planned |
 | P0 | 目标发布只使用明确授权的独立合成目录；WP-006 复用已验证的 WP-013 归档与 WP-010 发布原语 | 完整依赖和退出条件见[工作包](../development/work-packages.md)；通知保持的传输/SAF/LAN 还需设备组合验证 | planned |
 | P0 | 保持 Android 用户发起传输由持续通知保持、当前状态独立、目录不汇总大小的边界 | [项目约束](../requirements/constraints.md)、[验收标准](../testing/acceptance.md) | active |
 

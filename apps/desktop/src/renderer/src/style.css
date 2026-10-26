@@ -19,7 +19,77 @@ body {
 }
 
 .app-content {
-  max-width: 1000px;
+  max-width: 1080px;
   width: calc(100% - 64px);
   margin: 32px auto;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.page-header,
+.section-heading,
+.target-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.page-header h2,
+.section-heading h4 {
+  margin: 0 0 4px;
+}
+.directory-toolbar {
+  margin-bottom: 4px;
+}
+.directory-path,
+.task-id,
+.target-row {
+  overflow-wrap: anywhere;
+}
+.muted,
+.task-id {
+  color: #707070;
+  font-size: 13px;
+}
+.progress-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin: 16px 0;
+}
+.target-row {
+  padding: 10px 0;
+}
+.task-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.file-results {
+  max-height: 300px;
+  overflow: auto;
+  padding-left: 24px;
+}
+.file-results li {
+  margin: 6px 0;
+  overflow-wrap: anywhere;
+}
+.full-width {
+  width: 100%;
+}
+@media (prefers-color-scheme: dark) {
+  .muted,
+  .task-id {
+    color: #aaa;
+  }
+}
+@media (max-width: 760px) {
+  .app-content {
+    width: calc(100% - 32px);
+    margin: 16px auto;
+  }
+  .progress-grid {
+    grid-template-columns: 1fr;
+  }
 }
