@@ -1,4 +1,4 @@
-# Windows 目录与私有归档适配
+# Windows 目录、归档与 HTTP 读取适配
 
 ## 目录
 
@@ -9,12 +9,14 @@
 - [5. 验证](#5-验证)
 - [6. 私有归档接口](#6-私有归档接口)
 - [7. 缓存与格式边界](#7-缓存与格式边界)
+- [8. HTTP 服务与任务生命周期](#8-http-服务与任务生命周期)
+- [9. HTTP 验证边界](#9-http-验证边界)
 
 ## 1. 范围与入口
 
 `src/main/directory-adapter.ts` 提供 Windows 本机的目录登记、恢复、当前层元数据和原生只读文件流。目录通过系统选择器进入主进程，Renderer 不提交绝对路径；界面按钮与浏览布局在后续界面工作包接入。
 
-目录模块保持源只读；私有归档模块另提供快照、打包/解包与缓存清理。目标发布、覆盖、删除及 HTTP 尚未实现。真实用户目录仅用于只读检查；自动化测试只修改自己创建的临时夹具，不推断游戏引擎或存档格式。
+目录模块保持源只读；私有归档负责快照、编解码和缓存清理；HTTP 读取服务编排设备/目录查询、下载准备、单次内容领取及状态/取消。上传、目标发布、覆盖和删除尚未实现。真实用户目录仅用于只读检查，自动测试只修改自有临时夹具。
 
 ## 2. 主进程接口
 
@@ -71,7 +73,7 @@ Electron 构建显式内联 workspace 共享包，避免 sandbox preload 在运�
 
 ## 5. 验证
 
-`pnpm test:desktop` 执行 16 项既有目录/IPC 检查和 20 项归档专项检查，纳入 `pnpm check`。目录覆盖 Unicode/空文件、配置恢复、当前层、身份/链接越界、读流释放和有限 IPC。归档覆盖独立固定夹具、真实原生流、格式故障/超限、源变化、取消、所有权和清理重试。临时夹具基于 realpath 的系统临时根，避免 Windows 8.3 别名差异，不记录真实存档路径。
+`pnpm test:desktop` 执行 61 项测试（16 目录/IPC、20 归档、25 HTTP），纳入 `pnpm check`。目录覆盖 Unicode/空文件、配置恢复、当前层、身份/链接越界、读流释放和有限 IPC；归档覆盖独立格式夹具、故障/超限、源变化、取消与所有权；HTTP 检查见第 9 节。临时夹具基于 realpath 的系统临时根，避免 Windows 8.3 别名差异，不记录真实存档路径。
 
 Windows 短路径回归通过 PowerShell 调用 GetShortPathName，生成真实 8.3 别名，并在只影响子进程的 TEMP/TMP 环境中重跑目录与 IPC 用例，要求全部通过。非 Windows 或卷未生成不同短名时明确跳过此项；常规用例仍执行。此修复只调整测试夹具，不放宽业务代码的链接、根范围和身份检查。
 
@@ -81,7 +83,7 @@ Windows 短路径回归通过 PowerShell 调用 GetShortPathName，生成真实 
 
 ## 6. 私有归档接口
 
-`src/main/archive-adapter.ts` 仅供主进程调用，使用内置 fs/stream/zlib/crypto，无新增依赖。归档功能尚未接入 HTTP 或 UI。所有文件、缓存和流留在原生层，不把归档对象或文件内容跨 preload/JS 桥传递。
+`src/main/archive-adapter.ts` 仅供主进程调用，使用内置 fs/stream/zlib/crypto，无新增依赖。HTTP 下载准备与发送已复用此模块，UI 尚未接入。所有文件、缓存和流留在原生层，不把归档对象或文件内容跨 preload/JS 桥传递。
 
 | 接口 | 输入/输出 | 所有权与失败 |
 | --- | --- | --- |
@@ -106,3 +108,39 @@ Windows 短路径回归通过 PowerShell 调用 GetShortPathName，生成真实 
 归档严格按[批量协议](../../docs/plans/m001-tar-gzip-protocol.md)的规范化 USTAR 头、顺序 fileId、零填充和两个结束块生成/校验。gzip 限制固定头和单 member，使用原始 DEFLATE 解码并核对实际消耗字节、CRC32/ISIZE、完整 tar 长度及每文件 SHA-256；拒绝拼接、尾随、损坏、截断、链接及扩展头。全体验证通过后才返回私有句柄；目标新文件发布留独立写入包。
 
 `test/fixtures/archive-v1.json` 由 Python 标准库独立生成，包含三份合成原文、规范 tar 和 gzip；测试验证 Node 编码的 tar 精确匹配独立预期，也验证 Node 解码 Python gzip，后续 Java 包复用这份夹具。测试中的完整 Buffer/gunzipSync 仅用于小夹具，产品路径使用有限缓冲流式 IO。
+
+## 8. HTTP 服务与任务生命周期
+
+`src/main/http-service.ts` 提供仅供可信主进程调用的 `WindowsHttpService`；构造不监听网络。当前应用初始化目录/归档/服务对象，退出时等待 stop；服务控制按钮与 IPC 留 WP-007。默认回环地址和动态端口；需要 LAN 时由本机控制显式指定监听地址，测试仅监听 127.0.0.1。
+
+| 原生 API | 输入/返回 | 责任 |
+| --- | --- | --- |
+| new WindowsHttpService(source, archive, options?) | 目录读取/归档适配器；可选 displayName、时钟、仅收紧的期限/会话容量 | 不改变目录授权；不提供上传或目标写入能力；网络层只使用 Node 内置 HTTP/流/哈希 |
+| service.start({host?, port?}) | host 为 IP 地址，默认 127.0.0.1；port 默认 0；返回实际 host/port/sessionId | 端口冲突明确失败，不换端口重试；启动/停止并发受限；每次重新启动生成会话 |
+| service.getAddress() / getError() | 监听快照或 null；脱敏运行时错误或 null | 地址不作为设备身份；sessionId 用于重启检测，不是认证 |
+| service.stop() | Promise&lt;void&gt; | 停止接纳、关闭连接、取消并等待 worker/缓存清理；并发 stop 共用 Promise；失败保留所有权，下次 stop 重试 |
+| service.retryCleanup() | Promise&lt;void&gt; | 主进程明确重试终态缓存；活动任务报 busy；不重放请求或内容 |
+
+```ts
+import { WindowsHttpService } from './src/main/http-service.ts'
+
+// 在可信主进程的本机服务控制操作中调用；source/archive 为已初始化的适配器。
+const service = new WindowsHttpService(source, archive)
+const listening = await service.start({ host: '127.0.0.1', port: 0 })
+console.log(listening.port)
+await service.stop()
+```
+
+HTTP 已实现设备、根/当前层、POST downloads、GET manifest/content、GET/DELETE transfer；路由和包络见[批量协议](../../docs/plans/m001-tar-gzip-protocol.md#4-http-路由与会话)。除了 device 均核对唯一会话头。JSON 严格 UTF-8、无 BOM/重复解码键、深度不超过 128，按实际 UTF-8 字节执行 8 MiB 请求及响应预算；拒绝编码体、trailer、重复头、歧义 CL/TE、非法/重复查询、错误方法和 Range。JSON 可固定长度或 chunked；gzip 响应固定长度及 SHA-256，无 Content-Encoding，不缓存。
+
+`transfer-registry.ts` 原子接纳后占用单次 ID；内容仅 sender ready 可原子领取一次。每个进程仅一个活动批次，覆盖准备、ready、发送、取消和清理；即使构造多个监听实例也共享名额。ready 10 分钟、总期限 30 分钟、发送无进展 60 秒，查询不续期；另有限制请求/响应无进展 60 秒、请求头 15 秒及 16 KiB 头预算。终态保留 10 分钟，随后删除状态与清单/哈希，已用 ID 保留到服务停止；最多 4096 个，不淘汰防重记录。
+
+归档从固定私有快照发送，发送时再核对实际长度/SHA-256。进度区分源读取和写入 HTTP 流的归档字节；sender 的校验/发布计数始终为 0，sent 仅表示本机发送流完成，不证明 Android 接收或发布。失败、取消和超时等待实际 IO 结束再清理；原始失败与清理错误分开。清理失败保留互斥，即使公开结果到期仍阻止新任务，明确重试成功后才释放。
+
+主进程 before-quit 等待服务停止，成功后继续退出；清理失败显示错误并保留重试机会。页面没有服务控制、任意路径、文件字节或写入入口。
+
+## 9. HTTP 验证边界
+
+`test/http-service.test.mjs` 的 25 项用例使用真实回环 HTTP/TCP 和独立临时源/缓存，覆盖下载内容与哈希、异步状态、并发 ID/单次领取、进程活动名额、路由/会话/畸形头、重复键/非法编码、JSON 精确上限与超限、取消/断流/校验失败、期限/结果到期/容量、清理失败及重试、停止/重启和端口冲突。时间边界由原生时钟与仅收紧的期限注入，不等待实际 30 分钟；大归档内存与性能仍需专项实测。
+
+这些检查验证 Windows sender 与服务原语，不代替 Android Java/SAF、真实 LAN 跨端往返、receiver 发布及最终界面/实际窗口退出验收。应用不自动监听 LAN，未执行设备操作，也未向真实存档写入。

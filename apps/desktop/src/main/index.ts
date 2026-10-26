@@ -4,6 +4,9 @@ import { fileURLToPath } from 'node:url'
 import { createDirectoryAdapter } from './directory-adapter.ts'
 import { isTrustedDirectorySender, registerDirectoryIpc } from './directory-ipc.ts'
 import { toDirectoryError } from './directory-errors.ts'
+import { createWindowsArchiveAdapter } from './archive-adapter.ts'
+import { WindowsHttpService } from './http-service.ts'
+import { toHttpError } from './http-errors.ts'
 
 const trustedWindows = new Set<number>()
 const rendererUrl = process.env.ELECTRON_RENDERER_URL
@@ -47,6 +50,28 @@ if (hasInstanceLock)
       const adapter = await createDirectoryAdapter(
         join(app.getPath('userData'), 'directory-config.json'),
       )
+      const archive = await createWindowsArchiveAdapter(adapter, app.getPath('userData'))
+      // 网络服务由后续可信界面显式启动；应用退出须等待私有缓存和连接释放。
+      const httpService = new WindowsHttpService(adapter, archive)
+      let canQuit = false
+      let isClosing = false
+      app.on('before-quit', (event) => {
+        if (canQuit) return
+        event.preventDefault()
+        if (isClosing) return
+        isClosing = true
+        httpService.stop().then(
+          () => {
+            canQuit = true
+            app.quit()
+          },
+          (error: unknown) => {
+            isClosing = false
+            console.error('Failed to stop desktop HTTP service', toHttpError(error).operationError)
+            dialog.showErrorBox('退出清理失败', '无法释放私有缓存，请检查权限后重试退出。')
+          },
+        )
+      })
       const disposeDirectoryIpc = registerDirectoryIpc(ipcMain, adapter, {
         choosePath: async () => {
           const result = await dialog.showOpenDialog({

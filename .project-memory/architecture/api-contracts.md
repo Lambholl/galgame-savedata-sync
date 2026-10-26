@@ -21,11 +21,11 @@ related_files: []
 
 ## 1. 状态与范围
 
-版本 1 本地/批量共享契约、双端目录读取及 Windows 私有归档已实现；Android API 33 与 API 35 分别完成读取及授权恢复验证。Java 归档、目标发布和 HTTP 尚未实现。平台说明见 `apps/desktop/README.md`、`apps/mobile/README.md`，共享字段与线格式见 `packages/shared/README.md`；范围与依赖见[工作包](../development/work-packages.md)。
+版本 1 本地/批量共享契约、双端目录读取、Windows 私有归档与 HTTP sender 读取已实现；Android API 33 与 API 35 分别完成读取及授权恢复验证。Java 归档、HTTP 接收/Android 客户端与目标发布尚未实现。平台说明见 `apps/desktop/README.md`、`apps/mobile/README.md`，共享字段与线格式见 `packages/shared/README.md`；范围与依赖见[工作包](../development/work-packages.md)。
 
 M-001 只验证专用测试目录内的新文件往返，不包含同步项目 CRUD、覆盖、镜像删除、备份、mDNS 或 Windows 发起任务的控制通道。Windows 为服务端，Android 原生层为 HTTP 客户端。
 
-用户已在[Q-008](../requirements/open-questions.md)确定双向统一采用 tar.gz。完整设计位于仓库根目录的 `docs/plans/m001-tar-gzip-protocol.md`；v1 批量共享数据与 Windows 私有归档编解码已实现。HTTP 尚无业务消费者，不另建 v2 或保留旧单文件声明；Java 归档、网络与目标发布仍未实现。
+用户已在[Q-008](../requirements/open-questions.md)确定双向统一采用 tar.gz。完整设计位于仓库根目录的 `docs/plans/m001-tar-gzip-protocol.md`；v1 批量共享数据与 Windows 私有归档编解码已实现。Windows 已实现 v1 只读 HTTP 端点，不提供单文件兼容别名；Java 归档、receiver 网络与目标发布仍待后续包。
 
 独立调试协议已在真实 LAN 完成 54 组双向与 SAF 写后回读实验，结果见 `docs/experiments/transfer-benchmark-2026-10-26.md`。实验未交付正式批量端点或归档接收适配，也不自动符合受限归档格式。共享数据校验通过不代表实际归档、HTTP 或目标文件发布通过。
 
@@ -48,7 +48,7 @@ M-001 不要求所有提供者保留源修改时间；写入后查询并展示�
 
 ## 3. Windows HTTP 接口约定
 
-以下 v1 批量路由常量及 DTO 已由共享包导出，端点行为尚未实现；完整字段、状态码和例外以仓库根目录的 `docs/plans/m001-tar-gzip-protocol.md` 为准。WP-012/WP-013 分别实现双端归档，网络包只编排这些能力。
+以下 v1 路由常量及 DTO 已由共享包导出；Windows 读取/sender、通用查询/取消端点已实现，uploads/PUT receiver 尚未实现；完整字段、状态码和例外以仓库根目录的 `docs/plans/m001-tar-gzip-protocol.md` 为准。WP-012/WP-013 分别实现双端归档，网络包只编排这些能力。
 
 | API | 方法 | 请求 | 响应 | 错误边界 | 工作包 |
 | --- | --- | --- | --- | --- | --- |
@@ -75,7 +75,7 @@ transferId 不表示历史同步基线。服务以每次启动的 sessionId 隔�
 | --- | --- | --- |
 | Electron preload（已实现） | chooseDirectory、listRoots、listDirectory；只接受 ID，返回公开 DTO；系统选择器在主进程执行 | 无 fs/shell/Node、绝对路径、内容或写入接口；校验登记窗口、主 frame 与精确 URL；退出移除 handler |
 | Electron 主进程原生读取（已实现） | registerDirectory 登记系统选中路径，listDirectory 返回当前层，openFile 返回本进程只读流 | 配置独立存放，不保存历史清单；调用者消费或 destroy 流；逐段拒绝 symlink/junction，重查根/条目/句柄身份，不承诺恶意并发命名空间原子隔离 |
-| Electron 后续服务（未实现） | WP-004/005 后再加入服务控制与传输状态；新文件发布先由 WP-009 完成 | 不能把本包目录读取当作 HTTP/文件传输或写入能力 |
+| Windows HTTP 原生服务（已实现读取） | WindowsHttpService 显式 start/stop、地址/错误查询与清理重试；注册表负责 sender 下载/状态/取消/期限；应用退出等待停止 | 构造及应用启动不监听网络；默认回环，UI/服务控制 IPC 留 WP-007；上传/receiver 与目标发布留 WP-005/WP-009；无文件字节跨桥 |
 | Windows 私有归档（已实现） | createWindowsArchiveAdapter、prepare/receive、不可变清单、openArchive/openFile/dispose/retryCleanup；source 仍只读；目录流提供 verifyUnchanged 与缓存隔离检查 | 不返回可供 Renderer 使用的路径/句柄；完整 gzip/原文校验后返回私有缓存；无 HTTP/目标发布；调用者关闭流并 dispose，异常用 operationError，清理失败另报 cleanupError |
 | Capacitor Java SAF 插件（已实现，API 33/35 读取验证通过） | chooseDirectory/listRoots/listDirectory；READ 持久授权、当前层元数据和本地 ID | URI/documentId 留在原生层，不接收任意路径；写入能力均不支持；原生只读流由同包调用者消费并关闭，不将内容或 Base64 交给 JS |
 | Android 后续能力（未实现） | WP-013 私有归档、WP-010 SAF 新文件写入、WP-006 原生 HTTP/进度/前台编排 | 归档和写入分别验证再接 HTTP；真实存档保持只读 |
@@ -85,7 +85,7 @@ transferId 不表示历史同步基线。服务以每次启动的 sessionId 隔�
 
 ## 5. 版本与线格式
 
-本节的数据声明和映射已在共享包实现，JSON 文本/HTTP 解析仍待平台包实现；Windows 私有归档负责实际流、格式、长度与哈希校验。当前协议使用批量 v1，不提供单文件端点或兼容别名；无 HTTP 消费者阶段原位修订 v1 的例外不作为正式消费者出现后的兼容策略。完整声明见 `packages/shared/README.md`。
+数据声明和映射由共享包提供；Windows HTTP 读取已实现严格 JSON/路由/头/会话和 UTF-8 字节预算，私有归档负责实际流、格式、长度与哈希校验。Android 网络和 receiver 接收/发布待后续包实现。当前协议使用批量 v1，不提供单文件端点或兼容别名；无 HTTP 消费者阶段原位修订 v1 的例外不作为正式消费者出现后的兼容策略。完整声明见 `packages/shared/README.md`。
 
 - 协议只接受数字版本 1，封闭 DTO 拒绝缺失和额外字段。ID 为 1–128 个 ASCII 字符，首位字母或数字，后续允许字母、数字、下划线和短横线，不接收路径或 URI；批内 fileId 使用受限连续编号。
 - 字节数为非负安全整数；时间是 ±8.64e15 范围内的 Unix 毫秒整数，0 和负数有实际含义，未知修改日期用 null。文本非空白且最长 1024 个 UTF-16 码元。
@@ -99,10 +99,10 @@ transferId 不表示历史同步基线。服务以每次启动的 sessionId 隔�
 
 packages/shared 保留本地目录/设备/错误/选择结果守卫，新增批量描述、选择/清单/目标请求、归档声明、进度/文件结果/批次状态守卫及 isBatchProgressAdvance。matchesBatchState(value, manifest, direction, receiver?) 对照本次清单和明确方向；receiver 必须提供完整 ReceiveBatchRequest，核对结果覆盖、字节/哈希、目标根/父目录/名称与重复最终条目。sender 不传接收上下文。不依赖 JSON 键顺序，不保存历史。
 
-共享包 32 项运行时测试和 16 项类型反例通过且无平台 IO。Windows 已通过 20 项私有归档专项（含独立 Python 夹具、严格 gzip/USTAR、实际字节预算/取消/所有权与失败清理）；完整 pnpm check 含 36 项桌面、5 项移动桥和双端构建通过，无新增依赖。JSON/HTTP 字节边界、Java 归档、网络和目标发布仍待后续包验证。
+共享包 32 项运行时测试和 16 项类型反例通过且无平台 IO。Windows 已通过 20 项私有归档专项（含独立 Python 夹具、严格 gzip/USTAR、实际字节预算/取消/所有权与失败清理）；Windows HTTP 的 25 项专项覆盖真实回环/TCP、JSON 精确预算、单次 ID/content、会话/期限/取消、断流/原始错误、清理重试和停止/重启；完整 pnpm check 含 61 项桌面、5 项移动桥与双端构建，无新增依赖。Java、真实 LAN 跨端、receiver 发布与最终界面仍待验证。
 
 守卫仅校验已解析 JSON/plain data，不执行文件、网络、哈希计算、生命周期控制或脱敏，不改变/克隆/冻结输入；平台负责资源所有权、释放、线程隔离及原生异常到错误码的映射。跨 Java/JS 的超范围整数在原生侧拒绝，未知属性显式输出 null；SAF 日期 0 依提供者约定转换为未知。调用示例及桥生命周期说明见 `packages/shared/README.md`、`apps/mobile/README.md`。
 
-运行时契约测试、只读/联合类型反例、移动桥、严格类型与双端构建均纳入 pnpm check；pnpm android:test 执行 Java 单元、lint 和两个 APK 编译。实际 SAF 设备证据见回归状态；HTTP、传输前台中断与完整产品仍待验证，不能将共享守卫通过当作产品验收通过。
+运行时契约测试、只读/联合类型反例、移动桥、严格类型与双端构建均纳入 pnpm check；pnpm android:test 执行 Java 单元、lint 和两个 APK 编译。实际 SAF 设备证据见回归状态；Windows sender 的回环 HTTP 已验证，真实 LAN/Android、传输前台中断与完整产品仍待验证，不能将共享守卫通过当作产品验收通过。
 
 Windows 目录与 IPC 的 16 项测试已通过，含真实 8.3 短路径环境的子进程回归；授权真实目录的只读原生流与配置恢复检查中，前后内容哈希与修改时间一致。构建后的 CJS preload 隔离加载仅需 Electron 依赖。系统选择器人工交互及最终目录界面仍待界面包验证；真实目录禁止写入/删除/修改，测试配置与夹具独立存放，不保存真实路径或文件哈希。

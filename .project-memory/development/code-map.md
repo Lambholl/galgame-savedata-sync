@@ -17,6 +17,8 @@ related_files: []
 | `apps/desktop/src/main/directory-adapter.ts`、`directory-store.ts`、`directory-paths.ts`、`directory-errors.ts` | 目录选择登记、独立配置、当前层元数据、根内原生读流及脱敏错误 | 没有源目录写入 API；拒绝 symlink/junction 与失效身份，配置不保存历史文件索引 |
 | `apps/desktop/src/main/archive-adapter.ts`、`archive-cache.ts`、`archive-format.ts`、`archive-errors.ts` | 私有源快照、受限 USTAR/gzip1 编解码、逐层校验、资源/取消与缓存所有权/清理 | 无 HTTP 或目标发布；缓存与源根互不包含；句柄持有缓存，读流关闭后 dispose；清理失败阻止新任务 |
 | `apps/desktop/test/archive-adapter.test.mjs`、`test/fixtures/archive-v1.json` | Windows 私有归档 20 项故障/边界与独立 Python 格式夹具 | 合成数据，不操作真实存档；后续 Java 复用固定字节与原文期望；不以各自自我往返替代互通证据 |
+| `apps/desktop/src/main/http-service.ts`、`http-wire.ts`、`http-errors.ts`、`transfer-registry.ts` | 原生 HTTP 读取、严格协议字节边界、会话内异步下载/状态/取消、期限与单次 ID/content | 显式监听且默认回环；进程仅一活动批次，清理失败不释放；sender sent 不证明目标发布；应用退出等待 stop |
+| `apps/desktop/test/http-service.test.mjs` | 25 项真实回环 HTTP/TCP、异步结果/单次领取、预算、期限、断流与清理故障测试 | 独立临时夹具；不使用 ADB 或真实存档，不替代 Android/LAN/最终 UI 验收 |
 | `apps/desktop/src/directory-bridge.ts`、`src/main/directory-ipc.ts`、`src/preload/index.ts` | 三个有限目录方法与 IPC 来源/参数/返回校验 | 绝对路径和文件内容不跨桥；handler 在退出时移除；main/preload 内联共享包 |
 | `apps/desktop/test/`、`apps/desktop/README.md` | Windows 临时目录/IPC 测试与接口说明 | pnpm test:desktop 已接入 pnpm check；真实目录仅只读验证，机器路径不提交 |
 | `apps/mobile/` | antd-mobile 空壳、Vite 与 Capacitor 配置 | 网页预览不等于 Android 原生能力验证 |

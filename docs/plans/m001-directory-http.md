@@ -13,10 +13,10 @@
 
 ## 1. 状态与边界
 
-- 更新日期：2026-10-26。共享本地/批量契约、双端目录读取及 Windows 私有归档已实现；Java SAF 在 API 33 合成夹具与 API 35 真实目录分别验证读取及授权恢复。接口和验证边界见[共享包说明](../../packages/shared/README.md)、[桌面适配](../../apps/desktop/README.md)及[移动适配](../../apps/mobile/README.md)。Java 归档、目标发布、HTTP、界面集成和完整真机矩阵仍待实现或验证。
+- 更新日期：2026-10-26。共享本地/批量契约、双端目录读取、Windows 私有归档及 HTTP sender 已实现；Java SAF 在 API 33 合成夹具与 API 35 真实目录分别验证读取及授权恢复。接口和验证边界见[共享包说明](../../packages/shared/README.md)、[桌面适配](../../apps/desktop/README.md)及[移动适配](../../apps/mobile/README.md)。Java 归档、目标发布、HTTP receiver/Android 网络、界面集成和完整真机矩阵仍待实现或验证。
 - 已确认基线：[产品需求](../../.project-memory/requirements/product.md)、[项目范围](../../.project-memory/requirements/scope.md)、[架构总览](../../.project-memory/architecture/overview.md)。Windows 提供 HTTP 服务，Android 主动连接；双端应用技术栈保持既定方案。
-- 当前执行边界：WP-012 已完成且未提交，下一实现包为 WP-004；授权与当前检查点见[章程](../../.project-memory/project/charter.md)及[记忆索引](../../.project-memory/INDEX.md)。M-001 后续写入限独立夹具，真实存档保持只读。
-- 传输方案为双向唯一 tar.gz，见[批量契约](m001-tar-gzip-protocol.md)。v1 共享声明与 Windows 私有归档已实现；Java 归档、HTTP、目标发布未实现。下一实现包 WP-004，无需 ADB。
+- 当前执行边界：归档及文档清理已提交 b507547；WP-004 已完成且未提交，下一实现包为 WP-009；授权与当前检查点见[章程](../../.project-memory/project/charter.md)及[记忆索引](../../.project-memory/INDEX.md)。M-001 后续写入限独立夹具，真实存档保持只读。
+- 传输方案为双向唯一 tar.gz，见[批量契约](m001-tar-gzip-protocol.md)。v1 共享声明与 Windows 私有归档已实现；Windows HTTP sender 已实现；Java 归档、HTTP receiver/Android 网络和目标发布未实现。下一实现包 WP-009，无需 ADB。
 - 目标：验证用户选定目录可访问、元数据可读、文件可通过明文 HTTP 双向传输，以及 Android 前台边界。优先消除原生文件能力的不确定性。
 - 本期交付：共享契约、双端目录适配、Windows HTTP 服务、Android 原生流客户端、最小验证界面及验收证据。
 - 使用专用、可丢弃的测试目录及合成文件；文件接收只允许创建新文件，同名冲突明确失败。覆盖、删除同步和备份尚未实现前，不对真实游戏存档执行写入。
@@ -74,7 +74,7 @@ Android 离开前台时停止新操作、取消网络与文件任务，并通知
 
 ## 4. 工作包设计
 
-仍有实现或验证交接的工作包见[工作包登记](../../.project-memory/development/work-packages.md)，共享契约作为已实现前置模块复用。下一推荐顺序为 WP-004、WP-009、WP-005、WP-013、WP-010、WP-006、WP-007、WP-008；双端归档与发布各自验证。该拆分不授权并行 Agent。
+仍有实现或验证交接的工作包见[工作包登记](../../.project-memory/development/work-packages.md)，共享契约作为已实现前置模块复用。下一推荐顺序为 WP-009、WP-005、WP-013、WP-010、WP-006、WP-007、WP-008；双端归档与发布各自验证。该拆分不授权并行 Agent。
 
 | 工作包 | 实现范围与交付物 | 必须通过的包内检查 | 不在该包内 |
 | --- | --- | --- | --- |

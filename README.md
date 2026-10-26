@@ -1,6 +1,6 @@
 # Galgame SaveData Sync
 
-Windows 与 Android 的局域网文件夹同步工具。当前已实现共享批量契约、双端目录读取与 Windows 私有归档，界面仍为空壳，HTTP 和文件夹同步功能尚未实现。
+Windows 与 Android 的局域网文件夹同步工具。当前已实现共享批量契约、双端目录读取、Windows 私有归档与 HTTP 下载服务原语。界面仍为空壳，服务需由可信主进程显式启动；上传、跨端发布和文件夹同步尚未实现。
 
 ## 目录
 
@@ -71,4 +71,4 @@ docs/               开发指南
 
 ## 项目记忆
 
-先读取[记忆索引](.project-memory/INDEX.md)，再按任务定位需求、架构、规范与当前工作。目标发布、HTTP 与同步功能在后续工作包实现；目录读取与私有归档接口见[桌面适配](apps/desktop/README.md)和[移动适配](apps/mobile/README.md)。
+先读取[记忆索引](.project-memory/INDEX.md)，再按任务定位需求、架构、规范与当前工作。目标发布、Android HTTP 与同步功能在后续工作包实现；目录读取与私有归档接口见[桌面适配](apps/desktop/README.md)和[移动适配](apps/mobile/README.md)。

@@ -21,9 +21,9 @@ related_files: []
 
 - 项目目标：在 Windows 电脑与 Android 设备之间，通过局域网手动选择方向同步文件夹，减少游玩 galgame 时手工复制存档的操作。
 - 目标用户：在电脑与 Android 设备之间切换、需要管理多个游戏或文件夹的使用者。
-- 当前阶段：基础设施、双端空壳、v1 批量共享契约、双端目录读取与 Windows 私有归档已实现；Java SAF 在 API 33 合成夹具和 API 35 真实目录分别验证读取与授权恢复。Java 归档、目标文件发布、HTTP 和同步流程尚未实现。实现见[实现细节](../development/implementation-notes.md)，验证边界见[回归状态](../testing/regression-notes.md)。
+- 当前阶段：基础设施、双端空壳、v1 批量共享契约、双端目录读取与 Windows 私有归档已实现；Java SAF 在 API 33 合成夹具和 API 35 真实目录分别验证读取与授权恢复。Windows HTTP sender 与会话注册已实现；Java 归档、HTTP receiver/Android 网络、目标发布和同步流程尚未实现。实现见[实现细节](../development/implementation-notes.md)，验证边界见[回归状态](../testing/regression-notes.md)。
 - 成功标准：见[验收标准](../testing/acceptance.md)。
-- 当前授权：按 project-memory 规则清理文档与项目记忆，验证当前事实、登记表、目录和链接；WP-012 已完成且未提交。本轮不包含业务实现、Git 提交/推送或设备操作；真实存档保持只读。
+- 当前授权：归档实现与文档清理已提交 b507547；推进 WP-004 Windows HTTP 读取与任务注册的代码、测试、说明及记忆同步。无需 ADB，不含上传、目标发布、新提交/推送或设备操作；真实存档保持只读。
 
 ## 2. 项目目标
 

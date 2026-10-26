@@ -80,7 +80,7 @@ pnpm security:android
 
 2026-10-25 项目依赖审计结果：官方 npm 全量 397 项零已知漏洞；Android 全部可解析 Maven 配置与 Gradle Core 共 273 项零已知公告；固定 pnpm 10.34.8 单独 OSV 查询零公告。
 
-Windows 构建产物的 renderer 与隔离 preload 已通过启动检查；Android debug APK 已构建成功，并读取其 Manifest 确认 minSdk 29、targetSdk 36、明文 HTTP 允许。Java SAF 在 API 33 的独立合成夹具复测完整收齐非交互与选择/取消/重启回执；旧 API 35 真实目录的 11 文件校验仅适用于旧设备；没有目录同步或 HTTP 往返测试，API 29 仍有缺口。
+Windows 构建产物的 renderer 与隔离 preload 已通过启动检查；Android debug APK 已构建成功，并读取其 Manifest 确认 minSdk 29、targetSdk 36、明文 HTTP 允许。Java SAF 在 API 33 的独立合成夹具复测完整收齐非交互与选择/取消/重启回执；旧 API 35 真实目录的 11 文件校验仅适用于旧设备；Windows HTTP sender 已通过独立回环测试，尚无正式双端 LAN 往返和目录同步验收，API 29 仍有缺口。
 
 审计结果只代表当前已知公告，不能替代真机验证或证明系统 JDK/SDK 二进制没有漏洞。Android 原生构建与依赖解析的实际结果记录在项目记忆中。
 
@@ -89,7 +89,7 @@ Windows 构建产物的 renderer 与隔离 preload 已通过启动检查；Andro
 - `pnpm test:shared` 执行共享包的纯数据契约测试，无需连接设备或网络；类型反例随 `pnpm typecheck` 检查。完整契约、线格式和示例见[共享包说明](../packages/shared/README.md)。
 - `pnpm test:desktop` 执行 Windows 临时目录、有限 IPC 和私有归档测试，已接入 `pnpm check`；接口、缓存及资源责任见[桌面适配说明](../apps/desktop/README.md)。目录读取和归档已实现，当前 UI 按钮尚未接入。
 - `pnpm test:mobile` 检查 SAF 桥请求/响应边界，已接入 `pnpm check`；Android 真机授权、提供者及原生流需另行仪器测试。
-- `pnpm check` 包含共享、桌面、移动桥测试及双端构建；Windows 私有缓存不构成目标发布，目标文件写入、HTTP 和完整传输仍待后续工作包。真实用户目录仅做只读验证，写入/失败测试使用独立临时夹具。
+- `pnpm check` 包含共享、桌面、移动桥测试及双端构建；Windows 私有缓存不构成目标发布，目标文件写入、HTTP receiver/Android 网络和完整跨端传输仍待后续工作包；Windows sender/会话注册已实现，构造不启动监听，服务控制界面留后续包。真实用户目录仅做只读验证，写入/失败测试使用独立临时夹具。
 - `pnpm env:check --json` 提供结构化检查；`--desktop` 排除 Android 工具。WARN 不导致失败，FAIL 的退出码为 1。
 - 更换或连接多台设备时，用 `adb -s <serial>` 明确固定目标；重查实际系统版本与已安装 APK，重新选择本机目录，不复用其它设备的路径或测试结论。缺少完整回执的批次不作为通过证据。
 - 只读检查分别比对内容、大小、mtime 和其它状态时间。API 33 合成夹具首次 SAF 授权/读取后曾观察到 ctime 变化，原文、大小和 mtime 一致，后续重复读取完整快照一致；归因仍未确定。不能将只读接口解释为所有提供者下 ctime 必定不变。

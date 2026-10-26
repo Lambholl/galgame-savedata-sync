@@ -24,7 +24,7 @@ related_files: []
 
 | 里程碑 | 目标 | 计划时间 | 状态 |
 | --- | --- | --- | --- |
-| M-001 | 已选 React 技术栈下验证目录与 HTTP：Android 授权目录、元数据读取、前台文件往返、明文访问；验证目录不递归统计大小 | 共享契约、双端读取与 Windows 私有归档已实现；Java 归档、目标发布、HTTP 和完整真机矩阵待后续包 | active |
+| M-001 | 已选 React 技术栈下验证目录与 HTTP：Android 授权目录、元数据读取、前台文件往返、明文访问；验证目录不递归统计大小 | 共享契约、双端读取与 Windows 私有归档已实现；Windows HTTP sender 已实现；Java 归档、目标发布、HTTP receiver/Android 网络和完整真机矩阵待后续包 | active |
 | M-002 | 最小可用双端：项目与目录映射、手动 IP、方向按钮、两端文件预览、经确认的复制规则、进度和结果 | M-001 通过后安排 | planned |
 | M-003 | 地址变更与重连：mDNS/DNS-SD 自动发现列表、稳定设备关联、手动 IP 兜底和改址保留配置 | M-002 后安排 | planned |
 | M-004 | 完整首版：补齐镜像模式及删除预览、默认开启的最近 3 次备份与手工恢复、两端发起及预览体验；Android 仅前台 | 核心闭环后安排 | planned |
@@ -33,8 +33,8 @@ related_files: []
 
 | 优先级 | 事项 | 依赖 | 状态 |
 | --- | --- | --- | --- |
-| P0 | 下一实现起点 WP-004 Windows HTTP 读取与任务注册，无需 ADB；编排已验证的私有归档，建立会话/状态/单次内容领取和取消 | 共享批量契约与 Windows 私有归档已完成，20 项归档专项及完整 pnpm check 通过；[工作包](../development/work-packages.md)与仓库根目录的 `docs/plans/m001-tar-gzip-protocol.md` | planned |
-| P0 | 后续依次推进 WP-004、WP-009 发布、WP-005 接收；WP-013 Java 归档及 WP-010 SAF 发布完成后接 WP-006，再验证界面与真机 | 完整依赖/退出条件见[工作包](../development/work-packages.md)；SAF/前台/LAN 验收需设备 | planned |
+| P0 | 下一实现起点 WP-009 Windows 新文件暂存与发布，无需 ADB；仅独立夹具验证非覆盖发布、回读、竞争与失败清理 | 目录读取、私有归档及 WP-004 HTTP sender 已完成；25 项 HTTP 专项及完整 pnpm check 通过；[工作包](../development/work-packages.md)与仓库根目录的 `docs/plans/m001-tar-gzip-protocol.md` | planned |
+| P0 | 后续依次推进 WP-009 发布、WP-005 接收；WP-013 Java 归档及 WP-010 SAF 发布完成后接 WP-006，再验证界面与真机 | 完整依赖/退出条件见[工作包](../development/work-packages.md)；SAF/前台/LAN 验收需设备 | planned |
 | P0 | 保持 Android 仅前台、当前状态独立、目录不汇总大小的边界 | [项目约束](../requirements/constraints.md)、[验收标准](../testing/acceptance.md) | active |
 
 ## 3. M-001 交付边界与后续交接

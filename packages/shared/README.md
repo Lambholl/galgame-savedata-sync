@@ -17,7 +17,7 @@
 
 传输使用 BatchProgress/BatchState/FileOutcome、DownloadBatchRequest/ReceiveBatchRequest、BatchResponse/ManifestResponse，以及批量路由和归档校验头；接受接收成功前必须执行上下文匹配。不提供单文件端点或兼容别名。无 HTTP 消费者阶段原位修订 v1 的例外不作为正式消费者出现后的兼容策略。
 
-详细目标行为见[批量协议设计](../../docs/plans/m001-tar-gzip-protocol.md)；共享包负责数据与关系约束，Windows 私有归档已实现，Java 归档、HTTP 和目标发布待后续平台包完成。
+详细目标行为见[批量协议设计](../../docs/plans/m001-tar-gzip-protocol.md)；共享包负责数据与关系约束，Windows 私有归档及 HTTP sender 已实现，Java 归档、HTTP receiver/Android 网络和目标发布待后续平台包完成。
 
 ## 2. 本地目录与批量模型
 
@@ -70,7 +70,7 @@ function inspectUpload(payload: unknown, request: ReceiveBatchRequest): string {
 
 ## 4. HTTP 线格式与预算
 
-以下路由/头和数据声明已导出，HTTP 行为尚未实现。除 GET /v1/device 外，请求均须唯一 `x-sync-session-id`；会话随服务重启改变，不等于稳定设备 ID，也不是认证。
+以下路由/头和数据声明已导出，Windows 读取/sender、通用查询和取消已实现；上传接收/Android HTTP 待后续包。除 GET /v1/device 外，请求均须唯一 `x-sync-session-id`；会话随服务重启改变，不等于稳定设备 ID，也不是认证。
 
 | 路由 | 方法与输入 | 成功响应 |
 | --- | --- | --- |
@@ -96,7 +96,7 @@ HTTP_ERROR_STATUS 保留既有错误映射，并增加 session-mismatch/task-con
 
 - 原生层拥有流、压缩器、缓存、任务、回调和监听；向 JS 仅传 JSON 快照，不传文件内容、Base64、句柄或 URI。Android 使用 Java，long 输出前检查 JS 安全整数范围。
 - 准备时源原文先流式暂存并实测长度/哈希，再打包稳定归档；接收端完整验证归档和全部原文后才逐项发布。清单、哈希及结果只在当前会话短期存活，不保存历史基线。
-- Windows 私有归档及源变化检查已在[桌面适配](../../apps/desktop/README.md)实现；Java 归档、JSON/HTTP 解析和非覆盖目标发布仍待后续包。共同创建名不能替代 Windows 竞争检查或 SAF 提供者验证。
+- Windows 私有归档、源变化检查及严格 JSON/HTTP 读取已在[桌面适配](../../apps/desktop/README.md)实现；Java 归档、HTTP receiver/Android 网络和非覆盖目标发布仍待后续包。共同创建名不能替代 Windows 竞争检查或 SAF 提供者验证。
 - Android 离开前台取消本地任务并尽力取消远端，取消丢失可能留下已发布结果；返回前台核实当前目标，不恢复旧任务。共享包不控制生命周期，也不保证平台操作可立即中断。
 
 ## 6. 检查与验证边界
@@ -105,4 +105,4 @@ HTTP_ERROR_STATUS 保留既有错误映射，并增加 session-mismatch/task-con
 - `pnpm --filter @savedata-sync/shared typecheck`：类型检查包含 16 项预期失败反例，覆盖只读快照、角色终态、压缩参数和未知/会话重试边界。
 - `pnpm check`：共享检查及既有双端目录桥测试、严格类型和 Web/Electron 构建；本包仅使用 ES2022 标准库，关闭平台类型自动注入。
 
-成员/单项/总原文/tar/压缩体边界通过纯数据用例验证，不分配真实大文件；超限 JSON、重复键、非法归档字节、真实 IO、网络、SAF 发布和前台中断均不是本包已验证能力。后续归档与 HTTP 包按设计故障矩阵补齐，不能将共享守卫通过当作完整产品验收。
+成员/单项/总原文/tar/压缩体边界通过纯数据用例验证，不分配真实大文件；超限 JSON、重复键、非法归档字节、真实 IO、网络、SAF 发布和前台中断均不是本包已验证能力。Java 归档与 receiver/Android HTTP 包按设计故障矩阵补齐，不能将共享守卫通过当作完整产品验收。

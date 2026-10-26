@@ -23,4 +23,4 @@ related_files: []
 | Q-005 | 是否需要覆盖前备份，以及备份位置和保留策略？ | 结论：提供备份开关，默认开启，保留最近 3 次；备份放在目标端独立备份区，仅用于手工恢复，不参与同步判定 | 用户 | closed |
 | Q-006 | 首版是否接受 Android 应用前台连接，以及两端均可发起任务的控制通道？ | 结论：Android 仅支持前台，后台运行和后台传输不在范围内；Android 前台连接时允许两端发起同步 | 用户 | closed |
 | Q-007 | 是否为文件夹递归统计大小？ | 结论：不进行递归大小统计。文件夹自身修改日期可展示，大小建议显示“—”；同步所需的子目录枚举仍可执行 | 用户 | closed |
-| Q-008 | 多小文件采用何种网络传输格式？ | 结论：双向唯一 tar.gz，按本次当前集合合批，原生 HTTP 传输，完整校验后逐项发布；无历史基线/真实存档只读边界不变。LAN/SAF 实验依据见 docs/experiments/transfer-benchmark-2026-10-26.md，正式设计见 docs/plans/m001-tar-gzip-protocol.md。用户确认无 HTTP 消费者，直接修订 v1；共享数据和 Windows 私有归档已完成并通过工程检查，Java 归档/HTTP/目标发布仍未交付，不将独立实验或单平台缓存往返当作完整验收 | 用户 | closed |
+| Q-008 | 多小文件采用何种网络传输格式？ | 结论：双向唯一 tar.gz，按本次当前集合合批，原生 HTTP 传输，完整校验后逐项发布；无历史基线/真实存档只读边界不变。LAN/SAF 实验依据见 docs/experiments/transfer-benchmark-2026-10-26.md，正式设计见 docs/plans/m001-tar-gzip-protocol.md。用户确认无 HTTP 消费者，直接修订 v1；共享数据和 Windows 私有归档已完成并通过工程检查，Windows HTTP sender/会话注册已实现；Java 归档、HTTP receiver/Android 网络与目标发布仍未交付，不将独立实验或单平台缓存往返当作完整验收 | 用户 | closed |
