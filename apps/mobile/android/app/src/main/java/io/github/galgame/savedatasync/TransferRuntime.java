@@ -61,6 +61,8 @@ final class TransferRuntime {
             starting = true; pendingId = string(request.get("transferId")); pendingUpload = upload;
         }
         try {
+            // 目录选择已保存系统读写权限；每次接收前重新核实并恢复进程内发布授权。
+            if (!upload) publisher.grant(string(value.get("targetRootId")));
             // 必须先确认系统已接受前台服务和持续通知，再开始文件/网络任务。
             TransferService.launch(context).get(10, TimeUnit.SECONDS);
             return engine.start(value, upload);

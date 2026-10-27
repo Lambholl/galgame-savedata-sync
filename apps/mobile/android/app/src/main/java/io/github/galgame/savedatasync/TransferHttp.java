@@ -22,6 +22,9 @@ import static io.github.galgame.savedatasync.TransferJson.*;
 /** 可注入 HTTP 边界；文件仅为原生有限流，控制 JSON 单独限额，任何副作用都不自动重放。 */
 interface TransferHttp {
     Object json(String method, String path, String session, Object body, int expected, ArchiveControl control) throws Exception;
+    default Object json(String method, String path, String session, Object body, int expected, ArchiveControl control, boolean isNewConnection) throws Exception {
+        return json(method, path, session, body, expected, control);
+    }
     InputStream download(String path, String session, ArchiveModel.Descriptor archive, ArchiveControl control, ArchiveModel.Progress progress) throws Exception;
     Object upload(String path, String session, ArchiveModel.Descriptor archive, InputStream input, ArchiveControl control, ArchiveModel.Progress progress) throws Exception;
 
@@ -32,7 +35,7 @@ interface TransferHttp {
         });
         private final String address;
         private final int idleMillis;
-        Client(String address) throws Exception { this(address, 60000); }
+        Client(String address) throws Exception { this(address, 5000); }
         Client(String address, int idleMillis) throws Exception {
             this.address = address(address); if (idleMillis <= 0 || idleMillis > 60000) throw new IllegalArgumentException("Invalid idle budget");
             this.idleMillis = idleMillis;
@@ -62,7 +65,7 @@ interface TransferHttp {
                 if (!path.startsWith("/v1/") || path.contains("#") || path.contains("\r") || path.contains("\n")) throw fail("invalid-request");
                 this.control = control; control.check();
                 connection = (HttpURLConnection) new URI(address + path).toURL().openConnection(Proxy.NO_PROXY);
-                connection.setConnectTimeout(idleMillis); connection.setReadTimeout(idleMillis);
+                connection.setConnectTimeout(Math.min(idleMillis, 5000)); connection.setReadTimeout(idleMillis);
                 connection.setInstanceFollowRedirects(false); connection.setUseCaches(false); connection.setRequestMethod(method);
                 connection.setRequestProperty("Accept-Encoding", "identity"); connection.setRequestProperty("Cache-Control", "no-store");
                 connection.setRequestProperty("Connection", "close");
@@ -76,8 +79,10 @@ interface TransferHttp {
             }
             void progressed() throws ArchiveFailure { control.check(); lastProgress = System.nanoTime(); if (timedOut) throw fail("timeout"); }
             ArchiveFailure failure(Exception cause) {
-                try { control.check(); } catch (ArchiveFailure cancelled) { return cancelled; }
-                if (timedOut || cause instanceof java.net.SocketTimeoutException) return fail("timeout");
+                try { control.check(); } catch (ArchiveFailure cancelled) {
+                    return new ArchiveFailure(cancelled.code, cancelled.code, cancelled.cancelled, cause);
+                }
+                if (timedOut || cause instanceof java.net.SocketTimeoutException) return new ArchiveFailure("timeout", "timeout", false, cause);
                 if (cause instanceof ArchiveFailure) return (ArchiveFailure) cause;
                 return new ArchiveFailure("network-failure", "网络连接中断，请查询并核实实际结果", false, cause);
             }
@@ -139,15 +144,19 @@ interface TransferHttp {
                     if (status < 400 || !"error".equals(envelope.get("status"))) throw fail("invalid-request");
                     TransferSchema.shape(envelope, "status", "error"); Map<String, Object> error = TransferSchema.error(envelope.get("error"));
                     String code = TransferSchema.string(error.get("code")); if (errorStatus(code) != status) throw fail("invalid-request");
-                    throw fail(code);
+                    throw new ArchiveFailure(code, code, false, null, "HTTP " + status + " / " + code);
                 }
                 return TransferSchema.unwrap(envelope);
             }
             @Override public void close() { if (!closed) { closed = true; watchdog.cancel(false); connection.disconnect(); control.untrack(this); } }
         }
         @Override public Object json(String method, String path, String session, Object body, int expected, ArchiveControl control) throws Exception {
+            return json(method, path, session, body, expected, control, false);
+        }
+        @Override public Object json(String method, String path, String session, Object body, int expected, ArchiveControl control, boolean isNewConnection) throws Exception {
             Call call = new Call(method, path, session, control);
             try {
+                if (isNewConnection) call.connection.setRequestProperty("x-sync-connect", "1");
                 if (body != null) {
                     byte[] bytes = bytes(body); call.connection.setDoOutput(true); call.connection.setFixedLengthStreamingMode(bytes.length);
                     call.connection.setRequestProperty("Content-Type", "application/json");

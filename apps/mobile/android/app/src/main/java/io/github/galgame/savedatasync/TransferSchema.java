@@ -115,7 +115,12 @@ final class TransferSchema {
     static List<Object> roots(Object value, String deviceId) throws ArchiveFailure {
         List<Object> values = list(value); require(values.size() <= 32768); Set<String> ids = new HashSet<>();
         for (Object item : values) {
-            Map<String, Object> r = shape(item, "rootId", "deviceId", "displayName", "authorization");
+            Map<String, Object> r = map(item);
+            List<String> fields = new ArrayList<>(Arrays.asList("rootId", "deviceId", "displayName", "authorization"));
+            for (String field : Arrays.asList("displayPath", "parentName")) if (r.containsKey(field)) {
+                text(r.get(field)); fields.add(field);
+            }
+            shape(r, fields.toArray(new String[0]));
             require(deviceId.equals(id(r.get("deviceId"))) && ids.add(id(r.get("rootId")))); text(r.get("displayName"));
             one(r.get("authorization"), "granted", "expired", "unavailable", "unverified");
         }

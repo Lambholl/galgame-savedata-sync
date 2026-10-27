@@ -8,6 +8,7 @@ import {
   BATCH_RESOURCES,
   BATCH_TIMEOUTS_MS,
   HTTP_HEADERS,
+  isReceiveBatchRequest,
   PROTOCOL_VERSION,
 } from '@savedata-sync/shared'
 import type {
@@ -44,6 +45,8 @@ export interface HttpListenerAddress {
 
 /** 本机缩紧预算/时钟注入见任务注册表，不会经 HTTP 或 Renderer 暴露。 */
 export interface WindowsHttpOptions extends Omit<TransferRegistryOptions, 'receiver'> {
+  /** 接收前由本机游戏配置核实目标，恢复本进程授权；失败时拒绝本次传输。 */
+  readonly authorizeTarget?: (rootId: string) => Promise<void>
   readonly library?: DesktopLibrary
   readonly displayName?: string
   readonly publisher?: Pick<WindowsNewFilePublisher, 'checkTarget' | 'publish' | 'retryCleanup'>
@@ -314,6 +317,7 @@ export class WindowsHttpService {
         value: await this.options.library.exchange(
           value,
           registry.getStates().some((item) => item.status === 'running'),
+          request.headers['x-sync-connect'] === '1',
         ),
       })
       return
@@ -330,6 +334,12 @@ export class WindowsHttpService {
       const value = await readHttpJson(request)
       if (!request.complete || response.destroyed) {
         return
+      }
+      if (this.options.authorizeTarget) {
+        if (!isReceiveBatchRequest(value)) {
+          throw new HttpOperationError('invalid-request', '接收请求无效。')
+        }
+        await this.options.authorizeTarget(value.targetRootId)
       }
       sendHttpJson(response, 201, {
         status: 'success',

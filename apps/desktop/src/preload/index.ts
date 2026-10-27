@@ -1,7 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import { createDirectoryBridge } from '../directory-bridge.ts'
-import { createServiceBridge } from '../service-bridge.ts'
-import { createLibraryBridge } from '../library-bridge.ts'
+import { createDirectoryBridge } from '../bridge/directory-bridge.ts'
+import { createServiceBridge } from '../bridge/service-bridge.ts'
+import { createLibraryBridge } from '../bridge/library-bridge.ts'
 
 contextBridge.exposeInMainWorld(
   'desktopLibrary',

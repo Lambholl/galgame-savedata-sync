@@ -1,0 +1,15 @@
+/** 两端界面共用的应用名称，不包含平台 API 或同步状态。 */
+export const APP_NAME = '存档同步'
+
+export * from './protocol/contracts.ts'
+export * from './protocol/protocol.ts'
+export * from './protocol/validation.ts'
+export * from './protocol/batch-contracts.ts'
+export * from './protocol/batch-limits.ts'
+export * from './protocol/batch-validation.ts'
+export * from './protocol/batch-context.ts'
+export * from './library/library.ts'
+export * from './library/game-links.ts'
+export * from './result.ts'
+export * from './transfer/transfer.ts'
+export * from './transfer/transfer-selection.ts'

@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import test from 'node:test'
-import { createHttpTransferBridge } from '../src/http-transfer-bridge.ts'
-import { BATCH_LIMITS } from '../../../packages/shared/src/index.ts'
+import { createHttpTransferBridge } from '../src/platform/http-transfer-bridge.ts'
+import { BATCH_LIMITS } from '../../../apps/shared/src/index.ts'
 
 const fixture = JSON.parse(
   readFileSync(new URL('../../desktop/test/fixtures/archive-v1.json', import.meta.url), 'utf8'),

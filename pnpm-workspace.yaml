@@ -1,6 +1,7 @@
 packages:
-  - apps/*
-  - packages/*
+  - apps/mobile
+  - apps/desktop
+  - apps/shared
 
 onlyBuiltDependencies:
   - electron

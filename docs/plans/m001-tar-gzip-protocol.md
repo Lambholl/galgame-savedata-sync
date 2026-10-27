@@ -14,7 +14,7 @@
 
 ## 1. 状态与适用范围
 
-更新日期：2026-10-26。协议使用 `protocolVersion=1` 及 `/v1`；v1 共享模型、双端私有归档、Windows HTTP sender/receiver 及批次非覆盖发布可用；Java 归档、实际 API 33 SAF 读取、原生跨端互通、lint 与双 APK 已通过。Android SAF 单文件发布由 WP-010 完成；Android HTTP、任务编排及持续通知保持传输由 WP-006 完成；最终界面与完整平台组合由后续包交付。
+更新日期：2026-10-27。协议使用 `protocolVersion=1` 及 `/v1`；v1 共享模型、双端私有归档、Windows HTTP sender/receiver 及批次非覆盖发布可用；Java 归档、实际 SAF 读取、原生跨端互通、lint 与双 APK 已通过。Android SAF 单文件发布、HTTP、任务编排、持续通知保持传输和独立界面均已完成，完整平台组合已通过真机验收。
 
 双向唯一数据格式为 tar.gz，Windows 提供服务，Android Java 原生层主动请求。M-001 只在独立测试目录创建新文件；目标父目录必须已经存在，当前流程不创建目录、不覆盖、不镜像删除、不备份。可以从已有不同子目录中选择文件，但归档不展开目录树。完整同步目录映射和新建目录在 M-002 另行设计。
 
@@ -188,7 +188,7 @@ sourceBytesRead 只计从源拷贝到私有原文快照的字节，不计压缩�
 
 共享批量模型、双端私有归档、Windows HTTP sender/receiver 和原生新文件发布已完成。Windows/Java 共用独立 Python 格式夹具，执行失败场景与原生双向互通；WP-013 的 API 33 设备还验证实际 SAF 四文件快照、子目录/同名/未知长度、取消/复用及源保护，并由 Windows 独立解包比对上传原文。API/缓存释放说明见[桌面说明](../../apps/desktop/README.md)与[移动说明](../../apps/mobile/README.md)。WP-004/005/006 编排归档，WP-009/010 负责目标发布；网络与 SAF 发布分别验收。
 
-推荐后续顺序：WP-007 → WP-008；归档、发布及 Android 原生 HTTP/持续通知已分别实现。完整依赖、代码范围和退出条件以[工作包登记](../../.project-memory/development/work-packages.md)为准；WP-013 原生归档及实际 SAF 读流设备验收已完成，不作为后续缺失能力重复交付。
+后续只剩 WP-008 的规模资源验证与 M-001 结论；完整依赖、代码范围和退出条件以[工作包登记](../../.project-memory/development/work-packages.md)为准。
 
 ## 9. 依据与设计取舍
 

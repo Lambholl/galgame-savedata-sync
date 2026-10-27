@@ -51,7 +51,7 @@ final class NewFilePublisher {
 
     NewFilePublisher(Backend backend) { this.backend = backend; }
 
-    /** 可信原生用户动作单独调用；读取登记或已有系统 WRITE 不等于本次写入授权。 */
+    /** 选择目录及接收前调用；核实持久系统写权限并恢复本进程发布授权。 */
     void grant(String rootId) throws Exception {
         final long version;
         synchronized (this) {

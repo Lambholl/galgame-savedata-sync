@@ -1,7 +1,7 @@
 import type { IpcMain, IpcMainInvokeEvent } from 'electron'
 import { isOpaqueId } from '@savedata-sync/shared'
 import type { LibraryGame } from '@savedata-sync/shared'
-import { LIBRARY_CHANNELS } from '../library-bridge.ts'
+import { LIBRARY_CHANNELS } from '../bridge/library-bridge.ts'
 import type { DesktopLibrary } from './library-store.ts'
 import type { WindowsHttpService } from './http-service.ts'
 import { HttpOperationError, toHttpError } from './http-errors.ts'
@@ -44,7 +44,7 @@ export function registerLibraryIpc(
             !('id' in value) ||
             !isOpaqueId(value.id) ||
             !('action' in value) ||
-            !['block', 'allow', 'forget'].includes(String(value.action)) ||
+            !['disconnect', 'rename', 'forget'].includes(String(value.action)) ||
             Object.keys(value).some((key) => !['id', 'action', 'name'].includes(key))
           ) {
             throw new HttpOperationError('invalid-request', '设备操作无效。')
@@ -59,7 +59,7 @@ export function registerLibraryIpc(
           ) {
             throw new HttpOperationError('invalid-request', '设备名称无效。')
           }
-          await library.device(value.id, value.action as 'block' | 'allow' | 'forget', name)
+          await library.device(value.id, value.action as 'disconnect' | 'rename' | 'forget', name)
         } else {
           if (
             !('deviceId' in value) ||

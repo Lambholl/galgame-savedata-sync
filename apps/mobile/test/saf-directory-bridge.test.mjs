@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { createSafDirectoryBridge } from '../src/saf-directory-bridge.ts'
+import { createSafDirectoryBridge } from '../src/platform/saf-directory-bridge.ts'
 
 const root = {
   rootId: 'root-1',

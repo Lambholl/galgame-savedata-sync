@@ -1,6 +1,6 @@
-import type { DesktopDirectoryApi } from '../../directory-bridge'
-import type { DesktopServiceApi } from '../../service-bridge'
-import type { DesktopLibraryApi } from '../../library-bridge'
+import type { DesktopDirectoryApi } from '../../bridge/directory-bridge'
+import type { DesktopServiceApi } from '../../bridge/service-bridge'
+import type { DesktopLibraryApi } from '../../bridge/library-bridge'
 
 declare global {
   interface Window {

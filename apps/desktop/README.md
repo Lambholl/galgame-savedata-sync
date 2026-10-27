@@ -21,15 +21,21 @@
 
 `src/main/directory-adapter.ts` 提供 Windows 本机的目录登记、恢复、当前层元数据和原生只读文件流。界面通过系统选择器选择目录，支持切换根目录、进入子目录、返回和刷新；文件夹大小显示“—”，未知文件属性显示“未知”。
 
-目录模块保持源只读；私有归档负责快照、编解码和缓存清理；HTTP 服务负责设备/目录查询、双向批次传输及状态/取消。桌面提供服务启停、实际地址/端口、接收目录授权/撤销、任务状态、取消和清理重试。传输由手机发起，接收只在本机确认的独立测试目录中创建新文件。同名目标报错，真实存档保持只读。
+目录读取模块保持源只读；私有归档负责快照、编解码和缓存清理；HTTP 服务负责设备/目录查询、双向批次传输及状态/取消。桌面提供服务启停、实际地址/端口、目录选择、任务状态、取消和清理重试。传输由手机发起，接收时在游戏配置的存档目录创建新文件，同名目标报错。
 
 ## 游戏与设备界面
 
-正式界面位于 `packages/ui`，桌面通过 `src/renderer/src/library-adapter.ts` 接入有限 IPC。主导航为设备、游戏和设置；游戏操作面板提供目录设置、传输页与任务入口。目录和地址采用 antd `Space.Compact`，配只读 Input、目录图标选择按钮或复制按钮。文件列表始终左右并列，显示分钟级修改时间，不再点击文件弹出重复信息。
+左键单击或右键单击游戏卡片，都打开该游戏的操作菜单。
+
+添加游戏会打开弹窗，点击“选择存档目录”直接选择文件夹，随后显示游戏名输入框，默认填入父目录名，可以修改后确认添加；取消不会创建游戏。从对端导入游戏时也先选择本机目录。选择目录即同意在该目录接收文件，重启后沿用配置，接收前会重新检查目录身份和写权限。
+
+桌面独立界面位于 `src/renderer/src/app` 和 `features`，通过 `src/renderer/src/platform/library-adapter.ts` 接入有限 IPC；业务规则从 `apps/shared` 导入。主导航为设备、游戏和设置；游戏操作面板提供目录设置、传输页与任务入口。目录设置用可换行文本显示完整路径，旁边有选择目录按钮；地址用只读 Input 配复制按钮。文件列表始终左右并列，显示分钟级修改时间，元数据直接显示。
+
+开发命令 `pnpm dev` 已启用主进程和 preload 变更监听。更改前已启动的开发进程需要退出后重新运行一次；只刷新页面不会替换旧主进程中的弹窗逻辑。
 
 游戏与设备配置保存在应用私有目录的 `game-library.json`。一个游戏保存本机一个目录，关联多个对端游戏；首期只接纳一台在线手机。手机通过 `POST /v1/catalog` 提交目录引用并取回电脑目录表，8 秒内应答当前层目录查询；15 秒无元数据更新视为离线。运行传输时仍保留现有的单活动批次限制。
 
-电脑只设置本机目录；手机的目录由手机设置后交换公开引用。设备断开/移除不删除存档；“设置”页可撤销本次进程的接收目录授权。当前文件操作仍为独立测试目录中的新文件传输；覆盖、删除与备份恢复按后续里程碑开放。
+电脑只设置本机目录；手机的目录由手机设置后交换公开引用。断开只结束本次连接，手机之后可以重新连接。设备断开/移除不删除存档；移除游戏或更换目录后，原目录不再作为该游戏的接收目标。当前文件操作仍是新文件传输；覆盖、删除与备份恢复按后续里程碑开放。
 
 ## Windows 分发包
 
@@ -89,9 +95,9 @@ preload 通过 `window.desktopDirectories` 暴露冻结的 `DesktopDirectoryApi`
 
 应用退出时移除 handler，窗口关闭时删除可信窗口记录；应用采用单实例锁，常态下只有一个实例更新配置。该包只提供三个请求式方法，没有事件订阅；网页调用者不持有需要释放的文件句柄。
 
-服务控制另由 `window.desktopService` 的冻结 `DesktopServiceApi` 提供：`status()`、`start(port)`、`stop()`、`chooseTarget()`、`revokeTarget(rootId)`、`cancel(transferId)`、`retryCleanup()`。固定通道与响应守卫在 `src/service-bridge.ts`，主进程来源/参数校验在 `src/main/service-ipc.ts`。`start` 接受 0 到 65535 的整数，本机显式启动后监听 `0.0.0.0`；0 使用动态端口，冲突返回错误。快照含实际端口、局域网 IPv4 地址、运行错误、本进程接收根和当前会话任务；没有 sessionId、私有路径或文件内容。
+服务控制另由 `window.desktopService` 的冻结 `DesktopServiceApi` 提供：`status()`、`start(port)`、`randomizePort()`、`stop()`、`chooseTarget()`、`revokeTarget(rootId)`、`cancel(transferId)`、`retryCleanup()`。固定通道与响应守卫在 `src/bridge/service-bridge.ts`，主进程来源/参数校验在 `src/main/service-ipc.ts`。`start` 接受 1 到 65535 的整数，本机显式启动后监听 `0.0.0.0`，冲突返回错误。端口保存到应用私有目录，首次生成 49152 到 65535 的随机值；`randomizePort()` 选择并保存另一个端口。快照含配置端口、实际监听地址、运行错误、本进程接收根和当前会话任务；没有 sessionId、私有路径或文件内容。
 
-`chooseTarget()` 在原生系统选择器之后显示独立测试目录确认，成功才执行 `publisher.grant`，取消保留既有授权。`revokeTarget` 撤销新写入授权并收尾该根的当前发布。其他操作返回 `OperationResult<DesktopServiceSnapshot>`；选择器返回 `DirectorySelectionResult`。全部 Promise 将失败转为脱敏错误，无事件或原生句柄需要调用者释放。界面每秒读取状态，卸载停止轮询。`getStates()` 只取当前会话快照，不延长任务保留期；`cancel()` 保留已经发布的文件。
+`chooseTarget()` 打开原生系统选择器；选中目录后执行 `publisher.grant`，取消保留既有授权。`revokeTarget` 撤销新写入授权并收尾该根的当前发布。其他操作返回 `OperationResult<DesktopServiceSnapshot>`；选择器返回 `DirectorySelectionResult`。全部 Promise 将失败转为脱敏错误，无事件或原生句柄需要调用者释放。界面每秒读取状态，卸载停止轮询。`getStates()` 只取当前会话快照，不延长任务保留期；`cancel()` 保留已经发布的文件。
 
 ## 4. 配置与路径边界
 
@@ -179,7 +185,7 @@ HTTP 已实现设备、根/当前层、POST downloads、GET manifest/content、G
 
 `test/http-service.test.mjs` 使用真实回环 HTTP/TCP 和独立临时源/缓存，覆盖下载内容与哈希、异步状态、单次领取、路由/会话、取消、清理、停止与重启。时间边界由原生时钟与仅收紧的期限注入，不等待实际 30 分钟；大归档内存与性能仍需专项实测。
 
-这些检查覆盖 Windows sender 与服务原语；receiver 见第 11 节。WP-007 另通过实际桌面窗口/系统选择器与 Android API 33 的 LAN 双向、取消、清理重试和界面结果检查；完整平台组合留 WP-008。应用默认停止服务，真实存档保持只读。
+这些检查覆盖 Windows sender 与服务原语；receiver 见第 11 节。实际桌面窗口、系统选择器、Android LAN 双向、取消、清理重试和界面结果已通过真机验收。应用默认停止服务，真实存档保持只读。
 
 ## 10. 原生新文件发布
 
@@ -224,7 +230,7 @@ await publisher.stop()
 
 ## 11. HTTP 接收与批次结果
 
-可信主进程通过 `new WindowsHttpService(source, archive, { publisher })` 启用 Windows receiver；archive 须支持 receive。未注入时服务保持只读。设备能力表示是否有接收适配，实际目标仍须由本机 `publisher.grant(rootId)` 授权。HTTP 没有 grant、任意路径或远程覆盖入口。当前应用初始化时注入适配器，用户在桌面显式启动服务、选择并确认独立接收目录后才授予本进程写权限。
+可信主进程通过 `new WindowsHttpService(source, archive, { publisher })` 启用 Windows receiver；archive 须支持 receive。未注入时服务保持只读。设备能力表示是否有接收适配，实际目标仍须由本机 `publisher.grant(rootId)` 授权。HTTP 没有 grant、任意路径或远程覆盖入口。当前应用初始化时注入适配器；用户在游戏目录设置中选中本机目录后，应用授予该目录本次进程的写权限。
 
 ```ts
 // source、archive 和专用测试根由可信主进程准备；写权限不从网络请求取得。
@@ -251,4 +257,4 @@ receiver 的 sourceBytesRead 始终为 0，接收/原文校验/最终发布字�
 
 `test/http-receiver.test.mjs` 使用独立格式夹具、真实回环 HTTP/TCP 和自有源/目标/缓存，覆盖两阶段确认、单次 PUT、全部校验前零发布、部分失败/取消/unknown、响应丢失、停止与重启。sender 相关回归继续通过，源内容和属性逐项复验。
 
-以上是 Windows receiver 的本地验证。双端正式 LAN 与最小界面已通过实际操作；其他文件系统、特殊名称等价、跨进程候选恢复、全量 GiB 和峰值内存仍有缺口。真实存档没有写入。
+以上是 Windows receiver 的本地验证。双端正式 LAN 与独立界面已通过真机验收；其他文件系统、特殊名称等价、跨进程候选恢复、全量 GiB 和峰值内存仍有缺口。真实存档没有写入。

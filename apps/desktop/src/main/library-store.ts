@@ -37,6 +37,7 @@ export class DesktopLibrary {
   private config: LibraryConfig = emptyLibrary()
   private readonly runtime = new Map<string, PeerRuntime>()
   private readonly pending = new Map<string, PendingDirectory>()
+  private readonly disconnected = new Set<string>()
   private saving: Promise<void> = Promise.resolve()
   constructor(
     private readonly file: string,
@@ -80,8 +81,7 @@ export class DesktopLibrary {
       config: structuredClone(this.config),
       peers: this.config.devices.map((device) => ({
         device,
-        isConnected:
-          !device.blocked && Date.now() - (this.runtime.get(device.id)?.seenAt ?? 0) < 15000,
+        isConnected: Date.now() - (this.runtime.get(device.id)?.seenAt ?? 0) < 15000,
         games: this.runtime.get(device.id)?.hello.games ?? [],
       })),
     }
@@ -89,26 +89,31 @@ export class DesktopLibrary {
   async saveGames(games: readonly LibraryGame[]): Promise<void> {
     await this.update((current) => ({ ...current, games }))
   }
-  async device(id: string, action: 'block' | 'allow' | 'forget', name?: string): Promise<void> {
-    await this.update((current) => ({
-      ...current,
-      devices:
-        action === 'forget'
-          ? current.devices.filter((item) => item.id !== id)
-          : current.devices.map((item) =>
-              item.id === id
-                ? { ...item, ...(name ? { name } : {}), blocked: action === 'block' }
-                : item,
-            ),
-      games:
-        action === 'forget'
-          ? current.games.map((item) => ({
-              ...item,
-              links: item.links.filter((link) => link.deviceId !== id),
-            }))
-          : current.games,
-    }))
-    if (action !== 'allow') {
+  async device(
+    id: string,
+    action: 'disconnect' | 'rename' | 'forget',
+    name?: string,
+  ): Promise<void> {
+    if (action !== 'disconnect') {
+      await this.update((current) => ({
+        ...current,
+        devices:
+          action === 'forget'
+            ? current.devices.filter((item) => item.id !== id)
+            : current.devices.map((item) =>
+                item.id === id ? { ...item, ...(name ? { name } : {}) } : item,
+              ),
+        games:
+          action === 'forget'
+            ? current.games.map((item) => ({
+                ...item,
+                links: item.links.filter((link) => link.deviceId !== id),
+              }))
+            : current.games,
+      }))
+    }
+    if (action !== 'rename') {
+      this.disconnected.add(id)
       this.runtime.delete(id)
       const pending = this.pending.get(id)
       if (pending) {
@@ -118,7 +123,11 @@ export class DesktopLibrary {
       }
     }
   }
-  async exchange(value: unknown, isTransferring = false): Promise<CatalogReply> {
+  async exchange(
+    value: unknown,
+    isTransferring = false,
+    isNewConnection = false,
+  ): Promise<CatalogReply> {
     if (
       typeof value === 'object' &&
       value !== null &&
@@ -129,6 +138,7 @@ export class DesktopLibrary {
       Object.keys(value).length === 2
     ) {
       this.runtime.delete(value.deviceId)
+      this.disconnected.delete(value.deviceId)
       return { games: [], links: [], request: null }
     }
     if (!isCatalogHello(value)) {
@@ -136,8 +146,10 @@ export class DesktopLibrary {
     }
     const hello = structuredClone(value)
     const saved = this.config.devices.find((item) => item.id === hello.deviceId)
-    if (saved?.blocked) {
-      throw new HttpOperationError('permission-denied', '此设备已在电脑断开，请在电脑允许连接。')
+    if (isNewConnection) {
+      this.disconnected.delete(hello.deviceId)
+    } else if (this.disconnected.has(hello.deviceId)) {
+      throw new HttpOperationError('session-mismatch', 'session-mismatch')
     }
     if (
       [...this.runtime.entries()].some(
@@ -232,5 +244,6 @@ export class DesktopLibrary {
     }
     this.pending.clear()
     this.runtime.clear()
+    this.disconnected.clear()
   }
 }

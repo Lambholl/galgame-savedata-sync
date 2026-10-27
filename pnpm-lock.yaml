@@ -61,10 +61,7 @@ importers:
         version: 6.3.4(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@savedata-sync/shared':
         specifier: workspace:*
-        version: link:../../packages/shared
-      '@savedata-sync/ui':
-        specifier: workspace:*
-        version: link:../../packages/ui
+        version: link:../shared
       antd:
         specifier: 6.6.7
         version: 6.6.7(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -101,13 +98,7 @@ importers:
         version: 8.5.3
       '@savedata-sync/shared':
         specifier: workspace:*
-        version: link:../../packages/shared
-      '@savedata-sync/ui':
-        specifier: workspace:*
-        version: link:../../packages/ui
-      antd:
-        specifier: 6.6.7
-        version: 6.6.7(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+        version: link:../shared
       antd-mobile:
         specifier: 5.43.0
         version: 5.43.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -122,28 +113,7 @@ importers:
         specifier: 8.5.3
         version: 8.5.3
 
-  packages/shared: {}
-
-  packages/ui:
-    dependencies:
-      '@ant-design/icons':
-        specifier: 6.3.4
-        version: 6.3.4(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      '@savedata-sync/shared':
-        specifier: workspace:*
-        version: link:../shared
-      antd:
-        specifier: 6.6.7
-        version: 6.6.7(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      antd-mobile:
-        specifier: 5.43.0
-        version: 5.43.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      react:
-        specifier: 18.3.1
-        version: 18.3.1
-      react-dom:
-        specifier: 18.3.1
-        version: 18.3.1(react@18.3.1)
+  apps/shared: {}
 
 packages:
 

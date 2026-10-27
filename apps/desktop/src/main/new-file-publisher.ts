@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto'
-import { link, lstat, open, readdir, statfs, unlink } from 'node:fs/promises'
+import { access, link, lstat, open, readdir, statfs, unlink } from 'node:fs/promises'
+import { constants } from 'node:fs'
 import type { FileHandle } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { Readable } from 'node:stream'
@@ -151,7 +152,7 @@ export class WindowsNewFilePublisher {
     }
   }
 
-  /** 仅可信本机操作可显式授权已选择的根；不持久化，不改变只读目录桥的能力声明。 */
+  /** 核实已选择目录的身份与写权限；游戏配置在接收前恢复此进程内授权。 */
   async grant(rootId: string): Promise<void> {
     if (this.isStopped) {
       throw new PublicationError('busy', '发布适配器已停止。')
@@ -159,8 +160,20 @@ export class WindowsNewFilePublisher {
     const location = await this.source.locateNativeDirectory(rootId).catch((error: unknown) => {
       throw toPublicationError(error)
     })
+    await access(location.path, constants.W_OK).catch((error: unknown) => {
+      throw toPublicationError(error)
+    })
     if (this.isStopped) {
       throw new PublicationError('busy', '发布适配器已停止。')
+    }
+    const existing = this.grants.get(rootId)
+    if (
+      existing &&
+      existing.path === location.path &&
+      existing.identity.dev === location.identity.dev &&
+      existing.identity.ino === location.identity.ino
+    ) {
+      return
     }
     this.grants.set(rootId, location)
   }

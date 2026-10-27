@@ -6,13 +6,18 @@ import java.io.IOException;
 final class ArchiveFailure extends IOException {
     final String code;
     final boolean cancelled;
+    final String diagnosticCode;
     ArchiveFailure cleanupFailure;
 
     ArchiveFailure(String code, String message) { this(code, message, false, null); }
     ArchiveFailure(String code, String message, boolean cancelled, Throwable cause) {
+        this(code, message, cancelled, cause, null);
+    }
+    ArchiveFailure(String code, String message, boolean cancelled, Throwable cause, String diagnosticCode) {
         super(message, cause);
         this.code = code;
         this.cancelled = cancelled;
+        this.diagnosticCode = diagnosticCode;
     }
 
     static ArchiveFailure from(Exception cause) {

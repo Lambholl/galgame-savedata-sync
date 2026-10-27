@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { open, readdir, realpath } from 'node:fs/promises'
 import type { BigIntStats } from 'node:fs'
-import { basename, isAbsolute, join, relative, resolve } from 'node:path'
+import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path'
 import type { Readable } from 'node:stream'
 import {
   isDirectoryListing,
@@ -305,6 +305,8 @@ export class WindowsDirectoryAdapter {
       rootId: root.rootId,
       deviceId: this.deviceId,
       displayName: basename(root.path) || root.path.slice(0, 1),
+      displayPath: root.path,
+      parentName: basename(dirname(root.path)) || basename(root.path) || root.path.slice(0, 1),
       authorization,
     }
   }

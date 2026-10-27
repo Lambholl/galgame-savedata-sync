@@ -22,20 +22,18 @@ related_files: []
 
 ## 1. 状态与范围
 
-版本 1 的本地/批量共享模型、双端目录读取、双端私有归档、Windows HTTP sender/receiver 和非覆盖发布已经可用。WP-013 完成 Java 实际 SAF 原生读流集成，验证见 TC-032；Android SAF 单文件发布已实现并通过设备验证，见 TC-034；Android HTTP、任务编排与持续通知保持传输可用，见 TC-035。平台说明见 `apps/desktop/README.md`、`apps/mobile/README.md`，共享字段与线格式见 `packages/shared/README.md`；范围与依赖见[工作包](../development/work-packages.md)。
+版本 1 的本地/批量共享模型、双端目录读取、双端私有归档、Windows HTTP sender/receiver 和非覆盖发布已经可用。Android SAF 原生读写、HTTP、任务编排与持续通知保持传输已在目标真机上验证，见 TC-032、TC-034、TC-035。平台说明见 `apps/desktop/README.md`、`apps/mobile/README.md`，共享字段与线格式见 `apps/shared/README.md`；范围与依赖见[工作包](../development/work-packages.md)。
 
-M-001 的文件操作范围是专用测试目录内的新文件往返。WP-014/015 按用户授权提前接入游戏与设备配置、三页导航和并列目录视图；覆盖、镜像删除、备份、mDNS 和 Windows 发起任务的控制通道继续按后续里程碑推进。Windows 为服务端，Android 原生层为 HTTP 客户端。
+M-001 的文件操作范围是专用测试目录内的新文件往返。游戏与设备配置、三页导航、并列目录视图和双端独立界面已经接入；覆盖、镜像删除、备份、mDNS 和 Windows 发起任务留后续里程碑。Windows 为服务端，Android 原生层为 HTTP 客户端。
 
-用户已在[Q-008](../requirements/open-questions.md)确定双向统一采用 tar.gz。完整设计位于仓库根目录的 `docs/plans/m001-tar-gzip-protocol.md`；v1 批量共享数据与双端私有归档编解码可用。Windows 提供 v1 读取、sender 和上传 receiver 端点，当前只有批量接口；Windows 原生新文件发布及批次编排可用；Android 原生新文件发布可用，原生 HTTP 与通知保持传输由 WP-006 完成，WP-007 最小界面已经接入并通过实操，完整平台组合留 WP-008。
-
-真实 LAN、SAF 写后回读、后台通知和取消已完成实际设备验证。长期协议资料使用当前实现、固定夹具和验收场景；一次性实验脚本和报告只在 Git 历史中保留。
+用户已在[Q-008](../requirements/open-questions.md)确定双向统一采用 tar.gz。完整设计位于 `docs/plans/m001-tar-gzip-protocol.md`；v1 批量共享数据与双端私有归档编解码可用。Windows 提供 v1 读取、sender 和上传 receiver 端点，当前只有批量接口；双端新文件发布和批次编排可用。
 
 ## 2. 共用数据语义
 
 | 模型 | 当前字段与约束 |
 | --- | --- |
 | DeviceDescriptor | protocolVersion=1、deviceId、displayName、platform、capabilities；稳定 ID 与地址分离 |
-| DirectoryReference | rootId、deviceId、displayName、authorization；授权状态 granted/expired/unavailable/unverified，不包含绝对路径或 content URI |
+| DirectoryReference | rootId、deviceId、displayName、authorization；授权状态 granted/expired/unavailable/unverified；可选 displayPath 是完整展示路径或提供者地址，parentName 是可取得的父目录名。两个字段只用于展示和默认游戏名，文件操作仍只传不透明引用；守卫同时接受原四字段格式 |
 | EntryMetadata | rootId、entryId、parentId、name、kind、sizeBytes、modifiedAt、capabilities；file/directory 联合；根层 parentId=null，parentId 不指向自身；文件夹大小恒为 null，文件未知大小为 null，空文件为 0 |
 | DirectoryListing | rootId、parentId、observedAt、entries；成功空数组表示空目录；条目须属于同一根/层且 ID 不重复；错误用独立包络 |
 | EntryCapabilities / DeviceCapabilities | 条目能力 canRead/canList/canCreate/canRename/canDelete；设备能力 canListRoots/canReadFiles/canReceiveFiles/canQueryTransfers/canCancelTransfers；各值 supported/unsupported/unknown |
@@ -75,7 +73,7 @@ transferId 只属于当前会话，不是历史同步基线。服务以每次启
 | 边界 | 可传递的内容 | 限制 |
 | --- | --- | --- |
 | Electron preload | chooseDirectory、listRoots、listDirectory；只接受 ID，返回公开 DTO；系统选择器在主进程执行 | 无 fs/shell/Node、绝对路径、内容或写入接口；校验登记窗口、主 frame 与精确 URL；退出移除 handler |
-| Electron 服务桥 | desktopService 的 status/start/stop/chooseTarget/revokeTarget/cancel/retryCleanup；状态含实际端口/IPv4 地址、错误、已授权接收根和会话任务 | 窗口/主 frame/精确 URL 与参数/DTO 校验；start 端口为 0..65535，显式监听 0.0.0.0；选择器与本机确认后才 grant；没有路径/内容或通用 invoke，卸载停止轮询，退出移除 handler |
+| Electron 服务桥 | desktopService 的 status/start/randomizePort/stop/chooseTarget/revokeTarget/cancel/retryCleanup；状态含 configuredPort、实际端口/IPv4 地址、错误、已授权接收根和会话任务 | 窗口/主 frame/精确 URL 与参数/DTO 校验；start 端口为 1..65535，显式监听 0.0.0.0；首次生成并保存 49152..65535 随机端口，后续读取既有值；randomizePort 排除当前值并保存，运行时拒绝修改；选择目录后 grant；卸载停止轮询，退出移除 handler |
 | Electron 主进程原生读取 | registerDirectory 登记系统选中路径，listDirectory 返回当前层，openFile 返回本进程只读流 | 配置独立存放，没有历史清单；调用者消费或 destroy 流；逐段拒绝 symlink/junction，重查根/条目/句柄身份；恶意并发命名空间不在原子隔离范围内 |
 | Windows HTTP 原生服务（sender/receiver） | WindowsHttpService 显式 start/stop、地址/错误查询与清理重试；通用注册表负责两角色状态/取消/期限；receiver 完整校验后顺序发布，保留逐项结果 | 注入 publisher 及 archive.receive 才支持接收；能力不授予根写权限；构造及应用启动不监听网络，默认回环；WP-007 用受限 IPC 提供服务控制与任务快照，getStates 不延长期限；应用退出等待 HTTP 与发布模块停止；无文件字节跨桥 |
 | Windows 原生新文件发布 | WindowsNewFilePublisher 的 grant/revoke、checkTarget、publish、retryCleanup/stop；单文件结果与清理分开；只在本机显式授权的专用测试根写入 | HTTP 和 UI 由 receiver 编排；读取登记不会授予写权限，授权/候选所有权只在当前进程内有效；同目录 wx 候选经哈希/sync 后排他 link，最终回读才成功；无法硬链接的卷会失败，未核实发布返回 unknown；输入关闭后返回，没有覆盖、删除或自动恢复 |
@@ -83,7 +81,7 @@ transferId 只属于当前会话，不是历史同步基线。服务以每次启
 | Capacitor Java SAF 插件（API 33/35 读取验证通过） | chooseDirectory/listRoots/listDirectory；READ 持久授权、当前层元数据和本地 ID | URI/documentId 留在原生层，不接收任意路径；写入能力均不支持；原生只读流由同包调用者消费并关闭，不将内容或 Base64 交给 JS |
 | Java 私有归档 | ArchiveAdapter.prepare/receive、不可变 ArchiveModel、Artifact.openArchive/openFile/close；SafArchiveSource 从本次 SAF 引用原生读取并前后复核；控制器取消关闭读流/查询，资源、期限与清理错误分别检查 | 固定 v1 原生模型，完整校验后才返回句柄；私有真实缓存路径/所有权与进程独占，清理失败保留名额可重试；无 URI/内容跨桥；JSON 解码/网络、目标发布与前台调度分别留对应包；用法见移动说明 |
 | Java SAF 新文件发布 | NewFilePublisher 的 grant/revoke、preflight/publish、cancel/retryCleanup/stop；SafPublicationBackend 仅定位已有根/父目录，PublicationJson 对齐单文件结果和独立清理 | 系统 WRITE 与本次显式授权分开；创建前后核实 ID/父/名，常规 FD 身份及非截断 rw，关闭后 EOF/SHA-256/元数据回读；仅清理身份匹配的新条目，未知不重放，清理失败保留进程名额；无内容/URI 跨桥，原生流可来自已验证归档 |
-| Android 原生 HTTP/任务 | HttpTransfersPlugin、TransferJson/Schema/Http/Engine、TS 桥；connect、远端当前层、双向 start、query/queryRemote/getManifest/current、cancel/retryCleanup/订阅 | 严格 JSON/头/预算、会话及本次上下文；单次 ID/内容，回执丢失只查询；完整验证后逐项 SAF 发布；sender sent 与 receiver 成功分开，URI/字节不跨桥；用法见移动 README |
+| Android 原生 HTTP/任务 | HttpTransfersPlugin、TransferJson/Schema/Http/Engine、TS 桥；connect、远端当前层、双向 start、query/queryRemote/getManifest/current、cancel/retryCleanup/订阅 | 严格 JSON/头/预算、会话及本次上下文；连接和默认网络无进展等待 5 秒，初次握手总期限 5 秒；单次 ID/内容，回执丢失只查询；完整验证后逐项 SAF 发布；sender sent 与 receiver 成功分开，URI/字节不跨桥；用法见移动 README |
 | 清单前终态 | Android 下载在清单生成前取消/失败，生成逐文件 not-attempted 的接收终态 | TS 桥仅在本地下载终态、缺少清单、文件 ID/顺序/数量和原因均匹配时接纳；任何已写入结果继续要求完整清单/目标校验 |
 | 生命周期 | 可见界面发起任务，TransferRuntime 应用级持有；dataSync 前台服务与持续通知保持已有传输，Activity 暂停/销毁不会取消 | 通知权限经用户允许；完成/显式取消和清理后退出；没有自动调度或旧任务重放，current 只重新取得原任务上下文 |
 
@@ -91,7 +89,7 @@ transferId 只属于当前会话，不是历史同步基线。服务以每次启
 
 ## 5. 版本与线格式
 
-数据声明和映射由共享包提供；Windows HTTP 读取使用严格 JSON/路由/头/会话和 UTF-8 字节预算，双端私有归档负责实际流、格式、长度与哈希校验。Windows 新文件发布独立验证，HTTP receiver 完成上传预检、单次 PUT、完整校验与批次编排；Android 单文件发布和 WP-006 网络/批次编排已经可用。当前协议使用批量 v1，只有批量端点，没有单文件别名。v1 是在尚无 HTTP 消费者的阶段修订的；现在开始按正式兼容要求维护。完整声明见 `packages/shared/README.md`。
+数据声明和映射由共享包提供；Windows HTTP 读取使用严格 JSON/路由/头/会话和 UTF-8 字节预算，双端私有归档负责实际流、格式、长度与哈希校验。Windows 新文件发布独立验证，HTTP receiver 完成上传预检、单次 PUT、完整校验与批次编排；Android 单文件发布和 WP-006 网络/批次编排已经可用。当前协议使用批量 v1，只有批量端点，没有单文件别名。v1 是在尚无 HTTP 消费者的阶段修订的；现在开始按正式兼容要求维护。完整声明见 `apps/shared/README.md`。
 
 - 协议只接受数字版本 1，封闭 DTO 拒绝缺失和额外字段。ID 为 1–128 个 ASCII 字符，首位字母或数字，后续允许字母、数字、下划线和短横线，不接收路径或 URI；批内 fileId 使用受限连续编号。
 - 字节数为非负安全整数；时间是 ±8.64e15 范围内的 Unix 毫秒整数，0 和负数有实际含义，未知修改日期用 null。文本非空白且最长 1024 个 UTF-16 码元。
@@ -103,11 +101,11 @@ transferId 只属于当前会话，不是历史同步基线。服务以每次启
 
 ## 6. 检查与验证边界
 
-packages/shared 保留本地目录/设备/错误/选择结果守卫，并提供批量描述、选择/清单/目标请求、归档声明、进度/文件结果/批次状态守卫及 isBatchProgressAdvance。matchesBatchState(value, manifest, direction, receiver?) 对照本次清单和明确方向；receiver 必须提供完整 ReceiveBatchRequest，核对结果覆盖、字节/哈希、目标根/父目录/名称与重复最终条目。sender 只传 manifest 和方向。清单比较按内容，不按 JSON 键顺序，也没有历史存储。
+apps/shared 保留本地目录/设备/错误/选择结果守卫，并提供批量描述、选择/清单/目标请求、归档声明、进度/文件结果/批次状态守卫及 isBatchProgressAdvance。matchesBatchState(value, manifest, direction, receiver?) 对照本次清单和明确方向；receiver 必须提供完整 ReceiveBatchRequest，核对结果覆盖、字节/哈希、目标根/父目录/名称与重复最终条目。sender 只传 manifest 和方向。清单比较按内容，不按 JSON 键顺序，也没有历史存储。
 
 长期自动化测试只保留共享数据关系、目录/IPC、归档、HTTP、原生发布和桥接边界。桌面与移动测试使用独立合成夹具，验证公开输入输出、文件安全、非覆盖发布、取消、结果未知和清理重试；不测试按钮、文案、DOM、颜色或内部调用顺序。Java 设备测试保留 SAF 只读读取、固定归档互通和实际 SAF 快照三条路径。实际 API 33 LAN 双向、SAF 发布、通知保持和 Activity 重连已通过手工操作、状态核对与截图验证；其它平台、总体规模资源和最终界面由总体验收覆盖。
 
-守卫校验已解析 JSON/plain data，处理范围是数据结构和关系；文件、网络、哈希计算、生命周期控制、脱敏由平台负责。守卫不改变、克隆或冻结输入；资源所有权、释放、线程隔离及原生异常到错误码的映射也在平台层。跨 Java/JS 的超范围整数在原生侧拒绝，未知属性显式输出 null；SAF 日期 0 依提供者约定转换为未知。调用示例及桥生命周期说明见 `packages/shared/README.md`、`apps/mobile/README.md`。
+守卫校验已解析 JSON/plain data，处理范围是数据结构和关系；文件、网络、哈希计算、生命周期控制、脱敏由平台负责。守卫不改变、克隆或冻结输入；资源所有权、释放、线程隔离及原生异常到错误码的映射也在平台层。跨 Java/JS 的超范围整数在原生侧拒绝，未知属性显式输出 null；SAF 日期 0 依提供者约定转换为未知。调用示例及桥生命周期说明见 `apps/shared/README.md`、`apps/mobile/README.md`。
 
 `pnpm check` 只执行文本、格式、lint、严格类型和双端构建。`pnpm test:all` 运行完整自动化测试与 Android 原生测试，日常检查不运行它。默认不新增或扩写自动化测试；功能验证优先编译、实际运行、ADB 操作和截图。
 
@@ -115,10 +113,14 @@ Windows 目录与 IPC 回归包含真实 8.3 短路径环境；授权真实目�
 
 ## 7. 游戏设备元数据与界面
 
-`packages/shared/src/library.ts` 定义本机 `LibraryConfig`、公开 `CatalogGame`、游戏关联及目录查询/应答。一个游戏在每台设备对应一个目录，关联多个稳定设备 ID；首期同时连接一个对端，开始后的传输固定原连接。配置不保存文件清单、哈希或平台路径。
+`apps/shared/src/library/library.ts` 定义本机 `LibraryConfig`、公开 `CatalogGame`、游戏关联及目录查询/应答。一个游戏在每台设备对应一个目录，关联多个稳定设备 ID；首期同时连接一个对端，开始后的传输固定原连接。配置不保存文件清单、哈希或平台路径。
 
 Windows 的 `DesktopLibrary` 在应用私有目录原子保存游戏/设备配置，通过有限 `desktopLibrary` IPC 提供读取、保存游戏、设备管理和手机当前层查询。新建 `POST /v1/catalog` 使用既有会话头、严格 JSON 边界与独立 DTO 校验；手机提交自己的游戏目录表和明确的游戏关联，取回电脑目录表及至多一个当前层查询。目录应答要求请求 ID、根 ID 和父 ID 全部匹配；父目录必须来自已读条目。查询 8 秒超时，15 秒无前台元数据更新标为离线。手机原生 `exchangeCatalog` 绑定已连接电脑，原生填写本机设备 ID，不接受任意 URL。
 
-Android 桥新增 `connections`、`selectDevice`、`disconnectDevice`、`exchangeCatalog`；原生和界面均限制单连接，断开通知电脑释放名额。Activity 重建查询原生连接和当前任务，文件通道、持续通知和任务结果语义沿用 WP-006。对端主动关联只合并公开元数据，不授予本机目录写权限；本机解除关联后记录排除项，避免下一次元数据交换自动加回。
+Android 桥提供 `connections`、`selectDevice`、`disconnectDevice`、`exchangeCatalog`；原生和界面均限制单连接。Activity 重建查询原生连接和当前任务，文件通道、持续通知和任务结果语义沿用 WP-006。对端主动关联只合并公开元数据，目录写权限来自本机系统选择器；本机解除关联后记录排除项，避免下一次元数据交换自动加回。
 
-正式界面共用 `packages/ui`，桌面和手机通过各自 `library-adapter.ts` 接入。接收授权继续独立确认；覆盖、镜像删除、备份恢复尚未开放，文件传输保持仅新建语义。最终运行验收按用户要求由用户执行。
+添加或导入游戏时先选择本机目录，选定后才能确认并写入游戏配置；取消不添加游戏。目录设置显示 `displayPath`，游戏名默认取 `parentName`，缺省时用 `displayName`。选择目录即为写入授权，两端不再提供单独的“允许接收”和“撤销接收授权”入口。Android 使用系统选择器保存持久 READ/WRITE 权限，每次下载前由 TransferRuntime 重新核实并恢复 publisher 授权；Windows 根据已保存的本机游戏目录，在上传接收前检查 rootId、目录身份与写权限。进程重启后继续使用已配置目录，权限失效时重新选择；只恢复目录写入授权，不恢复旧传输任务。
+
+主动握手后的首个 catalog 请求携带 `x-sync-connect: 1`，普通轮询不携带。桌面断开只修改进程内会话和待处理目录请求，不写入 `blocked=true`；断开后的普通轮询收到 `session-mismatch`，手机再次主动连接时清除标记。连接失败返回 HTTP 状态、协议码及原生 errno 或异常类型，不附加原因改写或重试建议。
+
+界面由 `apps/desktop/src/renderer/src` 和 `apps/mobile/src` 各自维护，平台接入位于各端 `platform/library-adapter.ts`。`apps/shared` 提供协议、配置、任务数据、传输预检与游戏关联规则，不依赖组件库或平台 API。覆盖、镜像删除和备份恢复留后续业务；当前文件传输保持仅新建语义。

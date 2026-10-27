@@ -2,15 +2,17 @@ import type { IpcMain, IpcMainInvokeEvent } from 'electron'
 import { networkInterfaces } from 'node:os'
 import { isOpaqueId } from '@savedata-sync/shared'
 import type { DirectoryReference, OperationResult } from '@savedata-sync/shared'
-import { SERVICE_CHANNELS } from '../service-bridge.ts'
-import type { DesktopServiceSnapshot } from '../service-bridge.ts'
+import { SERVICE_CHANNELS } from '../bridge/service-bridge.ts'
+import type { DesktopServiceSnapshot } from '../bridge/service-bridge.ts'
 import type { WindowsDirectoryAdapter } from './directory-adapter.ts'
 import type { WindowsHttpService } from './http-service.ts'
 import type { WindowsNewFilePublisher } from './new-file-publisher.ts'
 import { toHttpError } from './http-errors.ts'
+import type { ServicePortSettings } from './service-port-settings.ts'
 
-/** 选择器及确认由主进程执行；null 表示取消，不撤销旧授权。 */
+/** 存档目录选择器由主进程执行；null 表示取消，不撤销已有目录权限。 */
 interface ServiceIpcOptions {
+  readonly portSettings: ServicePortSettings
   readonly isTrustedSender: (event: IpcMainInvokeEvent) => boolean
   readonly chooseTargetPath: () => Promise<string | null>
 }
@@ -41,6 +43,7 @@ export function registerServiceIpc(
     return {
       status: 'success',
       value: {
+        configuredPort: options.portSettings.getPort(),
         listener: address ? { host: address.host, port: address.port, addresses } : null,
         error: service.getError(),
         targets: [...targets.values()],
@@ -77,9 +80,13 @@ export function registerServiceIpc(
       try {
         if (action === 'start') {
           const port = argument(args, 'port')
-          if (typeof port !== 'number' || !Number.isInteger(port) || port < 0 || port > 65535) {
-            return fail('invalid-request', '端口应为 0 到 65535 的整数。')
+          if (typeof port !== 'number' || !Number.isInteger(port) || port < 1 || port > 65535) {
+            return fail('invalid-request', '端口应为 1 到 65535 的整数。')
           }
+          if (service.getAddress()) {
+            return fail('busy', '请先停止服务再修改端口。')
+          }
+          await options.portSettings.save(port)
           await service.start({ host: '0.0.0.0', port })
         } else if (action === 'revokeTarget' || action === 'cancel') {
           const id = argument(args, action === 'cancel' ? 'transferId' : 'rootId')
@@ -95,6 +102,12 @@ export function registerServiceIpc(
         } else {
           if (args.length !== 0) {
             return fail('invalid-request', '服务参数无效。')
+          }
+          if (action === 'randomizePort') {
+            if (service.getAddress()) {
+              return fail('busy', '请先停止服务再修改端口。')
+            }
+            await options.portSettings.randomize()
           }
           if (action === 'chooseTarget') {
             const path = await options.chooseTargetPath()

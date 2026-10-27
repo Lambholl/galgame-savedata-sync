@@ -1,7 +1,7 @@
 import type { IpcMain, IpcMainInvokeEvent } from 'electron'
 import { isOpaqueId } from '@savedata-sync/shared'
 import type { DirectorySelectionResult, OperationError } from '@savedata-sync/shared'
-import { DIRECTORY_CHANNELS } from '../directory-bridge.ts'
+import { DIRECTORY_CHANNELS } from '../bridge/directory-bridge.ts'
 import type { WindowsDirectoryAdapter } from './directory-adapter.ts'
 import { toDirectoryError } from './directory-errors.ts'
 

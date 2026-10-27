@@ -3,7 +3,7 @@ import { mkdtemp, mkdir, realpath, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { isAbsolute, join, relative, sep } from 'node:path'
 import test from 'node:test'
-import { createDirectoryBridge, DIRECTORY_CHANNELS } from '../src/directory-bridge.ts'
+import { createDirectoryBridge, DIRECTORY_CHANNELS } from '../src/bridge/directory-bridge.ts'
 import { createDirectoryAdapter } from '../src/main/directory-adapter.ts'
 import { registerDirectoryIpc } from '../src/main/directory-ipc.ts'
 

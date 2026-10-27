@@ -23,6 +23,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import static io.github.galgame.savedatasync.TransferJson.*;
 import static io.github.galgame.savedatasync.TransferSchema.*;
@@ -49,17 +50,49 @@ public class HttpTransfersPlugin extends Plugin {
     }
     private interface Work { Object run(ArchiveControl control) throws Exception; }
     private static JSObject json(Object value) throws Exception { return new JSObject(new String(bytes(value), StandardCharsets.UTF_8)); }
+    /** 连接错误直接显示 HTTP/协议码、系统 errno 或原始异常类型，不推测原因。 */
+    private static Map<String, Object> connectionError(Exception cause) {
+        ArchiveFailure failure = NewFilePublisher.failure(cause);
+        Map<String, Object> result = error(failure.code);
+        String diagnostic = failure.diagnosticCode;
+        String nativeCode = null;
+        String exceptionType = null;
+        Throwable current = cause;
+        for (int depth = 0; current != null && depth < 16; depth++, current = current.getCause()) {
+            if (current instanceof ArchiveFailure && ((ArchiveFailure) current).diagnosticCode != null) {
+                diagnostic = ((ArchiveFailure) current).diagnosticCode;
+            }
+            if (current instanceof android.system.ErrnoException) {
+                int errno = ((android.system.ErrnoException) current).errno;
+                String name = android.system.OsConstants.errnoName(errno);
+                nativeCode = name != null ? name : "errno=" + errno;
+            } else if (!(current instanceof ArchiveFailure)) {
+                exceptionType = current.getClass().getSimpleName();
+            }
+        }
+        String detail = nativeCode != null ? nativeCode : exceptionType;
+        if (diagnostic != null) result.put("message", diagnostic);
+        else if (detail == null) result.put("message", failure.code);
+        else result.put("message", failure.code.equals("timeout") ? failure.code + " / " + detail : detail);
+        return result;
+    }
     private void submit(PluginCall call, boolean requireForeground, Work work) {
         try {
             io.execute(() -> {
-                ArchiveControl control = new ArchiveControl(); queries.add(control);
+                ArchiveControl control = call.getMethodName().equals("connect")
+                    ? new ArchiveControl(System::nanoTime, TimeUnit.SECONDS.toNanos(5)) : new ArchiveControl();
+                queries.add(control);
                 try {
                     if (destroyed || (requireForeground && !foreground)) throw fail("unsupported-operation");
                     Object value = work.run(control);
                     if (!call.getMethodName().startsWith("start")) control.check();
                     call.resolve(json(object("status", "success", "value", value)));
                 } catch (Exception cause) {
-                    try { call.resolve(json(object("status", "error", "error", error(NewFilePublisher.failure(cause).code)))); }
+                    try {
+                        Map<String, Object> failure = call.getMethodName().equals("connect") || call.getMethodName().equals("exchangeCatalog")
+                            ? connectionError(cause) : error(NewFilePublisher.failure(cause).code);
+                        call.resolve(json(object("status", "error", "error", failure)));
+                    }
                     catch (Exception invalid) { call.resolve(new SafFailure("io-failure", "任务服务不可用").result()); }
                 } finally { queries.remove(control); }
             });
@@ -107,7 +140,7 @@ public class HttpTransfersPlugin extends Plugin {
         catch (Exception cause) { call.resolve(new SafFailure("permission-denied", "传输通知不可用", cause).result()); }
     }
 
-    /** 真实系统选择器授予 WRITE 后才显式 grant；JS 不能提交 URI 或自行授权已有 rootId。 */
+    /** 选择存档目录时保存系统读写权限；以后接收会重新核实已有持久权限。 */
     @PluginMethod public void chooseTarget(PluginCall call) {
         try { arguments(call); if (!foreground || !choosing.compareAndSet(false, true)) throw fail("unsupported-operation"); }
         catch (Exception cause) { call.resolve(new SafFailure("invalid-request", "请在前台完成目录选择").result()); return; }

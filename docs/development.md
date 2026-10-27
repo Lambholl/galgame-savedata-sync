@@ -60,7 +60,7 @@ debug APK 输出到 `apps/mobile/android/app/build/outputs/apk/debug/app-debug.a
 pnpm android:open
 ```
 
-连接已开启 USB 调试的设备后，可在 Android Studio 运行应用。Java SAF 读取插件已经可用，界面仍是空壳；插件入口、原生流责任和测试方式见[移动适配说明](../apps/mobile/README.md)。`android:test` 执行 Java 单元、Android lint 及调试/测试 APK 构建，不会部署到设备。同步功能要在两端设备上另做验收。
+连接已开启 USB 调试的设备后，可在 Android Studio 运行应用。移动界面已有游戏、设备、目录与传输操作；插件入口、原生流责任和测试方式见[移动适配说明](../apps/mobile/README.md)。`android:test` 执行 Java 单元、Android lint 及调试/测试 APK 构建，不会部署到设备。同步功能要在两端设备上另做验收。
 
 ## 依赖安全检查
 
@@ -80,21 +80,21 @@ pnpm security:android
 
 2026-10-25 项目依赖审计结果：官方 npm 全量 397 项零已知漏洞；Android 全部可解析 Maven 配置与 Gradle Core 共 273 项零已知公告；固定 pnpm 10.34.8 单独 OSV 查询零公告。
 
-Windows 的 renderer 与隔离 preload 已通过启动检查。Android debug APK 可以构建，Manifest 为 minSdk 29、targetSdk 36，并允许明文 HTTP。双端局域网往返、SAF 发布和传输中的通知保持已在独立合成目录验证；API 29、其它提供者和完整目录同步还没验收。
+Windows 的 renderer 与隔离 preload 已通过启动检查。Android debug APK 可以构建，Manifest 为 minSdk 29、targetSdk 36，并允许明文 HTTP。双端局域网往返、SAF 发布、传输中的通知保持以及 Android 10 与较新系统的真机组合已经验收；完整目录同步还没实现。
 
-审计结果覆盖当前已知公告；真机验证与 JDK/SDK 二进制漏洞检查另行进行。Android 原生构建与依赖解析结果记录在项目记忆中。
+审计结果覆盖当前已知公告；JDK/SDK 二进制漏洞检查另行进行。真机验收结果与 Android 原生构建、依赖解析结果记录在项目记忆中。
 
 ## 验证范围与常见问题
 
-- `pnpm test:shared` 执行共享包的数据模型与协议测试，无需连接设备或网络。完整字段、线格式和示例见[共享包说明](../packages/shared/README.md)。
+- `pnpm test:shared` 执行共享包的数据模型与协议测试，无需连接设备或网络。完整字段、线格式和示例见[共享包说明](../apps/shared/README.md)。
 - `pnpm test:desktop` 执行 Windows 目录、有限 IPC、归档、HTTP 和发布的最小回归；接口、缓存及资源责任见[桌面适配说明](../apps/desktop/README.md)。
-- `pnpm test:mobile` 检查 SAF 与传输桥的请求/响应边界；Android 真机授权、提供者和界面行为另行验证。
+- `pnpm test:mobile` 检查 SAF 与传输桥的请求/响应边界；Android 真机授权、提供者和界面行为在目标设备回归时重新检查。
 - `pnpm check` 只做文本、格式、lint、类型检查和双端构建。`pnpm test:all` 才运行完整自动化测试与 Android 原生测试；新功能默认用实际运行和截图验收，不自动新增测试。
 - `pnpm env:check --json` 提供结构化检查；`--desktop` 排除 Android 工具。WARN 不导致失败，FAIL 的退出码为 1。
 - 更换或连接多台设备时，用 `adb -s <serial>` 固定目标；重查实际系统版本与已安装 APK，重新选择本机目录，避免沿用其它设备的路径或测试结论。批次要有完整回执，才能记为通过。
 - 只读检查分别比对内容、大小、mtime 和其它状态时间。API 33 合成夹具首次 SAF 授权/读取后曾观察到 ctime 变化，原文、大小和 mtime 一致，后续重复读取完整快照一致；原因仍未确定。ctime 是否变化取决于提供者，判断内容一致时看原文、大小和 mtime。
 - 检查脚本不自动安装软件、不修改全局环境、不接受或补签 SDK licenses。
 - Electron 45 首次运行时按需下载运行时；`pnpm --filter @savedata-sync/desktop exec electron --version` 可验证下载和执行。环境检查只读取安装结果，不触发下载。
-- 移动网页预览可在缺少 Android Studio 时开发；APK 编译与真机验证需要单独完成。
+- 移动网页预览可在缺少 Android Studio 时开发；APK 编译和真机验收按移动端流程执行。
 - CI 执行格式、lint、类型、Web/Electron 构建、Android debug APK 及 npm/Maven/工具链安全检查；远端执行结果见项目记忆，真机业务流程另按移动端验证执行。
 - Android 原生工程由 Capacitor 生成，保留 Gradle Wrapper；`minSdkVersion = 29`、`compileSdkVersion = targetSdkVersion = 36`，Manifest 允许明文 HTTP。原生工程包含仅供用户发起传输使用的 dataSync 前台服务，没有定时同步或开机任务。

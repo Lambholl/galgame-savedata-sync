@@ -1,5 +1,7 @@
 # 双端界面实现
 
+当前目录已按[独立界面设计](../superpowers/specs/2026-10-27-app-directory-design.md)迁入 `apps/mobile`、`apps/desktop`、`apps/shared`。两端各自维护页面与界面状态，原 `packages/ui` 已移除；移动端优先 antd-mobile，使用桌面组件时也考虑触控。下文保留原业务范围与交接要求。
+
 ## 目录
 
 - [范围](#范围)

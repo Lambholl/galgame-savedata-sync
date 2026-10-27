@@ -1,6 +1,6 @@
 # Galgame SaveData Sync
 
-Windows 与 Android 的局域网文件夹同步工具，正在开发中。现在可以在双端选择和浏览目录，在手机手动连接电脑、选择方向并传输文件。M-001 验证界面使用独立测试目录，只新建文件；完整的文件夹同步还没完成。
+Windows 与 Android 的局域网文件夹同步工具，正在开发中。现在可以在双端选择和浏览目录，在手机手动连接电脑、选择方向并传输文件。M-001 双端界面使用独立测试目录，只新建文件；完整的文件夹同步还没完成。
 
 ## 目录
 
@@ -39,8 +39,8 @@ Windows PowerShell 若限制执行 `.ps1` 启动器，可使用 `pnpm.cmd` 执�
 
 ## 验证文件往返
 
-1. 电脑到“设备”页启动本机服务，复制显示的完整 HTTP 地址。端口填 0 会分配可用端口。
-2. 到“游戏”页添加游戏，进入“目录设置”选择电脑上的存档目录。接收文件前，用“允许接收新文件”选择独立测试目录并确认。
+1. 电脑到“设备”页启动本机服务，复制显示的完整 HTTP 地址。端口默认随机生成，可在启动前修改或重新随机生成。
+2. 到“游戏”页添加游戏，进入“目录设置”选择电脑上的存档目录。选择目录同时授予该目录的写入权限。
 3. 手机安装 Android 调试包，到“设备”页添加电脑地址并连接。同一时间连接一台设备，保存的其它设备与游戏关联会保留。
 4. 手机到“游戏”页导入电脑上的游戏，再在目录设置中选择手机目录。已有本机游戏也可明确选择对端游戏进行关联；一个游戏可关联多台设备，每端只设置自己的目录。
 5. 从游戏操作面板进入“传输存档”，选择本次对端与方向，并排查看两端当前层文件。确认源文件与目标位置后预览，必要时修改目标名称，再开始传输并允许通知。接收端“目标写入成功”才表示文件已写入；切后台后已有传输继续运行。
@@ -72,15 +72,17 @@ Windows PowerShell 若限制执行 `.ps1` 启动器，可使用 `pnpm.cmd` 执�
 ## 仓库结构
 
 ```text
-apps/desktop/       Electron 主进程、受限 preload 与 antd 界面
-apps/mobile/        antd-mobile 界面与 Capacitor 配置
+apps/desktop/       Electron 主进程、受限 preload 与独立 antd 界面
+apps/mobile/        独立移动界面与 Capacitor 配置，优先 antd-mobile
 apps/mobile/android/  Android 原生工程、Gradle Wrapper
-packages/shared/    双端共用的 TypeScript 导出
+apps/shared/        两端共用的协议、数据模型与业务规则
 scripts/            环境检查、文本检查、Android 构建和 IDE 入口
 docs/               开发指南
 .github/workflows/  Windows 环境下的仓库检查
 .project-memory/    已确认需求、方案、验收和当前状态
 ```
+
+两端分别在自己的 `app`、`features`、`components`、`platform` 和 `styles` 中维护界面与平台接入。共享包保持纯 TypeScript；移动界面优先使用 antd-mobile，使用桌面组件时也保证触控区域。目录边界与迁移依据见[双端目录设计](docs/superpowers/specs/2026-10-27-app-directory-design.md)。
 
 ## 项目记忆
 

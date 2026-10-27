@@ -1,4 +1,5 @@
 import js from '@eslint/js'
+import { builtinModules } from 'node:module'
 import prettierConfig from 'eslint-config-prettier/flat'
 import globals from 'globals'
 import reactHooks from 'eslint-plugin-react-hooks'
@@ -173,6 +174,73 @@ export default tseslint.config(
       'apps/mobile/capacitor.config.ts',
     ],
     rules: { 'no-restricted-exports': 'off' },
+  },
+  {
+    files: ['apps/shared/src/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: [
+                ...builtinModules,
+                'react',
+                'react/*',
+                'react-dom',
+                'react-dom/*',
+                'antd',
+                'antd/*',
+                'antd-mobile',
+                'antd-mobile/*',
+                '@ant-design/*',
+                'electron',
+                'electron/*',
+                '@capacitor/*',
+                'node:*',
+              ],
+              message: '共享包只保存纯数据与业务规则，界面和平台能力留在各自应用。',
+            },
+            {
+              regex: '(^|/)(desktop|mobile)(/|$)',
+              message: '共享包不能依赖桌面或移动应用。',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ['apps/mobile/src/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              regex: '(^|/)desktop(/|$)',
+              message: '移动应用通过共享包和协议复用业务，不导入桌面源码。',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ['apps/desktop/src/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              regex: '(^|/)mobile(/|$)',
+              message: '桌面应用通过共享包和协议复用业务，不导入移动源码。',
+            },
+          ],
+        },
+      ],
+    },
   },
   // 排版由 .prettierrc.json 定义；关闭冲突规则后，再启用兼容的代码结构规则。
   {

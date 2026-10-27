@@ -46,6 +46,7 @@ final class TransferEngine {
     private static final class Connection {
         final TransferHttp http;
         final Map<String, Object> descriptor;
+        boolean announced;
         Connection(TransferHttp http, Map<String, Object> descriptor) { this.http = http; this.descriptor = descriptor; }
     }
     private final Map<String, Connection> connections = new LinkedHashMap<>();
@@ -160,7 +161,11 @@ final class TransferEngine {
         }
         TransferSchema.roots(roots, local.deviceId());
         Map<String, Object> hello = object("deviceId", local.deviceId(), "name", name, "games", games, "links", catalog.get("links"), "answer", catalog.get("answer"));
-        return value.http.json("POST", "/v1/catalog", string(value.descriptor.get("sessionId")), hello, 200, control);
+        boolean isNewConnection;
+        synchronized (this) { isNewConnection = !value.announced; }
+        Object reply = value.http.json("POST", "/v1/catalog", string(value.descriptor.get("sessionId")), hello, 200, control, isNewConnection);
+        synchronized (this) { value.announced = true; }
+        return reply;
     }
     private synchronized TransferHttp connected() throws ArchiveFailure { available(); if (connecting) throw fail("busy"); if (http == null) throw fail("not-found"); return http; }
     List<Object> roots(ArchiveControl control) throws Exception {

@@ -1,10 +1,10 @@
-import { LibraryApp } from '@savedata-sync/ui'
-import { androidBackButton } from './back-button'
-import { createMobileLibraryAdapter } from './library-adapter'
+import { MobileApp } from './app/MobileApp'
+import { androidBackButton } from './app/back-button'
+import { createMobileLibraryAdapter } from './platform/library-adapter'
 
 const ADAPTER = createMobileLibraryAdapter()
 
-/** 正式 Android 应用入口；原生连接、任务和系统返回独立于页面组件。 */
+/** Android 入口，保留同一个连接与原生任务适配器。 */
 export function App(): React.JSX.Element {
-  return <LibraryApp adapter={ADAPTER} backButton={androidBackButton} />
+  return <MobileApp adapter={ADAPTER} backButton={androidBackButton} />
 }

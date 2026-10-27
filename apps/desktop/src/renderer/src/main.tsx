@@ -1,7 +1,7 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import { App } from './App'
-import './style.css'
+import { DesktopApp } from './app/DesktopApp.tsx'
+import './styles/desktop.css'
 
 const container = document.getElementById('root')
 if (!container) {
@@ -10,6 +10,6 @@ if (!container) {
 
 createRoot(container).render(
   <StrictMode>
-    <App />
+    <DesktopApp />
   </StrictMode>,
 )

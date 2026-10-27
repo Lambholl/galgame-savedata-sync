@@ -7,9 +7,10 @@ import { isTrustedDirectorySender, registerDirectoryIpc } from './directory-ipc.
 import { toDirectoryError } from './directory-errors.ts'
 import { createWindowsArchiveAdapter } from './archive-adapter.ts'
 import { WindowsHttpService } from './http-service.ts'
-import { toHttpError } from './http-errors.ts'
+import { HttpOperationError, toHttpError } from './http-errors.ts'
 import { WindowsNewFilePublisher } from './new-file-publisher.ts'
 import { registerServiceIpc } from './service-ipc.ts'
+import { ServicePortSettings } from './service-port-settings.ts'
 import { DesktopLibrary } from './library-store.ts'
 import { registerLibraryIpc } from './library-ipc.ts'
 
@@ -67,11 +68,22 @@ if (hasInstanceLock) {
       const privateDirectory = await realpath(app.getPath('userData'))
       const adapter = await createDirectoryAdapter(join(privateDirectory, 'directory-config.json'))
       const archive = await createWindowsArchiveAdapter(adapter, privateDirectory)
-      // 网络监听与测试根写授权均由本机界面显式发起。
+      // 网络监听由本机界面启动；已配置的存档目录在每次接收前重新核实写入权限。
       const publisher = new WindowsNewFilePublisher(adapter)
       const library = new DesktopLibrary(join(privateDirectory, 'game-library.json'), adapter)
       await library.load()
-      const httpService = new WindowsHttpService(adapter, archive, { publisher, library })
+      const portSettings = new ServicePortSettings(join(privateDirectory, 'service-settings.json'))
+      await portSettings.load()
+      const httpService = new WindowsHttpService(adapter, archive, {
+        publisher,
+        library,
+        authorizeTarget: async (rootId) => {
+          if (!library.snapshot().config.games.some((game) => game.rootId === rootId)) {
+            throw new HttpOperationError('permission-denied', '接收目录未配置到游戏。')
+          }
+          await publisher.grant(rootId)
+        },
+      })
       app.once(
         'will-quit',
         registerLibraryIpc(ipcMain, library, httpService, (event) =>
@@ -117,28 +129,19 @@ if (hasInstanceLock) {
       })
       app.once('will-quit', disposeDirectoryIpc)
       const disposeServiceIpc = registerServiceIpc(ipcMain, adapter, httpService, publisher, {
+        portSettings,
         isTrustedSender: (event) =>
           isTrustedDirectorySender(event, trustedWindows, expectedRendererUrl),
         chooseTargetPath: async () => {
           const result = await dialog.showOpenDialog({
-            title: '选择独立测试接收目录',
+            title: '选择存档目录',
             properties: ['openDirectory', 'dontAddToRecent'],
           })
           const path = result.canceled ? null : (result.filePaths[0] ?? null)
           if (path === null) {
             return null
           }
-          const confirmation = await dialog.showMessageBox({
-            type: 'warning',
-            title: '允许接收测试文件',
-            message: '请确认这是独立测试目录',
-            detail: `${path}\n\n本次运行允许在该目录及子目录中创建新文件。同名文件会拒绝接收。请勿选择真实游戏存档。`,
-            buttons: ['取消', '允许接收'],
-            defaultId: 0,
-            cancelId: 0,
-            noLink: true,
-          })
-          return confirmation.response === 1 ? path : null
+          return path
         },
       })
       app.once('will-quit', disposeServiceIpc)

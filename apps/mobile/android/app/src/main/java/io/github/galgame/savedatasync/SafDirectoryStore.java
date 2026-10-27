@@ -28,7 +28,7 @@ import org.json.JSONObject;
 /**
  * 只读 SAF 登记表；必须在 I/O 工作线程调用，不得在 UI 线程调用。
  * 仅持久化根目录授权；条目 ID 和元数据只保留在当前实例中。
- * 提供者 ID 始终作为不透明标识处理，不转换为文件系统路径。
+ * 文件操作始终使用不透明提供者 ID；完整路径与父目录名由独立展示模块生成。
  */
 final class SafDirectoryStore {
     static final String PREFERENCES = "saf-directories-v1";
@@ -37,10 +37,12 @@ final class SafDirectoryStore {
         Document.COLUMN_SIZE, Document.COLUMN_LAST_MODIFIED, Document.COLUMN_FLAGS
     };
     private final ContentResolver resolver;
+    private final Context context;
     private final SharedPreferences preferences;
     private final List<Root> roots = new ArrayList<>();
     private final Map<String, Entry> entries = new HashMap<>();
     private final Map<String, String> documentIds = new HashMap<>();
+    private final Map<String, DirectoryDisplay.Info> display = new HashMap<>();
     private final String deviceId;
 
     String deviceId() { return deviceId; }
@@ -51,7 +53,8 @@ final class SafDirectoryStore {
 
     /** 使用单独的偏好设置名称，将仪器测试夹具与用户设置隔离。 */
     SafDirectoryStore(Context context, String preferencesName) throws SafFailure {
-        resolver = context.getApplicationContext().getContentResolver();
+        this.context = context.getApplicationContext();
+        resolver = this.context.getContentResolver();
         preferences = context.getSharedPreferences(preferencesName, Context.MODE_PRIVATE);
         try {
             String saved = preferences.getString("registry", null);
@@ -136,6 +139,13 @@ final class SafDirectoryStore {
         value.put("rootId", root.id);
         value.put("deviceId", deviceId);
         value.put("displayName", root.name);
+        DirectoryDisplay.Info info = display.get(root.id);
+        if (info == null) {
+            info = DirectoryDisplay.resolve(context, resolver, root.uri, root.name);
+            display.put(root.id, info);
+        }
+        value.put("displayPath", info.path);
+        if (info.parentName != null && !info.parentName.trim().isEmpty()) value.put("parentName", info.parentName);
         value.put("authorization", authorization);
         return value;
     }
@@ -164,6 +174,7 @@ final class SafDirectoryStore {
             }
             signal.throwIfCanceled();
             persist();
+            display.remove(candidate.id);
             return describe(added ? saved : candidate, "granted");
         } catch (Exception cause) {
             if (added && candidate != null) {
