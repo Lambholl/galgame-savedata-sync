@@ -4,7 +4,9 @@ import {
   libraryCatalog,
   libraryLinks,
   mergeCatalogLinks,
+  matchesSyncProjectBinding,
   normalizeHttpAddress,
+  resolveSyncProjectBinding,
   PROTOCOL_VERSION,
 } from '@savedata-sync/shared'
 import type {
@@ -14,17 +16,35 @@ import type {
   LibraryConfig,
   OperationResult,
   DirectoryListing,
+  SyncProjectBinding,
 } from '@savedata-sync/shared'
 import { unwrap, taskIsActive } from '@savedata-sync/shared'
 import type { TransferTask, TransferRequest } from '@savedata-sync/shared'
 import type { MobileLibraryAdapter, MobileSnapshot } from './library-types'
-import { androidDirectories } from './saf-directories'
-import { androidTransfers } from './http-transfers'
-import type { CurrentTransfer, TransferStartOptions } from './http-transfer-bridge'
+import { androidDirectories as defaultDirectories } from './saf-directories'
+import { androidTransfers as defaultTransfers } from './http-transfers'
+import type { AndroidDirectoryApi } from './saf-directory-bridge'
+import type {
+  AndroidTransferApi,
+  CurrentTransfer,
+  TransferStartOptions,
+} from './http-transfer-bridge'
+
+/** 平台依赖可由集成验证替换；默认使用真实原生桥和本机持久存储。 */
+export interface MobileLibraryDependencies {
+  readonly directories: AndroidDirectoryApi
+  readonly transfers: AndroidTransferApi
+  readonly storage: Pick<Storage, 'getItem' | 'setItem'>
+}
 
 const CONFIG_KEY = 'savedata-sync:library:1'
 /** Android 仅持久化公开 ID/配置；原生拥有连接和任务，网页重载后重新查询。 */
-export function createMobileLibraryAdapter(): MobileLibraryAdapter {
+export function createMobileLibraryAdapter(
+  dependencies?: Partial<MobileLibraryDependencies>,
+): MobileLibraryAdapter {
+  const androidDirectories = dependencies?.directories ?? defaultDirectories
+  const androidTransfers = dependencies?.transfers ?? defaultTransfers
+  const storage = dependencies?.storage ?? localStorage
   let config: LibraryConfig | undefined
   const catalogs = new Map<string, readonly CatalogGame[]>()
   const answers = new Map<string, DirectoryAnswer>()
@@ -37,7 +57,7 @@ export function createMobileLibraryAdapter(): MobileLibraryAdapter {
     if (config) {
       return config
     }
-    const raw = localStorage.getItem(CONFIG_KEY)
+    const raw = storage.getItem(CONFIG_KEY)
     const value: unknown = raw === null ? emptyLibrary() : JSON.parse(raw)
     if (!isLibraryConfig(value)) {
       throw new Error('游戏配置损坏，请保留应用数据后检查。')
@@ -52,7 +72,7 @@ export function createMobileLibraryAdapter(): MobileLibraryAdapter {
     if (JSON.stringify(load()) === JSON.stringify(value)) {
       return
     }
-    localStorage.setItem(CONFIG_KEY, JSON.stringify(value))
+    storage.setItem(CONFIG_KEY, JSON.stringify(value))
     config = value
   }
   async function select(id: string): Promise<BatchDeviceDescriptor> {
@@ -105,6 +125,51 @@ export function createMobileLibraryAdapter(): MobileLibraryAdapter {
     if (selectedId === id) {
       selectedId = null
     }
+  }
+  async function assertCanEditGames(): Promise<void> {
+    await refreshTask()
+    if (task && taskIsActive(task)) {
+      throw new Error('结束当前传输后再修改游戏目录或关联。')
+    }
+  }
+  async function binding(
+    transfer: TransferRequest,
+    shouldRefresh: boolean,
+  ): Promise<SyncProjectBinding> {
+    const roots = unwrap(await androidDirectories.listRoots())
+    if (shouldRefresh) {
+      const reply = unwrap(
+        await androidTransfers.exchangeCatalog(transfer.deviceId, {
+          games: libraryCatalog(load(), roots),
+          links: libraryLinks(load(), transfer.deviceId),
+          answer: answers.get(transfer.deviceId) ?? null,
+        }),
+      )
+      answers.delete(transfer.deviceId)
+      catalogs.set(transfer.deviceId, reply.games)
+    }
+    const device = load().devices.find((item) => item.id === transfer.deviceId)
+    if (!device) {
+      throw new Error('项目关联的设备已移除，请重新选择。')
+    }
+    const value = unwrap(
+      resolveSyncProjectBinding(
+        load(),
+        roots,
+        {
+          device,
+          isConnected: descriptors.some((item) => item.device.deviceId === transfer.deviceId),
+          games: catalogs.get(transfer.deviceId) ?? [],
+        },
+        transfer.projectId,
+      ),
+    )
+    const sourceRootId = transfer.upload ? value.localRootId : value.remoteRootId
+    const targetRootId = transfer.upload ? value.remoteRootId : value.localRootId
+    if (sourceRootId !== transfer.sourceRootId || targetRootId !== transfer.targetRootId) {
+      throw new Error('项目目录已变化，请重新打开预览。')
+    }
+    return value
   }
   return {
     async read(): Promise<MobileSnapshot> {
@@ -173,8 +238,20 @@ export function createMobileLibraryAdapter(): MobileLibraryAdapter {
         tasks: task ? [task] : [],
       }
     },
-    saveGames(games): Promise<void> {
-      return Promise.resolve().then(() => save({ ...load(), games }))
+    async saveGames(games): Promise<void> {
+      await assertCanEditGames()
+      if (!isLibraryConfig({ ...load(), games })) {
+        throw new Error('游戏或设备配置无效。')
+      }
+      const roots = unwrap(await androidDirectories.listRoots())
+      if (
+        games.some(
+          (game) => game.rootId !== null && !roots.some((root) => root.rootId === game.rootId),
+        )
+      ) {
+        throw new Error('请选择已授权的本机存档目录。')
+      }
+      save({ ...load(), games })
     },
     chooseDirectory() {
       return androidTransfers.chooseTarget()
@@ -280,10 +357,16 @@ export function createMobileLibraryAdapter(): MobileLibraryAdapter {
       await select(deviceId)
       return androidTransfers.listRemoteDirectory(rootId, parentId)
     },
-    async start(transfer: TransferRequest): Promise<void> {
+    async start(value: TransferRequest): Promise<void> {
+      const transfer = structuredClone(value)
+      const expected = await binding(transfer, false)
       const descriptor = await select(transfer.deviceId)
       if (!unwrap(await androidTransfers.requestNotifications())) {
         throw new Error('请允许传输通知后重试。')
+      }
+      const actual = await binding(transfer, true)
+      if (!matchesSyncProjectBinding(expected, actual)) {
+        throw new Error('项目或设备关联已变化，请重新打开预览。')
       }
       const options: TransferStartOptions = {
         request: {

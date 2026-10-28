@@ -115,6 +115,8 @@ Windows 目录与 IPC 回归包含真实 8.3 短路径环境；授权真实目�
 
 ## 7. 游戏设备元数据与界面
 
+传输发起的 `TransferRequest` 现需本机 `projectId`。共享 `resolveSyncProjectBinding` 固定本机/远端项目、设备与目录 ID；Android 在通知授权后重新交换目录表并复核，变化时要求重新预览。双端保存游戏只接受已登记本机目录，活动传输中阻止修改游戏目录/关联。既有 HTTP v1 和 LibraryConfig v1 字段保持。
+
 `apps/shared/src/library/library.ts` 定义本机 `LibraryConfig`、公开 `CatalogGame`、游戏关联及目录查询/应答。一个游戏在每台设备对应一个目录，关联多个稳定设备 ID；首期同时连接一个对端，开始后的传输固定原连接。配置不保存文件清单、哈希或平台路径。
 
 Windows 的 `DesktopLibrary` 在应用私有目录原子保存游戏/设备配置，通过有限 `desktopLibrary` IPC 提供读取、保存游戏、设备管理和手机当前层查询。新建 `POST /v1/catalog` 使用既有会话头、严格 JSON 边界与独立 DTO 校验；手机提交自己的游戏目录表和明确的游戏关联，取回电脑目录表及至多一个当前层查询。目录应答要求请求 ID、根 ID 和父 ID 全部匹配；父目录必须来自已读条目。查询 8 秒超时，15 秒无前台元数据更新标为离线。手机原生 `exchangeCatalog` 绑定已连接电脑，原生填写本机设备 ID，不接受任意 URL。

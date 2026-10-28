@@ -115,6 +115,8 @@ HTTP_ERROR_STATUS 保留既有错误映射，并增加 session-mismatch/task-con
 
 withGameLink、withoutGameLink、createImportedGame 返回新的游戏配置，由各端保存。validateTransferSelection 按顺序检查设备连接、目录选择、文件选择、目标名称和接收授权，返回 TransferProblem 或 null；各端负责提示和确认，原生层继续检查真实会话与文件权限。taskIsActive 统一判断活动任务，unwrap 将 OperationResult 的失败转换为 Error。
 
+`TransferRequest.projectId` 为当前本机游戏 ID，调用方须随传输选择一起提供；原生 HTTP 请求格式保持原样。`resolveSyncProjectBinding` 从本机游戏配置、已登记目录和当前对端目录表取得固定项目/设备/目录 ID，离线、失效授权或错位设备返回具体错误。`matchesSyncProjectBinding` 用于异步权限确认后复核映射；设备显示名与 IP 改动不改变关联身份。调用示例见移动端 `src/platform/library-adapter.ts`。
+
 ## 8. 当前扫描与覆盖计划
 
 `src/sync/` 提供独立 `SYNC_SCHEMA_VERSION=1` 的当前快照、覆盖计划、备份清单/设置和逐项发布结果，不改变原有批量 v1 的非覆盖行为。完整规则和预算统一见 [M-002 文档第 3 节](../../docs/plans/m002-sync-copy.md#3-复制备份与恢复约定)。

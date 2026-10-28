@@ -9,6 +9,7 @@ import {
   isOperationResult,
 } from '../protocol/validation.ts'
 import { isOpaqueId } from '../protocol/protocol.ts'
+import { isArrayOf } from '../validation/data-validation.ts'
 
 /** 本机的游戏目录与对端关联；不保存文件清单、哈希或平台路径。 */
 export interface LibraryGame {
@@ -107,14 +108,15 @@ export function isLibraryConfig(value: unknown): value is LibraryConfig {
     value.games.length > 128 ||
     !Array.isArray(value.devices) ||
     value.devices.length > 32 ||
-    !value.devices.every(isSavedDevice)
+    !isArrayOf(value.devices, isSavedDevice)
   ) {
     return false
   }
   const games: unknown[] = value.games
   const devices = value.devices
   if (
-    !games.every(
+    !isArrayOf(
+      games,
       (item): item is LibraryGame =>
         record(item) &&
         isOpaqueId(item.id) &&
@@ -122,12 +124,12 @@ export function isLibraryConfig(value: unknown): value is LibraryConfig {
         (item.rootId === null || isOpaqueId(item.rootId)) &&
         Array.isArray(item.links) &&
         item.links.length <= 32 &&
-        item.links.every(isLink) &&
+        isArrayOf(item.links, isLink) &&
         unique(item.links, (link) => link.deviceId) &&
         (item.excludedDevices === undefined ||
           (Array.isArray(item.excludedDevices) &&
             item.excludedDevices.length <= 32 &&
-            item.excludedDevices.every(isOpaqueId))),
+            isArrayOf(item.excludedDevices, isOpaqueId))),
     )
   ) {
     return false
@@ -155,11 +157,11 @@ function catalog(value: Record<string, unknown>): boolean {
   return (
     Array.isArray(value.games) &&
     value.games.length <= 128 &&
-    value.games.every(isCatalogGame) &&
+    isArrayOf(value.games, isCatalogGame) &&
     unique(value.games, (item) => item.id) &&
     Array.isArray(value.links) &&
     value.links.length <= 128 &&
-    value.links.every(isCatalogLink) &&
+    isArrayOf(value.links, isCatalogLink) &&
     unique(value.links, (item) => item.localGameId)
   )
 }
@@ -201,7 +203,7 @@ export function isLibraryPeer(value: unknown): value is LibraryPeer {
     typeof value.isConnected === 'boolean' &&
     Array.isArray(value.games) &&
     value.games.length <= 128 &&
-    value.games.every(isCatalogGame)
+    isArrayOf(value.games, isCatalogGame)
   )
 }
 export function emptyLibrary(): LibraryConfig {

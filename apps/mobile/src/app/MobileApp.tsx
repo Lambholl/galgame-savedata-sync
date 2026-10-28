@@ -441,6 +441,7 @@ export function MobileApp({
       text: `${game.name} · ${selectedPeer.device.name}，新建 ${source.files.length} 个文件。`,
       work: async () => {
         await adapter.start({
+          projectId: game.id,
           deviceId: peerId,
           upload,
           sourceRootId: source.rootId,

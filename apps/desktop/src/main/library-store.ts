@@ -87,6 +87,20 @@ export class DesktopLibrary {
     }
   }
   async saveGames(games: readonly LibraryGame[]): Promise<void> {
+    if (!isLibraryConfig({ ...this.config, games })) {
+      throw new HttpOperationError('invalid-request', '游戏或设备配置无效。')
+    }
+    const roots = await this.adapter.listRoots()
+    if (roots.status === 'error') {
+      throw new HttpOperationError(roots.error.code, roots.error.message)
+    }
+    if (
+      games.some(
+        (game) => game.rootId !== null && !roots.value.some((root) => root.rootId === game.rootId),
+      )
+    ) {
+      throw new HttpOperationError('not-found', '请选择已登记的本机存档目录。')
+    }
     await this.update((current) => ({ ...current, games }))
   }
   async device(

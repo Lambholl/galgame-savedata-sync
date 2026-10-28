@@ -38,6 +38,9 @@ export function registerLibraryIpc(
             throw new HttpOperationError('invalid-request', '游戏配置无效。')
           }
           // store 在落盘前用完整 LibraryConfig 守卫校验每一项。
+          if (service.getStates().some((item) => item.status === 'running')) {
+            throw new HttpOperationError('busy', '结束当前传输后再修改游戏目录或关联。')
+          }
           await library.saveGames(value.games as readonly LibraryGame[])
         } else if (action === 'device') {
           if (

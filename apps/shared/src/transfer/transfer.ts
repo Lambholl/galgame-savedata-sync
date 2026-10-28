@@ -13,6 +13,7 @@ export interface TransferTask {
 
 /** 发起当前层选中文件的传输；空目标 parentId 表示根目录，未指定的名称沿用源名称。 */
 export interface TransferRequest {
+  readonly projectId: string
   readonly deviceId: string
   readonly upload: boolean
   readonly sourceRootId: string
