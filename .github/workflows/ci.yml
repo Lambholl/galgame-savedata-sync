@@ -25,5 +25,3 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm check
       - run: pnpm android:build
-      - run: pnpm security:check
-      - run: pnpm security:android

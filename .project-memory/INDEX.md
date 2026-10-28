@@ -29,6 +29,7 @@ related_files: []
 
 | 工作 | 状态 | 相关记忆文档 | 相关代码或配置 | 已完成 | 下一步 |
 | --- | --- | --- | --- | --- | --- |
+| 移除日常 CI 的安全审计 | done | development/code-map.md、development/implementation-notes.md、requirements/product.md、requirements/constraints.md、testing/regression-notes.md | .github/workflows/ci.yml、docs/development.md | 已删除 security:check 与 security:android 两个步骤，保留手动命令；开发说明与记忆已同步；YAML 格式、文本和记忆校验通过 | 新配置待远端 CI 复验；deepmerge 低危公告仍登记为手动审计问题 |
 | WP-008 规模资源验证与 M-001 收尾，含 REQ-020 每次传输容量预检 | done | development/work-packages.md、requirements/product.md、testing/acceptance.md、testing/regression-notes.md、project/roadmap.md | 双端原生归档/HTTP/发布、docs/validation/m001-resources.md、.reports/wp008/ | 双向 1 GiB 成功，87.526/215.400 秒；原文/源属性/缓存核对通过；主进程采样峰值约 Windows 171 MiB、Android 232 MiB；容量预检、pnpm check、19 项 Windows 既有测试、android:test 通过，最新 APK 已安装；M-001 已收尾 | 下一步细化 M-002；覆盖/镜像/备份/发现及已登记恢复/文件系统缺口继续留后续范围 |
 
 开始产品、代码或文档工作前登记范围、入口和下一步；检查点、阻塞和完成时更新。Git 暂存、提交、reset 等操作不作为独立工作项登记。完成时先更新长期事实，再记录完成状态与结果。

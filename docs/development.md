@@ -69,14 +69,14 @@ pnpm security:check
 pnpm security:android
 ```
 
-检查覆盖开发和间接 npm 依赖。官方审计接口不可访问时命令失败，避免把未完成审计当成零漏洞。项目配置及安全命令使用官方 npm registry。
+安全检查通过上述命令手动运行，日常 push/PR CI 执行工程检查和 Android 构建。审计覆盖开发和间接 npm 依赖；官方审计接口不可访问时命令失败。项目配置及安全命令使用官方 npm registry。
 
 - pnpm 固定 10.34.8，并单独查询 OSV，因为包管理器不属于业务 lockfile 依赖树。
 - `xcode>uuid` 精确覆盖为 11.1.1，修复 [GHSA-w5hq-g745-h8pq](https://github.com/uuidjs/uuid/security/advisories/GHSA-w5hq-g745-h8pq)。选择仍支持 CommonJS 的修复版本，已验证 xcode 的 UUID 生成调用兼容，其他包保留当前主版本。
 - Gradle 采用 [8.14.6 安全补丁](https://docs.gradle.org/8.14.6/release-notes.html)，分发 ZIP 固定官方 SHA-256；下载或哈希不符时构建失败。
 - Android Gradle Plugin 升级至兼容的 8.13.2。`apps/mobile/android/dependency-security.json` 统一修补构建间接库：Netty 保持兼容的 4.1 分支，压缩、JOSE、Bouncy Castle 和 JDOM 使用经 OSV 检查的修复版本；Protobuf 3.x 修补至 3.25.9，独立的 4.x 请求保留原版本。策略覆盖生成项目的 buildscript 和普通依赖，不改 `node_modules`。未使用的 Google Services 构建插件已经移除。
 - `security:android` 先构建移动网页并执行 Capacitor 同步，生成 Git 忽略的 Cordova 工程，再重新解析全部可解析的 Maven 配置（包括各构建变体、测试、lint 等工具）及 buildscript classpath，写入 Git 忽略的 `.reports/android-dependencies.json`，并向 OSV 查询这些版本和 Gradle Core。任何一步失败，命令都会失败。
-- CI 固定 Action commit SHA，使用 JDK 21 和 runner 预装 SDK，并执行 `pnpm check`、`pnpm android:build`、`pnpm security:check` 及 `pnpm security:android`。Node.js 安全基线见 `scripts/toolchain-policy.mjs`，后续需跟随官方安全发布维护。
+- CI 固定 Action commit SHA，使用 JDK 21 和 runner 预装 SDK，并执行 `pnpm check`、`pnpm android:build`。Node.js 安全基线见 `scripts/toolchain-policy.mjs`，由手动安全检查核对。
 
 2026-10-25 项目依赖审计结果：官方 npm 全量 397 项零已知漏洞；Android 全部可解析 Maven 配置与 Gradle Core 共 273 项零已知公告；固定 pnpm 10.34.8 单独 OSV 查询零公告。
 
@@ -96,5 +96,5 @@ Windows 的 renderer 与隔离 preload 已通过启动检查。Android debug APK
 - 检查脚本不自动安装软件、不修改全局环境、不接受或补签 SDK licenses。
 - Electron 45 首次运行时按需下载运行时；`pnpm --filter @savedata-sync/desktop exec electron --version` 可验证下载和执行。环境检查只读取安装结果，不触发下载。
 - 移动网页预览可在缺少 Android Studio 时开发；APK 编译和真机验收按移动端流程执行。
-- CI 执行格式、lint、类型、Web/Electron 构建、Android debug APK 及 npm/Maven/工具链安全检查；远端执行结果见项目记忆，真机业务流程另按移动端验证执行。
+- CI 执行格式、lint、类型、Web/Electron 构建和 Android debug APK；npm/Maven/工具链安全审计保留为手动命令。远端执行结果见项目记忆，真机业务流程另按移动端验证执行。
 - Android 原生工程由 Capacitor 生成，保留 Gradle Wrapper；`minSdkVersion = 29`、`compileSdkVersion = targetSdkVersion = 36`，Manifest 允许明文 HTTP。原生工程包含仅供用户发起传输使用的 dataSync 前台服务，没有定时同步或开机任务。

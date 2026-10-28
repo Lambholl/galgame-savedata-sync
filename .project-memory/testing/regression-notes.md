@@ -19,6 +19,7 @@ related_files: []
 | Android SAF 初次访问时间变化 | unresolved | API 33 合成夹具首次读取后观察到 ctime 变化，原文和 mtime 一致，原因未确认 | 只读目录复验内容、大小和 mtime；ctime 是否变化按提供者能力记录 |
 | Windows 跨进程发布恢复 | open | 强杀可能留下候选；其他卷和特殊名称等价未验证 | 独立目标夹具；按前缀自动删除或恢复旧任务不在方案内 |
 | 满额规模、内存和容量预检 | passed | 双向 1 GiB、SHA-256/源属性、任务缓存清理和进程采样通过；功耗由用户取消，磁盘耗尽注入移出本轮 | 仓库根目录 `docs/validation/m001-resources.md`；双端编译、相关既有测试及容量探针 |
-| 远端 CI | pending | 当前测试与 CI 调整尚无远端结果 | 推送后查看下一次工作流结果 |
+| 依赖手动审计 | open | 用户提供的 CI 日志报告 antd-mobile 间接依赖 deepmerge 的低危公告 GHSA-gcqx-w48m-w2h4，尚未处理 | pnpm security:check；Android 依赖另用 pnpm security:android |
+| 远端 CI | pending | 用户提供的运行在 security:check 失败；安全审计已从日常 CI 移除，新配置待远端复验 | 推送后查看下一次工作流结果 |
 
 界面检查用截图记录当时结果，不转成 DOM、选择器或颜色断言。模板、主题、基准和重复失败场景不在回归范围。

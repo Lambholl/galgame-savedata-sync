@@ -42,7 +42,7 @@ related_files: []
 | Android 原生 HTTP/通知 | TransferJson 严格 UTF-8/重复键/安全整数及有界 JSON，TransferSchema 独立核对任务/清单/角色/结果；无代理/缓存/重定向/自动解压，64 KiB、固定长度/SHA、连接和默认网络无进展等待 5 秒、初次握手总期限 5 秒及传输总期限 30 分钟；丢失 POST/PUT 回执只查询。应用级 Runtime 持有任务，dataSync 服务持续通知保持传输；Activity 暂停或销毁不取消，完成/显式取消与清理后停止 | Transfer*.java、HttpTransfersPlugin、SafRuntime、TS 桥；移动 README/TC-035 |
 | 双端界面与恢复 | 两端独立页面和状态使用既有受限目录/传输桥；源文件显式选择，目标用已有父目录与单文件名映射，真实计数和 sender/receiver 分别显示；Android 后台暂停网页轮询，重载从 current 重新查询同一原生任务；清单生成前取消/失败仍返回全项未尝试终态；系统提供的桌面 userData 先 realpath，再进行私有缓存检查 | apps/mobile/src/app、features、components、platform；apps/desktop/src/renderer/src、bridge、main；TransferEngine.java |
 | 固定依赖 | 采用兼容的 React 18 / TypeScript 5.9；pnpm 10.34.8；精确锁定版本和 lockfile，保留严格 peer 检查 | package.json、pnpm-lock.yaml、pnpm-workspace.yaml |
-| npm 安全 | 官方 registry 对 397 项依赖复审零已知漏洞；xcode 的 uuid 定向修复为 11.1.1，已验证 CommonJS UUID 调用兼容；pnpm 独立 OSV 查询零公告 | scripts/security-check.mjs、pnpm-workspace.yaml |
+| npm 安全 | 2026-10-25 审计的 397 项依赖与 pnpm OSV 结果为零公告；用户本次提供的 CI 日志报告 antd-mobile 间接依赖 deepmerge 的低危公告 GHSA-gcqx-w48m-w2h4，尚未处理。xcode 的 uuid 定向修复为 11.1.1，CommonJS UUID 调用兼容已验证 | scripts/security-check.mjs、pnpm-workspace.yaml；testing/regression-notes.md |
 | Gradle 安全 | 升级为 8.14.6；分发 ZIP 固定官方 SHA-256，Wrapper JAR 已按官方 SHA-256 验证并更新启动器 | apps/mobile/android/gradle/wrapper/、gradlew、gradlew.bat |
 | Android 工具依赖 | AGP 8.13.2 与统一补丁策略已生效；全部可解析 Maven 配置（含各变体、测试、lint 和构建工具）与 Gradle Core 共 273 项复审零已知公告；包含 Protobuf 3.x 修复且保留 4.x 请求。移除未使用的 Google Services 构建插件 | apps/mobile/android/dependency-security.json、scripts/security-android.mjs |
 | Android 原生检查 | Java 单元、lint、双 APK、原生归档互通及移动桥检查通过；默认不新增或扩写自动化测试。实际 API 33 正式 LAN 双向、后台传输、持续通知、Activity 重连、显式取消与外部原文/属性保护通过 | Java 既有检查、ADB 实操与截图；testing/regression-notes.md |
@@ -51,4 +51,4 @@ related_files: []
 
 | 事项 | 原因 | 影响 |
 | --- | --- | --- |
-| 依赖策略维护 | Android 模板默认构建依赖可能落后于安全补丁；npm audit 不覆盖 Maven 或包管理器 | 持续运行 security:check 与 security:android，升级策略后必须复审实际图并构建 |
+| 依赖策略维护 | Android 模板默认构建依赖可能落后于安全补丁；npm audit 不覆盖 Maven 或包管理器 | security:check 与 security:android 保留为手动审计命令，日常 push/PR CI 只执行工程检查和 Android 构建；依赖升级后复审实际图并构建 |
