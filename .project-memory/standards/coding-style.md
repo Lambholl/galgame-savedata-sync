@@ -58,7 +58,6 @@ related_files: []
 | 原生生成工程 | Android 模板保留原生工具风格，不用 Prettier 重写；手写改动仍需检查 UTF-8 与换行 |
 | Android Java | 用户同意沿用 Java；通用基线无专属 Java 文件，适用通用编码规则、现有 Android 风格及官方 Java 约定。原生代码用 javac、Android lint、单元/仪器测试验证，不为本包引入 Kotlin 插件 |
 | 检查入口 | `pnpm check` 执行文本、格式、lint、类型检查和双端构建；`pnpm test:all` 单独运行全量测试；`security:check` / `security:android` 分别审计 Node 工具链及 Maven |
-| 当前交付方式 | 用户要求从本轮起只修改并重新编译，实际验证由用户完成；默认不运行界面实操、测试套件、lint 或独立审查。未特别反馈的问题按用户约定视为验证通过，编译结果按实际输出记录 |
 | Windows 交付 | 用户要求默认只编译桌面运行资源，不重新生成安装版或免安装版；完整打包须有新的明确要求。Android 按原入口生成 APK |
 | 版本控制边界 | 忽略清单以 `.gitignore` 为准，生成产物与临时报告不进入 Git |
 
