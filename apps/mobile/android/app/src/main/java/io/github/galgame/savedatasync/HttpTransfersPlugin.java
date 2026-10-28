@@ -107,7 +107,7 @@ public class HttpTransfersPlugin extends Plugin {
     @PluginMethod public void disconnectDevice(PluginCall call) { submit(call, c -> { engine().disconnectDevice(id(arguments(call, "deviceId").get("deviceId")), c); return null; }); }
     @PluginMethod public void exchangeCatalog(PluginCall call) { submit(call, c -> {
         Map<String, Object> a = arguments(call, "deviceId", "catalog");
-        return engine().exchangeCatalog(id(a.get("deviceId")), a.get("catalog"), android.os.Build.MODEL, c);
+        return engine().exchangeCatalog(id(a.get("deviceId")), a.get("catalog"), DeviceNames.current(getContext()), c);
     }); }
     @PluginMethod public void listRemoteRoots(PluginCall call) { submit(call, c -> { arguments(call); return engine().roots(c); }); }
     @PluginMethod public void listRemoteDirectory(PluginCall call) { submit(call, c -> { Map<String, Object> a = arguments(call, "rootId", "parentId"); return engine().directory(id(a.get("rootId")), parent(a.get("parentId")), c); }); }

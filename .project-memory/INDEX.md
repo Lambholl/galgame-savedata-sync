@@ -29,6 +29,7 @@ related_files: []
 
 | 工作 | 状态 | 相关记忆文档 | 相关代码或配置 | 已完成 | 下一步 |
 | --- | --- | --- | --- | --- | --- |
+| 新增设备默认使用对端名称 | done | requirements/product.md、architecture/api-contracts.md、testing/regression-notes.md | http-service.ts、DeviceNames.java、HttpTransfersPlugin、双端设备保存逻辑 | Windows 使用系统计算机名，Android 优先系统设备名、取不到用型号；既有自定义名称保留。实际 HTTP/双端保存与重连、JVM 后备值/Unicode 限制、33 项桌面回归、工程检查和 Android 原生检查/双 APK/互通通过 | 继续 WP-022 Android 私有备份 |
 | WP-021 Windows 独立备份与轮换 | done | development/work-packages.md、architecture/api-contracts.md、testing/regression-notes.md | backup-store/files/ipc、backup-bridge、directory-adapter、启动/preload | 私有备份/设置、提交和最近 3 次、恢复材料引用、容量与有限桥已实现；实际原文/源属性、新进程重启、故障/取消/超时/残留/链接保护与隔离验证通过；33 项既有桌面回归和工程构建通过 | 下一包 WP-022 Android 私有备份；实际恢复写回由 WP-023/WP-024 完成 |
 | 连接状态按通信结果判断与统一 Message | done | requirements/product.md、architecture/api-contracts.md、testing/regression-notes.md | 双端 App、DesktopLibrary、移动 library-adapter/App | 复用元数据心跳，修正手机失联显示与空闲连接释放；断连回到未连接，antd message 提示一次，不诊断原因；手机连接失败也统一消息样式。受控失联/重连、活动上下文、实际页面明暗主题、工程检查、移动套件和 APK 构建通过 | 继续 WP-021 Windows 独立备份与轮换 |
 | WP-020 Android SAF 当前扫描与内容指纹 | implemented | development/work-packages.md、architecture/api-contracts.md、testing/coverage-gaps.md | Android SyncScanner/SafSyncSource/SyncScansPlugin、移动 sync-scan bridge、既有目录/HTTP 插件与引擎 | 扫描与桥、实际 SAF 内容/源属性/取消、JVM 与桥针对性检查及既有套件和构建通过；前后台判断已移除。仅传输保活，普通操作切后台后的成败不作专项处理或验收 | 下一包 WP-021 Windows 独立备份与轮换；Android 10 新扫描实测留最终平台验收 |

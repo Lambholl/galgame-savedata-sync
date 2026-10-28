@@ -21,6 +21,7 @@ related_files: []
 | Android 当前扫描生产端 | partial | API 33 实际 SAF 的 3 文件/2 目录、独立内容哈希和源大小/mtime 核对及显式取消通过；JVM 未知长度/源变化/失效授权/预算/超时/过期、TS 桥守卫、既有共享/移动/Java 套件、工程检查及双端/APK构建通过；新扫描 API 29 实测留最终平台验收 | SyncScanner/SafSyncSource/SyncScansPlugin、TS sync-scan bridge；不验收普通扫描的后台成败 |
 | 双端界面与真机验收 | passed | 目录重组、独立界面、返回键、SAF、跨端传输和后台返回已通过真机验收 | 新构建与双端真机；见 TC-004、TC-014、TC-015 |
 | 失联状态与统一提示 | passed | 注入通信中断后的未连接状态、一次性 Message、持续离线无重复、重新连接后再次失联、手机主动连接失败和活动任务查询上下文保留通过；浏览器实际页面明暗样式核对、工程检查、既有移动套件和 APK 编译通过 | 双端 App、移动 library-adapter；临时运行与页面截图，不保留界面自动化测试 |
+| 新增设备默认名称 | passed | Windows 实际 HTTP 返回系统计算机名；两端首次保存使用对端名称，重连保留自定义名称；Android 系统名优先/型号后备值和 Unicode 长度规则通过 JVM 检查；33 项桌面回归、工程检查及 Android Java/lint/双 APK/归档互通通过 | http-service、双端 library store/adapter、DeviceNames、HttpTransfersPlugin |
 | Windows 独立备份 | passed | 实际临时目录的原文/哈希/源属性、最近 3 次与恢复材料引用、新进程重启和设置恢复、坏设置保留、备份损坏/源变化/落盘失败/取消/超时关流/容量拒绝、轮换失败保留、显式残留清理及硬链接保护、备份根隔离和有限 IPC 通过；实际恢复写回仍属后续包 | backup-store/files/ipc、backup-bridge；33 项既有桌面回归及工程检查/双端构建 |
 | Android SAF 初次访问时间变化 | unresolved | API 33 合成夹具首次读取后观察到 ctime 变化，原文和 mtime 一致，原因未确认 | 只读目录复验内容、大小和 mtime；ctime 是否变化按提供者能力记录 |
 | Windows 跨进程发布恢复 | open | 强杀可能留下候选；其他卷和特殊名称等价未验证 | 独立目标夹具；按前缀自动删除或恢复旧任务不在方案内 |

@@ -4,7 +4,7 @@ status: active
 priority: high
 owner: product
 id_prefix: REQ
-id_high_water: 20
+id_high_water: 21
 updated: 2026-10-28
 tags: [产品需求]
 related_files: []
@@ -49,6 +49,7 @@ related_files: []
 | REQ-018 | 双向统一采用 tar.gz 作为唯一文件传输方案，按本次待传集合合批 | P0 | active | Windows 与 Android 原生层打包/解包，经 HTTP 流传输；接收端逐文件校验并反馈实际结果；格式决定不改变当前状态判定、复制模式、备份与前台边界 |
 | REQ-019 | Windows 与 Android 界面适配明暗主题 | P1 | active | 默认跟随系统，首次加载及运行时切换均同步组件、页面背景、文字及原生窗口背景；移动端暗色页面、启动及原生窗口背景按用户要求统一纯黑 #000000；Android 状态栏/导航栏图标可读；当前不增加手动开关或持久化主题偏好 |
 | REQ-020 | 每次传输根据可取得的设备剩余空间提前拒绝容量不足的批次 | P1 | active | 接收归档前检查私有缓存和本批目标文件所需空间；提供者未报告容量时按未知处理，实际写入仍检查余量并反馈错误；本轮验收不注入磁盘耗尽 |
+| REQ-021 | 添加设备时默认使用对端设备名称 | P1 | active | Windows 使用系统计算机名称；Android 能读取系统设备名称时使用该名称，取不到时使用型号；已有自定义名称继续保留 |
 
 ## 3. 约束
 

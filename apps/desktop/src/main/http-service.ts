@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { createServer } from 'node:http'
 import type { IncomingMessage, Server, ServerResponse } from 'node:http'
 import { isIP } from 'node:net'
+import { hostname } from 'node:os'
 import type { Socket } from 'node:net'
 import {
   BATCH_LIMITS,
@@ -316,7 +317,7 @@ export class WindowsHttpService {
       const device: DeviceDescriptor = {
         protocolVersion: PROTOCOL_VERSION,
         deviceId: this.source.deviceId,
-        displayName: this.options.displayName ?? '存档同步 Windows',
+        displayName: this.options.displayName ?? hostname(),
         platform: 'windows',
         capabilities: {
           canListRoots: 'supported',
