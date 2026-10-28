@@ -21,7 +21,7 @@ Windows 与 Android 的局域网文件夹同步工具，正在开发中。现在
 
 ## 快速开始
 
-建议使用 Node.js 22.23.4+（22.x）或 24.22.1+（24.x）安全补丁、pnpm 10.34.8、Git。Android 原生开发的 JDK、SDK 与 IDE 设置见[本地开发指南](docs/development.md)。
+使用 Node.js、pnpm、Git。Android 原生开发的 JDK、SDK 与 IDE 设置见[本地开发指南](docs/development.md)。
 
 ```sh
 pnpm install --frozen-lockfile
