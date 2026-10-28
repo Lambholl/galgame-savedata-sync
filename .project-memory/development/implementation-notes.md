@@ -48,7 +48,8 @@ related_files: []
 | Android 原生检查 | Java 单元、lint、双 APK、原生归档互通及移动桥检查通过；默认不新增或扩写自动化测试。实际 API 33 正式 LAN 双向、后台传输、持续通知、Activity 重连、显式取消与外部原文/属性保护通过 | Java 既有检查、ADB 实操与截图；testing/regression-notes.md |
 | 连接状态与短时提示 | 元数据轮询兼作心跳；Windows 按通信期限判离线，Android 只将本次交换成功的设备标在线，空闲失联时释放连接，活动任务仍可查询。断连回到未连接，antd message 提示一次，不诊断原因；手机连接失败由 Toast 改为同一 message，跟随本端明暗主题 | 双端 App、移动 library-adapter/App、shared library 注释；受控失联与实际页面操作检查通过 |
 | Windows 独立备份 | 在私有 backups 保存独立清单和原文，逐文件复核源、哈希/落盘/回读后提交；最近 3 次，恢复材料引用保护输入，轮换失败另报；不保存比较基线。独立设置缺省开启，坏设置保留；启动登记私有区以阻止选作同步根，未提交/淘汰残留仅显式清理 | backup-store/files/ipc、backup-bridge、directory-adapter、启动/preload；实际文件和新进程重启、故障/取消/容量/清理及有限桥验证通过 |
-| Android 独立备份 | 复用 SAF 读取，应用私有 files/backups 保存与共享 v1 一致的独立清单和原文；全部旧内容落盘及回读后提交，三轮保留及恢复引用保护，独立设置/容量和明确清理。Native 插件仅设置/摘要/单轮清单，创建与文件流交原生编排 | BackupStore/Model/Files、AndroidBackupIo、SyncBackupsPlugin、TS backup bridge；API 33 实际 SAF/原文独立哈希/源属性/进程重启、JVM 故障及桥检查通过；新模块 Android 10 实测留最终平台验收 |
+| Windows 受保护写入与恢复 | 先重扫目标和核对全部输入，预检同卷峰值，完整备份后按计划创建目录和逐文件发布；同卷候选 fsync/回读，覆盖前再核对旧内容和身份，最终回读后才成功。本机恢复引用输入且强制保护当前文件；候选清理失败保持与旧批次共用的互斥 | sync-writer、sync-target-files、target-operation、directory-adapter、transfer-registry、启动；实际合成目录覆盖/恢复/保留/占用失败、取消/超时/部分/未知结果、容量/故障/残留归属和既有桌面回归通过 |
+| Android 独立备份 | 复用 SAF 读取，应用私有 files/backups 保存与共享 v1 一致的独立清单和原文；全部旧内容落盘及回读后提交，三轮保留及恢复引用保护，独立设置/容量和明确清理。Native 插件仅设置/摘要/单轮清单，创建与文件流交原生编排 | BackupStore/Model/Files、AndroidBackupIo、SyncBackupsPlugin、TS backup bridge；API 33 实际 SAF/原文独立哈希/源属性/进程重启、JVM 故障及桥检查通过；安卓实测使用 API 33 设备 |
 
 ## 2. 维护说明
 

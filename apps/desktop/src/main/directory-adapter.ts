@@ -337,7 +337,12 @@ export class WindowsDirectoryAdapter {
   ): EntryMetadata {
     const child = relative(root.path, path)
     const key = this.getEntryKey(root.rootId, child)
-    const entryId = this.entryIds.get(key) ?? randomUUID()
+    const previousId = this.entryIds.get(key)
+    const previous = previousId ? this.entries.get(previousId) : undefined
+    const entryId =
+      previousId && previous && hasSameIdentity(stats, previous.identity)
+        ? previousId
+        : randomUUID()
     const entry: EntryMetadata = {
       rootId: root.rootId,
       entryId,

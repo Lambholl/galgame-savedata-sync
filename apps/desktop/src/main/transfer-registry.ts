@@ -30,6 +30,11 @@ import { ArchiveCancelledError } from './archive-errors.ts'
 import { HttpOperationError, toHttpError } from './http-errors.ts'
 import { WindowsUploadReceiver, publicationRequests } from './upload-receiver.ts'
 import type { ReceiverDependencies, ReceiverCompletion } from './upload-receiver.ts'
+import {
+  acquireTargetOperation,
+  hasTargetOperation,
+  releaseTargetOperation,
+} from './target-operation.ts'
 
 type ArchiveProvider = Pick<WindowsArchiveAdapter, 'prepare' | 'retryCleanup'>
 type TransferTimeouts = Pick<
@@ -60,9 +65,6 @@ interface TransferTask {
   receiverRequest: ReceiveBatchRequest | null
   receiver: WindowsUploadReceiver | null
 }
-
-// 原生控制可构造多个监听实例，但同一进程仍只能有一个活动批次。
-let activeTransferOwner: symbol | null = null
 
 function operation(code: KnownOperationError['code'], message: string): KnownOperationError {
   return { code, message, canRetry: false }
@@ -179,7 +181,7 @@ export class WindowsTransferRegistry {
     }
     this.usedIds.add(request.transferId)
     this.activeId = request.transferId
-    activeTransferOwner = this.ownership
+    acquireTargetOperation(this.ownership)
     this.tasks.set(request.transferId, task)
     task.worker = Promise.resolve().then(() => this.prepare(task, request))
     return clone(state)
@@ -204,12 +206,12 @@ export class WindowsTransferRegistry {
     const request = clone(value)
     this.assertAvailable(request.manifest.transferId)
     this.pendingId = request.manifest.transferId
-    activeTransferOwner = this.ownership
+    acquireTargetOperation(this.ownership)
     this.pendingRegistration = this.prepareUpload(request, this.receiver).finally(() => {
       this.pendingId = null
       this.pendingRegistration = null
-      if (this.activeId === null && activeTransferOwner === this.ownership) {
-        activeTransferOwner = null
+      if (this.activeId === null) {
+        releaseTargetOperation(this.ownership)
       }
     })
     return this.pendingRegistration
@@ -348,7 +350,7 @@ export class WindowsTransferRegistry {
     if (this.usedIds.has(id) || this.pendingId === id) {
       throw new HttpOperationError('task-conflict', '本会话已使用或正在登记该任务标识。')
     }
-    if (activeTransferOwner !== null) {
+    if (hasTargetOperation()) {
       throw new HttpOperationError('busy', '已有活动批次或缓存等待清理。')
     }
     if (this.usedIds.size >= this.maxTransfers) {
@@ -450,9 +452,7 @@ export class WindowsTransferRegistry {
       }
     }
     this.activeId = null
-    if (activeTransferOwner === this.ownership) {
-      activeTransferOwner = null
-    }
+    releaseTargetOperation(this.ownership)
   }
 
   /** 停止接纳、取消并等待当前 worker，最后释放缓存；失败由主进程明确处理。 */
@@ -734,9 +734,7 @@ export class WindowsTransferRegistry {
     task.terminalAt = at
     if (!cleanupError) {
       this.activeId = null
-      if (activeTransferOwner === this.ownership) {
-        activeTransferOwner = null
-      }
+      releaseTargetOperation(this.ownership)
     }
   }
 

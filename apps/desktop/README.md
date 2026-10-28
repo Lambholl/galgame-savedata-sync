@@ -17,6 +17,7 @@
 - [10. 原生新文件发布](#10-原生新文件发布)
 - [11. HTTP 接收与批次结果](#11-http-接收与批次结果)
 - [12. 独立备份与恢复材料](#12-独立备份与恢复材料)
+- [13. 受保护目标写入与本机恢复](#13-受保护目标写入与本机恢复)
 
 ## 1. 范围与入口
 
@@ -301,4 +302,32 @@ try {
 }
 ```
 
-有限 `window.desktopBackups` 只提供 read/list/manifest/setPreference/rotate/cleanupIncomplete，输入仅为项目、目录、轮次 ID 和布尔开关。read 的 displayPath 仅供位置展示；列表使用摘要，单轮详情才返回完整清单，控制响应仍限 8 MiB。IPC 核对受信任主窗口/主 frame/URL、封闭参数和返回上下文；不暴露原生句柄、文件内容或私有文件路径参数。备份创建由后续原生复制编排调用，恢复写回与页面分别留 WP-023/WP-027；当前 HTTP 覆盖能力仍未开放。
+有限 `window.desktopBackups` 只提供 read/list/manifest/setPreference/rotate/cleanupIncomplete，输入仅为项目、目录、轮次 ID 和布尔开关。read 的 displayPath 仅供位置展示；列表使用摘要，单轮详情才返回完整清单，控制响应仍限 8 MiB。IPC 核对受信任主窗口/主 frame/URL、封闭参数和返回上下文；不暴露原生句柄、文件内容或私有文件路径参数。备份创建与目标写回由原生 `WindowsSyncWriter` 调用；HTTP 编排与恢复页面分别由 WP-025/WP-027 接入。
+
+## 13. 受保护目标写入与本机恢复
+
+`WindowsSyncWriter(adapter, backups, options)` 执行完整确认计划。主进程的 `authorize(plan)` 每次核对本机项目和目标根；启动实例检查游戏 ID 与 rootId。跨端登记层还需固定会话、设备映射、扫描及备份设置，再提供已完整验证的原生材料。旧 `/v1/transfers/*` 保持只新建语义，新的 HTTP 覆盖能力在编排接入后开放。
+
+| 原生方法 | 输入、输出与资源责任 |
+| --- | --- |
+| `apply(plan, material, options?)` | 计划须可执行、目标为本机、方向为 android-to-windows 或 local-restore；material 携带匹配的源快照及可重复打开的原生流。非法/过期/重复确认或 busy 抛错误；已接纳任务返回完整 `SyncApplyResult` |
+| `prepareRestore(projectId, rootId, backupId, targetSnapshot)` | 完整验证并引用备份，生成强制保护当前内容的恢复计划；返回仅原生使用的 `{ plan, apply, close }`。预览后 apply 或 close，已使用/释放的预览不能执行第二次 |
+| `retryCleanup()` | 只清理本进程仍持有、身份匹配的候选；清理完成后释放互斥，不重放文件写入 |
+| `stop()` | 停止接纳并取消当前任务，等待原生流/候选和恢复材料释放；应用先停止目标任务，再关闭备份存储 |
+
+本机快照和恢复预览有效期 10 分钟；远端快照由所属会话核实，避免用两端系统时钟差判断远端过期。已接纳任务总期限 30 分钟，可信原生 options 可收紧；signal 显式取消。onStage 通知 checking/backing-up/writing 和相对路径，观察者异常不改变任务结果。
+
+执行前重新扫描全部目标并核对原始条目 ID、路径、类型、内容和属性；所有待写原文再完整读取核对大小/SHA-256。容量预检把目标新内容、完整旧内容备份及同卷峰值相加，未知容量保持 null。全部覆盖旧内容提交为有效备份后才创建目录、逐文件写入；关闭备份按本次已确认设置执行，本机恢复始终保护被覆盖的当前文件。
+
+`sync-target-files.ts` 复用已验证的新文件发布边界：同卷独占候选、64 KiB 原生流、fsync、独立回读；新建使用无覆盖 link，替换在重查父目录、旧文件身份/日期/哈希及候选身份后 rename。最终长度和 SHA-256 读回通过才报告成功。目录按父子顺序逐个创建，目标独有条目保持原样。目录适配器在同路径对象身份变化时生成新 ID，旧确认不能沿用替换后的对象。
+
+第一次失败/取消/未知后，后续项记为 not-attempted；已经确认成功的内容保留。进入提交点后发生取消，仍读取实际结果；文件或目录已改变却不能完整核实时返回 unknown/result-unknown。候选清理失败独立报告，保留任务名额直到明确清理成功。`target-operation.ts` 与旧批次共用进程互斥，覆盖准备到清理；候选所有权仍只在本进程内有效，崩溃后的残留沿用[已登记的显式核实缺口](../../.project-memory/testing/coverage-gaps.md)。
+
+```ts
+// nativeMaterial 提供已验证内容的原生 openFile，不向 Renderer 返回流或路径。
+const result = await writer.apply(confirmedPlan, nativeMaterial, { signal })
+const preview = await writer.prepareRestore(projectId, rootId, backupId, currentTargetSnapshot)
+// 将 preview.plan 的公开数据交给本机确认流程，随后执行同一份预览。
+const restored = await preview.apply({ signal })
+// 放弃预览时改为 await preview.close()，释放被引用的备份材料。
+```

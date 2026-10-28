@@ -133,6 +133,13 @@ export class WindowsSyncScanner {
     return structuredClone(this.find(scanId).state)
   }
 
+  /** 原生编排等待同一次只读扫描结束；不发起新扫描或延长保留期。 */
+  async wait(scanId: string): Promise<SyncScanState> {
+    this.get(scanId)
+    await this.jobs.get(scanId)?.worker
+    return this.get(scanId)
+  }
+
   /** 取消仅终止当前只读扫描，最终状态在 worker 释放流后给出。 */
   cancel(scanId: string): SyncScanState {
     const job = this.find(scanId)

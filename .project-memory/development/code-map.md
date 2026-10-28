@@ -44,6 +44,7 @@ related_files: []
 | `apps/shared/src/index.ts`、`library/game-links.ts`、`transfer`、`result.ts` | 应用名、共享模型、游戏关联、传输预检和任务判断导出入口 | 纯 TypeScript；界面、Hook、存储、文件与网络操作留在各端 |
 | `apps/shared/src/sync/` | 本次扫描/计划/备份/结果 DTO、路径关系、纯比较及上下文重算守卫 | 独立 schema 1，不改批量 v1；不做 IO、哈希计算或历史查询；复制方向显式，本机恢复强制保护当前内容 |
 | `apps/desktop/src/main/sync-scanner.ts`、HTTP sync 路由、service bridge/IPC | Windows 本次递归扫描、原生哈希及会话内查询/取消 | 单扫描、32 份结果、条目/深度/JSON/期限预算；只读源，目录不汇总大小；取消/停止等待关流，结果不持久化 |
+| `apps/desktop/src/main/sync-writer.ts`、`sync-target-files.ts`、`target-operation.ts`；transfer-registry、directory-adapter、启动 | 确认计划的目标目录创建、同卷候选替换/回读和本机恢复；旧批次共用互斥 | 完整旧内容备份后写入、每项实际结果、首次失败停止；同路径对象替换产生新 ID；原生流/候选不跨桥，HTTP 编排与本机界面待后续接入 |
 | `apps/shared/src/protocol/contracts.ts`、`protocol.ts`、`validation.ts` | 协议版本 1 DTO、错误/路由/头名映射与纯数据守卫 | 目录不汇总大小；封闭 DTO 区分空值/失败/未知结果；平台路径、权限和真实内容校验仍由适配器负责 |
 | `apps/shared/src/protocol/batch-contracts.ts`、`batch-limits.ts`、`batch-validation.ts`、`batch-context.ts`、`data-validation.ts` | v1 批量 DTO、固定预算/期限、结构/关系守卫与任务上下文匹配；基础容器/文本/数值辅助供内部复用 | sender/receiver 分开；清单与目标一一对应；matchesBatchState 核对实际结果；无归档、HTTP、IO 或历史存储 |
 | `apps/shared/test/`、`apps/shared/README.md` | 运行时数据关系回归、完整线格式与调用示例 | pnpm test:shared 单独运行，类型约束由 tsc 检查；pnpm check 不运行这两项 |

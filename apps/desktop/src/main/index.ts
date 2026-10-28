@@ -15,6 +15,7 @@ import { DesktopLibrary } from './library-store.ts'
 import { registerLibraryIpc } from './library-ipc.ts'
 import { createWindowsBackupStore } from './backup-store.ts'
 import { registerBackupIpc } from './backup-ipc.ts'
+import { WindowsSyncWriter } from './sync-writer.ts'
 
 const trustedWindows = new Set<number>()
 const rendererUrl = process.env.ELECTRON_RENDERER_URL
@@ -75,6 +76,19 @@ if (hasInstanceLock) {
       const library = new DesktopLibrary(join(privateDirectory, 'game-library.json'), adapter)
       await library.load()
       const backups = await createWindowsBackupStore(adapter, privateDirectory)
+      const syncWriter = new WindowsSyncWriter(adapter, backups, {
+        authorize: (plan) => {
+          if (
+            !library
+              .snapshot()
+              .config.games.some(
+                (game) => game.id === plan.projectId && game.rootId === plan.target.rootId,
+              )
+          ) {
+            throw new HttpOperationError('permission-denied', '目标目录与本机项目配置不符。')
+          }
+        },
+      })
       const portSettings = new ServicePortSettings(join(privateDirectory, 'service-settings.json'))
       await portSettings.load()
       const httpService = new WindowsHttpService(adapter, archive, {
@@ -111,13 +125,15 @@ if (hasInstanceLock) {
           return
         }
         isClosing = true
-        Promise.allSettled([httpService.stop(), publisher.stop(), backups.stop()])
-          .then((results) => {
+        Promise.allSettled([httpService.stop(), publisher.stop(), syncWriter.stop()])
+          .then(async (results) => {
             for (const result of results) {
               if (result.status === 'rejected') {
                 throw toHttpError(result.reason)
               }
             }
+            // 目标任务释放成功后再关闭备份，清理失败时保留存储供重试。
+            await backups.stop()
             canQuit = true
             app.quit()
           })
