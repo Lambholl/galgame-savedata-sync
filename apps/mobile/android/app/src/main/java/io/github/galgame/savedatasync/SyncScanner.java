@@ -48,9 +48,10 @@ final class SyncScanner implements AutoCloseable {
         Map<String, Object> state;
         long ended, bytesRead;
         volatile boolean cancelled, timedOut;
-        Job(String rootId, long timeout) {
+        Job(String rootId, long timeout) { this(rootId, timeout, null); }
+        Job(String rootId, long timeout, ArchiveControl external) {
             id = UUID.randomUUID().toString(); this.rootId = rootId;
-            control = new ArchiveControl(System::nanoTime, TimeUnit.MILLISECONDS.toNanos(timeout));
+            control = external == null ? new ArchiveControl(System::nanoTime, TimeUnit.MILLISECONDS.toNanos(timeout)) : external;
             state = object("schemaVersion", 1, "scanId", id, "rootId", rootId, "status", "running",
                 "scannedEntries", 0, "bytesRead", 0L, "snapshot", null, "error", null);
         }
@@ -79,6 +80,14 @@ final class SyncScanner implements AutoCloseable {
     /** 返回深拷贝的公开数据；查询不刷新扫描和结果期限。 */
     synchronized Map<String, Object> query(String scanId) throws Exception {
         purge(); return map(copy(find(scanId).state));
+    }
+    /** 原生目标任务在自身 I/O 线程重扫；取消/期限由该任务控制，不登记或延长扫描结果。 */
+    Map<String, Object> snapshotNow(String rootId, ArchiveControl control) throws Exception {
+        id(rootId); synchronized (this) { if (closed) throw fail("busy"); }
+        Job job = new Job(rootId, timeoutMillis, control);
+        visit(job, null, Collections.emptyList()); check(job);
+        job.entries.sort((a, b) -> comparePath(pathUnchecked(a), pathUnchecked(b)));
+        Map<String, Object> result = snapshot(job, null); bytes(result); return result;
     }
     /** 返回当前快照，取消终态要等工作线程关闭源流后查询。 */
     Map<String, Object> cancel(String scanId) throws Exception {
@@ -201,8 +210,8 @@ final class SyncScanner implements AutoCloseable {
         ArchiveModel.Source file = source.file(job.rootId, string(entry.get("entryId"))); file.validateRoot(job.rootId);
         ArchiveModel.Observation before = file.observe(job.control); before.validate();
         if (!Objects.equals(before.entryId, entry.get("entryId")) || !Objects.equals(before.parentId, entry.get("parentId")) ||
-            !Objects.equals(before.name, entry.get("name")) || !Objects.equals(before.size, entry.get("sizeBytes")) ||
-            !Objects.equals(before.modified, entry.get("modifiedAt"))) throw fail("source-changed");
+            !Objects.equals(before.name, entry.get("name")) || !Objects.equals(before.size, nullable(entry.get("sizeBytes"), 0, MAX_SAFE)) ||
+            !Objects.equals(before.modified, nullable(entry.get("modifiedAt"), -8640000000000000L, 8640000000000000L))) throw fail("source-changed");
         MessageDigest digest = MessageDigest.getInstance("SHA-256"); long size = 0; byte[] buffer = new byte[65536];
         InputStream input = job.control.track(file.open(job.control));
         try (InputStream owned = input) {

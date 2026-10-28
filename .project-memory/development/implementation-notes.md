@@ -50,6 +50,7 @@ related_files: []
 | Windows 独立备份 | 在私有 backups 保存独立清单和原文，逐文件复核源、哈希/落盘/回读后提交；最近 3 次，恢复材料引用保护输入，轮换失败另报；不保存比较基线。独立设置缺省开启，坏设置保留；启动登记私有区以阻止选作同步根，未提交/淘汰残留仅显式清理 | backup-store/files/ipc、backup-bridge、directory-adapter、启动/preload；实际文件和新进程重启、故障/取消/容量/清理及有限桥验证通过 |
 | Windows 受保护写入与恢复 | 先重扫目标和核对全部输入，预检同卷峰值，完整备份后按计划创建目录和逐文件发布；同卷候选 fsync/回读，覆盖前再核对旧内容和身份，最终回读后才成功。本机恢复引用输入且强制保护当前文件；候选清理失败保持与旧批次共用的互斥 | sync-writer、sync-target-files、target-operation、directory-adapter、transfer-registry、启动；实际合成目录覆盖/恢复/保留/占用失败、取消/超时/部分/未知结果、容量/故障/残留归属和既有桌面回归通过 |
 | Android 独立备份 | 复用 SAF 读取，应用私有 files/backups 保存与共享 v1 一致的独立清单和原文；全部旧内容落盘及回读后提交，三轮保留及恢复引用保护，独立设置/容量和明确清理。Native 插件仅设置/摘要/单轮清单，创建与文件流交原生编排 | BackupStore/Model/Files、AndroidBackupIo、SyncBackupsPlugin、TS backup bridge；API 33 实际 SAF/原文独立哈希/源属性/进程重启、JVM 故障及桥检查通过；安卓实测使用 API 33 设备 |
+| Android 受保护写入与恢复 | Java 从快照重算完整计划，重扫目标并核对本批原文；容量按文件增量和备份峰值预检，备份落盘后再核对实际目标余量。有效备份后创建目录或按文档/父目录及常规 FD 身份使用 rw 写入、设长度、fsync/回读；恢复保持输入引用并强制保护当前内容；应用 Context 持有任务，旧传输共用互斥，清理失败不重放 | SyncPlanModel/Writer、SafSyncBackend、SyncWriteRuntime/Plugin、TargetOperation、TS sync-write bridge；API 33 实际目录/覆盖/清空/恢复/取消/竞争和任务状态验证，JVM 故障/容量及跨语言结果检查通过；HTTP 与界面由后续包接入 |
 
 ## 2. 维护说明
 

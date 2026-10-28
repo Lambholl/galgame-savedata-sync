@@ -9,6 +9,7 @@
 - [原生新文件发布](#原生新文件发布)
 - [原生 HTTP 与持续通知](#原生-http-与持续通知)
 - [独立备份与恢复材料](#独立备份与恢复材料)
+- [受保护写入与本机恢复](#受保护写入与本机恢复)
 - [验证](#验证)
 
 ## 界面入口
@@ -175,7 +176,40 @@ Android 行为依据见 [dataSync 前台服务](https://developer.android.com/de
 
 `BackupFiles` 只访问已核实的私有普通文件，Android 实际身份和链接数由 `Os.lstat` 读取；固定 fileId、所有权记录、根/轮次身份和前后属性共同约束访问与清理。未提交轮次重启后通过明确操作清理，既不恢复旧同步，也不按文件名前缀猜测用户文件归属。
 
-`src/platform/backups.ts` 导出 `androidBackups`，只提供 read/list/manifest/setPreference/rotate/cleanupIncomplete。参数只有公开 ID 和布尔开关，read 的 displayPath 仅供展示；Java 和 TS 分别校验封闭字段、清单及本次上下文，控制 JSON 仍限 8 MiB。创建、原生句柄、文件内容和恢复写回不跨这个桥；实际目标写回与界面分别由 WP-024/WP-028 接入。
+`src/platform/backups.ts` 导出 `androidBackups`，只提供 read/list/manifest/setPreference/rotate/cleanupIncomplete。参数只有公开 ID 和布尔开关，read 的 displayPath 仅供展示；Java 和 TS 分别校验封闭字段、清单及本次上下文，控制 JSON 仍限 8 MiB。创建、原生句柄和文件内容不跨这个桥；实际目标写回由 `SyncWriter` 提供，本机恢复使用独立的 `SyncWrites` 桥，界面由 WP-028 接入。
+
+## 受保护写入与本机恢复
+
+`SyncPlanModel` 从两端完整快照重新推导全部动作、顺序、条目引用和预算；原生执行只接受完整可执行计划。`SyncWriter.apply(plan, material, control)` 供原生复制编排和本机恢复使用，目标必须为本机，方向为 windows-to-android 或 local-restore。material 提供与源快照匹配、可重复读取的原生 Source，调用期间保持其有效；writer 消费并关闭输入流。非法/过期/重复确认或 busy 抛异常，接纳后返回完整 `SyncApplyResult`，逐项成功、失败、取消、未知和未执行分开表示。
+
+写入前以任务自身控制器重扫目标，完整读取本批输入并核对指纹；备份开启时先提交所有将被覆盖的旧内容。Android 原地覆盖按文件增量预检目标空间，并合计已知同卷的备份峰值；备份落盘后再查目标实际余量，覆盖 SAF 与私有区逻辑设备 ID 不同但共用物理空间的情况。未知余量保持 null，实际读写失败仍返回具体结果。
+
+`SafSyncBackend` 沿用已授权树和父目录引用。创建目录后核实文档 ID、类型、原始名称及父目录，创建竞争或不明回执不会报告成功；新文件复用已有非覆盖发布器。覆盖使用 `r` / `rw` 常规 FD，比较设备/inode、链接数、文档 ID、父目录、日期及旧内容；拒绝虚拟文档、额外硬链接和无法核实的文件。`rw` 打开保留旧内容，完整写入后才设置最终长度、fsync 并独立回读长度/SHA-256。
+
+第一项失败、取消或未知后停止后项，已确认成功的文件和目录保留，目标独有条目保持原样。写入中断后目标可能已有部分修改，此时返回 unknown/result-unknown，旧内容仍可从有效备份读取。晚取消与提交竞争时按实际回读结果报告。清理错误独立保存，清理未完成保持 `TargetOperation` 名额；旧传输、新复制和本机恢复共用该进程互斥。总期限 30 分钟，显式控制和读写缓冲沿用 64 KiB 预算；普通本机操作不增加前后台判断或保活服务。
+
+`SyncWriteRuntime` 由应用 Context 持有，`SafRuntime.writes(context)` 取得同一实例；Activity 重建后按 restoreId 查询，插件销毁只关闭自己的控制线程。最多保留 32 份预览/结果，预览和终态保留 10 分钟；到期释放输入材料，不重放任务。原生所有者显式 close 才取消并等待运行中的恢复、释放资源及计时线程。
+
+| `SyncWrites` / `androidSyncWrites` 方法 | 输入、输出及资源责任 |
+| --- | --- |
+| `bindProject(projectId, rootId)` | 平台层先核对已保存的游戏配置，再绑定已有授权根；原生重新检查持久写权限，活动任务/清理期间拒绝改绑。绑定只存本进程，配置或会话改变后由平台层重新核实 |
+| `prepareRestore(projectId, rootId, backupId)` | 返回 preparing 状态和新 restoreId；工作线程完整验证备份并保持引用，重扫当前目标后进入 ready。本机恢复强制为当前覆盖内容另建保护备份 |
+| `preview(restoreId)` | 单独取得固定的源/目标快照；TS 生成同一 planId 的本机恢复计划，可显示冲突。预览与结果分开查询，控制 JSON 各限 8 MiB |
+| `execute(restoreId, plan)` | 核对项目/根、原生固定预览及完整计划，再执行一次；ready/终态与活动名额同时提交，重复执行返回 task-conflict |
+| `query(restoreId)` / `cancel(restoreId)` | 查询本机状态与实际结果，或显式取消；查询不延长期限，返回 HTTP/桥成功包络只表示调用成功，恢复是否成功取决于内部状态和结果 |
+| `release(restoreId)` / `retryCleanup()` | 放弃预览或释放终态数据，明确重试未释放资源；运行中的任务先取消并等待终态，清理操作不重放文件写入 |
+
+`src/platform/sync-write-bridge.ts` 校验封闭字段、ID 上下文、预览计划与逐项实际结果；新页面实例可重新取回原生预览来核对终态。原生材料、URI、路径和文件字节不跨桥。当前恢复入口供平台适配器接入，复制 HTTP 和页面继续按 WP-025 至 WP-028 实现，旧 v1 非覆盖入口保持原行为。
+
+```ts
+// game 来自已保存并核实的本机配置；文件内容和句柄始终留在原生层。
+unwrap(await androidSyncWrites.bindProject(game.id, game.rootId))
+const task = unwrap(await androidSyncWrites.prepareRestore(game.id, game.rootId, backupId))
+// query 到 ready 后取得这份固定预览，交给用户确认。
+const plan = unwrap(await androidSyncWrites.preview(task.restoreId))
+const running = unwrap(await androidSyncWrites.execute(task.restoreId, plan))
+// 继续 query 实际终态；不用此预览时 release，清理失败时明确 retryCleanup。
+```
 
 ## 验证
 

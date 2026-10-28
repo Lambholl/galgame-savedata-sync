@@ -18,7 +18,7 @@ import static io.github.galgame.savedatasync.TransferJson.*;
 import static io.github.galgame.savedatasync.TransferSchema.*;
 
 /**
- * 原生双向任务所有者。界面可见时 start，已发起的任务由持续通知服务持有，不随 Activity 暂停取消。
+ * 原生双向任务所有者。用户发起 start，已发起的任务由持续通知服务持有，不随 Activity 暂停取消。
  * 不持久化地址、清单或历史哈希；query 只读快照，失败响应不授权重发 POST/PUT。
  * 下载准备清单前 query 返回 task-conflict；此时取消/失败仍生成全项未尝试的本地终态。
  */
@@ -204,7 +204,8 @@ final class TransferEngine {
             for (Object f : files) { Map<String, Object> e = remoteEntries.get(request.get("sourceRootId") + "\n" + map(f).get("entryId")); require(e != null && "file".equals(e.get("kind"))); }
         }
         String id = string(request.get("transferId")); if (used.contains(id)) throw fail("task-conflict");
-        if (used.size() >= 4096 || results.size() >= 32 || active != null || !PROCESS.compareAndSet(null, this)) throw fail("busy");
+        if (used.size() >= 4096 || results.size() >= 32 || active != null || !TargetOperation.acquire(this)) throw fail("busy");
+        if (!PROCESS.compareAndSet(null, this)) { TargetOperation.release(this); throw fail("busy"); }
         Job job = new Job(request, targetRoot, targets, upload, http, session, remoteDeviceId, totalMillis);
         job.connection = remoteDevice;
         if (!upload) for (Object f : files) {
@@ -485,8 +486,8 @@ final class TransferEngine {
         job.state = terminal(job, status, code, new ArrayList<>(values));
     }
     @SuppressWarnings("unchecked") private static Map<String, Object> mapUnchecked(Object value) { return (Map<String, Object>) value; }
-    private synchronized void release(Job job) { if (active == job) { active = null; PROCESS.compareAndSet(this, null); } }
-    /** 不重放任务；可在前台重试本次未释放资源，正常销毁的旧实例也可由新实例安全收尾。 */
+    private synchronized void release(Job job) { if (active == job) { active = null; PROCESS.compareAndSet(this, null); TargetOperation.release(this); } }
+    /** 不重放任务；可显式重试本次未释放资源，正常销毁的旧实例也可由新实例安全收尾。 */
     boolean retryCleanup() {
         TransferEngine owner = PROCESS.get();
         if (owner != null && owner != this) return owner.closed && owner.retryCleanup();

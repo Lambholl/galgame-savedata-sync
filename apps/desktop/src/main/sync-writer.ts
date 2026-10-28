@@ -526,7 +526,7 @@ export class WindowsSyncWriter {
           await this.clean(job)
         } catch {
           cleanup = cleanupError()
-          error = cleanup
+          error = position + 1 < operations.length ? cleanup : null
           break
         }
         index = position + 1

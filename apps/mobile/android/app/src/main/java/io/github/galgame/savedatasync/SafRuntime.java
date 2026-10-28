@@ -7,6 +7,7 @@ final class SafRuntime {
     private static SafDirectoryStore store;
     private static SyncScanner scanner;
     private static BackupStore backups;
+    private static SyncWriteRuntime writes;
     private SafRuntime() {}
     static synchronized SafDirectoryStore store(Context context) throws SafFailure {
         if (store == null) store = new SafDirectoryStore(context.getApplicationContext());
@@ -22,5 +23,10 @@ final class SafRuntime {
         if (backups == null) backups = new BackupStore(context.getApplicationContext().getFilesDir().getCanonicalFile().toPath(),
             new SafSyncSource(store(context)), new AndroidBackupIo());
         return backups;
+    }
+    /** 本机恢复由应用 Context 持有；Activity 重建后继续查询原任务。 */
+    static synchronized SyncWriteRuntime writes(Context context) throws Exception {
+        if (writes == null) writes = new SyncWriteRuntime(context.getApplicationContext(), store(context), backups(context));
+        return writes;
     }
 }

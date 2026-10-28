@@ -282,6 +282,10 @@ final class SafDirectoryStore {
     }
 
     synchronized PublicationDirectory publicationDirectory(String rootId, String parentId, CancellationSignal signal) throws SafFailure {
+        return publicationDirectory(rootId, parentId, signal, true);
+    }
+    /** 覆盖已有文件不要求父目录支持新建；目录/文件创建仍显式核实创建能力。 */
+    synchronized PublicationDirectory publicationDirectory(String rootId, String parentId, CancellationSignal signal, boolean requireCreate) throws SafFailure {
         try {
             Root root = requireRoot(rootId);
             boolean write = false;
@@ -295,7 +299,7 @@ final class SafDirectoryStore {
             if (!current.isDirectory || current.isVirtual) throw new SafFailure("unsupported-operation", "目标不是普通目录");
             String expected = parent == null ? root.name : parent.snapshot.name;
             if (!expected.equals(current.name)) throw new SafFailure("source-changed", "目标目录名称已变化");
-            if ((current.flags & Document.FLAG_DIR_SUPPORTS_CREATE) == 0) {
+            if (requireCreate && (current.flags & Document.FLAG_DIR_SUPPORTS_CREATE) == 0) {
                 throw new SafFailure("unsupported-operation", "提供者未声明支持新建文件");
             }
             return new PublicationDirectory(rootId, parentId, id, current.name, root.uri);
