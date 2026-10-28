@@ -47,6 +47,8 @@ Windows `WindowsDirectoryAdapter.assertCacheIsolated` 已检查应用存储与�
 
 扫描只存在于当前进程/会话，完成后保留最多 10 分钟，进程结束即失效。每次扫描生成新 `scanId`。
 
+`SyncScanState` 表示 running/succeeded/failed/cancelled，包含 rootId/scanId、已读条目和字节进度；成功携带完整快照，失败可带部分条目及根级错误，取消没有成功快照。最多保留 32 个结果，到期清除；查询不延长期限。
+
 - `SyncSnapshot`：`schemaVersion=1`、`scanId`、`deviceId`、`rootId`、`observedAt`、`entries`、`error`。
 - 条目：`entryId`、相对路径段数组 `path`、`kind`、`sizeBytes`、`modifiedAt`、`sha256`、`error`。根本身不放进条目数组。
 - 目录的 `sizeBytes`/`sha256` 恒为 null，枚举目录只用于同步。文件大小按原生流实测；未知大小/哈希用 null，读取失败保留 `OperationError`。

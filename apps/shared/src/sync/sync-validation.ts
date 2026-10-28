@@ -14,8 +14,11 @@ import type {
   SyncBackupManifest,
   SyncBackupPreference,
   SyncBackupSettings,
+  SyncCapabilities,
   SyncEntry,
   SyncPlanInput,
+  SyncScanState,
+  SyncScanRequest,
   SyncSnapshot,
 } from './sync-contracts.ts'
 import { isSyncPath, syncNameKey, syncPathKey } from './sync-paths.ts'
@@ -103,6 +106,105 @@ export function isSyncPlanInput(value: unknown): value is SyncPlanInput {
     typeof value.shouldBackup === 'boolean' &&
     isSyncSnapshot(value.source) &&
     isSyncSnapshot(value.target)
+  )
+}
+
+/** 核对扫描结果与句柄绑定；已读字节是文件进度，不是目录汇总大小。 */
+export function isSyncScanState(value: unknown): value is SyncScanState {
+  if (
+    !hasShape(value, [
+      'schemaVersion',
+      'scanId',
+      'rootId',
+      'status',
+      'scannedEntries',
+      'bytesRead',
+      'snapshot',
+      'error',
+    ]) ||
+    value.schemaVersion !== SYNC_SCHEMA_VERSION ||
+    !isOpaqueId(value.scanId) ||
+    !isOpaqueId(value.rootId) ||
+    !isByteCount(value.scannedEntries) ||
+    value.scannedEntries > SYNC_LIMITS.maxEntries ||
+    !isByteCount(value.bytesRead)
+  ) {
+    return false
+  }
+  if (value.status === 'running' || value.status === 'cancelled') {
+    return value.snapshot === null && value.error === null
+  }
+  if (
+    !isSyncSnapshot(value.snapshot) ||
+    value.snapshot.scanId !== value.scanId ||
+    value.snapshot.rootId !== value.rootId ||
+    value.snapshot.entries.length > value.scannedEntries
+  ) {
+    return false
+  }
+  if (value.status === 'succeeded') {
+    let bytes = 0
+    for (const entry of value.snapshot.entries) {
+      if (
+        entry.error !== null ||
+        (entry.kind === 'file' && (entry.sizeBytes === null || entry.sha256 === null))
+      ) {
+        return false
+      }
+      if (entry.kind === 'file') {
+        bytes += entry.sizeBytes ?? 0
+      }
+    }
+    return (
+      value.error === null &&
+      value.snapshot.error === null &&
+      value.snapshot.entries.length === value.scannedEntries &&
+      Number.isSafeInteger(bytes) &&
+      bytes === value.bytesRead
+    )
+  }
+  return (
+    value.status === 'failed' &&
+    isOperationError(value.error) &&
+    value.snapshot.error?.code === value.error.code &&
+    value.snapshot.error.message === value.error.message &&
+    value.snapshot.error.canRetry === value.error.canRetry
+  )
+}
+
+/** 新能力声明逐项表达已实现状态；固定扫描预算不能被远端放宽。 */
+export function isSyncCapabilities(value: unknown): value is SyncCapabilities {
+  if (
+    !hasShape(value, [
+      'schemaVersion',
+      'deviceId',
+      'canScan',
+      'canCopy',
+      'canBackup',
+      'canRestore',
+      'limits',
+    ])
+  ) {
+    return false
+  }
+  const limits = value.limits
+  return (
+    value.schemaVersion === SYNC_SCHEMA_VERSION &&
+    isOpaqueId(value.deviceId) &&
+    [value.canScan, value.canCopy, value.canBackup, value.canRestore].every(
+      (item) => item === 'supported' || item === 'unsupported' || item === 'unknown',
+    ) &&
+    hasShape(limits, Object.keys(SYNC_LIMITS)) &&
+    Object.entries(SYNC_LIMITS).every(([key, maximum]) => limits[key] === maximum)
+  )
+}
+
+/** 请求预算固定在原生层；未知版本、路径和额外字段均被拒绝。 */
+export function isSyncScanRequest(value: unknown): value is SyncScanRequest {
+  return (
+    hasShape(value, ['schemaVersion', 'rootId']) &&
+    value.schemaVersion === SYNC_SCHEMA_VERSION &&
+    isOpaqueId(value.rootId)
   )
 }
 

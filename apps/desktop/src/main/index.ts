@@ -75,6 +75,7 @@ if (hasInstanceLock) {
       const portSettings = new ServicePortSettings(join(privateDirectory, 'service-settings.json'))
       await portSettings.load()
       const httpService = new WindowsHttpService(adapter, archive, {
+        scanSource: adapter,
         publisher,
         library,
         authorizeTarget: async (rootId) => {

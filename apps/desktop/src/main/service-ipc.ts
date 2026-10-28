@@ -73,12 +73,32 @@ export function registerServiceIpc(
       if (action === 'status') {
         return args.length === 0 ? snapshot() : fail('invalid-request', '服务参数无效。')
       }
+      if (action === 'scanQuery') {
+        const id = argument(args, 'scanId')
+        if (!isOpaqueId(id)) {
+          return fail('invalid-request', '扫描引用无效。')
+        }
+        try {
+          return { status: 'success', value: service.getScan(id) }
+        } catch (error) {
+          return { status: 'error', error: toHttpError(error).operationError }
+        }
+      }
       if (isMutating) {
         return fail('busy', '正在处理上一项服务操作。')
       }
       isMutating = true
       try {
-        if (action === 'start') {
+        if (action === 'scanStart' || action === 'scanCancel') {
+          const id = argument(args, action === 'scanStart' ? 'rootId' : 'scanId')
+          if (!isOpaqueId(id)) {
+            return fail('invalid-request', '扫描引用无效。')
+          }
+          return {
+            status: 'success',
+            value: action === 'scanStart' ? service.startScan(id) : service.cancelScan(id),
+          }
+        } else if (action === 'start') {
           const port = argument(args, 'port')
           if (typeof port !== 'number' || !Number.isInteger(port) || port < 1 || port > 65535) {
             return fail('invalid-request', '端口应为 1 到 65535 的整数。')

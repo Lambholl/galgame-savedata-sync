@@ -56,6 +56,12 @@
 
 主题使用现有组件库的语义色，目录与传输接口不受影响；手动主题开关和偏好持久化还没做。
 
+当前递归扫描由 `WindowsSyncScanner` 提供：构造时传入本机目录适配器，`start(rootId)` 返回扫描句柄，`get(scanId)` 查询，`cancel(scanId)` 显式取消，退出时 `await stop()` 等待关流。原生验证可收紧 maxEntries/timeoutMs/retentionMs，不能放宽固定预算；失败使用脱敏 OperationError，结果只存当前会话。
+
+HTTP 服务注入 `scanSource: adapter` 后开放 `/v1/sync/capabilities`、`POST /v1/sync/scans` 和 `GET/DELETE /v1/sync/scans/{scanId}`。请求遵守会话头及严格 JSON，登记只接收 `{ schemaVersion: 1, rootId }`，202 后查询实际结果；旧批量接口保持非覆盖。扫描能力为 supported，复制、备份与恢复目前为 unsupported。
+
+有限 `desktopService.startScan(rootId)`、`queryScan(scanId)`、`cancelScan(scanId)` 返回 `OperationResult<SyncScanState>`，桥会核对请求引用与返回句柄，主进程继续校验窗口来源和封闭参数。扫描复用原生只读流，前后重查文件/目录变化，空目录单独表示，目录大小恒为 null；完成结果保留最多 10 分钟，停止/重启服务使旧句柄失效。
+
 ## 2. 主进程接口
 
 | 接口 | 输入/输出 | 生命周期与失败 |

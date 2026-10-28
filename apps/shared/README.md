@@ -123,6 +123,8 @@ withGameLink、withoutGameLink、createImportedGame 返回新的游戏配置，�
 
 `isSyncSnapshot` 校验封闭字段、实测文件属性、目录大小恒为 null、路径/ID 唯一性和父目录链。扫描失败可以带部分条目供说明，规划仍会阻止执行。路径使用原始名称段，`isSyncPath` 检查结构和长度，计划器另检查可移植创建名及保守的名称等价冲突。
 
+`SyncScanRequest` 只含 schemaVersion/rootId，`isSyncScanState` 核对扫描句柄、状态、成功快照的实测字节数和完整指纹；失败可保留部分条目，取消与空目录成功分开。`isSyncCapabilities` 校验新增独立入口的能力声明与固定扫描限制。实际 HTTP/IPC 扫描生产端见桌面说明，当前只开放扫描，覆盖/备份/恢复仍由后续包接入。
+
 `createSyncPlan({ planId, projectId, operation, direction, shouldBackup, source, target })` 生成本次计划。`operation=copy` 使用明确的跨端方向；`operation=restore` 使用 `local-restore`、同一设备及开启的保护备份。源/目标是本次 `SyncSnapshot`，恢复源由本机已验证备份构造。非法输入抛 Error；读取错误、内容未知、类型/名称冲突和超限返回 `canExecute=false` 及问题列表。
 
 计划器复制输入快照，按固定路径顺序给出操作，父目录先创建；不会修改输入、执行 IO、按时间选方向或查询历史。待传/备份字节只统计本次操作，未知或无法表示为安全整数时为 null。`isSyncPlan` 重新推导完整计划；执行前用 `matchesSyncPlan(value, input)` 对照调用方保存的本次上下文，不能只校验 planId 或 canExecute。

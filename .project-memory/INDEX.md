@@ -29,6 +29,7 @@ related_files: []
 
 | 工作 | 状态 | 相关记忆文档 | 相关代码或配置 | 已完成 | 下一步 |
 | --- | --- | --- | --- | --- | --- |
+| WP-019 Windows 当前扫描与内容指纹 | done | development/work-packages.md、architecture/api-contracts.md | sync-scanner.ts、HTTP sync、service bridge/IPC、shared/sync | 已实现原生扫描、完整指纹及会话 HTTP/IPC；实际目录/源属性、源变化/越界、未知长度、预算/取消/超时关流/过期及桥边界通过；相关既有套件、工程检查和双端构建通过 | 下一步 WP-020：Java SAF 原生扫描、同一公开模型、有限插件/TS 桥及实际提供者验证 |
 | WP-018 项目映射与手动连接补齐 | done | development/work-packages.md、architecture/api-contracts.md | apps/shared/src/library、apps/mobile/src/platform/library-adapter.ts、apps/desktop/src/main/library-* | 已补固定项目绑定、通知后目录复核、目录登记与活动任务编辑保护；桌面原生配置和移动适配层场景、全部既有 TS 套件、工程检查及双端/APK构建通过 | 下一步 WP-019：实现 Windows 当前递归扫描/哈希及受限扫描接口 |
 | WP-017 共享扫描模型与纯比较计划 | done | development/work-packages.md、development/module-status.md、architecture/api-contracts.md | apps/shared/src/sync、apps/shared/src/index.ts、apps/shared/README.md | 模型、树/预算守卫、比较/恢复输入与逐项结果核对已实现；针对性运行和既有共享套件通过；已逐项运行等价工程检查并通过 | 下一步 WP-018：核实并补齐项目映射、重启恢复和手动改址的实际缺口 |
 | WP-016 复制、备份与恢复详细约定 | done | development/work-packages.md、project/charter.md、architecture/api-contracts.md | docs/plans/m002-sync-copy.md | Windows 根隔离与 SAF 常规 FD 入口已调查；复制异常、私有备份/轮换/恢复、预算与新增协议已统一在第 3 节 | 下一步 WP-017：实现共享快照/计划/备份模型、守卫及纯比较规则 |

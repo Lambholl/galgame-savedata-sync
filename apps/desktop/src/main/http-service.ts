@@ -10,12 +10,16 @@ import {
   HTTP_HEADERS,
   isReceiveBatchRequest,
   PROTOCOL_VERSION,
+  SYNC_LIMITS,
+  SYNC_SCHEMA_VERSION,
+  isSyncScanRequest,
 } from '@savedata-sync/shared'
 import type {
   BatchState,
   DeviceDescriptor,
   OperationError,
   OperationResult,
+  SyncScanState,
 } from '@savedata-sync/shared'
 import type { WindowsArchiveAdapter } from './archive-adapter.ts'
 import type { WindowsDirectoryAdapter } from './directory-adapter.ts'
@@ -25,6 +29,8 @@ import { WindowsTransferRegistry } from './transfer-registry.ts'
 import type { TransferRegistryOptions } from './transfer-registry.ts'
 import type { WindowsNewFilePublisher } from './new-file-publisher.ts'
 import type { DesktopLibrary } from './library-store.ts'
+import { WindowsSyncScanner } from './sync-scanner.ts'
+import type { WindowsScanSource } from './sync-scanner.ts'
 
 type HttpDirectorySource = Pick<WindowsDirectoryAdapter, 'deviceId' | 'listRoots' | 'listDirectory'>
 type HttpArchiveProvider = Pick<WindowsArchiveAdapter, 'prepare' | 'retryCleanup'> &
@@ -49,6 +55,7 @@ export interface WindowsHttpOptions extends Omit<TransferRegistryOptions, 'recei
   readonly authorizeTarget?: (rootId: string) => Promise<void>
   readonly library?: DesktopLibrary
   readonly displayName?: string
+  readonly scanSource?: WindowsScanSource
   readonly publisher?: Pick<WindowsNewFilePublisher, 'checkTarget' | 'publish' | 'retryCleanup'>
 }
 
@@ -69,6 +76,7 @@ export class WindowsHttpService {
   private stopping: Promise<void> | null = null
   private starting: Promise<HttpListenerAddress> | null = null
   private runtimeError: OperationError | null = null
+  private scanner: WindowsSyncScanner | null = null
 
   constructor(
     source: HttpDirectorySource,
@@ -78,6 +86,9 @@ export class WindowsHttpService {
     this.source = source
     this.archive = archive
     this.options = options
+    if (options.scanSource && options.scanSource.deviceId !== source.deviceId) {
+      throw new HttpOperationError('invalid-request', '扫描设备与服务设备不一致。')
+    }
   }
 
   /** 启动完成才返回实际端口；同时启动或未完成清理时拒绝，端口冲突不会静默换端口。 */
@@ -111,6 +122,28 @@ export class WindowsHttpService {
     return this.registry?.getStates() ?? []
   }
 
+  /** 本机会话扫描入口，供有限 IPC 接入；不返回句柄或平台路径。 */
+  startScan(rootId: string): SyncScanState {
+    return this.requireScanner().start(rootId)
+  }
+
+  /** 查询仅限当前服务会话，旧句柄不会跨重启恢复。 */
+  getScan(scanId: string): SyncScanState {
+    return this.requireScanner().get(scanId)
+  }
+
+  /** 显式取消只读扫描；完成状态以 worker 关闭原生流后的查询为准。 */
+  cancelScan(scanId: string): SyncScanState {
+    return this.requireScanner().cancel(scanId)
+  }
+
+  private requireScanner(): WindowsSyncScanner {
+    if (!this.scanner || !this.address) {
+      throw new HttpOperationError('unsupported-operation', '此会话未开放当前扫描。')
+    }
+    return this.scanner
+  }
+
   /** 本机显式取消；不存在的任务抛脱敏错误，已发布文件保留。 */
   cancel(transferId: string): BatchState {
     if (!this.registry) {
@@ -140,6 +173,7 @@ export class WindowsHttpService {
   }
 
   private async listen(host: string, port: number): Promise<HttpListenerAddress> {
+    this.scanner = this.options.scanSource ? new WindowsSyncScanner(this.options.scanSource) : null
     const registry = new WindowsTransferRegistry(this.archive, {
       ...this.options,
       ...(this.options.publisher && this.archive.receive
@@ -212,6 +246,8 @@ export class WindowsHttpService {
     } catch (error) {
       this.server = null
       await registry.stop()
+      await this.scanner?.stop()
+      this.scanner = null
       this.registry = null
       throw new HttpOperationError('io-failure', '无法监听指定地址和端口，请检查端口占用。', error)
     }
@@ -254,7 +290,7 @@ export class WindowsHttpService {
     const registry = this.registry
     // stop 在同步部分即关闭接纳并发送 abort，再等待原生 worker。
     const stopping = registry?.stop() ?? Promise.resolve()
-    const results = await Promise.allSettled([closed, stopping])
+    const results = await Promise.allSettled([closed, stopping, this.scanner?.stop()])
     this.server = null
     for (const result of results) {
       if (result.status === 'rejected') {
@@ -262,6 +298,7 @@ export class WindowsHttpService {
       }
     }
     this.registry = null
+    this.scanner = null
     this.options.library?.stop()
   }
 
@@ -298,6 +335,41 @@ export class WindowsHttpService {
     }
     if (route.kind === 'roots') {
       this.sendResult(response, await this.source.listRoots())
+      return
+    }
+    if (route.kind === 'sync-capabilities') {
+      sendHttpJson(response, 200, {
+        status: 'success',
+        value: {
+          schemaVersion: SYNC_SCHEMA_VERSION,
+          deviceId: this.source.deviceId,
+          canScan: this.scanner ? 'supported' : 'unsupported',
+          canCopy: 'unsupported',
+          canBackup: 'unsupported',
+          canRestore: 'unsupported',
+          limits: SYNC_LIMITS,
+        },
+      })
+      return
+    }
+    if (route.kind === 'sync-scans') {
+      const value = await readHttpJson(request)
+      if (!isSyncScanRequest(value)) {
+        throw new HttpOperationError('invalid-request', '当前扫描请求无效。')
+      }
+      if (!request.complete || response.destroyed) {
+        return
+      }
+      sendHttpJson(response, 202, { status: 'success', value: this.startScan(value.rootId) })
+      return
+    }
+    if (route.kind === 'sync-scan' && route.id) {
+      const value = request.method === 'DELETE' ? this.cancelScan(route.id) : this.getScan(route.id)
+      sendHttpJson(
+        response,
+        request.method === 'DELETE' && value.status === 'running' ? 202 : 200,
+        { status: 'success', value },
+      )
       return
     }
     if (route.kind === 'entries' && route.id) {

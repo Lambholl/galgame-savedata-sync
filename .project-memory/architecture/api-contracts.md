@@ -47,7 +47,9 @@ M-001 支持提供者不保留源修改时间的情况；写入后查询并展�
 
 ## 3. Windows HTTP 接口约定
 
-M-002 的 `apps/shared/src/sync` 已提供独立 schema 1 的当前扫描、复制/本机恢复计划、备份清单/设置和逐项结果。`createSyncPlan` 只处理本次快照；`isSyncPlan` 重新推导动作与计数，执行方以 `matchesSyncPlan` 对照持有的当前输入，以 `matchesSyncApplyResult` 核对完整结果和实际指纹。协议及规则统一见仓库根目录的 `docs/plans/m002-sync-copy.md` 第 3 节；新增 `/v1/sync/*` 路由尚未实现，不能据共享模型就调用覆盖写入。
+M-002 的 `apps/shared/src/sync` 已提供独立 schema 1 的当前扫描、复制/本机恢复计划、备份清单/设置和逐项结果。`createSyncPlan` 只处理本次快照；`isSyncPlan` 重新推导动作与计数，执行方以 `matchesSyncPlan` 对照持有的当前输入，以 `matchesSyncApplyResult` 核对完整结果和实际指纹。规则统一见仓库根目录的 `docs/plans/m002-sync-copy.md` 第 3 节。
+
+Windows 新增 `/v1/sync/capabilities`、`POST /v1/sync/scans` 和 `GET/DELETE /v1/sync/scans/{scanId}`，沿用会话头/严格 JSON；登记仅接收 schemaVersion/rootId，202 后查询 SyncScanState。有限 desktopService 桥增加 startScan/queryScan/cancelScan，校验本机来源、参数和返回引用。扫描只读，完整指纹/空目录/失败部分结果分开；取消关流、结果到期、停止及重启会话均已接入。当前能力只声明扫描，新增复制任务和覆盖/备份/恢复入口仍未开放。
 
 共享包导出以下 v1 路由常量和 DTO。Windows 读取/sender、uploads/PUT receiver 及通用查询/取消端点现已可用；完整字段、状态码和例外以仓库根目录的 `docs/plans/m001-tar-gzip-protocol.md` 为准。WP-012/WP-013 分别负责双端归档，网络包只编排这些能力。
 

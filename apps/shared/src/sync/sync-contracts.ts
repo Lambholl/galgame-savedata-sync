@@ -1,4 +1,4 @@
-import type { OperationError, TransferDirection } from '../protocol/contracts.ts'
+import type { CapabilityState, OperationError, TransferDirection } from '../protocol/contracts.ts'
 
 /** 新复制能力独立版本，不改变旧批量 v1 的非覆盖语义。 */
 export const SYNC_SCHEMA_VERSION = 1
@@ -9,10 +9,34 @@ export const SYNC_LIMITS = Object.freeze({
   maxDepth: 64,
   maxPathLength: 4096,
   maxNameLength: 255,
+  maxRetainedScans: 32,
   backupRetention: 3,
   snapshotLifetimeMs: 600000,
   scanTimeoutMs: 1800000,
 } as const)
+
+/** 新能力按独立入口协商，不能改变旧 /v1/device 的封闭字段。 */
+export const SYNC_HTTP_ROUTES = {
+  capabilities: '/v1/sync/capabilities',
+  scans: '/v1/sync/scans',
+  scan: '/v1/sync/scans/{scanId}',
+} as const
+
+export interface SyncCapabilities {
+  readonly schemaVersion: typeof SYNC_SCHEMA_VERSION
+  readonly deviceId: string
+  readonly canScan: CapabilityState
+  readonly canCopy: CapabilityState
+  readonly canBackup: CapabilityState
+  readonly canRestore: CapabilityState
+  readonly limits: typeof SYNC_LIMITS
+}
+
+/** 扫描只引用本机已登记根，不接受路径或可放宽预算。 */
+export interface SyncScanRequest {
+  readonly schemaVersion: typeof SYNC_SCHEMA_VERSION
+  readonly rootId: string
+}
 
 /** 名称使用原始路径段；ID 由原生层解析，路径不能直接充当系统路径。 */
 export interface SyncEntry {
@@ -33,6 +57,18 @@ export interface SyncSnapshot {
   readonly rootId: string
   readonly observedAt: number
   readonly entries: readonly SyncEntry[]
+  readonly error: OperationError | null
+}
+
+/** 扫描计数只表示本次读取进度；取消与失败不伪装成空目录成功。 */
+export interface SyncScanState {
+  readonly schemaVersion: typeof SYNC_SCHEMA_VERSION
+  readonly scanId: string
+  readonly rootId: string
+  readonly status: 'running' | 'succeeded' | 'failed' | 'cancelled'
+  readonly scannedEntries: number
+  readonly bytesRead: number
+  readonly snapshot: SyncSnapshot | null
   readonly error: OperationError | null
 }
 

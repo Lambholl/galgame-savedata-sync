@@ -15,6 +15,9 @@ export interface HttpRoute {
     | 'content'
     | 'transfer'
     | 'catalog'
+    | 'sync-capabilities'
+    | 'sync-scans'
+    | 'sync-scan'
   readonly id: string | null
   readonly parentId: string | null
 }
@@ -81,6 +84,23 @@ export function inspectHttpRequest(request: IncomingMessage): HttpRoute {
   }
   if (segments.length === 2 && resource === 'device' && method === 'GET') {
     kind = 'device'
+  } else if (
+    resource === 'sync' &&
+    segments.length === 3 &&
+    id === 'capabilities' &&
+    method === 'GET'
+  ) {
+    kind = 'sync-capabilities'
+  } else if (resource === 'sync' && segments.length === 3 && id === 'scans' && method === 'POST') {
+    kind = 'sync-scans'
+  } else if (
+    resource === 'sync' &&
+    segments.length === 4 &&
+    id === 'scans' &&
+    isOpaqueId(action) &&
+    (method === 'GET' || method === 'DELETE')
+  ) {
+    kind = 'sync-scan'
   } else if (segments.length === 2 && resource === 'catalog' && method === 'POST') {
     kind = 'catalog'
   } else if (segments.length === 2 && resource === 'roots' && method === 'GET') {
@@ -128,12 +148,17 @@ export function inspectHttpRequest(request: IncomingMessage): HttpRoute {
     kind !== 'downloads' &&
     kind !== 'uploads' &&
     kind !== 'catalog' &&
+    kind !== 'sync-scans' &&
     !(method === 'PUT' && kind === 'content') &&
     (encoding !== undefined || (length !== undefined && length !== '0'))
   ) {
     invalid()
   }
-  return { kind, id: id ?? null, parentId: query.get('parentId') ?? null }
+  return {
+    kind,
+    id: resource === 'sync' ? (action ?? null) : (id ?? null),
+    parentId: query.get('parentId') ?? null,
+  }
 }
 
 // JSON.parse 负责完整语法；第二遍只核对所有层级的解码键和深度，结果核对前不交给业务。

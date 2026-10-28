@@ -5,6 +5,7 @@ import {
   isOpaqueId,
   isOperationError,
   isOperationResult,
+  isSyncScanState,
 } from '@savedata-sync/shared'
 import type {
   BatchState,
@@ -12,6 +13,7 @@ import type {
   DirectorySelectionResult,
   OperationError,
   OperationResult,
+  SyncScanState,
 } from '@savedata-sync/shared'
 
 /** 服务快照只含公开元数据；地址用于手机手动连接，写授权仅在本进程有效。 */
@@ -36,6 +38,9 @@ export const SERVICE_CHANNELS = {
   revokeTarget: 'service:revoke-target',
   cancel: 'service:cancel',
   cleanup: 'service:cleanup',
+  scanStart: 'service:scan-start',
+  scanQuery: 'service:scan-query',
+  scanCancel: 'service:scan-cancel',
 } as const
 
 /** 可信本机控制；所有失败 resolve 为脱敏错误，无路径、字节或通用 IPC。 */
@@ -48,6 +53,9 @@ export interface DesktopServiceApi {
   revokeTarget(rootId: string): Promise<OperationResult<DesktopServiceSnapshot>>
   cancel(transferId: string): Promise<OperationResult<DesktopServiceSnapshot>>
   retryCleanup(): Promise<OperationResult<DesktopServiceSnapshot>>
+  startScan(rootId: string): Promise<OperationResult<SyncScanState>>
+  queryScan(scanId: string): Promise<OperationResult<SyncScanState>>
+  cancelScan(scanId: string): Promise<OperationResult<SyncScanState>>
 }
 
 function isSnapshot(value: unknown): value is DesktopServiceSnapshot {
@@ -111,6 +119,27 @@ export function createServiceBridge(
       return failure
     }
   }
+  async function scanCall(
+    channel: string,
+    key: 'rootId' | 'scanId',
+    id: string,
+  ): Promise<OperationResult<SyncScanState>> {
+    if (!isOpaqueId(id)) {
+      return failure
+    }
+    try {
+      const result = await invoke(channel, { [key]: id })
+      if (
+        !isOperationResult(result, isSyncScanState) ||
+        (result.status === 'success' && result.value[key] !== id)
+      ) {
+        return failure
+      }
+      return result
+    } catch {
+      return failure
+    }
+  }
   return Object.freeze({
     status: () => call(SERVICE_CHANNELS.status),
     start: (port: number) =>
@@ -136,5 +165,8 @@ export function createServiceBridge(
         ? call(SERVICE_CHANNELS.cancel, { transferId })
         : Promise.resolve(failure),
     retryCleanup: () => call(SERVICE_CHANNELS.cleanup),
+    startScan: (rootId: string) => scanCall(SERVICE_CHANNELS.scanStart, 'rootId', rootId),
+    queryScan: (scanId: string) => scanCall(SERVICE_CHANNELS.scanQuery, 'scanId', scanId),
+    cancelScan: (scanId: string) => scanCall(SERVICE_CHANNELS.scanCancel, 'scanId', scanId),
   })
 }
