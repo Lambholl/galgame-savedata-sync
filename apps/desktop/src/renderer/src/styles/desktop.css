@@ -33,13 +33,17 @@ body {
   border-color: #303030;
 }
 .library-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   font-size: 18px;
   font-weight: 600;
   padding: 0 12px 36px;
   white-space: nowrap;
 }
-.library-brand .anticon {
-  color: #286add;
+.library-brand img {
+  flex-shrink: 0;
+  object-fit: contain;
 }
 .library-sidebar .ant-menu {
   border: 0;

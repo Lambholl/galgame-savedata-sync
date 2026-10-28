@@ -30,6 +30,15 @@ async function main() {
     force: false,
     errorOnExist: true,
   })
+  await mkdir(join(staging, 'resources'))
+  await cp(
+    join(APP_ROOT, 'resources', 'app-icon.ico'),
+    join(staging, 'resources', 'app-icon.ico'),
+    {
+      force: false,
+      errorOnExist: true,
+    },
+  )
   await writeFile(
     join(staging, 'package.json'),
     JSON.stringify(

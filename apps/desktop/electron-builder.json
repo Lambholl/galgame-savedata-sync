@@ -3,12 +3,14 @@
   "productName": "存档同步",
   "copyright": "",
   "asar": true,
+  "asarUnpack": ["resources/app-icon.ico"],
   "npmRebuild": false,
   "directories": { "output": "release" },
-  "files": ["out/**/*", "package.json"],
+  "files": ["out/**/*", "resources/app-icon.ico", "package.json"],
   "win": {
+    "icon": "resources/app-icon.ico",
     "executableName": "SavedataSync",
-    "signAndEditExecutable": false,
+    "signExecutable": false,
     "target": [
       { "target": "nsis", "arch": ["x64"] },
       { "target": "portable", "arch": ["x64"] }

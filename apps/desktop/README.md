@@ -6,6 +6,7 @@
 - [游戏与设备界面](#游戏与设备界面)
 - [Windows 分发包](#windows-分发包)
 - [系统明暗主题](#系统明暗主题)
+- [应用标识](#应用标识)
 - [2. 主进程接口](#2-主进程接口)
 - [3. 有限 IPC](#3-有限-ipc)
 - [4. 配置与路径边界](#4-配置与路径边界)
@@ -68,6 +69,12 @@
 HTTP 服务注入 `scanSource: adapter` 后开放 `/v1/sync/capabilities`、`POST /v1/sync/scans` 和 `GET/DELETE /v1/sync/scans/{scanId}`。请求遵守会话头及严格 JSON，登记只接收 `{ schemaVersion: 1, rootId }`，202 后查询实际结果；旧批量接口保持非覆盖。注入 `sync` 编排后声明复制/备份为 supported；远端恢复为 unsupported，本机恢复通过独立本地桥执行。
 
 有限 `desktopService.startScan(rootId)`、`queryScan(scanId)`、`cancelScan(scanId)` 返回 `OperationResult<SyncScanState>`，桥会核对请求引用与返回句柄，主进程继续校验窗口来源和封闭参数。扫描复用原生只读流，前后重查文件/目录变化，空目录单独表示，目录大小恒为 null；完成结果保留最多 10 分钟，停止/重启服务使旧句柄失效。
+
+## 应用标识
+
+公共原图为仓库根目录的 `assets/app-logo.png`，沿用用户提供的透明 PNG。侧栏以 64×64 显示，HTML 图标和界面通过构建引用同一资源。
+
+`resources/app-icon.ico` 提供 Windows 多尺寸图标，`BrowserWindow` 通过 `?asset&asarUnpack` 引用。打包脚本将 ICO 复制到暂存项目，配置包含资源并解包该文件，窗口和 EXE 均使用它。`signExecutable: false` 保持不签名，同时保留写入图标及版本信息的资源编辑。默认仍只编译桌面资源，安装版/免安装版按既有显式打包入口生成。
 
 ## 2. 主进程接口
 

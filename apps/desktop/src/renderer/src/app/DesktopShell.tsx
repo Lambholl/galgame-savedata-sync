@@ -6,8 +6,8 @@ import {
   ArrowLeftOutlined,
   DesktopOutlined,
   SettingOutlined,
-  SwapOutlined,
 } from '@ant-design/icons'
+import appLogo from '../../../../../../assets/app-logo.png'
 import { isRootPage } from './navigation.ts'
 import type { Page } from './navigation.ts'
 
@@ -62,7 +62,8 @@ export function DesktopShell({
       <div className={`library-app library-desktop ${isDark ? 'library-dark' : ''}`}>
         <aside className="library-sidebar">
           <div className="library-brand">
-            <SwapOutlined /> 存档同步
+            <img src={appLogo} alt="" width={64} height={64} />
+            <span>存档同步</span>
           </div>
           <Menu
             mode="inline"

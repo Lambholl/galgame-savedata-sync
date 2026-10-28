@@ -19,6 +19,7 @@ related_files: []
 
 | 主题 | 结论 | 相关文件 |
 | --- | --- | --- |
+| 应用标识 | 使用用户提供的透明头像 PNG，原裁切保持；Windows 侧栏 64×64、网页图标及多尺寸 ICO 同源，窗口/EXE 图标资源随打包复制并解包，禁用签名但保留图标资源编辑。Android 的 icon/roundIcon 及系统启动画面直接引用原 PNG，不额外留白或预裁圆形；安卓页面按用户要求保留文字标识 | assets/app-logo.png、desktop/resources/app-icon.ico、DesktopShell/main/打包配置；Android drawable-nodpi/app_logo.png、Manifest 和启动资源 |
 | Windows 同步与本机恢复界面 | 固定 IPC 分别查询复制摘要、计划/清单和实际结果，本机恢复由进程持有普通准备、固定预览、确认、进度及清理。确认后借用全程名额；刷新页面用原 ID 找回结果，部分成功/未知和清理错误保留。备份默认开启，关闭需确认，本机恢复仍保护当前内容；目录冲突及失败扫描分开显示，发送完成引导在手机查看实际写入 | restore-registry、sync-ipc/bridge、备份/任务页面及 platform/sync-adapter；实际文件/IPC、故障/部分/未知结果、新桥、实际 Electron 与真实 HTTP 验证通过 |
 | 双端游戏卡片样式 | 电脑卡片沿用手机端的三组渐变、152px 居中封面、88px 起的底部信息区、16px 圆角、名称/设备数量与箭头；桌面按 160–180px 宽度排列，保持高度大于宽度的竖版比例。长标题换行，明暗配色一致。桌面保留左键、右键和键盘打开游戏菜单，组件仍由各端独立维护 | 双端 features/games/GameCard.tsx；desktop.css、mobile.css |
 | 基础设施 | pnpm 工作区、双端 React 应用、共享入口、严格 TS / ESLint / Prettier、编码检查和 Windows CI 已建立 | 根目录配置、apps/、apps/shared、scripts/、.github/workflows/ci.yml |

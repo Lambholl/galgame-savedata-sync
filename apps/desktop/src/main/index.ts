@@ -18,6 +18,7 @@ import { registerBackupIpc } from './backup-ipc.ts'
 import { WindowsSyncWriter } from './sync-writer.ts'
 import { WindowsRestoreRegistry } from './restore-registry.ts'
 import { registerSyncIpc } from './sync-ipc.ts'
+import appIcon from '../../resources/app-icon.ico?asset&asarUnpack'
 
 const trustedWindows = new Set<number>()
 const rendererUrl = process.env.ELECTRON_RENDERER_URL
@@ -32,6 +33,7 @@ function createWindow(): void {
     minWidth: 720,
     minHeight: 520,
     title: '存档同步',
+    icon: appIcon,
     backgroundColor: getBackgroundColor(),
     webPreferences: {
       preload: fileURLToPath(new URL('../preload/index.cjs', import.meta.url)),
