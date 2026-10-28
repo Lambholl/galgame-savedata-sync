@@ -29,9 +29,15 @@ final class ArchiveAdapter {
 
     /** 清单确定后、打开 HTTP 内容流前检查压缩体与解包原文所需空间。 */
     void checkReceiveSpace(ArchiveModel.Manifest manifest) throws Exception {
-        manifest.validate(limits);
-        cache.checkSpace(manifest.archive.sizeBytes + manifest.totalFileBytes);
+        checkReceiveSpace(manifest, 0);
     }
+    /** 原生调用者合并同卷目标增量与备份峰值；不向页面暴露私有路径。 */
+    void checkReceiveSpace(ArchiveModel.Manifest manifest, long extraPrivateBytes) throws Exception {
+        manifest.validate(limits);
+        if (extraPrivateBytes < 0 || extraPrivateBytes > Long.MAX_VALUE - manifest.archive.sizeBytes - manifest.totalFileBytes) throw new ArchiveFailure("invalid-request", "空间预检字节数无效");
+        cache.checkSpace(manifest.archive.sizeBytes + manifest.totalFileBytes + extraPrivateBytes);
+    }
+    java.nio.file.Path privateRoot() throws Exception { cache.checkSpace(0); return cache.root; }
 
     /** 读取一次源形成快照；未知长度通过实际流计数，之后仅从私有快照生成和发送归档。 */
     Artifact prepare(String transferId, String deviceId, String rootId, List<ArchiveModel.Source> sources,

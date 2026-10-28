@@ -68,7 +68,10 @@ export interface WindowsHttpOptions extends Omit<TransferRegistryOptions, 'recei
   readonly sync?: {
     readonly writer: WindowsSyncWriter
     readonly backups: WindowsBackupStore
-    readonly archive: Pick<WindowsArchiveAdapter, 'receive' | 'retryCleanup' | 'checkReceiveSpace'>
+    readonly archive: Pick<
+      WindowsArchiveAdapter,
+      'prepare' | 'receive' | 'retryCleanup' | 'checkReceiveSpace'
+    >
   }
 }
 
@@ -214,11 +217,12 @@ export class WindowsHttpService {
         : {}),
     })
     this.registry = registry
-    if (this.options.sync && this.options.library && this.scanner) {
+    if (this.options.sync && this.options.library && this.scanner && this.options.scanSource) {
       this.syncRegistry = new WindowsSyncRegistry({
         ...this.options.sync,
         library: this.options.library,
         scanner: this.scanner,
+        source: this.options.scanSource,
         deviceId: this.source.deviceId,
         ...(this.options.timeouts ? { timeouts: this.options.timeouts } : {}),
       })
@@ -406,10 +410,14 @@ export class WindowsHttpService {
             })
           }
         } else if (route.kind === 'sync-job-content') {
-          sendHttpJson(response, 202, {
-            status: 'success',
-            value: await jobs.receive(route.id, peerId, request, response),
-          })
+          if (request.method === 'GET') {
+            await jobs.sendContent(route.id, peerId, response)
+          } else {
+            sendHttpJson(response, 202, {
+              status: 'success',
+              value: await jobs.receive(route.id, peerId, request, response),
+            })
+          }
         } else {
           const state =
             request.method === 'DELETE' ? jobs.cancel(route.id, peerId) : jobs.get(route.id, peerId)

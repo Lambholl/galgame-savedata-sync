@@ -43,17 +43,36 @@ final class SyncWriter implements AutoCloseable {
         Long available(String rootId, String parentId, ArchiveControl control) throws Exception;
         String createDirectory(String rootId, String parentId, String name, ArchiveControl control) throws Exception;
         Replacement replacement(String rootId, String parentId, Map<String, Object> expected, ArchiveControl control) throws Exception;
+        /** 可选的只读卷识别句柄；null 表示提供者不能识别卷，调用者继续按未知处理。 */
+        default Replacement volumeFile(String rootId, String parentId, Map<String, Object> expected, ArchiveControl control) throws Exception { return replacement(rootId, parentId, expected, control); }
+        default Boolean sharesPrivateVolume(Path left, Path right) throws Exception { return null; }
+    }
+    interface Observer {
+        default void stage(String stage) throws Exception {}
+        default void outcome(Map<String, Object> result) throws Exception {}
+    }
+    /** 仅原生编排传入：借用确认时取得的名额及时间，始终重新核实实际目录。 */
+    static final class Execution {
+        final Object token;
+        final long acceptedAt;
+        final Observer observer;
+        Execution(Object token, long acceptedAt, Observer observer) { this.token = token; this.acceptedAt = acceptedAt; this.observer = observer; }
     }
     private static final class Job {
         final SyncPlanModel.Plan plan;
         final ArchiveControl control;
-        final Object token = new Object();
+        final Object token;
+        final boolean ownToken;
+        final Observer observer;
         final Set<Closeable> resources = new HashSet<>();
         final Map<String, String> directories = new LinkedHashMap<>();
         volatile boolean timedOut;
         boolean running = true;
         Object cleanupError;
-        Job(SyncPlanModel.Plan plan, ArchiveControl control) { this.plan = plan; this.control = control; }
+        Job(SyncPlanModel.Plan plan, ArchiveControl control, Execution execution) {
+            this.plan = plan; this.control = control; ownToken = execution == null;
+            token = ownToken ? new Object() : execution.token; observer = execution == null ? null : execution.observer;
+        }
     }
     private final Backend backend;
     private final BackupStore backups;
@@ -82,7 +101,8 @@ final class SyncWriter implements AutoCloseable {
     }
     private void check(Job job) throws Exception {
         if (job.timedOut) throw new ArchiveFailure("timeout", "当前写入操作超时");
-        job.control.check(); backend.authorize(job.plan, job.control); job.control.check();
+        job.control.check(); if (!TargetOperation.owns(job.token)) throw new ArchiveFailure("task-conflict", "本次写入名额已释放");
+        backend.authorize(job.plan, job.control); job.control.check();
     }
     private static Map<String, Object> error(String code, String message) { return object("code", code, "message", message, "canRetry", false); }
     private static Map<String, Object> outcome(Map<String, Object> operation, String status, Object error, Map<String, Object> source) {
@@ -133,19 +153,43 @@ final class SyncWriter implements AutoCloseable {
             if (operation.get("action").equals("create-file")) hasNewFile = true;
         }
         if (hasNewFile) backend.publisher().grant(job.plan.target.root);
+        space(job, null, 0);
+        check(job);
+    }
+    private long space(Job job, Path cacheRoot, long cacheBytes) throws Exception {
         long growthBytes = targetGrowth(job.plan), oldBytes = job.plan.replacements.isEmpty() ? 0 :
             number(job.plan.value.get("backupFileBytes"), 0, BackupModel.MAX_TOTAL) + bytes(job.plan.value).length + 8192L;
-        Boolean sameVolume = null;
-        if (!job.plan.replacements.isEmpty()) {
-            Map<String, Object> entry = map(job.plan.replacements.get(0)); List<String> path = BackupModel.path(entry.get("path"));
-            Replacement replacement = track(job, backend.replacement(job.plan.target.root, parent(job, path), entry, job.control));
-            try { sameVolume = replacement.sharesVolume(backups.root); } finally { close(job, replacement); }
+        Boolean sameVolume = null, sameCache = null;
+        for (Map<String, Object> entry : job.plan.target.paths.values()) if (entry.get("kind").equals("file")) {
+            List<String> path = BackupModel.path(entry.get("path"));
+            Replacement replacement = backend.volumeFile(job.plan.target.root, parent(job, path), entry, job.control);
+            if (replacement == null) break;
+            track(job, replacement);
+            try { sameVolume = replacement.sharesVolume(backups.root); if (cacheRoot != null) sameCache = replacement.sharesVolume(cacheRoot); }
+            finally { close(job, replacement); }
+            break;
         }
+        boolean samePrivate = cacheRoot != null && Boolean.TRUE.equals(backend.sharesPrivateVolume(cacheRoot, backups.root));
         Long available = backend.available(job.plan.target.root, null, job.control);
-        long targetPeak = growthBytes + (Boolean.TRUE.equals(sameVolume) ? oldBytes : 0);
+        long targetPeak = growthBytes + (Boolean.TRUE.equals(sameVolume) ? oldBytes : 0) + (Boolean.TRUE.equals(sameCache) ? cacheBytes : 0);
         if (available != null && available < targetPeak) throw new ArchiveFailure("insufficient-space", "目标存储空间不足以完成本次写入和备份");
-        if (oldBytes > 0) backups.capacity(oldBytes + (Boolean.TRUE.equals(sameVolume) ? growthBytes : 0));
-        check(job);
+        if (oldBytes > 0) backups.capacity(oldBytes + (Boolean.TRUE.equals(sameVolume) ? growthBytes : 0) + (samePrivate ? cacheBytes : 0));
+        return (samePrivate ? oldBytes : 0) + (Boolean.TRUE.equals(sameCache) ? growthBytes : 0);
+    }
+    /** 内容 GET 之前检查已知容量和同卷峰值；检查句柄关闭失败同样保留给 retryCleanup。 */
+    long checkReceiveSpace(SyncPlanModel.Plan plan, Path cacheRoot, long cacheBytes, ArchiveControl control, Execution execution) throws Exception {
+        require(execution != null && TargetOperation.owns(execution.token) && cacheBytes >= 0);
+        Job job = new Job(plan, control, execution);
+        synchronized (this) { if (closed || active != null || preparing != null) throw new ArchiveFailure("busy", "目标资源尚未释放"); active = job; }
+        try {
+            check(job);
+            for (Map<String, Object> entry : plan.target.paths.values()) if (entry.get("kind").equals("directory")) job.directories.put(SyncPlanModel.key(entry.get("path")), string(entry.get("entryId")));
+            long extra = space(job, cacheRoot, cacheBytes); check(job); return extra;
+        } finally { synchronized (this) {
+            job.running = false;
+            if (clean(job)) active = null;
+            else throw new ArchiveFailure("cleanup-failed", "容量检查句柄尚未释放，请重试清理");
+        } }
     }
     private long targetGrowth(SyncPlanModel.Plan plan) throws Exception {
         long total = 0;
@@ -215,25 +259,31 @@ final class SyncWriter implements AutoCloseable {
     private <T extends Closeable> T trackInspection(Job job, T value) { job.resources.add(value); return value; }
     /** 非法、过期、已使用及 busy 确认抛异常；已接纳后返回完整实际结果，绝不自动重放。 */
     Map<String, Object> apply(Object raw, Material material, ArchiveControl control) throws Exception {
+        return apply(raw, material, control, null);
+    }
+    Map<String, Object> apply(Object raw, Material material, ArchiveControl control, Execution execution) throws Exception {
         SyncPlanModel.Plan plan = new SyncPlanModel.Plan(raw);
         require(plan.target.device.equals(backend.source().deviceId()));
         one(plan.value.get("direction"), "windows-to-android", "local-restore");
         if (material == null) require(number(plan.value.get("transferFileCount"), 0, 1024) == 0);
         else require(SyncPlanModel.same(plan.source.value, material.snapshot()));
         long observed = number(plan.target.value.get("observedAt"), -BackupModel.MAX_DATE, BackupModel.MAX_DATE), now = System.currentTimeMillis();
-        if (observed > now || now - observed > 600000) throw new ArchiveFailure("not-found", "本机确认快照已过期，请重新扫描");
-        Job job = new Job(plan, control);
+        long acceptedAt = execution == null ? now : execution.acceptedAt;
+        if (acceptedAt > now || now - acceptedAt > 1800000 || observed > acceptedAt || acceptedAt - observed > 600000) throw new ArchiveFailure("not-found", "本机确认快照已过期，请重新扫描");
+        Job job = new Job(plan, control, execution);
         synchronized (this) {
             if (closed || active != null || preparing != null) throw new ArchiveFailure("busy", "写入尚未结束或资源仍待清理");
             if (used.contains(plan.id)) throw new ArchiveFailure("task-conflict", "本次确认已执行，请重新扫描");
             if (used.size() >= 4096) throw new ArchiveFailure("resource-limit", "本进程确认标识容量已满");
-            if (!TargetOperation.acquire(job.token)) throw new ArchiveFailure("busy", "已有传输或恢复任务");
+            if (job.ownToken ? !TargetOperation.acquire(job.token) : !TargetOperation.owns(job.token)) throw new ArchiveFailure("busy", "已有传输或恢复任务或本次名额已释放");
             used.add(plan.id); active = job;
         }
         List<Object> outcomes = new ArrayList<>(); for (Map<String, Object> operation : plan.writes) outcomes.add(outcome(operation, "not-attempted", null, null));
         Object error = null, cleanup = null, backupId = null; int index = 0, fileIndex = 0;
         try {
+            if (job.observer != null) job.observer.stage("verifying");
             preflight(job, material);
+            if (job.observer != null) job.observer.stage("backing-up");
             Map<String, Object> backup = backups.create(plan.project, plan.target.root, plan.reason, plan.backup, plan.replacements, control);
             cleanup = backup.get("cleanupError");
             if (!plan.replacements.isEmpty() && backup.get("manifest") == null) throw new ArchiveFailure("io-failure", "完整保护备份尚未提交");
@@ -241,9 +291,11 @@ final class SyncWriter implements AutoCloseable {
             // SAF 与私有目录可能使用不同的逻辑设备 ID；备份落盘后再查实际余量，覆盖共享物理卷。
             Long remaining = backend.available(plan.target.root, null, control);
             if (remaining != null && remaining < targetGrowth(plan)) throw new ArchiveFailure("insufficient-space", "备份完成后的目标余量不足以写入本次文件增量");
+            if (job.observer != null) job.observer.stage("writing");
             for (int i = 0; i < plan.writes.size(); i++) {
                 index = i; Map<String, Object> operation = plan.writes.get(i), result = write(job, operation, material, fileIndex);
                 outcomes.set(i, result); if (!operation.get("action").equals("create-directory")) fileIndex++;
+                if (job.observer != null) try { job.observer.outcome(result); } catch (Exception ignored) { /* 观察者失败不能改写已核实的实际结果。 */ }
                 if (!result.get("status").equals("succeeded")) { error = result.get("error"); break; }
                 if (!clean(job)) { cleanup = cleanupError(); error = i + 1 < plan.writes.size() ? cleanup : null; break; }
                 index = i + 1;
@@ -263,14 +315,14 @@ final class SyncWriter implements AutoCloseable {
         } finally {
             boolean clean = clean(job); if (!clean) cleanup = cleanupError();
             if (cleanup == null && job.cleanupError != null) cleanup = job.cleanupError;
-            synchronized (this) { job.running = false; if (clean) { active = null; TargetOperation.release(job.token); } notifyAll(); }
+            synchronized (this) { job.running = false; if (clean) { active = null; if (job.ownToken) TargetOperation.release(job.token); } notifyAll(); }
         }
         return object("schemaVersion", 1, "planId", plan.id, "backupId", backupId, "outcomes", outcomes, "error", error, "cleanupError", cleanup);
     }
     private boolean clean(Job job) {
         boolean clean = true;
         for (Closeable resource : new ArrayList<>(job.resources)) try { close(job, resource); } catch (Exception failure) { clean = false; }
-        return backend.publisher().retryCleanup() && clean;
+        return backend.publisher().retryCleanup() && backups.retryCleanup() && clean;
     }
     /** 清理只重试资源释放，不重新创建或写入任何文件。 */
     synchronized boolean retryCleanup() {
@@ -278,7 +330,7 @@ final class SyncWriter implements AutoCloseable {
         for (Restore restore : new ArrayList<>(restores)) if (restore.consumed && !restore.running) {
             try { restore.close(); } catch (Exception failure) { return false; }
         }
-        if (job != null) { active = null; TargetOperation.release(job.token); } return true;
+        if (job != null) { active = null; if (job.ownToken) TargetOperation.release(job.token); } return true;
     }
     /** 本机恢复预览保持输入引用；公开数据供纯 TS 生成计划，确认后必须提交同一份源/目标。 */
     final class Restore implements Material, AutoCloseable {

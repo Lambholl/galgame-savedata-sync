@@ -41,6 +41,11 @@ final class SafSyncBackend implements SyncWriter.Backend {
     }
     @Override public SyncScanner.Source source() { return source; }
     @Override public NewFilePublisher publisher() { return publisher; }
+    @Override public Boolean sharesPrivateVolume(Path left, Path right) throws Exception {
+        StructStat first = Os.lstat(left.toString()), second = Os.lstat(right.toString());
+        if (!OsConstants.S_ISDIR(first.st_mode) || !OsConstants.S_ISDIR(second.st_mode)) throw new ArchiveFailure("source-changed", "私有存储目录类型已变化");
+        return first.st_dev == second.st_dev;
+    }
     @Override public void authorizeProject(String projectId, String rootId, ArchiveControl control) throws Exception {
         control.check(); authorization.check(projectId, rootId); locate(rootId, null, false, control);
     }
@@ -108,6 +113,13 @@ final class SafSyncBackend implements SyncWriter.Backend {
         }
     }
     @Override public SyncWriter.Replacement replacement(String rootId, String parentId, Map<String, Object> expected, ArchiveControl control) throws Exception {
+        return existing(rootId, parentId, expected, control, true);
+    }
+    @Override public SyncWriter.Replacement volumeFile(String rootId, String parentId, Map<String, Object> expected, ArchiveControl control) throws Exception {
+        try { return existing(rootId, parentId, expected, control, false); }
+        catch (ArchiveFailure failure) { if (failure.code.equals("unsupported-operation")) return null; throw failure; }
+    }
+    private SyncWriter.Replacement existing(String rootId, String parentId, Map<String, Object> expected, ArchiveControl control, boolean requireWrite) throws Exception {
         SafDirectoryStore.PublicationDirectory directory = locate(rootId, parentId, false, control);
         List<String> path = BackupModel.path(expected.get("path")); String name = path.get(path.size() - 1);
         SafDirectoryStore.Snapshot value = null;
@@ -117,7 +129,7 @@ final class SafSyncBackend implements SyncWriter.Backend {
         if (value == null) throw new ArchiveFailure("source-changed", "被覆盖文件已不存在");
         named(directory, name, value.documentId, control);
         if (!store.publicationEntry(directory, value).entryId.equals(expected.get("entryId")) || value.isDirectory || value.isVirtual ||
-            (value.flags & Document.FLAG_SUPPORTS_WRITE) == 0 || !Objects.equals(value.modified, nullable(expected.get("modifiedAt"), -BackupModel.MAX_DATE, BackupModel.MAX_DATE)) ||
+            (requireWrite && (value.flags & Document.FLAG_SUPPORTS_WRITE) == 0) || !Objects.equals(value.modified, nullable(expected.get("modifiedAt"), -BackupModel.MAX_DATE, BackupModel.MAX_DATE)) ||
             (value.size != null && value.size.longValue() != number(expected.get("sizeBytes"), 0, 9007199254740991L))) throw new ArchiveFailure("source-changed", "目标身份、类型、写权限或属性已变化");
         return new Existing(directory, value, control);
     }

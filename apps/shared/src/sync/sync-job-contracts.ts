@@ -46,6 +46,7 @@ export interface SyncJobState {
   readonly status: 'running' | 'sent' | 'succeeded' | 'failed' | 'cancelled' | 'unknown'
   readonly stage:
     | 'preparing'
+    | 'ready'
     | 'awaiting-content'
     | 'transferring'
     | 'verifying'

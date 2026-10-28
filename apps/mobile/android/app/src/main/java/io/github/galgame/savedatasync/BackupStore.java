@@ -42,6 +42,9 @@ final class BackupStore implements AutoCloseable {
     private volatile Active active;
     private volatile boolean closed;
     private boolean leaseReleased;
+    private Round pendingCleanup;
+    private boolean pendingHasMarker;
+    private String pendingRotationProject, pendingRotationRoot;
     private static final class Active {
         final ArchiveControl control;
         volatile boolean timedOut;
@@ -201,6 +204,7 @@ final class BackupStore implements AutoCloseable {
                                            List<Object> entries, ArchiveControl control) throws Exception {
         ids(projectId, rootId); one(reason, "copy", "restore"); require(!reason.equals("restore") || shouldBackup);
         List<BackupModel.SourceFile> sources = BackupModel.sources(entries); alive();
+        if (pendingCleanup != null || pendingRotationProject != null) throw BackupFiles.failure("cleanup-failed");
         Active work = new Active(control); active = work;
         Round round = null; boolean hasMarker = false, committed = false;
         try {
@@ -253,12 +257,12 @@ final class BackupStore implements AutoCloseable {
             verifyRound(round, true); check(work); files.writeJson(path.resolve("manifest.pending"), manifest); check(work);
             files.move(path.resolve("manifest.pending"), path.resolve("manifest.json"), false); committed = true;
             Object cleanup = null;
-            try { prune(projectId, rootId, work); } catch (Exception failure) { cleanup = error(cleanupFailure(failure)); }
+            try { prune(projectId, rootId, work); } catch (Exception failure) { pendingRotationProject = projectId; pendingRotationRoot = rootId; cleanup = error(cleanupFailure(failure)); }
             return object("manifest", copy(manifest), "cleanupError", cleanup);
         } catch (Exception cause) {
             ArchiveFailure failure = stopped(cause, work);
             if (round != null && !committed) try { remove(round, hasMarker); }
-            catch (Exception cleanup) { failure.cleanupFailure = cleanupFailure(cleanup); }
+            catch (Exception cleanup) { pendingCleanup = round; pendingHasMarker = hasMarker; failure.cleanupFailure = cleanupFailure(cleanup); }
             throw failure;
         } finally { active = null; }
     }
@@ -301,17 +305,31 @@ final class BackupStore implements AutoCloseable {
         List<Round> rounds = rounds(); rounds.removeIf(round -> round.manifest == null || !group(round, projectId, rootId)); sort(rounds);
         if (rounds.size() <= 3) return;
         for (Round round : rounds.subList(0, 3)) for (Object file : TransferJson.list(round.manifest.get("files"))) verifyFile(round, map(file), work);
-        for (Round round : rounds.subList(3, rounds.size())) if (!handles.containsValue(round.id())) remove(round, true);
+        for (Round round : rounds.subList(3, rounds.size())) if (!handles.containsValue(round.id())) {
+            try { remove(round, true); }
+            catch (Exception failure) { pendingCleanup = round; pendingHasMarker = true; throw failure; }
+        }
     }
     synchronized void rotate(String projectId, String rootId) throws Exception {
-        ids(projectId, rootId); alive(); Active work = new Active(new ArchiveControl()); active = work;
+        ids(projectId, rootId); alive(); if (pendingCleanup != null) throw BackupFiles.failure("cleanup-failed");
+        Active work = new Active(new ArchiveControl()); active = work;
         try { prune(projectId, rootId, work); } catch (Exception failure) { throw stopped(failure, work); }
         finally { active = null; }
+    }
+    /** 重试本实例本次创建留下的清理，不扫描或删除其他轮次的未完成数据。 */
+    synchronized boolean retryCleanup() {
+        if (active != null || closed) return false;
+        try {
+            if (pendingCleanup != null) { remove(pendingCleanup, pendingHasMarker); pendingCleanup = null; }
+            if (pendingRotationProject != null) { rotate(pendingRotationProject, pendingRotationRoot); pendingRotationProject = null; pendingRotationRoot = null; }
+            return true;
+        } catch (Exception failure) { return false; }
     }
     synchronized void cleanupIncomplete(String projectId, String rootId, String backupId) throws Exception {
         Round round = find(projectId, rootId, backupId);
         if (round.manifest != null) throw BackupFiles.failure("permission-denied");
         remove(round, true);
+        if (pendingCleanup != null && pendingCleanup.path.equals(round.path) && Objects.equals(pendingCleanup.key, round.key)) pendingCleanup = null;
     }
     private void remove(Round round, boolean hasMarker) throws Exception {
         verifyRound(round, hasMarker); if (handles.containsValue(round.id())) throw BackupFiles.failure("busy");

@@ -190,6 +190,7 @@ export function isSyncJobState(value: unknown): value is SyncJobState {
   if (
     !isOneOf(value.stage, [
       'preparing',
+      'ready',
       'awaiting-content',
       'transferring',
       'verifying',

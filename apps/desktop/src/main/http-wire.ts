@@ -131,7 +131,7 @@ export function inspectHttpRequest(request: IncomingMessage): HttpRoute {
     isOpaqueId(action) &&
     segments.length === 5 &&
     ((detail === 'manifest' && (method === 'GET' || method === 'PUT')) ||
-      (detail === 'content' && method === 'PUT'))
+      (detail === 'content' && (method === 'GET' || method === 'PUT')))
   ) {
     kind = detail === 'manifest' ? 'sync-job-manifest' : 'sync-job-content'
   } else if (segments.length === 2 && resource === 'catalog' && method === 'POST') {

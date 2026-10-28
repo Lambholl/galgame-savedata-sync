@@ -133,4 +133,4 @@ withGameLink、withoutGameLink、createImportedGame 返回新的游戏配置，�
 
 `isSyncApplyResult` 校验逐项结果、备份 ID 和独立清理错误。`matchesSyncApplyResult(result, plan)` 核对完整写入集合、顺序、成功项长度/哈希及默认保护；失败/取消后只允许未执行项。目录成功不携带文件字节，未知结果必须使用 result-unknown。权限、实际内容、备份有效性、会话期限、资源释放和真实写入仍由平台模块处理。
 
-`SyncJobRequest` 固定两端项目及完整计划；`matchesSyncJobManifest` 核对源引用、原名/父目录/日期和指纹，`matchesSyncJobState` 核对角色、计数及完整实际结果。零文件计划不提交归档。`SyncPreparationPreview` 通过 `syncPlanFromPreview` 生成同一份计划，plan.projectId 使用目标端本机项目 ID；`SyncTransferState` 分别保存本机及远端状态，sender sent 不表示 receiver 成功。准备、任务、清单和结果分开查询，协议统一见上面的 M-002 文档。
+`SyncJobRequest` 固定两端项目及完整计划；`matchesSyncJobManifest` 核对源引用、原名/父目录/日期和指纹，`matchesSyncJobState` 核对角色、计数及完整实际结果。Windows 源 preparing 完成后以 ready 等待单次内容 GET，零文件计划不提交归档。`SyncPreparationPreview` 通过 `syncPlanFromPreview` 生成同一份计划，plan.projectId 使用目标端本机项目 ID；`SyncTransferState` 分别保存本机及远端状态，sender sent 不表示 receiver 成功。准备、任务、清单和结果分开查询，协议统一见上面的 M-002 文档。

@@ -1,7 +1,11 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
+import { createHash } from 'node:crypto'
+import { Transform } from 'node:stream'
+import { pipeline } from 'node:stream/promises'
 import {
   BATCH_ARCHIVE,
   BATCH_LIMITS,
+  BATCH_RESOURCES,
   BATCH_TIMEOUTS_MS,
   HTTP_HEADERS,
   SYNC_LIMITS,
@@ -19,12 +23,14 @@ import type {
   SyncJobRequest,
   SyncJobState,
   SyncProjectDescriptor,
+  SyncSnapshot,
   SyncWriteOutcome,
 } from '@savedata-sync/shared'
 import type { WindowsArchive, WindowsArchiveAdapter } from './archive-adapter.ts'
 import type { WindowsBackupStore } from './backup-store.ts'
 import type { DesktopLibrary } from './library-store.ts'
-import type { WindowsSyncScanner } from './sync-scanner.ts'
+import { WindowsSyncScanner } from './sync-scanner.ts'
+import type { WindowsScanSource } from './sync-scanner.ts'
 import type { WindowsSyncMaterial, WindowsSyncWriter } from './sync-writer.ts'
 import { ArchiveCancelledError, checkArchiveAbort } from './archive-errors.ts'
 import { HttpOperationError, toHttpError } from './http-errors.ts'
@@ -33,11 +39,15 @@ import { openUploadBody } from './upload-body.ts'
 
 /** 原生依赖固定到当前服务会话；网络不能指定路径、容量策略或执行器。 */
 export interface WindowsSyncRegistryOptions {
-  readonly archive: Pick<WindowsArchiveAdapter, 'receive' | 'retryCleanup' | 'checkReceiveSpace'>
+  readonly archive: Pick<
+    WindowsArchiveAdapter,
+    'prepare' | 'receive' | 'retryCleanup' | 'checkReceiveSpace'
+  >
   readonly writer: WindowsSyncWriter
   readonly backups: WindowsBackupStore
   readonly library: DesktopLibrary
   readonly scanner: WindowsSyncScanner
+  readonly source: WindowsScanSource
   readonly deviceId: string
   readonly timeouts?: Partial<{ readonly [Key in keyof typeof BATCH_TIMEOUTS_MS]: number }>
 }
@@ -172,13 +182,18 @@ export class WindowsSyncRegistry {
   private async verify(task: SyncTask): Promise<void> {
     checkArchiveAbort(task.controller.signal)
     const plan = task.request.plan
+    const isSender = task.state.role === 'sender'
     this.options.library.verifyProjectPeer(
-      task.request.targetProjectId,
+      isSender ? task.request.sourceProjectId : task.request.targetProjectId,
       task.peerId,
-      task.request.sourceProjectId,
-      plan.target.rootId,
-      plan.source.rootId,
+      isSender ? task.request.targetProjectId : task.request.sourceProjectId,
+      isSender ? plan.source.rootId : plan.target.rootId,
+      isSender ? plan.target.rootId : plan.source.rootId,
     )
+    if (isSender) {
+      checkArchiveAbort(task.controller.signal)
+      return
+    }
     const settings = await this.options.backups.settings()
     const shouldBackup =
       settings.projects.find(
@@ -192,11 +207,14 @@ export class WindowsSyncRegistry {
   }
   /** 格式正确后同步占用任务 ID 和名额；已接纳任务的异步错误留在同一任务中查询。 */
   register(value: unknown, peerId: string): Promise<SyncJobState> {
+    const isUpload = isSyncJobRequest(value) && value.plan.direction === 'android-to-windows'
     if (
       !isSyncJobRequest(value) ||
-      value.plan.direction !== 'android-to-windows' ||
-      value.plan.target.deviceId !== this.options.deviceId ||
-      value.plan.source.deviceId !== peerId
+      (isUpload
+        ? value.plan.target.deviceId !== this.options.deviceId ||
+          value.plan.source.deviceId !== peerId
+        : value.plan.source.deviceId !== this.options.deviceId ||
+          value.plan.target.deviceId !== peerId)
     ) {
       throw new HttpOperationError('invalid-request', '复制请求或设备方向无效。')
     }
@@ -211,13 +229,14 @@ export class WindowsSyncRegistry {
       throw new HttpOperationError('resource-limit', '会话任务容量已满。')
     }
     const now = Date.now()
+    const localSnapshot = isUpload ? value.plan.target : value.plan.source
     if (
-      value.plan.target.observedAt > now ||
-      now - value.plan.target.observedAt > SYNC_LIMITS.snapshotLifetimeMs
+      localSnapshot.observedAt > now ||
+      now - localSnapshot.observedAt > SYNC_LIMITS.snapshotLifetimeMs
     ) {
       throw new HttpOperationError('not-found', '确认扫描已过期，请重新扫描。')
     }
-    const cached = this.options.scanner.get(value.plan.target.scanId)
+    const cached = this.options.scanner.get(localSnapshot.scanId)
     if (
       cached.status !== 'succeeded' ||
       !cached.snapshot ||
@@ -227,8 +246,8 @@ export class WindowsSyncRegistry {
         operation: value.plan.operation,
         direction: value.plan.direction,
         shouldBackup: value.plan.shouldBackup,
-        source: value.plan.source,
-        target: cached.snapshot,
+        source: isUpload ? value.plan.source : cached.snapshot,
+        target: isUpload ? cached.snapshot : value.plan.target,
       })
     ) {
       throw new HttpOperationError('invalid-request', '目标扫描与当前会话保存的结果不同。')
@@ -258,8 +277,8 @@ export class WindowsSyncRegistry {
       state: {
         schemaVersion: 1,
         jobId: request.jobId,
-        direction: 'android-to-windows',
-        role: 'receiver',
+        direction: isUpload ? 'android-to-windows' : 'windows-to-android',
+        role: isUpload ? 'receiver' : 'sender',
         status: 'running',
         stage: 'preparing',
         updatedAt: now,
@@ -283,7 +302,88 @@ export class WindowsSyncRegistry {
     this.usedIds.add(request.jobId)
     this.tasks.set(request.jobId, task)
     this.active = task
+    if (!isUpload) {
+      task.worker = this.work(task, () => this.prepareSource(task))
+      return Promise.resolve(structuredClone(task.state))
+    }
     return this.work(task, () => this.admit(task)).then(() => structuredClone(task.state))
+  }
+  private async prepareSource(task: SyncTask): Promise<void> {
+    const scanner = new WindowsSyncScanner(this.options.source)
+    let scanId: string | null = null
+    const abort = (): void => {
+      if (scanId !== null) {
+        scanner.cancel(scanId)
+      }
+    }
+    try {
+      await this.verify(task)
+      const scan = scanner.start(task.request.plan.source.rootId)
+      scanId = scan.scanId
+      task.controller.signal.addEventListener('abort', abort, { once: true })
+      if (task.controller.signal.aborted) {
+        abort()
+      }
+      const state = await scanner.wait(scan.scanId)
+      checkArchiveAbort(task.controller.signal)
+      if (state.status !== 'succeeded' || !state.snapshot) {
+        throw new HttpOperationError(
+          state.error?.code ?? 'io-failure',
+          state.error?.message ?? '源目录复核未完成。',
+        )
+      }
+      const entries = (snapshot: SyncSnapshot): string =>
+        JSON.stringify(
+          snapshot.entries.map(({ entryId, path, kind, sizeBytes, modifiedAt, sha256, error }) => ({
+            entryId,
+            path,
+            kind,
+            sizeBytes,
+            modifiedAt,
+            sha256,
+            error,
+          })),
+        )
+      if (entries(state.snapshot) !== entries(task.request.plan.source)) {
+        throw new HttpOperationError('source-changed', '源目录与确认时不同，请重新扫描。')
+      }
+      if (task.request.plan.transferFileCount === 0) {
+        await this.finishSender(task, 'sent', null)
+        return
+      }
+      const files = task.request.plan.entries
+        .filter((entry) => entry.action === 'create-file' || entry.action === 'replace-file')
+        .map((entry, index) => ({
+          fileId: `f${String(index + 1).padStart(6, '0')}`,
+          entryId: entry.sourceEntryId,
+        }))
+      task.artifact = await this.options.archive.prepare(
+        {
+          protocolVersion: 1,
+          transferId: task.request.jobId,
+          sourceRootId: task.request.plan.source.rootId,
+          files,
+        },
+        {
+          signal: task.controller.signal,
+          onProgress: (progress) => {
+            if (progress.sourceBytesRead > (task.request.plan.totalFileBytes ?? 0)) {
+              throw new HttpOperationError('source-changed', '源文件已超出确认长度。')
+            }
+            this.update(task, 'preparing', { sourceBytesRead: progress.sourceBytesRead })
+          },
+        },
+      )
+      if (!matchesSyncJobManifest(task.artifact.manifest, task.request)) {
+        throw new HttpOperationError('source-changed', '源归档与确认引用、属性或内容不同。')
+      }
+      await this.verify(task)
+      task.manifest = task.artifact.manifest
+      this.update(task, 'preparing', { totalArchiveBytes: task.manifest.archive.sizeBytes })
+    } finally {
+      task.controller.signal.removeEventListener('abort', abort)
+      await scanner.stop()
+    }
   }
   private work(task: SyncTask, operation: () => Promise<void>): Promise<void> {
     task.isWorking = true
@@ -297,6 +397,14 @@ export class WindowsSyncRegistry {
           await this.fail(task, new ArchiveCancelledError())
         }
         task.isWorking = false
+        if (
+          task.state.role === 'sender' &&
+          task.state.status === 'running' &&
+          task.state.stage === 'preparing' &&
+          task.manifest !== null
+        ) {
+          this.update(task, 'ready')
+        }
       }
     })()
     return task.worker
@@ -334,6 +442,7 @@ export class WindowsSyncRegistry {
     const task = this.require(id, peerId)
     if (
       task.state.status !== 'running' ||
+      task.state.role !== 'receiver' ||
       task.isWorking ||
       task.isManifestClaimed ||
       task.request.plan.transferFileCount === 0
@@ -371,6 +480,7 @@ export class WindowsSyncRegistry {
     const task = this.require(id, peerId),
       manifest = task.manifest
     if (
+      task.state.role !== 'receiver' ||
       task.state.status !== 'running' ||
       task.state.stage !== 'awaiting-content' ||
       task.isContentClaimed ||
@@ -396,6 +506,124 @@ export class WindowsSyncRegistry {
     })
     task.worker = this.work(task, () => this.receiveTask(task, input, response, resolve, reject))
     return accepted
+  }
+  /** sender ready 的内容只领取一次；sent 只报告本机发送完成，Android 保留独立 receiver 结果。 */
+  sendContent(id: string, peerId: string, response: ServerResponse): Promise<void> {
+    const task = this.require(id, peerId)
+    if (
+      task.state.role !== 'sender' ||
+      task.state.status !== 'running' ||
+      task.state.stage !== 'ready' ||
+      task.isWorking ||
+      task.isContentClaimed ||
+      !task.artifact ||
+      !task.manifest
+    ) {
+      throw new HttpOperationError('task-conflict', '本次源内容尚未准备好或已经领取。')
+    }
+    task.isContentClaimed = true
+    this.update(task, 'transferring')
+    task.networkAt = performance.now()
+    task.worker = this.work(task, () => this.sendSource(task, response))
+    return task.worker.then(() => {
+      if (task.state.status !== 'sent') {
+        throw new HttpOperationError(
+          task.state.error?.code ?? 'network-failure',
+          task.state.error?.message ?? '本次发送已中止，请查询实际状态。',
+        )
+      }
+    })
+  }
+  private async sendSource(task: SyncTask, response: ServerResponse): Promise<void> {
+    const artifact = task.artifact,
+      manifest = task.manifest
+    if (!artifact || !manifest) {
+      throw new HttpOperationError('task-conflict', '源归档已失效。')
+    }
+    const disconnected = (): void => {
+      if (!response.writableFinished) {
+        this.abort(task, {
+          code: 'network-failure',
+          message: '发送连接在结束前中断。',
+          canRetry: false,
+        })
+      }
+    }
+    response.once('close', disconnected)
+    try {
+      await this.verify(task)
+      const input = await artifact.openArchive(),
+        hash = createHash('sha256')
+      let bytes = 0
+      const counter = new Transform({
+        highWaterMark: BATCH_RESOURCES.maxBufferBytes,
+        transform: (chunk: Buffer, encoding, callback) => {
+          void encoding
+          try {
+            if (!Buffer.isBuffer(chunk) || bytes + chunk.length > manifest.archive.sizeBytes) {
+              callback(new HttpOperationError('checksum-mismatch', '源归档超过清单长度。'))
+              return
+            }
+            bytes += chunk.length
+            hash.update(chunk)
+            task.networkAt = performance.now()
+            this.options.library.touchPeer(task.peerId)
+            this.update(task, 'transferring', { archiveBytesTransferred: bytes })
+            callback(null, chunk)
+          } catch (cause) {
+            callback(toHttpError(cause))
+          }
+        },
+        flush: (callback) =>
+          callback(
+            bytes === manifest.archive.sizeBytes && hash.digest('hex') === manifest.archive.sha256
+              ? null
+              : new HttpOperationError('checksum-mismatch', '源归档长度或哈希与清单不同。'),
+          ),
+      })
+      response.writeHead(200, {
+        'content-type': BATCH_ARCHIVE.contentType,
+        'content-length': manifest.archive.sizeBytes,
+        [HTTP_HEADERS.archiveSha256]: manifest.archive.sha256,
+        'cache-control': 'no-store',
+      })
+      await pipeline(input, counter, response, { signal: task.controller.signal })
+      await this.finishSender(task, 'sent', null)
+    } finally {
+      response.off('close', disconnected)
+    }
+  }
+  private async finishSender(
+    task: SyncTask,
+    status: 'sent' | 'failed' | 'cancelled',
+    error: OperationError | null,
+  ): Promise<void> {
+    if (task.finishing) {
+      return task.finishing
+    }
+    task.finishing = (async (): Promise<void> => {
+      this.update(task, 'cleaning')
+      let cleanupError: OperationError | null = null
+      try {
+        await this.clean(task)
+      } catch {
+        cleanupError = cleanupFailure()
+      }
+      task.state = {
+        ...task.state,
+        status,
+        stage: 'done',
+        updatedAt: Date.now(),
+        result: null,
+        error,
+        cleanupError,
+      }
+      task.terminalAt = performance.now()
+      if (!matchesSyncJobState(structuredClone(task.state), task.request, task.manifest)) {
+        this.isStopped = true
+      }
+    })()
+    return task.finishing
   }
   private async receiveTask(
     task: SyncTask,
@@ -536,6 +764,14 @@ export class WindowsSyncRegistry {
     const wasCancelled =
       task.reason === null &&
       (task.controller.signal.aborted || cause instanceof ArchiveCancelledError)
+    if (task.state.role === 'sender') {
+      await this.finishSender(
+        task,
+        wasCancelled ? 'cancelled' : 'failed',
+        wasCancelled ? null : (task.reason ?? known(cause)),
+      )
+      return
+    }
     const result = emptyResult(
       task.request,
       wasCancelled ? null : (task.reason ?? known(cause)),
@@ -635,6 +871,7 @@ export class WindowsSyncRegistry {
           now - task.startedAt >= this.timeouts.total ||
           (task.state.stage === 'awaiting-content' &&
             now - task.stageAt >= this.timeouts.awaitingContent) ||
+          (task.state.stage === 'ready' && now - task.stageAt >= this.timeouts.ready) ||
           (task.state.stage === 'transferring' && now - task.networkAt >= this.timeouts.networkIdle)
         ) {
           this.abort(task, {

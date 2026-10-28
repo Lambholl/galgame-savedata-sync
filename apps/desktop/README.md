@@ -306,7 +306,7 @@ try {
 
 ## 13. 受保护目标写入与本机恢复
 
-`WindowsSyncWriter(adapter, backups, options)` 执行完整确认计划。主进程的 `authorize(plan)` 每次核对本机项目和目标根；启动实例检查游戏 ID 与 rootId。`WindowsSyncRegistry` 已接入 Android → Windows 的 HTTP 接收、缓存和实际结果查询，原生上传及实际 LAN 已验证。旧 `/v1/transfers/*` 保持只新建语义，新增协议统一见 [M-002 文档第 3.6 节](../../docs/plans/m002-sync-copy.md#36-http-与本地桥)。
+`WindowsSyncWriter(adapter, backups, options)` 执行完整确认计划。主进程的 `authorize(plan)` 每次核对本机项目和目标根；启动实例检查游戏 ID 与 rootId。`WindowsSyncRegistry` 已接入 Android → Windows 的 HTTP 接收、缓存和实际结果查询，以及 Windows → Android 的原生源准备和单次下载。源端 POST 接纳后异步重新扫描并核对当前源、形成不可变归档；准备完成且扫描资源释放后才发布 ready。GET 内容只领取一次，传输校验和清理后报告 sender sent；Android 的实际写入结果独立查询。无文件的源计划直接报告发送完成，不生成归档。清理失败保留名额，查询不延长等待或网络期限，重复 GET 和任务 ID 均拒绝。旧 `/v1/transfers/*` 保持只新建语义，新增协议统一见 [M-002 文档第 3.6 节](../../docs/plans/m002-sync-copy.md#36-http-与本地桥)。
 
 | 原生方法 | 输入、输出与资源责任 |
 | --- | --- |

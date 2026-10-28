@@ -115,11 +115,12 @@ final class SyncJobModel {
         }
     }
     static Map<String, Object> request(SyncPlanModel.Plan plan, Map<String, Object> binding) {
-        return object("schemaVersion", 1, "jobId", plan.id, "sourceProjectId", binding.get("projectId"), "targetProjectId", binding.get("remoteProjectId"), "plan", plan.value);
+        boolean upload = plan.value.get("direction").equals("android-to-windows");
+        return object("schemaVersion", 1, "jobId", plan.id, "sourceProjectId", binding.get(upload ? "projectId" : "remoteProjectId"), "targetProjectId", binding.get(upload ? "remoteProjectId" : "projectId"), "plan", plan.value);
     }
     private static void cleanup(Object raw) throws Exception { if (raw != null) require(error(raw).get("code").equals("cleanup-failed")); }
     /** 核对本次完整结果顺序、实际成功指纹及保护备份；返回已确认成功的文件数量和字节数。 */
-    private static long[] result(Object raw, SyncPlanModel.Plan plan) throws Exception {
+    static long[] result(Object raw, SyncPlanModel.Plan plan) throws Exception {
         Map<String, Object> result = shape(raw, "schemaVersion", "planId", "backupId", "outcomes", "error", "cleanupError"); number(result.get("schemaVersion"), 1, 1);
         require(plan.id.equals(result.get("planId"))); parent(result.get("backupId")); cleanup(result.get("cleanupError"));
         if (result.get("error") != null) error(result.get("error"));
@@ -151,28 +152,39 @@ final class SyncJobModel {
         if (!outcomes.isEmpty()) require(stopped ? result.get("error") != null || cancelled : result.get("error") == null);
         return new long[] { files, bytes };
     }
-    /** receiver 状态始终与完整确认计划对应，清单尚未声明时归档总量允许为 null。 */
+    /** 远端按方向分别为 receiver/sender；发送完成与本机实际写入结果分别核对。 */
     static Map<String, Object> state(Object raw, SyncPlanModel.Plan plan, ArchiveModel.Manifest manifest) throws Exception {
+        return state(raw, plan, manifest, plan.value.get("direction").equals("android-to-windows") ? "receiver" : "sender");
+    }
+    static Map<String, Object> state(Object raw, SyncPlanModel.Plan plan, ArchiveModel.Manifest manifest, String role) throws Exception {
         Map<String, Object> state = shape(copy(raw), "schemaVersion", "jobId", "direction", "role", "status", "stage", "updatedAt", "cancelRequested", "progress", "result", "error", "cleanupError");
-        number(state.get("schemaVersion"), 1, 1); require(plan.id.equals(state.get("jobId")) && plan.value.get("direction").equals(state.get("direction")) && state.get("role").equals("receiver"));
+        boolean sender = role.equals("sender");
+        number(state.get("schemaVersion"), 1, 1); require(plan.id.equals(state.get("jobId")) && plan.value.get("direction").equals(state.get("direction")) && state.get("role").equals(role));
         number(state.get("updatedAt"), -BackupModel.MAX_DATE, BackupModel.MAX_DATE); require(state.get("cancelRequested") instanceof Boolean);
         if (state.get("error") != null) error(state.get("error")); cleanup(state.get("cleanupError"));
         Map<String, Object> progress = shape(state.get("progress"), "sourceBytesRead", "archiveBytesTransferred", "fileBytesVerified", "fileBytesPublished", "totalFileBytes", "totalArchiveBytes", "totalFiles", "verifiedFiles", "publishedFiles");
         long count = number(plan.value.get("transferFileCount"), 0, 1024), total = number(plan.value.get("totalFileBytes"), 0, BackupModel.MAX_TOTAL);
-        require(number(progress.get("sourceBytesRead"), 0, 0) == 0 && number(progress.get("totalFiles"), 0, 1024) == count && number(progress.get("totalFileBytes"), 0, BackupModel.MAX_TOTAL) == total);
+        long read = number(progress.get("sourceBytesRead"), 0, sender ? total : 0);
+        require(number(progress.get("totalFiles"), 0, 1024) == count && number(progress.get("totalFileBytes"), 0, BackupModel.MAX_TOTAL) == total);
         Long packed = nullable(progress.get("totalArchiveBytes"), 0, 1140850688);
         long transferred = number(progress.get("archiveBytesTransferred"), 0, packed == null ? 0 : packed), verified = number(progress.get("fileBytesVerified"), 0, total), published = number(progress.get("fileBytesPublished"), 0, verified);
         long vf = number(progress.get("verifiedFiles"), 0, count), pf = number(progress.get("publishedFiles"), 0, vf);
+        if (sender) require(state.get("result") == null && pf == 0 && published == 0);
         require(count == 0 ? total == 0 && packed != null && packed == 0 : packed == null || packed > 0);
         require((vf != count || verified == total) && (pf != count || published == total) && (pf != 0 || published == 0));
         if (manifest != null && packed != null) require(packed == manifest.archive.sizeBytes);
-        String status = string(state.get("status")); one(status, "running", "succeeded", "failed", "cancelled", "unknown");
-        one(state.get("stage"), "preparing", "awaiting-content", "transferring", "verifying", "backing-up", "writing", "cleaning", "done");
+        String status = string(state.get("status")); one(status, "running", "sent", "succeeded", "failed", "cancelled", "unknown");
+        one(state.get("stage"), "preparing", "ready", "awaiting-content", "transferring", "verifying", "backing-up", "writing", "cleaning", "done");
         if (status.equals("running")) require(!state.get("stage").equals("done") && state.get("error") == null && state.get("result") == null);
         else {
-            require(state.get("stage").equals("done") && state.get("result") != null);
-            long[] actual = result(state.get("result"), plan); require(actual[0] == pf && actual[1] == published && SyncPlanModel.same(map(state.get("result")).get("error"), state.get("error")));
-            if (status.equals("succeeded")) {
+            require(state.get("stage").equals("done"));
+            if (!sender) {
+                require(state.get("result") != null);
+                long[] actual = result(state.get("result"), plan); require(actual[0] == pf && actual[1] == published && SyncPlanModel.same(map(state.get("result")).get("error"), state.get("error")));
+            }
+            if (status.equals("sent")) require(sender && state.get("error") == null && read == total && packed != null && transferred == packed);
+            else if (status.equals("succeeded")) {
+                require(!sender);
                 require(state.get("error") == null && vf == count && pf == count);
                 for (Object outcome : list(map(state.get("result")).get("outcomes"))) require(map(outcome).get("status").equals("succeeded"));
             } else if (status.equals("cancelled")) require(state.get("error") == null && Boolean.TRUE.equals(state.get("cancelRequested")));

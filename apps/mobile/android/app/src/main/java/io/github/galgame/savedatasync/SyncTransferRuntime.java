@@ -14,6 +14,7 @@ import static io.github.galgame.savedatasync.TransferSchema.*;
 final class SyncTransferRuntime {
     private static SyncTransferRuntime instance;
     final SyncTransferEngine engine;
+    private final SyncWriter writer;
     private final Context context;
     private final ExecutorService controls = Executors.newSingleThreadExecutor();
     static synchronized SyncTransferRuntime get(Context context) throws Exception {
@@ -23,6 +24,8 @@ final class SyncTransferRuntime {
     private SyncTransferRuntime(Context context) throws Exception {
         this.context = context;
         SafDirectoryStore store = SafRuntime.store(context);
+        BackupStore backups = SafRuntime.backups(context);
+        writer = new SyncWriter(new SafSyncBackend(context, store, this::authorize), backups);
         engine = new SyncTransferEngine(TransferRuntime.get(context).engine, new SyncTransferEngine.Local() {
             @Override public String deviceId() { return store.deviceId(); }
             @Override public Map<String, Object> snapshot(String rootId, ArchiveControl control) throws Exception {
@@ -35,8 +38,24 @@ final class SyncTransferRuntime {
                 }
                 return sources;
             }
+            @Override public boolean backup(String projectId, String rootId) throws Exception {
+                for (Object item : list(backups.settings().get("projects"))) {
+                    Map<String, Object> setting = map(item);
+                    if (setting.get("projectId").equals(projectId) && setting.get("rootId").equals(rootId)) return (Boolean) setting.get("shouldBackup");
+                }
+                return true;
+            }
+            @Override public long checkReceiveSpace(SyncPlanModel.Plan plan, java.nio.file.Path cacheRoot, long cacheBytes, ArchiveControl control, SyncWriter.Execution execution) throws Exception {
+                return writer.checkReceiveSpace(plan, cacheRoot, cacheBytes, control, execution);
+            }
+            @Override public Map<String, Object> apply(SyncPlanModel.Plan plan, SyncWriter.Material material, ArchiveControl control, SyncWriter.Execution execution) throws Exception {
+                return writer.apply(plan.value, material, control, execution);
+            }
+            @Override public boolean retryCleanup() { return writer.retryCleanup() && backups.retryCleanup(); }
+            @Override public void close() throws Exception { writer.close(); }
         });
     }
+    private void authorize(String projectId, String rootId) throws Exception { engine.verifyTargetContext(projectId, rootId); }
     Map<String, Object> execute(String id, Object plan) throws Exception {
         if (!TransferService.notificationsAllowed(context)) throw new ArchiveFailure("permission-denied", "请先允许文件传输通知");
         engine.reserve(id, plan);
