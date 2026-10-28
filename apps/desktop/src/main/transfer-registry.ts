@@ -220,8 +220,13 @@ export class WindowsTransferRegistry {
     receiver: ReceiverDependencies,
   ): Promise<BatchState> {
     const targets = new Set<string>()
+    const privateSpace = await receiver.archive.checkReceiveSpace?.(request.manifest)
     for (const file of publicationRequests(request)) {
-      const key = await receiver.publisher.checkTarget(file)
+      const key = await receiver.publisher.checkTarget(
+        file,
+        request.manifest.totalFileBytes,
+        privateSpace,
+      )
       if (targets.has(key)) {
         throw new HttpOperationError('name-conflict', '多个文件映射到相同实际目标。')
       }

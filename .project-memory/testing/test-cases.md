@@ -4,8 +4,8 @@ status: active
 priority: medium
 owner: testing
 id_prefix: TC
-id_high_water: 35
-updated: 2026-10-27
+id_high_water: 36
+updated: 2026-10-28
 tags: [测试用例]
 related_files: []
 ---
@@ -27,5 +27,6 @@ related_files: []
 | TC-012 | 结果未知与会话重启 | 相关既有测试加手工核实 | 响应丢失只查询，写入不重放；未知结果要重读目标确认 | partial |
 | TC-014 | Android 平台组合 | Android 10 与较新系统的真机 | 目录、归档、发布和 HTTP 行为在各目标系统上单独记录 | passed |
 | TC-015 | 最小界面与当前状态边界 | Windows 实际窗口/选择器、API 33 界面及 LAN 操作/截图，外部 SHA-256 核对 | 双向空文件/中文名、子目录刷新后传输、同名冲突、准备前取消/清理重试、页面重载恢复及 64 MiB 后台上传通过；目录不汇总大小；完整平台组合见 TC-014 | passed |
+| TC-036 | 满额 1 GiB 双向规模、内存与容量预检 | 四个 256 MiB 随机文件，真实 Electron 与 API 33 SAF/LAN；外部 SHA-256/源属性/缓存核对及进程采样；Windows 零余量探针 | 双向接收成功，原文一致且源属性保持，任务缓存清理完成；Windows/Android 主进程采样峰值约 171/232 MiB；容量不足提前返回 insufficient-space，提供者未知余量保留未知 | passed |
 
 `partial` 表示已有证据但仍有场景未覆盖。`pnpm check` 不运行这些自动化测试；完整回归使用 `pnpm test:all`。

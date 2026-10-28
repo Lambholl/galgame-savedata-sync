@@ -30,6 +30,8 @@ final class NewFilePublisher {
         List<Document> children(Directory directory, ArchiveControl control) throws Exception;
         String create(Directory directory, String name) throws Exception;
         Owned claim(Directory directory, Document document) throws Exception;
+        /** 提供者能报告容量时返回可用字节；未知为 null。 */
+        default Long availableBytes(Directory directory, ArchiveControl control) throws Exception { return null; }
     }
     private static final java.util.concurrent.atomic.AtomicReference<NewFilePublisher> PROCESS_OWNER =
         new java.util.concurrent.atomic.AtomicReference<>();
@@ -73,12 +75,23 @@ final class NewFilePublisher {
 
     /** 批次接纳前可逐项调用的只读检查；不创建目录或文件，不授予写权限。 */
     void preflight(Request request, ArchiveControl control) throws Exception {
+        preflight(request, request.sizeBytes, control);
+    }
+
+    /** requiredBytes 为本批原文总量；各目标均检查整批，兼容同卷下不同父目录。 */
+    void preflight(Request request, long requiredBytes, ArchiveControl control) throws Exception {
         request.validate();
+        if (requiredBytes < request.sizeBytes || requiredBytes > new ArchiveModel.Limits().total) {
+            throw new ArchiveFailure("invalid-request", "目标空间预检字节数无效");
+        }
         synchronized (this) {
             if (stopped || !grants.contains(request.rootId)) throw new ArchiveFailure("permission-denied", "未显式授权该目标目录写入");
         }
         control.check();
-        requireName(backend.children(backend.locate(request.rootId, request.parentId, control), control), request.name, null);
+        Directory directory = backend.locate(request.rootId, request.parentId, control);
+        Long available = backend.availableBytes(directory, control);
+        if (available != null && available < requiredBytes) throw new ArchiveFailure("insufficient-space", "目标存储空间不足，无法接收本批文件");
+        requireName(backend.children(directory, control), request.name, null);
         control.check();
     }
 

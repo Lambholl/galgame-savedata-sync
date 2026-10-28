@@ -13,9 +13,9 @@
 
 ## 1. 状态与边界
 
-- 更新日期：2026-10-27。共享本地/批量模型、双端目录读取及私有归档、Windows HTTP sender/receiver 与批次非覆盖发布可用；实际 SAF 原生快照、Windows/JVM/设备互通、Android 网络和完整设备组合均已通过真机验收。接口和验证边界见[共享包说明](../../apps/shared/README.md)、[桌面适配](../../apps/desktop/README.md)及[移动适配](../../apps/mobile/README.md)。
+- 更新日期：2026-10-28。M-001 已完成；共享模型、双端目录/归档/发布/HTTP、独立界面、真机组合及满额 1 GiB 双向资源验收通过，见[收尾结论](../validation/m001-resources.md)。接口和验证边界见[共享包说明](../../apps/shared/README.md)、[桌面适配](../../apps/desktop/README.md)及[移动适配](../../apps/mobile/README.md)。
 - 已确认基线：[产品需求](../../.project-memory/requirements/product.md)、[项目范围](../../.project-memory/requirements/scope.md)、[架构总览](../../.project-memory/architecture/overview.md)。Windows 提供 HTTP 服务，Android 主动连接；双端应用技术栈保持既定方案。
-- 当前执行边界：双端归档、Android SAF 单文件发布、原生 HTTP、持续通知和独立界面均已完成并通过真机验收；WP-008 还需补充规模资源证据并形成 M-001 结论。授权与当前检查点见[章程](../../.project-memory/project/charter.md)及[记忆索引](../../.project-memory/INDEX.md)。M-001 写入限独立夹具，真实存档保持只读。
+- 当前执行边界：WP-008 与 M-001 已收尾，下一步细化 M-002；授权与当前检查点见[章程](../../.project-memory/project/charter.md)及[记忆索引](../../.project-memory/INDEX.md)。M-001 写入限独立夹具，真实存档保持只读。
 - 传输方案为双向唯一 tar.gz，见[批量协议](m001-tar-gzip-protocol.md)。v1 共享模型、双端私有归档、Windows HTTP/发布和 Android 原生传输均已可用。
 - 目标：验证用户选定目录可访问、元数据可读、文件可通过明文 HTTP 双向传输，以及 Android 前台边界。本轮先确认原生文件能力。
 - 本期交付：共享模型、双端目录适配、Windows HTTP 服务、Android 原生流客户端、双端独立界面及验收证据。
@@ -74,7 +74,7 @@ Android 界面不可见时不新增任务，已有传输由持续通知/dataSync
 
 ## 4. 工作包设计
 
-仍有实现或验证交接的工作包见[工作包登记](../../.project-memory/development/work-packages.md)，共享模型及双端归档作为已完成的前置模块复用。下一项为 WP-008 总体验收；双端归档与发布分别验证。该拆分不授权并行 Agent。
+工作包结果见[工作包登记](../../.project-memory/development/work-packages.md)。WP-008 已补齐规模资源验收，M-001 已完成；现有共享模型与双端适配器供后续里程碑复用。该拆分不授权并行 Agent。
 
 | 工作包 | 实现范围与交付物 | 必须通过的包内检查 | 不在该包内 |
 | --- | --- | --- | --- |
@@ -88,7 +88,7 @@ Android 界面不可见时不新增任务，已有传输由持续通知/dataSync
 | WP-010 Android SAF 新文件写入 | 从读取包拆出的写授权、新建、原生写流、校验与失败残留说明 | 独立夹具验证权限、同名冲突、提供者改名与残留；原生流不跨桥 | 真实存档写入、覆盖、HTTP |
 | WP-006 Android 原生 HTTP | 编排 WP-013 归档及 WP-010 SAF 发布、会话控制/网络流、实际结果/进度、显式取消和持续通知保持已有传输 | 网络故障与原生构建；实际 SAF/前台/LAN 验证需设备；sender/receiver 不混淆；禁止内容跨桥 | 归档编解码、SAF 发布原语、最终界面、Windows 发起通道 |
 | WP-007 最小验证界面 | 双端目录入口和元数据，Windows 服务状态，Android 手动地址和上传/下载，源目标/进度/结果显示 | 桌面与移动构建；桥接及交互检查；目录不统计大小；未知与失败清晰展示；双向传输走原生流 | 多项目 CRUD、完整差异计划、自动发现和备份 |
-| WP-008 规模资源与里程碑验收 | 在真机功能验收通过后，补齐全量 GiB、进程峰值内存/功耗和磁盘耗尽证据，回写模块和验收状态 | 正反向内容校验、重启授权、通知保持后台继续与显式取消及实际 LAN HTTP 已通过；规模资源证据齐全后关闭 M-001 | 结论结合真机结果与资源实测；CI、模拟器用于补充检查 |
+| WP-008 规模资源与里程碑验收 | 全量 GiB、进程峰值内存、每次传输容量预检与 M-001 结论 | 2026-10-28 满额双向、内容/源属性/缓存核对、内存采样及双端检查通过；用户取消功耗计算，本轮不做磁盘耗尽注入；M-001 已收尾 | [规模验收](../validation/m001-resources.md)；CI、模拟器用于补充检查 |
 
 共享本地模型和批量模型现已可用。WP-012 依赖 Windows 读取与共享批量模型；WP-013 依赖 Android 读取与共享批量模型，并复用 WP-012 固定夹具。WP-004 依赖 Windows 读取、共享批量模型及 WP-012；WP-009 依赖 Windows 读取；WP-005 依赖 WP-004/WP-009/WP-012。WP-010 依赖 Android 读取；WP-006 依赖 Android 读取、共享批量模型及 WP-005/WP-010/WP-013。WP-007 依赖 WP-004/WP-005/WP-006；WP-008 汇总全部模块和双平台的设备证据。
 

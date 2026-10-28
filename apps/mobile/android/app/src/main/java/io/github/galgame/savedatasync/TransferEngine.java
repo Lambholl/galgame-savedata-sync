@@ -317,7 +317,8 @@ final class TransferEngine {
         }
         synchronized (this) { job.manifest = prepared; }
         running(job, "preparing");
-        for (ArchiveModel.PreparedFile f : prepared.files) publisher.preflight(publication(job, f), job.control);
+        archives.checkReceiveSpace(prepared);
+        for (ArchiveModel.PreparedFile f : prepared.files) publisher.preflight(publication(job, f), prepared.totalFileBytes, job.control);
         running(job, "transferring");
         InputStream input = job.http.download(job.path() + "/content", job.session, prepared.archive, job.control,
             (stage, count, total) -> { synchronized (this) { job.transferred = count; } running(job, "transferring"); });

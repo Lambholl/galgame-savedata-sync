@@ -73,6 +73,13 @@ final class ArchiveCache {
         }
     }
 
+    /** 接收内容前检查本批缓存峰值，不创建任务目录或预留空间。 */
+    void checkSpace(long required) throws IOException {
+        verifyRoot();
+        if (required < 0) throw new ArchiveFailure("invalid-request", "空间预检字节数无效");
+        if (io.usable(root) < required) throw new ArchiveFailure("insufficient-space", "私有存储可用空间不足");
+    }
+
     Job begin(long maximum) throws IOException {
         synchronized (ArchiveCache.class) {
             if (active != null) throw new ArchiveFailure("busy", "已有归档任务或待清理缓存");

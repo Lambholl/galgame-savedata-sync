@@ -95,7 +95,8 @@ final class TransferSchema {
         if ("result-unknown".equals(e.get("code")) || "session-mismatch".equals(e.get("code"))) require(Boolean.FALSE.equals(e.get("canRetry")));
         return e;
     }
-    static Map<String, Object> error(String code) { return object("code", code, "message", "传输未完成，请核实本次目录与实际结果", "canRetry", false); }
+    static Map<String, Object> error(String code) { return object("code", code, "message",
+        "insufficient-space".equals(code) ? "设备可用空间不足，请释放空间后重新发起传输" : "传输未完成，请核实本次目录与实际结果", "canRetry", false); }
     static Object unwrap(Object value) throws ArchiveFailure {
         Map<String, Object> m = map(value);
         if ("error".equals(m.get("status"))) {

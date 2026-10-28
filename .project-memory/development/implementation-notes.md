@@ -3,7 +3,7 @@ doc_type: implementation-notes
 status: active
 priority: medium
 owner: development
-updated: 2026-10-27
+updated: 2026-10-28
 tags: [实现细节]
 related_files: []
 ---
@@ -28,6 +28,7 @@ related_files: []
 | 私有缓存与取消 | 固定应用私有缓存根和随机任务目录带所有权标记，拒绝与所选源根重叠；一份活动缓存覆盖返回句柄生命周期；显式缓冲不超过 64 KiB，预算可本机收紧，实际写入前计数/空间检查；失败/取消只清理本次缓存，清理失败独立报告并阻止新任务，关闭读流后重试；无源/目标发布写入 | archive-cache.ts、archive-errors.ts；仅内部句柄，不经 IPC；孤儿缓存不恢复历史任务 |
 | Windows HTTP sender | Node 内置 HTTP；只处理登记根、异步准备/清单/单次 gzip、状态与取消；严格 JSON 键/UTF-8/字节及路由/头/会话；注册前同步占用 ID/进程名额；期限和清理失败独立处理；保留有限 ID 防重，重启更换会话 | apps/desktop/src/main/http-*.ts、transfer-registry.ts、test/http-service.test.mjs |
 | Windows HTTP receiver | POST 异步全目标预检，物理父目录/名称去重后 201；PUT 唯一领取，64 KiB 背压桥显式终止停滞等待；压缩体落盘/长度/SHA-256 通过后 202，完整 gzip/tar/原文校验后才顺序发布；部分结果/清理分开，最后提交可赢得取消竞争；输入完整后响应丢失不终止本机发布 | upload-receiver.ts、transfer-registry.ts、archive-adapter.ts、test/http-receiver.test.mjs |
+| 每次传输容量预检 | Windows 登记接收前检查缓存与整批目标，同卷合计峰值；Android 打开下载内容流前检查缓存及提供者可报告的目标容量，未知容量保留未知；实际写入继续检查，空间不足反馈 insufficient-space。满额双向、资源和 M-001 结论见 docs/validation/m001-resources.md | archive-adapter.ts、new-file-publisher.ts、transfer-registry.ts；ArchiveAdapter/Cache、NewFilePublisher、SafPublicationBackend、TransferEngine/Schema.java |
 | 服务启停与退出 | 构造时不监听，可信主进程显式 start，默认回环/动态端口；应用 before-quit 等待 stop，失败保留清理重试；WP-007 有限 IPC 提供显式 LAN 启停、接收根授权/撤销、任务快照/取消及清理重试，界面轮询卸载时停止；真实回环覆盖本机服务，LAN/Android 另行验证 | apps/desktop/src/main/index.ts；apps/desktop/README.md |
 | Windows 新文件发布 | 进程内显式根写授权与只读目标预检；同父目录 wx 候选逐块实测长度/哈希并 sync；link 排他发布后回读最终身份/EOF/SHA-256；成功/取消/unknown 与清理状态分开；仅删除身份匹配的自有候选，清理失败占名额至重试成功 | new-file-publisher.ts、publication-errors.ts；目录 locateNativeDirectory 只读 |
 | 发布恢复与平台边界 | 不支持安全 link 的文件系统失败关闭；候选所有权/写授权仅存本进程，正常退出等待停止，强杀后不猜测或自动删除目标卷候选；不恢复旧任务，跨进程恢复/其他卷/特殊名称等价未验收 | apps/desktop/README.md；testing/coverage-gaps.md |

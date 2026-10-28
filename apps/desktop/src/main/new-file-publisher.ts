@@ -190,13 +190,26 @@ export class WindowsNewFilePublisher {
 
   /**
    * 只读预检供后续 receiver 在接收归档前核对授权、父目录、预算和当前同名冲突。
+   * requiredBytes 默认单文件，可传本批原文总量；privateSpace 在缓存同卷时合计其峰值。
    * 返回仅原生使用的物理父目录/大小写比较键，用于本批目标去重；不预留名称或任务名额。
    * publish 仍在实际写入和发布点重查，预检成功不代表之后不会出现竞争。
    */
-  async checkTarget(value: unknown): Promise<string> {
+  async checkTarget(
+    value: unknown,
+    requiredBytes?: number,
+    privateSpace?: { readonly device: string; readonly requiredBytes: number },
+  ): Promise<string> {
     try {
       validateRequest(value)
       const request = Object.freeze({ ...value })
+      const bytes = requiredBytes ?? request.sizeBytes
+      if (
+        !Number.isSafeInteger(bytes) ||
+        bytes < request.sizeBytes ||
+        bytes > BATCH_LIMITS.maxTotalFileBytes
+      ) {
+        throw new PublicationError('invalid-request', '目标空间预检字节数无效。')
+      }
       if (this.isStopped) {
         throw new PublicationError('busy', '发布适配器已停止。')
       }
@@ -209,6 +222,11 @@ export class WindowsNewFilePublisher {
       }
       await grant.verify()
       const location = await this.source.locateNativeDirectory(request.rootId, request.parentId)
+      const peakBytes =
+        bytes + (privateSpace?.device === location.identity.dev ? privateSpace.requiredBytes : 0)
+      if ((await (this.io.availableBytes ?? availableBytes)(location.path)) < BigInt(peakBytes)) {
+        throw new PublicationError('insufficient-space', '目标卷空间不足，无法接收本批文件。')
+      }
       const names = await readdir(location.path)
       if (names.some((name) => name.toLowerCase() === request.name.toLowerCase())) {
         throw new PublicationError('name-conflict', '目标名称已存在。')

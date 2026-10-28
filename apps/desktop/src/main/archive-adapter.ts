@@ -15,6 +15,7 @@ import type { ArchiveCache, ArchiveCacheJob, ArchiveCacheOptions } from './archi
 import { ArchiveError, checkArchiveAbort, toArchiveError } from './archive-errors.ts'
 import { ArchiveCrc32, ArchiveReader, createArchiveHeader } from './archive-format.ts'
 import type { WindowsDirectoryAdapter } from './directory-adapter.ts'
+import { inspectLocalPath } from './directory-paths.ts'
 
 type ArchiveSource = Pick<WindowsDirectoryAdapter, 'deviceId' | 'openFile' | 'assertCacheIsolated'>
 
@@ -196,6 +197,24 @@ export class WindowsArchiveAdapter {
     this.cache = cache
   }
 
+  /** 接收前只读检查压缩体与解包原文的空间；不创建任务或预留磁盘。 */
+  async checkReceiveSpace(
+    manifest: BatchManifest,
+  ): Promise<{ device: string; requiredBytes: number }> {
+    if (!isBatchManifest(manifest)) {
+      throw new ArchiveError('invalid-request', '接收清单无效。')
+    }
+    await this.cache.inspect()
+    const required = manifest.archive.sizeBytes + manifest.totalFileBytes
+    if ((await this.cache.io.availableBytes(this.cache.path)) < BigInt(required)) {
+      throw new ArchiveError('insufficient-space', '私有缓存空间不足，无法接收本批归档。')
+    }
+    return {
+      device: (await inspectLocalPath(this.cache.path)).dev.toString(),
+      requiredBytes: required,
+    }
+  }
+
   /** 生成独立源快照与 gzip1 归档；失败/取消清理本次缓存，成功将释放责任交给句柄。 */
   async prepare(request: unknown, options: ArchiveOperationOptions = {}): Promise<WindowsArchive> {
     if (!isDownloadBatchRequest(request)) {
@@ -267,6 +286,7 @@ export class WindowsArchiveAdapter {
         throw new ArchiveError('invalid-request', '接收清单无效。')
       }
       const snapshot = freezeManifest(manifest)
+      await this.checkReceiveSpace(snapshot)
       if (
         snapshot.totalFileBytes > this.cache.quota.maxTotalFileBytes ||
         snapshot.archive.sizeBytes > this.cache.quota.maxArchiveBytes ||

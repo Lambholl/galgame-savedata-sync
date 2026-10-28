@@ -17,7 +17,8 @@ import { HttpOperationError, toHttpError } from './http-errors.ts'
 
 /** 原生接收依赖；授权和清理仍属于原有适配器，不经请求注入。 */
 export interface ReceiverDependencies {
-  readonly archive: Pick<WindowsArchiveAdapter, 'receive' | 'retryCleanup'>
+  readonly archive: Pick<WindowsArchiveAdapter, 'receive' | 'retryCleanup'> &
+    Partial<Pick<WindowsArchiveAdapter, 'checkReceiveSpace'>>
   readonly publisher: Pick<WindowsNewFilePublisher, 'checkTarget' | 'publish' | 'retryCleanup'>
 }
 

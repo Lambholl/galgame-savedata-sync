@@ -3,7 +3,7 @@ doc_type: project-charter
 status: active
 priority: high
 owner: project
-updated: 2026-10-27
+updated: 2026-10-28
 tags: [项目目标, 成功标准]
 related_files: []
 ---
@@ -21,9 +21,9 @@ related_files: []
 
 - 项目目标：在 Windows 电脑与 Android 设备之间，通过局域网手动选择方向同步文件夹，减少游玩 galgame 时手工复制存档的操作。
 - 目标用户：在电脑与 Android 设备之间切换、需要管理多个游戏或文件夹的使用者。
-- 当前阶段：v1 批量共享模型、双端目录读取、私有归档、Windows HTTP sender/receiver、批次非覆盖发布、Android SAF 写入、原生 HTTP/持续通知和双端独立界面均已可用，目标真机组合验收通过。完整同步流程还没实现；下一项为 WP-008 规模资源验证与 M-001 结论。实现见[实现细节](../development/implementation-notes.md)，验证范围见[回归状态](../testing/regression-notes.md)。
+- 当前阶段：M-001 已完成，双端目录/归档/发布/HTTP、通知保持、独立界面、目标真机组合及满额 1 GiB 双向资源验收通过。完整同步流程还没实现；下一步细化 M-002。实现见[实现细节](../development/implementation-notes.md)，结果见仓库根目录的 `docs/validation/m001-resources.md`。
 - 成功标准：见[验收标准](../testing/acceptance.md)。
-- 当前授权：用户已授权本轮实现、必要验证、说明和记忆同步，并授权本阶段中文本地提交。推送与 WP-008 启动尚未授权。默认不新增或扩写自动化测试。写入限定在明确选定的独立合成目标，真实存档保持只读。
+- 当前授权：用户已授权 WP-008、规模资源验证、每次传输容量预检实现、M-001 收尾检查、记忆同步及本轮中文本地提交；用户明确取消功耗计算，本轮不做磁盘耗尽注入。推送未授权。默认不新增或扩写自动化测试。写入限定在明确选定的独立合成目标，真实存档保持只读。
 
 ## 2. 项目目标
 

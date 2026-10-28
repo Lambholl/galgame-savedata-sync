@@ -27,6 +27,12 @@ final class ArchiveAdapter {
     ArchiveAdapter(ArchiveCache cache) { this(cache, new ArchiveModel.Limits()); }
     ArchiveAdapter(ArchiveCache cache, ArchiveModel.Limits limits) { this.cache = cache; this.limits = limits; }
 
+    /** 清单确定后、打开 HTTP 内容流前检查压缩体与解包原文所需空间。 */
+    void checkReceiveSpace(ArchiveModel.Manifest manifest) throws Exception {
+        manifest.validate(limits);
+        cache.checkSpace(manifest.archive.sizeBytes + manifest.totalFileBytes);
+    }
+
     /** 读取一次源形成快照；未知长度通过实际流计数，之后仅从私有快照生成和发送归档。 */
     Artifact prepare(String transferId, String deviceId, String rootId, List<ArchiveModel.Source> sources,
                      ArchiveControl control, ArchiveModel.Progress progress) throws ArchiveFailure {

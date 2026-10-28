@@ -52,6 +52,31 @@ final class SafPublicationBackend implements NewFilePublisher.Backend {
         }
         return directory;
     }
+    /** 通过提供者根及子文档关系查询余量；未知容量不当作零，也不把文档 ID 转为路径。 */
+    @Override public Long availableBytes(NewFilePublisher.Directory reference, ArchiveControl control) throws Exception {
+        SafDirectoryStore.PublicationDirectory directory = checked(reference, control);
+        Signal signal = control.track(new Signal());
+        Long available = null;
+        try (Cursor cursor = resolver.query(DocumentsContract.buildRootsUri(directory.tree.getAuthority()),
+            new String[] {DocumentsContract.Root.COLUMN_DOCUMENT_ID, DocumentsContract.Root.COLUMN_AVAILABLE_BYTES},
+            null, null, null, signal.value)) {
+            while (cursor != null && cursor.moveToNext()) {
+                control.check();
+                if (cursor.isNull(0) || cursor.isNull(1) || cursor.getLong(1) < 0) continue;
+                String documentId = cursor.getString(0);
+                Uri root = DocumentsContract.buildDocumentUri(directory.tree.getAuthority(), documentId);
+                if (documentId.equals(directory.documentId) || DocumentsContract.isChildDocument(resolver, root, directory.uri)) {
+                    available = cursor.getLong(1);
+                    break;
+                }
+            }
+        } catch (java.lang.SecurityException | java.lang.UnsupportedOperationException | java.lang.IllegalArgumentException | java.io.FileNotFoundException cause) {
+            // 有些提供者仅开放树授权，或没有容量/子文档查询；仍使用写入时的 FD 检查。
+            available = null;
+        } finally { control.untrack(signal); }
+        control.check();
+        return available;
+    }
     @Override public List<PublicationModel.Document> children(NewFilePublisher.Directory reference, ArchiveControl control) throws Exception {
         SafDirectoryStore.PublicationDirectory directory = checked(reference, control);
         Signal signal = control.track(new Signal());

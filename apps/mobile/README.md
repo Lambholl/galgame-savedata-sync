@@ -85,6 +85,7 @@ try (ArchiveAdapter.Artifact prepared = adapter.prepare(transferId, deviceId, ro
 - `receive(manifest, input, control, progress)` 接管并关闭输入。先完整暂存并核对压缩体长度/SHA-256，再严格检查单 gzip member、DEFLATE 结束、CRC32/ISIZE、全部 USTAR 字段/顺序/零填充/精确结束和每份原文长度/SHA-256；全部通过才返回私有句柄。拒绝拼接、尾随、扩展、链接和路径。输入为固定 v1 原生不可变模型；JSON/版本/封闭字段解析由独立 TransferJson/TransferSchema 负责。
 - `Artifact.manifest` 及其文件数组不可变；`openArchive`/`openFile(fileId)` 返回调用者负责关闭的只读流，fileId 必须属于该清单。关闭全部流后调用 `close()`（即 dispose）；句柄随后失效。源、归档和解包均显式使用至多 64 KiB 缓冲，逐文件处理。
 - `ArchiveModel.Limits` 固定上限为 1024 文件、单项 256 MiB、原文合计 1 GiB、tar 1 GiB+1 MiB、压缩体 1088 MiB、实际私有缓存合计 3 GiB；测试注入只能收紧。声明、实际读取/解压/写入均计数；空间预检通过后仍可能遇到写入失败，按实际错误处理。
+- 每次下载在打开 HTTP 内容流前检查“压缩体 + 解包原文”的缓存空间，并查询 SAF 提供者能报告的目标余量、对照整批原文总量。容量不足返回 `insufficient-space`；容量未知时保留未知，实际写入前继续通过文件描述符检查。空间预检不创建目标文件，也不预留磁盘。
 - `ArchiveControl` 在每次 I/O、解压和进度检查取消、线程中断及不刷新的 30 分钟总期限；`cancel()` 可从生命周期线程调用，会关闭已登记的读流并取消 SAF 查询。外层任务所有者负责在期限到达或用户显式取消时主动 cancel 以唤醒阻塞的提供者；切后台继续已有传输，不因此取消，再等待工作线程清理；本模块不创建后台服务或恢复旧任务。
 - `ArchiveCache` 仅在可信 Context 的真实私有缓存路径创建 `transfer-archives-v1`，根/随机任务都有所有权标记，拒绝其下链接/未知条目。每个进程只允许一个任务，句柄和清理失败均占名额。重启只清除可验证的孤儿缓存；不恢复旧结果。`ArchiveCache.retryOrphanCleanup()` 只重试已核实的启动孤儿，不关闭活动任务。
 - `ArchiveFailure.code` 为稳定错误码，原始 cause 仅留原生层；取消以 `cancelled=true` 区分，清理失败保留主错误并放入 `cleanupFailure`。关闭读流后可调用 `adapter.retryCleanup()`；已经确认成功的内容校验保持成功，清理结果单独记录。回调在同一 I/O 线程接收阶段、实际字节数及可空总量，未知长度不计算百分比。
@@ -158,4 +159,4 @@ Android 行为依据见 [dataSync 前台服务](https://developer.android.com/de
 
 WP-006 的 API 33 实测通过 ADB 开发者控制台操作正式原生桥，文件数据走真实 LAN HTTP，调试通道不承载传输体。双向各 3 文件（空/UTF-8/131073 字节）及 2 轮后台 1 MiB 接收，共 8 份输出与原文逐字节一致；6 份原生/远端状态及 10 份进度快照通过共享守卫匹配。返回桌面后持续通知/dataSync 服务仍在，Activity 重建后 current 可取回同一任务，后台完成后通知和服务结束；显式取消没有目标残留，私有缓存只留下根所有权。两端原文件的内容、大小、mtime 和身份保持不变，测试目录权限与临时服务均已回收。通知截图及原始回执只保留在忽略的本地报告中。
 
-真实存档只读，不写入、不修改、不删除。损坏配置和失效权限夹具使用独立的应用私有配置，不改真实根授权。Android 10 及较新系统、SAF、正式 LAN HTTP、通知保持传输和独立界面已通过真机验收；空文件/中文名双向内容、子目录刷新后传输、准备前取消、同名冲突、页面重载与 64 MiB 后台上传已核对 SHA-256。规模资源证据仍留 WP-008。
+真实存档保持只读。损坏配置和失效权限夹具使用独立的应用私有配置，不改真实根授权。Android 10 及较新系统、SAF、正式 LAN HTTP、通知保持传输和独立界面已通过真机验收；空文件/中文名双向内容、子目录刷新后传输、准备前取消、同名冲突、页面重载与 64 MiB 后台上传已核对 SHA-256。满额 1 GiB 双向往返、进程内存及每次传输容量预检见[规模验收](../../docs/validation/m001-resources.md)。

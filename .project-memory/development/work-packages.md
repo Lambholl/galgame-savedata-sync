@@ -5,7 +5,7 @@ priority: high
 owner: development
 id_prefix: WP
 id_high_water: 15
-updated: 2026-10-27
+updated: 2026-10-28
 tags: [工作包, M-001, 设计]
 related_files:
   - docs/plans/m001-directory-http.md
@@ -24,9 +24,9 @@ related_files:
 
 M-001 只验证专用测试目录中的新文件往返，写入使用独立目标夹具，真实存档保持只读。双端目录、归档、发布、HTTP、通知保持和独立界面均已实现，目标真机验收通过。后续功能默认不新增或扩写自动化测试，使用 lint、编译、ADB 实操和截图验证；覆盖、删除同步与推送留在后续范围。
 
-详细范围与流程位于 `docs/plans/m001-directory-http.md`；[接口约定](../architecture/api-contracts.md)与[模块设计](../architecture/modules.md)维护当前边界。共享与平台说明见 `apps/shared/README.md`、`apps/desktop/README.md`、`apps/mobile/README.md`。完整同步流程还没实现；桌面测试路径修复仍待远端 CI 复验。
+M-001 已完成，规模与收尾证据见仓库根目录的 `docs/validation/m001-resources.md`。详细范围与流程位于 `docs/plans/m001-directory-http.md`；[接口约定](../architecture/api-contracts.md)与[模块设计](../architecture/modules.md)维护当前边界。共享与平台说明见 `apps/shared/README.md`、`apps/desktop/README.md`、`apps/mobile/README.md`。完整同步流程还没实现；桌面测试路径修复仍待远端 CI 复验。
 
-双向唯一 tar.gz 方案见[Q-008](../requirements/open-questions.md)，详细设计位于仓库根目录的 `docs/plans/m001-tar-gzip-protocol.md`。planned 项尚未开始，也未获实现授权。表中保留仍有实现或验证交接的工作包；共享模型的当前事实见[模块状态](module-status.md)和[接口约定](../architecture/api-contracts.md)，最大已用编号保持 15。
+双向唯一 tar.gz 方案见[Q-008](../requirements/open-questions.md)，详细设计位于仓库根目录的 `docs/plans/m001-tar-gzip-protocol.md`。WP-008 已获本轮验证与记忆同步授权。表中保留仍有实现或验证交接的工作包；共享模型的当前事实见[模块状态](module-status.md)和[接口约定](../architecture/api-contracts.md)，最大已用编号保持 15。
 
 ## 2. M-001 工作包
 
@@ -40,7 +40,7 @@ M-001 只验证专用测试目录中的新文件往返，写入使用独立目�
 | WP-005 | Windows HTTP 接收 | WP-004、WP-009、WP-012 | apps/desktop 主进程及 HTTP 回归 | uploads 登记、单次 PUT、压缩体/原文全校验后逐项发布、超限/断流/取消/部分结果/响应丢失通过 | done | 上传预检、单次 PUT、完整校验后逐项发布和清理重试通过；文件系统恢复与规模资源缺口见测试覆盖缺口 |
 | WP-006 | Android 原生 HTTP 与持续通知 | WP-003、WP-005、WP-010、共享批量模型、WP-013 | apps/mobile Java 原生编排/通知服务、TS 桥及最小回归 | 双向 HTTP/会话/有限流、sender/receiver 区分、完整验证后发布、真实进度、通知保持及显式取消 | done | 严格 JSON/HTTP/上下文、防重/回执只查询、原生归档与逐项发布、应用级任务/持续通知及 Activity 重连已实现；Java/TS 桥、lint、双 APK、互通及 TC-011 的实际 LAN、后台、重连、取消和原文属性核对通过；WP-007 已接入最小界面 |
 | WP-007 | 最小验证界面 | WP-004、WP-005、WP-006 | apps/desktop renderer/有限服务桥、apps/mobile/src、TransferEngine.java | 目录选择/元数据、服务状态、手动 IP、双向传输及结果可操作；双端构建通过 | done | 双端最小界面、真实选择器、LAN 双向、冲突、取消/清理、页面重载和 64 MiB 后台上传通过 |
-| WP-008 | 规模资源验证与 M-001 结论 | 共享模型、目录、归档、发布和 HTTP 模块；真实设备验收已完成 | 测试设备与 testing/ 文档 | 补齐全量 GiB、进程峰值内存/功耗和磁盘耗尽证据，形成 M-001 结论 | planned | 真机组合、实际 LAN、授权恢复、内容校验和故障用例已通过；规模资源证据和 M-001 结论待补 |
+| WP-008 | 规模资源验证与 M-001 结论 | 共享模型、目录、归档、发布和 HTTP 模块；真实设备验收已完成 | 双端容量预检、测试设备与 testing/ 文档 | 全量 GiB、进程峰值内存、每次传输容量预检及 M-001 结论；用户取消功耗计算，本轮不做磁盘耗尽注入 | done | 双向 1 GiB 成功，87.526/215.400 秒；SHA-256/源属性/缓存清理一致；双端主进程采样峰值约 171/232 MiB；pnpm check、19 项 Windows 既有测试、android:test 通过；M-001 已收尾 |
 | WP-009 | Windows 新文件暂存与发布 | WP-002 | apps/desktop 主进程与回归 | 独立测试目录内验证写流、同名拒绝、发布竞争、失败/取消清理；不触碰真实存档 | done | 原生写授权、只读预检、候选、排他发布、最终回读和清理通过；其他卷、名称等价、强杀恢复与规模实测见测试覆盖缺口 |
 | WP-010 | Android SAF 新文件写入 | WP-003 | apps/mobile Java 发布器/SAF 后端及单元测试 | 独立测试目录内验证写授权、新建、校验、名称冲突及失败残留；原生流不跨 JS，实际 SAF 验证一起完成 | done | 显式进程/系统授权分离、只读预检、新 ID/父/名核实、常规 FD 身份/非截断 rw、写后回读/元数据及独立清理重试已实现；单元、lint/双 APK、原生互通及 API 33 实际 SAF 发布和外部原文核对通过；仅新建，真实存档只读 |
 | WP-012 | Windows 原生归档与私有暂存 | WP-002、共享批量模型 | apps/desktop/src/main/archive-*.ts、目录读流检查点、独立格式夹具与回归、README.md | 按流源快照、受限 USTAR/gzip1 打包、完整解包校验、非法归档/计数/空间/取消/清理；固定跨端夹具与独立内容期望通过 | done | 归档回归、固定跨端夹具、源变化、预算、取消/清理和并发释放通过 |
@@ -48,7 +48,7 @@ M-001 只验证专用测试目录中的新文件往返，写入使用独立目�
 
 ## 3. 执行与拆分规则
 
-- 下一项为 WP-008 的规模资源验证与 M-001 结论；共享模型和双端私有归档作为已完成的前置模块复用。具体依赖见上表，不授权并行 Agent。
+- WP-008 与 M-001 已完成，下一步细化 M-002 的需求、范围和工作包；现有共享模型与双端适配器继续复用。具体依赖见上表，不授权并行 Agent。
 - 一包承担一个主要能力边界。跨平台协议变更、提供者差异、无法独立验证或新增依赖/配置迁移使范围扩大时先拆包；保留原包交接，同一交付物只写在一个包。详细规则见 `docs/plans/m001-directory-http.md` 第 6 节；新 ID 从 WP-016 起分配，最大已用编号只增不减。
 - 实现前发现并读取目标路径实际存在且适用的 AGENTS.md、项目及目标语言编码规范；桌面应用规则位于 apps/desktop/AGENTS.md，要求完整读取 antd skill。设计授权不包含实现或提交权限。
 - 工作包完成以针对性检查、受影响工程检查及明确剩余缺口为证据；没有真机证据的项保持未完成。完成、阻塞和下一步同步 INDEX、模块状态、用例和回归状态。
