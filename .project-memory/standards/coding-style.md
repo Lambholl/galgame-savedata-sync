@@ -3,7 +3,7 @@ doc_type: coding-style
 status: active
 priority: high
 owner: development
-updated: 2026-10-27
+updated: 2026-10-29
 tags: [编码规范]
 related_files: []
 ---
@@ -54,7 +54,7 @@ related_files: []
 | --- | --- |
 | Agent 开发准入 | 按目标路径发现并读取实际存在且适用的 `AGENTS.md`；桌面应用规则位于 `apps/desktop/AGENTS.md`，要求完整读取 `antd` skill；编写 Ant Design 组件时按 Skill 查询实际版本 API |
 | 平台边界 | 源码分为 `apps/mobile`、`apps/desktop`、`apps/shared`。两端界面、状态和 Hook 各自维护；shared 保存纯 TypeScript 数据与规则，不引入 React、组件库、DOM、Node、Electron 或 Android 接口；平台能力留在各应用适配层。ESLint 限制跨应用源码导入和 shared 平台依赖 |
-| 移动组件与触控 | 优先使用 antd-mobile，按实际需要使用 antd；按钮、图标按钮、文件选择和弹层操作保留至少 48 × 48 CSS px 点击区域，游戏主操作与次级操作卡片最小高度 64 CSS px。字号放大和窄屏下仍可点按与阅读 |
+| 移动组件与触控 | 优先使用 antd-mobile，按实际需要使用 antd。按用户提供的 QQ 界面参考收紧尺寸，随后按用户要求把 Button 高度增加四分之一：普通按钮 45 CSS px 起、整行主操作 50 CSS px 起；图标点击区 36 CSS px 起，选项行约 44–52 CSS px；游戏主操作 56 CSS px、次级操作卡片 52 CSS px 起。标题 18px、常用文字和按钮 14px、辅助文字 12px；长文字换行后可增长高度，常规字号和窄屏下保持可读、可点按 |
 | 原生生成工程 | Android 模板保留原生工具风格，不用 Prettier 重写；手写改动仍需检查 UTF-8 与换行 |
 | Android Java | 用户同意沿用 Java；通用基线无专属 Java 文件，适用通用编码规则、现有 Android 风格及官方 Java 约定。原生代码用 javac、Android lint、单元/仪器测试验证，不为本包引入 Kotlin 插件 |
 | 检查入口 | `pnpm check` 执行文本、格式、lint、类型检查和双端构建；`pnpm test:all` 单独运行全量测试；`security:check` / `security:android` 分别审计 Node 工具链及 Maven |

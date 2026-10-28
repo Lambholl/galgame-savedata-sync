@@ -22,3 +22,26 @@ export function displayTime(value: number | null): string {
         hour12: false,
       })
 }
+
+/** 文件列表用短日期和分钟时间；仅缩短展示，不改变原始时间值。 */
+export function displayFileTime(value: number | null): string {
+  if (value === null) {
+    return '时间未知'
+  }
+  const date = new Date(value)
+  const pad = (part: number): string => String(part).padStart(2, '0')
+  return `${pad(date.getFullYear() % 100)}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`
+}
+
+/** 文件列表使用紧凑的二进制 B/K/M/G 单位，未知大小仍明确标识。 */
+export function displayFileBytes(value: number | null): string {
+  if (value === null) {
+    return '大小未知'
+  }
+  if (value < 1024) {
+    return `${value}B`
+  }
+  const unit = value < 1048576 ? 'K' : value < 1073741824 ? 'M' : 'G'
+  const divisor = unit === 'K' ? 1024 : unit === 'M' ? 1048576 : 1073741824
+  return `${(value / divisor).toFixed(2)}${unit}`
+}

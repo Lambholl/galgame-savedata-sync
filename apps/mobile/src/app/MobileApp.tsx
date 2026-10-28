@@ -32,6 +32,7 @@ import { TaskPage } from '../features/transfer/TaskPage'
 import { SyncCopyPage } from '../features/transfer/SyncCopyPage'
 import { SyncTaskDetails } from '../features/transfer/SyncTaskDetails'
 import { useSyncTasks } from '../features/transfer/use-sync-tasks'
+import { transferFeedback } from '../features/transfer/transfer-feedback'
 import type { MobileSyncAdapter } from '../platform/sync-adapter'
 import '../styles/mobile.css'
 
@@ -77,6 +78,39 @@ export function MobileApp({
   const operating = useRef(false)
   const generation = useRef(0)
   const backHandler = useRef<() => boolean>(() => false)
+  const transferNotices = useRef(new Map<string, string>())
+  const showSyncFailure = useCallback(
+    (content: string) => {
+      void messageApi.error({ content, duration: 3.5, key: 'sync-action-failed' })
+    },
+    [messageApi],
+  )
+  const showSyncPlan = useCallback(() => {
+    setPage((current) => (current === 'sync' ? 'sync-plan' : current))
+  }, [])
+  useEffect(() => {
+    const state = syncTasks.copy?.state
+    if (!state) {
+      return
+    }
+    const feedback = transferFeedback(state)
+    const signature = feedback ? `${feedback.type}/${feedback.content}` : 'running'
+    const previous = transferNotices.current.get(state.jobId)
+    if (previous === signature) {
+      return
+    }
+    if (previous === undefined && transferNotices.current.size >= 32) {
+      const oldest = transferNotices.current.keys().next().value
+      if (oldest !== undefined) {
+        transferNotices.current.delete(oldest)
+      }
+    }
+    transferNotices.current.set(state.jobId, signature)
+    // 首次取回旧终态只展示详情；本次发起预先登记 running，快速完成也能提示一次。
+    if (previous !== undefined && feedback) {
+      void messageApi.open({ ...feedback, key: `sync-transfer-${state.jobId}`, duration: 3.5 })
+    }
+  }, [syncTasks.copy, messageApi])
   const invalidate = useCallback(() => {
     generation.current++
   }, [])
@@ -94,6 +128,20 @@ export function MobileApp({
         )
       ) {
         void messageApi.info({ content: '连接已断开', key: 'connection-disconnected' })
+      }
+      const connected = value.peers.find(
+        (peer) =>
+          peer.isConnected &&
+          snapshotRef.current &&
+          !snapshotRef.current.peers.some(
+            (previous) => previous.device.id === peer.device.id && previous.isConnected,
+          ),
+      )
+      if (connected) {
+        void messageApi.success({
+          content: `已连接到 ${connected.device.name}`,
+          key: 'connection-connected',
+        })
       }
       snapshotRef.current = value
       setSnapshot(value)
@@ -148,6 +196,7 @@ export function MobileApp({
           onError(message)
         } else {
           setError(message)
+          showSyncFailure(message)
         }
       })
       .finally(() => {
@@ -354,7 +403,7 @@ export function MobileApp({
     setPage('backup')
   }
   function goBack(): void {
-    setPage('games')
+    setPage(page === 'sync-plan' ? 'sync' : 'games')
   }
   function changeLinkPeer(id: string): void {
     setLinkPeerId(id)
@@ -484,19 +533,31 @@ export function MobileApp({
         onManageDevices={() => setPage('devices')}
       />
     )
-  } else if (page === 'sync' && game) {
+  } else if ((page === 'sync' || page === 'sync-plan') && game) {
     body = (
       <SyncCopyPage
+        adapter={adapter}
         key={game.id}
         sync={sync}
         game={game}
         peers={peers}
         localRoot={localRoot}
         peerId={peerId}
+        isPlan={page === 'sync-plan'}
         isDisabled={isDisabled || isActive}
         onPeerChange={setPeerId}
         onConfirm={confirmSync}
-        onStarted={() => {
+        onPlanReady={showSyncPlan}
+        onFailure={showSyncFailure}
+        onStarted={(jobId) => {
+          if (!transferNotices.current.has(jobId) && transferNotices.current.size >= 32) {
+            const oldest = transferNotices.current.keys().next().value
+            if (oldest !== undefined) {
+              transferNotices.current.delete(oldest)
+            }
+          }
+          transferNotices.current.set(jobId, 'running')
+          void messageApi.info({ content: '开始传输', key: `sync-transfer-${jobId}` })
           syncTasks.reload()
           setPage('task')
         }}

@@ -37,7 +37,7 @@ export function AddGameDialog({
         right: 12,
         bottom: 'calc(12px + env(safe-area-inset-bottom))',
         width: 'auto',
-        borderRadius: 16,
+        borderRadius: 12,
       }}
       destroyOnClose
     >

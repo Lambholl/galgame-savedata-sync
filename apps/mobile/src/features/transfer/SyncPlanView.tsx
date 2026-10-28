@@ -1,5 +1,3 @@
-import { useState } from 'react'
-import { Button } from 'antd-mobile'
 import type {
   SyncEntry,
   SyncIssue,
@@ -49,7 +47,7 @@ function attributes(
   )
 }
 
-/** 移动端按页展示完整固定计划；缺失、属性未知和扫描失败分别显示，目录不统计大小。 */
+/** 连续列出有变化的条目；仅隐藏 skip 展示，执行仍使用未修改的完整固定计划。 */
 export function SyncPlanView({
   plan,
   sourceLabel,
@@ -59,8 +57,7 @@ export function SyncPlanView({
   readonly sourceLabel: string
   readonly targetLabel: string
 }): React.JSX.Element {
-  const [offset, setOffset] = useState(0)
-  const [issueOffset, setIssueOffset] = useState(0)
+  const changes = plan.entries.filter((item) => item.action !== 'skip')
   const source = new Map(plan.source.entries.map((item) => [item.entryId, item]))
   const target = new Map(plan.target.entries.map((item) => [item.entryId, item]))
   const count = (action: SyncPlanEntry['action']): number =>
@@ -94,16 +91,15 @@ export function SyncPlanView({
           !plan.entries.some((item) =>
             ['create-file', 'replace-file', 'create-directory'].includes(item.action),
           ) && <p className="notice">无需复制</p>}
-        {plan.issues.slice(issueOffset, issueOffset + 20).map((issue, index) => (
+        {plan.issues.map((issue, index) => (
           <p className="sync-error" key={index}>
             {issue.path?.join(' / ') ?? '整个目录'} ·{' '}
             {{ source: '来源', target: '目标', both: '两端' }[issue.side]}：{ISSUES[issue.code]}
           </p>
         ))}
-        <PageButtons offset={issueOffset} count={plan.issues.length} onChange={setIssueOffset} />
       </Panel>
       <Panel title="逐项计划">
-        {plan.entries.slice(offset, offset + 20).map((item) => (
+        {changes.map((item) => (
           <article className="sync-entry" key={item.path.join('/')}>
             <strong>{item.path.join(' / ')}</strong>
             <span className={item.action === 'conflict' ? 'sync-error' : ''}>
@@ -129,35 +125,18 @@ export function SyncPlanView({
             </div>
           </article>
         ))}
-        {!plan.entries.length && <p>{plan.canExecute ? '两个目录均为空' : '请查看扫描问题'}</p>}
-        <PageButtons offset={offset} count={plan.entries.length} onChange={setOffset} />
+        {!changes.length && (
+          <p>
+            {!plan.canExecute
+              ? '请查看扫描问题'
+              : plan.entries.length
+                ? '两端内容相同，无需传输'
+                : '两个目录均为空'}
+          </p>
+        )}
       </Panel>
     </>
   )
-}
-
-function PageButtons({
-  offset,
-  count,
-  onChange,
-}: {
-  readonly offset: number
-  readonly count: number
-  readonly onChange: (offset: number) => void
-}): React.JSX.Element | null {
-  return count > 20 ? (
-    <div className="action-row equal">
-      <Button disabled={offset === 0} onClick={() => onChange(Math.max(0, offset - 20))}>
-        上一页
-      </Button>
-      <span>
-        {offset + 1}–{Math.min(count, offset + 20)} / {count}
-      </span>
-      <Button disabled={offset + 20 >= count} onClick={() => onChange(offset + 20)}>
-        下一页
-      </Button>
-    </div>
-  ) : null
 }
 
 /** 实际写入结果与备份、清理分开显示；未知结果引导重扫，不提供重放操作。 */
@@ -166,7 +145,6 @@ export function SyncOutcomeView({
 }: {
   readonly result: SyncApplyResult
 }): React.JSX.Element {
-  const [offset, setOffset] = useState(0)
   return (
     <Panel title="目标实际写入结果">
       {result.error && <p className="notice notice-error">{result.error.message}</p>}
@@ -175,7 +153,7 @@ export function SyncOutcomeView({
       )}
       {result.backupId && <p>已保存覆盖前备份。</p>}
       {!result.outcomes.length && <p>本次没有需要写入的条目。</p>}
-      {result.outcomes.slice(offset, offset + 20).map((item) => (
+      {result.outcomes.map((item) => (
         <article className="sync-entry" key={item.path.join('/')}>
           <strong>{item.path.join(' / ')}</strong>
           <span>
@@ -199,7 +177,6 @@ export function SyncOutcomeView({
           {item.error && <small className="sync-error">{item.error.message}</small>}
         </article>
       ))}
-      <PageButtons offset={offset} count={result.outcomes.length} onChange={setOffset} />
     </Panel>
   )
 }

@@ -19,6 +19,10 @@ related_files: []
 
 | 主题 | 结论 | 相关文件 |
 | --- | --- | --- |
+| 移动计划页与浮动操作 | 子页面覆盖底部导航。传输页右下角箭头扫描后进入独立同步计划页，返回保留双列浏览状态；计划隐藏 skip 展示，计划及结果用连续列表，执行仍提交完整原生计划。“开始”浮动按钮与扫描箭头使用独立 portal，距边缘 24px 加系统安全区，内容底部预留 104px 加安全区。开始、实际目标成功/失败及新连接使用 antd Message，按任务状态变化提示并限制记录数量 | LibraryShell、FloatingPageAction、MobileApp、SyncCopy/PlanView、transfer-feedback、mobile.css |
+| 移动页面切换动画 | LibraryShell 在 page 变化时使用 Web Animations API 对内容区做 300ms 淡入与 12px 水平位移；主导航依据左右顺序、详情返回反向。首次挂载和普通状态刷新不触发，快速切换时取消旧动画；保留原组件状态，跟随系统减少动态效果偏好 | LibraryShell.tsx、mobile.css |
+| 移动双列文件浏览 | “传输存档”恢复两端当前层预览，各列独立进入文件夹、返回上级、刷新和滚动；按新取得的父目录逐层解析子引用，失败和离线与空目录分开。文件名下用小字同排展示短日期/时间和紧凑大小，文件夹只显示时间；点击文件整行高亮，选中仅供浏览，不限定整目录传输范围 | DirectoryPane、SyncCopyPage、display.ts、mobile.css |
+| 移动端视觉尺寸 | 参照用户提供的 QQ 界面比例收紧标题、输入框、导航、弹层和间距：标题 18px、常用文字/按钮 14px、辅助文字 12px；Button 高度按用户后续要求增加四分之一，普通按钮 45px 起、整行主操作 50px 起；选项行 44px，游戏菜单主/次操作分别 56/52px；底栏项 48px，面板内边距和页面间距 12px。游戏卡片保留 152px 封面、88px 起信息区的竖版结构 | mobile.css、AddGameDialog、SyncPlanView；本次尺寸改动按用户要求保留工作区 |
 | Android 复制与本机恢复界面 | 手机按方向扫描整目录并显示固定计划，确认后调用原生双向复制；目标实际结果、取消、清理、失败后重扫与两端属性分别展示。备份默认开启，关闭确认并持久化；本机恢复预览/确认始终保护当前内容。原生 current 发现恢复任务，页面重建取回同一上下文；发送完后目标仍在运行则继续查询，实际任务清理前拒绝修改备份设置 | mobile sync-adapter、SyncCopy/Plan/Task/Backup 页面、useSyncTasks、SyncWrites/BackupsPlugin 与 SyncWriteRuntime；验证进度见工作包和回归状态 |
 | 应用标识 | 使用用户提供的透明头像 PNG，原裁切保持；Windows 侧栏 64×64、网页图标及多尺寸 ICO 同源，窗口/EXE 图标资源随打包复制并解包，禁用签名但保留图标资源编辑。Android 的 icon/roundIcon 及系统启动画面直接引用原 PNG，不额外留白或预裁圆形；安卓页面按用户要求保留文字标识 | assets/app-logo.png、desktop/resources/app-icon.ico、DesktopShell/main/打包配置；Android drawable-nodpi/app_logo.png、Manifest 和启动资源 |
 | Windows 同步与本机恢复界面 | 固定 IPC 分别查询复制摘要、计划/清单和实际结果，本机恢复由进程持有普通准备、固定预览、确认、进度及清理。确认后借用全程名额；刷新页面用原 ID 找回结果，部分成功/未知和清理错误保留。备份默认开启，关闭需确认，本机恢复仍保护当前内容；目录冲突及失败扫描分开显示，发送完成引导在手机查看实际写入 | restore-registry、sync-ipc/bridge、备份/任务页面及 platform/sync-adapter；实际文件/IPC、故障/部分/未知结果、新桥、实际 Electron 与真实 HTTP 验证通过 |
