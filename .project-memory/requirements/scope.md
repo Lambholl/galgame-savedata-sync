@@ -3,7 +3,7 @@ doc_type: scope
 status: active
 priority: high
 owner: project
-updated: 2026-10-25
+updated: 2026-10-28
 tags: [范围]
 related_files: []
 ---
@@ -25,7 +25,7 @@ related_files: []
 | 地址变更 | 重新发现或手动改 IP 后保留原目录配置 |
 | 技术栈 | React + TypeScript + Vite；Windows Electron + antd；Android Capacitor + antd-mobile |
 | 连接与发现 | 首版发现列表 + 手动 IP，mDNS/DNS-SD 自动发现和地址变化重连 |
-| 两端操作 | Android 处于前台并连接时，两端均可发起同步 |
+| 两端操作 | 两端连接时均可发起同步，Android 不以界面可见性判断操作可用性 |
 | 复制模式 | 覆盖复制和镜像同步，默认覆盖复制；镜像执行前预览删除项 |
 | 备份 | 提供开关、默认开启、保留最近 3 次，目标端独立备份区可手工恢复 |
 

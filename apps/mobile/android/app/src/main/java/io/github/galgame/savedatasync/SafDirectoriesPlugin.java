@@ -19,15 +19,15 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import org.json.JSONObject;
 
 /**
- * 仅在前台可用的元数据桥；不暴露 URI、路径、文件字节或写入方法。
- * 提供者 I/O 在 UI 线程之外串行执行；离开前台时取消活动查询。
+ * 元数据桥不判断前后台；不暴露 URI、路径、文件字节或写入方法。
+ * 提供者 I/O 在 UI 线程之外串行执行；插件销毁时释放其持有的查询。
  */
 @CapacitorPlugin(name = "SafDirectories")
 public class SafDirectoriesPlugin extends Plugin {
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
     private final Set<CancellationSignal> signals = ConcurrentHashMap.newKeySet();
     private final AtomicBoolean choosing = new AtomicBoolean();
-    private volatile boolean foreground;
+    private volatile boolean destroyed;
 
     private SafDirectoryStore store() throws SafFailure {
         return SafRuntime.store(getContext());
@@ -35,14 +35,14 @@ public class SafDirectoriesPlugin extends Plugin {
 
     private interface Work { JSObject run(CancellationSignal signal) throws Exception; }
 
-    private void submit(PluginCall call, boolean requireForeground, Work work) {
+    private void submit(PluginCall call, Work work) {
         try {
             worker.execute(() -> {
                 CancellationSignal signal = new CancellationSignal();
                 signals.add(signal);
                 try {
-                    if (requireForeground && !foreground) {
-                        throw new SafFailure("unsupported-operation", "请在应用前台读取目录");
+                    if (destroyed) {
+                        throw new SafFailure("unsupported-operation", "目录服务已关闭");
                     }
                     JSObject result = work.run(signal);
                     if (result != null) {
@@ -78,17 +78,17 @@ public class SafDirectoriesPlugin extends Plugin {
     @PluginMethod
     public void chooseDirectory(PluginCall call) {
         if (!noArguments(call)) return;
-        if (!foreground || !choosing.compareAndSet(false, true)) {
-            call.resolve(new SafFailure("unsupported-operation", "请在应用前台完成当前目录选择").result());
+        if (destroyed || !choosing.compareAndSet(false, true)) {
+            call.resolve(new SafFailure("unsupported-operation", "请先完成当前目录选择").result());
             return;
         }
         // 启动可授予权限的选择器前，先校验登记表。
-        submit(call, true, signal -> {
+        submit(call, signal -> {
             store();
             signal.throwIfCanceled();
             getActivity().runOnUiThread(() -> {
                 try {
-                    if (!foreground) throw new IllegalStateException("Activity left foreground");
+                    if (destroyed) throw new IllegalStateException("Directory plugin destroyed");
                     Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
                     intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION |
                         Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION | Intent.FLAG_GRANT_PREFIX_URI_PERMISSION);
@@ -118,8 +118,8 @@ public class SafDirectoriesPlugin extends Plugin {
             call.resolve(new SafFailure("permission-denied", "系统未返回有效的目录授权").result());
             return;
         }
-        // Activity 结果可能在 onResume 之前到达；此时允许登记授权。
-        submit(call, false, signal -> {
+        // 系统结果直接登记授权，不根据 Activity 可见状态决定是否接收。
+        submit(call, signal -> {
             JSObject result = new JSObject();
             result.put("status", "selected");
             result.put("directory", store().register(data.getData(), data.getFlags(), signal));
@@ -130,7 +130,7 @@ public class SafDirectoriesPlugin extends Plugin {
     /** 返回共享 RootsResponse，其中包含已过期的保存引用。 */
     @PluginMethod
     public void listRoots(PluginCall call) {
-        if (noArguments(call)) submit(call, true, signal -> success(store().listRoots(signal)));
+        if (noArguments(call)) submit(call, signal -> success(store().listRoots(signal)));
     }
 
     /** 仅接受 rootId 和可为 null 的 parentId；未知 ID 不会转换为任意提供者 URI。 */
@@ -144,19 +144,12 @@ public class SafDirectoriesPlugin extends Plugin {
             call.resolve(new SafFailure("invalid-request", "目录读取参数无效").result());
             return;
         }
-        submit(call, true, signal -> success(store().listDirectory(
+        submit(call, signal -> success(store().listDirectory(
             (String) root, parent == JSONObject.NULL ? null : (String) parent, signal)));
     }
 
-    @Override protected void handleOnResume() { foreground = true; }
-
-    @Override protected void handleOnPause() {
-        foreground = false;
-        for (CancellationSignal signal : signals) signal.cancel();
-    }
-
     @Override protected void handleOnDestroy() {
-        foreground = false;
+        destroyed = true;
         for (CancellationSignal signal : signals) signal.cancel();
         worker.shutdownNow();
     }

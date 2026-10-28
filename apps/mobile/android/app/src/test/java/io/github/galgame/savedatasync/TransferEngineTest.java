@@ -144,7 +144,7 @@ public class TransferEngineTest {
             @Override public String deviceId() { return "mobile-device"; }
             @Override public List<ArchiveModel.Source> sources(String root, List<Object> files) { return TransferEngineTest.this.sources(root); }
         }, null, 10000, retention, 1);
-        engines.add(engine); engine.foreground(true); engine.connect(peer, new ArchiveControl()); engine.roots(new ArchiveControl()); engine.directory("windows-root", null, new ArchiveControl()); return engine;
+        engines.add(engine); engine.connect(peer, new ArchiveControl()); engine.roots(new ArchiveControl()); engine.directory("windows-root", null, new ArchiveControl()); return engine;
     }
     private Map<String, Object> options(boolean upload, String id) {
         List<Object> files = new ArrayList<>(), targets = new ArrayList<>();
@@ -174,15 +174,14 @@ public class TransferEngineTest {
         assertEquals("sent", engine.query("transfer-1").get("status")); assertEquals("succeeded", engine.remoteState("transfer-1", false, new ArchiveControl()).get("status"));
         assertEquals(1, peer.posts); assertEquals(1, peer.puts);
     }
-    @Test public void pauseKeepsActiveTransferAndOnlyExplicitNotificationActionCancels() throws Exception {
+    @Test public void activeTransferOnlyExplicitNotificationActionCancels() throws Exception {
         Peer peer = new Peer(); peer.block = true; TransferEngine engine = engine(peer, true, 600000); engine.start(options(false, "transfer-1"), false);
-        assertTrue(peer.reading.await(5, TimeUnit.SECONDS)); engine.foreground(false);
-        assertEquals("unsupported-operation", assertThrows(ArchiveFailure.class, () -> engine.query("transfer-1")).code);
+        assertTrue(peer.reading.await(5, TimeUnit.SECONDS));
         Thread.sleep(100); assertEquals(1, peer.closed.getCount()); assertEquals(0, peer.deletes);
         assertTrue(engine.hasWork()); assertEquals("transfer-1", engine.activeId());
         engine.cancelActive("stale-notification-id", false); assertEquals(1, peer.closed.getCount());
         engine.cancelActive("transfer-1", false);
-        idle(engine); engine.foreground(true); assertEquals("cancelled", engine.query("transfer-1").get("status"));
+        idle(engine); assertEquals("cancelled", engine.query("transfer-1").get("status"));
         assertEquals(1, peer.deletes); assertEquals(1, peer.gets); assertEquals(0, targets.get(0).creates);
     }
 
@@ -194,7 +193,7 @@ public class TransferEngineTest {
     }
 
 
-    @Test public void foregroundViewCanReattachExistingContextWithoutStartingAnotherTask() throws Exception {
+    @Test public void viewCanReattachExistingContextWithoutStartingAnotherTask() throws Exception {
         Peer peer = new Peer(); TransferEngine engine = engine(peer, true, 600000);
         assertNull(engine.current()); engine.start(options(false, "transfer-1"), false); idle(engine);
         Map<String, Object> current = map(engine.current()); assertEquals(Boolean.FALSE, current.get("upload"));

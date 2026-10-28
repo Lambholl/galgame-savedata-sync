@@ -110,7 +110,7 @@ const BRIDGE: OperationError = {
 }
 const UNSUPPORTED: OperationError = {
   code: 'unsupported-operation',
-  message: '请在 Android 应用前台操作传输。',
+  message: '请在 Android 应用中操作传输。',
   canRetry: false,
 }
 function failure(error: OperationError): {

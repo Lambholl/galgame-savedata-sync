@@ -25,7 +25,7 @@ related_files: []
 | `apps/desktop/src/bridge/service-bridge.ts`、`src/main/service-ipc.ts`、`src/renderer/src/features/transfer` | 本机服务启停/接收根授权/任务桥与目录、结果界面 | 系统选择及本机确认后授权，校验来源与 DTO；不传私有路径/字节；会话任务到期语义不变 |
 | `apps/desktop/test/`、`apps/desktop/README.md` | Windows 目录、归档、HTTP 与发布的最小长期回归及接口说明 | pnpm check 不含 pnpm test:desktop；真实目录仅只读验证，机器路径不提交 |
 | `apps/mobile/src/app`、`features`、`components`、`styles` | 独立移动入口、导航、游戏卡片、底部弹层和 antd-mobile 页面 | 优先移动组件；使用桌面组件也保留触控区域，操作卡片至少 64px；系统返回由移动端协调 |
-| `apps/mobile/src/features/transfer`、`src/platform` | 双端目录、手动连接、文件/方向/目标映射和原生任务显示 | 仅当前层浏览；两列独立滚动、整行选择和分钟时间；后台停止网页轮询，重载查询同一原生任务；源文件内容不经过网页 |
+| `apps/mobile/src/features/transfer`、`src/platform` | 双端目录、手动连接、文件/方向/目标映射和原生任务显示 | 仅当前层浏览；两列独立滚动、整行选择和分钟时间；业务不判断前后台，重载查询同一原生传输任务；源文件内容不经过网页 |
 | `apps/desktop/src/renderer/src/app`、`features`、`components`、`styles`、`platform` | 独立桌面导航、居中弹窗、antd 页面及有限桥接入 | 两端源码互不导入；桌面接收与服务能力保持，传输仍由手机发起 |
 | `apps/mobile/android/` | Capacitor 生成的原生工程与项目 Wrapper | minSdk 29、compile/target 36；Manifest 明文 HTTP；包含用户发起传输使用的 dataSync 前台服务 |
 | `apps/mobile/android/app/src/main/java/io/github/galgame/savedatasync/` | Java SAF 只读选择、权限/配置恢复、当前层元数据和原生流 | URI 留原生层，READ 持久授权，原生流调用者负责关闭；配置不保存条目或哈希 |
@@ -34,6 +34,7 @@ related_files: []
 | 同 Java 目录 `NewFilePublisher.java`、`PublicationModel.java`、`PublicationJson.java`、`SafPublicationBackend.java` | 原生显式写授权/只读预检、创建前后核实、非截断写入/回读、单文件结果及清理重试 | 只操作同根已有父目录中的确知新建条目；常规描述符身份保护已有文件；原文/URI 不跨桥，清理失败保持进程名额；接口见移动 README |
 | `NewFilePublisherTest.java`、实际 SAF 发布验收记录 | 发布故障回归与原生日志/结果核对 | 独立命名夹具、控制文件前后保护、归档读流/冲突/取消/清理重试；设备授权只用于合成目标 |
 | 同 Java 目录 `TransferJson/Schema/Http/Engine.java`、`HttpTransfersPlugin.java`、`TransferRuntime/Service.java`、`SafRuntime.java` | 严格 HTTP/JSON、双向原生编排及应用级任务、持续通知和 Activity 重连 | 文件不跨 JS；用户发起后后台继续，完整校验后逐项发布；服务不导出、不自动重启旧任务；只读桥和传输共享当前 SAF 引用 |
+| 同 Java 目录 `SyncScanner.java`、`SafSyncSource.java`、`SyncScansPlugin.java`；`apps/mobile/src/platform/sync-scan-bridge.ts`、`sync-scans.ts` | 本次 SAF 递归扫描、原生哈希、取消和有限扫描桥 | 普通只读操作，不加保活或前后台处理；结果只存内存并校验 rootId/scanId，内容和 URI 不跨桥 |
 | `apps/mobile/src/platform/http-transfer-bridge.ts`、`http-transfers.ts` | 有限 TS 任务桥与 native 当前上下文/角色/结果校验、顺序事件订阅 | 浏览器不支持；通知/目标授权为显式动作，任务/清单仅存本进程；订阅 remove 不取消传输 |
 | `scripts/verify-archive-interop.mjs` | 构建前 Windows 准备、构建后 Windows 接收 Java 输出，另支持设备产物及 SAF 原文验证 | prepare/verify 纳入 android:test；只操作固定报告目录中的合成数据，测试 APK 不包含主机路径配置 |
 | `apps/mobile/src/platform/saf-directory-bridge.ts`、`saf-directories.ts`、`test/`、`README.md` | 受限 TS 桥、原生绑定、数据模型检查与调用说明 | 网页预览不支持；只传公开 DTO/ID，无内容/写入方法；pnpm check 不含 pnpm test:mobile |

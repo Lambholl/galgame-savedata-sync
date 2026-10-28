@@ -3,7 +3,7 @@ doc_type: api-contracts
 status: active
 priority: medium
 owner: architecture
-updated: 2026-10-27
+updated: 2026-10-28
 tags: [API, 接口约定]
 related_files: []
 ---
@@ -83,11 +83,12 @@ transferId 只属于当前会话，不是历史同步基线。服务以每次启
 | Windows 原生新文件发布 | WindowsNewFilePublisher 的 grant/revoke、checkTarget、publish、retryCleanup/stop；单文件结果与清理分开；只在本机显式授权的专用测试根写入 | HTTP 和 UI 由 receiver 编排；读取登记不会授予写权限，授权/候选所有权只在当前进程内有效；同目录 wx 候选经哈希/sync 后排他 link，最终回读才成功；无法硬链接的卷会失败，未核实发布返回 unknown；输入关闭后返回，没有覆盖、删除或自动恢复 |
 | Windows 私有归档 | createWindowsArchiveAdapter、prepare/receive、不可变清单、openArchive/openFile/dispose/retryCleanup；onArchiveStored 只确认压缩体检查点；source 仍只读；目录流提供 verifyUnchanged 与缓存隔离检查 | 不返回可供 Renderer 使用的路径/句柄；完整 gzip/原文校验后返回私有缓存；HTTP 和目标发布交给上层；调用者关闭流并 dispose，异常用 operationError，清理失败另报 cleanupError |
 | Capacitor Java SAF 插件（API 33/35 读取验证通过） | chooseDirectory/listRoots/listDirectory；READ 持久授权、当前层元数据和本地 ID | URI/documentId 留在原生层，不接收任意路径；写入能力均不支持；原生只读流由同包调用者消费并关闭，不将内容或 Base64 交给 JS |
+| Android 当前扫描 | SyncScansPlugin 的 capabilities/start/query/cancel；start 接收 schemaVersion=1/rootId，query/cancel 接收 scanId，返回 OperationResult 包络及共享 SyncScanState | 本次递归 SAF 读取及原生 SHA-256；未知长度按流实测，源变化/权限/预算/取消分别报告；结果限时存内存，不加保活或前后台处理；调用见移动 README |
 | Java 私有归档 | ArchiveAdapter.prepare/receive、不可变 ArchiveModel、Artifact.openArchive/openFile/close；SafArchiveSource 从本次 SAF 引用原生读取并前后复核；控制器取消关闭读流/查询，资源、期限与清理错误分别检查 | 固定 v1 原生模型，完整校验后才返回句柄；私有真实缓存路径/所有权与进程独占，清理失败保留名额可重试；无 URI/内容跨桥；JSON 解码/网络、目标发布与前台调度分别留对应包；用法见移动说明 |
 | Java SAF 新文件发布 | NewFilePublisher 的 grant/revoke、preflight/publish、cancel/retryCleanup/stop；SafPublicationBackend 仅定位已有根/父目录，PublicationJson 对齐单文件结果和独立清理 | 系统 WRITE 与本次显式授权分开；创建前后核实 ID/父/名，常规 FD 身份及非截断 rw，关闭后 EOF/SHA-256/元数据回读；仅清理身份匹配的新条目，未知不重放，清理失败保留进程名额；无内容/URI 跨桥，原生流可来自已验证归档 |
 | Android 原生 HTTP/任务 | HttpTransfersPlugin、TransferJson/Schema/Http/Engine、TS 桥；connect、远端当前层、双向 start、query/queryRemote/getManifest/current、cancel/retryCleanup/订阅 | 严格 JSON/头/预算、会话及本次上下文；连接和默认网络无进展等待 5 秒，初次握手总期限 5 秒；单次 ID/内容，回执丢失只查询；完整验证后逐项 SAF 发布；sender sent 与 receiver 成功分开，URI/字节不跨桥；用法见移动 README |
 | 清单前终态 | Android 下载在清单生成前取消/失败，生成逐文件 not-attempted 的接收终态 | TS 桥仅在本地下载终态、缺少清单、文件 ID/顺序/数量和原因均匹配时接纳；任何已写入结果继续要求完整清单/目标校验 |
-| 生命周期 | 可见界面发起任务，TransferRuntime 应用级持有；dataSync 前台服务与持续通知保持已有传输，Activity 暂停/销毁不会取消 | 通知权限经用户允许；完成/显式取消和清理后退出；没有自动调度或旧任务重放，current 只重新取得原任务上下文 |
+| 生命周期 | 业务不判断前后台；普通目录、扫描、连接和查询不处理切后台后的成败。仅传输由 TransferRuntime 应用级持有，使用 dataSync 前台服务与持续通知，Activity 销毁后原传输继续 | 通知权限经用户允许；完成/显式取消和清理后退出；没有自动调度或旧任务重放，current 只重新取得原传输上下文 |
 
 错误覆盖非法输入、版本不符、权限失效、不存在、不可读、不支持、名称冲突、路径越界、源变化、校验失败、网络失败、存储不足、IO/清理失败和结果待确认。未知属性是成功读取中的 null；选择取消和任务取消是独立结果，与读取错误分开。
 
@@ -121,7 +122,7 @@ Windows 目录与 IPC 回归包含真实 8.3 短路径环境；授权真实目�
 
 `apps/shared/src/library/library.ts` 定义本机 `LibraryConfig`、公开 `CatalogGame`、游戏关联及目录查询/应答。一个游戏在每台设备对应一个目录，关联多个稳定设备 ID；首期同时连接一个对端，开始后的传输固定原连接。配置不保存文件清单、哈希或平台路径。
 
-Windows 的 `DesktopLibrary` 在应用私有目录原子保存游戏/设备配置，通过有限 `desktopLibrary` IPC 提供读取、保存游戏、设备管理和手机当前层查询。新建 `POST /v1/catalog` 使用既有会话头、严格 JSON 边界与独立 DTO 校验；手机提交自己的游戏目录表和明确的游戏关联，取回电脑目录表及至多一个当前层查询。目录应答要求请求 ID、根 ID 和父 ID 全部匹配；父目录必须来自已读条目。查询 8 秒超时，15 秒无前台元数据更新标为离线。手机原生 `exchangeCatalog` 绑定已连接电脑，原生填写本机设备 ID，不接受任意 URL。
+Windows 的 `DesktopLibrary` 在应用私有目录原子保存游戏/设备配置，通过有限 `desktopLibrary` IPC 提供读取、保存游戏、设备管理和手机当前层查询。新建 `POST /v1/catalog` 使用既有会话头、严格 JSON 边界与独立 DTO 校验；手机提交自己的游戏目录表和明确的游戏关联，取回电脑目录表及至多一个当前层查询。目录应答要求请求 ID、根 ID 和父 ID 全部匹配；父目录必须来自已读条目。查询 8 秒超时，15 秒无元数据更新标为离线。手机原生 `exchangeCatalog` 绑定已连接电脑，原生填写本机设备 ID，不接受任意 URL。
 
 Android 桥提供 `connections`、`selectDevice`、`disconnectDevice`、`exchangeCatalog`；原生和界面均限制单连接。Activity 重建查询原生连接和当前任务，文件通道、持续通知和任务结果语义沿用 WP-006。对端主动关联只合并公开元数据，目录写权限来自本机系统选择器；本机解除关联后记录排除项，避免下一次元数据交换自动加回。
 

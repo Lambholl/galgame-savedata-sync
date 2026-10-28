@@ -100,7 +100,7 @@ export function MobileApp({
       if (!isCurrent) {
         return
       }
-      if (!operating.current && document.visibilityState !== 'hidden') {
+      if (!operating.current) {
         try {
           await refresh()
         } catch (cause) {

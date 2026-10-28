@@ -20,7 +20,7 @@ export interface SafNativePlugin {
   listDirectory(options: { rootId: string; parentId: string | null }): Promise<unknown>
 }
 
-/** 前台元数据 API；Promise 返回已脱敏的结果，包括桥不可用的情况。 */
+/** 目录元数据 API；Promise 返回已脱敏的结果，包括桥不可用的情况。 */
 export interface AndroidDirectoryApi {
   chooseDirectory(): Promise<DirectorySelectionResult>
   listRoots(): Promise<OperationResult<readonly DirectoryReference[]>>

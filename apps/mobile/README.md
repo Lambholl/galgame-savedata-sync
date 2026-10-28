@@ -26,7 +26,7 @@
 
 当前支持源文件选择、目标名称、开始确认、真实进度、取消和逐文件结果。覆盖、镜像删除和备份恢复的文件操作按后续里程碑开放。
 
-地址单独保存在本地网页存储，目录引用及系统授权由原生层保存。切后台暂停界面轮询，传输继续由原生通知持有；回前台恢复查询，页面重载通过 `current()` 取得同一任务。任务结果与正在浏览的目录分开展示；重启应用沿用已保存的目录和系统权限。刷新根目录后按用户已展开路径重读祖先，恢复有效条目引用，不扫描其他分支或汇总文件夹大小。
+地址单独保存在本地网页存储，目录引用及系统授权由原生层保存。传输由原生通知保持运行，页面重载通过 `current()` 取得同一传输任务。任务结果与正在浏览的目录分开展示；重启应用沿用已保存的目录和系统权限。刷新根目录后按用户已展开路径重读祖先，恢复有效条目引用，不扫描其他分支或汇总文件夹大小。
 
 `src/platform/saf-directories.ts` 导出 `androidDirectories`，只提供三个异步方法：
 
@@ -61,7 +61,7 @@ Android 使用日夜主题及 `values`/`values-night` 的窗口/启动背景，W
 
 `android/app/src/main/java/io/github/galgame/savedatasync/` 中：
 
-- `SafDirectoriesPlugin` 注册系统目录选择器，后台线程串行访问提供者；暂停时取消查询，销毁时关闭执行器。选择器需要系统确认，只请求并持久化 READ；不使用 root。
+- `SafDirectoriesPlugin` 注册系统目录选择器，后台线程串行访问提供者；不检查 Activity 可见性，不在暂停时取消查询，销毁时释放桥执行器。选择器需要系统确认，只请求并持久化 READ；不使用 root。
 - `SafDirectoryStore` 独立持久化 schema 1、安装内 deviceId、根 rootId/URI/显示名。配置损坏或版本未知时失败，不重建覆盖。文件清单、文件哈希和 entryId 不持久化。
 - 当前层查询不扫描后代；目录 sizeBytes=null，未知文件大小=null，空文件=0。SAF 日期 0 表示未知，映射 null；超出 JS 安全范围的数字拒绝。写入、新建、重命名、删除能力均为 unsupported；未知提供者能力保持 unknown。
 - `openFile(rootId, entryId, signal)` 仅供同包原生代码使用：重查授权、文件类型和已观察到的名称/大小/日期，以 `r` 打开 `InputStream`。调用者拥有并必须关闭流；取消在读取时检查，未来传输生命周期所有者还必须关闭阻塞流。异常为 `SafFailure`，原始 cause 仅留原生层，JS 仅见脱敏码/消息。
@@ -129,12 +129,12 @@ SAF 没有通用排他创建或比较后删除原语；这些复核能发现可�
 
 | 方法 | 行为与边界 |
 | --- | --- |
-| requestNotifications / chooseTarget | 可见界面主动申请通知权限，并通过真实 SAF 选择器取得本次目标 WRITE；目标选择取消保留原有根，不接受 URI 或任意路径参数 |
+| requestNotifications / chooseTarget | 主动申请通知权限，并通过真实 SAF 选择器取得本次目标 WRITE；目标选择取消保留原有根，不接受 URI 或任意路径参数；应用不设置前后台门禁，系统实际错误按调用结果返回 |
 | connect / disconnect | 明确连接手动数字 IP 的 HTTP 地址，核实 v1、Windows 设备/会话/固定预算；不自动重放旧任务；活动传输或清理期间拒绝切换连接 |
 | listRemoteRoots / listRemoteDirectory | 校验设备身份、根/父层及唯一条目，仅读取当前层；源必须是本次已列出的文件 |
 | startDownload / startUpload | 参数为 request（连续 fileId 与源引用）、targetRootId、targets（已有父目录和单文件名）；原子占用本地单次 ID 与进程名额后返回 transferId，I/O 异步执行 |
 | query / queryRemote / getManifest | 分开本机与对端角色，清单和状态核对本次任务/源/目标/哈希；下行清单尚在远端准备时 query 可返回 task-conflict，可用 queryRemote 查看 sender；不重发 POST/PUT |
-| current / subscribe | Activity 重建后 current 取得同一任务的选项/角色/设备上下文，再查询实际状态；不会新建或重放任务。订阅仅通知当前可见界面，顺序处理；订阅者负责 remove，异常不改变任务结果 |
+| current / subscribe | Activity 重建后 current 取得同一任务的选项/角色/设备上下文，再查询实际状态；不会新建或重放任务。订阅顺序处理，不以可见性过滤通知；订阅者负责 remove，异常不改变任务结果 |
 | cancel / retryCleanup | 用户显式取消关闭本地流并尽力请求远端 DELETE；清理只重试资源释放，不重放传输。清理失败保持互斥名额及通知，可从通知重试 |
 
 `TransferJson` 严格拒绝重复键、坏 UTF-8、未配对代理项、附加内容、超限深度/节点及非安全整数。JSON 单项 8 MiB，原文不经内存整批收集。`TransferSchema` 独立核实封闭字段、清单/目标/角色/实际结果、完整顺序和单调进度；跨桥还有共享守卫及上下文匹配。
@@ -148,6 +148,10 @@ SAF 没有通用排他创建或比较后删除原语；这些复核能发现可�
 声明 FOREGROUND_SERVICE、FOREGROUND_SERVICE_DATA_SYNC、POST_NOTIFICATIONS；服务不导出、START_NOT_STICKY，没有开机接收器、定时同步或旧任务恢复。系统结束服务或进程后，任务不会记成成功，也不会自动重放。已有终态/清单保留 10 分钟，本地最多保留 32 份结果，进程最多 4096 个已用 ID；到期仍保留 ID 防重记录。实际支持的目录和系统/提供者能力以调用结果为准。
 
 Android 行为依据见 [dataSync 前台服务](https://developer.android.com/develop/background-work/services/fgs/service-types)、[通知权限](https://developer.android.com/develop/ui/compose/notifications/notification-permission)及 [HttpURLConnection](https://developer.android.com/reference/java/net/HttpURLConnection)。
+
+`SyncScanner` 提供当前 SAF 递归扫描、原生 SHA-256、空目录及失败部分结果，复用 `SafArchiveSource` 的权限/身份/属性前后复核。扫描按普通本地操作执行，不加保活或前后台处理。`SyncScansPlugin` 只提供 capabilities/start/query/cancel，参数为 schemaVersion/rootId 或 scanId；没有 URI、平台路径、文件内容及可调预算。结果与 Windows 使用同一 SyncScanState，期限、条目/深度/JSON 限制和 32 份结果保留沿用 [M-002 文档](../../docs/plans/m002-sync-copy.md) 第 3 节。
+
+`src/platform/sync-scan-bridge.ts` 核对有限参数、完整结果及 rootId/scanId 上下文；`androidSyncScans` 为平台接入。所有调用返回 OperationResult；query 的成功包络只代表查到任务，扫描是否成功取决于内部 status。显式取消会关闭原生读流和 SAF 查询；未知长度按流实测，源变化和授权失效返回具体错误。当前只开放扫描能力，备份/覆盖/恢复仍按后续包推进。
 
 ## 验证
 

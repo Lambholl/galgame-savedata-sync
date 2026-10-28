@@ -51,7 +51,7 @@ final class TransferEngine {
     }
     private final Map<String, Connection> connections = new LinkedHashMap<>();
     private Job active;
-    private boolean foreground, closed, connecting;
+    private boolean closed, connecting;
     private static final class Job {
         final String id, direction, root;
         final Map<String, Object> selection;
@@ -104,10 +104,7 @@ final class TransferEngine {
         }
         if (job != null && job.timedOut) job.control.cancel();
     }
-    void foreground(boolean value) {
-        synchronized (this) { foreground = value; }
-    }
-    private synchronized void available() throws ArchiveFailure { if (closed || !foreground) throw fail("unsupported-operation"); }
+    private synchronized void available() throws ArchiveFailure { if (closed) throw fail("unsupported-operation"); }
     Map<String, Object> connect(TransferHttp client, ArchiveControl control) throws Exception {
         synchronized (this) { available(); if (active != null || connecting || !connections.isEmpty()) throw fail("busy"); connecting = true; http = null; }
         try {
@@ -499,7 +496,7 @@ final class TransferEngine {
     }
     /** 销毁只请求取消；工作线程在平台调用返回并清理后关闭，不在 UI 线程等待。 */
     void close() {
-        synchronized (this) { if (closed) return; closed = true; foreground = false; if (active != null) active.control.cancel(); }
+        synchronized (this) { if (closed) return; closed = true; if (active != null) active.control.cancel(); }
         worker.execute(() -> { retryCleanup(); publisher.stop(); watch.shutdown(); }); worker.shutdown();
     }
 }

@@ -20,7 +20,6 @@ final class TransferRuntime {
     private final Context context;
     private final ExecutorService controls = Executors.newSingleThreadExecutor();
     private final List<WeakReference<TransferEngine.Listener>> listeners = new CopyOnWriteArrayList<>();
-    private final java.util.Set<Object> visible = new java.util.HashSet<>();
     private volatile boolean starting;
     private volatile String pendingId;
     private volatile boolean pendingUpload;
@@ -48,10 +47,6 @@ final class TransferRuntime {
     }
     void attach(TransferEngine.Listener listener) { listeners.add(new WeakReference<>(listener)); }
     void detach(TransferEngine.Listener listener) { listeners.removeIf(reference -> reference.get() == null || reference.get() == listener); }
-    synchronized void visibility(Object owner, boolean value) {
-        if (value) visible.add(owner); else visible.remove(owner);
-        engine.foreground(!visible.isEmpty());
-    }
     Object start(Object options, boolean upload) throws Exception {
         Map<String, Object> value = shape(copy(options), "request", "targetRootId", "targets");
         Map<String, Object> request = selection(value.get("request")); id(value.get("targetRootId")); targets(value.get("targets"), list(request.get("files")).size());

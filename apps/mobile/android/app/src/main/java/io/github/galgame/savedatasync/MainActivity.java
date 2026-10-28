@@ -9,6 +9,7 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(SafDirectoriesPlugin.class);
         registerPlugin(HttpTransfersPlugin.class);
+        registerPlugin(SyncScansPlugin.class);
         super.onCreate(savedInstanceState);
     }
 

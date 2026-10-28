@@ -34,17 +34,16 @@ public class HttpTransfersPlugin extends Plugin {
     private final ExecutorService io = Executors.newFixedThreadPool(2);
     private final Set<ArchiveControl> queries = ConcurrentHashMap.newKeySet();
     private final AtomicBoolean choosing = new AtomicBoolean();
-    private volatile boolean foreground, destroyed;
-    private final Object visibilityOwner = new Object();
+    private volatile boolean destroyed;
     private TransferRuntime runtime;
     private final TransferEngine.Listener listener = value -> {
-        if (!destroyed && foreground) try { notifyListeners("transferState", json(value)); }
+        if (!destroyed) try { notifyListeners("transferState", json(value)); }
         catch (Exception cause) { throw new IllegalStateException("无法通知任务状态，可查询实际结果", cause); }
     };
     private synchronized TransferEngine engine() throws Exception {
         if (destroyed) throw fail("unsupported-operation");
         if (runtime == null) {
-            runtime = TransferRuntime.get(getContext()); runtime.attach(listener); runtime.visibility(visibilityOwner, foreground);
+            runtime = TransferRuntime.get(getContext()); runtime.attach(listener);
         }
         return runtime.engine;
     }
@@ -76,14 +75,14 @@ public class HttpTransfersPlugin extends Plugin {
         else result.put("message", failure.code.equals("timeout") ? failure.code + " / " + detail : detail);
         return result;
     }
-    private void submit(PluginCall call, boolean requireForeground, Work work) {
+    private void submit(PluginCall call, Work work) {
         try {
             io.execute(() -> {
                 ArchiveControl control = call.getMethodName().equals("connect")
                     ? new ArchiveControl(System::nanoTime, TimeUnit.SECONDS.toNanos(5)) : new ArchiveControl();
                 queries.add(control);
                 try {
-                    if (destroyed || (requireForeground && !foreground)) throw fail("unsupported-operation");
+                    if (destroyed) throw fail("unsupported-operation");
                     Object value = work.run(control);
                     if (!call.getMethodName().startsWith("start")) control.check();
                     call.resolve(json(object("status", "success", "value", value)));
@@ -101,32 +100,32 @@ public class HttpTransfersPlugin extends Plugin {
     private Map<String, Object> arguments(PluginCall call, String... fields) throws Exception {
         return shape(parse(call.getData().toString().getBytes(StandardCharsets.UTF_8)), fields);
     }
-    @PluginMethod public void connect(PluginCall call) { submit(call, true, c -> { Map<String, Object> a = arguments(call, "address"); return engine().connect(new TransferHttp.Client(string(a.get("address"))), c); }); }
-    @PluginMethod public void disconnect(PluginCall call) { submit(call, true, c -> { arguments(call); engine().disconnect(); return null; }); }
-    @PluginMethod public void connections(PluginCall call) { submit(call, true, c -> { arguments(call); return engine().connections(); }); }
-    @PluginMethod public void selectDevice(PluginCall call) { submit(call, true, c -> engine().selectDevice(id(arguments(call, "deviceId").get("deviceId")))); }
-    @PluginMethod public void disconnectDevice(PluginCall call) { submit(call, true, c -> { engine().disconnectDevice(id(arguments(call, "deviceId").get("deviceId")), c); return null; }); }
-    @PluginMethod public void exchangeCatalog(PluginCall call) { submit(call, true, c -> {
+    @PluginMethod public void connect(PluginCall call) { submit(call, c -> { Map<String, Object> a = arguments(call, "address"); return engine().connect(new TransferHttp.Client(string(a.get("address"))), c); }); }
+    @PluginMethod public void disconnect(PluginCall call) { submit(call, c -> { arguments(call); engine().disconnect(); return null; }); }
+    @PluginMethod public void connections(PluginCall call) { submit(call, c -> { arguments(call); return engine().connections(); }); }
+    @PluginMethod public void selectDevice(PluginCall call) { submit(call, c -> engine().selectDevice(id(arguments(call, "deviceId").get("deviceId")))); }
+    @PluginMethod public void disconnectDevice(PluginCall call) { submit(call, c -> { engine().disconnectDevice(id(arguments(call, "deviceId").get("deviceId")), c); return null; }); }
+    @PluginMethod public void exchangeCatalog(PluginCall call) { submit(call, c -> {
         Map<String, Object> a = arguments(call, "deviceId", "catalog");
         return engine().exchangeCatalog(id(a.get("deviceId")), a.get("catalog"), android.os.Build.MODEL, c);
     }); }
-    @PluginMethod public void listRemoteRoots(PluginCall call) { submit(call, true, c -> { arguments(call); return engine().roots(c); }); }
-    @PluginMethod public void listRemoteDirectory(PluginCall call) { submit(call, true, c -> { Map<String, Object> a = arguments(call, "rootId", "parentId"); return engine().directory(id(a.get("rootId")), parent(a.get("parentId")), c); }); }
-    @PluginMethod public void startDownload(PluginCall call) { submit(call, true, c -> { engine(); return runtime.start(arguments(call, "request", "targetRootId", "targets"), false); }); }
-    @PluginMethod public void startUpload(PluginCall call) { submit(call, true, c -> { engine(); return runtime.start(arguments(call, "request", "targetRootId", "targets"), true); }); }
-    @PluginMethod public void current(PluginCall call) { submit(call, true, c -> { arguments(call); return engine().current(); }); }
-    @PluginMethod public void query(PluginCall call) { submit(call, true, c -> engine().query(id(arguments(call, "transferId").get("transferId")))); }
-    @PluginMethod public void getManifest(PluginCall call) { submit(call, true, c -> engine().manifest(id(arguments(call, "transferId").get("transferId")))); }
-    @PluginMethod public void queryRemote(PluginCall call) { submit(call, true, c -> {
+    @PluginMethod public void listRemoteRoots(PluginCall call) { submit(call, c -> { arguments(call); return engine().roots(c); }); }
+    @PluginMethod public void listRemoteDirectory(PluginCall call) { submit(call, c -> { Map<String, Object> a = arguments(call, "rootId", "parentId"); return engine().directory(id(a.get("rootId")), parent(a.get("parentId")), c); }); }
+    @PluginMethod public void startDownload(PluginCall call) { submit(call, c -> { engine(); return runtime.start(arguments(call, "request", "targetRootId", "targets"), false); }); }
+    @PluginMethod public void startUpload(PluginCall call) { submit(call, c -> { engine(); return runtime.start(arguments(call, "request", "targetRootId", "targets"), true); }); }
+    @PluginMethod public void current(PluginCall call) { submit(call, c -> { arguments(call); return engine().current(); }); }
+    @PluginMethod public void query(PluginCall call) { submit(call, c -> engine().query(id(arguments(call, "transferId").get("transferId")))); }
+    @PluginMethod public void getManifest(PluginCall call) { submit(call, c -> engine().manifest(id(arguments(call, "transferId").get("transferId")))); }
+    @PluginMethod public void queryRemote(PluginCall call) { submit(call, c -> {
         Map<String, Object> a = arguments(call, "transferId", "refresh"); require(a.get("refresh") instanceof Boolean);
         return engine().remoteState(id(a.get("transferId")), (Boolean) a.get("refresh"), c);
     }); }
-    @PluginMethod public void cancel(PluginCall call) { submit(call, true, c -> { engine().cancel(id(arguments(call, "transferId").get("transferId"))); return null; }); }
-    @PluginMethod public void retryCleanup(PluginCall call) { submit(call, true, c -> { arguments(call); return engine().retryCleanup(); }); }
-    /** 仅由可见界面主动请求通知权限；未允许持续通知时不开始传输。 */
+    @PluginMethod public void cancel(PluginCall call) { submit(call, c -> { engine().cancel(id(arguments(call, "transferId").get("transferId"))); return null; }); }
+    @PluginMethod public void retryCleanup(PluginCall call) { submit(call, c -> { arguments(call); return engine().retryCleanup(); }); }
+    /** 主动请求通知权限；未允许持续通知时不开始传输。 */
     @PluginMethod public void requestNotifications(PluginCall call) {
         try {
-            arguments(call); if (!foreground || destroyed) throw fail("unsupported-operation");
+            arguments(call); if (destroyed) throw fail("unsupported-operation");
             TransferService.prepareChannel(getContext());
             if (android.os.Build.VERSION.SDK_INT >= 33 && getPermissionState("notifications") != PermissionState.GRANTED) {
                 requestPermissionForAlias("notifications", call, "onNotificationPermission"); return;
@@ -142,14 +141,14 @@ public class HttpTransfersPlugin extends Plugin {
 
     /** 选择存档目录时保存系统读写权限；以后接收会重新核实已有持久权限。 */
     @PluginMethod public void chooseTarget(PluginCall call) {
-        try { arguments(call); if (!foreground || !choosing.compareAndSet(false, true)) throw fail("unsupported-operation"); }
-        catch (Exception cause) { call.resolve(new SafFailure("invalid-request", "请在前台完成目录选择").result()); return; }
+        try { arguments(call); if (destroyed || !choosing.compareAndSet(false, true)) throw fail("unsupported-operation"); }
+        catch (Exception cause) { call.resolve(new SafFailure("invalid-request", "请先完成当前目录选择").result()); return; }
         io.execute(() -> {
             try {
                 engine();
                 getActivity().runOnUiThread(() -> {
                     try {
-                        if (!foreground || destroyed) throw fail("unsupported-operation");
+                        if (destroyed) throw fail("unsupported-operation");
                         Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
                         intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION |
                             Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION | Intent.FLAG_GRANT_PREFIX_URI_PERMISSION);
@@ -182,14 +181,8 @@ public class HttpTransfersPlugin extends Plugin {
             });
         } catch (Exception cause) { call.resolve(new SafFailure("permission-denied", "系统未返回有效写入授权", cause).result()); }
     }
-    @Override protected void handleOnResume() { foreground = true; synchronized (this) { if (runtime != null) runtime.visibility(visibilityOwner, true); } }
-    @Override protected void handleOnPause() {
-        foreground = false; for (ArchiveControl control : queries) control.cancel();
-        synchronized (this) {
-            if (runtime != null) runtime.visibility(visibilityOwner, false);
-        }
-    }
     @Override protected void handleOnDestroy() {
-        destroyed = true; handleOnPause(); synchronized (this) { if (runtime != null) runtime.detach(listener); } io.shutdownNow();
+        destroyed = true; for (ArchiveControl control : queries) control.cancel();
+        synchronized (this) { if (runtime != null) runtime.detach(listener); } io.shutdownNow();
     }
 }
