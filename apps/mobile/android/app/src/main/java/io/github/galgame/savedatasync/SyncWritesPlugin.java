@@ -43,6 +43,7 @@ public class SyncWritesPlugin extends Plugin {
         Map<String, Object> value = arguments(call, "projectId", "rootId", "backupId"); return runtime.prepare(id(value.get("projectId")), id(value.get("rootId")), id(value.get("backupId")));
     }); }
     @PluginMethod public void query(PluginCall call) { submit(call, runtime -> runtime.query(id(arguments(call, "restoreId").get("restoreId")))); }
+    @PluginMethod public void current(PluginCall call) { submit(call, runtime -> { arguments(call); return runtime.current(); }); }
     @PluginMethod public void preview(PluginCall call) { submit(call, runtime -> runtime.preview(id(arguments(call, "restoreId").get("restoreId")))); }
     @PluginMethod public void execute(PluginCall call) { submit(call, runtime -> {
         Map<String, Object> value = arguments(call, "restoreId", "plan"); return runtime.execute(id(value.get("restoreId")), value.get("plan"));

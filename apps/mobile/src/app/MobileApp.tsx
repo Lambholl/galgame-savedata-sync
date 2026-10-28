@@ -1,11 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Button } from 'antd-mobile'
 import { message } from 'antd'
 import { EmptyState } from '../components/EmptyState'
 import {
   emptyLibrary,
   taskIsActive,
-  validateTransferSelection,
   withGameLink,
   withoutGameLink,
   createImportedGame,
@@ -17,7 +15,6 @@ import type {
   LibraryPeer,
 } from '@savedata-sync/shared'
 import type { MobileLibraryAdapter, MobileSnapshot } from '../platform/library-types'
-import type { DirectoryLocation } from '@savedata-sync/shared'
 import { ConfirmationDialog } from '../components/ConfirmationDialog.tsx'
 import { DeviceEditorDialog } from '../components/DeviceEditorDialog.tsx'
 import { GameActions } from '../features/games/GameActions'
@@ -32,8 +29,10 @@ import { GamesPage } from '../features/games/GamesPage'
 import { GameSettingsPage } from '../features/games/GameSettingsPage'
 import { SettingsPage } from '../features/settings/SettingsPage'
 import { TaskPage } from '../features/transfer/TaskPage'
-import { TransferPage } from '../features/transfer/TransferPage'
-import { TransferPreviewPage } from '../features/transfer/TransferPreviewPage'
+import { SyncCopyPage } from '../features/transfer/SyncCopyPage'
+import { SyncTaskDetails } from '../features/transfer/SyncTaskDetails'
+import { useSyncTasks } from '../features/transfer/use-sync-tasks'
+import type { MobileSyncAdapter } from '../platform/sync-adapter'
 import '../styles/mobile.css'
 
 import { AddGameDialog } from '../features/games/AddGameDialog'
@@ -43,12 +42,15 @@ const EMPTY = emptyLibrary()
 /** 移动应用状态与返回栈；传输由原生持有，页面切换保留任务。 */
 export function MobileApp({
   adapter,
+  sync,
   backButton,
 }: {
   readonly adapter: MobileLibraryAdapter
+  readonly sync: MobileSyncAdapter
   readonly backButton?: BackButtonController
 }): React.JSX.Element {
   const [messageApi, messageContextHolder] = message.useMessage()
+  const syncTasks = useSyncTasks(sync)
   const [page, setPage] = useState<Page>('games')
   const [snapshot, setSnapshot] = useState<MobileSnapshot | null>(null)
   const [error, setError] = useState('')
@@ -70,10 +72,6 @@ export function MobileApp({
   const [importKey, setImportKey] = useState('')
   const [linkPeerId, setLinkPeerId] = useState('')
   const [linkGameId, setLinkGameId] = useState('')
-  const [upload, setUpload] = useState(false)
-  const [localLocation, setLocalLocation] = useState<DirectoryLocation | null>(null)
-  const [remoteLocation, setRemoteLocation] = useState<DirectoryLocation | null>(null)
-  const [targetNames, setTargetNames] = useState<Readonly<Record<string, string>>>({})
   const [copied, setCopied] = useState('')
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null)
   const operating = useRef(false)
@@ -161,19 +159,9 @@ export function MobileApp({
   const game = config.games.find((item) => item.id === gameId) ?? null
   const peers = snapshot?.peers ?? []
   const online = peers.find((item) => item.isConnected) ?? null
-  const selectedPeer =
-    peers.find(
-      (item) => item.device.id === peerId && game?.links.some((link) => link.deviceId === peerId),
-    ) ?? null
-  const remoteGame = selectedPeer?.games.find(
-    (item) => item.id === game?.links.find((link) => link.deviceId === peerId)?.gameId,
-  )
   const localRoot = snapshot?.roots.find((item) => item.rootId === game?.rootId) ?? null
-  const isActive = snapshot?.tasks.some(taskIsActive) ?? false
+  const isActive = (snapshot?.tasks.some(taskIsActive) ?? false) || syncTasks.isActive
   const isDisabled = isBusy || !snapshot
-  const isLocalSource = upload
-  const source = isLocalSource ? localLocation : remoteLocation
-  const target = isLocalSource ? remoteLocation : localLocation
   const importable = peers
     .filter((item) => item.isConnected)
     .flatMap((peer) =>
@@ -192,9 +180,6 @@ export function MobileApp({
     setGameId(item.id)
     setPeerId(item.links.length === 1 ? (item.links[0]?.deviceId ?? '') : '')
     setIsGameMenuOpen(true)
-    setLocalLocation(null)
-    setRemoteLocation(null)
-    setTargetNames({})
   }
   async function saveGame(item: LibraryGame): Promise<void> {
     const current = snapshotRef.current?.config
@@ -354,20 +339,22 @@ export function MobileApp({
     setIsGameMenuOpen(false)
     setPage(value)
   }
+  function confirmSync(value: Confirmation): void {
+    setConfirmation({
+      ...value,
+      work: async () => {
+        await value.work()
+        setConfirmation(null)
+        syncTasks.reload()
+      },
+    })
+  }
+  function openBackup(projectId: string): void {
+    setGameId(projectId)
+    setPage('backup')
+  }
   function goBack(): void {
-    setPage(page === 'preview' ? 'transfer' : 'games')
-  }
-  function changePeer(id: string): void {
-    setPeerId(id)
-    setLocalLocation(null)
-    setRemoteLocation(null)
-    setTargetNames({})
-    setPage('transfer')
-  }
-  function changeUpload(isUpload: boolean): void {
-    setUpload(isUpload)
-    setTargetNames({})
-    setPage('transfer')
+    setPage('games')
   }
   function changeLinkPeer(id: string): void {
     setLinkPeerId(id)
@@ -411,57 +398,6 @@ export function MobileApp({
         await adapter.saveGames(config.games.filter((item) => item.id !== gameId))
         setConfirmation(null)
         setPage('games')
-      },
-    })
-  }
-  function previewError(): string {
-    const problem = validateTransferSelection({
-      isPeerConnected: Boolean(selectedPeer?.isConnected),
-      source,
-      target,
-      names: targetNames,
-      isReceiveAuthorized: true,
-    })
-    if (!problem) {
-      return ''
-    }
-    return {
-      'peer-disconnected': '请连接这个游戏关联的设备。',
-      'directories-missing': '请读取两端目录。',
-      'files-empty': '请选择当前层要传输的文件。',
-      'invalid-name': '请填写有效的单个目标文件名。',
-      'duplicate-names': '本批次有重复的目标文件名。',
-      'target-exists': '目标有同名条目，请修改目标名称。',
-      'receive-not-authorized': '存档目录权限已失效，请到目录设置重新选择。',
-    }[problem]
-  }
-
-  function start(): void {
-    if (!game || !source || !target || !selectedPeer) {
-      return
-    }
-    const problem = previewError()
-    if (problem) {
-      setError(problem)
-      return
-    }
-    setConfirmation({
-      title: upload ? '手机 → 电脑' : '电脑 → 手机',
-      text: `${game.name} · ${selectedPeer.device.name}，新建 ${source.files.length} 个文件。`,
-      work: async () => {
-        await adapter.start({
-          projectId: game.id,
-          deviceId: peerId,
-          upload,
-          sourceRootId: source.rootId,
-          targetRootId: target.rootId,
-          targetParentId: target.parentId,
-          files: source.files,
-          names: targetNames,
-          title: `${game.name} · ${selectedPeer.device.name}`,
-        })
-        setConfirmation(null)
-        setPage('task')
       },
     })
   }
@@ -515,7 +451,7 @@ export function MobileApp({
       <GamesPage
         games={config.games}
         online={online}
-        hasTasks={Boolean(snapshot?.tasks.length)}
+        hasTasks={Boolean(snapshot?.tasks.length || syncTasks.copy || syncTasks.restore)}
         hasImportableGames={Boolean(importable.length)}
         isDisabled={isDisabled}
         isActive={isActive}
@@ -548,80 +484,75 @@ export function MobileApp({
         onManageDevices={() => setPage('devices')}
       />
     )
-  } else if ((page === 'transfer' || page === 'preview') && game) {
+  } else if (page === 'sync' && game) {
+    body = (
+      <SyncCopyPage
+        key={game.id}
+        sync={sync}
+        game={game}
+        peers={peers}
+        localRoot={localRoot}
+        peerId={peerId}
+        isDisabled={isDisabled || isActive}
+        onPeerChange={setPeerId}
+        onConfirm={confirmSync}
+        onStarted={() => {
+          syncTasks.reload()
+          setPage('task')
+        }}
+        onSettings={() => setPage('edit')}
+        onBackup={() => openBackup(game.id)}
+      />
+    )
+  } else if (page === 'task') {
     body = (
       <>
-        {/* 隐藏目录页以保留当前层级和勾选，预览使用独立页面内容。 */}
-        <div hidden={page === 'preview'}>
-          <div className="page-stack">
-            <TransferPage
-              adapter={adapter}
-              game={game}
-              peers={peers}
-              selectedPeer={selectedPeer}
-              remoteGame={remoteGame}
-              localRoot={localRoot}
-              peerId={peerId}
-              upload={upload}
-              isDisabled={isDisabled}
-              isActive={isActive}
-              onPeerChange={changePeer}
-              onUploadChange={changeUpload}
-              onLocalLocation={setLocalLocation}
-              onRemoteLocation={setRemoteLocation}
-              onOpenSettings={() => setPage('edit')}
-            />
-          </div>
-        </div>
-        {page === 'preview' && (
-          <TransferPreviewPage
-            source={source}
-            targetNames={targetNames}
-            isDisabled={isDisabled || isActive}
-            previewMessage={previewError()}
-            onTargetNameChange={(entryId, value) =>
-              setTargetNames((values) => ({ ...values, [entryId]: value }))
-            }
+        <SyncTaskDetails
+          sync={sync}
+          copy={syncTasks.copy}
+          restore={syncTasks.restore}
+          games={config.games}
+          peers={peers}
+          roots={snapshot?.roots ?? []}
+          errors={syncTasks.errors}
+          onChanged={syncTasks.reload}
+          onRescan={(projectId, deviceId) => {
+            setGameId(projectId)
+            setPeerId(deviceId)
+            setPage('sync')
+          }}
+          onBackup={openBackup}
+        />
+        {Boolean(snapshot?.tasks.length) && (
+          <TaskPage
+            tasks={snapshot?.tasks ?? []}
+            isBusy={isBusy}
+            onCancel={(id) => run(() => adapter.cancel(id))}
+            onCleanup={() => run(() => adapter.cleanup())}
           />
         )}
       </>
     )
-  } else if (page === 'task') {
-    body = (
-      <TaskPage
-        tasks={snapshot?.tasks ?? []}
-        isBusy={isBusy}
-        onCancel={(id) => run(() => adapter.cancel(id))}
-        onCleanup={() => run(() => adapter.cleanup())}
-      />
-    )
   } else if (page === 'backup') {
-    body = <BackupPage />
+    body = game ? (
+      <BackupPage
+        key={game.id}
+        sync={sync}
+        game={game}
+        restore={syncTasks.restore}
+        isDisabled={isDisabled || isActive}
+        onConfirm={confirmSync}
+        onChanged={syncTasks.reload}
+        onSettings={() => setPage('edit')}
+      />
+    ) : (
+      <EmptyState description="请选择游戏查看本机备份" />
+    )
   } else if (page === 'settings') {
     body = <SettingsPage />
   } else {
     body = <EmptyState description="请选择游戏" />
   }
-  const footer =
-    (page === 'transfer' || page === 'preview') && game ? (
-      <footer className="library-transfer-action">
-        <Button
-          color="primary"
-          block
-          disabled={
-            isDisabled ||
-            isActive ||
-            !source?.files.length ||
-            !target ||
-            !selectedPeer?.isConnected ||
-            (page === 'preview' && Boolean(previewError()))
-          }
-          onClick={() => (page === 'preview' ? start() : setPage('preview'))}
-        >
-          {page === 'preview' ? '开始传输' : '预览本次变化'}
-        </Button>
-      </footer>
-    ) : null
   const dialogs = (
     <>
       {messageContextHolder}
@@ -643,7 +574,7 @@ export function MobileApp({
       >
         <GameActions
           isActive={isActive}
-          onTransfer={() => go('transfer')}
+          onTransfer={() => go('sync')}
           onSettings={() => go('edit')}
           onBackup={() => go('backup')}
           onTasks={() => go('task')}
@@ -698,7 +629,7 @@ export function MobileApp({
       gameName={game?.name ?? null}
       error={error}
       isBusy={isBusy}
-      footer={footer}
+      footer={null}
       dialogs={dialogs}
       onBack={goBack}
       onNavigate={go}

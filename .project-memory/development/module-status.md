@@ -23,6 +23,7 @@ M-001 已完成：工程基础设施、共享模型、双端目录/归档/发布
 
 | 模块 | 状态 | 负责人 | 相关文件 | 风险 | 下一步 |
 | --- | --- | --- | --- | --- | --- |
+| Android 确认执行、结果与本机恢复界面 | done | 开发 | mobile sync-adapter、SyncCopy/Plan/Task/Backup 页面、useSyncTasks、SyncWrites/BackupsPlugin | 双向执行仍由原生持有；发送完成与目标成功分开；真实存档开放仍待总体验收 | 平台绑定/通知变化等 6 组和实际 API 33 界面 11 组通过，含双向覆盖、恢复/关闭设置、重载恢复、失败/取消、64 MiB 通知保持与切出返回完整哈希；既有套件、工程和 Android 检查通过；清理本次合成数据后按用户要求继续调整移动尺寸 |
 | Windows 计划、结果与本机恢复界面 | done | 开发 | restore-registry、sync-ipc/bridge、preload、备份/任务页、platform/sync-adapter | 跨端发起留 M-004；进程重启不恢复任务，备份/配置保留；真实存档开放仍待总体验收 | 原生实际恢复、有限 IPC、新桥/刷新恢复、清理失败/部分/未知结果、实际 Electron 的备份关闭/恢复确认/扫描失败/重扫/取消和明暗主题检查通过；继续双端 logo 独立提交，再做 WP-028 |
 | Windows 分发包 | done | 开发 | apps/desktop/electron-builder.json、scripts/package-windows.mjs、双层 package.json、pnpm-lock.yaml | 当前未配置代码签名；使用已编译资源与隔离的最小应用清单 | 桌面资源编译及 electron-builder x64 安装版/免安装版打包成功，产物位于 apps/desktop/release；新增依赖 npm 审计通过；安装运行由用户验收 |
 | 正式设备/游戏/设置界面 | done | 开发 | apps/mobile/src、apps/desktop/src/renderer/src、apps/shared、桌面 bridge 与 library-ipc/store | 一个游戏关联多台设备，首期仅一个连接；覆盖与备份恢复安排在 M-002，镜像删除仍留 M-004；当前文件传输保持仅新建 | 双端独立界面、目录选择与进程内写入授权已实现，跨端真机验收通过；后续界面接入见 WP-027/WP-028 |

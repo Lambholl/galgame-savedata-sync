@@ -29,6 +29,7 @@ export interface SyncWriteNativePlugin {
   bindProject(options: { projectId: string; rootId: string }): Promise<unknown>
   prepareRestore(options: { projectId: string; rootId: string; backupId: string }): Promise<unknown>
   query(options: { restoreId: string }): Promise<unknown>
+  current(): Promise<unknown>
   preview(options: { restoreId: string }): Promise<unknown>
   execute(options: { restoreId: string; plan: SyncPlan }): Promise<unknown>
   cancel(options: { restoreId: string }): Promise<unknown>
@@ -44,6 +45,7 @@ export interface AndroidSyncWriteApi {
     backupId: string,
   ): Promise<OperationResult<AndroidRestoreState>>
   query(restoreId: string): Promise<OperationResult<AndroidRestoreState>>
+  current(): Promise<OperationResult<string | null>>
   preview(restoreId: string): Promise<OperationResult<SyncPlan>>
   execute(restoreId: string, plan: SyncPlan): Promise<OperationResult<AndroidRestoreState>>
   cancel(restoreId: string): Promise<OperationResult<AndroidRestoreState>>
@@ -233,6 +235,11 @@ export function createSyncWriteBridge(
       !isOpaqueId(restoreId)
         ? Promise.resolve(invalid('invalid-request'))
         : state(() => plugin.query({ restoreId }), { restoreId }),
+    current: () =>
+      invoke(
+        () => plugin.current(),
+        (value): value is string | null => value === null || isOpaqueId(value),
+      ),
     preview,
     execute: (restoreId: string, plan: SyncPlan) => {
       if (

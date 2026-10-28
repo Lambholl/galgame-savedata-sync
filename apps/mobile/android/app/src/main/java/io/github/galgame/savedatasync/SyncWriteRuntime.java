@@ -59,6 +59,8 @@ final class SyncWriteRuntime implements AutoCloseable {
     private void purge() {
         long now = System.nanoTime();
         for (Job job : new ArrayList<>(jobs.values())) if (!job.running && now - job.touched >= TimeUnit.MINUTES.toNanos(10)) {
+            // 未释放资源的结果必须继续可发现，供页面显式重试清理。
+            if (job.result instanceof Map && ((Map<?, ?>) job.result).get("cleanupError") != null) continue;
             if (job.restore != null) { try { job.restore.close(); } catch (Exception cleanup) { continue; } }
             jobs.remove(job.id);
         }
@@ -77,6 +79,14 @@ final class SyncWriteRuntime implements AutoCloseable {
         return job.state();
     }
     synchronized Map<String, Object> query(String restoreId) throws Exception { return find(restoreId).state(); }
+    /** 页面重建只发现当前进程中最近的恢复 ID；过期或进程结束后不恢复写入。 */
+    synchronized String current() throws Exception {
+        available(); purge();
+        if (active != null) return active.id;
+        String latest = null;
+        for (Job job : jobs.values()) latest = job.id;
+        return latest;
+    }
     synchronized Map<String, Object> preview(String restoreId) throws Exception {
         Job job = find(restoreId); if (job.preview == null) throw new ArchiveFailure("task-conflict", "恢复预览尚未准备完成");
         Map<String, Object> result = map(copy(job.preview)); result.put("restoreId", job.id); return result;
@@ -133,7 +143,18 @@ final class SyncWriteRuntime implements AutoCloseable {
         if (!writer.retryCleanup()) throw new ArchiveFailure("cleanup-failed", "目标资源尚未完整释放");
         jobs.remove(job.id);
     }
-    boolean retryCleanup() { return writer.retryCleanup(); }
+    synchronized boolean retryCleanup() {
+        if (active != null || !writer.retryCleanup()) return false;
+        for (Job job : jobs.values()) {
+            if (job.restore != null && !job.status.equals("ready")) {
+                try { job.restore.close(); job.restore = null; } catch (Exception cleanup) { return false; }
+            }
+            if (job.result != null) {
+                try { map(job.result).put("cleanupError", null); } catch (Exception invalid) { return false; }
+            }
+        }
+        return true;
+    }
     private void available() throws ArchiveFailure { if (closed) throw new ArchiveFailure("unsupported-operation", "恢复任务所有者已关闭"); }
     /** 仅由原生所有者退出时调用，Activity 插件销毁不关闭应用级恢复任务。 */
     @Override public void close() throws Exception {

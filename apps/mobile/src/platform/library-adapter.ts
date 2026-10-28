@@ -35,6 +35,7 @@ export interface MobileLibraryDependencies {
   readonly directories: AndroidDirectoryApi
   readonly transfers: AndroidTransferApi
   readonly storage: Pick<Storage, 'getItem' | 'setItem'>
+  readonly hasSyncWork: () => Promise<boolean>
 }
 
 const CONFIG_KEY = 'savedata-sync:library:1'
@@ -128,7 +129,7 @@ export function createMobileLibraryAdapter(
   }
   async function assertCanEditGames(): Promise<void> {
     await refreshTask()
-    if (task && taskIsActive(task)) {
+    if ((task && taskIsActive(task)) || (await dependencies?.hasSyncWork?.())) {
       throw new Error('结束当前传输后再修改游戏目录或关联。')
     }
   }
@@ -195,7 +196,7 @@ export function createMobileLibraryAdapter(
           answer: answers.get(id) ?? null,
         })
         if (result.status === 'error') {
-          if (!task || !taskIsActive(task)) {
+          if ((!task || !taskIsActive(task)) && !(await dependencies?.hasSyncWork?.())) {
             await disconnect(id)
           }
           continue

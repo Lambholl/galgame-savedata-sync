@@ -55,11 +55,7 @@ export function LibraryShell({
       <div className="mobile-app">
         <header className="app-heading">
           {!isRootPage(page) && (
-            <Button
-              fill="none"
-              aria-label={page === 'preview' ? '返回传输存档' : '返回游戏'}
-              onClick={onBack}
-            >
+            <Button fill="none" aria-label="返回游戏" onClick={onBack}>
               <ArrowLeftOutlined />
             </Button>
           )}

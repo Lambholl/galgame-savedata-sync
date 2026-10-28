@@ -1,5 +1,4 @@
-export type Page =
-  'devices' | 'games' | 'settings' | 'edit' | 'transfer' | 'preview' | 'task' | 'backup'
+export type Page = 'devices' | 'games' | 'settings' | 'edit' | 'task' | 'backup' | 'sync'
 
 export interface Confirmation {
   readonly title: string
@@ -18,10 +17,9 @@ export const PAGE_TITLES: Readonly<Record<Page, string>> = {
   games: '游戏',
   settings: '设置',
   edit: '游戏目录',
-  transfer: '传输存档',
-  preview: '确认本次变化',
   task: '传输详情',
   backup: '备份与恢复',
+  sync: '复制存档',
 }
 
 export function isRootPage(page: Page): boolean {

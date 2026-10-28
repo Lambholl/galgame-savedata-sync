@@ -18,6 +18,12 @@ public class SyncBackupsPlugin extends Plugin {
     private final ExecutorService controls = Executors.newFixedThreadPool(2);
     private volatile boolean destroyed;
     private interface Work { Object run(BackupStore store) throws Exception; }
+    /** 本机设置和显式维护与实际传输/恢复争用同一个名额，避免确认后修改保护设置。 */
+    private Object mutate(BackupStore store, Work work) throws Exception {
+        Object owner = new Object();
+        if (!TargetOperation.acquire(owner)) throw new ArchiveFailure("busy", "请在当前任务清理完成后修改备份设置或维护备份");
+        try { return work.run(store); } finally { TargetOperation.release(owner); }
+    }
     private Map<String, Object> arguments(PluginCall call, String... fields) throws Exception {
         return shape(parse(call.getData().toString().getBytes(StandardCharsets.UTF_8)), fields);
     }
@@ -50,15 +56,15 @@ public class SyncBackupsPlugin extends Plugin {
     }); }
     @PluginMethod public void setPreference(PluginCall call) { submit(call, store -> {
         Map<String, Object> value = arguments(call, "projectId", "rootId", "shouldBackup"); require(value.get("shouldBackup") instanceof Boolean);
-        return store.setPreference(id(value.get("projectId")), id(value.get("rootId")), (Boolean) value.get("shouldBackup"));
+        return mutate(store, target -> target.setPreference(id(value.get("projectId")), id(value.get("rootId")), (Boolean) value.get("shouldBackup")));
     }); }
     @PluginMethod public void rotate(PluginCall call) { submit(call, store -> {
         Map<String, Object> value = arguments(call, "projectId", "rootId");
-        store.rotate(id(value.get("projectId")), id(value.get("rootId"))); return null;
+        return mutate(store, target -> { target.rotate(id(value.get("projectId")), id(value.get("rootId"))); return null; });
     }); }
     @PluginMethod public void cleanupIncomplete(PluginCall call) { submit(call, store -> {
         Map<String, Object> value = arguments(call, "projectId", "rootId", "backupId");
-        store.cleanupIncomplete(id(value.get("projectId")), id(value.get("rootId")), id(value.get("backupId"))); return null;
+        return mutate(store, target -> { target.cleanupIncomplete(id(value.get("projectId")), id(value.get("rootId")), id(value.get("backupId"))); return null; });
     }); }
     @Override protected void handleOnDestroy() { destroyed = true; controls.shutdownNow(); }
 }

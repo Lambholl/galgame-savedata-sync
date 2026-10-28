@@ -3,8 +3,10 @@ import { ConfigProvider, theme } from 'antd'
 import { MobileApp } from './app/MobileApp'
 import { androidBackButton } from './app/back-button'
 import { createMobileLibraryAdapter } from './platform/library-adapter'
+import { createMobileSyncAdapter, hasAndroidSyncWork } from './platform/sync-adapter'
 
-const ADAPTER = createMobileLibraryAdapter()
+const ADAPTER = createMobileLibraryAdapter({ hasSyncWork: hasAndroidSyncWork })
+const SYNC = createMobileSyncAdapter(ADAPTER)
 
 /** Android 入口，保留同一个连接与原生任务适配器。 */
 export function App(): React.JSX.Element {
@@ -28,7 +30,7 @@ export function App(): React.JSX.Element {
         token: { colorPrimary: '#286add', borderRadius: 12 },
       }}
     >
-      <MobileApp adapter={ADAPTER} backButton={androidBackButton} />
+      <MobileApp adapter={ADAPTER} sync={SYNC} backButton={androidBackButton} />
     </ConfigProvider>
   )
 }
