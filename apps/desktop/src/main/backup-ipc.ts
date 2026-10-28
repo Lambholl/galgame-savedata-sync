@@ -4,6 +4,7 @@ import { BACKUP_CHANNELS } from '../bridge/backup-bridge.ts'
 import type { WindowsBackupStore } from './backup-store.ts'
 import type { DesktopLibrary } from './library-store.ts'
 import { HttpOperationError, toHttpError } from './http-errors.ts'
+import { hasTargetOperation } from './target-operation.ts'
 
 /** 本机备份摘要/设置/显式残留清理，验证主窗口来源；恢复写入另由恢复模块提供。 */
 export function registerBackupIpc(
@@ -11,6 +12,7 @@ export function registerBackupIpc(
   store: WindowsBackupStore,
   library: DesktopLibrary,
   isTrusted: (event: IpcMainInvokeEvent) => boolean,
+  hasRunningWork: () => boolean = () => false,
 ): () => void {
   for (const [action, channel] of Object.entries(BACKUP_CHANNELS)) {
     ipc.handle(channel, async (event, ...args: unknown[]) => {
@@ -49,6 +51,12 @@ export function registerBackupIpc(
             (fields.includes('backupId') && !isOpaqueId(data.backupId))
           ) {
             throw new HttpOperationError('invalid-request', '备份引用无效。')
+          }
+          if (
+            (action === 'setPreference' && hasTargetOperation()) ||
+            ((action === 'rotate' || action === 'cleanupIncomplete') && hasRunningWork())
+          ) {
+            throw new HttpOperationError('busy', '请等当前文件操作结束后再修改备份设置或清理备份。')
           }
           if (action === 'setPreference') {
             if (

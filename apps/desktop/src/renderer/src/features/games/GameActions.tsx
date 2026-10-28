@@ -28,7 +28,7 @@ export function GameActions({
         备份与恢复
       </Button>
       <Button block onClick={onTasks}>
-        本次传输
+        任务与结果
       </Button>
       <Button block danger disabled={isActive} onClick={onRemove}>
         移除游戏

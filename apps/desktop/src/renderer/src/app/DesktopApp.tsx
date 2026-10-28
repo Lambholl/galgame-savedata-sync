@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Empty, message } from 'antd'
 import {
   emptyLibrary,
-  taskIsActive,
   withGameLink,
   withoutGameLink,
   createImportedGame,
@@ -45,6 +44,7 @@ export function DesktopApp(): React.JSX.Element {
   const [error, setError] = useState('')
   const [isBusy, setIsBusy] = useState(false)
   const [gameId, setGameId] = useState('')
+  const [backupRootId, setBackupRootId] = useState<string | null>(null)
   const [peerId, setPeerId] = useState('')
   const [isGameActionDialogOpen, setIsGameActionDialogOpen] = useState(false)
   const [isDeviceEditorOpen, setIsDeviceEditorOpen] = useState(false)
@@ -160,7 +160,13 @@ export function DesktopApp(): React.JSX.Element {
     (item) => item.id === game?.links.find((link) => link.deviceId === peerId)?.gameId,
   )
   const localRoot = snapshot?.roots.find((item) => item.rootId === game?.rootId) ?? null
-  const isActive = snapshot?.tasks.some(taskIsActive) ?? false
+  const isActive = snapshot?.hasActiveOperation ?? false
+  const hasRunningNetworkWork = Boolean(
+    snapshot?.tasks.some((task) => task.local?.status === 'running') ||
+    snapshot?.copies.some((task) => task.status === 'running'),
+  )
+  const hasRunningWork =
+    hasRunningNetworkWork || Boolean(snapshot?.restores.some((task) => task.isWorking))
   const isDisabled = isBusy || !snapshot
   const importable = peers
     .filter((item) => item.isConnected)
@@ -178,6 +184,7 @@ export function DesktopApp(): React.JSX.Element {
     )
   function openGame(item: LibraryGame): void {
     setGameId(item.id)
+    setBackupRootId(null)
     setPeerId(item.links.length === 1 ? (item.links[0]?.deviceId ?? '') : '')
     setIsGameActionDialogOpen(true)
   }
@@ -322,7 +329,7 @@ export function DesktopApp(): React.JSX.Element {
     if (!service) {
       return
     }
-    if (service.isRunning && isActive) {
+    if (service.isRunning && hasRunningNetworkWork) {
       setConfirmation({
         title: '停止服务',
         text: '将断开设备，并取消当前传输。',
@@ -342,7 +349,20 @@ export function DesktopApp(): React.JSX.Element {
   }
   function go(value: Page): void {
     setIsGameActionDialogOpen(false)
+    if (value === 'backup') {
+      setBackupRootId(null)
+    }
     setPage(value)
+  }
+  function openBackup(projectId: string, rootId: string): void {
+    setGameId(projectId)
+    setBackupRootId(rootId)
+    setPage('backup')
+  }
+  function tasksChanged(): void {
+    void refresh().catch((cause: unknown) =>
+      setError(cause instanceof Error ? cause.message : '刷新任务失败。'),
+    )
   }
   function changePeer(id: string): void {
     setPeerId(id)
@@ -422,7 +442,9 @@ export function DesktopApp(): React.JSX.Element {
       <GamesPage
         games={config.games}
         online={online}
-        hasTasks={Boolean(snapshot?.tasks.length)}
+        hasTasks={Boolean(
+          snapshot?.tasks.length || snapshot?.copies.length || snapshot?.restores.length,
+        )}
         hasImportableGames={Boolean(importable.length)}
         isDisabled={isDisabled}
         isActive={isActive}
@@ -476,13 +498,37 @@ export function DesktopApp(): React.JSX.Element {
     body = (
       <TaskPage
         tasks={snapshot?.tasks ?? []}
+        copies={snapshot?.copies ?? []}
+        restores={snapshot?.restores ?? []}
+        games={config.games}
+        roots={snapshot?.roots ?? []}
+        peers={peers}
+        isActive={isActive}
         isBusy={isBusy}
         onCancel={(id) => run(() => adapter.cancel(id))}
         onCleanup={() => run(() => adapter.cleanup())}
+        onChanged={tasksChanged}
+        onOpenBackup={openBackup}
       />
     )
   } else if (page === 'backup') {
-    body = <BackupPage />
+    body = (
+      <BackupPage
+        key={`${gameId}/${backupRootId ?? game?.rootId ?? ''}`}
+        games={config.games}
+        roots={snapshot?.roots ?? []}
+        game={game}
+        rootId={backupRootId ?? game?.rootId ?? null}
+        isActive={isActive}
+        hasRunningWork={hasRunningWork}
+        onSelectGame={(id) => {
+          setGameId(id)
+          setBackupRootId(null)
+        }}
+        onOpenSettings={() => setPage('edit')}
+        onChanged={tasksChanged}
+      />
+    )
   } else if (page === 'settings') {
     body = <SettingsPage />
   } else {

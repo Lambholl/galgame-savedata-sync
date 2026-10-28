@@ -1,6 +1,7 @@
 import { Button, Card, Empty, Input, Select, Space } from 'antd'
 import { FolderOpenOutlined } from '@ant-design/icons'
 import type { DirectoryReference, LibraryGame, LibraryPeer } from '@savedata-sync/shared'
+import { BackupPreference } from '../backup/BackupPreference.tsx'
 
 export function GameSettingsPage({
   game,
@@ -59,6 +60,17 @@ export function GameSettingsPage({
           />
         </div>
       </Card>
+      {game.rootId && (
+        <Card title="本机备份保护">
+          <BackupPreference
+            key={`${game.id}/${game.rootId}`}
+            projectId={game.id}
+            rootId={game.rootId}
+            rootLabel={localRoot?.displayPath ?? localRoot?.displayName ?? game.name}
+            isDisabled={isDisabled || isActive}
+          />
+        </Card>
+      )}
       <Card title="已关联设备">
         {game.links.map((link) => {
           const peer = peers.find((item) => item.device.id === link.deviceId)

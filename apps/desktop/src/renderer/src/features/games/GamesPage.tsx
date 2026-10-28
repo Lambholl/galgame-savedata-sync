@@ -1,6 +1,7 @@
-import { Button, Card, Empty, Space, Typography } from 'antd'
-import { DownloadOutlined, FolderOutlined, PlusOutlined, SwapOutlined } from '@ant-design/icons'
+import { Button, Empty, Space, Typography } from 'antd'
+import { DownloadOutlined, PlusOutlined, SwapOutlined } from '@ant-design/icons'
 import type { LibraryGame, LibraryPeer } from '@savedata-sync/shared'
+import { GameCard } from './GameCard.tsx'
 
 export function GamesPage({
   games,
@@ -51,29 +52,13 @@ export function GamesPage({
           className="library-task-shortcut"
           onClick={onOpenTasks}
         >
-          {isActive ? '传输进行中' : '查看传输结果'}
+          {isActive ? '查看任务进度' : '任务与结果'}
         </Button>
       )}
       {games.length ? (
         <div className="library-game-grid">
           {games.map((item, index) => (
-            <Card
-              key={item.id}
-              hoverable
-              className="library-game-card"
-              onClick={() => onOpenGame(item)}
-              onContextMenu={(event) => {
-                event.preventDefault()
-                onOpenGame(item)
-              }}
-            >
-              <Button type="text" block className={`library-game-cover cover-${index % 3}`}>
-                <FolderOutlined />
-                <strong>{item.name}</strong>
-              </Button>
-              <h3>{item.name}</h3>
-              <Typography.Text type="secondary">已关联 {item.links.length} 台设备</Typography.Text>
-            </Card>
+            <GameCard key={item.id} game={item} coverIndex={index} onOpenGame={onOpenGame} />
           ))}
         </div>
       ) : (

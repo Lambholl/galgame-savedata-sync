@@ -16,6 +16,8 @@ import { registerLibraryIpc } from './library-ipc.ts'
 import { createWindowsBackupStore } from './backup-store.ts'
 import { registerBackupIpc } from './backup-ipc.ts'
 import { WindowsSyncWriter } from './sync-writer.ts'
+import { WindowsRestoreRegistry } from './restore-registry.ts'
+import { registerSyncIpc } from './sync-ipc.ts'
 
 const trustedWindows = new Set<number>()
 const rendererUrl = process.env.ELECTRON_RENDERER_URL
@@ -103,10 +105,26 @@ if (hasInstanceLock) {
           await publisher.grant(rootId)
         },
       })
+      const restores = new WindowsRestoreRegistry({
+        source: adapter,
+        backups,
+        writer: syncWriter,
+        library,
+      })
       app.once(
         'will-quit',
-        registerBackupIpc(ipcMain, backups, library, (event) =>
+        registerSyncIpc(ipcMain, httpService, restores, (event) =>
           isTrustedDirectorySender(event, trustedWindows, expectedRendererUrl),
+        ),
+      )
+      app.once(
+        'will-quit',
+        registerBackupIpc(
+          ipcMain,
+          backups,
+          library,
+          (event) => isTrustedDirectorySender(event, trustedWindows, expectedRendererUrl),
+          () => httpService.hasRunningNetworkWork() || restores.hasRunningWork(),
         ),
       )
       app.once(
@@ -128,6 +146,7 @@ if (hasInstanceLock) {
         isClosing = true
         httpService
           .stop()
+          .then(() => restores.stop())
           .then(() => Promise.allSettled([publisher.stop(), syncWriter.stop()]))
           .then(async (results) => {
             for (const result of results) {

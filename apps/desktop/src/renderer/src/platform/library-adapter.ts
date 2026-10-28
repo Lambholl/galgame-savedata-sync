@@ -1,5 +1,6 @@
 import { unwrap } from '@savedata-sync/shared'
 import type { DesktopLibraryAdapter, DesktopSnapshot } from './library-types.ts'
+import { desktopSync } from './sync-adapter.ts'
 
 /** Renderer 通过有限桥操作配置和目录；桌面负责服务、授权与任务显示。 */
 export function createDesktopLibraryAdapter(): DesktopLibraryAdapter {
@@ -15,10 +16,14 @@ export function createDesktopLibraryAdapter(): DesktopLibraryAdapter {
   return {
     async read(): Promise<DesktopSnapshot> {
       const api = apis()
-      const [library, service, roots] = await Promise.all([
+      const sync = desktopSync()
+      const [library, service, roots, copies, restores, activity] = await Promise.all([
         api.library.read(),
         api.service.status(),
         api.directories.listRoots(),
+        sync.copies(),
+        sync.restores(),
+        sync.activity(),
       ])
       const config = unwrap(library),
         status = unwrap(service)
@@ -43,6 +48,9 @@ export function createDesktopLibraryAdapter(): DesktopLibraryAdapter {
           upload: local.direction === 'android-to-windows',
           names: {},
         })),
+        copies: unwrap(copies),
+        restores: unwrap(restores),
+        hasActiveOperation: unwrap(activity),
       }
     },
     async saveGames(games): Promise<void> {

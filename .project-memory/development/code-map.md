@@ -12,6 +12,8 @@ related_files: []
 
 | 路径 | 作用 | 重要约定 |
 | --- | --- | --- |
+| `apps/desktop/src/main/restore-registry.ts`、`sync-ipc.ts`、`src/bridge/sync-bridge.ts` | 进程内异步恢复、有限复制与恢复桥、同次原生计划/结果核对 | 普通准备不占目标名额，确认后借用并保留至清理成功；任务与结果可在页面刷新后查询，备份持久化；不接收路径/字节或跨端发起请求 |
+| `apps/desktop/src/renderer/src/features/backup`、`features/transfer/Sync*`、`use-sync-details.ts`、`platform/sync-adapter.ts` | 备份开关/列表、恢复预览与确认、复制计划/实际结果、普通本机重扫 | 复用原生计划和结果；发送完成与手机实际写入分开；切页只停止轮询，不取消原生任务；文件夹不汇总大小 |
 | `package.json`、`pnpm-workspace.yaml`、`pnpm-lock.yaml` | pnpm 工作区、固定版本与工程入口 | 私有工作区；使用指定 pnpm，不依赖系统全局 Gradle |
 | `apps/desktop/` | Electron 主进程、preload 和独立 antd 界面 | Renderer 无 Node 集成；contextIsolation 和 sandbox 开启 |
 | `apps/desktop/src/main/directory-adapter.ts`、`directory-store.ts`、`directory-paths.ts`、`directory-errors.ts` | 目录选择登记、独立配置、当前层元数据、根内原生读流及脱敏错误 | 没有源目录写入 API；拒绝 symlink/junction 与失效身份，配置不保存历史文件索引 |

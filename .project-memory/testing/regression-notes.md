@@ -14,6 +14,7 @@ related_files: []
 
 | 范围 | 状态 | 当前问题 | 复验入口 |
 | --- | --- | --- | --- |
+| Windows 计划、结果和本机恢复界面 | passed | 实际目录与有限 IPC 的恢复/保护当前内容、重复确认/名额互斥、取消/目标变化通过；清理失败保留引用/名额且重试不重写、部分成功取消和发布后未知、新桥结果恢复通过。实际 Electron 的备份默认/关闭、未知与不存在/扫描未完成、嵌套恢复确认/结果、页面重载找回任务、双角色显示/重扫/取消和明暗主题通过；卡片已按手机样式及竖版尺寸核对 | sync-bridge/ipc、restore-registry、备份/任务/扫描页；独立临时原生、真实 HTTP 与实际构建的 Renderer/preload/main 检查，截图人工核对；用户总体验收仍待最后执行 |
 | 工程检查与既有套件 | passed | 无当前失败 | `pnpm check`、`pnpm test:shared`、`pnpm test:desktop`、`pnpm test:mobile`、`pnpm android:test` |
 | Windows → Android 复制编排 | passed | API 33 实际 SAF/LAN 的覆盖/备份开关/跳过/保留、无文件与仅目录、登记回执丢失、损坏内容、取消、目标/设置变化、容量拒绝、清理保留及重试通过；正式插件/传输通知/切后台继续接收/Activity 重建与新 TS 桥查询、原文及配置恢复核对通过。Windows 源重新扫描、只读属性、单次内容/重复 ID、取消/期限和清理名额通过；备份失败创建及轮换残留重试通过 | sync-registry/HTTP、SyncTransferEngine/Runtime/Model、SyncWriter/BackupStore、共享守卫与实际桥；临时源码/测试 APK 已清理，工程与既有 TS/Java 套件、Android lint/双 APK/互通、最终正式 APK 及资源一致性核对通过 |
 | Android → Windows 复制编排 | passed | API 33 真实 SAF/LAN 的保护备份/覆盖/跳过/保留、无文件变更、三种回执丢失不重放、关闭备份、确认后目标变化、实际传输取消与短暂查询恢复通过；源内容/mtime 和手机保存配置不变。回环的仅目录/容量/部分/未知/清理名额、JVM 源变化/取消/服务启动失败/坏结果/版本能力及长源读取心跳验证通过 | sync-registry/upload-body、SyncJobModel/SyncTransferEngine/Runtime/Plugin/Service、共享守卫和正式 Native/真实及新实例 TS 桥；临时源码/测试 APK 已清理；既有 TS/Java 套件、工程检查、Android lint/双 APK/归档互通、最终正式插件和 Web 资源一致性检查通过 |

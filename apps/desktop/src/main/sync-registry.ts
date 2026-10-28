@@ -36,6 +36,7 @@ import { ArchiveCancelledError, checkArchiveAbort } from './archive-errors.ts'
 import { HttpOperationError, toHttpError } from './http-errors.ts'
 import { acquireTargetOperation, releaseTargetOperation } from './target-operation.ts'
 import { openUploadBody } from './upload-body.ts'
+import type { DesktopCopySummary } from '../bridge/sync-bridge.ts'
 
 /** 原生依赖固定到当前服务会话；网络不能指定路径、容量策略或执行器。 */
 export interface WindowsSyncRegistryOptions {
@@ -145,9 +146,85 @@ export class WindowsSyncRegistry {
     this.sweep()
     return [...this.tasks.values()].map((task) => structuredClone(task.state))
   }
+  /** 可信本机窗口只轮询摘要；大计划、清单与完整结果按任务分别查询。 */
+  summaries(): readonly DesktopCopySummary[] {
+    this.sweep()
+    return [...this.tasks.values()].map((task) => ({
+      jobId: task.request.jobId,
+      projectId:
+        task.state.role === 'receiver'
+          ? task.request.targetProjectId
+          : task.request.sourceProjectId,
+      peerId: task.peerId,
+      direction: task.state.direction,
+      role: task.state.role,
+      status: task.state.status,
+      stage: task.state.stage,
+      updatedAt: task.state.updatedAt,
+      hasCleanupError: task.state.cleanupError !== null,
+    }))
+  }
+  /** 本机权限由固定 IPC 验证；此入口不接受对端身份或重新登记任务。 */
+  localRequest(id: string): SyncJobRequest {
+    return structuredClone(this.localTask(id).request)
+  }
+  localState(id: string): SyncJobState {
+    return structuredClone(this.localTask(id).state)
+  }
+  localManifest(id: string): BatchManifest | null {
+    return structuredClone(this.localTask(id).manifest)
+  }
+  localCancel(id: string): SyncJobState {
+    const task = this.localTask(id)
+    return this.cancel(id, task.peerId)
+  }
+  async localCleanup(id: string): Promise<void> {
+    const task = this.localTask(id)
+    if (task.state.status === 'running' || (this.active !== null && this.active !== task)) {
+      throw new HttpOperationError('busy', '同步任务尚未结束。')
+    }
+    const token = task.hasLease ? null : Symbol('sync-cleanup')
+    if (token) {
+      acquireTargetOperation(token)
+    }
+    try {
+      if (task.state.role === 'receiver' && task.state.result?.cleanupError) {
+        const project = task.request.targetProjectId,
+          root = task.request.plan.target.rootId
+        if ((await this.options.backups.list(project, root)).incomplete.length > 0) {
+          throw new HttpOperationError('cleanup-failed', '请先在备份页检查并清理未完成的备份。')
+        }
+        await this.options.backups.rotate(project, root)
+      }
+      await this.clean(task)
+      task.state = {
+        ...task.state,
+        updatedAt: Date.now(),
+        cleanupError: null,
+        result: task.state.result ? { ...task.state.result, cleanupError: null } : null,
+      }
+    } finally {
+      if (token) {
+        releaseTargetOperation(token)
+      }
+    }
+  }
+  private localTask(id: string): SyncTask {
+    this.sweep()
+    const task = this.tasks.get(id)
+    if (!task) {
+      throw new HttpOperationError('not-found', '本次同步任务已结束或过期，请重新读取目录。')
+    }
+    return task
+  }
   /** 活动名额包括失败后的待清理资源，供编辑保护和连接切换检查。 */
   hasWork(): boolean {
     return this.active !== null
+  }
+  hasRunningWork(): boolean {
+    return [...this.tasks.values()].some(
+      (task) => task.isWorking || task.state.status === 'running',
+    )
   }
   /** 只读目标端设置；先前目录表须有同一项目的双向关联。 */
   async project(projectId: string, peerId: string): Promise<SyncProjectDescriptor> {

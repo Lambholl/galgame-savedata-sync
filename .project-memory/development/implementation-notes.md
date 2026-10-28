@@ -19,6 +19,8 @@ related_files: []
 
 | 主题 | 结论 | 相关文件 |
 | --- | --- | --- |
+| Windows 同步与本机恢复界面 | 固定 IPC 分别查询复制摘要、计划/清单和实际结果，本机恢复由进程持有普通准备、固定预览、确认、进度及清理。确认后借用全程名额；刷新页面用原 ID 找回结果，部分成功/未知和清理错误保留。备份默认开启，关闭需确认，本机恢复仍保护当前内容；目录冲突及失败扫描分开显示，发送完成引导在手机查看实际写入 | restore-registry、sync-ipc/bridge、备份/任务页面及 platform/sync-adapter；实际文件/IPC、故障/部分/未知结果、新桥、实际 Electron 与真实 HTTP 验证通过 |
+| 双端游戏卡片样式 | 电脑卡片沿用手机端的三组渐变、152px 居中封面、88px 起的底部信息区、16px 圆角、名称/设备数量与箭头；桌面按 160–180px 宽度排列，保持高度大于宽度的竖版比例。长标题换行，明暗配色一致。桌面保留左键、右键和键盘打开游戏菜单，组件仍由各端独立维护 | 双端 features/games/GameCard.tsx；desktop.css、mobile.css |
 | 基础设施 | pnpm 工作区、双端 React 应用、共享入口、严格 TS / ESLint / Prettier、编码检查和 Windows CI 已建立 | 根目录配置、apps/、apps/shared、scripts/、.github/workflows/ci.yml |
 | 双端明暗主题 | 桌面用系统媒体查询与 React 订阅切换 antd 算法，原生窗口底色同步并在关闭时释放监听；移动端在挂载前设置 antd-mobile 官方主题属性，运行时同步，热更新释放监听；移动端暗色页面/启动/原生背景统一 #000000，透明 WebView 配合；运行中接收原生 uiMode 通知修正 WebView 缓存的媒体查询，系统栏显式同步图标颜色；空状态说明使用语义文字色，无偏好持久化 | 双端 app/main/styles、移动 system-theme.ts、桌面主进程、Android 主题/颜色资源、MainActivity |
 | 共享本地/批量模型 | 数字 v1 同时提供本地设备/目录 DTO 与批量传输模型；批量清单/映射/状态/结果、路由/头/错误/预算常量、封闭守卫及上下文匹配已经可用。sender sent 与 receiver succeeded 分开，实际文件哈希/根/父/名需匹配本任务；共享层只校验数据，哈希计算留给平台 | apps/shared/src/protocol/contracts.ts、protocol.ts、validation.ts、batch-*.ts、data-validation.ts；apps/shared/README.md |

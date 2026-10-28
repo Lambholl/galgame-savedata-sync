@@ -368,6 +368,13 @@ export class WindowsTransferRegistry {
     this.sweep()
     return [...this.tasks.values()].map((task) => clone(task.state))
   }
+  /** 备份管理只阻止仍在运行的传输；终态清理允许用户明确处理私有残留。 */
+  hasRunningWork(): boolean {
+    return (
+      this.pendingRegistration !== null ||
+      [...this.tasks.values()].some((task) => task.state.status === 'running')
+    )
+  }
 
   /** 仅在 ready 之后或仍保留清单的终态可读，准备阶段返回 task-conflict。 */
   getManifest(id: string): BatchManifest {

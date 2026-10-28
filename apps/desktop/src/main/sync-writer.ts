@@ -221,7 +221,7 @@ export class WindowsSyncWriter {
       !Number.isSafeInteger(acceptedAt) ||
       acceptedAt > now ||
       now - acceptedAt > BATCH_TIMEOUTS_MS.total ||
-      (options.lease && (!ownsTargetOperation(options.lease.token) || value.operation !== 'copy'))
+      (options.lease && !ownsTargetOperation(options.lease.token))
     ) {
       throw new ArchiveError('task-conflict', '已接纳任务的名额或期限已失效。')
     }

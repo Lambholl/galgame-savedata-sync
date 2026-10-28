@@ -18,18 +18,21 @@
 - [11. HTTP 接收与批次结果](#11-http-接收与批次结果)
 - [12. 独立备份与恢复材料](#12-独立备份与恢复材料)
 - [13. 受保护目标写入与本机恢复](#13-受保护目标写入与本机恢复)
+- [14. 同步结果与本机恢复界面](#14-同步结果与本机恢复界面)
 
 ## 1. 范围与入口
 
 `src/main/directory-adapter.ts` 提供 Windows 本机的目录登记、恢复、当前层元数据和原生只读文件流。界面通过系统选择器选择目录，支持切换根目录、进入子目录、返回和刷新；文件夹大小显示“—”，未知文件属性显示“未知”。
 
-目录读取模块保持源只读；私有归档负责快照、编解码和缓存清理；HTTP 服务负责设备/目录查询、双向批次传输及状态/取消。桌面提供服务启停、实际地址/端口、目录选择、任务状态、取消和清理重试。传输由手机发起，接收时在游戏配置的存档目录创建新文件，同名目标报错。
+目录读取模块保持源只读；私有归档负责快照、编解码和缓存清理；HTTP 服务负责设备/目录查询、双向传输及状态/取消。桌面提供服务启停、实际地址/端口、目录选择、任务计划与实际结果、备份设置和本机恢复。跨端复制由手机发起；旧新文件传输同名报错，新复制协议按确认计划执行新增、受保护覆盖、跳过和保留。
 
 ## 游戏与设备界面
 
 新增设备默认使用对端设备名称。电脑报告系统计算机名称；Android 优先报告系统设备名称，取不到时使用型号。重新连接保留已经保存的自定义名称。
 
 左键单击或右键单击游戏卡片，都打开该游戏的操作菜单。
+
+游戏卡片采用与手机端一致的三组渐变、居中封面、底部名称/设备数量和箭头。桌面卡片宽 160–180px，封面至少高 152px、信息区至少高 88px，保持竖版；长标题换行，颜色跟随明暗主题。
 
 添加游戏会打开弹窗，点击“选择存档目录”直接选择文件夹，随后显示游戏名输入框，默认填入父目录名，可以修改后确认添加；取消不会创建游戏。从对端导入游戏时也先选择本机目录。选择目录即同意在该目录接收文件，重启后沿用配置，接收前会重新检查目录身份和写权限。
 
@@ -39,7 +42,7 @@
 
 游戏与设备配置保存在应用私有目录的 `game-library.json`。一个游戏保存本机一个目录，关联多个对端游戏；首期只接纳一台在线手机。手机通过 `POST /v1/catalog` 提交目录引用并取回电脑目录表，8 秒内应答当前层目录查询；15 秒无元数据更新视为离线。运行传输时仍保留现有的单活动批次限制。
 
-电脑只设置本机目录；手机的目录由手机设置后交换公开引用。断开只结束本次连接，手机之后可以重新连接。设备断开/移除不删除存档；移除游戏或更换目录后，原目录不再作为该游戏的接收目标。当前文件操作仍是新文件传输；覆盖、删除与备份恢复按后续里程碑开放。
+电脑只设置本机目录；手机的目录由手机设置后交换公开引用。断开只结束本次连接，手机之后可以重新连接。设备断开/移除不删除存档；移除游戏或更换目录后，原目录不再作为该游戏的接收目标。桌面已接入复制计划/结果和本机备份恢复页面；手机确认页面继续后续工作包，镜像删除和 Windows 发起复制仍按 M-004 安排。
 
 保存游戏配置会核对目录是否已在本机选择器中登记；传输进行中先结束任务，再修改游戏目录或关联。设备改名保留原项目关系，重启继续读取同一份配置；失效目录保留记录并提示重新选择。
 
@@ -62,7 +65,7 @@
 
 当前递归扫描由 `WindowsSyncScanner` 提供：构造时传入本机目录适配器，`start(rootId)` 返回扫描句柄，`get(scanId)` 查询，`cancel(scanId)` 显式取消，退出时 `await stop()` 等待关流。原生验证可收紧 maxEntries/timeoutMs/retentionMs，不能放宽固定预算；失败使用脱敏 OperationError，结果只存当前会话。
 
-HTTP 服务注入 `scanSource: adapter` 后开放 `/v1/sync/capabilities`、`POST /v1/sync/scans` 和 `GET/DELETE /v1/sync/scans/{scanId}`。请求遵守会话头及严格 JSON，登记只接收 `{ schemaVersion: 1, rootId }`，202 后查询实际结果；旧批量接口保持非覆盖。扫描能力为 supported，复制、备份与恢复目前为 unsupported。
+HTTP 服务注入 `scanSource: adapter` 后开放 `/v1/sync/capabilities`、`POST /v1/sync/scans` 和 `GET/DELETE /v1/sync/scans/{scanId}`。请求遵守会话头及严格 JSON，登记只接收 `{ schemaVersion: 1, rootId }`，202 后查询实际结果；旧批量接口保持非覆盖。注入 `sync` 编排后声明复制/备份为 supported；远端恢复为 unsupported，本机恢复通过独立本地桥执行。
 
 有限 `desktopService.startScan(rootId)`、`queryScan(scanId)`、`cancelScan(scanId)` 返回 `OperationResult<SyncScanState>`，桥会核对请求引用与返回句柄，主进程继续校验窗口来源和封闭参数。扫描复用原生只读流，前后重查文件/目录变化，空目录单独表示，目录大小恒为 null；完成结果保留最多 10 分钟，停止/重启服务使旧句柄失效。
 
@@ -302,7 +305,7 @@ try {
 }
 ```
 
-有限 `window.desktopBackups` 只提供 read/list/manifest/setPreference/rotate/cleanupIncomplete，输入仅为项目、目录、轮次 ID 和布尔开关。read 的 displayPath 仅供位置展示；列表使用摘要，单轮详情才返回完整清单，控制响应仍限 8 MiB。IPC 核对受信任主窗口/主 frame/URL、封闭参数和返回上下文；不暴露原生句柄、文件内容或私有文件路径参数。备份创建与目标写回由原生 `WindowsSyncWriter` 调用；HTTP 编排与恢复页面分别由 WP-025/WP-027 接入。
+有限 `window.desktopBackups` 只提供 read/list/manifest/setPreference/rotate/cleanupIncomplete，输入仅为项目、目录、轮次 ID 和布尔开关。read 的 displayPath 仅供位置展示；列表使用摘要，单轮详情才返回完整清单，控制响应仍限 8 MiB。IPC 核对受信任主窗口/主 frame/URL、封闭参数和返回上下文；不暴露原生句柄、文件内容或私有文件路径参数。备份创建与目标写回由原生 `WindowsSyncWriter` 调用；HTTP 编排及恢复页面已接入，页面流程见第 14 节。
 
 ## 13. 受保护目标写入与本机恢复
 
@@ -316,7 +319,7 @@ try {
 | `checkSpace(plan, privateSpace?)` | 原生接收前合计新文件、完整备份和同卷接收缓存的余量；privateSpace 只来自本机归档适配器，不接收远端容量策略 |
 | `stop()` | 停止接纳并取消当前任务，等待原生流/候选和恢复材料释放；应用先停止目标任务，再关闭备份存储 |
 
-本机快照和恢复预览有效期 10 分钟；远端快照由所属会话核实，避免用两端系统时钟差判断远端过期。已接纳任务总期限 30 分钟，可信原生 options 可收紧；signal 显式取消。网络编排通过 lease 借用同一任务 token 和接纳时间，归档准备期间确认继续有效，所有实际目标仍须重扫；编排在写入及缓存清理完成后释放名额。verifyContext 在每次发布前核实设备映射与目标备份设置；onStage/onOutcome 只通知观察结果，观察者异常不改变任务结果。
+本机快照和恢复预览有效期 10 分钟；远端快照由所属会话核实，避免用两端系统时钟差判断远端过期。已接纳任务总期限 30 分钟，可信原生 options 可收紧；signal 显式取消。网络编排和本机恢复通过 lease 借用同一任务 token 和接纳时间，归档准备期间确认继续有效，所有实际目标仍须重扫；编排在写入及缓存清理完成后释放名额。verifyContext 在每次发布前核实设备映射与目标备份设置，恢复时核实本机项目/根；onStage/onOutcome 只通知观察结果，观察者异常不改变任务结果。
 
 执行前重新扫描全部目标并核对原始条目 ID、路径、类型、内容和属性；所有待写原文再完整读取核对大小/SHA-256。容量预检把目标新内容、完整旧内容备份及同卷峰值相加，未知容量保持 null。全部覆盖旧内容提交为有效备份后才创建目录、逐文件写入；关闭备份按本次已确认设置执行，本机恢复始终保护被覆盖的当前文件。
 
@@ -331,4 +334,41 @@ const preview = await writer.prepareRestore(projectId, rootId, backupId, current
 // 将 preview.plan 的公开数据交给本机确认流程，随后执行同一份预览。
 const restored = await preview.apply({ signal })
 // 放弃预览时改为 await preview.close()，释放被引用的备份材料。
+```
+
+## 14. 同步结果与本机恢复界面
+
+游戏操作菜单的“任务与结果”展示本进程内的复制和恢复任务，计划、来源/目标、备份状态、阶段和逐项实际结果分别显示。电脑发送完成时提示“文件已发送。请在手机查看写入结果。”；电脑接收才显示本机写入结果。重扫读取本机当前目录，原确认计划保持不变；扫描未完成、属性未知、不存在和类型冲突分别呈现，文件夹不汇总大小。
+
+“备份与恢复”按游戏和目录读取完整备份与未完成轮次。备份默认开启，关闭前显示目标目录及覆盖提示，保存成功后切换状态；已有备份继续保留。本机恢复先读取并验证所选备份、扫描当前目录，生成固定预览，用户确认后由主进程执行。恢复始终保护被覆盖的当前内容，目标独有文件保留。原目录已更换时可查看其备份，恢复前需切回对应目录。
+
+`src/main/restore-registry.ts` 的 `WindowsRestoreRegistry` 持有恢复任务。普通准备不占目标操作名额，确认后同步取得名额，再异步校验/备份/写入。关闭详情、切页或刷新 Renderer 只停止页面轮询；本进程中的任务、预览及实际结果仍可按 ID 查询。网络服务停止不取消独立本机恢复；应用退出先停止网络编排和恢复，再停止写入器与备份。
+
+冻结的 `window.desktopSync` API 返回 `Promise<OperationResult<T>>`：
+
+| 方法 | 输入与结果 |
+| --- | --- |
+| `activity()` | 无参数；返回进程内目标操作或清理占用状态，用于配置编辑保护 |
+| `copies()` | 无参数；返回最多 32 份 `DesktopCopySummary`，含本机项目、对端、方向、角色、状态、阶段、更新时间和清理标记 |
+| `copyPlan(jobId)` / `copyState(jobId)` | 同次任务 ID；分别返回 `SyncJobRequest` 和 `SyncJobState`，桥按原生计划/清单核对上下文与实际结果 |
+| `cancelCopy(jobId)` / `cleanupCopy(jobId)` | 显式取消返回当前状态，显式清理成功返回 null；均不重新登记或重放内容 |
+| `restores()` | 无参数；返回最多 32 份 `DesktopRestoreSummary`，固定项目/目录/输入备份，含状态、阶段、清理标记和 `isWorking` |
+| `prepareRestore(projectId, rootId, backupId)` | 仅 ID；返回 preparing 状态，后台普通准备结束后为 ready、failed 或 cancelled |
+| `restorePlan(restoreId)` / `restoreState(restoreId)` | 分别返回固定 `SyncPlan` 和 `DesktopRestoreState`；状态包含实际文件进度、可空结果/主错误/独立清理错误 |
+| `executeRestore(restoreId, plan)` | 完整且与原生预览一致的可执行计划；接纳后立即返回 running 状态，后续查询实际结果 |
+| `cancelRestore(restoreId)` | 取消准备/未确认预览或请求停止写入；提交点后的实际结果仍由原生回读确认 |
+| `cleanupRestore(restoreId)` / `releaseRestore(restoreId)` | 前者重试释放本次候选/输入并返回状态，后者释放已停止的预览/结果并返回 null；清理失败保留引用 |
+
+恢复状态为 preparing、ready、running、succeeded、failed、cancelled、unknown；阶段区分准备、等待确认、校验、备份、写入、清理和结束。`isWorking` 表示原生 worker 尚未退出，因此实际结果已形成时页面仍会等清理完成。结果保留部分成功、取消、未执行或未知，不把未知当作失败后可直接重放。清理失败单独展示并保留已确认任务的占用名额；先在备份页检查/清理未完成轮次，再显式重试任务清理。
+
+本机预览和已结束结果保留最多 10 分钟，查询不延长；本进程最多接受 4096 次恢复确认。准备和执行各受 30 分钟总期限限制。进程重启后只保留配置和已提交备份，任务 ID 不恢复。旧备份若已按最近 3 次轮换淘汰，重新预览返回 not-found，应从当前列表另选备份。
+
+固定 `sync:*` 通道在 `src/bridge/sync-bridge.ts` 登记，`sync-ipc.ts` 核对受信任窗口、主 frame、精确 URL、封闭参数和 8 MiB 控制响应预算。恢复变更通道串行接纳，归档/文件内容仍在原生层；`copyManifest` 是 preload 内部的上下文核对通道，不在 Renderer API 中公开。非法输入/计划为 invalid-request，名额占用为 busy，已消费确认是 task-conflict，过期或已释放为 not-found，其余 IO/权限/容量错误沿用共享错误码；错误不授权自动重放。
+
+```ts
+const pending = unwrap(await window.desktopSync.prepareRestore(projectId, rootId, backupId))
+// 等待 restoreState 不再处于 preparing 后读取原生固定计划，交给用户确认。
+const plan = unwrap(await window.desktopSync.restorePlan(pending.restoreId))
+const running = unwrap(await window.desktopSync.executeRestore(pending.restoreId, plan))
+// 后续只查询 running.restoreId；页面重开时从 restores() 选择原任务。
 ```

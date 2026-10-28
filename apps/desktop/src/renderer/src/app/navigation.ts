@@ -15,7 +15,7 @@ export const PAGE_TITLES: Readonly<Record<Page, string>> = {
   settings: '设置',
   edit: '游戏目录',
   transfer: '传输存档',
-  task: '传输详情',
+  task: '任务与结果',
   backup: '备份与恢复',
 }
 

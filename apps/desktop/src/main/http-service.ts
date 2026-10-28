@@ -142,9 +142,37 @@ export class WindowsHttpService {
   getSyncStates(): readonly SyncJobState[] {
     return this.syncRegistry?.getStates() ?? []
   }
+  /** 受信任本机桥分开读取摘要、计划、清单和结果；不新增远端发起入口。 */
+  syncCopies(): ReturnType<WindowsSyncRegistry['summaries']> {
+    return this.syncRegistry?.summaries() ?? []
+  }
+  syncCopyRequest(id: string): ReturnType<WindowsSyncRegistry['localRequest']> {
+    return this.localSync().localRequest(id)
+  }
+  syncCopyState(id: string): SyncJobState {
+    return this.localSync().localState(id)
+  }
+  syncCopyManifest(id: string): ReturnType<WindowsSyncRegistry['localManifest']> {
+    return this.localSync().localManifest(id)
+  }
+  cancelSyncCopy(id: string): SyncJobState {
+    return this.localSync().localCancel(id)
+  }
+  cleanupSyncCopy(id: string): Promise<void> {
+    return this.localSync().localCleanup(id)
+  }
+  private localSync(): WindowsSyncRegistry {
+    if (!this.syncRegistry) {
+      throw new HttpOperationError('not-found', '本地同步会话已关闭，请重新读取目录。')
+    }
+    return this.syncRegistry
+  }
   /** 包含旧传输、新复制、本机恢复和待清理资源，用于编辑本机配置前检查。 */
   hasWork(): boolean {
     return hasTargetOperation()
+  }
+  hasRunningNetworkWork(): boolean {
+    return Boolean(this.registry?.hasRunningWork() || this.syncRegistry?.hasRunningWork())
   }
 
   /** 本机会话扫描入口，供有限 IPC 接入；不返回句柄或平台路径。 */
