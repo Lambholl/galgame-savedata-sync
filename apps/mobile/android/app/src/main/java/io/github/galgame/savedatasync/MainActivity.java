@@ -10,6 +10,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(SafDirectoriesPlugin.class);
         registerPlugin(HttpTransfersPlugin.class);
         registerPlugin(SyncScansPlugin.class);
+        registerPlugin(SyncBackupsPlugin.class);
         super.onCreate(savedInstanceState);
     }
 

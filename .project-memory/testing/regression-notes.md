@@ -23,6 +23,7 @@ related_files: []
 | 失联状态与统一提示 | passed | 注入通信中断后的未连接状态、一次性 Message、持续离线无重复、重新连接后再次失联、手机主动连接失败和活动任务查询上下文保留通过；浏览器实际页面明暗样式核对、工程检查、既有移动套件和 APK 编译通过 | 双端 App、移动 library-adapter；临时运行与页面截图，不保留界面自动化测试 |
 | 新增设备默认名称 | passed | Windows 实际 HTTP 返回系统计算机名；两端首次保存使用对端名称，重连保留自定义名称；Android 系统名优先/型号后备值和 Unicode 长度规则通过 JVM 检查；33 项桌面回归、工程检查及 Android Java/lint/双 APK/归档互通通过 | http-service、双端 library store/adapter、DeviceNames、HttpTransfersPlugin |
 | Windows 独立备份 | passed | 实际临时目录的原文/哈希/源属性、最近 3 次与恢复材料引用、新进程重启和设置恢复、坏设置保留、备份损坏/源变化/落盘失败/取消/超时关流/容量拒绝、轮换失败保留、显式残留清理及硬链接保护、备份根隔离和有限 IPC 通过；实际恢复写回仍属后续包 | backup-store/files/ipc、backup-bridge；33 项既有桌面回归及工程检查/双端构建 |
+| Android 独立备份 | partial | API 33 实际 SAF 备份、独立原文哈希及源内容/属性不变、未知长度注入、三轮保留/恢复材料引用、进程重启和正式插件查询通过；JVM 落盘失败、取消/超时关流、失效授权、容量、坏设置/损坏材料、轮换失败/残留和链接数注入通过；实际系统拒绝创建硬链接夹具。Android 10 新模块实测和实际目标写回留后续验收 | BackupStore/Model/Files、AndroidBackupIo、SyncBackupsPlugin、TS backup bridge；共享守卫/跨语言原文核对、7 项既有移动检查、工程检查、Android 原生测试/lint/双 APK/归档互通通过 |
 | Android SAF 初次访问时间变化 | unresolved | API 33 合成夹具首次读取后观察到 ctime 变化，原文和 mtime 一致，原因未确认 | 只读目录复验内容、大小和 mtime；ctime 是否变化按提供者能力记录 |
 | Windows 跨进程发布恢复 | open | 强杀可能留下候选；其他卷和特殊名称等价未验证 | 独立目标夹具；按前缀自动删除或恢复旧任务不在方案内 |
 | 满额规模、内存和容量预检 | passed | 双向 1 GiB、SHA-256/源属性、任务缓存清理和进程采样通过；功耗由用户取消，磁盘耗尽注入移出本轮 | 仓库根目录 `docs/validation/m001-resources.md`；双端编译、相关既有测试及容量探针 |

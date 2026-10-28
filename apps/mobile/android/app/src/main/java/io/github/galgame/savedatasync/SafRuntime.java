@@ -6,6 +6,7 @@ import android.content.Context;
 final class SafRuntime {
     private static SafDirectoryStore store;
     private static SyncScanner scanner;
+    private static BackupStore backups;
     private SafRuntime() {}
     static synchronized SafDirectoryStore store(Context context) throws SafFailure {
         if (store == null) store = new SafDirectoryStore(context.getApplicationContext());
@@ -15,5 +16,11 @@ final class SafRuntime {
     static synchronized SyncScanner scanner(Context context) throws SafFailure {
         if (scanner == null) scanner = new SyncScanner(new SafSyncSource(store(context)));
         return scanner;
+    }
+    /** 持久备份位于可信 Context 的私有 files 目录，不使用 SAF 选择备份位置。 */
+    static synchronized BackupStore backups(Context context) throws Exception {
+        if (backups == null) backups = new BackupStore(context.getApplicationContext().getFilesDir().getCanonicalFile().toPath(),
+            new SafSyncSource(store(context)), new AndroidBackupIo());
+        return backups;
     }
 }

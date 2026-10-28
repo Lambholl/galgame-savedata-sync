@@ -8,6 +8,7 @@
 - [原生归档接口](#原生归档接口)
 - [原生新文件发布](#原生新文件发布)
 - [原生 HTTP 与持续通知](#原生-http-与持续通知)
+- [独立备份与恢复材料](#独立备份与恢复材料)
 - [验证](#验证)
 
 ## 界面入口
@@ -155,7 +156,26 @@ Android 行为依据见 [dataSync 前台服务](https://developer.android.com/de
 
 `SyncScanner` 提供当前 SAF 递归扫描、原生 SHA-256、空目录及失败部分结果，复用 `SafArchiveSource` 的权限/身份/属性前后复核。扫描按普通本地操作执行，不加保活或前后台处理。`SyncScansPlugin` 只提供 capabilities/start/query/cancel，参数为 schemaVersion/rootId 或 scanId；没有 URI、平台路径、文件内容及可调预算。结果与 Windows 使用同一 SyncScanState，期限、条目/深度/JSON 限制和 32 份结果保留沿用 [M-002 文档](../../docs/plans/m002-sync-copy.md) 第 3 节。
 
-`src/platform/sync-scan-bridge.ts` 核对有限参数、完整结果及 rootId/scanId 上下文；`androidSyncScans` 为平台接入。所有调用返回 OperationResult；query 的成功包络只代表查到任务，扫描是否成功取决于内部 status。显式取消会关闭原生读流和 SAF 查询；未知长度按流实测，源变化和授权失效返回具体错误。当前只开放扫描能力，备份/覆盖/恢复仍按后续包推进。
+`src/platform/sync-scan-bridge.ts` 核对有限参数、完整结果及 rootId/scanId 上下文；`androidSyncScans` 为平台接入。所有调用返回 OperationResult；query 的成功包络只代表查到任务，扫描是否成功取决于内部 status。显式取消会关闭原生读流和 SAF 查询；未知长度按流实测，源变化和授权失效返回具体错误。扫描与本机备份材料已提供原生入口，覆盖/恢复写回及跨端编排继续按后续包推进。
+
+## 独立备份与恢复材料
+
+`SafRuntime.backups(context)` 在 `Context.getFilesDir()/backups/` 初始化持久备份；源文件通过已有 SAF 授权读取。备份位置属于应用私有存储，不再弹目录选择器。清除应用数据、卸载或手工删除备份区会丢失其中的材料。
+
+| 原生接口 | 输入、输出与资源责任 |
+| --- | --- |
+| `BackupStore.create(projectId, rootId, reason, shouldBackup, entries, control)` | 原生编排器传入确认计划中全部 replace-file 对应的目标 SyncEntry 文件项；按原相对路径复核本次引用，返回 `{ manifest, cleanupError }`；关闭备份或没有覆盖时 manifest 为 null，reason=restore 强制开启保护 |
+| `list` / `manifest` | 按项目/根返回轮次摘要和未完成 ID，或按 backupId 取得单轮清单；清单显示与实际文件复核分开，恢复前必须 acquire |
+| `settings` / `setPreference` / `capacity` | 独立 SyncBackupSettings，缺少项目设置时使用 true，坏文件保持原样；容量在完整新轮与旧轮共存时预检，未知值为 null，不足返回 insufficient-space |
+| `acquire(projectId, rootId, backupId, control)` | 重新核对全部原文后返回 Handle；manifest 为副本，snapshot 是本次恢复树，source(fileId) 提供原生只读流与身份观察；消费者先关闭流，再 release，引用期间不淘汰该轮 |
+| `rotate` / `cleanupIncomplete` | 明确重试轮换或清理归属已核实的未提交/已淘汰轮次；有效轮次和被恢复引用的材料不会按残留删除 |
+| `close` | 原生所有者关闭存储时取消当前操作、等待文件释放并关闭读取引用；已提交备份持久保留 |
+
+`BackupModel` 与共享备份 v1 清单一致。每个旧文件先校验源属性、流式大小/SHA-256，再同步落盘并独立读回；全部完成后原子提交清单。每个项目/根保留最近 3 次，新轮提交后才轮换，轮换失败单独报告。读取未知长度时按流实测并核对计划的大小与哈希，文件内容不经过 JS。取消、期限或实际失败在提交前结束时不产生有效轮次，清理错误附在主错误之外。预算、位置和恢复规则统一见 [M-002 文档](../../docs/plans/m002-sync-copy.md) 第 3 节。
+
+`BackupFiles` 只访问已核实的私有普通文件，Android 实际身份和链接数由 `Os.lstat` 读取；固定 fileId、所有权记录、根/轮次身份和前后属性共同约束访问与清理。未提交轮次重启后通过明确操作清理，既不恢复旧同步，也不按文件名前缀猜测用户文件归属。
+
+`src/platform/backups.ts` 导出 `androidBackups`，只提供 read/list/manifest/setPreference/rotate/cleanupIncomplete。参数只有公开 ID 和布尔开关，read 的 displayPath 仅供展示；Java 和 TS 分别校验封闭字段、清单及本次上下文，控制 JSON 仍限 8 MiB。创建、原生句柄、文件内容和恢复写回不跨这个桥；实际目标写回与界面分别由 WP-024/WP-028 接入。
 
 ## 验证
 
