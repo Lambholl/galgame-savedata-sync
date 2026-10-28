@@ -7,6 +7,7 @@ import { build, Platform, Arch } from 'electron-builder'
 
 const APP_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const REPO_ROOT = resolve(APP_ROOT, '../..')
+const TARGET_NAMES = new Set(['nsis', 'portable'])
 
 /**
  * 在新的私有暂存目录打包已构建资源；不复制工作区依赖、用户目录或测试资料。
@@ -15,6 +16,12 @@ const REPO_ROOT = resolve(APP_ROOT, '../..')
 async function main() {
   if (process.platform !== 'win32') {
     throw new Error('请在 Windows 上构建此安装包。')
+  }
+  const requestedTargets = [...new Set(process.argv.slice(2))]
+  const targets = requestedTargets.length > 0 ? requestedTargets : ['nsis', 'portable']
+  const invalidTargets = targets.filter((target) => !TARGET_NAMES.has(target))
+  if (invalidTargets.length > 0) {
+    throw new Error(`不支持的 Windows 打包目标：${invalidTargets.join('、')}`)
   }
   const metadata = JSON.parse(await readFile(join(APP_ROOT, 'package.json'), 'utf8'))
   const config = JSON.parse(await readFile(join(APP_ROOT, 'electron-builder.json'), 'utf8'))
@@ -72,7 +79,7 @@ async function main() {
   // 主进程和 preload 已由 electron-vite 打包；分发包无需 pnpm 工作区软链接。
   const artifacts = await build({
     projectDir: staging,
-    targets: Platform.WINDOWS.createTarget(['nsis', 'portable'], Arch.x64),
+    targets: Platform.WINDOWS.createTarget(targets, Arch.x64),
     publish: 'never',
     config: {
       ...config,

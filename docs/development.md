@@ -5,6 +5,7 @@
 - [环境要求](#环境要求)
 - [机器路径配置](#机器路径配置)
 - [Android 工作流](#android-工作流)
+- [发布流程](#发布流程)
 - [依赖安全检查](#依赖安全检查)
 - [验证范围与常见问题](#验证范围与常见问题)
 
@@ -61,6 +62,27 @@ pnpm android:open
 ```
 
 连接已开启 USB 调试的设备后，可在 Android Studio 运行应用。移动界面已有游戏、设备、目录与传输操作；插件入口、原生流责任和测试方式见[移动适配说明](../apps/mobile/README.md)。`android:test` 执行 Java 单元、Android lint 及调试/测试 APK 构建，不会部署到设备。同步功能要在两端设备上另做验收。
+
+## 发布流程
+
+推送 `v<major>.<minor>.<patch>` tag 会触发[发布工作流](../.github/workflows/release.yml)。普通分支 push 与 PR 只运行仓库检查，不保存构建产物。
+
+发布工作流依次完成：
+
+1. 核对 tag 与根包、共享包、桌面包、移动包和 Android `versionName`。
+2. 运行 `pnpm check` 与 `pnpm test:all`。
+3. 使用 `pnpm desktop:package:portable` 生成 Windows x64 免安装版，不构建安装版。
+4. 收集 Android debug APK，生成 `SHA256SUMS.txt`。
+5. 将三个文件上传为保留 7 天的 Actions artifact，并创建草稿 GitHub Release。
+
+草稿说明由 GitHub 根据提交自动生成。发布前在 Release 页面补充本版已知问题、安装限制和下载说明；发布说明不保存在仓库。
+
+```sh
+git tag -a v0.1.0 -m "存档同步 0.1.0"
+git push origin v0.1.0
+```
+
+创建草稿需要仓库 Actions 工作流权限允许 `contents: write`。Android APK 当前使用调试签名，Windows 免安装版未签名。
 
 ## 依赖安全检查
 

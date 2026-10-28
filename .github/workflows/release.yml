@@ -1,0 +1,71 @@
+name: Release build
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: windows-latest
+    env:
+      RELEASE_TAG: ${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '22'
+          cache: pnpm
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+      - run: pnpm install --frozen-lockfile
+      - name: Verify release version
+        run: node scripts/check-release-version.mjs "$env:RELEASE_TAG"
+      - run: pnpm check
+      - run: pnpm test:all
+      - run: pnpm desktop:package:portable
+      - name: Prepare release assets
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $version = $env:RELEASE_TAG.TrimStart('v')
+          New-Item -ItemType Directory -Path release-assets -Force | Out-Null
+          Copy-Item -LiteralPath "apps/desktop/release/SavedataSync-$version-Portable-x64.exe" `
+            -Destination "release-assets/SavedataSync-$version-Portable-x64.exe"
+          Copy-Item -LiteralPath "apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk" `
+            -Destination "release-assets/SavedataSync-$version-Android-debug.apk"
+          $checksums = Get-ChildItem -LiteralPath release-assets -File |
+            Sort-Object Name |
+            ForEach-Object {
+              $hash = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+              "$hash  $($_.Name)"
+            }
+          Set-Content -LiteralPath release-assets/SHA256SUMS.txt -Value $checksums -Encoding utf8NoBOM
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: savedata-sync-${{ github.ref_name }}
+          path: release-assets/*
+          if-no-files-found: error
+          retention-days: 7
+      - name: Create draft release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $version = $env:RELEASE_TAG.TrimStart('v')
+          $assets = Get-ChildItem -LiteralPath release-assets -File | ForEach-Object FullName
+          gh release create $env:RELEASE_TAG @assets `
+            --draft `
+            --title "存档同步 $version" `
+            --generate-notes

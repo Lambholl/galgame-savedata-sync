@@ -14,6 +14,7 @@ related_files: []
 
 | 范围 | 状态 | 当前问题 | 复验入口 |
 | --- | --- | --- | --- |
+| 0.1.0 tag 发布链路 | pending | 本地版本门禁的一致 tag 与不一致 tag、`pnpm check`、`pnpm test:all`、Portable 实际打包及三个发布文件的 SHA-256 准备通过；Portable 时间已更新，旧 Setup 保持原时间，本次只调用 portable target。远端 workflow、artifact 与草稿 Release 尚未运行 | 推送 `v0.1.0` 后查看 Release build、artifact 与 GitHub 草稿附件 |
 | Android 确认执行、结果与本机恢复界面 | passed | 固定绑定/通知后目录变化/查询取消不重放等 6 组通过。API 33 实际页面的双向覆盖/逐项结果、独立保护清单、复制及恢复记录重载找回、备份关闭确认/系统返回/持久化、关闭后恢复仍保护、目标变化恢复失败、取消及 64 MiB 通知保持/切出返回同一任务和完整哈希共 11 组通过；明暗截图已核对。用户原配置和设置已恢复，测试轮次/目录及 Windows 合成数据已清理 | mobile sync-adapter、复制/备份/任务页、SyncWrites current 与备份维护互斥；真实 APK、SAF/LAN、外部 SHA-256 与截图核对；用户最终总体验收仍待执行，尺寸调整按用户要求排在本包提交后 |
 | Windows 计划、结果和本机恢复界面 | passed | 实际目录与有限 IPC 的恢复/保护当前内容、重复确认/名额互斥、取消/目标变化通过；清理失败保留引用/名额且重试不重写、部分成功取消和发布后未知、新桥结果恢复通过。实际 Electron 的备份默认/关闭、未知与不存在/扫描未完成、嵌套恢复确认/结果、页面重载找回任务、双角色显示/重扫/取消和明暗主题通过；卡片已按手机样式及竖版尺寸核对 | sync-bridge/ipc、restore-registry、备份/任务/扫描页；独立临时原生、真实 HTTP 与实际构建的 Renderer/preload/main 检查，截图人工核对；用户总体验收仍待最后执行 |
 | 工程检查与既有套件 | passed | 无当前失败 | `pnpm check`、`pnpm test:shared`、`pnpm test:desktop`、`pnpm test:mobile`、`pnpm android:test` |

@@ -8,6 +8,7 @@
     "dev": "electron-vite dev --watch",
     "build": "electron-vite build",
     "package:win": "pnpm build && node scripts/package-windows.mjs",
+    "package:win:portable": "pnpm build && node scripts/package-windows.mjs portable",
     "preview": "electron-vite preview",
     "typecheck": "tsc --noEmit",
     "test": "node --experimental-strip-types --test test/*.test.mjs"

@@ -55,6 +55,7 @@ Windows PowerShell 若限制执行 `.ps1` 启动器，可使用 `pnpm.cmd` 执�
 | `pnpm env:check --desktop` | 检查桌面环境与工具，不要求 Android 环境                           |
 | `pnpm dev:desktop`         | 启动 Electron 开发模式                                            |
 | `pnpm desktop:package`     | 构建 Windows x64 安装版与免安装版 exe，输出到 apps/desktop/release |
+| `pnpm desktop:package:portable` | 只构建 Windows x64 免安装版 exe                               |
 | `pnpm dev:mobile`          | 启动移动界面的本机网页预览                                        |
 | `pnpm check`               | 编码/换行、格式、ESLint、类型检查和双端构建                       |
 | `pnpm test:all`            | 全量自动化测试及 Android 原生测试；用于发布或高风险改动            |
@@ -67,7 +68,7 @@ Windows PowerShell 若限制执行 `.ps1` 启动器，可使用 `pnpm.cmd` 执�
 | `pnpm android:test`        | Java 单元、跨端原生归档互通、Android lint 及调试/仪器测试 APK 构建，不自动连接设备 |
 | `pnpm android:open`        | 在配置的 Android Studio 中打开原生工程                            |
 
-`pnpm build` 生成运行资源；`pnpm desktop:package` 生成未签名的 Windows 分发包，`pnpm android:build` 生成 Android 调试 APK。功能改动优先用 lint、类型检查、构建和实际操作验证；`pnpm test:all` 用于发布前或高风险改动。
+`pnpm build` 生成运行资源；`pnpm desktop:package` 生成未签名的 Windows 安装版与免安装版，`pnpm desktop:package:portable` 只生成免安装版，`pnpm android:build` 生成 Android 调试 APK。功能改动优先用 lint、类型检查、构建和实际操作验证；`pnpm test:all` 用于发布前或高风险改动。
 
 ## 仓库结构
 
@@ -78,7 +79,7 @@ apps/mobile/android/  Android 原生工程、Gradle Wrapper
 apps/shared/        两端共用的协议、数据模型与业务规则
 scripts/            环境检查、文本检查、Android 构建和 IDE 入口
 docs/               开发指南
-.github/workflows/  Windows 环境下的仓库检查
+.github/workflows/  Windows 环境下的仓库检查与 tag 发布
 .project-memory/    已确认需求、方案、验收和当前状态
 ```
 
