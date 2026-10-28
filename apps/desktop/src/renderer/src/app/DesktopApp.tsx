@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Empty } from 'antd'
+import { Empty, message } from 'antd'
 import {
   emptyLibrary,
   taskIsActive,
@@ -39,6 +39,7 @@ const ADAPTER = createDesktopLibraryAdapter()
 /** 桌面页面、弹窗与轮询由本端持有；原生任务切页后继续运行。 */
 export function DesktopApp(): React.JSX.Element {
   const adapter = ADAPTER
+  const [messageApi, messageContextHolder] = message.useMessage()
   const [page, setPage] = useState<Page>('games')
   const [snapshot, setSnapshot] = useState<DesktopSnapshot | null>(null)
   const [error, setError] = useState('')
@@ -77,13 +78,22 @@ export function DesktopApp(): React.JSX.Element {
     const version = ++generation.current
     const value = await adapter.read()
     if (version === generation.current) {
+      if (
+        snapshotRef.current?.peers.some(
+          (peer) =>
+            peer.isConnected &&
+            !value.peers.some((next) => next.device.id === peer.device.id && next.isConnected),
+        )
+      ) {
+        void messageApi.info({ content: '连接已断开', key: 'connection-disconnected' })
+      }
       snapshotRef.current = value
       setSnapshot(value)
       if (value.warning) {
         setError(value.warning)
       }
     }
-  }, [adapter])
+  }, [adapter, messageApi])
   useEffect(() => {
     const media = window.matchMedia('(prefers-color-scheme: dark)')
     const update = (): void => setIsDark(media.matches)
@@ -97,7 +107,7 @@ export function DesktopApp(): React.JSX.Element {
       if (!isCurrent) {
         return
       }
-      if (!operating.current && document.visibilityState !== 'hidden') {
+      if (!operating.current) {
         try {
           await refresh()
         } catch (cause) {
@@ -480,6 +490,7 @@ export function DesktopApp(): React.JSX.Element {
   }
   const dialogs = (
     <>
+      {messageContextHolder}
       <AddGameDialog
         isOpen={isAddGameOpen}
         directory={newDirectory}

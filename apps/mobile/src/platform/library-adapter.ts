@@ -174,9 +174,10 @@ export function createMobileLibraryAdapter(
   return {
     async read(): Promise<MobileSnapshot> {
       load()
-      let warning: string | null = null
       const roots = unwrap(await androidDirectories.listRoots())
       descriptors = unwrap(await androidTransfers.connections())
+      const connectedIds = new Set<string>()
+      await refreshTask()
       for (const descriptor of descriptors) {
         const id = descriptor.device.deviceId
         if (!load().devices.some((item) => item.id === id)) {
@@ -194,18 +195,12 @@ export function createMobileLibraryAdapter(
           answer: answers.get(id) ?? null,
         })
         if (result.status === 'error') {
-          warning = result.error.code === 'session-mismatch' ? null : result.error.message
-          if (
-            result.error.code === 'session-mismatch' ||
-            result.error.code === 'permission-denied' ||
-            result.error.code === 'busy'
-          ) {
-            if (!task || !taskIsActive(task)) {
-              await disconnect(id)
-            }
+          if (!task || !taskIsActive(task)) {
+            await disconnect(id)
           }
           continue
         }
+        connectedIds.add(id)
         answers.delete(id)
         catalogs.set(id, result.value.games)
         save(mergeCatalogLinks(load(), id, result.value.links))
@@ -225,14 +220,13 @@ export function createMobileLibraryAdapter(
           answers.set(id, { requestId: request.requestId, result: response })
         }
       }
-      await refreshTask()
       return {
-        warning,
+        warning: null,
         config: load(),
         roots,
         peers: load().devices.map((device) => ({
           device,
-          isConnected: descriptors.some((item) => item.device.deviceId === device.id),
+          isConnected: connectedIds.has(device.id),
           games: catalogs.get(device.id) ?? [],
         })),
         tasks: task ? [task] : [],

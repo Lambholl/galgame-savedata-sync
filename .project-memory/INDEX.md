@@ -29,6 +29,7 @@ related_files: []
 
 | 工作 | 状态 | 相关记忆文档 | 相关代码或配置 | 已完成 | 下一步 |
 | --- | --- | --- | --- | --- | --- |
+| 连接状态按通信结果判断与统一 Message | done | requirements/product.md、architecture/api-contracts.md、testing/regression-notes.md | 双端 App、DesktopLibrary、移动 library-adapter/App | 复用元数据心跳，修正手机失联显示与空闲连接释放；断连回到未连接，antd message 提示一次，不诊断原因；手机连接失败也统一消息样式。受控失联/重连、活动上下文、实际页面明暗主题、工程检查、移动套件和 APK 构建通过 | 继续 WP-021 Windows 独立备份与轮换 |
 | WP-020 Android SAF 当前扫描与内容指纹 | implemented | development/work-packages.md、architecture/api-contracts.md、testing/coverage-gaps.md | Android SyncScanner/SafSyncSource/SyncScansPlugin、移动 sync-scan bridge、既有目录/HTTP 插件与引擎 | 扫描与桥、实际 SAF 内容/源属性/取消、JVM 与桥针对性检查及既有套件和构建通过；前后台判断已移除。仅传输保活，普通操作切后台后的成败不作专项处理或验收 | 下一包 WP-021 Windows 独立备份与轮换；Android 10 新扫描实测留最终平台验收 |
 | WP-019 Windows 当前扫描与内容指纹 | done | development/work-packages.md、architecture/api-contracts.md | sync-scanner.ts、HTTP sync、service bridge/IPC、shared/sync | 已实现原生扫描、完整指纹及会话 HTTP/IPC；实际目录/源属性、源变化/越界、未知长度、预算/取消/超时关流/过期及桥边界通过；相关既有套件、工程检查和双端构建通过 | 下一步 WP-020：Java SAF 原生扫描、同一公开模型、有限插件/TS 桥及实际提供者验证 |
 | WP-018 项目映射与手动连接补齐 | done | development/work-packages.md、architecture/api-contracts.md | apps/shared/src/library、apps/mobile/src/platform/library-adapter.ts、apps/desktop/src/main/library-* | 已补固定项目绑定、通知后目录复核、目录登记与活动任务编辑保护；桌面原生配置和移动适配层场景、全部既有 TS 套件、工程检查及双端/APK构建通过 | 下一步 WP-019：实现 Windows 当前递归扫描/哈希及受限扫描接口 |

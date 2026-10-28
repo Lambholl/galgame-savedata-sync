@@ -53,7 +53,7 @@ export interface DirectoryAnswer {
   readonly requestId: string
   readonly result: OperationResult<DirectoryListing>
 }
-/** 元数据交换仅在前台进行；目录结果必须对应服务端签发的请求。 */
+/** 元数据交换兼作通信心跳；目录结果必须对应服务端签发的请求。 */
 export interface CatalogPush {
   readonly games: readonly CatalogGame[]
   readonly links: readonly CatalogLink[]

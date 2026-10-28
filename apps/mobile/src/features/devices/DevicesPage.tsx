@@ -44,7 +44,7 @@ export function DevicesPage({
               <div>
                 <h2>{peer.device.name}</h2>
                 <span className={`device-status ${peer.isConnected ? 'connected' : ''}`}>
-                  {peer.isConnected ? '已连接' : peer.device.blocked ? '已断开' : '未连接'}
+                  {peer.isConnected ? '已连接' : '未连接'}
                 </span>
               </div>
             </div>

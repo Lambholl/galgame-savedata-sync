@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Button, Toast } from 'antd-mobile'
+import { Button } from 'antd-mobile'
+import { message } from 'antd'
 import { EmptyState } from '../components/EmptyState'
 import {
   emptyLibrary,
@@ -47,6 +48,7 @@ export function MobileApp({
   readonly adapter: MobileLibraryAdapter
   readonly backButton?: BackButtonController
 }): React.JSX.Element {
+  const [messageApi, messageContextHolder] = message.useMessage()
   const [page, setPage] = useState<Page>('games')
   const [snapshot, setSnapshot] = useState<MobileSnapshot | null>(null)
   const [error, setError] = useState('')
@@ -86,13 +88,22 @@ export function MobileApp({
     const version = ++generation.current
     const value = await adapter.read()
     if (version === generation.current) {
+      if (
+        snapshotRef.current?.peers.some(
+          (peer) =>
+            peer.isConnected &&
+            !value.peers.some((next) => next.device.id === peer.device.id && next.isConnected),
+        )
+      ) {
+        void messageApi.info({ content: '连接已断开', key: 'connection-disconnected' })
+      }
       snapshotRef.current = value
       setSnapshot(value)
       if (value.warning) {
         setError(value.warning)
       }
     }
-  }, [adapter])
+  }, [adapter, messageApi])
   useEffect(() => {
     let isCurrent = true
     let timer: ReturnType<typeof setTimeout>
@@ -333,12 +344,10 @@ export function MobileApp({
     )
   }
   function showConnectionFailure(message: string): void {
-    Toast.show({
+    void messageApi.error({
       content: `连接失败：${message}`,
-      duration: 3500,
-      position: 'top',
-      maskClickable: true,
-      maskStyle: { zIndex: 1400 },
+      duration: 3.5,
+      key: 'connection-failed',
     })
   }
   function go(value: Page): void {
@@ -615,6 +624,7 @@ export function MobileApp({
     ) : null
   const dialogs = (
     <>
+      {messageContextHolder}
       <AddGameDialog
         isOpen={isAddGameOpen}
         directory={newDirectory}

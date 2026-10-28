@@ -46,6 +46,7 @@ related_files: []
 | Gradle 安全 | 升级为 8.14.6；分发 ZIP 固定官方 SHA-256，Wrapper JAR 已按官方 SHA-256 验证并更新启动器 | apps/mobile/android/gradle/wrapper/、gradlew、gradlew.bat |
 | Android 工具依赖 | AGP 8.13.2 与统一补丁策略已生效；全部可解析 Maven 配置（含各变体、测试、lint 和构建工具）与 Gradle Core 共 273 项复审零已知公告；包含 Protobuf 3.x 修复且保留 4.x 请求。移除未使用的 Google Services 构建插件 | apps/mobile/android/dependency-security.json、scripts/security-android.mjs |
 | Android 原生检查 | Java 单元、lint、双 APK、原生归档互通及移动桥检查通过；默认不新增或扩写自动化测试。实际 API 33 正式 LAN 双向、后台传输、持续通知、Activity 重连、显式取消与外部原文/属性保护通过 | Java 既有检查、ADB 实操与截图；testing/regression-notes.md |
+| 连接状态与短时提示 | 元数据轮询兼作心跳；Windows 按通信期限判离线，Android 只将本次交换成功的设备标在线，空闲失联时释放连接，活动任务仍可查询。断连回到未连接，antd message 提示一次，不诊断原因；手机连接失败由 Toast 改为同一 message，跟随本端明暗主题 | 双端 App、移动 library-adapter/App、shared library 注释；受控失联与实际页面操作检查通过 |
 
 ## 2. 维护说明
 
