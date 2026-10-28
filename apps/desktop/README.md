@@ -16,6 +16,7 @@
 - [9. HTTP 验证边界](#9-http-验证边界)
 - [10. 原生新文件发布](#10-原生新文件发布)
 - [11. HTTP 接收与批次结果](#11-http-接收与批次结果)
+- [12. 独立备份与恢复材料](#12-独立备份与恢复材料)
 
 ## 1. 范围与入口
 
@@ -266,3 +267,36 @@ receiver 的 sourceBytesRead 始终为 0，接收/原文校验/最终发布字�
 `test/http-receiver.test.mjs` 使用独立格式夹具、真实回环 HTTP/TCP 和自有源/目标/缓存，覆盖两阶段确认、单次 PUT、全部校验前零发布、部分失败/取消/unknown、响应丢失、停止与重启。sender 相关回归继续通过，源内容和属性逐项复验。
 
 双端正式 LAN、独立界面以及满额 1 GiB 双向传输和峰值内存已通过验收，见[规模验收](../../docs/validation/m001-resources.md)。其他文件系统、特殊名称等价和跨进程候选恢复仍有缺口。真实存档保持只读。
+
+## 12. 独立备份与恢复材料
+
+`createWindowsBackupStore(adapter, privateDirectory)` 在应用私有持久位置 `backups/` 初始化独立备份。启动时登记为私有目录，目录适配器拒绝把它及其父子目录选作同步根；所有备份访问继续复核根和轮次身份。备份不进入同步比较，清除应用数据或手工删除该目录会丢失备份。
+
+| 原生方法 | 输入、输出和资源责任 |
+| --- | --- |
+| `settings()` / `setPreference(projectId, rootId, shouldBackup)` | 独立 `SyncBackupSettings`；缺少设置项时使用 true，坏设置拒绝修改并保留原文件；不改变 `LibraryConfig` v1 |
+| `create(plan, options?)` | 仅接受有效、可执行且目标设备匹配的 `SyncPlan`，保存 replace-file 对应的全部旧内容；返回 `{ manifest, cleanupError }`，关闭备份或没有覆盖时 manifest 为 null |
+| `capacity(requiredBytes)` | 主进程预检私有卷剩余空间，返回所需/可得字节；可得量未知为 null，不足抛 insufficient-space；不提前删除有效旧轮次换空间 |
+| `list(projectId, rootId)` | 返回该项目/根的已提交清单和未完成轮次 ID；清单列出不代表文件刚刚重新校验，恢复必须 acquire |
+| `acquire(projectId, rootId, backupId, options?)` | 完整核对每个原文文件后返回原生句柄；`manifest` 是清单副本，`snapshot()` 为本次恢复建立临时树，`openFile(fileId)` 返回只读 stream 与 verifyUnchanged；消费者关闭读流后 release |
+| `rotate(projectId, rootId)` / `cleanupIncomplete(projectId, rootId, backupId)` | 显式重试轮换或清理已核实归属的未提交/已淘汰轮次；有效备份和正在被恢复引用的轮次不通过残留入口删除 |
+| `stop()` | 应用退出时取消正在创建/校验的备份并等待资源释放，关闭持有的恢复流；持久备份留到下次启动 |
+
+创建只写固定私有 fileId，每个文件执行源属性检查、流式大小/SHA-256、落盘和独立回读，再原子提交 `manifest.json`。所有权用 `owner.json` / `round.json` 保存；提交前失败或取消不产生有效轮次。失败抛 `ArchiveError` 或独立 `ArchiveCancelledError`，原始 cause 留在主进程，未清理成功的轮次另附 cleanupError。默认期限 30 分钟，原生 options 可通过 signal 取消或收紧 timeoutMs，读取使用 64 KiB 缓冲。预算、清单和恢复规则见 [M-002 文档](../../docs/plans/m002-sync-copy.md) 第 3 节。
+
+每个项目/目标根保留最近 3 次。新轮可读后才轮换，淘汰前核对保留轮次内容；活动恢复句柄保护输入轮次，release 后再轮换。淘汰先撤下有效清单，再清理已核实文件；失败返回独立 cleanupError，保留可重试的残留或暂时多留的轮次。重启只读取已提交材料，未完成轮次须明确清理，未知条目不自动删除。
+
+```ts
+const backup = await backups.create(confirmedPlan, { signal })
+// 调用方确认备份成功后，才把该结果交给目标写入模块。
+const material = await backups.acquire(projectId, rootId, backupId, { signal })
+try {
+  const snapshot = material.snapshot()
+  // 按 snapshot 生成本次恢复计划；文件通过 material.openFile(fileId) 原生读取。
+} finally {
+  // 消费者先关闭全部读流，再释放恢复材料引用。
+  await material.release()
+}
+```
+
+有限 `window.desktopBackups` 只提供 read/list/manifest/setPreference/rotate/cleanupIncomplete，输入仅为项目、目录、轮次 ID 和布尔开关。read 的 displayPath 仅供位置展示；列表使用摘要，单轮详情才返回完整清单，控制响应仍限 8 MiB。IPC 核对受信任主窗口/主 frame/URL、封闭参数和返回上下文；不暴露原生句柄、文件内容或私有文件路径参数。备份创建由后续原生复制编排调用，恢复写回与页面分别留 WP-023/WP-027；当前 HTTP 覆盖能力仍未开放。

@@ -61,6 +61,7 @@ export class WindowsDirectoryAdapter {
   private registry: DirectoryRegistry
   private readonly entries = new Map<string, RegisteredEntry>()
   private readonly entryIds = new Map<string, string>()
+  private readonly privateDirectories = new Set<string>()
   private mutation: Promise<void> = Promise.resolve()
 
   constructor(configPath: string, registry: DirectoryRegistry) {
@@ -86,6 +87,22 @@ export class WindowsDirectoryAdapter {
     }
   }
 
+  /** 原生模块登记私有持久区，阻止后续把它或其父子目录选为同步根。 */
+  excludePrivateDirectory(path: string): void {
+    this.assertCacheIsolated(path)
+    this.privateDirectories.add(path)
+  }
+
+  private assertNotPrivate(path: string): void {
+    if (
+      [...this.privateDirectories].some(
+        (directory) => isWithinDirectory(directory, path) || isWithinDirectory(path, directory),
+      )
+    ) {
+      throw new DirectoryAccessError('path-outside-root', '同步目录必须与应用私有备份区分开。')
+    }
+  }
+
   /**
    * 仅供受信任主进程/系统选择器登记绝对路径，不接受 Renderer 路径。
    * 原子保存配置后才更新内存；重新选择同一路径保留 rootId 并重新核实身份。
@@ -101,6 +118,7 @@ export class WindowsDirectoryAdapter {
           throw new DirectoryAccessError('invalid-request', '所选条目不是目录。')
         }
         const canonicalPath = await realpath(path)
+        this.assertNotPrivate(canonicalPath)
         if (isWithinDirectory(canonicalPath, this.configPath)) {
           throw new DirectoryAccessError('invalid-request', '同步目录不能包含应用的目录配置。')
         }
@@ -357,6 +375,7 @@ export class WindowsDirectoryAdapter {
     if (!root) {
       throw new DirectoryAccessError('not-found', '目录未登记，请先选择目录。')
     }
+    this.assertNotPrivate(root.path)
     const stats = await inspectLocalPath(root.path)
     if (!stats.isDirectory() || !hasSameIdentity(stats, root.identity)) {
       throw new DirectoryAccessError('source-changed', '登记目录已被替换，请重新选择。')

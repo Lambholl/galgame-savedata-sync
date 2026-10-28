@@ -13,6 +13,8 @@ import { registerServiceIpc } from './service-ipc.ts'
 import { ServicePortSettings } from './service-port-settings.ts'
 import { DesktopLibrary } from './library-store.ts'
 import { registerLibraryIpc } from './library-ipc.ts'
+import { createWindowsBackupStore } from './backup-store.ts'
+import { registerBackupIpc } from './backup-ipc.ts'
 
 const trustedWindows = new Set<number>()
 const rendererUrl = process.env.ELECTRON_RENDERER_URL
@@ -72,6 +74,7 @@ if (hasInstanceLock) {
       const publisher = new WindowsNewFilePublisher(adapter)
       const library = new DesktopLibrary(join(privateDirectory, 'game-library.json'), adapter)
       await library.load()
+      const backups = await createWindowsBackupStore(adapter, privateDirectory)
       const portSettings = new ServicePortSettings(join(privateDirectory, 'service-settings.json'))
       await portSettings.load()
       const httpService = new WindowsHttpService(adapter, archive, {
@@ -85,6 +88,12 @@ if (hasInstanceLock) {
           await publisher.grant(rootId)
         },
       })
+      app.once(
+        'will-quit',
+        registerBackupIpc(ipcMain, backups, library, (event) =>
+          isTrustedDirectorySender(event, trustedWindows, expectedRendererUrl),
+        ),
+      )
       app.once(
         'will-quit',
         registerLibraryIpc(ipcMain, library, httpService, (event) =>
@@ -102,7 +111,7 @@ if (hasInstanceLock) {
           return
         }
         isClosing = true
-        Promise.allSettled([httpService.stop(), publisher.stop()])
+        Promise.allSettled([httpService.stop(), publisher.stop(), backups.stop()])
           .then((results) => {
             for (const result of results) {
               if (result.status === 'rejected') {

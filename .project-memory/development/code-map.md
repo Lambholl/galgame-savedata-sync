@@ -16,6 +16,7 @@ related_files: []
 | `apps/desktop/` | Electron 主进程、preload 和独立 antd 界面 | Renderer 无 Node 集成；contextIsolation 和 sandbox 开启 |
 | `apps/desktop/src/main/directory-adapter.ts`、`directory-store.ts`、`directory-paths.ts`、`directory-errors.ts` | 目录选择登记、独立配置、当前层元数据、根内原生读流及脱敏错误 | 没有源目录写入 API；拒绝 symlink/junction 与失效身份，配置不保存历史文件索引 |
 | `apps/desktop/src/main/archive-adapter.ts`、`archive-cache.ts`、`archive-format.ts`、`archive-errors.ts` | 私有源快照、受限 USTAR/gzip1 编解码、逐层校验、资源/取消与缓存所有权/清理 | 无 HTTP 或目标发布；缓存与源根互不包含；句柄持有缓存，读流关闭后 dispose；清理失败阻止新任务 |
+| `apps/desktop/src/main/backup-store.ts`、`backup-files.ts`、`backup-ipc.ts`、`src/bridge/backup-bridge.ts` | 独立持久备份、流式校验/提交、最近 3 次轮换、恢复材料和有限本机查询 | 只写私有 backups；目录适配器排除该区域；原文读取和创建留主进程，摘要/设置/清理通过 preload，实际恢复写回由后续平台包提供 |
 | `apps/desktop/test/archive-adapter.test.mjs`、`test/fixtures/archive-v1.json` | Windows 私有归档的格式、资源与故障回归，以及独立格式夹具 | 合成数据，不操作真实存档；Java 复用固定字节与原文期望；各自自我往返不算互通证据 |
 | `apps/desktop/src/main/new-file-publisher.ts`、`publication-errors.ts`、`test/new-file-publisher.test.mjs` | 进程内写授权/预检、单文件候选/link/最终回读、逐项结果与清理重试 | 仅原生调用，目录/HTTP/UI 不自动授予写权限；候选与目标同卷，不覆盖/删除已有条目；崩溃后不猜测候选所有权 |
 | `apps/desktop/src/main/http-service.ts`、`http-wire.ts`、`http-errors.ts`、`transfer-registry.ts` | 原生 HTTP 读取/接收、严格协议字节边界、会话内双角色任务/查询/取消、期限与单次 ID/content | 显式监听且默认回环；进程仅一活动批次，清理失败不释放；sender sent 与目标发布分开，目标结果看 receiver；应用退出等待 stop |
