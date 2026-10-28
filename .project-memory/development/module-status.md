@@ -3,7 +3,7 @@ doc_type: module-status
 status: active
 priority: high
 owner: development
-updated: 2026-10-28
+updated: 2026-10-29
 tags: [模块状态, 开发进度]
 related_files: []
 ---
@@ -32,12 +32,13 @@ M-001 已完成：工程基础设施、共享模型、双端目录/归档/发布
 | 本地设备/目录共享模型 | done | 开发 | apps/shared/src/protocol/contracts.ts、validation.ts、protocol.ts | 纯 DTO 只描述数据；平台权限和实际 IO 由适配器处理 | 本地 DTO 与有限桥继续复用，传输使用独立批量模型 |
 | 共享批量模型 | done | 开发 | apps/shared/src/protocol/batch-*.ts、data-validation.ts、test、README.md | 处理数据与上下文；归档/JSON 解析、网络、发布和计时由其他模块负责 | v1 批量模型与稳定数据关系测试通过；供 HTTP、Java 归档和原生发布复用 |
 | 当前扫描与覆盖计划共享模型 | done | 开发 | apps/shared/src/sync、src/index.ts、README.md | 纯数据与确定比较；实际扫描/备份/写入、权限、会话及期限由平台包处理 | 快照/树关系、复制和本机恢复计划、备份格式/设置及实际结果守卫已实现；针对性运行、既有共享套件及工程检查通过；供 WP-018 至 WP-028 复用 |
+| Android → Windows 复制编排 | done | 开发 | shared sync jobs、Windows sync-registry/upload-body、Android SyncJobModel/SyncTransferEngine/Runtime/Plugin/Service、TS bridge | 原生及有限 API 已接入；另一方向与界面继续后续工作包，真实存档开放仍需 M-002 总体验收 | API 33 实际 SAF/LAN、完整备份/覆盖/跳过/保留、回执丢失/短暂查询恢复/关闭备份/目标变化/实际取消、源及手机保存配置不变已通过；回环/JVM 故障、原生心跳和新桥上下文核对通过；继续 WP-026 |
 | 固定项目映射与传输前复核 | done | 开发 | apps/shared/src/library/project-binding.ts、双端 library store/adapter/IPC | 配置/设备/目录 ID 固定到任务；实际扫描和写入仍由平台包处理 | 目录登记、通知后映射变化、改址/重启持久化及异设备拒绝场景通过；旧 HTTP 与持久配置格式保持，TransferRequest 调用方需提供 projectId |
-| Windows 独立备份与轮换 | done | 开发 | backup-store/files/ipc、backup-bridge、启动/preload、directory-adapter | 原生受保护写入与恢复已复用材料；HTTP 编排和页面由后续包接入 | 独立原文回读、最近 3 次及引用保护、新进程重启/设置、源变化/校验/写入失败/取消/超时关流/容量、残留和链接保护及有限 IPC 验证通过；供 WP-025/WP-027 复用 |
-| Windows 受保护写入与恢复 | done | 开发 | sync-writer、sync-target-files、target-operation、directory-adapter、transfer-registry、启动 | 原生 API 已可用；HTTP 会话编排与本机恢复页面待后续接入，其他卷/名称和崩溃残留缺口沿用登记项 | 合成目录创建/覆盖/恢复、保护当前内容及目标独有条目、输入/目标变化、实际占用文件、权限/文件系统故障、取消/超时/部分/未知结果、容量和清理归属/互斥验证通过；33 项既有桌面回归及工程构建通过；供 WP-025/WP-027 复用 |
+| Windows 独立备份与轮换 | done | 开发 | backup-store/files/ipc、backup-bridge、启动/preload、directory-adapter | 原生写入/恢复及 Android 上传接收已复用材料；页面由后续包接入 | 独立原文回读、最近 3 次及引用保护、新进程重启/设置、源变化/校验/写入失败/取消/超时关流/容量、残留和链接保护及有限 IPC 验证通过；供 WP-027 界面复用 |
+| Windows 受保护写入与恢复 | done | 开发 | sync-writer、sync-target-files、target-operation、directory-adapter、transfer-registry、启动 | 原生 API 及 Android 上传 HTTP 已接入；本机恢复页面待后续接入，其他卷/名称和崩溃残留缺口沿用登记项 | 合成目录创建/覆盖/恢复、保护当前内容及目标独有条目、输入/目标变化、实际占用文件、权限/文件系统故障、取消/超时/部分/未知结果、容量和清理归属/互斥验证通过；33 项既有桌面回归及工程构建通过；供 WP-027 复用 |
 | Android 独立备份与轮换 | done | 开发 | BackupStore/Model/Files、AndroidBackupIo、SyncBackupsPlugin、TS backup bridge | 已供原生受保护写入和恢复复用；HTTP 编排与界面由后续包接入，安卓实测使用 API 33 设备 | API 33 实际 SAF 备份、独立原文哈希/源属性、三轮保留及引用保护、进程重启和正式插件检查通过；JVM 写入故障/取消/超时/失效授权/容量/残留/链接数注入和桥检查、既有套件及工程/Android 构建通过；供 WP-026/WP-028 复用 |
 | Android 受保护写入与本机恢复 | done | 开发 | SyncPlanModel/Writer、SafSyncBackend、SyncWriteRuntime/Plugin、TargetOperation、TS sync-write bridge | 原生目标写入和有限本机恢复桥可用；项目配置绑定、复制 HTTP 和页面由后续适配层接入 | API 33 实际 SAF 新增/缩短/清空/恢复、写入中取消及创建竞争、当前内容保护/三轮保留、恢复任务准备/执行/取消/释放通过；JVM 故障/容量、跨语言计划/结果与桥、正式插件检查通过；既有桌面/移动/Java 套件、工程检查、Android lint/双 APK/归档互通通过；供 WP-026/WP-028 复用 |
-| Windows 当前扫描与内容指纹 | done | 开发 | sync-scanner.ts、http-service/wire、service-bridge/ipc、shared/sync | 只读扫描已接入，复制/备份/恢复能力仍为 unsupported | 实际目录/哈希/空目录/未知长度、源变化、junction、预算、超时/取消关流、期限及 HTTP/IPC 会话边界通过；供 WP-025/WP-026/WP-027 复用 |
+| Windows 当前扫描与内容指纹 | done | 开发 | sync-scanner.ts、http-service/wire、service-bridge/ipc、shared/sync | 只读扫描已接入；启用新增接收编排时声明复制/备份，远端恢复保持关闭 | 实际目录/哈希/空目录/未知长度、源变化、junction、预算、超时/取消关流、期限及 HTTP/IPC 会话边界通过；供 WP-026/WP-027 复用 |
 | Android 当前扫描与内容指纹 | done | 开发 | SyncScanner/SafSyncSource/SyncScansPlugin、TS sync-scan bridge | 普通本地只读扫描，不加保活或前后台处理；覆盖/备份/恢复仍为 unsupported | API 33 实际 SAF 嵌套/空目录/中文/空文件/哈希及原文属性核对、显式取消通过；JVM 未知长度/源变化/失效授权/预算/超时/过期和桥守卫通过；既有套件、工程检查与 APK 构建通过；安卓实测使用 API 33 设备 |
 | Windows 私有归档 | done | 开发 | apps/desktop/src/main/archive-*.ts、目录读流、test/fixtures/archive-v1.json、归档测试、README.md | 归档模块处理私有缓存；HTTP 和目标发布由其他模块负责；恶意并发重排命名空间不在隔离范围内 | 源只读、缓存独占/所有权/取消与重试、独立格式及满额 GiB/进程内存验收通过，接收前容量预检已实现 |
 | Windows HTTP sender 与任务注册 | done | 开发 | apps/desktop/src/main/http-*.ts、transfer-registry.ts、index.ts、HTTP 回归 | 默认不监听；真实 LAN/Android 已通过 TC-007，双端界面已接入并验证 | HTTP 回归覆盖公开协议、单次领取、期限和清理；receiver 已由 WP-005 集成 |

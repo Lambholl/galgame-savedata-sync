@@ -18,6 +18,11 @@ export interface HttpRoute {
     | 'sync-capabilities'
     | 'sync-scans'
     | 'sync-scan'
+    | 'sync-project'
+    | 'sync-jobs'
+    | 'sync-job'
+    | 'sync-job-manifest'
+    | 'sync-job-content'
   readonly id: string | null
   readonly parentId: string | null
 }
@@ -77,6 +82,7 @@ export function inspectHttpRequest(request: IncomingMessage): HttpRoute {
     throw new HttpOperationError('invalid-request', 'HTTP 路由编码无效。', error)
   }
   const [version, resource, id, action] = segments
+  const detail = segments[4]
   const method = request.method
   let kind: HttpRoute['kind']
   if (version !== 'v1') {
@@ -101,6 +107,33 @@ export function inspectHttpRequest(request: IncomingMessage): HttpRoute {
     (method === 'GET' || method === 'DELETE')
   ) {
     kind = 'sync-scan'
+  } else if (
+    resource === 'sync' &&
+    segments.length === 4 &&
+    id === 'projects' &&
+    isOpaqueId(action) &&
+    method === 'GET'
+  ) {
+    kind = 'sync-project'
+  } else if (resource === 'sync' && segments.length === 3 && id === 'jobs' && method === 'POST') {
+    kind = 'sync-jobs'
+  } else if (
+    resource === 'sync' &&
+    id === 'jobs' &&
+    isOpaqueId(action) &&
+    segments.length === 4 &&
+    (method === 'GET' || method === 'DELETE')
+  ) {
+    kind = 'sync-job'
+  } else if (
+    resource === 'sync' &&
+    id === 'jobs' &&
+    isOpaqueId(action) &&
+    segments.length === 5 &&
+    ((detail === 'manifest' && (method === 'GET' || method === 'PUT')) ||
+      (detail === 'content' && method === 'PUT'))
+  ) {
+    kind = detail === 'manifest' ? 'sync-job-manifest' : 'sync-job-content'
   } else if (segments.length === 2 && resource === 'catalog' && method === 'POST') {
     kind = 'catalog'
   } else if (segments.length === 2 && resource === 'roots' && method === 'GET') {
@@ -141,7 +174,11 @@ export function inspectHttpRequest(request: IncomingMessage): HttpRoute {
   if (kind !== 'entries' && query.size > 0) {
     invalid()
   }
-  if (method === 'PUT' && kind === 'content' && (encoding !== undefined || length === undefined)) {
+  if (
+    method === 'PUT' &&
+    (kind === 'content' || kind === 'sync-job-content') &&
+    (encoding !== undefined || length === undefined)
+  ) {
     invalid()
   }
   if (
@@ -149,6 +186,9 @@ export function inspectHttpRequest(request: IncomingMessage): HttpRoute {
     kind !== 'uploads' &&
     kind !== 'catalog' &&
     kind !== 'sync-scans' &&
+    kind !== 'sync-jobs' &&
+    !(method === 'PUT' && kind === 'sync-job-manifest') &&
+    !(method === 'PUT' && kind === 'sync-job-content') &&
     !(method === 'PUT' && kind === 'content') &&
     (encoding !== undefined || (length !== undefined && length !== '0'))
   ) {

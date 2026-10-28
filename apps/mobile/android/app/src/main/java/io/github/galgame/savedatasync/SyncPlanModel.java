@@ -77,12 +77,12 @@ final class SyncPlanModel {
             value = shape(copy(raw), "planId", "projectId", "operation", "direction", "shouldBackup", "source", "target", "schemaVersion", "entries", "issues", "transferFileCount", "totalFileBytes", "backupFileBytes", "canExecute");
             bytes(value); number(value.get("schemaVersion"), 1, 1); id = id(value.get("planId")); project = id(value.get("projectId"));
             one(value.get("operation"), "copy", "restore"); reason = string(value.get("operation"));
-            one(value.get("direction"), "windows-to-android", "local-restore");
+            one(value.get("direction"), "android-to-windows", "windows-to-android", "local-restore");
             require(value.get("shouldBackup") instanceof Boolean && Boolean.TRUE.equals(value.get("canExecute")) && list(value.get("issues")).isEmpty());
             backup = (Boolean) value.get("shouldBackup"); source = new Snapshot(value.get("source")); target = new Snapshot(value.get("target"));
             boolean restore = reason.equals("restore");
             require(restore ? value.get("direction").equals("local-restore") && backup && source.device.equals(target.device) :
-                value.get("direction").equals("windows-to-android") && !source.device.equals(target.device));
+                !value.get("direction").equals("local-restore") && !source.device.equals(target.device));
             Map<String, String> equivalence = new LinkedHashMap<>();
             for (String key : target.paths.keySet()) equivalence.put(BackupModel.key(BackupModel.path(target.paths.get(key).get("path"))), key);
             for (String key : source.paths.keySet()) {

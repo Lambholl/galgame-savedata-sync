@@ -10,6 +10,7 @@
 - [原生 HTTP 与持续通知](#原生-http-与持续通知)
 - [独立备份与恢复材料](#独立备份与恢复材料)
 - [受保护写入与本机恢复](#受保护写入与本机恢复)
+- [Android 到 Windows 复制编排](#android-到-windows-复制编排)
 - [验证](#验证)
 
 ## 界面入口
@@ -157,7 +158,7 @@ Android 行为依据见 [dataSync 前台服务](https://developer.android.com/de
 
 `SyncScanner` 提供当前 SAF 递归扫描、原生 SHA-256、空目录及失败部分结果，复用 `SafArchiveSource` 的权限/身份/属性前后复核。扫描按普通本地操作执行，不加保活或前后台处理。`SyncScansPlugin` 只提供 capabilities/start/query/cancel，参数为 schemaVersion/rootId 或 scanId；没有 URI、平台路径、文件内容及可调预算。结果与 Windows 使用同一 SyncScanState，期限、条目/深度/JSON 限制和 32 份结果保留沿用 [M-002 文档](../../docs/plans/m002-sync-copy.md) 第 3 节。
 
-`src/platform/sync-scan-bridge.ts` 核对有限参数、完整结果及 rootId/scanId 上下文；`androidSyncScans` 为平台接入。所有调用返回 OperationResult；query 的成功包络只代表查到任务，扫描是否成功取决于内部 status。显式取消会关闭原生读流和 SAF 查询；未知长度按流实测，源变化和授权失效返回具体错误。扫描与本机备份材料已提供原生入口，覆盖/恢复写回及跨端编排继续按后续包推进。
+`src/platform/sync-scan-bridge.ts` 核对有限参数、完整结果及 rootId/scanId 上下文；`androidSyncScans` 为平台接入。所有调用返回 OperationResult；query 的成功包络只代表查到任务，扫描是否成功取决于内部 status。显式取消会关闭原生读流和 SAF 查询；未知长度按流实测，源变化和授权失效返回具体错误。扫描、备份和受保护写入已提供原生入口；Android → Windows 编排见下节，另一方向及界面继续按工作包接入。
 
 ## 独立备份与恢复材料
 
@@ -199,7 +200,7 @@ Android 行为依据见 [dataSync 前台服务](https://developer.android.com/de
 | `query(restoreId)` / `cancel(restoreId)` | 查询本机状态与实际结果，或显式取消；查询不延长期限，返回 HTTP/桥成功包络只表示调用成功，恢复是否成功取决于内部状态和结果 |
 | `release(restoreId)` / `retryCleanup()` | 放弃预览或释放终态数据，明确重试未释放资源；运行中的任务先取消并等待终态，清理操作不重放文件写入 |
 
-`src/platform/sync-write-bridge.ts` 校验封闭字段、ID 上下文、预览计划与逐项实际结果；新页面实例可重新取回原生预览来核对终态。原生材料、URI、路径和文件字节不跨桥。当前恢复入口供平台适配器接入，复制 HTTP 和页面继续按 WP-025 至 WP-028 实现，旧 v1 非覆盖入口保持原行为。
+`src/platform/sync-write-bridge.ts` 校验封闭字段、ID 上下文、预览计划与逐项实际结果；新页面实例可重新取回原生预览来核对终态。原生材料、URI、路径和文件字节不跨桥。当前恢复入口供平台适配器接入，Android → Windows 复制 HTTP 已接入，另一方向及页面继续按工作包实现，旧 v1 非覆盖入口保持原行为。
 
 ```ts
 // game 来自已保存并核实的本机配置；文件内容和句柄始终留在原生层。
@@ -209,6 +210,33 @@ const task = unwrap(await androidSyncWrites.prepareRestore(game.id, game.rootId,
 const plan = unwrap(await androidSyncWrites.preview(task.restoreId))
 const running = unwrap(await androidSyncWrites.execute(task.restoreId, plan))
 // 继续 query 实际终态；不用此预览时 release，清理失败时明确 retryCleanup。
+```
+
+## Android 到 Windows 复制编排
+
+`SyncTransferRuntime` 由应用 Context 持有 `SyncTransferEngine`；复用同一原生连接和归档缓存。`SyncJobModel` 核对目录表中的双向项目关联、当前快照、源清单和 receiver 的完整逐项结果。`SyncPlanModel` 支持两种复制方向，实际 `SyncWriter` 仍只接受本机目标。新增协议集中在 [M-002 文档第 3.6/3.7 节](../../docs/plans/m002-sync-copy.md#36-http-与本地桥)。
+
+| `SyncTransfers` / `androidSyncTransfers` 方法 | 输入、输出与资源责任 |
+| --- | --- |
+| `prepare(binding, direction)`、`queryPreparation(id)`、`preview(id)`、`cancelPreparation(id)` | 当前方向为 android-to-windows；固定已保存配置发布的项目/设备/根，普通扫描生成异步准备状态，预览分别返回两份快照及目标备份开关。预览可展示冲突，准备阶段不占传输名额或启动保活 |
+| `execute(preparationId, plan)` | 原生核对同次预览与完整可执行计划，消费一次确认并取得进程名额；系统接受传输通知后才登记远端任务和准备/上传归档。启动失败保留可查询的失败结果，重复执行拒绝 |
+| `query(jobId, shouldRefresh?)`、`manifest(jobId)`、`current()` | 分别读取两个角色的状态、仅公开元数据的清单、最近任务 ID；页面重建可按 ID 取回预览重新校验。refresh 只查询原远端任务，不续期、不重放；运行期间由原生 worker 查询实际进展 |
+| `cancel(jobId)`、`release(preparationId)`、`retryCleanup()` | 显式取消并读取 receiver 实际结果，释放已结束的预览/任务，或重试本进程仍持有的缓存清理。清理失败保留名额和通知，重试只释放资源，不重复写入 |
+
+确认后先登记目标任务，再从实际 SAF 流准备源归档，逐文件核对引用、原名、父目录、修改时间、大小和 SHA-256；清单及内容各提交一次。源读取和归档期间每 3 秒查询原任务作为通信心跳，持续通信中的设备保持在线。登记、清单或内容回执丢失时查询同一 ID，查询失败记为待确认。sender sent 只表示已发送，最终是否成功以 receiver 的实际 `SyncApplyResult` 为准；重新查到电脑仍在写入时继续等待同一任务。无文件的计划不生成空归档。
+
+普通准备不判断应用前后台。确认执行后才使用 dataSync 服务和持续通知，覆盖源归档、上传、等待电脑结果及清理；插件销毁不会中断应用级启动或任务。原生源缓存发送完成后释放，名额保留到 receiver 结果或明确的待确认状态及本机清理完成。任务总期限 30 分钟，预览/终态最多保留 10 分钟、各最多 32 份，已用任务 ID 最多 4096 个并保留到进程结束。源权限失效、内容变化、版本/能力不兼容及空间不足有明确错误，业务不按前后台决定成败。
+
+`src/platform/sync-transfer-bridge.ts` 对 Native 返回值再次核对计划、清单、计数、角色和完整结果；新桥实例可从原生恢复同次上下文。平台层先核实保存的配置并取得通知权限，再调用这个有限 API；实际界面由 WP-028 接入。
+
+```ts
+// binding 来自刚核实的本机配置和已连接目录表，不接受文件路径。
+const preparing = unwrap(await androidSyncTransfers.prepare(binding, 'android-to-windows'))
+// queryPreparation 到 ready 后显示本次预览和比较计划，确认后执行一次。
+const preview = unwrap(await androidSyncTransfers.preview(preparing.preparationId))
+const plan = syncPlanFromPreview(preview)
+const running = unwrap(await androidSyncTransfers.execute(preparing.preparationId, plan))
+// query 同一 jobId 的两个角色；current/preview 用于页面重建，不能自动调用 execute。
 ```
 
 ## 验证

@@ -6,6 +6,7 @@ import type { Readable } from 'node:stream'
 import { finished } from 'node:stream/promises'
 import {
   SYNC_LIMITS,
+  BATCH_TIMEOUTS_MS,
   createSyncPlan,
   isSyncPlan,
   matchesSyncPlan,
@@ -33,7 +34,11 @@ import {
 import { hashBackupStream } from './backup-files.ts'
 import { toPublicationError } from './publication-errors.ts'
 import { WindowsSyncScanner } from './sync-scanner.ts'
-import { acquireTargetOperation, releaseTargetOperation } from './target-operation.ts'
+import {
+  acquireTargetOperation,
+  ownsTargetOperation,
+  releaseTargetOperation,
+} from './target-operation.ts'
 import {
   SYNC_TARGET_IO,
   checkTargetName,
@@ -60,6 +65,11 @@ export interface WindowsSyncWriterOptions {
 /** 同步阶段通知仅作观察；回调错误不会打断已经完成的原生写入。 */
 export interface WindowsSyncWriteOptions {
   readonly signal?: AbortSignal
+  /** 仅受信任原生编排借用已接纳的名额；编排在缓存及写入清理后自行释放。 */
+  readonly lease?: { readonly token: symbol; readonly acceptedAt: number }
+  /** 每次发布前重新核实连接、项目关联及目标备份设置；失败中止后续写入。 */
+  readonly verifyContext?: () => void | Promise<void>
+  readonly onOutcome?: (outcome: SyncWriteOutcome) => void
   readonly onStage?: (
     stage: 'checking' | 'backing-up' | 'writing',
     path: readonly string[] | null,
@@ -73,6 +83,8 @@ export interface WindowsRestorePreparation {
 }
 interface WriteJob {
   readonly token: symbol
+  readonly hasOwnToken: boolean
+  readonly verifyContext: () => void | Promise<void>
   readonly controller: AbortController
   readonly signal: AbortSignal
   readonly plan: SyncPlan
@@ -203,20 +215,34 @@ export class WindowsSyncWriter {
     if (this.usedIds.size >= 4096) {
       throw new ArchiveError('resource-limit', '本进程确认标识容量已满。')
     }
-    const now = Date.now()
+    const now = Date.now(),
+      acceptedAt = options.lease?.acceptedAt ?? now
+    if (
+      !Number.isSafeInteger(acceptedAt) ||
+      acceptedAt > now ||
+      now - acceptedAt > BATCH_TIMEOUTS_MS.total ||
+      (options.lease && (!ownsTargetOperation(options.lease.token) || value.operation !== 'copy'))
+    ) {
+      throw new ArchiveError('task-conflict', '已接纳任务的名额或期限已失效。')
+    }
     if (
       (value.operation === 'restore' ? [value.source, value.target] : [value.target]).some(
         (snapshot) =>
-          snapshot.observedAt > now || now - snapshot.observedAt > SYNC_LIMITS.snapshotLifetimeMs,
+          snapshot.observedAt > acceptedAt ||
+          acceptedAt - snapshot.observedAt > SYNC_LIMITS.snapshotLifetimeMs,
       )
     ) {
       throw new ArchiveError('not-found', '本机扫描或恢复预览已过期，请重新扫描。')
     }
-    const token = Symbol('sync-write')
-    acquireTargetOperation(token)
+    const token = options.lease?.token ?? Symbol('sync-write')
+    if (!options.lease) {
+      acquireTargetOperation(token)
+    }
     const controller = new AbortController()
     const job: WriteJob = {
       token,
+      hasOwnToken: !options.lease,
+      verifyContext: options.verifyContext ?? (() => undefined),
       controller,
       plan: structuredClone(value),
       signal: AbortSignal.any([
@@ -248,11 +274,13 @@ export class WindowsSyncWriter {
   }
   private async check(job: WriteJob): Promise<void> {
     checkArchiveAbort(job.signal)
+    await job.verifyContext()
     await this.options.authorize(structuredClone(job.plan))
     checkArchiveAbort(job.signal)
     await required(job.locations.get(syncPathKey([]))).verify()
   }
   private async preflight(job: WriteJob, material: WindowsSyncMaterial | null): Promise<void> {
+    await job.verifyContext()
     await this.options.authorize(structuredClone(job.plan))
     checkArchiveAbort(job.signal)
     const root = await this.source.locateNativeDirectory(job.plan.target.rootId)
@@ -321,22 +349,48 @@ export class WindowsSyncWriter {
         }
       }
     }
-    const newBytes = job.plan.totalFileBytes ?? 0
+    await this.checkSpace(job.plan)
+    await this.check(job)
+  }
+  /** 接收归档前合并同卷缓存、完整备份及新文件空间；不创建目录或删除旧备份换空间。 */
+  async checkSpace(
+    plan: SyncPlan,
+    privateSpace?: { readonly device: string; readonly requiredBytes: number },
+  ): Promise<void> {
+    if (
+      !isSyncPlan(plan) ||
+      !plan.canExecute ||
+      plan.target.deviceId !== this.source.deviceId ||
+      (privateSpace &&
+        (!Number.isSafeInteger(privateSpace.requiredBytes) || privateSpace.requiredBytes < 0))
+    ) {
+      throw new ArchiveError('invalid-request', '目标容量计划无效。')
+    }
+    await this.options.authorize(structuredClone(plan))
+    const root = await this.source.locateNativeDirectory(plan.target.rootId)
+    const newBytes = plan.totalFileBytes ?? 0
     const backupBytes =
-      job.plan.shouldBackup && job.plan.entries.some((entry) => entry.action === 'replace-file')
-        ? (job.plan.backupFileBytes ?? 0) + 8192 + Buffer.byteLength(JSON.stringify(job.plan))
+      plan.shouldBackup && plan.entries.some((entry) => entry.action === 'replace-file')
+        ? (plan.backupFileBytes ?? 0) + 8192 + Buffer.byteLength(JSON.stringify(plan))
         : 0
     const backupDevice = (await inspectLocalPath(this.backups.path)).dev
     const targetDevice = (await inspectLocalPath(root.path)).dev
-    const targetRequired = newBytes + (backupDevice === targetDevice ? backupBytes : 0)
+    const targetRequired =
+      newBytes +
+      (backupDevice === targetDevice ? backupBytes : 0) +
+      (privateSpace?.device === targetDevice.toString() ? privateSpace.requiredBytes : 0)
     const available = await this.io.availableBytes(root.path)
     if (available !== null && available < BigInt(targetRequired)) {
       throw new ArchiveError('insufficient-space', '目标卷无法同时保存新内容和完整备份。')
     }
     if (backupBytes) {
-      await this.backups.capacity(backupBytes + (backupDevice === targetDevice ? newBytes : 0))
+      await this.backups.capacity(
+        backupBytes +
+          (backupDevice === targetDevice ? newBytes : 0) +
+          (privateSpace?.device === backupDevice.toString() ? privateSpace.requiredBytes : 0),
+      )
     }
-    await this.check(job)
+    await root.verify()
   }
   private parent(job: WriteJob, operation: SyncPlanEntry): NativeDirectoryLocation {
     return required(job.locations.get(syncPathKey(operation.path.slice(0, -1))))
@@ -518,6 +572,11 @@ export class WindowsSyncWriter {
             ? await this.directory(job, operation)
             : await this.file(job, operation, required(material))
         outcomes[position] = result
+        try {
+          options.onOutcome?.(structuredClone(result))
+        } catch {
+          /* 观察者不改变已核实结果。 */
+        }
         if (result.status !== 'succeeded') {
           error = result.error
           break
@@ -575,7 +634,9 @@ export class WindowsSyncWriter {
     if (this.job === job) {
       this.job = null
     }
-    releaseTargetOperation(job.token)
+    if (job.hasOwnToken) {
+      releaseTargetOperation(job.token)
+    }
   }
   /** 只重试本进程仍持有的候选，不重放写入，不猜测崩溃前归属。 */
   async retryCleanup(): Promise<void> {

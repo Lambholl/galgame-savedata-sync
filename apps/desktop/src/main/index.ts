@@ -95,6 +95,7 @@ if (hasInstanceLock) {
         scanSource: adapter,
         publisher,
         library,
+        sync: { writer: syncWriter, backups, archive },
         authorizeTarget: async (rootId) => {
           if (!library.snapshot().config.games.some((game) => game.rootId === rootId)) {
             throw new HttpOperationError('permission-denied', '接收目录未配置到游戏。')
@@ -125,7 +126,9 @@ if (hasInstanceLock) {
           return
         }
         isClosing = true
-        Promise.allSettled([httpService.stop(), publisher.stop(), syncWriter.stop()])
+        httpService
+          .stop()
+          .then(() => Promise.allSettled([publisher.stop(), syncWriter.stop()]))
           .then(async (results) => {
             for (const result of results) {
               if (result.status === 'rejected') {

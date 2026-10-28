@@ -3,7 +3,7 @@ doc_type: regression-notes
 status: active
 priority: medium
 owner: testing
-updated: 2026-10-28
+updated: 2026-10-29
 tags: [回归测试, 当前状态]
 related_files: []
 ---
@@ -15,6 +15,7 @@ related_files: []
 | 范围 | 状态 | 当前问题 | 复验入口 |
 | --- | --- | --- | --- |
 | 工程检查与既有套件 | passed | 无当前失败 | `pnpm check`、`pnpm test:shared`、`pnpm test:desktop`、`pnpm test:mobile`、`pnpm android:test` |
+| Android → Windows 复制编排 | passed | API 33 真实 SAF/LAN 的保护备份/覆盖/跳过/保留、无文件变更、三种回执丢失不重放、关闭备份、确认后目标变化、实际传输取消与短暂查询恢复通过；源内容/mtime 和手机保存配置不变。回环的仅目录/容量/部分/未知/清理名额、JVM 源变化/取消/服务启动失败/坏结果/版本能力及长源读取心跳验证通过 | sync-registry/upload-body、SyncJobModel/SyncTransferEngine/Runtime/Plugin/Service、共享守卫和正式 Native/真实及新实例 TS 桥；临时源码/测试 APK 已清理；既有 TS/Java 套件、工程检查、Android lint/双 APK/归档互通、最终正式插件和 Web 资源一致性检查通过 |
 | 当前比较共享规则 | passed | 当前内容、空目录、失败/未知、名称/类型冲突、预算、计划防伪、备份格式和逐项结果针对性运行通过；双端原生扫描/写入已复用，Java 独立计划复核与实际结果通过共享守卫 | apps/shared/src/sync；共享既有套件；文本/格式/lint/全工作区类型及双端构建 |
 | 项目映射与异步发起复核 | passed | 桌面真实配置文件重启/改名/坏目录拒绝、移动适配层注入原生桥的改址/重启/异设备拒绝/通知后目录变化场景通过；新增覆盖流程尚待后续平台包 | 双端 library store/adapter；既有共享/桌面/移动套件、工程检查、桌面资源和 APK 构建 |
 | Windows 当前扫描生产端 | passed | 实际临时目录的哈希/空文件/空目录/中文/缓冲区外大文件、源属性、未知长度、源变化/junction、预算/超时/取消关流/到期及 HTTP/IPC 上下文核对通过 | sync-scanner、sync HTTP、service bridge/IPC；共享/桌面既有套件与工程检查 |

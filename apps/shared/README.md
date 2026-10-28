@@ -123,7 +123,7 @@ withGameLink、withoutGameLink、createImportedGame 返回新的游戏配置，�
 
 `isSyncSnapshot` 校验封闭字段、实测文件属性、目录大小恒为 null、路径/ID 唯一性和父目录链。扫描失败可以带部分条目供说明，规划仍会阻止执行。路径使用原始名称段，`isSyncPath` 检查结构和长度，计划器另检查可移植创建名及保守的名称等价冲突。
 
-`SyncScanRequest` 只含 schemaVersion/rootId，`isSyncScanState` 核对扫描句柄、状态、成功快照的实测字节数和完整指纹；失败可保留部分条目，取消与空目录成功分开。`isSyncCapabilities` 校验新增独立入口的能力声明与固定扫描限制。实际 HTTP/IPC 扫描生产端见桌面说明，当前只开放扫描，覆盖/备份/恢复仍由后续包接入。
+`SyncScanRequest` 只含 schemaVersion/rootId，`isSyncScanState` 核对扫描句柄、状态、成功快照的实测字节数和完整指纹；失败可保留部分条目，取消与空目录成功分开。`isSyncCapabilities` 校验新增独立入口的能力声明与固定扫描限制。Windows 已接入新增 HTTP 复制接收与保护备份，Android 原生上传已接入；另一方向及界面按工作包继续推进。
 
 `createSyncPlan({ planId, projectId, operation, direction, shouldBackup, source, target })` 生成本次计划。`operation=copy` 使用明确的跨端方向；`operation=restore` 使用 `local-restore`、同一设备及开启的保护备份。源/目标是本次 `SyncSnapshot`，恢复源由本机已验证备份构造。非法输入抛 Error；读取错误、内容未知、类型/名称冲突和超限返回 `canExecute=false` 及问题列表。
 
@@ -132,3 +132,5 @@ withGameLink、withoutGameLink、createImportedGame 返回新的游戏配置，�
 `isSyncBackupManifest` 检查独立备份格式、连续 fileId、文件指纹、路径关系和预算；`isSyncBackupSettings` 检查项目/rootId 设置唯一性，缺少设置由平台层默认开启。备份列表只用于恢复，比较器不读取备份。
 
 `isSyncApplyResult` 校验逐项结果、备份 ID 和独立清理错误。`matchesSyncApplyResult(result, plan)` 核对完整写入集合、顺序、成功项长度/哈希及默认保护；失败/取消后只允许未执行项。目录成功不携带文件字节，未知结果必须使用 result-unknown。权限、实际内容、备份有效性、会话期限、资源释放和真实写入仍由平台模块处理。
+
+`SyncJobRequest` 固定两端项目及完整计划；`matchesSyncJobManifest` 核对源引用、原名/父目录/日期和指纹，`matchesSyncJobState` 核对角色、计数及完整实际结果。零文件计划不提交归档。`SyncPreparationPreview` 通过 `syncPlanFromPreview` 生成同一份计划，plan.projectId 使用目标端本机项目 ID；`SyncTransferState` 分别保存本机及远端状态，sender sent 不表示 receiver 成功。准备、任务、清单和结果分开查询，协议统一见上面的 M-002 文档。

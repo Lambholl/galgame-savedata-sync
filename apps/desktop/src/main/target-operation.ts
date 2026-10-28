@@ -8,6 +8,11 @@ export function hasTargetOperation(): boolean {
   return owner !== null
 }
 
+/** 编排持有全任务名额时，把同一 token 借给写入器；检查不转移释放责任。 */
+export function ownsTargetOperation(token: symbol): boolean {
+  return owner === token
+}
+
 /** 仅原生编排持有 token；重复接纳和其他任务均返回 busy。 */
 export function acquireTargetOperation(token: symbol): void {
   if (owner !== null) {

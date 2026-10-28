@@ -14,6 +14,8 @@ import {
   SYNC_LIMITS,
   SYNC_SCHEMA_VERSION,
   isSyncScanRequest,
+  SYNC_DEVICE_HEADER,
+  isOpaqueId,
 } from '@savedata-sync/shared'
 import type {
   BatchState,
@@ -21,6 +23,7 @@ import type {
   OperationError,
   OperationResult,
   SyncScanState,
+  SyncJobState,
 } from '@savedata-sync/shared'
 import type { WindowsArchiveAdapter } from './archive-adapter.ts'
 import type { WindowsDirectoryAdapter } from './directory-adapter.ts'
@@ -32,6 +35,10 @@ import type { WindowsNewFilePublisher } from './new-file-publisher.ts'
 import type { DesktopLibrary } from './library-store.ts'
 import { WindowsSyncScanner } from './sync-scanner.ts'
 import type { WindowsScanSource } from './sync-scanner.ts'
+import { WindowsSyncRegistry } from './sync-registry.ts'
+import type { WindowsSyncWriter } from './sync-writer.ts'
+import type { WindowsBackupStore } from './backup-store.ts'
+import { hasTargetOperation } from './target-operation.ts'
 
 type HttpDirectorySource = Pick<WindowsDirectoryAdapter, 'deviceId' | 'listRoots' | 'listDirectory'>
 type HttpArchiveProvider = Pick<WindowsArchiveAdapter, 'prepare' | 'retryCleanup'> &
@@ -58,6 +65,11 @@ export interface WindowsHttpOptions extends Omit<TransferRegistryOptions, 'recei
   readonly displayName?: string
   readonly scanSource?: WindowsScanSource
   readonly publisher?: Pick<WindowsNewFilePublisher, 'checkTarget' | 'publish' | 'retryCleanup'>
+  readonly sync?: {
+    readonly writer: WindowsSyncWriter
+    readonly backups: WindowsBackupStore
+    readonly archive: Pick<WindowsArchiveAdapter, 'receive' | 'retryCleanup' | 'checkReceiveSpace'>
+  }
 }
 
 /**
@@ -78,6 +90,7 @@ export class WindowsHttpService {
   private starting: Promise<HttpListenerAddress> | null = null
   private runtimeError: OperationError | null = null
   private scanner: WindowsSyncScanner | null = null
+  private syncRegistry: WindowsSyncRegistry | null = null
 
   constructor(
     source: HttpDirectorySource,
@@ -122,6 +135,14 @@ export class WindowsHttpService {
   getStates(): readonly BatchState[] {
     return this.registry?.getStates() ?? []
   }
+  /** 新复制的 receiver 实际结果；与旧批次状态分别查询，避免混淆公开结构。 */
+  getSyncStates(): readonly SyncJobState[] {
+    return this.syncRegistry?.getStates() ?? []
+  }
+  /** 包含旧传输、新复制、本机恢复和待清理资源，用于编辑本机配置前检查。 */
+  hasWork(): boolean {
+    return hasTargetOperation()
+  }
 
   /** 本机会话扫描入口，供有限 IPC 接入；不返回句柄或平台路径。 */
   startScan(rootId: string): SyncScanState {
@@ -155,6 +176,9 @@ export class WindowsHttpService {
 
   /** 主进程明确重试失败缓存清理；不创建 HTTP 自动重试或重放入口。 */
   async retryCleanup(): Promise<void> {
+    if (this.syncRegistry?.hasWork()) {
+      await this.syncRegistry.retryCleanup()
+    }
     if (this.registry) {
       await this.registry.retryCleanup()
     } else {
@@ -190,6 +214,15 @@ export class WindowsHttpService {
         : {}),
     })
     this.registry = registry
+    if (this.options.sync && this.options.library && this.scanner) {
+      this.syncRegistry = new WindowsSyncRegistry({
+        ...this.options.sync,
+        library: this.options.library,
+        scanner: this.scanner,
+        deviceId: this.source.deviceId,
+        ...(this.options.timeouts ? { timeouts: this.options.timeouts } : {}),
+      })
+    }
     const sessionId = randomUUID()
     const server = createServer(
       {
@@ -247,6 +280,8 @@ export class WindowsHttpService {
     } catch (error) {
       this.server = null
       await registry.stop()
+      await this.syncRegistry?.stop()
+      this.syncRegistry = null
       await this.scanner?.stop()
       this.scanner = null
       this.registry = null
@@ -291,7 +326,12 @@ export class WindowsHttpService {
     const registry = this.registry
     // stop 在同步部分即关闭接纳并发送 abort，再等待原生 worker。
     const stopping = registry?.stop() ?? Promise.resolve()
-    const results = await Promise.allSettled([closed, stopping, this.scanner?.stop()])
+    const results = await Promise.allSettled([
+      closed,
+      stopping,
+      this.syncRegistry?.stop(),
+      this.scanner?.stop(),
+    ])
     this.server = null
     for (const result of results) {
       if (result.status === 'rejected') {
@@ -300,6 +340,7 @@ export class WindowsHttpService {
     }
     this.registry = null
     this.scanner = null
+    this.syncRegistry = null
     this.options.library?.stop()
   }
 
@@ -312,6 +353,74 @@ export class WindowsHttpService {
     const route = inspectHttpRequest(request)
     if (route.kind !== 'device' && request.headers[HTTP_HEADERS.sessionId] !== sessionId) {
       throw new HttpOperationError('session-mismatch', '服务会话已变化，请重新读取设备信息。')
+    }
+    const isSyncPeerRequired = [
+      'sync-project',
+      'sync-jobs',
+      'sync-job',
+      'sync-job-manifest',
+      'sync-job-content',
+    ].includes(route.kind)
+    const peerId = request.headers[SYNC_DEVICE_HEADER]
+    if (isSyncPeerRequired && (!isOpaqueId(peerId) || !this.syncRegistry)) {
+      throw new HttpOperationError(
+        this.syncRegistry ? 'invalid-request' : 'unsupported-operation',
+        '同步设备标识无效或服务未开放复制。',
+      )
+    }
+    if (route.kind.startsWith('sync-') && peerId !== undefined) {
+      if (!isOpaqueId(peerId) || !this.options.library) {
+        throw new HttpOperationError('invalid-request', '同步设备标识无效。')
+      }
+      this.options.library.touchPeer(peerId)
+    }
+    if (isSyncPeerRequired && isOpaqueId(peerId) && this.syncRegistry) {
+      const jobs = this.syncRegistry
+      if (route.kind === 'sync-project' && route.id) {
+        sendHttpJson(response, 200, {
+          status: 'success',
+          value: await jobs.project(route.id, peerId),
+        })
+      } else if (route.kind === 'sync-jobs') {
+        const value = await readHttpJson(request)
+        if (request.complete && !response.destroyed) {
+          sendHttpJson(response, 201, {
+            status: 'success',
+            value: await jobs.register(value, peerId),
+          })
+        }
+      } else if (route.id) {
+        if (route.kind === 'sync-job-manifest') {
+          if (request.method === 'PUT') {
+            const value = await readHttpJson(request)
+            if (request.complete && !response.destroyed) {
+              sendHttpJson(response, 200, {
+                status: 'success',
+                value: await jobs.declare(route.id, peerId, value),
+              })
+            }
+          } else {
+            sendHttpJson(response, 200, {
+              status: 'success',
+              value: jobs.manifest(route.id, peerId),
+            })
+          }
+        } else if (route.kind === 'sync-job-content') {
+          sendHttpJson(response, 202, {
+            status: 'success',
+            value: await jobs.receive(route.id, peerId, request, response),
+          })
+        } else {
+          const state =
+            request.method === 'DELETE' ? jobs.cancel(route.id, peerId) : jobs.get(route.id, peerId)
+          sendHttpJson(
+            response,
+            request.method === 'DELETE' && state.status === 'running' ? 202 : 200,
+            { status: 'success', value: state },
+          )
+        }
+      }
+      return
     }
     if (route.kind === 'device') {
       const device: DeviceDescriptor = {
@@ -345,8 +454,8 @@ export class WindowsHttpService {
           schemaVersion: SYNC_SCHEMA_VERSION,
           deviceId: this.source.deviceId,
           canScan: this.scanner ? 'supported' : 'unsupported',
-          canCopy: 'unsupported',
-          canBackup: 'unsupported',
+          canCopy: this.syncRegistry ? 'supported' : 'unsupported',
+          canBackup: this.syncRegistry ? 'supported' : 'unsupported',
           canRestore: 'unsupported',
           limits: SYNC_LIMITS,
         },
@@ -389,7 +498,8 @@ export class WindowsHttpService {
         status: 'success',
         value: await this.options.library.exchange(
           value,
-          registry.getStates().some((item) => item.status === 'running'),
+          registry.getStates().some((item) => item.status === 'running') ||
+            Boolean(this.syncRegistry?.hasWork()),
           request.headers['x-sync-connect'] === '1',
         ),
       })

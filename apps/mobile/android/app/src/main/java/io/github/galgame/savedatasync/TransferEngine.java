@@ -46,6 +46,7 @@ final class TransferEngine {
     private static final class Connection {
         final TransferHttp http;
         final Map<String, Object> descriptor;
+        Map<String, Object> hello, reply;
         boolean announced;
         Connection(TransferHttp http, Map<String, Object> descriptor) { this.http = http; this.descriptor = descriptor; }
     }
@@ -106,7 +107,7 @@ final class TransferEngine {
     }
     private synchronized void available() throws ArchiveFailure { if (closed) throw fail("unsupported-operation"); }
     Map<String, Object> connect(TransferHttp client, ArchiveControl control) throws Exception {
-        synchronized (this) { available(); if (active != null || connecting || !connections.isEmpty()) throw fail("busy"); connecting = true; http = null; }
+        synchronized (this) { available(); if (active != null || TargetOperation.hasWork() || connecting || !connections.isEmpty()) throw fail("busy"); connecting = true; http = null; }
         try {
             Map<String, Object> descriptor = device(client.json("GET", "/v1/device", null, null, 200, control));
             synchronized (this) {
@@ -119,7 +120,7 @@ final class TransferEngine {
         } finally { synchronized (this) { connecting = false; } }
     }
     synchronized void disconnect() throws ArchiveFailure {
-        available(); if (active != null || connecting) throw fail("busy"); connections.remove(remoteDeviceId); http = null; remoteDevice = null; session = null; remoteRoots.clear(); remoteEntries.clear();
+        available(); if (active != null || TargetOperation.hasWork() || connecting) throw fail("busy"); connections.remove(remoteDeviceId); http = null; remoteDevice = null; session = null; remoteRoots.clear(); remoteEntries.clear();
     }
     synchronized List<Object> connections() throws Exception {
         available(); List<Object> result = new ArrayList<>();
@@ -127,7 +128,7 @@ final class TransferEngine {
         return result;
     }
     synchronized Map<String, Object> selectDevice(String id) throws Exception {
-        available(); if (connecting) throw fail("busy"); Connection value = connections.get(id);
+        available(); if (connecting || (TargetOperation.hasWork() && !id.equals(remoteDeviceId))) throw fail("busy"); Connection value = connections.get(id);
         if (value == null) throw fail("not-found");
         http = value.http; remoteDevice = value.descriptor; remoteDeviceId = id;
         session = string(remoteDevice.get("sessionId")); remoteRoots.clear(); remoteEntries.clear();
@@ -135,7 +136,7 @@ final class TransferEngine {
     }
     void disconnectDevice(String id, ArchiveControl control) throws Exception {
         Connection value;
-        synchronized (this) { available(); if (connecting || active != null) throw fail("busy"); value = connections.get(id); }
+        synchronized (this) { available(); if (connecting || active != null || TargetOperation.hasWork()) throw fail("busy"); value = connections.get(id); }
         if (value != null) try {
             value.http.json("POST", "/v1/catalog", string(value.descriptor.get("sessionId")), object("deviceId", local.deviceId(), "goodbye", true), 200, control);
         } catch (Exception ignored) { /* 本机仍断开；电脑收不到告别时由在线期限释放名额。 */ }
@@ -161,9 +162,44 @@ final class TransferEngine {
         boolean isNewConnection;
         synchronized (this) { isNewConnection = !value.announced; }
         Object reply = value.http.json("POST", "/v1/catalog", string(value.descriptor.get("sessionId")), hello, 200, control, isNewConnection);
-        synchronized (this) { value.announced = true; }
+        Map<String, Object> replyMap = shape(copy(reply), "games", "links", "request");
+        synchronized (this) {
+            require(connections.get(id) == value);
+            value.announced = true; value.hello = map(copy(hello)); value.reply = replyMap;
+        }
         return reply;
     }
+    /** 新编排固定当前已交换目录表的连接身份；文件材料仍由同一个原生缓存适配器持有。 */
+    static final class SyncConnection {
+        final TransferHttp http;
+        final String session, deviceId;
+        private final Connection identity;
+        SyncConnection(Connection identity, String localDeviceId) throws Exception {
+            this.identity = identity; http = identity.http.forSync(localDeviceId);
+            session = id(identity.descriptor.get("sessionId")); deviceId = id(map(identity.descriptor.get("device")).get("deviceId"));
+        }
+    }
+    synchronized SyncConnection syncConnection(Map<String, Object> binding) throws Exception {
+        connected(); SyncJobModel.binding(binding);
+        require(local.deviceId().equals(binding.get("localDeviceId")) && remoteDeviceId.equals(binding.get("remoteDeviceId")));
+        Connection connection = connections.get(remoteDeviceId);
+        if (connection == null || !connection.announced || connection.hello == null || connection.reply == null) throw fail("session-mismatch");
+        SyncConnection result = new SyncConnection(connection, local.deviceId()); verifySync(result, binding); return result;
+    }
+    synchronized void verifySync(SyncConnection connection, Map<String, Object> binding) throws Exception {
+        available(); Connection current = connections.get(connection.deviceId);
+        if (connecting || current != connection.identity || http != current.http || !connection.session.equals(session) ||
+            !connection.deviceId.equals(remoteDeviceId)) throw fail("session-mismatch");
+        require(local.deviceId().equals(binding.get("localDeviceId")) && connection.deviceId.equals(binding.get("remoteDeviceId")));
+        SyncJobModel.catalogBinding(current.hello, current.reply, binding);
+    }
+    void refreshSync(SyncConnection connection, Map<String, Object> binding, ArchiveControl control) throws Exception {
+        Map<String, Object> hello;
+        synchronized (this) { verifySync(connection, binding); hello = map(copy(connection.identity.hello)); }
+        exchangeCatalog(connection.deviceId, object("games", hello.get("games"), "links", hello.get("links"), "answer", null), string(hello.get("name")), control);
+        synchronized (this) { verifySync(connection, binding); }
+    }
+    ArchiveAdapter syncArchive() { return archives; }
     private synchronized TransferHttp connected() throws ArchiveFailure { available(); if (connecting) throw fail("busy"); if (http == null) throw fail("not-found"); return http; }
     List<Object> roots(ArchiveControl control) throws Exception {
         TransferHttp client; String currentSession, deviceId;

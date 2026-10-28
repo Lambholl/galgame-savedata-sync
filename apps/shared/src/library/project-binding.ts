@@ -5,7 +5,7 @@ import type {
 } from '../protocol/contracts.ts'
 import { isOpaqueId } from '../protocol/protocol.ts'
 import { isDirectoryReference } from '../protocol/validation.ts'
-import { isArrayOf } from '../validation/data-validation.ts'
+import { hasShape, isArrayOf } from '../validation/data-validation.ts'
 import type { LibraryConfig, LibraryPeer } from './library.ts'
 import { isLibraryConfig, isLibraryPeer } from './library.ts'
 
@@ -17,6 +17,21 @@ export interface SyncProjectBinding {
   readonly remoteDeviceId: string
   readonly localRootId: string
   readonly remoteRootId: string
+}
+/** 仅稳定 ID 的封闭绑定；实际配置、授权和连接仍由两端原生层核实。 */
+export function isSyncProjectBinding(value: unknown): value is SyncProjectBinding {
+  return (
+    hasShape(value, [
+      'projectId',
+      'remoteProjectId',
+      'localDeviceId',
+      'remoteDeviceId',
+      'localRootId',
+      'remoteRootId',
+    ]) &&
+    Object.values(value).every(isOpaqueId) &&
+    value.localDeviceId !== value.remoteDeviceId
+  )
 }
 
 function fail<TValue>(code: OperationErrorCode, message: string): OperationResult<TValue> {

@@ -62,22 +62,25 @@ public class TransferService extends Service {
         try {
             startForeground(NOTIFICATION_ID, notification(), ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC);
             running = true; ready(null);
-            if (CANCEL.equals(action)) runtime.cancel(id, false);
-            else if (RETRY.equals(action)) runtime.retry(id);
+            SyncTransferRuntime sync = SyncTransferRuntime.peek();
+            if (CANCEL.equals(action)) { if (sync != null && sync.busy()) sync.cancel(id, false); else runtime.cancel(id, false); }
+            else if (RETRY.equals(action)) { if (sync != null && sync.busy()) sync.retry(id); else runtime.retry(id); }
             handler.removeCallbacks(refresh); handler.postDelayed(refresh, 300);
         } catch (Exception cause) { ready(cause); stopSelf(); }
         return START_NOT_STICKY;
     }
     private final Runnable refresh = new Runnable() {
         @Override public void run() {
-            if (runtime == null || !runtime.busy()) { stopForeground(STOP_FOREGROUND_REMOVE); stopSelfResult(lastStartId); return; }
+            SyncTransferRuntime sync = SyncTransferRuntime.peek();
+            if ((runtime == null || !runtime.busy()) && (sync == null || !sync.busy())) { stopForeground(STOP_FOREGROUND_REMOVE); stopSelfResult(lastStartId); return; }
             getSystemService(NotificationManager.class).notify(NOTIFICATION_ID, notification());
             handler.postDelayed(this, 500);
         }
     };
     @SuppressWarnings("unchecked")
     private Notification notification() {
-        Map<String, Object> state = runtime == null ? null : runtime.notice();
+        SyncTransferRuntime sync = SyncTransferRuntime.peek();
+        Map<String, Object> state = sync != null && sync.busy() ? sync.notice() : runtime == null ? null : runtime.notice();
         String id = state == null ? null : (String) state.get("transferId");
         boolean upload = state != null && Boolean.TRUE.equals(state.get("upload"));
         boolean active = state == null || Boolean.TRUE.equals(state.get("running"));
@@ -87,6 +90,8 @@ public class TransferService extends Service {
             case "transferring": text = "正在传输"; break;
             case "verifying": text = "正在校验接收内容"; break;
             case "publishing": text = "正在保存并回读校验"; break;
+            case "backing-up": text = "正在保护覆盖前的存档"; break;
+            case "writing": text = "正在保存并回读校验"; break;
             case "cleaning": text = "正在清理本次资源"; break;
             case "sent": text = "已发送，正在确认电脑接收结果"; break;
             default: text = "正在准备传输";
@@ -107,23 +112,27 @@ public class TransferService extends Service {
         Long completed = null, total = null;
         if (progress != null) {
             String doneKey = stage.equals("transferring") ? "archiveBytesTransferred" : stage.equals("verifying") ? "fileBytesVerified" :
-                stage.equals("publishing") ? "publishedFiles" : "sourceBytesRead";
-            String totalKey = stage.equals("transferring") ? "totalArchiveBytes" : stage.equals("publishing") ? "totalFiles" : "totalFileBytes";
+                (stage.equals("publishing") || stage.equals("writing")) ? "publishedFiles" : "sourceBytesRead";
+            String totalKey = stage.equals("transferring") ? "totalArchiveBytes" : (stage.equals("publishing") || stage.equals("writing")) ? "totalFiles" : "totalFileBytes";
             completed = ((Number) progress.get(doneKey)).longValue();
             if (progress.get(totalKey) instanceof Number) total = ((Number) progress.get(totalKey)).longValue();
         }
-        if (active && total != null && total > 0 && completed != null) builder.setProgress(100, (int) Math.min(100, completed * 100 / total), false);
+        if (active && !stage.equals("backing-up") && total != null && total > 0 && completed != null) builder.setProgress(100, (int) Math.min(100, completed * 100 / total), false);
         else builder.setProgress(0, 0, active);
         return builder.build();
     }
     /** 系统 dataSync 期限按实际中止反馈；不会重启已停止的传输。 */
     @Override public void onTimeout(int startId, int foregroundServiceType) {
-        if (runtime != null) runtime.cancel(runtime.engine.activeId(), true);
+        SyncTransferRuntime sync = SyncTransferRuntime.peek();
+        if (sync != null && sync.busy()) sync.cancel(sync.engine.activeId(), true);
+        else if (runtime != null) runtime.cancel(runtime.engine.activeId(), true);
         stopForeground(STOP_FOREGROUND_REMOVE); stopSelf();
     }
     @Override public void onDestroy() {
         running = false; handler.removeCallbacksAndMessages(null);
         if (runtime != null && runtime.busy()) runtime.cancel(runtime.engine.activeId(), false);
+        SyncTransferRuntime sync = SyncTransferRuntime.peek();
+        if (sync != null && sync.busy()) sync.cancel(sync.engine.activeId(), false);
         ready(new IllegalStateException("前台传输服务已结束")); super.onDestroy();
     }
     @Override public IBinder onBind(Intent intent) { return null; }

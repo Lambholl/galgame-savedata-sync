@@ -86,6 +86,52 @@ export class DesktopLibrary {
       })),
     }
   }
+  /** 已交换目录表的实际原生请求可续用同一连接；不会创建设备或解除显式断开。 */
+  touchPeer(deviceId: string): void {
+    const saved = this.config.devices.find((item) => item.id === deviceId)
+    const current = this.runtime.get(deviceId)
+    if (!saved || saved.blocked || !current || this.disconnected.has(deviceId)) {
+      throw new HttpOperationError('session-mismatch', '设备连接已变化，请重新连接。')
+    }
+    if (
+      [...this.runtime.entries()].some(
+        ([id, item]) => id !== deviceId && Date.now() - item.seenAt < 15000,
+      )
+    ) {
+      throw new HttpOperationError('busy', '电脑已连接另一台手机，请先断开。')
+    }
+    this.runtime.set(deviceId, { ...current, seenAt: Date.now() })
+  }
+  /** 固定双向项目关联和公开根，任务写入前重核；通信超时由任务层独立处理。 */
+  verifyProjectPeer(
+    projectId: string,
+    peerId: string,
+    remoteProjectId: string,
+    localRootId: string,
+    remoteRootId: string,
+  ): void {
+    const game = this.config.games.find((item) => item.id === projectId)
+    const device = this.config.devices.find((item) => item.id === peerId)
+    const hello = this.runtime.get(peerId)?.hello
+    const remote = hello?.games.find((item) => item.id === remoteProjectId)
+    if (
+      !game ||
+      game.rootId !== localRootId ||
+      !device ||
+      device.blocked ||
+      this.disconnected.has(peerId) ||
+      game.excludedDevices?.includes(peerId) ||
+      !game.links.some((link) => link.deviceId === peerId && link.gameId === remoteProjectId) ||
+      !hello?.links.some(
+        (link) => link.localGameId === remoteProjectId && link.remoteGameId === projectId,
+      ) ||
+      remote?.root?.rootId !== remoteRootId ||
+      remote.root.deviceId !== peerId ||
+      remote.root.authorization !== 'granted'
+    ) {
+      throw new HttpOperationError('session-mismatch', '项目关联或设备目录已变化，请重新确认。')
+    }
+  }
   async saveGames(games: readonly LibraryGame[]): Promise<void> {
     if (!isLibraryConfig({ ...this.config, games })) {
       throw new HttpOperationError('invalid-request', '游戏或设备配置无效。')
@@ -160,15 +206,20 @@ export class DesktopLibrary {
     }
     const hello = structuredClone(value)
     const saved = this.config.devices.find((item) => item.id === hello.deviceId)
+    if (saved?.blocked) {
+      throw new HttpOperationError('permission-denied', '此设备已停用。')
+    }
     if (isNewConnection) {
       this.disconnected.delete(hello.deviceId)
     } else if (this.disconnected.has(hello.deviceId)) {
       throw new HttpOperationError('session-mismatch', 'session-mismatch')
     }
+    const latest = [...this.runtime.entries()].sort((a, b) => b[1].seenAt - a[1].seenAt)[0]?.[0]
     if (
       [...this.runtime.entries()].some(
         ([id, item]) =>
-          id !== hello.deviceId && (isTransferring || Date.now() - item.seenAt < 15000),
+          id !== hello.deviceId &&
+          ((isTransferring && id === latest) || Date.now() - item.seenAt < 15000),
       )
     ) {
       throw new HttpOperationError('busy', '电脑已连接另一台手机，请先断开。')

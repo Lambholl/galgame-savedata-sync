@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 owner: project
-updated: 2026-10-28
+updated: 2026-10-29
 tags: [Agent导航, 项目记忆]
 related_files: []
 ---
@@ -29,6 +29,7 @@ related_files: []
 
 | 工作 | 状态 | 相关记忆文档 | 相关代码或配置 | 已完成 | 下一步 |
 | --- | --- | --- | --- | --- | --- |
+| WP-025 Android → Windows 复制编排 | done | development/work-packages.md、architecture/api-contracts.md、testing/regression-notes.md | shared sync jobs、Windows sync-registry/upload-body/写入/连接、Android SyncJobModel/SyncTransferEngine/Runtime/Plugin/Service、TS bridge | 该方向后端及有限桥已实现；API 33 实际 SAF/LAN、正式 Native 插件/真实及新实例 TS 桥、回执丢失/查询恢复/备份关闭/目标变化/实际取消、源及手机配置不变通过；JVM 故障与长源读取心跳通过；临时源码/测试 APK 已清理，既有套件、工程/Android lint/双 APK/归档互通及最终插件检查通过 | 下一包 WP-026 Windows → Android 复制编排 |
 | WP-024 Android SAF 目录创建、受保护覆盖与恢复写入 | done | development/work-packages.md、architecture/api-contracts.md、testing/regression-notes.md | SyncPlanModel/Writer、SafSyncBackend、SyncWriteRuntime/Plugin、TargetOperation、TS sync-write bridge | 原生计划复核、保护后写入/恢复及有限桥已实现；API 33 实际 SAF 与恢复任务状态、JVM 故障/容量、共享守卫/TS 桥/正式插件及 Windows 末项成功后独立清理错误验证通过；临时源码已删除，既有套件、工程与 Android 检查/双 APK/归档互通通过 | 下一包 WP-025 Android → Windows 复制编排 |
 | WP-023 Windows 目录创建、受保护覆盖与恢复写入 | done | development/work-packages.md、architecture/api-contracts.md、testing/regression-notes.md | sync-writer、sync-target-files、target-operation、扫描/目录适配/批次注册/启动 | 整批目标/原文复核、容量、保护后逐项发布及本机恢复已实现；实际合成目录、占用文件、故障/取消/超时/部分/未知结果、残留归属与互斥、33 项既有桌面回归及工程检查/双端构建通过；M-002 Android 10 实测已按用户要求移出验收 | 下一包 WP-024 Android SAF 受保护写入与恢复 |
 | WP-022 Android 独立备份与轮换 | done | development/work-packages.md、architecture/api-contracts.md、testing/regression-notes.md、testing/coverage-gaps.md | Java 私有备份模型/存储/原生 IO、有限插件与 TS 桥 | 私有备份/设置/容量、三轮保留及恢复材料引用已实现；API 33 实际 SAF、独立原文哈希/源属性、进程重启、正式插件及 JVM 故障/桥检查通过；既有套件、工程检查和 Android 构建通过 | 下一包 WP-023 Windows 受保护写入/恢复；M-002 按用户要求不做 Android 10 实测 |

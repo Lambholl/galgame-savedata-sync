@@ -51,7 +51,7 @@ final class TransferRuntime {
         Map<String, Object> value = shape(copy(options), "request", "targetRootId", "targets");
         Map<String, Object> request = selection(value.get("request")); id(value.get("targetRootId")); targets(value.get("targets"), list(request.get("files")).size());
         synchronized (this) {
-            if (starting || engine.hasWork()) throw fail("busy");
+            if (starting || engine.hasWork() || TargetOperation.hasWork()) throw fail("busy");
             if (!TransferService.notificationsAllowed(context)) throw fail("permission-denied");
             starting = true; pendingId = string(request.get("transferId")); pendingUpload = upload;
         }

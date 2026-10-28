@@ -21,6 +21,8 @@ import static io.github.galgame.savedatasync.TransferJson.*;
 
 /** 可注入 HTTP 边界；文件仅为原生有限流，控制 JSON 单独限额，任何副作用都不自动重放。 */
 interface TransferHttp {
+    /** 新同步沿用连接但使用独立设备头及原生 60 秒网络期限；注入的受控传输可复用自身。 */
+    default TransferHttp forSync(String localDeviceId) throws Exception { TransferSchema.id(localDeviceId); return this; }
     Object json(String method, String path, String session, Object body, int expected, ArchiveControl control) throws Exception;
     default Object json(String method, String path, String session, Object body, int expected, ArchiveControl control, boolean isNewConnection) throws Exception {
         return json(method, path, session, body, expected, control);
@@ -35,11 +37,14 @@ interface TransferHttp {
         });
         private final String address;
         private final int idleMillis;
+        private final String syncDeviceId;
         Client(String address) throws Exception { this(address, 5000); }
-        Client(String address, int idleMillis) throws Exception {
+        Client(String address, int idleMillis) throws Exception { this(address, idleMillis, null); }
+        private Client(String address, int idleMillis, String syncDeviceId) throws Exception {
             this.address = address(address); if (idleMillis <= 0 || idleMillis > 60000) throw new IllegalArgumentException("Invalid idle budget");
-            this.idleMillis = idleMillis;
+            this.idleMillis = idleMillis; this.syncDeviceId = syncDeviceId;
         }
+        @Override public TransferHttp forSync(String localDeviceId) throws Exception { return new Client(address, 60000, TransferSchema.id(localDeviceId)); }
         static String address(String value) throws Exception {
             if (value == null || value.length() > 256) throw fail("invalid-request");
             URI uri = new URI(value); String host = uri.getHost();
@@ -70,6 +75,7 @@ interface TransferHttp {
                 connection.setRequestProperty("Accept-Encoding", "identity"); connection.setRequestProperty("Cache-Control", "no-store");
                 connection.setRequestProperty("Connection", "close");
                 if (session != null) { TransferSchema.id(session); connection.setRequestProperty("x-sync-session-id", session); }
+                if (syncDeviceId != null && path.startsWith("/v1/sync/")) connection.setRequestProperty("x-sync-device-id", syncDeviceId);
                 watchdog = WATCH.scheduleAtFixedRate(() -> {
                     try { control.check(); }
                     catch (ArchiveFailure cause) { connection.disconnect(); return; }

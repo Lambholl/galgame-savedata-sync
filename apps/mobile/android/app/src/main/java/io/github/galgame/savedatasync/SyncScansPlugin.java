@@ -42,7 +42,7 @@ public class SyncScansPlugin extends Plugin {
     @PluginMethod public void capabilities(PluginCall call) { submit(call, () -> {
         arguments(call);
         return object("schemaVersion", 1, "deviceId", SafRuntime.store(getContext()).deviceId(),
-            "canScan", "supported", "canCopy", "unsupported", "canBackup", "unsupported", "canRestore", "unsupported",
+            "canScan", "supported", "canCopy", "supported", "canBackup", "supported", "canRestore", "supported",
             "limits", object("maxEntries", 10000, "maxDepth", 64, "maxPathLength", 4096, "maxNameLength", 255,
                 "maxRetainedScans", 32, "backupRetention", 3, "snapshotLifetimeMs", 600000, "scanTimeoutMs", 1800000));
     }); }

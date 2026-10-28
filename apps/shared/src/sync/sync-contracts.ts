@@ -20,6 +20,11 @@ export const SYNC_HTTP_ROUTES = {
   capabilities: '/v1/sync/capabilities',
   scans: '/v1/sync/scans',
   scan: '/v1/sync/scans/{scanId}',
+  project: '/v1/sync/projects/{projectId}',
+  jobs: '/v1/sync/jobs',
+  job: '/v1/sync/jobs/{jobId}',
+  manifest: '/v1/sync/jobs/{jobId}/manifest',
+  content: '/v1/sync/jobs/{jobId}/content',
 } as const
 
 export interface SyncCapabilities {

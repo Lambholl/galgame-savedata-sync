@@ -12,6 +12,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(SyncScansPlugin.class);
         registerPlugin(SyncBackupsPlugin.class);
         registerPlugin(SyncWritesPlugin.class);
+        registerPlugin(SyncTransfersPlugin.class);
         super.onCreate(savedInstanceState);
     }
 

@@ -115,12 +115,17 @@ Windows 替换候选在同一目标卷准备，核实目标与父目录后发布
 | `/v1/sync/capabilities` | GET | 会话内查询扫描、覆盖、备份和恢复能力及固定预算 |
 | `/v1/sync/scans` | POST | 核实本机 rootId，登记异步只读扫描 |
 | `/v1/sync/scans/{scanId}` | GET / DELETE | 取状态/结果或取消，轮询不延长期限 |
+| `/v1/sync/projects/{projectId}` | GET | 只读取得本机已保存项目的目录 ID 和目标端备份开关；不远程修改设置 |
 | `/v1/sync/jobs` | POST | 接纳方向、扫描和确认计划，服务端复核本机快照、配置和操作集合 |
 | `/v1/sync/jobs/{jobId}` | GET / DELETE | 查询实际任务或显式取消 |
-| `/v1/sync/jobs/{jobId}/manifest` | GET | 获取已准备好的受限归档清单 |
+| `/v1/sync/jobs/{jobId}/manifest` | GET / PUT | 获取已准备好的受限归档清单；上传方向由源在归档准备后单次提交清单 |
 | `/v1/sync/jobs/{jobId}/content` | GET / PUT | 按方向提供仅一次原生 gzip 内容流 |
 
 新增入口沿用 `x-sync-session-id`、严格 UTF-8/JSON、字节预算和 ID 检查。登记任务需核实保存的游戏映射和对端设备 ID；原生层逐段解析相对路径和根内引用。归档成员仍为 fileId，不直接拼成目标路径。
+
+复制任务使用独立 `SyncJobRequest`：schemaVersion、jobId、sourceProjectId、targetProjectId 和完整 plan；jobId 等于本次 planId，plan.projectId 使用目标端项目 ID。确认后先登记任务，接收端保留本次确认及互斥，源再准备归档；上传清单由单次 PUT 提交并逐文件匹配计划的源引用/父目录/名称/日期/大小/哈希，随后才进入 2 分钟等待内容阶段。清单未提交时 GET 返回 null；无文件的计划直接执行目录/空计划分支，不提交清单或内容。登记、清单或内容回执丢失均只查询同 ID，不重放 POST/PUT。
+
+新同步客户端使用 `x-sync-device-id` 标记既有目录表连接中的设备；它与会话、项目关联和两端目录 ID 一并核对，不作为认证凭据。实际同步请求和进度可更新设备在线时间，避免把持续通信中的传输误记成断连。旧接口和现有扫描调用保持兼容。任务状态分开 sender/receiver、阶段和字节/文件计数；sender 的 sent 仅表示发送完成，目标是否成功仍核对 receiver 的完整 `SyncApplyResult`。预览、清单与结果按需分别查询，避免把两份快照与结果合并到同一控制响应。
 
 备份设置、列表与本机恢复通过有限 IPC/Capacitor 桥提供，本阶段不开放远端任意恢复/删除入口。原生任务持有文件、句柄和取消控制，JS 只发确认、取状态及取消；界面卸载不取消任务。文件非空时复用既有 tar.gz/USTAR 规则；仅目录或无需写入的任务走无内容分支，不创建虚构文件或空归档。
 

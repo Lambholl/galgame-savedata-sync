@@ -3,7 +3,7 @@ doc_type: api-contracts
 status: active
 priority: medium
 owner: architecture
-updated: 2026-10-28
+updated: 2026-10-29
 tags: [API, 接口约定]
 related_files: []
 ---
@@ -26,7 +26,7 @@ related_files: []
 
 M-001 的文件操作范围是专用测试目录内的新文件往返。游戏与设备配置、三页导航、并列目录视图和双端独立界面已经接入；覆盖、镜像删除、备份、mDNS 和 Windows 发起任务留后续里程碑。Windows 为服务端，Android 原生层为 HTTP 客户端。
 
-用户已在[Q-008](../requirements/open-questions.md)确定双向统一采用 tar.gz。完整设计位于 `docs/plans/m001-tar-gzip-protocol.md`；v1 批量共享数据与双端私有归档编解码可用。Windows 提供 v1 读取、sender 和上传 receiver 端点，当前只有批量接口；双端新文件发布和批次编排可用。
+用户已在[Q-008](../requirements/open-questions.md)确定双向统一采用 tar.gz。完整设计位于 `docs/plans/m001-tar-gzip-protocol.md`；v1 批量共享数据与双端私有归档编解码可用。Windows 提供 v1 读取、sender 和上传 receiver 端点；双端新文件发布和批次编排可用，新增受保护复制接口见第 3 节。
 
 ## 2. 共用数据语义
 
@@ -49,7 +49,9 @@ M-001 支持提供者不保留源修改时间的情况；写入后查询并展�
 
 M-002 的 `apps/shared/src/sync` 已提供独立 schema 1 的当前扫描、复制/本机恢复计划、备份清单/设置和逐项结果。`createSyncPlan` 只处理本次快照；`isSyncPlan` 重新推导动作与计数，执行方以 `matchesSyncPlan` 对照持有的当前输入，以 `matchesSyncApplyResult` 核对完整结果和实际指纹。规则统一见仓库根目录的 `docs/plans/m002-sync-copy.md` 第 3 节。
 
-Windows 新增 `/v1/sync/capabilities`、`POST /v1/sync/scans` 和 `GET/DELETE /v1/sync/scans/{scanId}`，沿用会话头/严格 JSON；登记仅接收 schemaVersion/rootId，202 后查询 SyncScanState。有限 desktopService 桥增加 startScan/queryScan/cancelScan，校验本机来源、参数和返回引用。扫描只读，完整指纹/空目录/失败部分结果分开；取消关流、结果到期、停止及重启会话均已接入。当前能力只声明扫描，新增复制任务和覆盖/备份/恢复入口仍未开放。
+Windows 新增 `/v1/sync/capabilities`、`POST /v1/sync/scans` 和 `GET/DELETE /v1/sync/scans/{scanId}`，沿用会话头/严格 JSON；登记仅接收 schemaVersion/rootId，202 后查询 SyncScanState。有限 desktopService 桥增加 startScan/queryScan/cancelScan，校验本机来源、参数和返回引用。扫描只读，完整指纹/空目录/失败部分结果分开；取消关流、结果到期、停止及重启会话均已接入。
+
+Android → Windows 新复制协议已接入。Windows 提供只读项目设置、任务登记、单次清单/内容上传、查询/取消及归档校验后备份和写入，启用原生依赖后声明 canCopy/canBackup。任务固定当前会话扫描、双向项目关联、设备/根及目标备份设置；实际同步通信可更新既有设备在线时间。全任务借用同一进程名额到缓存及候选清理，回执丢失不重放，零文件分支没有归档。共享任务/准备 DTO 和守卫已提供；Android 的 SyncTransfers 有限桥分开普通扫描准备、同次确认、状态/清单及取消/释放，只有确认执行启动传输通知。sender sent 与实际 receiver 结果分开，页面重建可重新取得原生预览核对结果。实际 SAF/LAN、回执丢失、关闭备份、目标变化及取消已验证；Windows → Android 和界面继续后续工作包。本机恢复经本地桥提供，远端恢复入口保持关闭。完整字段与期限统一见 `docs/plans/m002-sync-copy.md` 第 3.6/3.7 节。
 
 共享包导出以下 v1 路由常量和 DTO。Windows 读取/sender、uploads/PUT receiver 及通用查询/取消端点现已可用；完整字段、状态码和例外以仓库根目录的 `docs/plans/m001-tar-gzip-protocol.md` 为准。WP-012/WP-013 分别负责双端归档，网络包只编排这些能力。
 
@@ -80,7 +82,7 @@ transferId 只属于当前会话，不是历史同步基线。服务以每次启
 | Electron 服务桥 | desktopService 的 status/start/randomizePort/stop/chooseTarget/revokeTarget/cancel/retryCleanup；状态含 configuredPort、实际端口/IPv4 地址、错误、已授权接收根和会话任务 | 窗口/主 frame/精确 URL 与参数/DTO 校验；start 端口为 1..65535，显式监听 0.0.0.0；首次生成并保存 49152..65535 随机端口，后续读取既有值；randomizePort 排除当前值并保存，运行时拒绝修改；选择目录后 grant；卸载停止轮询，退出移除 handler |
 | Electron 主进程原生读取 | registerDirectory 登记系统选中路径，listDirectory 返回当前层，openFile 返回本进程只读流 | 配置独立存放，没有历史清单；调用者消费或 destroy 流；逐段拒绝 symlink/junction，重查根/条目/句柄身份；恶意并发命名空间不在原子隔离范围内 |
 | Windows 独立备份与本机桥 | createWindowsBackupStore 的 create/list/settings/setPreference/capacity/acquire/rotate/cleanupIncomplete/stop；desktopBackups 提供只读摘要/单轮清单、设置及显式清理，创建与原生恢复流不跨桥 | userData/backups 与同步根隔离；内容校验、落盘和回读后提交，最近 3 次及恢复材料引用保护；失败创建不返回有效轮次，轮换错误独立；位置 displayPath 仅供展示，IPC 无文件路径参数或内容；具体参数和资源责任见桌面 README |
-| Windows 受保护写入与恢复 | WindowsSyncWriter.apply/prepareRestore/retryCleanup/stop；材料为匹配快照和可重复原生读流，返回 SyncApplyResult；WindowsSyncScanner.wait 供原生等待同次扫描 | 整批目标/原文复核、峰值容量及完整备份后创建目录/逐文件发布/回读；旧批次与新任务共用互斥，候选清理失败保留名额，恢复强制备份且引用输入；原生 authorize 核对项目/根，HTTP 会话与界面由后续编排接入，接口及资源责任见桌面 README 第 13 节 |
+| Windows 受保护写入与恢复 | WindowsSyncWriter.apply/prepareRestore/checkSpace/retryCleanup/stop；材料为匹配快照和可重复原生读流，返回 SyncApplyResult；WindowsSyncScanner.wait 供原生等待同次扫描 | 整批目标/原文复核、峰值容量及完整备份后创建目录/逐文件发布/回读；旧批次与新任务共用互斥，候选清理失败保留名额，恢复强制备份且引用输入；原生 authorize 核对项目/根，Android 上传 HTTP 借用全任务名额并反复核实上下文，本机界面继续后续工作包，接口及资源责任见桌面 README 第 13 节 |
 | Windows HTTP 原生服务（sender/receiver） | WindowsHttpService 显式 start/stop、地址/错误查询与清理重试；通用注册表负责两角色状态/取消/期限；receiver 完整校验后顺序发布，保留逐项结果 | 注入 publisher 及 archive.receive 才支持接收；能力不授予根写权限；构造及应用启动不监听网络，默认回环；WP-007 用受限 IPC 提供服务控制与任务快照，getStates 不延长期限；应用退出等待 HTTP 与发布模块停止；无文件字节跨桥 |
 | Windows 原生新文件发布 | WindowsNewFilePublisher 的 grant/revoke、checkTarget、publish、retryCleanup/stop；单文件结果与清理分开；只在本机显式授权的专用测试根写入 | HTTP 和 UI 由 receiver 编排；读取登记不会授予写权限，授权/候选所有权只在当前进程内有效；同目录 wx 候选经哈希/sync 后排他 link，最终回读才成功；无法硬链接的卷会失败，未核实发布返回 unknown；输入关闭后返回，没有覆盖、删除或自动恢复 |
 | Windows 私有归档 | createWindowsArchiveAdapter、prepare/receive、不可变清单、openArchive/openFile/dispose/retryCleanup；onArchiveStored 只确认压缩体检查点；source 仍只读；目录流提供 verifyUnchanged 与缓存隔离检查 | 不返回可供 Renderer 使用的路径/句柄；完整 gzip/原文校验后返回私有缓存；HTTP 和目标发布交给上层；调用者关闭流并 dispose，异常用 operationError，清理失败另报 cleanupError |

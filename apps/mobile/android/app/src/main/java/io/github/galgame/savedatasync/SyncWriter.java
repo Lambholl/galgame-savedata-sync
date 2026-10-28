@@ -217,6 +217,7 @@ final class SyncWriter implements AutoCloseable {
     Map<String, Object> apply(Object raw, Material material, ArchiveControl control) throws Exception {
         SyncPlanModel.Plan plan = new SyncPlanModel.Plan(raw);
         require(plan.target.device.equals(backend.source().deviceId()));
+        one(plan.value.get("direction"), "windows-to-android", "local-restore");
         if (material == null) require(number(plan.value.get("transferFileCount"), 0, 1024) == 0);
         else require(SyncPlanModel.same(plan.source.value, material.snapshot()));
         long observed = number(plan.target.value.get("observedAt"), -BackupModel.MAX_DATE, BackupModel.MAX_DATE), now = System.currentTimeMillis();
