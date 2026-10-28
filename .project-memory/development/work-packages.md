@@ -4,12 +4,13 @@ status: active
 priority: high
 owner: development
 id_prefix: WP
-id_high_water: 15
+id_high_water: 29
 updated: 2026-10-28
-tags: [工作包, M-001, 设计]
+tags: [工作包, M-001, M-002, 设计]
 related_files:
   - docs/plans/m001-directory-http.md
   - docs/plans/m001-tar-gzip-protocol.md
+  - docs/plans/m002-sync-copy.md
 ---
 
 # 工作包登记
@@ -18,7 +19,8 @@ related_files:
 
 - [1. 状态与入口](#1-状态与入口)
 - [2. M-001 工作包](#2-m-001-工作包)
-- [3. 执行与拆分规则](#3-执行与拆分规则)
+- [3. M-002 工作包](#3-m-002-工作包)
+- [4. 执行与拆分规则](#4-执行与拆分规则)
 
 ## 1. 状态与入口
 
@@ -26,7 +28,7 @@ M-001 只验证专用测试目录中的新文件往返，写入使用独立目�
 
 M-001 已完成，规模与收尾证据见仓库根目录的 `docs/validation/m001-resources.md`。详细范围与流程位于 `docs/plans/m001-directory-http.md`；[接口约定](../architecture/api-contracts.md)与[模块设计](../architecture/modules.md)维护当前边界。共享与平台说明见 `apps/shared/README.md`、`apps/desktop/README.md`、`apps/mobile/README.md`。完整同步流程还没实现；桌面测试路径修复仍待远端 CI 复验。
 
-双向唯一 tar.gz 方案见[Q-008](../requirements/open-questions.md)，详细设计位于仓库根目录的 `docs/plans/m001-tar-gzip-protocol.md`。WP-008 已获本轮验证与记忆同步授权。表中保留仍有实现或验证交接的工作包；共享模型的当前事实见[模块状态](module-status.md)和[接口约定](../architecture/api-contracts.md)，最大已用编号保持 15。
+双向唯一 tar.gz 方案见[Q-008](../requirements/open-questions.md)，详细设计位于仓库根目录的 `docs/plans/m001-tar-gzip-protocol.md`。表中保留仍有实现或验证交接的工作包；共享模型的当前事实见[模块状态](module-status.md)和[接口约定](../architecture/api-contracts.md)。M-002 拆分见第 3 节，最大已用编号保持 29。
 
 ## 2. M-001 工作包
 
@@ -46,10 +48,31 @@ M-001 已完成，规模与收尾证据见仓库根目录的 `docs/validation/m0
 | WP-012 | Windows 原生归档与私有暂存 | WP-002、共享批量模型 | apps/desktop/src/main/archive-*.ts、目录读流检查点、独立格式夹具与回归、README.md | 按流源快照、受限 USTAR/gzip1 打包、完整解包校验、非法归档/计数/空间/取消/清理；固定跨端夹具与独立内容期望通过 | done | 归档回归、固定跨端夹具、源变化、预算、取消/清理和并发释放通过 |
 | WP-013 | Android Java 原生归档与私有暂存 | WP-003、共享批量模型；复用 WP-012 固定夹具 | apps/mobile Java Archive*.java、SafArchiveSource、单元/设备测试及共用格式夹具、原生互通检查脚本 | 与 Windows 同一归档语义、未知源长度实测、有限缓冲及缓存清理；Java 单元/lint/双 APK 与实际 SAF 设备集成全部通过 | done | Java 归档单元、lint/双 APK、API 33 实际 SAF 与 Windows/JVM 双向互通通过；含大文件、实际 SAF 子目录、未知长度、取消/复用/进程恢复及缓存释放；源内容与属性经外部复核 |
 
-## 3. 执行与拆分规则
+## 3. M-002 工作包
 
-- WP-008 与 M-001 已完成，下一步细化 M-002 的需求、范围和工作包；现有共享模型与双端适配器继续复用。具体依赖见上表，不授权并行 Agent。
-- 一包承担一个主要能力边界。跨平台协议变更、提供者差异、无法独立验证或新增依赖/配置迁移使范围扩大时先拆包；保留原包交接，同一交付物只写在一个包。详细规则见 `docs/plans/m001-directory-http.md` 第 6 节；新 ID 从 WP-016 起分配，最大已用编号只增不减。
+用户已确认默认备份保护提前到 M-002，以支持真实存档覆盖；默认开启、可关闭、最近 3 次和手工恢复沿用 REQ-015。规则、协议与分包统一位于仓库根目录的 `docs/plans/m002-sync-copy.md`。本轮按序实施，实际进度见下表。
+
+| ID | 工作包 | 依赖 | 代码或文档范围 | 退出条件与验证 | 状态 | 已完成 / 下一步 |
+| --- | --- | --- | --- | --- | --- | --- |
+| WP-016 | 复制、备份与恢复详细约定 | M-001、CR-005 | docs/plans/m002-sync-copy.md 第 3 节 | 复制/恢复/异常规则、备份位置、版本兼容和预算明确 | done | 规则、私有备份/轮换/恢复及独立新增协议已统一；Windows/SAF 复用入口已调查；平台行为由后续包实测 |
+| WP-017 | 共享扫描模型与纯比较计划 | WP-016 | apps/shared/src | 当前内容决定计划，新增/覆盖/跳过/保留/空目录/冲突可表示；纯规则与 IO 分开 | planned | 详细约定已完成；下一步实现共享模型、守卫与纯计划 |
+| WP-018 | 已有项目映射与手动连接补齐 | WP-016、既有 WP-014/WP-015 | 双端 library store/adapter、catalog/connection | 重启/手动改址保留映射，身份不符需处理，活动任务固定引用；仅补实际缺口 | planned | 复用既有能力；待确认细节和场景复核 |
+| WP-019 | Windows 当前扫描与内容指纹 | WP-016、WP-017 | 桌面原生目录/扫描及扫描 HTTP/IPC | 根内只读快照、哈希/空目录/失败/变化/预算/取消明确；不汇总目录大小 | planned | 待规则与共享模型 |
+| WP-020 | Android SAF 当前扫描与内容指纹 | WP-016、WP-017 | Java SAF 扫描、插件/TS 桥 | 同语义原生快照；实际 SAF、未知属性、授权和变化验证通过 | planned | 待规则与共享模型 |
+| WP-021 | Windows 独立备份与轮换 | WP-016、WP-017 | 桌面原生备份存储、索引、容量计算 | 旧内容可核对读回，最近 3 次，失败阻止默认覆盖，备份与同步根分离 | planned | 待备份格式与位置设计 |
+| WP-022 | Android 独立备份与轮换 | WP-016、WP-017 | Java 备份存储、权限/查询桥 | 实际提供者备份/读回/轮换/重启/权限验收；容量未知明确处理 | planned | 待备份格式、位置及能力调查 |
+| WP-023 | Windows 目录创建、受保护覆盖与恢复写入 | WP-016、WP-017、WP-019、WP-021 | 桌面原生目标发布、本机恢复调用 | 备份保护、目标变化检查、替换/恢复/回读及部分结果可验证；不删除目标独有条目 | planned | 待扫描与备份；合成目录验证后进入方向编排 |
+| WP-024 | Android SAF 目录创建、受保护覆盖与恢复写入 | WP-016、WP-017、WP-020、WP-022 | Java SAF 目标发布、恢复桥 | 实际 SAF 创建/替换/恢复及失败验收；能力或身份无法确认时停止 | planned | 待扫描与备份；提供者差异必要时再拆包 |
+| WP-025 | Android → Windows 复制编排 | WP-017 至 WP-021、WP-023 | Windows HTTP/任务、Android 上传及桥接 | 扫描到确认、完整归档校验、备份/发布、实际 receiver 结果和失败流程通过 LAN 验证 | planned | 待平台能力；本包落地通用新增 HTTP 协议接入 |
+| WP-026 | Windows → Android 复制编排 | WP-025、WP-017 至 WP-020、WP-022、WP-024 | Windows 下载、Android 原生接收/任务/通知 | 另一方向独立验收，含备份/覆盖、后台继续、Activity 重连、取消与清理 | planned | 复用 WP-025 的通用协议接入 |
+| WP-027 | Windows 计划、结果与本机恢复界面 | WP-018、WP-021、WP-023、WP-025、WP-026 | 桌面 renderer、有限 IPC/preload | 计划、备份设置、实际结果、本机恢复与明暗主题实际操作通过 | planned | 复用既有独立界面；跨端发起仍属 M-004 |
+| WP-028 | Android 确认执行、结果与本机恢复界面 | WP-018、WP-022、WP-024、WP-025、WP-026 | 移动页面、平台 adapter/桥 | 手机发起双向、计划确认、备份/恢复、进度与后台返回可操作；触控截图验证 | planned | 待方向编排与本机恢复 |
+| WP-029 | M-002 总体验收与真实存档开放检查 | WP-016 至 WP-028 | 合成目录、实际桌面/Android、验收与记忆 | 两向内容、备份/轮换/恢复、异常和资源证据补齐；明确平台支持与真实覆盖开放条件 | planned | 待实现；当前产品验收保持 pending |
+
+## 4. 执行与拆分规则
+
+- WP-008 与 M-001 已完成；M-002 按上表推进，WP-016 详细约定已完成，下一包 WP-017。现有共享模型、双端适配器与项目界面继续复用；不授权并行 Agent。
+- 一包承担一个主要能力边界。跨平台协议变更、提供者差异、无法独立验证或新增依赖/配置迁移使范围扩大时先拆包；保留原包交接，同一交付物只写在一个包。详细规则见 `docs/plans/m001-directory-http.md` 第 6 节与 `docs/plans/m002-sync-copy.md` 第 7 节；新 ID 从 WP-030 起分配，最大已用编号只增不减。
 - 实现前发现并读取目标路径实际存在且适用的 AGENTS.md、项目及目标语言编码规范；桌面应用规则位于 apps/desktop/AGENTS.md，要求完整读取 antd skill。设计授权不包含实现或提交权限。
 - 工作包完成以针对性检查、受影响工程检查及明确剩余缺口为证据；没有真机证据的项保持未完成。完成、阻塞和下一步同步 INDEX、模块状态、用例和回归状态。
-- 后续 M-002 至 M-004 仅保留设计中的拆分方向；进入对应里程碑时重新读取记忆并细化，不提前将整个产品当作一个工作包。
+- M-002 规则和分包统一在一份文档维护，实现和验证按包推进。M-003/M-004 继续保留拆分方向，进入时重新读取记忆并细化。

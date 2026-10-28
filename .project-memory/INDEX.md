@@ -29,6 +29,8 @@ related_files: []
 
 | 工作 | 状态 | 相关记忆文档 | 相关代码或配置 | 已完成 | 下一步 |
 | --- | --- | --- | --- | --- | --- |
+| WP-016 复制、备份与恢复详细约定 | done | development/work-packages.md、project/charter.md、architecture/api-contracts.md | docs/plans/m002-sync-copy.md | Windows 根隔离与 SAF 常规 FD 入口已调查；复制异常、私有备份/轮换/恢复、预算与新增协议已统一在第 3 节 | 下一步 WP-017：实现共享快照/计划/备份模型、守卫及纯比较规则 |
+| M-002 工作包拆分与备份提前安排 | done | development/work-packages.md、project/roadmap.md、requirements/change-requests.md、testing/acceptance.md | docs/plans/m002-sync-copy.md；复用 shared、双端目录/归档/HTTP/发布及界面 | 已形成 WP-016 至 WP-029 共 14 包草稿，含范围/依赖/退出条件；CR-005 记录用户确认的备份提前，路线图/模块交接/验收已同步；记忆结构与格式检查通过 | 下一步 WP-016：细化并确认复制异常、协议兼容、备份位置/轮次/恢复规则，再按包进入实现 |
 | 移除日常 CI 的安全审计 | done | development/code-map.md、development/implementation-notes.md、requirements/product.md、requirements/constraints.md、testing/regression-notes.md | .github/workflows/ci.yml、docs/development.md | 已删除 security:check 与 security:android 两个步骤，保留手动命令；开发说明与记忆已同步；YAML 格式、文本和记忆校验通过 | 新配置待远端 CI 复验；deepmerge 低危公告仍登记为手动审计问题 |
 | WP-008 规模资源验证与 M-001 收尾，含 REQ-020 每次传输容量预检 | done | development/work-packages.md、requirements/product.md、testing/acceptance.md、testing/regression-notes.md、project/roadmap.md | 双端原生归档/HTTP/发布、docs/validation/m001-resources.md、.reports/wp008/ | 双向 1 GiB 成功，87.526/215.400 秒；原文/源属性/缓存核对通过；主进程采样峰值约 Windows 171 MiB、Android 232 MiB；容量预检、pnpm check、19 项 Windows 既有测试、android:test 通过，最新 APK 已安装；M-001 已收尾 | 下一步细化 M-002；覆盖/镜像/备份/发现及已登记恢复/文件系统缺口继续留后续范围 |
 
@@ -60,7 +62,7 @@ related_files: []
 | `development/implementation-notes.md` | 实现细节 | active | 实现细节 |
 | `development/known-issues.md` | 已知问题 | active | 已知问题 |
 | `development/module-status.md` | 模块状态 | active | 模块状态, 开发进度 |
-| `development/work-packages.md` | 工作包登记 | active | 工作包, M-001, 设计 |
+| `development/work-packages.md` | 工作包登记 | active | 工作包, M-001, M-002, 设计 |
 | `governance/assumptions.md` | 项目假设 | active | 假设 |
 | `governance/dependencies.md` | 外部依赖 | active | 外部依赖 |
 | `governance/issues.md` | 问题登记表 | active | 问题 |
