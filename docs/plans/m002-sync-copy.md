@@ -58,7 +58,7 @@ Windows `WindowsDirectoryAdapter.assertCacheIsolated` 已检查应用存储与�
 
 ### 3.3 比较计划
 
-`createSyncPlan` 接收本次源/目标快照、显式方向、项目 ID、新 `planId` 和 `shouldBackup`，输出只读 `SyncPlan`：固定的设备/根/扫描 ID、操作列表、问题列表、待传文件数/字节数及备份字节数。比较器是纯 TypeScript，不执行 IO、哈希计算或历史查询。
+`createSyncPlan` 接收本次源/目标快照、`operation=copy|restore`、显式方向、项目 ID、新 `planId` 和 `shouldBackup`，输出只读 `SyncPlan`：固定的设备/根/扫描 ID、操作列表、问题列表、待传文件数/字节数及备份字节数。复制方向为 `windows-to-android|android-to-windows`；本机恢复为 `local-restore`，源是本机已验证备份、目标是本机当前扫描，且备份保护恒开启。比较器是纯 TypeScript，不执行 IO、哈希计算或历史查询。
 
 | 当前条目 | 计划动作 |
 | --- | --- |

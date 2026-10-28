@@ -31,6 +31,7 @@ M-001 已完成：工程基础设施、共享模型、双端目录/归档/发布
 | 双端系统明暗主题 | done | 开发 | 桌面 app/DesktopApp、main、styles；移动 app/system-theme、main、styles、MainActivity、日夜主题/颜色资源 | 当前跟随系统，不增加手动开关或主题偏好存储 | 双端浏览器与 API 33 真机的初次加载、动态切换、原生背景和系统栏同步已通过实际操作与截图验收；未保留界面自动化测试 |
 | 本地设备/目录共享模型 | done | 开发 | apps/shared/src/protocol/contracts.ts、validation.ts、protocol.ts | 纯 DTO 只描述数据；平台权限和实际 IO 由适配器处理 | 本地 DTO 与有限桥继续复用，传输使用独立批量模型 |
 | 共享批量模型 | done | 开发 | apps/shared/src/protocol/batch-*.ts、data-validation.ts、test、README.md | 处理数据与上下文；归档/JSON 解析、网络、发布和计时由其他模块负责 | v1 批量模型与稳定数据关系测试通过；供 HTTP、Java 归档和原生发布复用 |
+| 当前扫描与覆盖计划共享模型 | done | 开发 | apps/shared/src/sync、src/index.ts、README.md | 纯数据与确定比较；实际扫描/备份/写入、权限、会话及期限由平台包处理 | 快照/树关系、复制和本机恢复计划、备份格式/设置及实际结果守卫已实现；针对性运行、既有共享套件及工程检查通过；供 WP-018 至 WP-028 复用 |
 | Windows 私有归档 | done | 开发 | apps/desktop/src/main/archive-*.ts、目录读流、test/fixtures/archive-v1.json、归档测试、README.md | 归档模块处理私有缓存；HTTP 和目标发布由其他模块负责；恶意并发重排命名空间不在隔离范围内 | 源只读、缓存独占/所有权/取消与重试、独立格式及满额 GiB/进程内存验收通过，接收前容量预检已实现 |
 | Windows HTTP sender 与任务注册 | done | 开发 | apps/desktop/src/main/http-*.ts、transfer-registry.ts、index.ts、HTTP 回归 | 默认不监听；真实 LAN/Android 已通过 TC-007，双端界面已接入并验证 | HTTP 回归覆盖公开协议、单次领取、期限和清理；receiver 已由 WP-005 集成 |
 | Windows 原生新文件发布 | done | 开发 | new-file-publisher.ts、publication-errors.ts、目录原生定位、退出收尾及回归 | 写入限定在明确授权的独立测试根；HTTP/UI、覆盖和目录删除由其他模块处理；候选所有权只在当前进程内有效 | 非覆盖发布、最终回读和清理回归通过；不支持 link 时失败；其他卷、名称等价与强杀恢复仍待验证 |

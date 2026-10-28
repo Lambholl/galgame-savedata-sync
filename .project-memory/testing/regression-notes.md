@@ -15,6 +15,7 @@ related_files: []
 | 范围 | 状态 | 当前问题 | 复验入口 |
 | --- | --- | --- | --- |
 | 工程检查与既有套件 | passed | 无当前失败 | `pnpm check`、`pnpm test:shared`、`pnpm test:desktop`、`pnpm test:mobile`、`pnpm android:test` |
+| 当前比较共享规则 | passed | 当前内容、空目录、失败/未知、名称/类型冲突、预算、计划防伪、备份格式和逐项结果针对性运行通过；原生扫描与写入尚待平台包 | apps/shared/src/sync；共享既有套件；文本/格式/lint/全工作区类型及双端构建 |
 | 双端界面与真机验收 | passed | 目录重组、独立界面、返回键、SAF、跨端传输和后台返回已通过真机验收 | 新构建与双端真机；见 TC-004、TC-014、TC-015 |
 | Android SAF 初次访问时间变化 | unresolved | API 33 合成夹具首次读取后观察到 ctime 变化，原文和 mtime 一致，原因未确认 | 只读目录复验内容、大小和 mtime；ctime 是否变化按提供者能力记录 |
 | Windows 跨进程发布恢复 | open | 强杀可能留下候选；其他卷和特殊名称等价未验证 | 独立目标夹具；按前缀自动删除或恢复旧任务不在方案内 |

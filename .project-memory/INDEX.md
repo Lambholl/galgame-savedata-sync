@@ -29,6 +29,7 @@ related_files: []
 
 | 工作 | 状态 | 相关记忆文档 | 相关代码或配置 | 已完成 | 下一步 |
 | --- | --- | --- | --- | --- | --- |
+| WP-017 共享扫描模型与纯比较计划 | done | development/work-packages.md、development/module-status.md、architecture/api-contracts.md | apps/shared/src/sync、apps/shared/src/index.ts、apps/shared/README.md | 模型、树/预算守卫、比较/恢复输入与逐项结果核对已实现；针对性运行和既有共享套件通过；已逐项运行等价工程检查并通过 | 下一步 WP-018：核实并补齐项目映射、重启恢复和手动改址的实际缺口 |
 | WP-016 复制、备份与恢复详细约定 | done | development/work-packages.md、project/charter.md、architecture/api-contracts.md | docs/plans/m002-sync-copy.md | Windows 根隔离与 SAF 常规 FD 入口已调查；复制异常、私有备份/轮换/恢复、预算与新增协议已统一在第 3 节 | 下一步 WP-017：实现共享快照/计划/备份模型、守卫及纯比较规则 |
 | M-002 工作包拆分与备份提前安排 | done | development/work-packages.md、project/roadmap.md、requirements/change-requests.md、testing/acceptance.md | docs/plans/m002-sync-copy.md；复用 shared、双端目录/归档/HTTP/发布及界面 | 已形成 WP-016 至 WP-029 共 14 包草稿，含范围/依赖/退出条件；CR-005 记录用户确认的备份提前，路线图/模块交接/验收已同步；记忆结构与格式检查通过 | 下一步 WP-016：细化并确认复制异常、协议兼容、备份位置/轮次/恢复规则，再按包进入实现 |
 | 移除日常 CI 的安全审计 | done | development/code-map.md、development/implementation-notes.md、requirements/product.md、requirements/constraints.md、testing/regression-notes.md | .github/workflows/ci.yml、docs/development.md | 已删除 security:check 与 security:android 两个步骤，保留手动命令；开发说明与记忆已同步；YAML 格式、文本和记忆校验通过 | 新配置待远端 CI 复验；deepmerge 低危公告仍登记为手动审计问题 |

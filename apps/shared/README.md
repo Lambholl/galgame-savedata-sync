@@ -9,6 +9,7 @@
 - [5. 资源及跨语言责任](#5-资源及跨语言责任)
 - [6. 检查与验证边界](#6-检查与验证边界)
 - [7. 游戏关联与传输预检](#7-游戏关联与传输预检)
+- [8. 当前扫描与覆盖计划](#8-当前扫描与覆盖计划)
 
 ## 1. 范围与兼容性
 
@@ -113,3 +114,17 @@ HTTP_ERROR_STATUS 保留既有错误映射，并增加 session-mismatch/task-con
 纯数据模块按 protocol、library、transfer、validation 分类。TransferTask、TransferRequest 和 DirectoryLocation 供两端交换任务与当前目录选择；界面快照和平台适配器由各端定义。
 
 withGameLink、withoutGameLink、createImportedGame 返回新的游戏配置，由各端保存。validateTransferSelection 按顺序检查设备连接、目录选择、文件选择、目标名称和接收授权，返回 TransferProblem 或 null；各端负责提示和确认，原生层继续检查真实会话与文件权限。taskIsActive 统一判断活动任务，unwrap 将 OperationResult 的失败转换为 Error。
+
+## 8. 当前扫描与覆盖计划
+
+`src/sync/` 提供独立 `SYNC_SCHEMA_VERSION=1` 的当前快照、覆盖计划、备份清单/设置和逐项发布结果，不改变原有批量 v1 的非覆盖行为。完整规则和预算统一见 [M-002 文档第 3 节](../../docs/plans/m002-sync-copy.md#3-复制备份与恢复约定)。
+
+`isSyncSnapshot` 校验封闭字段、实测文件属性、目录大小恒为 null、路径/ID 唯一性和父目录链。扫描失败可以带部分条目供说明，规划仍会阻止执行。路径使用原始名称段，`isSyncPath` 检查结构和长度，计划器另检查可移植创建名及保守的名称等价冲突。
+
+`createSyncPlan({ planId, projectId, operation, direction, shouldBackup, source, target })` 生成本次计划。`operation=copy` 使用明确的跨端方向；`operation=restore` 使用 `local-restore`、同一设备及开启的保护备份。源/目标是本次 `SyncSnapshot`，恢复源由本机已验证备份构造。非法输入抛 Error；读取错误、内容未知、类型/名称冲突和超限返回 `canExecute=false` 及问题列表。
+
+计划器复制输入快照，按固定路径顺序给出操作，父目录先创建；不会修改输入、执行 IO、按时间选方向或查询历史。待传/备份字节只统计本次操作，未知或无法表示为安全整数时为 null。`isSyncPlan` 重新推导完整计划；执行前用 `matchesSyncPlan(value, input)` 对照调用方保存的本次上下文，不能只校验 planId 或 canExecute。
+
+`isSyncBackupManifest` 检查独立备份格式、连续 fileId、文件指纹、路径关系和预算；`isSyncBackupSettings` 检查项目/rootId 设置唯一性，缺少设置由平台层默认开启。备份列表只用于恢复，比较器不读取备份。
+
+`isSyncApplyResult` 校验逐项结果、备份 ID 和独立清理错误。`matchesSyncApplyResult(result, plan)` 核对完整写入集合、顺序、成功项长度/哈希及默认保护；失败/取消后只允许未执行项。目录成功不携带文件字节，未知结果必须使用 result-unknown。权限、实际内容、备份有效性、会话期限、资源释放和真实写入仍由平台模块处理。
