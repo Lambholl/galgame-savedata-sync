@@ -7,7 +7,7 @@ export function SettingsPage(): React.JSX.Element {
         <p>主题：跟随系统</p>
       </Panel>
       <Panel title="存档同步">
-        <p>版本 0.1.1</p>
+        <p>版本 0.1.2</p>
       </Panel>
     </>
   )
