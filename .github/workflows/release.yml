@@ -17,6 +17,20 @@ jobs:
     env:
       RELEASE_TAG: ${{ github.ref_name }}
     steps:
+      # 先确认签名 Secrets 齐全，fork 或新仓库未配置时不必等完整构建才失败；这里只检查是否为空。
+      - name: Check Android signing secrets
+        shell: pwsh
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          $missing = 'ANDROID_KEYSTORE_BASE64', 'ANDROID_STORE_PASSWORD', 'ANDROID_KEY_ALIAS', 'ANDROID_KEY_PASSWORD' |
+            Where-Object { -not [Environment]::GetEnvironmentVariable($_) }
+          if ($missing) {
+            throw "缺少 Android 签名 Secrets：$($missing -join '、')。配置方法见 docs/development.md 的“Android 签名”。"
+          }
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -34,6 +48,29 @@ jobs:
       - run: pnpm check
       - run: pnpm test:all
       - run: pnpm desktop:package:portable
+      # 密钥只在这一步解码并交给 Gradle，构建后删除。
+      - name: Build signed Android release
+        shell: pwsh
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          SAVEDATA_SYNC_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+          SAVEDATA_SYNC_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          SAVEDATA_SYNC_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $env:SAVEDATA_SYNC_STORE_FILE = Join-Path $env:RUNNER_TEMP 'savedata-sync-release.jks'
+          [IO.File]::WriteAllBytes($env:SAVEDATA_SYNC_STORE_FILE, [Convert]::FromBase64String($env:ANDROID_KEYSTORE_BASE64))
+          try {
+            pnpm android:release
+            if ($LASTEXITCODE -ne 0) { throw 'Android release 构建失败' }
+          } finally {
+            Remove-Item -LiteralPath $env:SAVEDATA_SYNC_STORE_FILE -Force -ErrorAction SilentlyContinue
+          }
+          $sdk = if ($env:ANDROID_HOME) { $env:ANDROID_HOME } else { $env:ANDROID_SDK_ROOT }
+          $apksigner = Get-ChildItem -Path (Join-Path $sdk 'build-tools') -Filter apksigner.bat -Recurse |
+            Sort-Object { [version]$_.Directory.Name } | Select-Object -Last 1
+          & $apksigner.FullName verify --print-certs apps/mobile/android/app/build/outputs/apk/release/app-release.apk
+          if ($LASTEXITCODE -ne 0) { throw 'Android 安装包签名校验失败' }
       - name: Prepare release assets
         shell: pwsh
         run: |
@@ -42,8 +79,8 @@ jobs:
           New-Item -ItemType Directory -Path release-assets -Force | Out-Null
           Copy-Item -LiteralPath "apps/desktop/release/SavedataSync-$version-Portable-x64.exe" `
             -Destination "release-assets/SavedataSync-$version-Portable-x64.exe"
-          Copy-Item -LiteralPath "apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk" `
-            -Destination "release-assets/SavedataSync-$version-Android-debug.apk"
+          Copy-Item -LiteralPath "apps/mobile/android/app/build/outputs/apk/release/app-release.apk" `
+            -Destination "release-assets/SavedataSync-$version-Android.apk"
           $checksums = Get-ChildItem -LiteralPath release-assets -File |
             Sort-Object Name |
             ForEach-Object {

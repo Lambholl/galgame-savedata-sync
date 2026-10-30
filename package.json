@@ -32,6 +32,7 @@
     "android:sync": "pnpm --filter @savedata-sync/mobile android:sync",
     "android:open": "node scripts/android-open.mjs",
     "android:build": "pnpm android:sync && node scripts/android-build.mjs",
+    "android:release": "pnpm android:sync && node scripts/android-build.mjs --release",
     "android:test": "pnpm android:sync && node --experimental-strip-types scripts/verify-archive-interop.mjs prepare && node scripts/android-build.mjs --test && node --experimental-strip-types scripts/verify-archive-interop.mjs verify"
   },
   "devDependencies": {

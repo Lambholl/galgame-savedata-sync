@@ -41,7 +41,11 @@ let checked = 0
 
 function checkDirectory(directory) {
   for (const entry of readdirSync(directory, { withFileTypes: true })) {
-    if (entry.name === 'dev.local.json' || entry.name === 'local.properties') {
+    if (
+      entry.name === 'dev.local.json' ||
+      entry.name === 'local.properties' ||
+      entry.name === 'keystore.properties'
+    ) {
       continue
     }
     const path = join(directory, entry.name)

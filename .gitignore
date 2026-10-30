@@ -25,3 +25,4 @@ apps/mobile/android/app/src/main/assets/capacitor.plugins.json
 *.jks
 *.keystore
 .eslintcache
+**/keystore.properties

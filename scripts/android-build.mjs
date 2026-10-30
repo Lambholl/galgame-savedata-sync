@@ -21,6 +21,7 @@ const isWindows = process.platform === 'win32'
 const command = isWindows ? 'cmd.exe' : './gradlew'
 const isInventory = process.argv.includes('--inventory')
 const isTest = process.argv.includes('--test')
+const isRelease = process.argv.includes('--release')
 const gradleArgs = isInventory
   ? [
       '--no-daemon',
@@ -38,7 +39,7 @@ const gradleArgs = isInventory
         ':app:assembleDebugAndroidTest',
         '--console=plain',
       ]
-    : ['--no-daemon', ':app:assembleDebug']
+    : ['--no-daemon', isRelease ? ':app:assembleRelease' : ':app:assembleDebug']
 // 显式相对路径：设置 NoDefaultCurrentDirectoryInExePath 时，cmd 不在当前目录查找裸名
 const args = isWindows ? ['/d', '/c', '.\\gradlew.bat', ...gradleArgs] : gradleArgs
 const proxyOptions = gradleProxy

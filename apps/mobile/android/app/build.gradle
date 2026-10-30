@@ -1,5 +1,23 @@
 apply plugin: 'com.android.application'
 
+// 固定签名：配置后 debug 与 release 都用同一把密钥，不同机器和 CI 构建的安装包可以互相覆盖安装。
+// 每项先读环境变量，再读 android/keystore.properties；密钥和该文件都不进仓库。
+def signingProperties = new Properties()
+def signingFile = rootProject.file('keystore.properties')
+if (signingFile.isFile()) {
+    signingFile.withInputStream { signingProperties.load(it) }
+}
+def sharedSigning = [
+    storeFile: 'SAVEDATA_SYNC_STORE_FILE',
+    storePassword: 'SAVEDATA_SYNC_STORE_PASSWORD',
+    keyAlias: 'SAVEDATA_SYNC_KEY_ALIAS',
+    keyPassword: 'SAVEDATA_SYNC_KEY_PASSWORD',
+].collectEntries { name, variable -> [name, System.getenv(variable) ?: signingProperties.getProperty(name)] }
+def hasSharedSigning = sharedSigning.values().every { it }
+if (!hasSharedSigning && sharedSigning.values().any { it }) {
+    throw new GradleException('Android 签名配置不完整：storeFile、storePassword、keyAlias、keyPassword 需要同时提供。')
+}
+
 android {
     namespace = "io.github.galgame.savedatasync"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -16,10 +34,29 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        if (hasSharedSigning) {
+            shared {
+                storeFile rootProject.file(sharedSigning.storeFile)
+                storePassword sharedSigning.storePassword
+                keyAlias sharedSigning.keyAlias
+                keyPassword sharedSigning.keyPassword
+            }
+        }
+    }
     buildTypes {
+        debug {
+            // 未配置时沿用本机调试密钥，只能覆盖同一台机器构建的包。
+            if (hasSharedSigning) {
+                signingConfig signingConfigs.shared
+            }
+        }
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            if (hasSharedSigning) {
+                signingConfig signingConfigs.shared
+            }
         }
     }
     sourceSets {
@@ -50,6 +87,13 @@ dependencies {
 }
 
 apply from: 'capacitor.build.gradle'
+
+// 发布包必须用固定密钥签名，缺少配置时不生成未签名的 release 包。
+gradle.taskGraph.whenReady { graph ->
+    if (!hasSharedSigning && graph.allTasks.any { it.project == project && it.name.endsWith('Release') && it.name.startsWith('assemble') }) {
+        throw new GradleException('构建 release 包需要配置签名密钥，见 docs/development.md 的“Android 签名”。')
+    }
+}
 
 // 固定 Windows 产物变化或 Java 产物丢失时，必须重新执行跨端单元验证。
 tasks.withType(Test).configureEach {

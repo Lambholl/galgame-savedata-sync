@@ -5,6 +5,7 @@
 - [环境要求](#环境要求)
 - [机器路径配置](#机器路径配置)
 - [Android 工作流](#android-工作流)
+- [Android 签名](#android-签名)
 - [发布流程](#发布流程)
 - [依赖安全检查](#依赖安全检查)
 - [验证范围与常见问题](#验证范围与常见问题)
@@ -63,6 +64,65 @@ pnpm android:open
 
 连接已开启 USB 调试的设备后，可在 Android Studio 运行应用。移动界面已有游戏、设备、目录与传输操作；插件入口、原生流责任和测试方式见[移动适配说明](../apps/mobile/README.md)。`android:test` 执行 Java 单元、Android lint 及调试/测试 APK 构建，不会部署到设备。同步功能要在两端设备上另做验收。
 
+## Android 签名
+
+Android 只允许用同一把密钥签名的安装包覆盖安装。没有配置签名时，debug 包用本机的调试密钥，只能覆盖同一台机器构建的包。配置固定密钥后，debug 包和 release 包都用它签名，本机、其他机器和 CI 构建的包可以互相覆盖安装。
+
+| 你的情况 | 要不要配密钥 | 说明 |
+| --- | --- | --- |
+| clone 后自己开发、调试 | 不用 | `pnpm android:build` 用本机调试密钥，只能覆盖本机构建的包 |
+| 多台机器构建、想互相覆盖安装 | 要 | 生成一把自己的密钥，每台机器都配置同一份 |
+| 构建 release 包（`pnpm android:release`） | 要 | 未配置时拒绝构建 |
+| fork 后用 GitHub Actions 发布 | 要 | 在 fork 仓库配置 Secrets，否则发布工作流在开头就失败 |
+
+自己的密钥签出的包和官方 Release 的包签名不同，不能互相覆盖安装。要换成另一方的包，先卸载已安装的应用（见本节末尾的卸载影响）。
+
+### 生成密钥
+
+只需生成一次，按提示设置密码。PKCS12 密钥库的密钥密码与库密码相同。
+
+```sh
+keytool -genkeypair -v -keystore savedata-sync-release.jks -alias savedata-sync -keyalg RSA -keysize 4096 -validity 36500
+```
+
+`keytool` 在 JDK 的 `bin` 目录里。密钥文件放在仓库外，连同密码一起备份到至少两个地方。
+
+### 本机配置
+
+把 `apps/mobile/android/keystore.properties.example` 复制为同目录的 `keystore.properties` 并填写；`keystore.properties` 已被 Git 忽略。
+
+| 项 | 填什么 |
+| --- | --- |
+| `storeFile` | 密钥文件路径，用正斜杠，例如 `D:/keys/savedata-sync-release.jks` |
+| `storePassword` | 生成时设置的密码 |
+| `keyAlias` | `-alias` 的值，按上面的命令是 `savedata-sync` |
+| `keyPassword` | 与 `storePassword` 相同 |
+
+也可以改用环境变量 `SAVEDATA_SYNC_STORE_FILE`、`SAVEDATA_SYNC_STORE_PASSWORD`、`SAVEDATA_SYNC_KEY_ALIAS`、`SAVEDATA_SYNC_KEY_PASSWORD`，环境变量优先。四项要同时提供，缺一项构建会直接失败。配好后运行 `pnpm android:release`，产物在 `apps/mobile/android/app/build/outputs/apk/release/app-release.apk`。
+
+### GitHub Actions 配置
+
+在仓库 Settings → Secrets and variables → Actions 添加四个 Repository secret：
+
+| Secret | 填什么 |
+| --- | --- |
+| `ANDROID_KEYSTORE_BASE64` | 密钥文件的 Base64，PowerShell 运行 `[Convert]::ToBase64String([IO.File]::ReadAllBytes('D:\keys\savedata-sync-release.jks')) \| Set-Clipboard` 后粘贴 |
+| `ANDROID_STORE_PASSWORD` | 同 `storePassword` |
+| `ANDROID_KEY_ALIAS` | 同 `keyAlias` |
+| `ANDROID_KEY_PASSWORD` | 同 `keyPassword` |
+
+日常的仓库检查不需要这些 Secrets，只有推送 tag 触发的发布工作流需要。
+
+### 密钥丢失或泄露
+
+密钥无法找回，也不能从已发布的 APK 里恢复。丢失后只能生成新密钥并重新配置本机和 Secrets，已安装旧版本的用户必须卸载后才能安装新版本。发布这一版时，在 Release 说明里写明需要卸载重装，并提醒用户先处理手机上的备份。Android 的密钥轮换需要用旧密钥签名，旧密钥丢失时用不了。
+
+密钥或密码泄露后，别人可以做出能覆盖安装、并继承目录授权的冒充安装包。按丢失处理：换新密钥，替换 Secrets，并在 Release 说明里告知用户。
+
+### 卸载的影响
+
+卸载会清除手机上的游戏配置、目录授权，以及保存在应用私有目录的备份。从 0.1.0、0.1.1 这类旧签名版本升级到固定签名版本时，也需要先卸载一次。
+
 ## 发布流程
 
 推送 `v<major>.<minor>.<patch>` tag 会触发[发布工作流](../.github/workflows/release.yml)。普通分支 push 与 PR 只运行仓库检查，不保存构建产物。
@@ -72,7 +132,7 @@ pnpm android:open
 1. 核对 tag 与根包、共享包、桌面包、移动包和 Android `versionName`。
 2. 运行 `pnpm check` 与 `pnpm test:all`。
 3. 使用 `pnpm desktop:package:portable` 生成 Windows x64 免安装版，不构建安装版。
-4. 收集 Android debug APK，生成 `SHA256SUMS.txt`。
+4. 用 Secrets 中的固定密钥构建 Android release APK 并校验签名，生成 `SHA256SUMS.txt`。
 5. 将三个文件上传为保留 7 天的 Actions artifact，并创建草稿 GitHub Release。
 
 草稿说明由 GitHub 根据提交自动生成。发布前在 Release 页面补充本版已知问题、安装限制和下载说明；发布说明不保存在仓库。
@@ -82,7 +142,7 @@ git tag -a v0.1.0 -m "存档同步 0.1.0"
 git push origin v0.1.0
 ```
 
-创建草稿需要仓库 Actions 工作流权限允许 `contents: write`。Android APK 当前使用调试签名，Windows 免安装版未签名。
+创建草稿需要仓库 Actions 工作流权限允许 `contents: write`。Android APK 用固定密钥签名（见 [Android 签名](#android-签名)），Windows 免安装版未签名。
 
 ## 依赖安全检查
 
