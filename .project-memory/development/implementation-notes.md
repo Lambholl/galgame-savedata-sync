@@ -3,7 +3,7 @@ doc_type: implementation-notes
 status: active
 priority: medium
 owner: development
-updated: 2026-10-29
+updated: 2026-10-31
 tags: [实现细节]
 related_files: []
 ---
@@ -22,7 +22,7 @@ related_files: []
 | 移动计划页与浮动操作 | 子页面覆盖底部导航。传输页右下角箭头扫描后进入独立同步计划页，返回保留双列浏览状态；计划隐藏 skip 展示，计划及结果用连续列表，执行仍提交完整原生计划。“开始”浮动按钮与扫描箭头使用独立 portal，距边缘 24px 加系统安全区，内容底部预留 104px 加安全区。开始、实际目标成功/失败及新连接使用 antd Message，按任务状态变化提示并限制记录数量 | LibraryShell、FloatingPageAction、MobileApp、SyncCopy/PlanView、transfer-feedback、mobile.css |
 | 移动页面切换动画 | LibraryShell 在 page 变化时使用 Web Animations API 对内容区做 300ms 淡入与 12px 水平位移；主导航依据左右顺序、详情返回反向。首次挂载和普通状态刷新不触发，快速切换时取消旧动画；保留原组件状态，跟随系统减少动态效果偏好 | LibraryShell.tsx、mobile.css |
 | 移动双列文件浏览 | “传输存档”恢复两端当前层预览，各列独立进入文件夹、返回上级、刷新和滚动；按新取得的父目录逐层解析子引用，失败和离线与空目录分开。文件名下用小字同排展示短日期/时间和紧凑大小，文件夹只显示时间；点击文件整行高亮，选中仅供浏览，不限定整目录传输范围 | DirectoryPane、SyncCopyPage、display.ts、mobile.css |
-| 移动端视觉尺寸 | 参照用户提供的 QQ 界面比例收紧标题、输入框、导航、弹层和间距：标题 18px、常用文字/按钮 14px、辅助文字 12px；Button 高度按用户后续要求增加四分之一，普通按钮 45px 起、整行主操作 50px 起；选项行 44px，游戏菜单主/次操作分别 56/52px；底栏项 48px，面板内边距和页面间距 12px。游戏卡片保留 152px 封面、88px 起信息区的竖版结构 | mobile.css、AddGameDialog、SyncPlanView；本次尺寸改动按用户要求保留工作区 |
+| 移动端视觉尺寸 | 参照用户提供的 QQ 界面比例收紧标题、输入框、导航、弹层和间距：标题 18px、常用文字/按钮 14px、辅助文字 12px；Button 高度按用户后续要求增加四分之一，普通按钮 45px 起、整行主操作 50px 起；选项行 44px，游戏菜单主/次操作分别 56/52px；底栏项 48px，面板内边距和页面间距 12px。游戏卡片保留 152px 封面、88px 起信息区的竖版结构 | mobile.css、AddGameDialog、SyncPlanView |
 | 0.1.0 tag 发布 | 只有 `vX.Y.Z` tag 触发发布工作流，普通分支 push/PR 不上传二进制。发布前核对根包、共享包、双端包及 Android `versionName`，随后运行工程检查和全量测试；只生成 Windows Portable 与 Android debug APK，写入 SHA-256，上传 7 天 artifact，并用同一批文件创建草稿 Release。草稿说明由 GitHub 根据提交自动生成，已知问题在 Release 页面补充，不保存到仓库 | `.github/workflows/release.yml`、`scripts/check-release-version.mjs`、`apps/desktop/scripts/package-windows.mjs`、根与桌面 `package.json` |
 | Android 复制与本机恢复界面 | 手机按方向扫描整目录并显示固定计划，确认后调用原生双向复制；目标实际结果、取消、清理、失败后重扫与两端属性分别展示。备份默认开启，关闭确认并持久化；本机恢复预览/确认始终保护当前内容。原生 current 发现恢复任务，页面重建取回同一上下文；发送完后目标仍在运行则继续查询，实际任务清理前拒绝修改备份设置 | mobile sync-adapter、SyncCopy/Plan/Task/Backup 页面、useSyncTasks、SyncWrites/BackupsPlugin 与 SyncWriteRuntime；验证进度见工作包和回归状态 |
 | 应用标识 | 使用用户提供的透明头像 PNG，原裁切保持；Windows 侧栏 64×64、网页图标及多尺寸 ICO 同源，窗口/EXE 图标资源随打包复制并解包，禁用签名但保留图标资源编辑。Android 的 icon/roundIcon 及系统启动画面直接引用原 PNG，不额外留白或预裁圆形；安卓页面按用户要求保留文字标识 | assets/app-logo.png、desktop/resources/app-icon.ico、DesktopShell/main/打包配置；Android drawable-nodpi/app_logo.png、Manifest 和启动资源 |
@@ -58,10 +58,10 @@ related_files: []
 | 连接状态与短时提示 | 元数据轮询兼作心跳；Windows 按通信期限判离线，Android 只将本次交换成功的设备标在线，空闲失联时释放连接，活动任务仍可查询。断连回到未连接，antd message 提示一次，不诊断原因；手机连接失败由 Toast 改为同一 message，跟随本端明暗主题 | 双端 App、移动 library-adapter/App、shared library 注释；受控失联与实际页面操作检查通过 |
 | Windows 独立备份 | 在私有 backups 保存独立清单和原文，逐文件复核源、哈希/落盘/回读后提交；最近 3 次，恢复材料引用保护输入，轮换失败另报；不保存比较基线。独立设置缺省开启，坏设置保留；启动登记私有区以阻止选作同步根，未提交/淘汰残留仅显式清理 | backup-store/files/ipc、backup-bridge、directory-adapter、启动/preload；实际文件和新进程重启、故障/取消/容量/清理及有限桥验证通过 |
 | Windows 受保护写入与恢复 | 先重扫目标和核对全部输入，预检同卷峰值，完整备份后按计划创建目录和逐文件发布；同卷候选 fsync/回读，覆盖前再核对旧内容和身份，最终回读后才成功。本机恢复引用输入且强制保护当前文件；候选清理失败保持与旧批次共用的互斥 | sync-writer、sync-target-files、target-operation、directory-adapter、transfer-registry、启动；实际合成目录覆盖/恢复/保留/占用失败、取消/超时/部分/未知结果、容量/故障/残留归属和既有桌面回归通过 |
-| Android → Windows 新复制 | 确认后先登记完整计划，源归档期间以原生只读心跳确认通信，清单/内容各一次；Windows 绑定缓存扫描和双向项目关联，合计同卷缓存/备份/新文件余量，完整归档校验后备份并写入。sender sent 与实际 receiver 结果分开；短暂查询恢复后继续等原任务，清理完成后才释放名额 | 复用原生归档与受保护写入；普通扫描不保活，确认执行由应用级任务和通知持有，Native/TS 分别核对完整结果。API 33 实际 SAF/LAN、正式桥、回执丢失/查询恢复/设置与目标变化/取消及故障验证通过；界面由后续包接入 |
-| Windows → Android 新复制 | Windows 接纳后复核整个源快照并准备不可变归档，扫描资源释放后进入 ready；手机核对清单并检查缓存/备份/已知同卷增量后单次 GET，完整校验后借用确认名额执行保护写入。目标备份设置来自手机本机项目，发送端末次查询与手机实际结果独立；本机 IO 期间使用原任务心跳，清理失败保留缓存和名额 | 备份创建清理及轮换失败仅保留本实例的引用供显式重试；读写器借用名额时不释放外围所有者。实际 SAF/LAN 覆盖、设置、内容错误、取消、目标变化和容量拒绝已验证；界面继续后续包 |
+| Android → Windows 新复制 | 确认后先登记完整计划，源归档期间以原生只读心跳确认通信，清单/内容各一次；Windows 绑定缓存扫描和双向项目关联，合计同卷缓存/备份/新文件余量，完整归档校验后备份并写入。sender sent 与实际 receiver 结果分开；短暂查询恢复后继续等原任务，清理完成后才释放名额 | 复用原生归档与受保护写入；普通扫描不保活，确认执行由应用级任务和通知持有，Native/TS 分别核对完整结果。API 33 实际 SAF/LAN、正式桥、回执丢失/查询恢复/设置与目标变化/取消及故障验证通过；双端界面已接入 |
+| Windows → Android 新复制 | Windows 接纳后复核整个源快照并准备不可变归档，扫描资源释放后进入 ready；手机核对清单并检查缓存/备份/已知同卷增量后单次 GET，完整校验后借用确认名额执行保护写入。目标备份设置来自手机本机项目，发送端末次查询与手机实际结果独立；本机 IO 期间使用原任务心跳，清理失败保留缓存和名额 | 备份创建清理及轮换失败仅保留本实例的引用供显式重试；读写器借用名额时不释放外围所有者。实际 SAF/LAN 覆盖、设置、内容错误、取消、目标变化和容量拒绝已验证；双端界面已接入 |
 | Android 独立备份 | 复用 SAF 读取，应用私有 files/backups 保存与共享 v1 一致的独立清单和原文；全部旧内容落盘及回读后提交，三轮保留及恢复引用保护，独立设置/容量和明确清理。Native 插件仅设置/摘要/单轮清单，创建与文件流交原生编排 | BackupStore/Model/Files、AndroidBackupIo、SyncBackupsPlugin、TS backup bridge；API 33 实际 SAF/原文独立哈希/源属性/进程重启、JVM 故障及桥检查通过；安卓实测使用 API 33 设备 |
-| Android 受保护写入与恢复 | Java 从快照重算完整计划，重扫目标并核对本批原文；容量按文件增量和备份峰值预检，备份落盘后再核对实际目标余量。有效备份后创建目录或按文档/父目录及常规 FD 身份使用 rw 写入、设长度、fsync/回读；恢复保持输入引用并强制保护当前内容；应用 Context 持有任务，旧传输共用互斥，清理失败不重放 | SyncPlanModel/Writer、SafSyncBackend、SyncWriteRuntime/Plugin、TargetOperation、TS sync-write bridge；API 33 实际目录/覆盖/清空/恢复/取消/竞争和任务状态验证，JVM 故障/容量及跨语言结果检查通过；HTTP 与界面由后续包接入 |
+| Android 受保护写入与恢复 | Java 从快照重算完整计划，重扫目标并核对本批原文；容量按文件增量和备份峰值预检，备份落盘后再核对实际目标余量。有效备份后创建目录或按文档/父目录及常规 FD 身份使用 rw 写入、设长度、fsync/回读；恢复保持输入引用并强制保护当前内容；应用 Context 持有任务，旧传输共用互斥，清理失败不重放 | SyncPlanModel/Writer、SafSyncBackend、SyncWriteRuntime/Plugin、TargetOperation、TS sync-write bridge；API 33 实际目录/覆盖/清空/恢复/取消/竞争和任务状态验证，JVM 故障/容量及跨语言结果检查通过；HTTP 与界面已接入 |
 
 ## 2. 维护说明
 

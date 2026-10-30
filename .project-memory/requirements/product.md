@@ -5,7 +5,7 @@ priority: high
 owner: product
 id_prefix: REQ
 id_high_water: 21
-updated: 2026-10-28
+updated: 2026-10-31
 tags: [产品需求]
 related_files: []
 ---
@@ -23,7 +23,7 @@ related_files: []
 - 核心问题：在 Windows 与 Android 设备之间手工往返复制游戏存档不便。
 - 目标用户：同一局域网内在电脑和 Android 设备之间切换的使用者。
 - 核心价值：将文件夹映射保存为项目，浏览两端当前文件，手动选择方向后同步。
-- 当前范围：以下 active 需求及方案选择已由用户确认。基础设施、共享批量模型、双端目录读取与私有归档、Windows HTTP sender/receiver、批次非覆盖发布、Android SAF 单文件发布、Android HTTP/跨端传输编排和持续通知保持已经可用；WP-007 最小目录/连接/传输界面已完成，完整同步业务还没实现。已解答问题保留在[开放问题](open-questions.md)，当前方案见[架构总览](../architecture/overview.md)。
+- 当前范围：以下 active 需求及方案选择已由用户确认。基础设施、共享批量模型、双端目录读取与私有归档、Windows HTTP sender/receiver、批次非覆盖发布、Android SAF 单文件发布、Android HTTP/跨端传输编排和持续通知保持已经可用；M-002 的双向覆盖复制、覆盖前备份和本机恢复已接入双端界面，传输目前从手机发起。M-002 总体验收（WP-029）还没做；镜像同步、电脑端发起留 M-004，自动发现留 M-003。已解答问题保留在[开放问题](open-questions.md)，当前方案见[架构总览](../architecture/overview.md)。
 
 ## 2. 需求清单
 

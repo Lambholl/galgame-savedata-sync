@@ -3,7 +3,7 @@ doc_type: api-contracts
 status: active
 priority: medium
 owner: architecture
-updated: 2026-10-29
+updated: 2026-10-31
 tags: [API, 接口约定]
 related_files: []
 ---
@@ -51,7 +51,7 @@ M-002 的 `apps/shared/src/sync` 已提供独立 schema 1 的当前扫描、复�
 
 Windows 新增 `/v1/sync/capabilities`、`POST /v1/sync/scans` 和 `GET/DELETE /v1/sync/scans/{scanId}`，沿用会话头/严格 JSON；登记仅接收 schemaVersion/rootId，202 后查询 SyncScanState。有限 desktopService 桥增加 startScan/queryScan/cancelScan，校验本机来源、参数和返回引用。扫描只读，完整指纹/空目录/失败部分结果分开；取消关流、结果到期、停止及重启会话均已接入。
 
-双向新复制协议已接入。Windows 提供只读项目设置、任务登记、单次清单/内容上传及源准备/单次内容 GET、查询/取消；Android → Windows 完整校验后由电脑保护并写入，Windows → Android 则由手机独立完成接收、校验、备份与写入。任务固定当前会话扫描、双向项目关联、设备/根及目标备份设置；实际同步通信更新既有设备在线时间。Windows 源准备异步返回 preparing，扫描资源释放后发布 ready，发送完成只报告 sent。Android 下载前合计缓存/备份/已知同卷增量，原生写入器借用确认时的名额和时间并重新扫描目标；完整 receiver 结果与发送状态分开。全任务保持进程互斥至清理结束，回执丢失只查询，内容不重放，零文件没有归档。SyncTransfers 有限桥分开普通扫描准备、同次确认、状态/清单及取消/释放，只有确认执行启动传输通知；新页面可取回原生预览核对结果。实际 SAF/LAN、回执丢失、关闭备份、目标变化及取消已验证；界面继续后续工作包。本机恢复经本地桥提供，远端恢复入口保持关闭。完整字段与期限统一见 `docs/plans/m002-sync-copy.md` 第 3.6/3.7 节。
+双向新复制协议已接入。Windows 提供只读项目设置、任务登记、单次清单/内容上传及源准备/单次内容 GET、查询/取消；Android → Windows 完整校验后由电脑保护并写入，Windows → Android 则由手机独立完成接收、校验、备份与写入。任务固定当前会话扫描、双向项目关联、设备/根及目标备份设置；实际同步通信更新既有设备在线时间。Windows 源准备异步返回 preparing，扫描资源释放后发布 ready，发送完成只报告 sent。Android 下载前合计缓存/备份/已知同卷增量，原生写入器借用确认时的名额和时间并重新扫描目标；完整 receiver 结果与发送状态分开。全任务保持进程互斥至清理结束，回执丢失只查询，内容不重放，零文件没有归档。SyncTransfers 有限桥分开普通扫描准备、同次确认、状态/清单及取消/释放，只有确认执行启动传输通知；新页面可取回原生预览核对结果。实际 SAF/LAN、回执丢失、关闭备份、目标变化及取消已验证；双端界面已接入。本机恢复经本地桥提供，远端恢复入口保持关闭。完整字段与期限统一见 `docs/plans/m002-sync-copy.md` 第 3.6/3.7 节。
 
 共享包导出以下 v1 路由常量和 DTO。Windows 读取/sender、uploads/PUT receiver 及通用查询/取消端点现已可用；完整字段、状态码和例外以仓库根目录的 `docs/plans/m001-tar-gzip-protocol.md` 为准。WP-012/WP-013 分别负责双端归档，网络包只编排这些能力。
 

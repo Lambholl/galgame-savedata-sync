@@ -5,7 +5,7 @@ priority: high
 owner: project
 id_prefix: M
 id_high_water: 4
-updated: 2026-10-28
+updated: 2026-10-31
 tags: [路线图, 里程碑]
 related_files: []
 ---
@@ -25,7 +25,7 @@ related_files: []
 | 里程碑 | 目标 | 计划时间 | 状态 |
 | --- | --- | --- | --- |
 | M-001 | 已选 React 技术栈下验证目录与 HTTP：Android 授权目录、元数据读取、通知保持的文件往返、明文访问；验证目录不递归统计大小 | 2026-10-28 完成；目标真机组合、满额 1 GiB 双向内容/属性/缓存核对、进程内存及每次传输容量预检通过，见仓库根目录 `docs/validation/m001-resources.md` | done |
-| M-002 | 最小可用双端：复用项目与目录映射、手动 IP 和预览；补齐当前内容比较、覆盖复制、默认备份保护及手工恢复、进度和结果，支持真实存档覆盖 | WP-016 至 WP-024 已完成；按序推进 WP-025 至 WP-029。用户已取消 Android 10 实测 | active |
+| M-002 | 最小可用双端：复用项目与目录映射、手动 IP 和预览；补齐当前内容比较、覆盖复制、默认备份保护及手工恢复、进度和结果，支持真实存档覆盖 | WP-016 至 WP-028 已完成；剩 WP-029 总体验收。用户已取消 Android 10 实测 | active |
 | M-003 | 地址变更与重连：mDNS/DNS-SD 自动发现列表、稳定设备关联、手动 IP 入口和改址保留配置 | M-002 后安排 | planned |
 | M-004 | 完整首版：补齐镜像模式及删除预览，将 M-002 备份保护扩展到删除操作，补齐两端发起及预览体验；Android 活动传输由持续通知保持 | 核心同步流程完成后安排 | planned |
 
@@ -33,7 +33,8 @@ related_files: []
 
 | 优先级 | 事项 | 依赖 | 状态 |
 | --- | --- | --- | --- |
-| P0 | WP-025 Android → Windows 复制编排 | 双端扫描/备份及 Windows 受保护写入已可复用；补通用新增 HTTP 协议、确认计划、原生上传与实际 receiver 结果 | planned |
+| P0 | 双端界面与设置后续调整 | BUG-003 至 BUG-005、CR-007 至 CR-011，见[已知问题](../development/known-issues.md)与[变更请求](../requirements/change-requests.md) | active |
+| P0 | WP-029 M-002 总体验收与真实存档开放检查 | WP-016 至 WP-028 | planned |
 | P0 | 保持 Android 用户发起传输由持续通知保持、当前状态独立、目录不汇总大小的边界 | [项目约束](../requirements/constraints.md)、[验收标准](../testing/acceptance.md) | active |
 
 ## 3. M-001 交付边界与后续交接

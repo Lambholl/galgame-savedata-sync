@@ -3,7 +3,7 @@ doc_type: regression-notes
 status: active
 priority: medium
 owner: testing
-updated: 2026-10-29
+updated: 2026-10-31
 tags: [回归测试, 当前状态]
 related_files: []
 ---
@@ -14,27 +14,26 @@ related_files: []
 
 | 范围 | 状态 | 当前问题 | 复验入口 |
 | --- | --- | --- | --- |
-| 0.1.0 tag 发布链路 | pending | 本地版本门禁的一致 tag 与不一致 tag、`pnpm check`、`pnpm test:all`、Portable 实际打包及三个发布文件的 SHA-256 准备通过；Portable 时间已更新，旧 Setup 保持原时间，本次只调用 portable target。远端 workflow、artifact 与草稿 Release 尚未运行 | 推送 `v0.1.0` 后查看 Release build、artifact 与 GitHub 草稿附件 |
-| Android 确认执行、结果与本机恢复界面 | passed | 固定绑定/通知后目录变化/查询取消不重放等 6 组通过。API 33 实际页面的双向覆盖/逐项结果、独立保护清单、复制及恢复记录重载找回、备份关闭确认/系统返回/持久化、关闭后恢复仍保护、目标变化恢复失败、取消及 64 MiB 通知保持/切出返回同一任务和完整哈希共 11 组通过；明暗截图已核对。用户原配置和设置已恢复，测试轮次/目录及 Windows 合成数据已清理 | mobile sync-adapter、复制/备份/任务页、SyncWrites current 与备份维护互斥；真实 APK、SAF/LAN、外部 SHA-256 与截图核对；用户最终总体验收仍待执行，尺寸调整按用户要求排在本包提交后 |
+| 0.1.0 tag 发布链路 | passed | 本地版本门禁的一致 tag 与不一致 tag、`pnpm check`、`pnpm test:all`、Portable 实际打包及三个发布文件的 SHA-256 准备通过；Portable 时间已更新，旧 Setup 保持原时间，本次只调用 portable target。远端 Release build 成功，v0.1.0 Release 已发布，附 Android debug APK、Portable exe 和 SHA256SUMS.txt | 推送新 `v*` tag 后查看 Release build、artifact 与 GitHub 草稿附件 |
+| Android 确认执行、结果与本机恢复界面 | passed | 固定绑定/通知后目录变化/查询取消不重放等 6 组通过。API 33 实际页面的双向覆盖/逐项结果、独立保护清单、复制及恢复记录重载找回、备份关闭确认/系统返回/持久化、关闭后恢复仍保护、目标变化恢复失败、取消及 64 MiB 通知保持/切出返回同一任务和完整哈希共 11 组通过；明暗截图已核对。用户原配置和设置已恢复，测试轮次/目录及 Windows 合成数据已清理 | mobile sync-adapter、复制/备份/任务页、SyncWrites current 与备份维护互斥；真实 APK、SAF/LAN、外部 SHA-256 与截图核对；用户最终总体验收仍待执行 |
 | Windows 计划、结果和本机恢复界面 | passed | 实际目录与有限 IPC 的恢复/保护当前内容、重复确认/名额互斥、取消/目标变化通过；清理失败保留引用/名额且重试不重写、部分成功取消和发布后未知、新桥结果恢复通过。实际 Electron 的备份默认/关闭、未知与不存在/扫描未完成、嵌套恢复确认/结果、页面重载找回任务、双角色显示/重扫/取消和明暗主题通过；卡片已按手机样式及竖版尺寸核对 | sync-bridge/ipc、restore-registry、备份/任务/扫描页；独立临时原生、真实 HTTP 与实际构建的 Renderer/preload/main 检查，截图人工核对；用户总体验收仍待最后执行 |
 | 工程检查与既有套件 | passed | 无当前失败 | `pnpm check`、`pnpm test:shared`、`pnpm test:desktop`、`pnpm test:mobile`、`pnpm android:test` |
 | Windows → Android 复制编排 | passed | API 33 实际 SAF/LAN 的覆盖/备份开关/跳过/保留、无文件与仅目录、登记回执丢失、损坏内容、取消、目标/设置变化、容量拒绝、清理保留及重试通过；正式插件/传输通知/切后台继续接收/Activity 重建与新 TS 桥查询、原文及配置恢复核对通过。Windows 源重新扫描、只读属性、单次内容/重复 ID、取消/期限和清理名额通过；备份失败创建及轮换残留重试通过 | sync-registry/HTTP、SyncTransferEngine/Runtime/Model、SyncWriter/BackupStore、共享守卫与实际桥；临时源码/测试 APK 已清理，工程与既有 TS/Java 套件、Android lint/双 APK/互通、最终正式 APK 及资源一致性核对通过 |
 | Android → Windows 复制编排 | passed | API 33 真实 SAF/LAN 的保护备份/覆盖/跳过/保留、无文件变更、三种回执丢失不重放、关闭备份、确认后目标变化、实际传输取消与短暂查询恢复通过；源内容/mtime 和手机保存配置不变。回环的仅目录/容量/部分/未知/清理名额、JVM 源变化/取消/服务启动失败/坏结果/版本能力及长源读取心跳验证通过 | sync-registry/upload-body、SyncJobModel/SyncTransferEngine/Runtime/Plugin/Service、共享守卫和正式 Native/真实及新实例 TS 桥；临时源码/测试 APK 已清理；既有 TS/Java 套件、工程检查、Android lint/双 APK/归档互通、最终正式插件和 Web 资源一致性检查通过 |
 | 当前比较共享规则 | passed | 当前内容、空目录、失败/未知、名称/类型冲突、预算、计划防伪、备份格式和逐项结果针对性运行通过；双端原生扫描/写入已复用，Java 独立计划复核与实际结果通过共享守卫 | apps/shared/src/sync；共享既有套件；文本/格式/lint/全工作区类型及双端构建 |
-| 项目映射与异步发起复核 | passed | 桌面真实配置文件重启/改名/坏目录拒绝、移动适配层注入原生桥的改址/重启/异设备拒绝/通知后目录变化场景通过；新增覆盖流程尚待后续平台包 | 双端 library store/adapter；既有共享/桌面/移动套件、工程检查、桌面资源和 APK 构建 |
+| 项目映射与异步发起复核 | passed | 桌面真实配置文件重启/改名/坏目录拒绝、移动适配层注入原生桥的改址/重启/异设备拒绝/通知后目录变化场景通过；覆盖流程已在后续复制编排包接入 | 双端 library store/adapter；既有共享/桌面/移动套件、工程检查、桌面资源和 APK 构建 |
 | Windows 当前扫描生产端 | passed | 实际临时目录的哈希/空文件/空目录/中文/缓冲区外大文件、源属性、未知长度、源变化/junction、预算/超时/取消关流/到期及 HTTP/IPC 上下文核对通过 | sync-scanner、sync HTTP、service bridge/IPC；共享/桌面既有套件与工程检查 |
 | Android 当前扫描生产端 | passed | API 33 实际 SAF 的 3 文件/2 目录、独立内容哈希和源大小/mtime 核对及显式取消通过；JVM 未知长度/源变化/失效授权/预算/超时/过期、TS 桥守卫、既有共享/移动/Java 套件、工程检查及双端/APK构建通过；M-002 按用户要求不做 Android 10 实测 | SyncScanner/SafSyncSource/SyncScansPlugin、TS sync-scan bridge；不验收普通扫描的后台成败 |
 | 双端界面与真机验收 | passed | 目录重组、独立界面、返回键、SAF、跨端传输和后台返回已通过真机验收 | 新构建与双端真机；见 TC-004、TC-014、TC-015 |
 | 失联状态与统一提示 | passed | 注入通信中断后的未连接状态、一次性 Message、持续离线无重复、重新连接后再次失联、手机主动连接失败和活动任务查询上下文保留通过；浏览器实际页面明暗样式核对、工程检查、既有移动套件和 APK 编译通过 | 双端 App、移动 library-adapter；临时运行与页面截图，不保留界面自动化测试 |
 | 新增设备默认名称 | passed | Windows 实际 HTTP 返回系统计算机名；两端首次保存使用对端名称，重连保留自定义名称；Android 系统名优先/型号后备值和 Unicode 长度规则通过 JVM 检查；33 项桌面回归、工程检查及 Android Java/lint/双 APK/归档互通通过 | http-service、双端 library store/adapter、DeviceNames、HttpTransfersPlugin |
 | Windows 独立备份 | passed | 实际临时目录的原文/哈希/源属性、最近 3 次与恢复材料引用、新进程重启和设置恢复、坏设置保留、备份损坏/源变化/落盘失败/取消/超时关流/容量拒绝、轮换失败保留、显式残留清理及硬链接保护、备份根隔离和有限 IPC 通过；已供原生受保护写入与恢复复用 | backup-store/files/ipc、backup-bridge；33 项既有桌面回归及工程检查/双端构建 |
-| Windows 受保护写入与恢复 | passed | 合成目录新增目录/空文件/中文、覆盖/跳过/保留、本机实际恢复及保护当前内容、输入与目标/对象身份变化、关闭备份、实际占用文件、取消/超时关流/部分完成和发布后未知结果通过；权限/不支持文件系统/空间/清理失败及候选被替换的故障注入通过，未知残留保留、显式清理重试及旧批次互斥通过 | sync-writer、sync-target-files、target-operation、directory-adapter、transfer-registry；结果通过共享守卫，33 项既有桌面回归及工程检查/双端构建通过；HTTP 编排与恢复界面待后续 |
+| Windows 受保护写入与恢复 | passed | 合成目录新增目录/空文件/中文、覆盖/跳过/保留、本机实际恢复及保护当前内容、输入与目标/对象身份变化、关闭备份、实际占用文件、取消/超时关流/部分完成和发布后未知结果通过；权限/不支持文件系统/空间/清理失败及候选被替换的故障注入通过，未知残留保留、显式清理重试及旧批次互斥通过 | sync-writer、sync-target-files、target-operation、directory-adapter、transfer-registry；结果通过共享守卫，33 项既有桌面回归及工程检查/双端构建通过；HTTP 编排与恢复界面已由复制编排和界面包接入 |
 | Android 独立备份 | passed | API 33 实际 SAF 备份、独立原文哈希及源内容/属性不变、未知长度注入、三轮保留/恢复材料引用、进程重启和正式插件查询通过；JVM 落盘失败、取消/超时关流、失效授权、容量、坏设置/损坏材料、轮换失败/残留和链接数注入通过；实际系统拒绝创建硬链接夹具。已供原生受保护写入和恢复复用；M-002 按用户要求不做 Android 10 实测 | BackupStore/Model/Files、AndroidBackupIo、SyncBackupsPlugin、TS backup bridge；共享守卫/跨语言原文核对、7 项既有移动检查、工程检查、Android 原生测试/lint/双 APK/归档互通通过 |
-| Android 受保护写入与恢复 | passed | API 33 实际 SAF 创建目录/空文件、缩短/清空/恢复、覆盖前保护/三轮保留、写入中取消后的未知结果及恢复、真实目录创建竞争、异步恢复任务准备/执行/重复拒绝/取消/释放通过；原有夹具原文/大小/mtime 不变且本次子树已清理。JVM 授权/能力/目标变化、写入/落盘/清理失败、取消/超时及未知/不足/备份后余量和增量容量检查通过 | SyncPlanModel/Writer、SafSyncBackend、SyncWriteRuntime/Plugin、TargetOperation、TS bridge；共享计划/结果与新桥实例核对、正式插件、Windows 最后一项成功后的独立清理错误、既有桌面/移动/Java 套件、工程检查及 Android lint/双 APK/归档互通通过；HTTP/界面待接入 |
+| Android 受保护写入与恢复 | passed | API 33 实际 SAF 创建目录/空文件、缩短/清空/恢复、覆盖前保护/三轮保留、写入中取消后的未知结果及恢复、真实目录创建竞争、异步恢复任务准备/执行/重复拒绝/取消/释放通过；原有夹具原文/大小/mtime 不变且本次子树已清理。JVM 授权/能力/目标变化、写入/落盘/清理失败、取消/超时及未知/不足/备份后余量和增量容量检查通过 | SyncPlanModel/Writer、SafSyncBackend、SyncWriteRuntime/Plugin、TargetOperation、TS bridge；共享计划/结果与新桥实例核对、正式插件、Windows 最后一项成功后的独立清理错误、既有桌面/移动/Java 套件、工程检查及 Android lint/双 APK/归档互通通过；HTTP 与界面已接入 |
 | Android SAF 初次访问时间变化 | unresolved | API 33 合成夹具首次读取后观察到 ctime 变化，原文和 mtime 一致，原因未确认 | 只读目录复验内容、大小和 mtime；ctime 是否变化按提供者能力记录 |
 | Windows 跨进程发布恢复 | open | 强杀可能留下候选；其他卷和特殊名称等价未验证 | 独立目标夹具；按前缀自动删除或恢复旧任务不在方案内 |
 | 满额规模、内存和容量预检 | passed | 双向 1 GiB、SHA-256/源属性、任务缓存清理和进程采样通过；功耗由用户取消，磁盘耗尽注入移出本轮 | 仓库根目录 `docs/validation/m001-resources.md`；双端编译、相关既有测试及容量探针 |
 | 依赖手动审计 | open | 用户提供的 CI 日志报告 antd-mobile 间接依赖 deepmerge 的低危公告 GHSA-gcqx-w48m-w2h4，尚未处理 | pnpm security:check；Android 依赖另用 pnpm security:android |
-| 远端 CI | pending | 用户提供的运行在 security:check 失败；安全审计已从日常 CI 移除，新配置待远端复验 | 推送后查看下一次工作流结果 |
 
 界面检查用截图记录当时结果，不转成 DOM、选择器或颜色断言。模板、主题、基准和重复失败场景不在回归范围。
