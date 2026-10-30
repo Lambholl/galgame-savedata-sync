@@ -4,7 +4,7 @@ status: active
 priority: high
 owner: product
 id_prefix: REQ
-id_high_water: 21
+id_high_water: 22
 updated: 2026-10-31
 tags: [产品需求]
 related_files: []
@@ -23,7 +23,7 @@ related_files: []
 - 核心问题：在 Windows 与 Android 设备之间手工往返复制游戏存档不便。
 - 目标用户：同一局域网内在电脑和 Android 设备之间切换的使用者。
 - 核心价值：将文件夹映射保存为项目，浏览两端当前文件，手动选择方向后同步。
-- 当前范围：以下 active 需求及方案选择已由用户确认。基础设施、共享批量模型、双端目录读取与私有归档、Windows HTTP sender/receiver、批次非覆盖发布、Android SAF 单文件发布、Android HTTP/跨端传输编排和持续通知保持已经可用；M-002 的双向覆盖复制、覆盖前备份和本机恢复已接入双端界面，传输目前从手机发起。M-002 总体验收（WP-029）还没做；镜像同步、电脑端发起留 M-004，自动发现留 M-003。已解答问题保留在[开放问题](open-questions.md)，当前方案见[架构总览](../architecture/overview.md)。
+- 当前范围：以下 active 需求及方案选择已由用户确认。基础设施、共享批量模型、双端目录读取与私有归档、Windows HTTP sender/receiver、批次非覆盖发布、Android SAF 单文件发布、Android HTTP/跨端传输编排和持续通知保持已经可用；M-002 的双向覆盖复制、覆盖前备份和本机恢复已接入双端界面，传输可从手机发起，电脑发起（CR-012）已真机验证。M-002 总体验收（WP-029）还没做；镜像同步留 M-004，自动发现留 M-003。已解答问题保留在[开放问题](open-questions.md)，当前方案见[架构总览](../architecture/overview.md)。
 
 ## 2. 需求清单
 
@@ -50,6 +50,7 @@ related_files: []
 | REQ-019 | Windows 与 Android 界面适配明暗主题 | P1 | active | 默认跟随系统，首次加载及运行时切换均同步组件、页面背景、文字及原生窗口背景；移动端暗色页面、启动及原生窗口背景按用户要求统一纯黑 #000000；Android 状态栏/导航栏图标可读；当前不增加手动开关或持久化主题偏好 |
 | REQ-020 | 每次传输根据可取得的设备剩余空间提前拒绝容量不足的批次 | P1 | active | 接收归档前检查私有缓存和本批目标文件所需空间；提供者未报告容量时按未知处理，实际写入仍检查余量并反馈错误；本轮验收不注入磁盘耗尽 |
 | REQ-021 | 添加设备时默认使用对端设备名称 | P1 | active | Windows 使用系统计算机名称；Android 能读取系统设备名称时使用该名称，取不到时使用型号；已有自定义名称继续保留 |
+| REQ-022 | 任意两台设备之间传输：Android/Android、Android/电脑、电脑/电脑 | P2 | planned | 未排期；连接按监听方和拨号方区分，不按平台区分，CR-013 的控制通道按对称格式设计 |
 
 ## 3. 约束
 

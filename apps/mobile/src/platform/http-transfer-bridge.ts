@@ -52,6 +52,8 @@ export interface HttpTransferNativePlugin {
   selectDevice(options: { deviceId: string }): Promise<unknown>
   disconnectDevice(options: { deviceId: string }): Promise<unknown>
   exchangeCatalog(options: { deviceId: string; catalog: CatalogPush }): Promise<unknown>
+  controlStates(): Promise<unknown>
+  sendControl(options: { deviceId: string; message: string }): Promise<unknown>
   connect(options: { address: string }): Promise<unknown>
   disconnect(): Promise<unknown>
   chooseTarget(): Promise<unknown>
@@ -67,7 +69,7 @@ export interface HttpTransferNativePlugin {
   cancel(options: TransferHandle): Promise<unknown>
   retryCleanup(): Promise<unknown>
   addListener(
-    event: 'transferState',
+    event: 'transferState' | 'controlMessage' | 'controlState',
     callback: (state: unknown) => void,
   ): Promise<TransferSubscription>
 }

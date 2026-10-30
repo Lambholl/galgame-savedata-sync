@@ -1,12 +1,14 @@
-import { Alert, Button, Card, Segmented, Select, Space, Switch, Tooltip } from 'antd'
+import { Button, Card, Segmented, Select, Space, Switch, Tooltip } from 'antd'
 import type {
   CatalogGame,
   DirectoryReference,
   LibraryGame,
   LibraryPeer,
 } from '@savedata-sync/shared'
+import type { Confirmation } from '../../app/navigation.ts'
 import type { DesktopLibraryAdapter } from '../../platform/library-types.ts'
 import { DirectoryPane } from './DirectoryPane.tsx'
+import { RemoteSyncPanel } from './RemoteSyncPanel.tsx'
 
 export function TransferPage({
   adapter,
@@ -22,6 +24,8 @@ export function TransferPage({
   onPeerChange,
   onUploadChange,
   onOpenSettings,
+  onConfirm,
+  onOpenTasks,
 }: {
   readonly adapter: DesktopLibraryAdapter
   readonly game: LibraryGame
@@ -36,8 +40,12 @@ export function TransferPage({
   readonly onPeerChange: (id: string) => void
   readonly onUploadChange: (isUpload: boolean) => void
   readonly onOpenSettings: () => void
+  readonly onConfirm: (confirmation: Confirmation) => void
+  readonly onOpenTasks: () => void
 }): React.JSX.Element {
   const isLocalSource = !upload
+  const localLabel = `本机电脑 · ${localRoot?.displayPath ?? localRoot?.displayName ?? '未选择目录'}`
+  const remoteLabel = `${selectedPeer?.device.name ?? '手机'} · ${remoteGame?.root?.displayPath ?? remoteGame?.root?.displayName ?? '未选择目录'}`
   return (
     <>
       <label className="library-field">
@@ -97,15 +105,21 @@ export function TransferPage({
             <Switch checked={false} disabled size="small" aria-label="删除目标端多出的文件" />
           </Tooltip>
         </div>
-        <div>
-          <span>覆盖前备份</span>
-          <Tooltip title="覆盖复制与备份将在后续版本开放">
-            <Switch checked disabled size="small" aria-label="覆盖前备份" />
-          </Tooltip>
-        </div>
       </Card>
-      <Alert type="info" showIcon title="当前新建文件，同名文件请在手机预览中改名。" />
-      <Alert type="info" title="在手机发起传输，电脑显示任务与接收结果。" showIcon />
+      {selectedPeer && remoteGame && (
+        <RemoteSyncPanel
+          projectId={game.id}
+          gameName={game.name}
+          peerId={peerId}
+          direction={upload ? 'android-to-windows' : 'windows-to-android'}
+          isOnline={selectedPeer.isConnected}
+          isDisabled={isDisabled || isActive}
+          sourceLabel={isLocalSource ? localLabel : remoteLabel}
+          targetLabel={isLocalSource ? remoteLabel : localLabel}
+          onConfirm={onConfirm}
+          onOpenTasks={onOpenTasks}
+        />
+      )}
       <Space wrap>
         <Button disabled={isDisabled || isActive} onClick={onOpenSettings}>
           目录设置

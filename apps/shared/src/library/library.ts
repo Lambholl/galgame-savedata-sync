@@ -1,13 +1,5 @@
-import type {
-  DirectoryListing,
-  DirectoryReference,
-  OperationResult,
-} from '../protocol/contracts.ts'
-import {
-  isDirectoryListing,
-  isDirectoryReference,
-  isOperationResult,
-} from '../protocol/validation.ts'
+import type { DirectoryReference } from '../protocol/contracts.ts'
+import { isDirectoryReference } from '../protocol/validation.ts'
 import { isOpaqueId } from '../protocol/protocol.ts'
 import { isArrayOf } from '../validation/data-validation.ts'
 
@@ -44,20 +36,10 @@ export interface CatalogLink {
   readonly localGameId: string
   readonly remoteGameId: string
 }
-export interface DirectoryQuery {
-  readonly requestId: string
-  readonly rootId: string
-  readonly parentId: string | null
-}
-export interface DirectoryAnswer {
-  readonly requestId: string
-  readonly result: OperationResult<DirectoryListing>
-}
-/** 元数据交换兼作通信心跳；目录结果必须对应服务端签发的请求。 */
+/** 拨号方交换目录表；连接建立后的目录读取和变化通知走控制通道。 */
 export interface CatalogPush {
   readonly games: readonly CatalogGame[]
   readonly links: readonly CatalogLink[]
-  readonly answer: DirectoryAnswer | null
 }
 export interface CatalogHello extends CatalogPush {
   readonly deviceId: string
@@ -66,7 +48,6 @@ export interface CatalogHello extends CatalogPush {
 export interface CatalogReply {
   readonly games: readonly CatalogGame[]
   readonly links: readonly CatalogLink[]
-  readonly request: DirectoryQuery | null
 }
 export interface LibraryPeer {
   readonly device: SavedDevice
@@ -166,35 +147,22 @@ function catalog(value: Record<string, unknown>): boolean {
   )
 }
 export function isCatalogPush(value: unknown): value is CatalogPush {
-  return (
-    record(value) &&
-    catalog(value) &&
-    (value.answer === null ||
-      (record(value.answer) &&
-        isOpaqueId(value.answer.requestId) &&
-        isOperationResult(value.answer.result, isDirectoryListing)))
-  )
+  return record(value) && Object.keys(value).length === 2 && catalog(value)
 }
 export function isCatalogHello(value: unknown): value is CatalogHello {
   return (
-    isCatalogPush(value) &&
-    'deviceId' in value &&
-    'name' in value &&
+    record(value) &&
+    Object.keys(value).length === 4 &&
+    catalog(value) &&
     isOpaqueId(value.deviceId) &&
     text(value.name) &&
-    value.games.every((item) => item.root === null || item.root.deviceId === value.deviceId)
+    (value.games as readonly CatalogGame[]).every(
+      (item) => item.root === null || item.root.deviceId === value.deviceId,
+    )
   )
 }
 export function isCatalogReply(value: unknown): value is CatalogReply {
-  return (
-    record(value) &&
-    catalog(value) &&
-    (value.request === null ||
-      (record(value.request) &&
-        isOpaqueId(value.request.requestId) &&
-        isOpaqueId(value.request.rootId) &&
-        (value.request.parentId === null || isOpaqueId(value.request.parentId))))
-  )
+  return record(value) && Object.keys(value).length === 2 && catalog(value)
 }
 export function isLibraryPeer(value: unknown): value is LibraryPeer {
   return (

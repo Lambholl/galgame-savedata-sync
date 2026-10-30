@@ -13,11 +13,11 @@ import type {
   CatalogHello,
   CatalogReply,
   DirectoryListing,
-  DirectoryQuery,
   LibraryConfig,
   LibraryGame,
   LibraryPeer,
 } from '@savedata-sync/shared'
+import type { ControlHub } from './control-hub.ts'
 import type { WindowsDirectoryAdapter } from './directory-adapter.ts'
 import { HttpOperationError } from './http-errors.ts'
 
@@ -26,18 +26,17 @@ interface PeerRuntime {
   readonly seenAt: number
   readonly entries: Set<string>
 }
-interface PendingDirectory {
-  readonly query: DirectoryQuery
-  readonly resolve: (value: DirectoryListing) => void
-  readonly reject: (error: Error) => void
-  readonly timer: ReturnType<typeof setTimeout>
-}
-/** 本机目录映射落盘；远端目录条目仅在会话内保留。目录查询在 8 秒未应答时失败。 */
+type LibraryControl = Pick<ControlHub, 'isOpen' | 'request' | 'broadcast' | 'disconnect'>
+/**
+ * 本机目录映射落盘；远端目录条目仅在会话内保留。
+ * 设备在线以控制通道为准；目录读取经控制通道请求，对方 8 秒未应答即失败。
+ */
 export class DesktopLibrary {
   private config: LibraryConfig = emptyLibrary()
   private readonly runtime = new Map<string, PeerRuntime>()
-  private readonly pending = new Map<string, PendingDirectory>()
+  private readonly reading = new Map<string, Promise<DirectoryListing>>()
   private readonly disconnected = new Set<string>()
+  private control: LibraryControl | null = null
   private saving: Promise<void> = Promise.resolve()
   constructor(
     private readonly file: string,
@@ -76,12 +75,33 @@ export class DesktopLibrary {
     })
     return next
   }
+  /** 服务启动时接入控制通道，停止时传 null。 */
+  attachControl(control: LibraryControl | null): void {
+    this.control = control
+  }
+  private isOpen(deviceId: string): boolean {
+    return this.runtime.has(deviceId) && Boolean(this.control?.isOpen(deviceId))
+  }
+  /** 另一台设备已连上控制通道时拒绝新的连接，首期只连一台。 */
+  private hasOtherPeer(deviceId: string): boolean {
+    return [...this.runtime.keys()].some((id) => id !== deviceId && this.isOpen(id))
+  }
+  /** 控制通道升级前核实：设备已在本会话交换过目录表、未停用、未被本机断开。 */
+  canControl(deviceId: string): boolean {
+    const saved = this.config.devices.find((item) => item.id === deviceId)
+    return (
+      Boolean(saved && !saved.blocked) &&
+      this.runtime.has(deviceId) &&
+      !this.disconnected.has(deviceId) &&
+      !this.hasOtherPeer(deviceId)
+    )
+  }
   snapshot(): { readonly config: LibraryConfig; readonly peers: readonly LibraryPeer[] } {
     return {
       config: structuredClone(this.config),
       peers: this.config.devices.map((device) => ({
         device,
-        isConnected: Date.now() - (this.runtime.get(device.id)?.seenAt ?? 0) < 15000,
+        isConnected: this.isOpen(device.id),
         games: this.runtime.get(device.id)?.hello.games ?? [],
       })),
     }
@@ -93,11 +113,7 @@ export class DesktopLibrary {
     if (!saved || saved.blocked || !current || this.disconnected.has(deviceId)) {
       throw new HttpOperationError('session-mismatch', '设备连接已变化，请重新连接。')
     }
-    if (
-      [...this.runtime.entries()].some(
-        ([id, item]) => id !== deviceId && Date.now() - item.seenAt < 15000,
-      )
-    ) {
+    if (this.hasOtherPeer(deviceId)) {
       throw new HttpOperationError('busy', '电脑已连接另一台手机，请先断开。')
     }
     this.runtime.set(deviceId, { ...current, seenAt: Date.now() })
@@ -148,6 +164,7 @@ export class DesktopLibrary {
       throw new HttpOperationError('not-found', '请选择已登记的本机存档目录。')
     }
     await this.update((current) => ({ ...current, games }))
+    this.control?.broadcast('catalog.changed', {})
   }
   async device(
     id: string,
@@ -172,15 +189,11 @@ export class DesktopLibrary {
             : current.games,
       }))
     }
+    // 设备名只存在本机，对方保留自己的命名，改名不通知对方。
     if (action !== 'rename') {
       this.disconnected.add(id)
       this.runtime.delete(id)
-      const pending = this.pending.get(id)
-      if (pending) {
-        clearTimeout(pending.timer)
-        pending.reject(new HttpOperationError('network-failure', '设备已断开。'))
-        this.pending.delete(id)
-      }
+      this.control?.disconnect(id)
     }
   }
   async exchange(
@@ -199,7 +212,8 @@ export class DesktopLibrary {
     ) {
       this.runtime.delete(value.deviceId)
       this.disconnected.delete(value.deviceId)
-      return { games: [], links: [], request: null }
+      this.control?.disconnect(value.deviceId)
+      return { games: [], links: [] }
     }
     if (!isCatalogHello(value)) {
       throw new HttpOperationError('invalid-request', '设备目录元数据无效。')
@@ -216,10 +230,8 @@ export class DesktopLibrary {
     }
     const latest = [...this.runtime.entries()].sort((a, b) => b[1].seenAt - a[1].seenAt)[0]?.[0]
     if (
-      [...this.runtime.entries()].some(
-        ([id, item]) =>
-          id !== hello.deviceId &&
-          ((isTransferring && id === latest) || Date.now() - item.seenAt < 15000),
+      [...this.runtime.keys()].some(
+        (id) => id !== hello.deviceId && ((isTransferring && id === latest) || this.isOpen(id)),
       )
     ) {
       throw new HttpOperationError('busy', '电脑已连接另一台手机，请先断开。')
@@ -248,28 +260,6 @@ export class DesktopLibrary {
         hello.links.filter((link) => hello.games.some((item) => item.id === link.localGameId)),
       ),
     )
-    const pending = this.pending.get(hello.deviceId)
-    if (pending && hello.answer?.requestId === pending.query.requestId) {
-      const answer = hello.answer.result
-      clearTimeout(pending.timer)
-      this.pending.delete(hello.deviceId)
-      if (answer.status === 'error') {
-        pending.reject(new HttpOperationError(answer.error.code, answer.error.message))
-      } else if (
-        answer.value.rootId !== pending.query.rootId ||
-        answer.value.parentId !== pending.query.parentId
-      ) {
-        pending.reject(new HttpOperationError('invalid-request', '手机目录应答与请求不匹配。'))
-      } else {
-        const entries = this.runtime.get(hello.deviceId)?.entries
-        for (const item of answer.value.entries) {
-          if (entries && entries.size < 32768) {
-            entries.add(`${answer.value.rootId}\n${item.entryId}`)
-          }
-        }
-        pending.resolve(answer.value)
-      }
-    }
     const roots = await this.adapter.listRoots()
     if (roots.status === 'error') {
       throw new HttpOperationError(roots.error.code, roots.error.message)
@@ -277,7 +267,6 @@ export class DesktopLibrary {
     return {
       games: libraryCatalog(this.config, roots.value),
       links: libraryLinks(this.config, hello.deviceId),
-      request: this.pending.get(hello.deviceId)?.query ?? null,
     }
   }
   /** 只请求已关联游戏的公开目录 ID；父目录必须来自本会话读取过的条目。 */
@@ -290,24 +279,39 @@ export class DesktopLibrary {
     if (parentId !== null && !runtime?.entries.has(`${rootId}\n${parentId}`)) {
       return Promise.reject(new HttpOperationError('invalid-request', '请从游戏根目录重新浏览。'))
     }
-    if (this.pending.has(deviceId)) {
-      return Promise.reject(new HttpOperationError('busy', '正在读取这台手机的目录。'))
+    const key = `${deviceId}
+${rootId}
+${parentId ?? ''}`
+    const current = this.reading.get(key)
+    if (current) {
+      // 页面重新挂载会再次读取同一层，共用尚未应答的请求。
+      return current
     }
-    const query = { requestId: randomUUID(), rootId, parentId }
-    return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => {
-        this.pending.delete(deviceId)
-        reject(new HttpOperationError('network-failure', '手机未响应，请打开手机应用后重试。'))
-      }, 8000)
-      this.pending.set(deviceId, { query, resolve, reject, timer })
-    })
+    const control = this.control
+    if (!control) {
+      return Promise.reject(new HttpOperationError('not-found', '本机服务未启动。'))
+    }
+    const reading = control
+      .request(deviceId, 'directory.list', { rootId, parentId })
+      .then((value) => {
+        if (value.rootId !== rootId || value.parentId !== parentId) {
+          throw new HttpOperationError('invalid-request', '手机目录应答与请求不匹配。')
+        }
+        const entries = this.runtime.get(deviceId)?.entries
+        for (const item of value.entries) {
+          if (entries && entries.size < 32768) {
+            entries.add(`${rootId}
+${item.entryId}`)
+          }
+        }
+        return value
+      })
+      .finally(() => this.reading.delete(key))
+    this.reading.set(key, reading)
+    return reading
   }
   stop(): void {
-    for (const pending of this.pending.values()) {
-      clearTimeout(pending.timer)
-      pending.reject(new HttpOperationError('network-failure', '服务已停止。'))
-    }
-    this.pending.clear()
+    this.reading.clear()
     this.runtime.clear()
     this.disconnected.clear()
   }

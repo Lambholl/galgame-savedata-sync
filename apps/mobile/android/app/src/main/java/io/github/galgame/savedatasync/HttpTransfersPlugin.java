@@ -40,10 +40,18 @@ public class HttpTransfersPlugin extends Plugin {
         if (!destroyed) try { notifyListeners("transferState", json(value)); }
         catch (Exception cause) { throw new IllegalStateException("无法通知任务状态，可查询实际结果", cause); }
     };
+    private final TransferEngine.ControlListener control = new TransferEngine.ControlListener() {
+        @Override public void message(String deviceId, String text) {
+            if (!destroyed) { JSObject event = new JSObject(); event.put("deviceId", deviceId); event.put("message", text); notifyListeners("controlMessage", event); }
+        }
+        @Override public void state(String deviceId, boolean isOpen, int code) {
+            if (!destroyed) { JSObject event = new JSObject(); event.put("deviceId", deviceId); event.put("isOpen", isOpen); event.put("code", code); notifyListeners("controlState", event); }
+        }
+    };
     private synchronized TransferEngine engine() throws Exception {
         if (destroyed) throw fail("unsupported-operation");
         if (runtime == null) {
-            runtime = TransferRuntime.get(getContext()); runtime.attach(listener);
+            runtime = TransferRuntime.get(getContext()); runtime.attach(listener); runtime.engine.controlListener(control);
         }
         return runtime.engine;
     }
@@ -108,6 +116,11 @@ public class HttpTransfersPlugin extends Plugin {
     @PluginMethod public void exchangeCatalog(PluginCall call) { submit(call, c -> {
         Map<String, Object> a = arguments(call, "deviceId", "catalog");
         return engine().exchangeCatalog(id(a.get("deviceId")), a.get("catalog"), DeviceNames.current(getContext()), c);
+    }); }
+    @PluginMethod public void controlStates(PluginCall call) { submit(call, c -> { arguments(call); return engine().controlStates(); }); }
+    @PluginMethod public void sendControl(PluginCall call) { submit(call, c -> {
+        Map<String, Object> a = arguments(call, "deviceId", "message");
+        engine().sendControl(id(a.get("deviceId")), string(a.get("message"))); return null;
     }); }
     @PluginMethod public void listRemoteRoots(PluginCall call) { submit(call, c -> { arguments(call); return engine().roots(c); }); }
     @PluginMethod public void listRemoteDirectory(PluginCall call) { submit(call, c -> { Map<String, Object> a = arguments(call, "rootId", "parentId"); return engine().directory(id(a.get("rootId")), parent(a.get("parentId")), c); }); }
@@ -183,6 +196,6 @@ public class HttpTransfersPlugin extends Plugin {
     }
     @Override protected void handleOnDestroy() {
         destroyed = true; for (ArchiveControl control : queries) control.cancel();
-        synchronized (this) { if (runtime != null) runtime.detach(listener); } io.shutdownNow();
+        synchronized (this) { if (runtime != null) { runtime.detach(listener); runtime.engine.releaseControlListener(control); } } io.shutdownNow();
     }
 }

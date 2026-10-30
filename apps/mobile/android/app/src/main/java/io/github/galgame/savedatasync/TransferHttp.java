@@ -23,6 +23,8 @@ import static io.github.galgame.savedatasync.TransferJson.*;
 interface TransferHttp {
     /** 新同步沿用连接但使用独立设备头及原生 60 秒网络期限；注入的受控传输可复用自身。 */
     default TransferHttp forSync(String localDeviceId) throws Exception { TransferSchema.id(localDeviceId); return this; }
+    /** 控制通道连接的地址；注入的测试传输没有实际地址时返回 null。 */
+    default String origin() { return null; }
     Object json(String method, String path, String session, Object body, int expected, ArchiveControl control) throws Exception;
     default Object json(String method, String path, String session, Object body, int expected, ArchiveControl control, boolean isNewConnection) throws Exception {
         return json(method, path, session, body, expected, control);
@@ -45,6 +47,7 @@ interface TransferHttp {
             this.idleMillis = idleMillis; this.syncDeviceId = syncDeviceId;
         }
         @Override public TransferHttp forSync(String localDeviceId) throws Exception { return new Client(address, 60000, TransferSchema.id(localDeviceId)); }
+        @Override public String origin() { return address; }
         static String address(String value) throws Exception {
             if (value == null || value.length() > 256) throw fail("invalid-request");
             URI uri = new URI(value); String host = uri.getHost();

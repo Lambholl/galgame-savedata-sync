@@ -58,7 +58,30 @@ export interface DesktopRestoreState extends DesktopRestoreSummary {
   readonly error: OperationError | null
   readonly cleanupError: OperationError | null
 }
-/** 本机查看/取消既有复制及手工恢复；不提供跨端发起、路径、文件字节或通用 IPC。 */
+/**
+ * 电脑发起的复制请求：waiting 等手机响应，preparing 手机在扫描，ready 可确认计划，
+ * starting 等手机开始执行，running 时 jobId 对应复制任务，succeeded 是手机回报的成功结果；
+ * failed 带失败原因，开始后的失败或取消也带 jobId。
+ */
+export interface DesktopRemoteRequest {
+  readonly requestId: string
+  readonly projectId: string
+  readonly peerId: string
+  readonly direction: SyncJobState['direction']
+  readonly status:
+    | 'waiting'
+    | 'preparing'
+    | 'ready'
+    | 'starting'
+    | 'running'
+    | 'succeeded'
+    | 'failed'
+    | 'cancelled'
+  readonly jobId: string | null
+  readonly error: OperationError | null
+  readonly updatedAt: number
+}
+/** 本机查看/取消既有复制及手工恢复，并向已连接手机发起复制；不提供路径、文件字节或通用 IPC。 */
 export interface DesktopSyncApi {
   activity(): Promise<OperationResult<boolean>>
   copies(): Promise<OperationResult<readonly DesktopCopySummary[]>>
@@ -78,6 +101,18 @@ export interface DesktopSyncApi {
   cancelRestore(restoreId: string): Promise<OperationResult<DesktopRestoreState>>
   cleanupRestore(restoreId: string): Promise<OperationResult<DesktopRestoreState>>
   releaseRestore(restoreId: string): Promise<OperationResult<null>>
+  /** 当前发起请求；没有请求时返回 null。 */
+  remoteRequest(): Promise<OperationResult<DesktopRemoteRequest | null>>
+  /** 请求已连接手机扫描指定游戏；手机未运行新版应用时返回 unsupported-operation。 */
+  startRemote(
+    projectId: string,
+    peerId: string,
+    direction: DesktopRemoteRequest['direction'],
+  ): Promise<OperationResult<DesktopRemoteRequest>>
+  /** 读取手机回报的计划，只在 ready 及之后可用。 */
+  remotePlan(requestId: string): Promise<OperationResult<SyncPlan>>
+  confirmRemote(requestId: string): Promise<OperationResult<DesktopRemoteRequest>>
+  cancelRemote(requestId: string): Promise<OperationResult<DesktopRemoteRequest>>
 }
 export const SYNC_CHANNELS = {
   activity: 'sync:activity',
@@ -95,6 +130,11 @@ export const SYNC_CHANNELS = {
   cancelRestore: 'sync:restore-cancel',
   cleanupRestore: 'sync:restore-cleanup',
   releaseRestore: 'sync:restore-release',
+  remoteRequest: 'sync:remote-request',
+  startRemote: 'sync:remote-start',
+  remotePlan: 'sync:remote-plan',
+  confirmRemote: 'sync:remote-confirm',
+  cancelRemote: 'sync:remote-cancel',
 } as const
 
 function shape(value: unknown, fields: readonly string[]): value is Record<string, unknown> {
@@ -195,6 +235,40 @@ function restoreSummary(value: Record<string, unknown>): boolean {
       : value.status === 'running'
         ? !member(value.stage, ['preparing', 'ready', 'done'])
         : value.stage === 'done')
+  )
+}
+export function isDesktopRemoteRequest(value: unknown): value is DesktopRemoteRequest {
+  return (
+    shape(value, [
+      'requestId',
+      'projectId',
+      'peerId',
+      'direction',
+      'status',
+      'jobId',
+      'error',
+      'updatedAt',
+    ]) &&
+    [value.requestId, value.projectId, value.peerId].every(isOpaqueId) &&
+    member(value.direction, ['android-to-windows', 'windows-to-android']) &&
+    member(value.status, [
+      'waiting',
+      'preparing',
+      'ready',
+      'starting',
+      'running',
+      'succeeded',
+      'failed',
+      'cancelled',
+    ]) &&
+    // 已开始的任务带 jobId；失败或取消可能发生在开始前，也可能在开始后。
+    (value.status === 'running' || value.status === 'succeeded'
+      ? isOpaqueId(value.jobId)
+      : value.status === 'failed' || value.status === 'cancelled'
+        ? value.jobId === null || isOpaqueId(value.jobId)
+        : value.jobId === null) &&
+    (value.status === 'failed' ? isOperationError(value.error) : value.error === null) &&
+    time(value.updatedAt)
   )
 }
 export function isDesktopRestoreSummary(value: unknown): value is DesktopRestoreSummary {
@@ -444,6 +518,19 @@ export function createSyncBridge(
     }
     return result
   }
+  function remoteAction(
+    action: 'confirmRemote' | 'cancelRemote',
+    requestId: string,
+  ): Promise<OperationResult<DesktopRemoteRequest>> {
+    return isOpaqueId(requestId)
+      ? call(
+          action,
+          [{ requestId }],
+          (value): value is DesktopRemoteRequest =>
+            isDesktopRemoteRequest(value) && value.requestId === requestId,
+        )
+      : Promise.resolve(failure())
+  }
   return Object.freeze({
     activity: () => call('activity', [], (value): value is boolean => typeof value === 'boolean'),
     copies: () =>
@@ -505,5 +592,39 @@ export function createSyncBridge(
       }
       return result
     },
+    remoteRequest: () =>
+      call(
+        'remoteRequest',
+        [],
+        (value): value is DesktopRemoteRequest | null =>
+          value === null || isDesktopRemoteRequest(value),
+      ),
+    startRemote: (
+      projectId: string,
+      peerId: string,
+      direction: DesktopRemoteRequest['direction'],
+    ) =>
+      [projectId, peerId].every(isOpaqueId) &&
+      member(direction, ['android-to-windows', 'windows-to-android'])
+        ? call(
+            'startRemote',
+            [{ projectId, peerId, direction }],
+            (value): value is DesktopRemoteRequest =>
+              isDesktopRemoteRequest(value) &&
+              value.projectId === projectId &&
+              value.peerId === peerId &&
+              value.direction === direction,
+          )
+        : Promise.resolve(failure()),
+    remotePlan: (requestId: string) =>
+      isOpaqueId(requestId)
+        ? call(
+            'remotePlan',
+            [{ requestId }],
+            (value): value is SyncPlan => isSyncPlan(value) && value.operation === 'copy',
+          )
+        : Promise.resolve(failure()),
+    confirmRemote: (requestId: string) => remoteAction('confirmRemote', requestId),
+    cancelRemote: (requestId: string) => remoteAction('cancelRemote', requestId),
   })
 }

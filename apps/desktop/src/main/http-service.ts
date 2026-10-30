@@ -4,7 +4,9 @@ import type { IncomingMessage, Server, ServerResponse } from 'node:http'
 import { isIP } from 'node:net'
 import { hostname } from 'node:os'
 import type { Socket } from 'node:net'
+import type { Duplex } from 'node:stream'
 import {
+  CONTROL_ROUTE,
   BATCH_LIMITS,
   BATCH_RESOURCES,
   BATCH_TIMEOUTS_MS,
@@ -36,6 +38,8 @@ import type { DesktopLibrary } from './library-store.ts'
 import { WindowsSyncScanner } from './sync-scanner.ts'
 import type { WindowsScanSource } from './sync-scanner.ts'
 import { WindowsSyncRegistry } from './sync-registry.ts'
+import { WindowsRemoteSyncRequests } from './remote-sync-requests.ts'
+import { ControlHub } from './control-hub.ts'
 import type { WindowsSyncWriter } from './sync-writer.ts'
 import type { WindowsBackupStore } from './backup-store.ts'
 import { hasTargetOperation } from './target-operation.ts'
@@ -94,6 +98,8 @@ export class WindowsHttpService {
   private runtimeError: OperationError | null = null
   private scanner: WindowsSyncScanner | null = null
   private syncRegistry: WindowsSyncRegistry | null = null
+  private remoteRequests: WindowsRemoteSyncRequests | null = null
+  private control: ControlHub | null = null
 
   constructor(
     source: HttpDirectorySource,
@@ -142,7 +148,33 @@ export class WindowsHttpService {
   getSyncStates(): readonly SyncJobState[] {
     return this.syncRegistry?.getStates() ?? []
   }
-  /** 受信任本机桥分开读取摘要、计划、清单和结果；不新增远端发起入口。 */
+  /** 电脑发起复制经控制通道请手机扫描和执行；服务停止时请求一并丢弃。 */
+  remoteSyncRequest(): ReturnType<WindowsRemoteSyncRequests['state']> {
+    return this.remoteRequests?.state() ?? null
+  }
+  startRemoteSync(
+    projectId: string,
+    peerId: string,
+    direction: 'android-to-windows' | 'windows-to-android',
+  ): ReturnType<WindowsRemoteSyncRequests['start']> {
+    return this.requireRemote().start(projectId, peerId, direction)
+  }
+  remoteSyncPlan(requestId: string): ReturnType<WindowsRemoteSyncRequests['plan']> {
+    return this.requireRemote().plan(requestId)
+  }
+  confirmRemoteSync(requestId: string): ReturnType<WindowsRemoteSyncRequests['confirm']> {
+    return this.requireRemote().confirm(requestId)
+  }
+  cancelRemoteSync(requestId: string): ReturnType<WindowsRemoteSyncRequests['cancel']> {
+    return this.requireRemote().cancel(requestId)
+  }
+  private requireRemote(): WindowsRemoteSyncRequests {
+    if (!this.remoteRequests) {
+      throw new HttpOperationError('unsupported-operation', '请先在“设备”页启动本机服务。')
+    }
+    return this.remoteRequests
+  }
+  /** 受信任本机桥分开读取摘要、计划、清单和结果。 */
   syncCopies(): ReturnType<WindowsSyncRegistry['summaries']> {
     return this.syncRegistry?.summaries() ?? []
   }
@@ -255,6 +287,28 @@ export class WindowsHttpService {
         ...(this.options.timeouts ? { timeouts: this.options.timeouts } : {}),
       })
     }
+    if (this.options.library) {
+      const control = new ControlHub()
+      this.control = control
+      this.options.library.attachControl(control)
+      if (this.syncRegistry) {
+        const remote = new WindowsRemoteSyncRequests({
+          library: this.options.library,
+          control,
+          deviceId: this.source.deviceId,
+          isBusy: () => this.hasRunningNetworkWork(),
+        })
+        this.remoteRequests = remote
+        control.subscribe({
+          event: (peerId, method, body) => {
+            if (method === 'sync.report') {
+              remote.report(peerId, body as Parameters<typeof remote.report>[1])
+            }
+          },
+          closed: (peerId) => remote.closed(peerId),
+        })
+      }
+    }
     const sessionId = randomUUID()
     const server = createServer(
       {
@@ -275,6 +329,9 @@ export class WindowsHttpService {
     )
     this.server = server
     this.runtimeError = null
+    server.on('upgrade', (request: IncomingMessage, socket: Duplex, head: Buffer) =>
+      this.upgrade(request, socket, head, sessionId),
+    )
     server.on('connection', (socket) => {
       this.sockets.add(socket)
       socket.once('close', () => this.sockets.delete(socket))
@@ -314,6 +371,8 @@ export class WindowsHttpService {
       await registry.stop()
       await this.syncRegistry?.stop()
       this.syncRegistry = null
+      this.remoteRequests = null
+      this.stopControl()
       await this.scanner?.stop()
       this.scanner = null
       this.registry = null
@@ -356,6 +415,8 @@ export class WindowsHttpService {
       socket.destroy()
     }
     const registry = this.registry
+    this.remoteRequests = null
+    this.stopControl()
     // stop 在同步部分即关闭接纳并发送 abort，再等待原生 worker。
     const stopping = registry?.stop() ?? Promise.resolve()
     const results = await Promise.allSettled([
@@ -374,6 +435,29 @@ export class WindowsHttpService {
     this.scanner = null
     this.syncRegistry = null
     this.options.library?.stop()
+  }
+
+  private stopControl(): void {
+    this.control?.stop()
+    this.control = null
+    this.options.library?.attachControl(null)
+  }
+
+  /** 控制通道只接受本会话已交换目录表的设备；其余升级一律拒绝。 */
+  private upgrade(request: IncomingMessage, socket: Duplex, head: Buffer, sessionId: string): void {
+    const peerId = request.headers[SYNC_DEVICE_HEADER]
+    if (
+      !this.control ||
+      request.method !== 'GET' ||
+      request.url !== CONTROL_ROUTE ||
+      request.headers[HTTP_HEADERS.sessionId] !== sessionId ||
+      !isOpaqueId(peerId) ||
+      !this.options.library?.canControl(peerId)
+    ) {
+      socket.end('HTTP/1.1 403 Forbidden\r\nConnection: close\r\nContent-Length: 0\r\n\r\n')
+      return
+    }
+    this.control.accept(request, socket, head, peerId)
   }
 
   private async handle(

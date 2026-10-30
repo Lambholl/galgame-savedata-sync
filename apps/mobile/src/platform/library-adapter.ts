@@ -12,17 +12,22 @@ import {
 import type {
   BatchDeviceDescriptor,
   CatalogGame,
-  DirectoryAnswer,
+  CatalogReply,
+  DirectoryReference,
   LibraryConfig,
   OperationResult,
-  DirectoryListing,
   SyncProjectBinding,
 } from '@savedata-sync/shared'
 import { unwrap, taskIsActive } from '@savedata-sync/shared'
 import type { TransferTask, TransferRequest } from '@savedata-sync/shared'
 import type { MobileLibraryAdapter, MobileSnapshot } from './library-types'
 import { androidDirectories as defaultDirectories } from './saf-directories'
-import { androidTransfers as defaultTransfers } from './http-transfers'
+import {
+  androidControl as defaultControl,
+  androidTransfers as defaultTransfers,
+} from './http-transfers'
+import { CONTROL_CLOSE_DISCONNECTED } from './control-channel'
+import type { AndroidControlApi } from './control-channel'
 import type { AndroidDirectoryApi } from './saf-directory-bridge'
 import type {
   AndroidTransferApi,
@@ -34,21 +39,32 @@ import type {
 export interface MobileLibraryDependencies {
   readonly directories: AndroidDirectoryApi
   readonly transfers: AndroidTransferApi
+  readonly control: AndroidControlApi
   readonly storage: Pick<Storage, 'getItem' | 'setItem'>
   readonly hasSyncWork: () => Promise<boolean>
 }
 
 const CONFIG_KEY = 'savedata-sync:library:1'
-/** Android 仅持久化公开 ID/配置；原生拥有连接和任务，网页重载后重新查询。 */
+/** 控制通道断开超过这个时长且没有任务时，本机断开这台设备。 */
+const CONTROL_GRACE_MS = 10000
+/**
+ * Android 仅持久化公开 ID/配置；原生拥有连接和任务，网页重载后重新查询。
+ * 在线以控制通道为准；目录表只在本机或对方变化时重新交换，对方的目录读取经控制通道应答。
+ */
 export function createMobileLibraryAdapter(
   dependencies?: Partial<MobileLibraryDependencies>,
 ): MobileLibraryAdapter {
   const androidDirectories = dependencies?.directories ?? defaultDirectories
   const androidTransfers = dependencies?.transfers ?? defaultTransfers
+  const control = dependencies?.control ?? defaultControl
   const storage = dependencies?.storage ?? localStorage
   let config: LibraryConfig | undefined
   const catalogs = new Map<string, readonly CatalogGame[]>()
-  const answers = new Map<string, DirectoryAnswer>()
+  /** 每台设备上次交换成功的本机目录表，变化时才重新交换。 */
+  const pushed = new Map<string, string>()
+  const stale = new Set<string>()
+  const closedSince = new Map<string, number>()
+  const dropped = new Set<string>()
   let selectedId: string | null = null
   let current: CurrentTransfer | null = null
   let task: TransferTask | null = null
@@ -75,6 +91,53 @@ export function createMobileLibraryAdapter(
     }
     storage.setItem(CONFIG_KEY, JSON.stringify(value))
     config = value
+  }
+  control.onState((id, state) => {
+    if (state.isOpen) {
+      closedSince.delete(id)
+      dropped.delete(id)
+    } else {
+      if (!closedSince.has(id)) {
+        closedSince.set(id, Date.now())
+      }
+      if (state.code === CONTROL_CLOSE_DISCONNECTED) {
+        dropped.add(id)
+      }
+    }
+  })
+  control.onEvent('catalog.changed', (id) => stale.add(id))
+  control.onRequest('directory.list', async (id, query) => {
+    if (!descriptors.some((item) => item.device.deviceId === id)) {
+      return {
+        status: 'error',
+        error: { code: 'session-mismatch', message: '设备连接已变化。', canRetry: false },
+      }
+    }
+    if (!load().games.some((item) => item.rootId === query.rootId)) {
+      return {
+        status: 'error',
+        error: { code: 'permission-denied', message: '这个目录未配置到游戏。', canRetry: false },
+      }
+    }
+    return androidDirectories.listDirectory(query.rootId, query.parentId)
+  })
+  /** 交换目录表并合并对方的关联；失败原样返回，由调用者决定是否断开。 */
+  async function exchange(
+    id: string,
+    roots: readonly DirectoryReference[],
+  ): Promise<OperationResult<CatalogReply>> {
+    const push = { games: libraryCatalog(load(), roots), links: libraryLinks(load(), id) }
+    const result = await androidTransfers.exchangeCatalog(id, push)
+    if (result.status === 'success') {
+      pushed.set(id, JSON.stringify(push))
+      stale.delete(id)
+      catalogs.set(id, result.value.games)
+      save(mergeCatalogLinks(load(), id, result.value.links))
+    }
+    return result
+  }
+  async function hasWork(): Promise<boolean> {
+    return Boolean((task && taskIsActive(task)) || (await dependencies?.hasSyncWork?.()))
   }
   async function select(id: string): Promise<BatchDeviceDescriptor> {
     const descriptor = descriptors.find((item) => item.device.deviceId === id)
@@ -123,13 +186,17 @@ export function createMobileLibraryAdapter(
   async function disconnect(id: string): Promise<void> {
     unwrap(await androidTransfers.disconnectDevice(id))
     descriptors = descriptors.filter((item) => item.device.deviceId !== id)
+    pushed.delete(id)
+    stale.delete(id)
+    closedSince.delete(id)
+    dropped.delete(id)
     if (selectedId === id) {
       selectedId = null
     }
   }
   async function assertCanEditGames(): Promise<void> {
     await refreshTask()
-    if ((task && taskIsActive(task)) || (await dependencies?.hasSyncWork?.())) {
+    if (await hasWork()) {
       throw new Error('结束当前传输后再修改游戏目录或关联。')
     }
   }
@@ -139,15 +206,7 @@ export function createMobileLibraryAdapter(
   ): Promise<SyncProjectBinding> {
     const roots = unwrap(await androidDirectories.listRoots())
     if (shouldRefresh) {
-      const reply = unwrap(
-        await androidTransfers.exchangeCatalog(transfer.deviceId, {
-          games: libraryCatalog(load(), roots),
-          links: libraryLinks(load(), transfer.deviceId),
-          answer: answers.get(transfer.deviceId) ?? null,
-        }),
-      )
-      answers.delete(transfer.deviceId)
-      catalogs.set(transfer.deviceId, reply.games)
+      unwrap(await exchange(transfer.deviceId, roots))
     }
     const device = load().devices.find((item) => item.id === transfer.deviceId)
     if (!device) {
@@ -190,35 +249,30 @@ export function createMobileLibraryAdapter(
             ],
           })
         }
-        const result = await androidTransfers.exchangeCatalog(id, {
+        const key = JSON.stringify({
           games: libraryCatalog(load(), roots),
           links: libraryLinks(load(), id),
-          answer: answers.get(id) ?? null,
         })
-        if (result.status === 'error') {
-          if ((!task || !taskIsActive(task)) && !(await dependencies?.hasSyncWork?.())) {
-            await disconnect(id)
+        if (stale.has(id) || pushed.get(id) !== key) {
+          const result = await exchange(id, roots)
+          if (result.status === 'error') {
+            if (!(await hasWork())) {
+              await disconnect(id)
+            }
+            continue
           }
+        }
+        if (control.state(id)?.isOpen) {
+          connectedIds.add(id)
           continue
         }
-        connectedIds.add(id)
-        answers.delete(id)
-        catalogs.set(id, result.value.games)
-        save(mergeCatalogLinks(load(), id, result.value.links))
-        const request = result.value.request
-        if (request) {
-          const isAllowed = load().games.some((item) => item.rootId === request.rootId)
-          const response: OperationResult<DirectoryListing> = isAllowed
-            ? await androidDirectories.listDirectory(request.rootId, request.parentId)
-            : {
-                status: 'error',
-                error: {
-                  code: 'permission-denied',
-                  message: '这个目录未配置到游戏。',
-                  canRetry: false,
-                },
-              }
-          answers.set(id, { requestId: request.requestId, result: response })
+        if (!closedSince.has(id)) {
+          closedSince.set(id, Date.now())
+        }
+        // 电脑主动断开，或控制通道断开超过宽限期且没有任务时，本机也断开。
+        const since = closedSince.get(id) ?? Date.now()
+        if ((dropped.has(id) || Date.now() - since >= CONTROL_GRACE_MS) && !(await hasWork())) {
+          await disconnect(id)
         }
       }
       return {
@@ -272,7 +326,6 @@ export function createMobileLibraryAdapter(
           await androidTransfers.exchangeCatalog(id, {
             games: libraryCatalog(load(), roots),
             links: libraryLinks(load(), id),
-            answer: null,
           }),
         )
         const saved = load().devices.find((item) => item.id === id)
@@ -290,6 +343,7 @@ export function createMobileLibraryAdapter(
         })
         save(mergeCatalogLinks(load(), id, reply.links))
         catalogs.set(id, reply.games)
+        closedSince.set(id, Date.now())
         descriptors = [descriptor]
         selectedId = null
       } catch (error) {

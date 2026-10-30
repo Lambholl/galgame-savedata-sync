@@ -492,6 +492,16 @@ export function DesktopApp(): React.JSX.Element {
         onPeerChange={changePeer}
         onUploadChange={changeUpload}
         onOpenSettings={() => setPage('edit')}
+        onConfirm={(value) =>
+          setConfirmation({
+            ...value,
+            work: async () => {
+              await value.work()
+              setConfirmation(null)
+            },
+          })
+        }
+        onOpenTasks={() => setPage('task')}
       />
     )
   } else if (page === 'task') {

@@ -202,7 +202,7 @@ export function inspectHttpRequest(request: IncomingMessage): HttpRoute {
 }
 
 // JSON.parse 负责完整语法；第二遍只核对所有层级的解码键和深度，结果核对前不交给业务。
-function inspectJsonKeys(text: string): void {
+export function inspectJsonKeys(text: string): void {
   let position = 0
   const skip = (): void => {
     while (/\s/.test(text[position] ?? '') && position < text.length) {

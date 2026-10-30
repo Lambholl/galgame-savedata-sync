@@ -53,6 +53,10 @@ Windows 新增 `/v1/sync/capabilities`、`POST /v1/sync/scans` 和 `GET/DELETE /
 
 双向新复制协议已接入。Windows 提供只读项目设置、任务登记、单次清单/内容上传及源准备/单次内容 GET、查询/取消；Android → Windows 完整校验后由电脑保护并写入，Windows → Android 则由手机独立完成接收、校验、备份与写入。任务固定当前会话扫描、双向项目关联、设备/根及目标备份设置；实际同步通信更新既有设备在线时间。Windows 源准备异步返回 preparing，扫描资源释放后发布 ready，发送完成只报告 sent。Android 下载前合计缓存/备份/已知同卷增量，原生写入器借用确认时的名额和时间并重新扫描目标；完整 receiver 结果与发送状态分开。全任务保持进程互斥至清理结束，回执丢失只查询，内容不重放，零文件没有归档。SyncTransfers 有限桥分开普通扫描准备、同次确认、状态/清单及取消/释放，只有确认执行启动传输通知；新页面可取回原生预览核对结果。实际 SAF/LAN、回执丢失、关闭备份、目标变化及取消已验证；双端界面已接入。本机恢复经本地桥提供，远端恢复入口保持关闭。完整字段与期限统一见 `docs/plans/m002-sync-copy.md` 第 3.6/3.7 节。
 
+设备间控制走 WebSocket `/v1/control`（CR-013），文件内容仍走 HTTP 路由。拨号方先完成 `POST /v1/catalog` 交换，再带 `x-sync-session-id` 和 `x-sync-device-id` 升级；监听方核对会话、设备已交换目录表、未停用、未被断开且没有另一台设备在线，不满足返回 403。消息格式对称，双方都能发请求、回应答、推事件：`{v:1, type:request|response|event, id?, method, body|result}`，单条最多 8 MiB，只收文本帧，JSON 严格解析（重复键、非法 UTF-8 关闭 1007，格式不符关闭 1008）。请求方法有 `directory.list`、`sync.prepare`、`sync.confirm`、`sync.cancel`，事件有 `catalog.changed` 和 `sync.report`；请求 8 秒无应答即失败。监听方每 15 秒 ping，一个周期无 pong 就断开。关闭码 4001 表示监听方断开了这台设备，拨号方不再重连；4002 表示同一设备的新连接取代旧连接；其他关闭时拨号方 2 秒后重连。格式和守卫在 `apps/shared/src/control`，电脑 `control-hub.ts`（ws）监听，手机 `ControlClient.java`（Java-WebSocket）拨号，网页经 `platform/control-channel.ts` 收发。两端须同版，不保留轮询回退；目录轮询转向和 `/v1/sync/requests` 已删除。目前只有电脑监听、手机拨号，任意两台设备互传见 REQ-022。
+
+电脑发起复制（CR-012）复用手机的扫描与执行，经控制通道传递。电脑 `remote-sync-requests.ts` 同时只保留一个请求：发起时发 `sync.prepare {requestId, projectId, direction}`，手机立即应答后开始扫描，用 `sync.report` 回报 preparing、ready（附计划）或 failed；ready 计划须是对应项目、方向、设备和根的覆盖复制。电脑确认后发 `sync.confirm`，手机执行并应答 `{jobId}`，jobId 等于 planId 时记为 running；手机每秒查询一次当前复制，结束后回报 finished（succeeded、failed、cancelled 或 unknown），电脑显示“传输完成。”或失败原因。电脑取消发 `sync.cancel`，手机取消并释放本机扫描；控制连接断开时未开始的请求记为失败，已开始的传输提示到任务列表查看结果。有限 desktopSync 桥提供 remoteRequest/startRemote/remotePlan/confirmRemote/cancelRemote。
+
 共享包导出以下 v1 路由常量和 DTO。Windows 读取/sender、uploads/PUT receiver 及通用查询/取消端点现已可用；完整字段、状态码和例外以仓库根目录的 `docs/plans/m001-tar-gzip-protocol.md` 为准。WP-012/WP-013 分别负责双端归档，网络包只编排这些能力。
 
 | API | 方法 | 请求 | 响应 | 错误边界 | 工作包 |
@@ -128,18 +132,18 @@ Windows 目录与 IPC 回归包含真实 8.3 短路径环境；授权真实目�
 
 传输发起的 `TransferRequest` 现需本机 `projectId`。共享 `resolveSyncProjectBinding` 固定本机/远端项目、设备与目录 ID；Android 在通知授权后重新交换目录表并复核，变化时要求重新预览。双端保存游戏只接受已登记本机目录，活动传输中阻止修改游戏目录/关联。既有 HTTP v1 和 LibraryConfig v1 字段保持。
 
-`apps/shared/src/library/library.ts` 定义本机 `LibraryConfig`、公开 `CatalogGame`、游戏关联及目录查询/应答。一个游戏在每台设备对应一个目录，关联多个稳定设备 ID；首期同时连接一个对端，开始后的传输固定原连接。配置不保存文件清单、哈希或平台路径。
+`apps/shared/src/library/library.ts` 定义本机 `LibraryConfig`、公开 `CatalogGame`、游戏关联和目录表交换格式。一个游戏在每台设备对应一个目录，关联多个稳定设备 ID；首期同时连接一个对端，开始后的传输固定原连接。配置不保存文件清单、哈希或平台路径。
 
-Windows 的 `DesktopLibrary` 在应用私有目录原子保存游戏/设备配置，通过有限 `desktopLibrary` IPC 提供读取、保存游戏、设备管理和手机当前层查询。新建 `POST /v1/catalog` 使用既有会话头、严格 JSON 边界与独立 DTO 校验；手机提交自己的游戏目录表和明确的游戏关联，取回电脑目录表及至多一个当前层查询。目录应答要求请求 ID、根 ID 和父 ID 全部匹配；父目录必须来自已读条目。查询 8 秒超时，15 秒无元数据更新标为离线。手机原生 `exchangeCatalog` 绑定已连接电脑，原生填写本机设备 ID，不接受任意 URL。
+Windows 的 `DesktopLibrary` 在应用私有目录原子保存游戏/设备配置，通过有限 `desktopLibrary` IPC 提供读取、保存游戏、设备管理和手机当前层查询。`POST /v1/catalog` 使用既有会话头、严格 JSON 边界与独立 DTO 校验；手机提交自己的游戏目录表和明确的游戏关联，取回电脑目录表和关联。手机只在本机目录表变化或收到 `catalog.changed` 后重新交换；电脑保存游戏后广播 `catalog.changed`；设备名只存本机，改名不通知对方。电脑读手机目录经控制通道 `directory.list`，应答的根 ID 和父 ID 须与请求一致，父目录必须来自已读条目；同一层的并发读取共用一次请求。手机原生 `exchangeCatalog` 绑定已连接电脑，原生填写本机设备 ID，不接受任意 URL。
 
-现有约 1.8 秒的元数据轮询兼作心跳，不另建 WS。Android 以本次交换成功判断在线，交换失败后空闲连接释放，活动传输仍保留原任务查询上下文。两端从已连接变为未连接时，通过 antd `message` 提示一次“连接已断开”；持续离线不重复提示，也不增加持久错误条或诊断断开原因。手机主动连接失败也使用同一 `message`，颜色和圆角随本端明暗主题同步。
+在线以控制连接为准：电脑看控制连接是否打开，手机看原生控制状态；手机控制连接关闭 10 秒（或收到 4001）且没有活动任务时释放连接，活动传输仍保留原任务查询上下文。两端从已连接变为未连接时，通过 antd `message` 提示一次“连接已断开”；持续离线不重复提示，也不增加持久错误条或诊断断开原因。手机主动连接失败也使用同一 `message`，颜色和圆角随本端明暗主题同步。
 
 Android 桥提供 `connections`、`selectDevice`、`disconnectDevice`、`exchangeCatalog`；原生和界面均限制单连接。Activity 重建查询原生连接和当前任务，文件通道、持续通知和任务结果语义沿用 WP-006。对端主动关联只合并公开元数据，目录写权限来自本机系统选择器；本机解除关联后记录排除项，避免下一次元数据交换自动加回。
 
-新增设备的默认名称使用对端声明：Windows `/v1/device` 默认返回系统计算机名称，Android catalog 优先读取系统设备名称，读取失败或空值时使用型号，名称限 128 个 UTF-16 码元且截断不拆开代理对。两端已有保存的名称继续保留，重新连接或元数据轮询不覆盖自定义名；协议与配置格式保持原版本。
+新增设备的默认名称使用对端声明：Windows `/v1/device` 默认返回系统计算机名称，Android catalog 优先读取系统设备名称，读取失败或空值时使用型号，名称限 128 个 UTF-16 码元且截断不拆开代理对。两端已有保存的名称继续保留，重新连接或目录表交换不覆盖自定义名；协议与配置格式保持原版本。
 
 添加或导入游戏时先选择本机目录，选定后才能确认并写入游戏配置；取消不添加游戏。目录设置显示 `displayPath`，游戏名默认取 `parentName`，缺省时用 `displayName`。选择目录即为写入授权，两端不再提供单独的“允许接收”和“撤销接收授权”入口。Android 使用系统选择器保存持久 READ/WRITE 权限，每次下载前由 TransferRuntime 重新核实并恢复 publisher 授权；Windows 根据已保存的本机游戏目录，在上传接收前检查 rootId、目录身份与写权限。进程重启后继续使用已配置目录，权限失效时重新选择；只恢复目录写入授权，不恢复旧传输任务。
 
-主动握手后的首个 catalog 请求携带 `x-sync-connect: 1`，普通轮询不携带。桌面断开只修改进程内会话和待处理目录请求，不写入 `blocked=true`；断开后的普通轮询收到 `session-mismatch`，手机再次主动连接时清除标记。连接失败返回 HTTP 状态、协议码及原生 errno 或异常类型，不附加原因改写或重试建议。
+主动握手后的首个 catalog 请求携带 `x-sync-connect: 1`，之后的交换不携带。桌面断开只修改进程内会话并以 4001 关闭控制连接，不写入 `blocked=true`；断开后的普通交换收到 `session-mismatch`，手机再次主动连接时清除标记。连接失败返回 HTTP 状态、协议码及原生 errno 或异常类型，不附加原因改写或重试建议。
 
-界面由 `apps/desktop/src/renderer/src` 和 `apps/mobile/src` 各自维护，平台接入位于各端 `platform/library-adapter.ts`。`apps/shared` 提供协议、配置、任务数据、传输预检与游戏关联规则，不依赖组件库或平台 API。桌面已接入新复制计划/结果、备份设置/列表和本机恢复；手机确认页面继续 WP-028，镜像删除与 Windows 发起复制留 M-004。旧文件传输仍保持仅新建语义。
+界面由 `apps/desktop/src/renderer/src` 和 `apps/mobile/src` 各自维护，平台接入位于各端 `platform/library-adapter.ts`。`apps/shared` 提供协议、配置、任务数据、传输预检与游戏关联规则，不依赖组件库或平台 API。桌面已接入新复制计划/结果、备份设置/列表和本机恢复；手机确认页面已在 WP-028 接入；电脑发起复制按 CR-012 提前实现，镜像删除留 M-004。旧文件传输仍保持仅新建语义。

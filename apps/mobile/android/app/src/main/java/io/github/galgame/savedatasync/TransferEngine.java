@@ -28,6 +28,11 @@ final class TransferEngine {
         List<ArchiveModel.Source> sources(String rootId, List<Object> selections) throws Exception;
     }
     interface Listener { void state(Map<String, Object> value); }
+    /** 控制通道的消息和连接状态；网页层按方法校验并决定是否断开。 */
+    interface ControlListener {
+        void message(String deviceId, String text);
+        void state(String deviceId, boolean isOpen, int code);
+    }
     private static final AtomicReference<TransferEngine> PROCESS = new AtomicReference<>();
     private final ArchiveAdapter archives;
     private final NewFilePublisher publisher;
@@ -47,10 +52,12 @@ final class TransferEngine {
         final TransferHttp http;
         final Map<String, Object> descriptor;
         Map<String, Object> hello, reply;
-        boolean announced;
+        boolean announced, controlOpen;
+        ControlClient control;
         Connection(TransferHttp http, Map<String, Object> descriptor) { this.http = http; this.descriptor = descriptor; }
     }
     private final Map<String, Connection> connections = new LinkedHashMap<>();
+    private volatile ControlListener controlListener;
     private Job active;
     private boolean closed, connecting;
     private static final class Job {
@@ -120,7 +127,7 @@ final class TransferEngine {
         } finally { synchronized (this) { connecting = false; } }
     }
     synchronized void disconnect() throws ArchiveFailure {
-        available(); if (active != null || TargetOperation.hasWork() || connecting) throw fail("busy"); connections.remove(remoteDeviceId); http = null; remoteDevice = null; session = null; remoteRoots.clear(); remoteEntries.clear();
+        available(); if (active != null || TargetOperation.hasWork() || connecting) throw fail("busy"); closeControl(connections.remove(remoteDeviceId)); http = null; remoteDevice = null; session = null; remoteRoots.clear(); remoteEntries.clear();
     }
     synchronized List<Object> connections() throws Exception {
         available(); List<Object> result = new ArrayList<>();
@@ -141,7 +148,7 @@ final class TransferEngine {
             value.http.json("POST", "/v1/catalog", string(value.descriptor.get("sessionId")), object("deviceId", local.deviceId(), "goodbye", true), 200, control);
         } catch (Exception ignored) { /* 本机仍断开；电脑收不到告别时由在线期限释放名额。 */ }
         synchronized (this) {
-            connections.remove(id);
+            closeControl(connections.remove(id));
             if (id.equals(remoteDeviceId)) { http = null; remoteDevice = null; session = null; remoteRoots.clear(); remoteEntries.clear(); }
         }
     }
@@ -149,7 +156,7 @@ final class TransferEngine {
     Object exchangeCatalog(String id, Object payload, String name, ArchiveControl control) throws Exception {
         Connection value; synchronized (this) { available(); value = connections.get(id); }
         if (value == null) throw fail("not-found");
-        Map<String, Object> catalog = shape(copy(payload), "games", "links", "answer");
+        Map<String, Object> catalog = shape(copy(payload), "games", "links");
         List<Object> games = list(catalog.get("games")); require(games.size() <= 128 && list(catalog.get("links")).size() <= 128);
         List<Object> roots = new ArrayList<>(); Set<String> rootIds = new HashSet<>();
         for (Object entry : games) {
@@ -158,16 +165,71 @@ final class TransferEngine {
             if (game.get("root") != null && rootIds.add(id(map(game.get("root")).get("rootId")))) roots.add(game.get("root"));
         }
         TransferSchema.roots(roots, local.deviceId());
-        Map<String, Object> hello = object("deviceId", local.deviceId(), "name", name, "games", games, "links", catalog.get("links"), "answer", catalog.get("answer"));
+        Map<String, Object> hello = object("deviceId", local.deviceId(), "name", name, "games", games, "links", catalog.get("links"));
         boolean isNewConnection;
         synchronized (this) { isNewConnection = !value.announced; }
         Object reply = value.http.json("POST", "/v1/catalog", string(value.descriptor.get("sessionId")), hello, 200, control, isNewConnection);
-        Map<String, Object> replyMap = shape(copy(reply), "games", "links", "request");
+        Map<String, Object> replyMap = shape(copy(reply), "games", "links");
         synchronized (this) {
             require(connections.get(id) == value);
             value.announced = true; value.hello = map(copy(hello)); value.reply = replyMap;
+            openControl(id, value);
         }
         return reply;
+    }
+    void controlListener(ControlListener listener) { controlListener = listener; }
+    /** Activity 重建时新的订阅可能先到，只清除自己的订阅。 */
+    synchronized void releaseControlListener(ControlListener listener) { if (controlListener == listener) controlListener = null; }
+    /** 首次交换目录表后连上控制通道；意外断开 2 秒后重连，直到本机断开这台设备。 */
+    private synchronized void openControl(String id, Connection value) {
+        String origin = value.http.origin();
+        if (closed || value.control != null || connections.get(id) != value || origin == null) return;
+        try {
+            ControlClient client = new ControlClient(origin, string(value.descriptor.get("sessionId")), local.deviceId(), new ControlClient.Events() {
+                @Override public void opened(ControlClient source) { controlChanged(id, source, true, 0); }
+                @Override public void message(ControlClient source, String text) {
+                    ControlListener listener = controlListener;
+                    boolean isCurrent; synchronized (TransferEngine.this) { isCurrent = value.control == source && connections.get(id) == value; }
+                    if (isCurrent && listener != null) listener.message(id, text);
+                }
+                @Override public void closed(ControlClient source, int code) {
+                    controlChanged(id, source, false, code);
+                    retryControl(id, value);
+                }
+            });
+            value.control = client; client.connect();
+        } catch (Exception cause) {
+            retryControl(id, value);
+        }
+    }
+    private void retryControl(String id, Connection value) {
+        try { watch.schedule(() -> openControl(id, value), 2, TimeUnit.SECONDS); }
+        catch (java.util.concurrent.RejectedExecutionException stopped) { /* 引擎已关闭。 */ }
+    }
+    private void controlChanged(String id, ControlClient source, boolean isOpen, int code) {
+        synchronized (this) {
+            Connection value = connections.get(id);
+            if (value == null || value.control != source) return;
+            value.controlOpen = isOpen;
+            if (!isOpen) value.control = null;
+        }
+        ControlListener listener = controlListener;
+        if (listener != null) listener.state(id, isOpen, code);
+    }
+    private static void closeControl(Connection value) {
+        if (value == null || value.control == null) return;
+        ControlClient client = value.control; value.control = null; value.controlOpen = false; client.close();
+    }
+    synchronized List<Object> controlStates() throws Exception {
+        available(); List<Object> result = new ArrayList<>();
+        for (Map.Entry<String, Connection> item : connections.entrySet()) result.add(object("deviceId", item.getKey(), "isOpen", item.getValue().controlOpen));
+        return result;
+    }
+    void sendControl(String id, String text) throws Exception {
+        ControlClient.check(text); ControlClient client;
+        synchronized (this) { available(); Connection value = connections.get(id); client = value == null || !value.controlOpen ? null : value.control; }
+        if (client == null) throw fail("not-found");
+        try { client.send(text); } catch (RuntimeException cause) { throw fail("not-found"); }
     }
     /** 新编排固定当前已交换目录表的连接身份；文件材料仍由同一个原生缓存适配器持有。 */
     static final class SyncConnection {
@@ -196,7 +258,7 @@ final class TransferEngine {
     void refreshSync(SyncConnection connection, Map<String, Object> binding, ArchiveControl control) throws Exception {
         Map<String, Object> hello;
         synchronized (this) { verifySync(connection, binding); hello = map(copy(connection.identity.hello)); }
-        exchangeCatalog(connection.deviceId, object("games", hello.get("games"), "links", hello.get("links"), "answer", null), string(hello.get("name")), control);
+        exchangeCatalog(connection.deviceId, object("games", hello.get("games"), "links", hello.get("links")), string(hello.get("name")), control);
         synchronized (this) { verifySync(connection, binding); }
     }
     ArchiveAdapter syncArchive() { return archives; }
@@ -533,7 +595,10 @@ final class TransferEngine {
     }
     /** 销毁只请求取消；工作线程在平台调用返回并清理后关闭，不在 UI 线程等待。 */
     void close() {
-        synchronized (this) { if (closed) return; closed = true; if (active != null) active.control.cancel(); }
+        synchronized (this) {
+            if (closed) return; closed = true; if (active != null) active.control.cancel();
+            for (Connection value : connections.values()) closeControl(value);
+        }
         worker.execute(() -> { retryCleanup(); publisher.stop(); watch.shutdown(); }); worker.shutdown();
     }
 }

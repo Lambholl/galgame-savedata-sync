@@ -18,13 +18,20 @@ function input(args: readonly unknown[], fields: readonly string[]): Record<stri
     throw new HttpOperationError('invalid-request', '同步参数无效。')
   }
   const data = value as Record<string, unknown>
-  if (fields.some((key) => key !== 'plan' && !isOpaqueId(data[key]))) {
+  if (fields.some((key) => key !== 'plan' && key !== 'direction' && !isOpaqueId(data[key]))) {
     throw new HttpOperationError('invalid-request', '同步引用无效。')
+  }
+  if (
+    fields.includes('direction') &&
+    data.direction !== 'android-to-windows' &&
+    data.direction !== 'windows-to-android'
+  ) {
+    throw new HttpOperationError('invalid-request', '复制方向无效。')
   }
   return data
 }
 
-/** 固定本机通道：验证窗口/主 frame、封闭参数与响应预算；不接收路径或跨端发起请求。 */
+/** 固定本机通道：验证窗口/主 frame、封闭参数与响应预算；跨端发起只登记请求，由手机执行。 */
 export function registerSyncIpc(
   ipc: Pick<IpcMain, 'handle' | 'removeHandler'>,
   service: WindowsHttpService,
@@ -47,6 +54,9 @@ export function registerSyncIpc(
           'cancelRestore',
           'cleanupRestore',
           'releaseRestore',
+          'startRemote',
+          'confirmRemote',
+          'cancelRemote',
         ].includes(action)
         if (isMutation) {
           if (isMutating) {
@@ -56,7 +66,12 @@ export function registerSyncIpc(
           hasMutation = true
         }
         let value: unknown
-        if (action === 'copies' || action === 'restores' || action === 'activity') {
+        if (
+          action === 'copies' ||
+          action === 'restores' ||
+          action === 'activity' ||
+          action === 'remoteRequest'
+        ) {
           if (args.length) {
             throw new HttpOperationError('invalid-request', '任务列表参数无效。')
           }
@@ -65,7 +80,28 @@ export function registerSyncIpc(
               ? service.syncCopies()
               : action === 'restores'
                 ? restores.summaries()
-                : service.hasWork()
+                : action === 'remoteRequest'
+                  ? service.remoteSyncRequest()
+                  : service.hasWork()
+        } else if (action === 'startRemote') {
+          const data = input(args, ['projectId', 'peerId', 'direction'])
+          value = service.startRemoteSync(
+            data.projectId as string,
+            data.peerId as string,
+            data.direction as 'android-to-windows' | 'windows-to-android',
+          )
+        } else if (
+          action === 'remotePlan' ||
+          action === 'confirmRemote' ||
+          action === 'cancelRemote'
+        ) {
+          const id = input(args, ['requestId']).requestId as string
+          value =
+            action === 'remotePlan'
+              ? service.remoteSyncPlan(id)
+              : action === 'confirmRemote'
+                ? service.confirmRemoteSync(id)
+                : service.cancelRemoteSync(id)
         } else if (action === 'prepareRestore') {
           const data = input(args, ['projectId', 'rootId', 'backupId'])
           value = restores.prepare(

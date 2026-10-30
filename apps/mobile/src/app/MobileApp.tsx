@@ -32,8 +32,10 @@ import { TaskPage } from '../features/transfer/TaskPage'
 import { SyncCopyPage } from '../features/transfer/SyncCopyPage'
 import { SyncTaskDetails } from '../features/transfer/SyncTaskDetails'
 import { useSyncTasks } from '../features/transfer/use-sync-tasks'
+import { useRemoteSync } from '../features/transfer/use-remote-sync'
 import { transferFeedback } from '../features/transfer/transfer-feedback'
 import type { MobileSyncAdapter } from '../platform/sync-adapter'
+import { androidControl } from '../platform/http-transfers'
 import '../styles/mobile.css'
 
 import { AddGameDialog } from '../features/games/AddGameDialog'
@@ -211,6 +213,29 @@ export function MobileApp({
   const localRoot = snapshot?.roots.find((item) => item.rootId === game?.rootId) ?? null
   const isActive = (snapshot?.tasks.some(taskIsActive) ?? false) || syncTasks.isActive
   const isDisabled = isBusy || !snapshot
+  const { reload: reloadTasks } = syncTasks
+  const announceStart = useCallback(
+    (jobId: string) => {
+      if (!transferNotices.current.has(jobId) && transferNotices.current.size >= 32) {
+        const oldest = transferNotices.current.keys().next().value
+        if (oldest !== undefined) {
+          transferNotices.current.delete(oldest)
+        }
+      }
+      transferNotices.current.set(jobId, 'running')
+      void messageApi.info({ content: '开始传输', key: `sync-transfer-${jobId}` })
+      reloadTasks()
+    },
+    [messageApi, reloadTasks],
+  )
+  useRemoteSync(sync, androidControl, online?.device.id ?? null, isActive, {
+    onScan: (projectId) => {
+      const name = config.games.find((item) => item.id === projectId)?.name ?? '存档'
+      void messageApi.info({ content: `电脑请求扫描${name}`, key: 'remote-sync-scan' })
+    },
+    onStarted: announceStart,
+    onFailure: showSyncFailure,
+  })
   const importable = peers
     .filter((item) => item.isConnected)
     .flatMap((peer) =>
@@ -550,15 +575,7 @@ export function MobileApp({
         onPlanReady={showSyncPlan}
         onFailure={showSyncFailure}
         onStarted={(jobId) => {
-          if (!transferNotices.current.has(jobId) && transferNotices.current.size >= 32) {
-            const oldest = transferNotices.current.keys().next().value
-            if (oldest !== undefined) {
-              transferNotices.current.delete(oldest)
-            }
-          }
-          transferNotices.current.set(jobId, 'running')
-          void messageApi.info({ content: '开始传输', key: `sync-transfer-${jobId}` })
-          syncTasks.reload()
+          announceStart(jobId)
           setPage('task')
         }}
         onSettings={() => setPage('edit')}
