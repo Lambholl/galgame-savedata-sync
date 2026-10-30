@@ -39,7 +39,8 @@ const gradleArgs = isInventory
         '--console=plain',
       ]
     : ['--no-daemon', ':app:assembleDebug']
-const args = isWindows ? ['/d', '/c', 'gradlew.bat', ...gradleArgs] : gradleArgs
+// 显式相对路径：设置 NoDefaultCurrentDirectoryInExePath 时，cmd 不在当前目录查找裸名
+const args = isWindows ? ['/d', '/c', '.\\gradlew.bat', ...gradleArgs] : gradleArgs
 const proxyOptions = gradleProxy
   ? `-Dhttp.proxyHost=${gradleProxy.host} -Dhttp.proxyPort=${gradleProxy.port} -Dhttps.proxyHost=${gradleProxy.host} -Dhttps.proxyPort=${gradleProxy.port}`
   : ''
