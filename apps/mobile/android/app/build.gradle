@@ -7,8 +7,8 @@ android {
         applicationId "io.github.galgame.savedatasync"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "0.1.0"
+        versionCode 2
+        versionName "0.1.1"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // 打包资源时排除的文件与目录；已调整为适配现代 Web 应用。

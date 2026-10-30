@@ -195,9 +195,12 @@ export function SyncTaskDetails({
                 : '请查看两端状态，必要时重新扫描当前目录。'}
             </p>
           )}
-          {receiver?.result && <SyncOutcomeView key={state.jobId} result={receiver.result} />}
+          {/* 原生 jobId 与 planId 相同；同级 key 必须区分，否则轮询重渲染会遗留旧结果节点。 */}
+          {receiver?.result && (
+            <SyncOutcomeView key={`outcome-${state.jobId}`} result={receiver.result} />
+          )}
           <SyncPlanView
-            key={copy.plan.planId}
+            key={`plan-${copy.plan.planId}`}
             plan={copy.plan}
             sourceLabel={copy.preview.direction === 'android-to-windows' ? localLabel : remoteLabel}
             targetLabel={copy.preview.direction === 'android-to-windows' ? remoteLabel : localLabel}

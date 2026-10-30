@@ -71,7 +71,7 @@ export function DesktopShell({
             items={[...NAV]}
             onClick={({ key }) => onNavigate(key as Page)}
           />
-          <small>版本 0.1.0</small>
+          <small>版本 0.1.1</small>
         </aside>
         <div className="library-surface">
           <header className="library-header">
