@@ -434,3 +434,41 @@ body {
 .transfer-peer-list small {
   opacity: 0.7;
 }
+.task-actions {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+}
+.task-history {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.task-history h2 {
+  margin: 8px 0 0;
+  color: var(--ss-muted);
+  font-size: 13px;
+  font-weight: 400;
+}
+.task-history-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border: 1px solid var(--ss-line);
+  border-radius: var(--ss-r-sm);
+  background: var(--ss-group);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.task-history-row.is-current {
+  border-color: var(--ss-accent);
+}
+.task-history-row small {
+  display: block;
+  color: var(--ss-muted);
+  font-size: 12px;
+}

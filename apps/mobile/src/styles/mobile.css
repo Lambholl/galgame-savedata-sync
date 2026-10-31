@@ -861,3 +861,9 @@ details small {
   font: 15px/1.6 var(--ss-font);
   text-align: center;
 }
+.foot-note {
+  margin: 0;
+  color: var(--ss-muted);
+  font-size: 12px;
+  text-align: center;
+}

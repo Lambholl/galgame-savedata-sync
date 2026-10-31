@@ -1,0 +1,273 @@
+.ss-task {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  color: var(--ss-fg);
+  font-family: var(--ss-font);
+}
+.ss-task h2,
+.ss-task h3,
+.ss-task p {
+  margin: 0;
+}
+
+.ss-task-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 0 4px;
+  text-align: center;
+}
+.ss-task-hero h2 {
+  margin-top: 4px;
+  font-size: 20px;
+}
+.ss-task-hero p {
+  color: var(--ss-muted);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.ss-task-route {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ss-faint);
+  font-size: 12px;
+}
+
+.ss-ring {
+  position: relative;
+  width: 150px;
+  height: 150px;
+}
+.ss-ring svg {
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+.ss-ring circle {
+  fill: none;
+  stroke-width: 10;
+}
+.ss-ring .is-track {
+  stroke: var(--ss-group);
+}
+.ss-ring .is-fill {
+  stroke: var(--ss-accent);
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.4s ease;
+}
+.ss-ring > div {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+.ss-ring b {
+  font-size: 34px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+  line-height: 1;
+}
+.ss-ring span {
+  margin-top: 4px;
+  color: var(--ss-muted);
+  font-size: 12.5px;
+}
+
+.ss-verdict {
+  display: grid;
+  place-items: center;
+  width: 84px;
+  height: 84px;
+  border-radius: 50%;
+  font-size: 42px;
+}
+.ss-verdict.is-ok {
+  background: var(--ss-ok-soft);
+  color: var(--ss-ok);
+}
+.ss-verdict.is-warn {
+  background: var(--ss-warn-soft);
+  color: var(--ss-warn);
+}
+.ss-verdict.is-bad {
+  background: var(--ss-danger-soft);
+  color: var(--ss-danger);
+}
+.ss-verdict.is-muted {
+  background: var(--ss-group);
+  color: var(--ss-muted);
+}
+
+.ss-steps {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  padding: 4px 0;
+}
+.ss-steps::before {
+  position: absolute;
+  top: 15px;
+  right: 10%;
+  left: 10%;
+  height: 2px;
+  background: var(--ss-line);
+  content: '';
+}
+.ss-steps-bar {
+  position: absolute;
+  top: 15px;
+  left: 10%;
+  height: 2px;
+  background: var(--ss-ok);
+}
+.ss-step {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  color: var(--ss-faint);
+  font-size: 11.5px;
+}
+.ss-step i {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: 2px solid var(--ss-line);
+  border-radius: 50%;
+  background: var(--ss-group);
+  font-size: 12px;
+  font-style: normal;
+}
+.ss-step.is-done {
+  color: var(--ss-muted);
+}
+.ss-step.is-done i {
+  border-color: var(--ss-ok);
+  background: var(--ss-ok);
+  color: #fff;
+}
+.ss-step.is-now {
+  color: var(--ss-accent);
+  font-weight: 650;
+}
+.ss-step.is-now i {
+  border-color: var(--ss-accent);
+  box-shadow: 0 0 0 4px var(--ss-accent-soft);
+}
+.ss-step.is-now i::after {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ss-accent);
+  content: '';
+}
+
+.ss-task-title {
+  padding: 0 6px 6px;
+  color: var(--ss-muted);
+  font-size: 12.5px;
+  font-weight: 400;
+}
+.ss-task-group {
+  overflow: hidden;
+  border-radius: var(--ss-r-md);
+  background: var(--ss-group);
+}
+.ss-task-group > * + * {
+  border-top: 1px solid var(--ss-line);
+}
+.ss-task-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+button.ss-task-row {
+  cursor: pointer;
+}
+.ss-task-row.is-sub {
+  padding-left: 52px;
+}
+.ss-task-lead {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  font-size: 15px;
+}
+.ss-task-lead.is-ok {
+  background: var(--ss-ok-soft);
+  color: var(--ss-ok);
+}
+.ss-task-lead.is-bad {
+  background: var(--ss-danger-soft);
+  color: var(--ss-danger);
+}
+.ss-task-lead.is-warn {
+  background: var(--ss-warn-soft);
+  color: var(--ss-warn);
+}
+.ss-task-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  font-size: 13.5px;
+  overflow-wrap: anywhere;
+}
+.ss-task-body small {
+  color: var(--ss-muted);
+  font-size: 12px;
+}
+.ss-task-body small.is-bad {
+  color: var(--ss-danger);
+}
+.ss-task-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ss-accent);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.ss-task-chevron {
+  color: var(--ss-faint);
+  font-size: 12px;
+  transition: transform 0.2s;
+}
+.ss-task-chevron.is-open {
+  transform: rotate(180deg);
+}
+
+.ss-task-tech {
+  padding: 0 6px;
+  color: var(--ss-faint);
+  font-size: 12px;
+}
+.ss-task-tech summary {
+  cursor: pointer;
+}
+.ss-task-tech p {
+  margin-top: 6px;
+  font-family: var(--ss-mono);
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}

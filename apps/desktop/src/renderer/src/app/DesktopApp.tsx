@@ -520,6 +520,11 @@ export function DesktopApp({
         onCleanup={() => run(() => adapter.cleanup())}
         onChanged={tasksChanged}
         onOpenBackup={openBackup}
+        onRescan={(projectId, deviceId) => {
+          setGameId(projectId)
+          setPeerId(deviceId)
+          setPage('transfer')
+        }}
       />
     )
   } else if (page === 'backup') {

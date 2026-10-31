@@ -599,7 +599,6 @@ export function MobileApp({
           restore={syncTasks.restore}
           games={config.games}
           peers={peers}
-          roots={snapshot?.roots ?? []}
           errors={syncTasks.errors}
           onChanged={syncTasks.reload}
           onRescan={(projectId, deviceId) => {
