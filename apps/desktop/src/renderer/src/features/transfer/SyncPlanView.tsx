@@ -7,6 +7,7 @@ import type {
   SyncPlanEntry,
   SyncWriteOutcome,
 } from '@savedata-sync/shared'
+import { PathText } from '@savedata-sync/shared/ui'
 import { displayBytes, displayTime } from '../../components/display.ts'
 
 const ACTIONS: Readonly<Record<SyncPlanEntry['action'], string>> = {
@@ -115,12 +116,20 @@ export function SyncPlanView({
           {
             key: 'source',
             label: '来源',
-            children: <span className="library-sync-path">{sourceLabel}</span>,
+            children: (
+              <span className="library-sync-path">
+                <PathText path={sourceLabel} />
+              </span>
+            ),
           },
           {
             key: 'target',
             label: '目标',
-            children: <span className="library-sync-path">{targetLabel}</span>,
+            children: (
+              <span className="library-sync-path">
+                <PathText path={targetLabel} />
+              </span>
+            ),
           },
           {
             key: 'backup',

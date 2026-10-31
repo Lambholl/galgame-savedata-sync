@@ -1,0 +1,5 @@
+/* 片段内的中日文不在字间换行，只在分隔符后的 <wbr> 处换行；单段超宽时才任意断开。 */
+.ss-path-text {
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}

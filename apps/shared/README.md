@@ -15,6 +15,8 @@
 
 `@savedata-sync/shared` 位于 `apps/shared`，从 `src/index.ts` 导出应用名、协议 v1 的本地目录/设备 DTO、tar.gz 批量 DTO、纯数据守卫、上下文匹配器、协议常量及游戏关联与传输预检规则。IO、归档编解码、HTTP 服务/客户端、任务存储和实际文件同步分别在各平台模块中。
 
+`@savedata-sync/shared/ui`（`src/ui`）放两端共用的 React 展示组件，例如 PathText；它可以依赖 React、`@ant-design/icons` 与不涉及平台交互的 antd 组件，主入口不得导入它，因此电脑主进程和 node 测试不会加载 React。组件参数逐项声明，不接受样式参数，规则见 ADR-0002 与 `eslint.config.mjs`。
+
 协议使用数字 `PROTOCOL_VERSION=1`。本地目录桥使用 DeviceDescriptor、DirectoryReference、EntryMetadata、DirectoryListing 和 DirectorySelectionResult；HTTP 的 DeviceResponse 为 `OperationResult<BatchDeviceDescriptor>`，包装本地 device 并提供 sessionId/limits。
 
 传输使用 BatchProgress/BatchState/FileOutcome、DownloadBatchRequest/ReceiveBatchRequest、BatchResponse/ManifestResponse，以及批量路由和归档校验头。接收成功前必须执行上下文匹配。当前只有 v1 批量端点，没有单文件别名。v1 是在尚无 HTTP 消费者的阶段修订的；现在开始按正式兼容要求维护。

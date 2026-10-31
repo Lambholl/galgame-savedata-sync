@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Alert, Button, Modal, Space, Switch } from 'antd'
 import { unwrap } from '@savedata-sync/shared'
+import { PathText } from '@savedata-sync/shared/ui'
 import { desktopBackups } from '../../platform/sync-adapter.ts'
 
 /** 缺少项目设置时默认开启；关闭前说明覆盖后旧内容的去向，保存后才切换状态。 */
@@ -124,7 +125,9 @@ export function BackupPreference({
         }}
         onOk={() => save(false)}
       >
-        <p className="library-directory-path">{rootLabel}</p>
+        <p className="library-directory-path">
+          <PathText path={rootLabel} />
+        </p>
         <p>后续接收文件时会直接覆盖旧内容，旧内容无法从本次备份恢复。已有备份继续保留。</p>
       </Modal>
     </div>

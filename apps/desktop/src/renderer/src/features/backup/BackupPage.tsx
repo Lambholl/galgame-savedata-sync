@@ -12,6 +12,7 @@ import type {
   DesktopBackupList,
   DesktopBackupSummary,
 } from '../../../../bridge/backup-bridge.ts'
+import { PathText } from '@savedata-sync/shared/ui'
 import { desktopBackups, desktopSync } from '../../platform/sync-adapter.ts'
 import { displayBytes, displayTime } from '../../components/display.ts'
 import { BackupPreference } from './BackupPreference.tsx'
@@ -207,7 +208,9 @@ export function BackupPage({
       {game && rootId ? (
         <>
           <Card title={isCurrentRoot ? '本机目录与备份设置' : '原目录备份'}>
-            <p className="library-directory-path">{rootLabel}</p>
+            <p className="library-directory-path">
+              <PathText path={rootLabel} />
+            </p>
             {isCurrentRoot ? (
               <BackupPreference
                 key={`${game.id}/${rootId}`}
@@ -327,7 +330,9 @@ export function BackupPage({
       )}
       {info && (
         <Card size="small" title="本机备份位置">
-          <p className="library-directory-path">{info.displayPath}</p>
+          <p className="library-directory-path">
+            <PathText path={info.displayPath} />
+          </p>
         </Card>
       )}
       <Modal
@@ -402,7 +407,9 @@ export function BackupPage({
         }}
         onOk={cleanup}
       >
-        <p className="library-directory-path">{rootLabel}</p>
+        <p className="library-directory-path">
+          <PathText path={rootLabel} />
+        </p>
         <p>将清理这个目录下尚未提交或已淘汰的备份残留，完整备份和存档文件继续保留。</p>
         {error && <Alert showIcon type="error" title={error} />}
       </Modal>

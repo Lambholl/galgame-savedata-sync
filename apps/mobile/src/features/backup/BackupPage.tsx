@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Button, Switch } from 'antd-mobile'
 import type { LibraryGame } from '@savedata-sync/shared'
+import { PathText } from '@savedata-sync/shared/ui'
 import type { Confirmation } from '../../app/navigation-types'
 import type {
   MobileBackupDetails,
@@ -150,7 +151,7 @@ export function BackupPage({
           <>
             <p className="sync-path">
               <span>保存位置：</span>
-              {details.info.displayPath}
+              <PathText path={details.info.displayPath} />
             </p>
             <p className="muted">清除应用数据、卸载应用或手工删除备份文件会丢失这些备份。</p>
           </>

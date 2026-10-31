@@ -5,6 +5,7 @@ import type {
   SyncPlanEntry,
   SyncApplyResult,
 } from '@savedata-sync/shared'
+import { PathText } from '@savedata-sync/shared/ui'
 import { Panel } from '../../components/Panel'
 import { displayBytes, displayTime } from './display'
 
@@ -67,9 +68,13 @@ export function SyncPlanView({
       <Panel title="本次变化">
         <dl className="sync-facts">
           <dt>来源</dt>
-          <dd>{sourceLabel}</dd>
+          <dd>
+            <PathText path={sourceLabel} />
+          </dd>
           <dt>目标</dt>
-          <dd>{targetLabel}</dd>
+          <dd>
+            <PathText path={targetLabel} />
+          </dd>
           <dt>覆盖前备份</dt>
           <dd>{plan.shouldBackup ? '开启，最近保留 3 次' : '本次关闭覆盖前备份'}</dd>
         </dl>

@@ -4,11 +4,18 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./ui": "./src/ui/index.ts"
   },
   "scripts": {
-    "build": "tsc --noEmit",
-    "typecheck": "tsc --noEmit",
+    "build": "pnpm typecheck",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p src/ui",
     "test": "node --experimental-strip-types --test test/*.test.mjs"
+  },
+  "peerDependencies": {
+    "react": "18.3.1"
+  },
+  "devDependencies": {
+    "react": "18.3.1"
   }
 }

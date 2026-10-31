@@ -1,6 +1,7 @@
 import { Button, Input, Modal } from 'antd'
 import { FolderOpenOutlined, RightOutlined } from '@ant-design/icons'
 import type { DirectoryReference } from '@savedata-sync/shared'
+import { PathText } from '@savedata-sync/shared/ui'
 
 /** 选择目录后才保存游戏；取消弹窗保留现有游戏列表。 */
 export function AddGameDialog({
@@ -49,7 +50,9 @@ export function AddGameDialog({
         <FolderOpenOutlined aria-hidden="true" />
         <span>
           <strong>选择存档目录</strong>
-          <small>{directory?.displayPath ?? directory?.displayName ?? '未选择目录'}</small>
+          <small>
+            <PathText path={directory?.displayPath ?? directory?.displayName ?? '未选择目录'} />
+          </small>
         </span>
         <RightOutlined aria-hidden="true" />
       </Button>

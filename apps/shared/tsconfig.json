@@ -5,5 +5,7 @@
     "types": [],
     "erasableSyntaxOnly": true
   },
-  "include": ["src", "test"]
+  "include": ["src", "test"],
+  // 界面入口需要 DOM 与 JSX，由 src/ui/tsconfig.json 单独检查。
+  "exclude": ["src/ui"]
 }

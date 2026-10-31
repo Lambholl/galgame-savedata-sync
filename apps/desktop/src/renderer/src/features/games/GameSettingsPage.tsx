@@ -1,6 +1,7 @@
 import { Button, Card, Empty, Input, Select, Space } from 'antd'
 import { FolderOpenOutlined } from '@ant-design/icons'
 import type { DirectoryReference, LibraryGame, LibraryPeer } from '@savedata-sync/shared'
+import { PathText } from '@savedata-sync/shared/ui'
 import { BackupPreference } from '../backup/BackupPreference.tsx'
 
 export function GameSettingsPage({
@@ -50,7 +51,7 @@ export function GameSettingsPage({
       <Card title="本机电脑目录">
         <div className="library-directory-setting">
           <p className="library-directory-path" aria-label="本机存档目录">
-            {localRoot?.displayPath ?? localRoot?.displayName ?? '未选择目录'}
+            <PathText path={localRoot?.displayPath ?? localRoot?.displayName ?? '未选择目录'} />
           </p>
           <Button
             icon={<FolderOpenOutlined />}
@@ -80,9 +81,13 @@ export function GameSettingsPage({
               <div>
                 <strong>{peer?.device.name ?? '设备已移除'}</strong>
                 <p>
-                  {remote?.root?.displayPath ??
-                    remote?.root?.displayName ??
-                    (peer?.isConnected ? '此设备尚未设置目录' : '连接后读取目录')}
+                  <PathText
+                    path={
+                      remote?.root?.displayPath ??
+                      remote?.root?.displayName ??
+                      (peer?.isConnected ? '此设备尚未设置目录' : '连接后读取目录')
+                    }
+                  />
                 </p>
               </div>
               <Button disabled={isDisabled || isActive} onClick={() => onUnlink(link.deviceId)}>

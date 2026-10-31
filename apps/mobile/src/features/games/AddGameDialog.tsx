@@ -1,6 +1,7 @@
 import { Button, Input, Popup } from 'antd-mobile'
 import { FolderOpenOutlined, RightOutlined } from '@ant-design/icons'
 import type { DirectoryReference } from '@savedata-sync/shared'
+import { PathText } from '@savedata-sync/shared/ui'
 
 /** 选定目录后确认添加；系统选择器同时申请持久读写权限。 */
 export function AddGameDialog({
@@ -52,7 +53,9 @@ export function AddGameDialog({
           <FolderOpenOutlined aria-hidden="true" />
           <span>
             <strong>选择存档目录</strong>
-            <small>{directory?.displayPath ?? directory?.displayName ?? '未选择目录'}</small>
+            <small>
+              <PathText path={directory?.displayPath ?? directory?.displayName ?? '未选择目录'} />
+            </small>
           </span>
           <RightOutlined aria-hidden="true" />
         </button>

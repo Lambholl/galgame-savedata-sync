@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Button, Input } from 'antd-mobile'
 import { FolderOpenOutlined } from '@ant-design/icons'
 import type { DirectoryReference, LibraryGame, LibraryPeer } from '@savedata-sync/shared'
+import { PathText } from '@savedata-sync/shared/ui'
 import { Panel } from '../../components/Panel'
 import { ChoiceField } from '../../components/ChoiceField'
 import { EmptyState } from '../../components/EmptyState'
@@ -57,7 +58,7 @@ export function GameSettingsPage({
       </Panel>
       <Panel title="本机手机目录">
         <p className="directory-name">
-          {localRoot?.displayPath ?? localRoot?.displayName ?? '未选择目录'}
+          <PathText path={localRoot?.displayPath ?? localRoot?.displayName ?? '未选择目录'} />
         </p>
         <Button block disabled={isLocked} onClick={onChooseDirectory}>
           <FolderOpenOutlined /> 选择目录
@@ -72,9 +73,13 @@ export function GameSettingsPage({
               <div className="linked-device" key={link.deviceId}>
                 <strong>{peer?.device.name ?? '设备已移除'}</strong>
                 <p>
-                  {remote?.root?.displayPath ??
-                    remote?.root?.displayName ??
-                    (peer?.isConnected ? '此设备尚未设置目录' : '连接后读取目录')}
+                  <PathText
+                    path={
+                      remote?.root?.displayPath ??
+                      remote?.root?.displayName ??
+                      (peer?.isConnected ? '此设备尚未设置目录' : '连接后读取目录')
+                    }
+                  />
                 </p>
                 <Button disabled={isLocked} onClick={() => onUnlink(link.deviceId)}>
                   解除关联

@@ -177,6 +177,7 @@ export default tseslint.config(
   },
   {
     files: ['apps/shared/src/**/*.ts'],
+    ignores: ['apps/shared/src/ui/**'],
     rules: {
       'no-restricted-imports': [
         'error',
@@ -199,13 +200,71 @@ export default tseslint.config(
                 '@capacitor/*',
                 'node:*',
               ],
-              message: '共享包只保存纯数据与业务规则，界面和平台能力留在各自应用。',
+              message:
+                '共享主入口只保存纯数据与业务规则，界面渲染放 src/ui，平台能力留在各自应用。',
+            },
+            {
+              regex: '(^|/)(desktop|mobile)(/|$)',
+              message: '共享包不能依赖桌面或移动应用。',
+            },
+            {
+              // 电脑主进程与 node 测试经主入口加载共享包，不能被带进 React 与样式文件。
+              regex: '(^|/)ui(/|$)',
+              message: '共享主入口不能导入界面入口 src/ui。',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ['apps/shared/src/ui/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: [
+                ...builtinModules,
+                'node:*',
+                'react-dom',
+                'react-dom/*',
+                'antd-mobile',
+                'antd-mobile/*',
+                'electron',
+                'electron/*',
+                '@capacitor/*',
+              ],
+              message:
+                '共享界面只放与两端交互差异无关的渲染；antd-mobile、弹层与平台能力留在各自应用（ADR-0002）。',
             },
             {
               regex: '(^|/)(desktop|mobile)(/|$)',
               message: '共享包不能依赖桌面或移动应用。',
             },
           ],
+        },
+      ],
+      // 共用组件的外观只能通过含义明确的参数变化，两端不能各自塞样式（编码规范“共用界面组件参数”）。
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: 'TSPropertySignature[key.name=/^(style|className|styles|classNames)$/]',
+          message: '共用组件参数不接受样式；用含义明确的排版参数表达两端差异。',
+        },
+        {
+          selector:
+            ':matches(TSTypeReference > Identifier.typeName, TSQualifiedName > Identifier.right, TSInterfaceHeritage > Identifier.expression, TSInterfaceHeritage > MemberExpression > Identifier.property)[name=/^(HTMLAttributes|AllHTMLAttributes|ComponentProps|ComponentPropsWithRef|ComponentPropsWithoutRef|CSSProperties)$/]',
+          message: '共用组件参数逐项声明，不继承或透传 DOM、组件或样式属性。',
+        },
+        {
+          selector: 'JSXSpreadAttribute',
+          message: '共用组件逐项传递属性，不展开透传。',
+        },
+        {
+          selector: 'ObjectPattern > RestElement',
+          message: '共用组件不收集剩余参数，避免透传未声明的属性。',
         },
       ],
     },
