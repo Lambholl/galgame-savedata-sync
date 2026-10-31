@@ -629,7 +629,17 @@ export function MobileApp({
       <EmptyState description="请选择游戏查看本机备份" />
     )
   } else if (page === 'settings') {
-    body = <SettingsPage preferences={appPreferences} onChange={setAppPreferences} />
+    body = (
+      <SettingsPage
+        preferences={appPreferences}
+        onChange={(next) => {
+          setAppPreferences(next).catch((failure: unknown) => {
+            console.error('Failed to save app preferences', failure)
+            setError('无法保存设置，请重试。')
+          })
+        }}
+      />
+    )
   } else {
     body = <EmptyState description="请选择游戏" />
   }

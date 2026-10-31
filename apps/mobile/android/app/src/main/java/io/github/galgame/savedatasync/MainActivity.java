@@ -7,6 +7,9 @@ import com.getcapacitor.BridgeActivity;
 public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
+        // 先按已保存主题设置夜间模式，窗口背景和启动画面随之取 values / values-night。
+        AppPreferencesPlugin.applyStoredTheme(this);
+        registerPlugin(AppPreferencesPlugin.class);
         registerPlugin(SafDirectoriesPlugin.class);
         registerPlugin(HttpTransfersPlugin.class);
         registerPlugin(SyncScansPlugin.class);

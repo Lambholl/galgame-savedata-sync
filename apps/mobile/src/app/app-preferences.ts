@@ -1,37 +1,63 @@
 import { useSyncExternalStore } from 'react'
-import { DEFAULT_APP_PREFERENCES, parseAppPreferences } from '@savedata-sync/shared'
+import { Capacitor, registerPlugin } from '@capacitor/core'
+import { DEFAULT_APP_PREFERENCES, isAppPreferences } from '@savedata-sync/shared'
 import type { AppPreferences } from '@savedata-sync/shared'
 
-const STORAGE_KEY = 'savedata-sync.preferences'
-const listeners = new Set<() => void>()
+/** 原生插件把偏好存在应用私有 SharedPreferences，并按主题切换夜间模式。 */
+interface AppPreferencesPlugin {
+  read(): Promise<unknown>
+  write(options: { theme: string; locale: string }): Promise<unknown>
+}
 
-function load(): AppPreferences {
-  try {
-    const text = localStorage.getItem(STORAGE_KEY)
-    return text === null ? DEFAULT_APP_PREFERENCES : parseAppPreferences(JSON.parse(text))
-  } catch (error) {
-    console.error('Failed to read app preferences, using defaults', error)
-    return DEFAULT_APP_PREFERENCES
+const NATIVE =
+  Capacitor.getPlatform() === 'android'
+    ? registerPlugin<AppPreferencesPlugin>('AppPreferences')
+    : null
+const listeners = new Set<() => void>()
+let current = DEFAULT_APP_PREFERENCES
+
+function publish(next: AppPreferences): void {
+  current = next
+  for (const listener of listeners) {
+    listener()
   }
 }
 
-let current = load()
+/**
+ * 首次渲染前读取一次已保存的偏好；读取失败时用默认值。
+ * 浏览器预览没有原生插件，偏好只在本次运行内有效。
+ */
+export async function loadAppPreferences(): Promise<void> {
+  if (!NATIVE) {
+    return
+  }
+  try {
+    const value = await NATIVE.read()
+    if (isAppPreferences(value)) {
+      publish(value)
+    }
+  } catch (error) {
+    console.error('Failed to read app preferences, using defaults', error)
+  }
+}
 
-/** 当前界面偏好（主题、语言），保存在本机 WebView 存储。 */
+/** 当前界面偏好（主题、语言）。 */
 export function getAppPreferences(): AppPreferences {
   return current
 }
 
-/** 立即生效并保存；存储不可用时本次运行仍按新偏好显示。 */
-export function setAppPreferences(next: AppPreferences): void {
-  current = next
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
-  } catch (error) {
-    console.error('Failed to save app preferences', error)
+/** 立即生效并保存；保存失败时恢复原值并抛出错误，由调用方提示。 */
+export async function setAppPreferences(next: AppPreferences): Promise<void> {
+  const previous = current
+  publish(next)
+  if (!NATIVE) {
+    return
   }
-  for (const listener of listeners) {
-    listener()
+  try {
+    await NATIVE.write({ theme: next.theme, locale: next.locale })
+  } catch (error) {
+    publish(previous)
+    throw error
   }
 }
 
