@@ -84,4 +84,34 @@ export const enUS: Messages = {
   'compare.name': 'Name',
   'compare.size': 'Size',
   'compare.modified': 'Modified',
+
+  'plan.stat.create': 'New',
+  'plan.stat.replace': 'Overwrite',
+  'plan.stat.keep': 'Keep',
+  'plan.backupOn': ({ count }) =>
+    `Backup before overwrite · keep ${count} ${count === 1 ? 'copy' : 'copies'}`,
+  'plan.backupOff': 'No backup, overwrite directly',
+  'plan.transferSize': ({ size }) => `Transfer ${size}`,
+  'plan.group.replace': ({ count }) => `Overwrite ${count}`,
+  'plan.group.replaceHint': 'Tap to compare both sides',
+  'plan.group.create': ({ count }) => `New ${count}`,
+  'plan.group.keep': ({ count }) => `Keep ${count}`,
+  'plan.group.keepHint': 'Only on the target; not deleted',
+  'plan.sameHidden': ({ count }) =>
+    count === 1
+      ? '1 more file is the same on both sides and is not transferred'
+      : `${count} more files are the same on both sides and are not transferred`,
+  'plan.nothing': 'Both sides already match. Nothing to transfer.',
+  'plan.detailSource': ({ name }) => `Source · ${name}`,
+  'plan.detailTarget': ({ name }) => `Target now · ${name}`,
+  'plan.issueHint': 'Fix this, then preview again.',
+  'plan.wholeFolder': 'Whole folder',
+  'plan.issue.invalid-context': 'The game or folder information changed',
+  'plan.issue.scan-failed': 'Folder scan did not finish',
+  'plan.issue.unreadable-entry': 'Cannot be read',
+  'plan.issue.unknown-content': 'File content could not be fully read',
+  'plan.issue.name-conflict': 'Name conflict',
+  'plan.issue.type-conflict': 'Is a folder on one side and a file on the other',
+  'plan.issue.resource-limit': 'Exceeds the limit for a single transfer',
+  'plan.conflict': 'Name or type conflict between the two sides',
 }

@@ -4,6 +4,7 @@ import { ActionSheet, Button } from 'antd-mobile'
 import { MoreOutlined } from '@ant-design/icons'
 import { EmptyState } from '../components/EmptyState'
 import {
+  DEFAULT_BACKUP_KEEP_COUNT,
   emptyLibrary,
   taskIsActive,
   withGameLink,
@@ -578,6 +579,7 @@ export function MobileApp({
         isPlan={page === 'sync-plan'}
         isDisabled={isDisabled || isActive}
         isTransferActive={isActive}
+        backupKeepCount={DEFAULT_BACKUP_KEEP_COUNT}
         onPeerChange={setPeerId}
         onConfirm={confirmSync}
         onPreview={() => setPage('sync-plan')}

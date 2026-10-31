@@ -1,0 +1,257 @@
+.ss-plan {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  color: var(--ss-fg);
+  font-family: var(--ss-font);
+}
+.ss-plan h3 {
+  margin: 0;
+}
+
+/* 路线：来源 → 目标 */
+.ss-route {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 70px minmax(0, 1fr);
+  align-items: center;
+  gap: 6px;
+  padding-top: 4px;
+}
+.ss-route-end {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.ss-route-end i {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 16px;
+  background: var(--ss-group);
+  color: var(--ss-muted);
+  font-size: 24px;
+  font-style: normal;
+}
+.ss-route-end.is-source i {
+  background: var(--ss-accent);
+  color: var(--ss-accent-fg);
+}
+.ss-route-end b {
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ss-route-end small {
+  margin-top: -5px;
+  color: var(--ss-muted);
+  font-size: 11px;
+}
+.ss-route-arrow {
+  position: relative;
+  height: 2px;
+  margin-bottom: 26px;
+  background: repeating-linear-gradient(90deg, var(--ss-accent) 0 6px, transparent 6px 10px);
+}
+.ss-route-arrow::after {
+  position: absolute;
+  top: -4px;
+  right: -2px;
+  border: 5px solid transparent;
+  border-right: 0;
+  border-left: 8px solid var(--ss-accent);
+  content: '';
+}
+
+/* 三个数字 */
+.ss-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  padding: 14px 0 12px;
+  border-radius: var(--ss-r-md);
+  background: var(--ss-group);
+}
+.ss-stats > div {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+.ss-stats > div + div {
+  border-left: 1px solid var(--ss-line);
+}
+.ss-stats b {
+  font-size: 30px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+  line-height: 1.05;
+}
+.ss-stats span {
+  color: var(--ss-muted);
+  font-size: 12px;
+}
+.ss-stats .is-create b {
+  color: var(--ss-ok);
+}
+.ss-stats .is-replace b {
+  color: var(--ss-warn);
+}
+.ss-stats .is-keep b {
+  color: var(--ss-faint);
+}
+
+.ss-metaline {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px 14px;
+  color: var(--ss-muted);
+  font-size: 12.5px;
+}
+.ss-metaline span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.ss-metaline .is-on {
+  color: var(--ss-ok);
+}
+.ss-metaline .is-off {
+  color: var(--ss-danger);
+}
+
+.ss-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: var(--ss-r-sm);
+  background: var(--ss-danger-soft);
+  color: var(--ss-danger);
+  font-size: 13px;
+}
+.ss-banner small {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  opacity: 0.85;
+}
+.ss-banner .anticon {
+  margin-top: 3px;
+}
+
+/* 分组列表 */
+.ss-sec {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 6px 6px;
+  font-size: 13px;
+  font-weight: 650;
+}
+.ss-sec i {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+}
+.ss-sec small {
+  color: var(--ss-faint);
+  font-size: 12px;
+  font-weight: 400;
+}
+.ss-sec.is-create i {
+  background: var(--ss-ok);
+}
+.ss-sec.is-replace i {
+  background: var(--ss-warn);
+}
+.ss-sec.is-keep i {
+  background: var(--ss-faint);
+}
+.ss-group {
+  overflow: hidden;
+  border-radius: var(--ss-r-md);
+  background: var(--ss-group);
+}
+.ss-group > * + * {
+  border-top: 1px solid var(--ss-line);
+}
+.ss-prow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 12px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+button.ss-prow {
+  cursor: pointer;
+}
+.ss-prow-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 13.5px;
+  overflow-wrap: anywhere;
+}
+.ss-prow-name small {
+  color: var(--ss-faint);
+  font-size: 12px;
+}
+.ss-prow-change {
+  color: var(--ss-muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.ss-prow-change .is-up {
+  color: var(--ss-ok);
+}
+.ss-prow-chevron {
+  color: var(--ss-faint);
+  font-size: 12px;
+  transition: transform 0.2s;
+}
+.ss-prow.is-open .ss-prow-chevron {
+  transform: rotate(90deg);
+}
+.ss-pdetail {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  padding: 0 12px 12px 52px;
+  color: var(--ss-muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.ss-pdetail div {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 7px 9px;
+  border-radius: var(--ss-r-sm);
+  background: var(--ss-raised);
+}
+.ss-pdetail b {
+  color: var(--ss-faint);
+  font-size: 11px;
+  font-weight: 600;
+}
+.ss-pdetail .is-newer {
+  color: var(--ss-fg);
+  font-weight: 600;
+}
+.ss-plan-note {
+  margin: 0;
+  padding: 4px 0 2px;
+  color: var(--ss-faint);
+  font-size: 12px;
+  text-align: center;
+}

@@ -10,12 +10,11 @@ import type {
   SyncPlan,
   TransferDirection,
 } from '@savedata-sync/shared'
-import { TransferComparison, useT } from '@savedata-sync/shared/ui'
-import type { ComparisonStatus } from '@savedata-sync/shared/ui'
+import { SyncPlanSummary, TransferComparison, useT } from '@savedata-sync/shared/ui'
+import type { ComparisonStatus, PlanEndpoint } from '@savedata-sync/shared/ui'
 import type { DesktopRemoteRequest } from '../../../../bridge/sync-bridge.ts'
 import type { Confirmation } from '../../app/navigation.ts'
 import { desktopSync } from '../../platform/sync-adapter.ts'
-import { SyncPlanView } from './SyncPlanView.tsx'
 
 const POLL_INTERVAL_MS = 400
 const SCANNING: readonly DesktopRemoteRequest['status'][] = ['waiting', 'preparing']
@@ -39,6 +38,7 @@ export function TransferPage({
   upload,
   isDisabled,
   isActive,
+  backupKeepCount,
   onPeerChange,
   onUploadChange,
   onConfirm,
@@ -53,6 +53,8 @@ export function TransferPage({
   readonly upload: boolean
   readonly isDisabled: boolean
   readonly isActive: boolean
+  /** 目标端覆盖前备份保留的份数，显示在计划摘要里。 */
+  readonly backupKeepCount: number
   readonly onPeerChange: (id: string) => void
   readonly onUploadChange: (isUpload: boolean) => void
   readonly onConfirm: (confirmation: Confirmation) => void
@@ -206,6 +208,8 @@ export function TransferPage({
   const canStart = shown?.status === 'ready' && Boolean(current?.canExecute) && hasChanges
   const peerName = selectedPeer?.device.name ?? t('common.unknown')
   const localName = t('transfer.local')
+  const pcEnd: PlanEndpoint = { name: localName, kind: 'pc' }
+  const phoneEnd: PlanEndpoint = { name: peerName, kind: 'phone' }
   function start(): void {
     if (!shown || !current || !canStart) {
       return
@@ -318,18 +322,11 @@ export function TransferPage({
         onClose={() => setIsPlanOpen(false)}
       >
         {current && (
-          <SyncPlanView
+          <SyncPlanSummary
             plan={current}
-            sourceLabel={
-              upload
-                ? (remoteGame?.root?.displayPath ?? '')
-                : (localRoot?.displayPath ?? localRoot?.displayName ?? '')
-            }
-            targetLabel={
-              upload
-                ? (localRoot?.displayPath ?? localRoot?.displayName ?? '')
-                : (remoteGame?.root?.displayPath ?? '')
-            }
+            source={upload ? phoneEnd : pcEnd}
+            target={upload ? pcEnd : phoneEnd}
+            backupKeepCount={backupKeepCount}
           />
         )}
       </Drawer>

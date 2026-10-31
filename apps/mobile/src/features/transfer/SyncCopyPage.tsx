@@ -10,12 +10,11 @@ import type {
   SyncPreparationState,
   TransferDirection,
 } from '@savedata-sync/shared'
-import { TransferComparison, useT } from '@savedata-sync/shared/ui'
-import type { ComparisonStatus } from '@savedata-sync/shared/ui'
+import { SyncPlanSummary, TransferComparison, useT } from '@savedata-sync/shared/ui'
+import type { ComparisonStatus, PlanEndpoint } from '@savedata-sync/shared/ui'
 import type { MobileSyncAdapter } from '../../platform/sync-adapter'
 import type { Confirmation } from '../../app/navigation-types'
 import { BottomAction } from '../../components/BottomAction'
-import { SyncPlanView } from './SyncPlanView'
 
 const POLL_INTERVAL_MS = 700
 
@@ -36,6 +35,7 @@ export function SyncCopyPage({
   isPlan,
   isDisabled,
   isTransferActive,
+  backupKeepCount,
   onPeerChange,
   onConfirm,
   onStarted,
@@ -51,6 +51,8 @@ export function SyncCopyPage({
   readonly isDisabled: boolean
   /** 有传输或恢复在进行时不发起新的扫描。 */
   readonly isTransferActive: boolean
+  /** 本机覆盖前备份保留的份数，显示在计划摘要里。 */
+  readonly backupKeepCount: number
   readonly onPeerChange: (id: string) => void
   readonly onConfirm: (confirmation: Confirmation) => void
   readonly onStarted: (jobId: string) => void
@@ -196,6 +198,8 @@ export function SyncCopyPage({
       .finally(() => setIsStarting(false))
   }
   const remoteName = peer?.device.name ?? t('common.unknown')
+  const localEnd: PlanEndpoint = { name: t('transfer.local'), kind: 'phone' }
+  const remoteEnd: PlanEndpoint = { name: remoteName, kind: 'pc' }
   return (
     <>
       {!isPlan && (
@@ -230,19 +234,12 @@ export function SyncCopyPage({
       {isPlan && plan && (
         <>
           {hasChanged && <p className="notice notice-error">{t('transfer.planStale')}</p>}
-          <SyncPlanView
+          <SyncPlanSummary
             key={plan.planId}
             plan={plan}
-            sourceLabel={
-              direction === 'android-to-windows'
-                ? (localRoot?.displayPath ?? '')
-                : (remote?.root?.displayPath ?? '')
-            }
-            targetLabel={
-              direction === 'android-to-windows'
-                ? (remote?.root?.displayPath ?? '')
-                : (localRoot?.displayPath ?? '')
-            }
+            source={direction === 'android-to-windows' ? localEnd : remoteEnd}
+            target={direction === 'android-to-windows' ? remoteEnd : localEnd}
+            backupKeepCount={backupKeepCount}
           />
         </>
       )}
