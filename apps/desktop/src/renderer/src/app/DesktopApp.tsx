@@ -20,6 +20,7 @@ import { GameActions } from '../features/games/GameActions.tsx'
 import { GameActionDialog } from '../features/games/GameActionDialog.tsx'
 import { ImportGameDialog } from '../features/games/ImportGameDialog.tsx'
 import { DesktopShell } from './DesktopShell.tsx'
+import { useAppPreferences } from './use-app-preferences.ts'
 import { PAGE_TITLES } from './navigation.ts'
 import type { Confirmation, Page } from './navigation.ts'
 import { BackupPage } from '../features/backup/BackupPage.tsx'
@@ -64,9 +65,7 @@ export function DesktopApp(): React.JSX.Element {
   const [portDraft, setPort] = useState<number | null | undefined>(undefined)
   const [copied, setCopied] = useState('')
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null)
-  const [isDark, setIsDark] = useState(
-    () => window.matchMedia('(prefers-color-scheme: dark)').matches,
-  )
+  const appPreferences = useAppPreferences()
   const operating = useRef(false)
   const generation = useRef(0)
   const invalidate = useCallback(() => {
@@ -94,12 +93,6 @@ export function DesktopApp(): React.JSX.Element {
       }
     }
   }, [adapter, messageApi])
-  useEffect(() => {
-    const media = window.matchMedia('(prefers-color-scheme: dark)')
-    const update = (): void => setIsDark(media.matches)
-    media.addEventListener('change', update)
-    return () => media.removeEventListener('change', update)
-  }, [])
   useEffect(() => {
     let isCurrent = true
     let timer: ReturnType<typeof setTimeout>
@@ -540,7 +533,21 @@ export function DesktopApp(): React.JSX.Element {
       />
     )
   } else if (page === 'settings') {
-    body = <SettingsPage />
+    body = (
+      <SettingsPage
+        preferences={appPreferences.preferences}
+        onChange={(next) => {
+          appPreferences
+            .save(next)
+            .then((failure) => {
+              if (failure) {
+                setError(failure)
+              }
+            })
+            .catch((failure: unknown) => setError(String(failure)))
+        }}
+      />
+    )
   } else {
     body = <Empty description="请选择游戏" />
   }
@@ -613,7 +620,7 @@ export function DesktopApp(): React.JSX.Element {
   )
   return (
     <DesktopShell
-      isDark={isDark}
+      theme={appPreferences.theme}
       page={page}
       title={PAGE_TITLES[page]}
       gameName={game?.name ?? null}

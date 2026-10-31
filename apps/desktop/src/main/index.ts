@@ -18,6 +18,8 @@ import { registerBackupIpc } from './backup-ipc.ts'
 import { WindowsSyncWriter } from './sync-writer.ts'
 import { WindowsRestoreRegistry } from './restore-registry.ts'
 import { registerSyncIpc } from './sync-ipc.ts'
+import { AppPreferencesStore } from './preferences-store.ts'
+import { registerPreferencesIpc } from './preferences-ipc.ts'
 import appIcon from '../../resources/app-icon.ico?asset&asarUnpack'
 
 const trustedWindows = new Set<number>()
@@ -93,6 +95,21 @@ if (hasInstanceLock) {
           }
         },
       })
+      const preferences = new AppPreferencesStore(join(privateDirectory, 'app-preferences.json'))
+      await preferences.load()
+      // themeSource 同时决定原生窗口背景和渲染页的 prefers-color-scheme。
+      nativeTheme.themeSource = preferences.get().theme
+      app.once(
+        'will-quit',
+        registerPreferencesIpc(
+          ipcMain,
+          preferences,
+          (event) => isTrustedDirectorySender(event, trustedWindows, expectedRendererUrl),
+          (value) => {
+            nativeTheme.themeSource = value.theme
+          },
+        ),
+      )
       const portSettings = new ServicePortSettings(join(privateDirectory, 'service-settings.json'))
       await portSettings.load()
       const httpService = new WindowsHttpService(adapter, archive, {

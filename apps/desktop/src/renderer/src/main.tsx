@@ -1,6 +1,7 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { DesktopApp } from './app/DesktopApp.tsx'
+import '@savedata-sync/shared/ui/tokens.css'
 import './styles/desktop.css'
 
 const container = document.getElementById('root')

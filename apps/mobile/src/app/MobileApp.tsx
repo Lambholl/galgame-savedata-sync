@@ -28,6 +28,7 @@ import { DevicesPage } from '../features/devices/DevicesPage'
 import { GamesPage } from '../features/games/GamesPage'
 import { GameSettingsPage } from '../features/games/GameSettingsPage'
 import { SettingsPage } from '../features/settings/SettingsPage'
+import { setAppPreferences, useAppPreferences } from './app-preferences'
 import { TaskPage } from '../features/transfer/TaskPage'
 import { SyncCopyPage } from '../features/transfer/SyncCopyPage'
 import { SyncTaskDetails } from '../features/transfer/SyncTaskDetails'
@@ -52,6 +53,7 @@ export function MobileApp({
   readonly sync: MobileSyncAdapter
   readonly backButton?: BackButtonController
 }): React.JSX.Element {
+  const appPreferences = useAppPreferences()
   const [messageApi, messageContextHolder] = message.useMessage()
   const syncTasks = useSyncTasks(sync)
   const [page, setPage] = useState<Page>('games')
@@ -627,7 +629,7 @@ export function MobileApp({
       <EmptyState description="请选择游戏查看本机备份" />
     )
   } else if (page === 'settings') {
-    body = <SettingsPage />
+    body = <SettingsPage preferences={appPreferences} onChange={setAppPreferences} />
   } else {
     body = <EmptyState description="请选择游戏" />
   }

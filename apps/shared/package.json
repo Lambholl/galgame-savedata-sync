@@ -5,7 +5,8 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./ui": "./src/ui/index.ts"
+    "./ui": "./src/ui/index.ts",
+    "./ui/tokens.css": "./src/ui/tokens.css"
   },
   "scripts": {
     "build": "pnpm typecheck",

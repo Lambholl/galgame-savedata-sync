@@ -10,6 +10,8 @@ import {
 import appLogo from '../../../../../../assets/app-logo.png'
 import { isRootPage } from './navigation.ts'
 import type { Page } from './navigation.ts'
+import { themeTokens } from '@savedata-sync/shared'
+import type { ResolvedTheme } from '@savedata-sync/shared'
 
 const NAV = [
   { key: 'devices', label: '设备', icon: <DesktopOutlined /> },
@@ -18,7 +20,7 @@ const NAV = [
 ] as const
 
 export function DesktopShell({
-  isDark,
+  theme: resolvedTheme,
   page,
   title,
   gameName,
@@ -31,7 +33,7 @@ export function DesktopShell({
   onRetry,
   children,
 }: {
-  readonly isDark: boolean
+  readonly theme: ResolvedTheme
   readonly page: Page
   readonly title: string
   readonly gameName: string | null
@@ -46,16 +48,13 @@ export function DesktopShell({
 }): React.JSX.Element {
   const activeNav = page === 'devices' || page === 'settings' ? page : 'games'
   const isNestedPage = !isRootPage(page)
+  const isDark = resolvedTheme === 'dark'
   return (
     <ConfigProvider
       locale={zhCN}
       theme={{
         algorithm: isDark ? theme.darkAlgorithm : theme.defaultAlgorithm,
-        token: {
-          colorPrimary: '#286add',
-          borderRadius: 12,
-          colorBgLayout: isDark ? '#000000' : '#f0f5fc',
-        },
+        token: themeTokens(resolvedTheme),
         components: { Card: { bodyPadding: 20 } },
       }}
     >
