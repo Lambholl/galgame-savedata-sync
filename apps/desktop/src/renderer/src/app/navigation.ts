@@ -1,4 +1,5 @@
 import type { ModalProps } from 'antd'
+import type { MessageKey } from '@savedata-sync/shared'
 
 export type Page = 'devices' | 'games' | 'settings' | 'edit' | 'transfer' | 'task' | 'backup'
 
@@ -9,14 +10,15 @@ export interface Confirmation {
   readonly okType?: ModalProps['okType']
 }
 
-export const PAGE_TITLES: Readonly<Record<Page, string>> = {
-  devices: '设备',
-  games: '游戏',
-  settings: '设置',
-  edit: '游戏目录',
-  transfer: '传输存档',
-  task: '任务与结果',
-  backup: '备份与恢复',
+/** 各页标题对应的文案键；按钮名与所打开页面的标题一致。 */
+export const PAGE_TITLE_KEYS: Readonly<Record<Page, MessageKey>> = {
+  devices: 'nav.devices',
+  games: 'nav.games',
+  settings: 'nav.settings',
+  edit: 'page.gameSettings',
+  transfer: 'page.transfer',
+  task: 'page.task',
+  backup: 'page.backup',
 }
 
 export function isRootPage(page: Page): boolean {

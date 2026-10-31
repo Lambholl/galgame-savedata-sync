@@ -21,9 +21,12 @@ const packageVersions = await Promise.all(
 )
 const androidBuild = await readFile('apps/mobile/android/app/build.gradle', 'utf8')
 const androidVersion = /versionName\s+"([^"]+)"/.exec(androidBuild)?.[1]
+const sharedIndex = await readFile('apps/shared/src/index.ts', 'utf8')
+const uiVersion = /APP_VERSION = '([^']+)'/.exec(sharedIndex)?.[1]
 const versions = [
   ...packageVersions,
   { path: 'apps/mobile/android/app/build.gradle', version: androidVersion },
+  { path: 'apps/shared/src/index.ts APP_VERSION', version: uiVersion },
 ]
 const mismatches = versions.filter((item) => item.version !== expectedVersion)
 if (mismatches.length > 0) {

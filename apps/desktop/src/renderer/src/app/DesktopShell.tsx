@@ -1,6 +1,13 @@
 import type { ReactNode } from 'react'
 import { Alert, Button, ConfigProvider, Menu, theme } from 'antd'
-import zhCN from 'antd/locale/zh_CN'
+import antdEnUS from 'antd/locale/en_US'
+import antdJaJP from 'antd/locale/ja_JP'
+import antdZhCN from 'antd/locale/zh_CN'
+import antdZhTW from 'antd/locale/zh_TW'
+import type { Locale } from 'antd/es/locale'
+import { useLocale, useT } from '@savedata-sync/shared/ui'
+import { APP_VERSION } from '@savedata-sync/shared'
+import type { AppLocale } from '@savedata-sync/shared'
 import {
   AppstoreOutlined,
   ArrowLeftOutlined,
@@ -14,10 +21,17 @@ import { themeTokens } from '@savedata-sync/shared'
 import type { ResolvedTheme } from '@savedata-sync/shared'
 
 const NAV = [
-  { key: 'devices', label: '设备', icon: <DesktopOutlined /> },
-  { key: 'games', label: '游戏', icon: <AppstoreOutlined /> },
-  { key: 'settings', label: '设置', icon: <SettingOutlined /> },
+  { key: 'devices', label: 'nav.devices', icon: <DesktopOutlined /> },
+  { key: 'games', label: 'nav.games', icon: <AppstoreOutlined /> },
+  { key: 'settings', label: 'nav.settings', icon: <SettingOutlined /> },
 ] as const
+
+const ANTD_LOCALES: Readonly<Record<AppLocale, Locale>> = {
+  'zh-CN': antdZhCN,
+  'zh-TW': antdZhTW,
+  'en-US': antdEnUS,
+  'ja-JP': antdJaJP,
+}
 
 export function DesktopShell({
   theme: resolvedTheme,
@@ -49,9 +63,11 @@ export function DesktopShell({
   const activeNav = page === 'devices' || page === 'settings' ? page : 'games'
   const isNestedPage = !isRootPage(page)
   const isDark = resolvedTheme === 'dark'
+  const t = useT()
+  const locale = useLocale()
   return (
     <ConfigProvider
-      locale={zhCN}
+      locale={ANTD_LOCALES[locale]}
       theme={{
         algorithm: isDark ? theme.darkAlgorithm : theme.defaultAlgorithm,
         token: themeTokens(resolvedTheme),
@@ -62,22 +78,24 @@ export function DesktopShell({
         <aside className="library-sidebar">
           <div className="library-brand">
             <img src={appLogo} alt="" width={64} height={64} />
-            <span>存档同步</span>
+            <span>{t('app.name')}</span>
           </div>
           <Menu
             mode="inline"
             selectedKeys={[activeNav]}
-            items={[...NAV]}
+            items={NAV.map((item) => ({ ...item, label: t(item.label) }))}
             onClick={({ key }) => onNavigate(key as Page)}
           />
-          <small>版本 0.1.2</small>
+          <small>
+            {t('settings.version')} {APP_VERSION}
+          </small>
         </aside>
         <div className="library-surface">
           <header className="library-header">
             <div>
               {isNestedPage && (
                 <Button icon={<ArrowLeftOutlined />} onClick={onBack}>
-                  游戏
+                  {t('nav.games')}
                 </Button>
               )}
               <h1>{title}</h1>
@@ -93,7 +111,7 @@ export function DesktopShell({
                 closable={{ onClose: onCloseError }}
                 action={
                   <Button size="small" disabled={isBusy} onClick={onRetry}>
-                    重试
+                    {t('common.retry')}
                   </Button>
                 }
               />

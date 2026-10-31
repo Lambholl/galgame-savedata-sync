@@ -1,7 +1,12 @@
 import { useLayoutEffect, useRef } from 'react'
 import type { ReactNode } from 'react'
 import { Button, ConfigProvider } from 'antd-mobile'
-import zhCN from 'antd-mobile/es/locales/zh-CN'
+import admEnUS from 'antd-mobile/es/locales/en-US'
+import admJaJP from 'antd-mobile/es/locales/ja-JP'
+import admZhCN from 'antd-mobile/es/locales/zh-CN'
+import admZhTW from 'antd-mobile/es/locales/zh-TW'
+import type { AppLocale } from '@savedata-sync/shared'
+import { useLocale, useT } from '@savedata-sync/shared/ui'
 import {
   AppstoreOutlined,
   ArrowLeftOutlined,
@@ -13,10 +18,17 @@ import { isRootPage } from '../app/navigation-types'
 import type { Page } from '../app/navigation-types'
 
 const NAV = [
-  { key: 'devices', label: '设备', icon: <DesktopOutlined /> },
-  { key: 'games', label: '游戏', icon: <AppstoreOutlined /> },
-  { key: 'settings', label: '设置', icon: <SettingOutlined /> },
+  { key: 'devices', label: 'nav.devices', icon: <DesktopOutlined /> },
+  { key: 'games', label: 'nav.games', icon: <AppstoreOutlined /> },
+  { key: 'settings', label: 'nav.settings', icon: <SettingOutlined /> },
 ] as const
+
+const ADM_LOCALES = {
+  'zh-CN': admZhCN,
+  'zh-TW': admZhTW,
+  'en-US': admEnUS,
+  'ja-JP': admJaJP,
+} satisfies Record<AppLocale, unknown>
 
 export function LibraryShell({
   page,
@@ -45,6 +57,8 @@ export function LibraryShell({
   readonly onRetry: () => void
   readonly children: ReactNode
 }): React.JSX.Element {
+  const t = useT()
+  const locale = useLocale()
   const active = page === 'devices' || page === 'settings' ? page : 'games'
   const main = useRef<HTMLElement>(null)
   const previousPage = useRef(page)
@@ -77,13 +91,13 @@ export function LibraryShell({
     return () => animation.cancel()
   }, [page])
   return (
-    <ConfigProvider locale={zhCN}>
+    <ConfigProvider locale={ADM_LOCALES[locale]}>
       <div className="mobile-app">
         <header className="app-heading">
           {!isRootPage(page) && (
             <Button
               fill="none"
-              aria-label={page === 'sync-plan' ? '返回传输存档' : '返回游戏'}
+              aria-label={t(page === 'sync-plan' ? 'nav.backToTransfer' : 'nav.backToGames')}
               onClick={onBack}
             >
               <ArrowLeftOutlined />
@@ -93,7 +107,7 @@ export function LibraryShell({
             <h1>{title}</h1>
             {!isRootPage(page) && gameName && page !== 'task' && <p>{gameName}</p>}
           </div>
-          {isRootPage(page) && <span className="app-wordmark">存档同步</span>}
+          {isRootPage(page) && <span className="app-wordmark">{t('app.name')}</span>}
         </header>
         <main
           className={`app-main${page === 'sync' || page === 'sync-plan' ? ' app-main-with-action' : ''}`}
@@ -104,9 +118,9 @@ export function LibraryShell({
               <p>{error}</p>
               <div className="action-row">
                 <Button disabled={isBusy} onClick={onRetry}>
-                  重试
+                  {t('common.retry')}
                 </Button>
-                <Button fill="none" aria-label="关闭错误提示" onClick={onCloseError}>
+                <Button fill="none" aria-label={t('common.closeError')} onClick={onCloseError}>
                   <CloseOutlined />
                 </Button>
               </div>
@@ -116,7 +130,7 @@ export function LibraryShell({
         </main>
         {footer}
         {isRootPage(page) && (
-          <nav className="bottom-nav" aria-label="主导航">
+          <nav className="bottom-nav" aria-label={t('nav.main')}>
             {NAV.map((item) => (
               <button
                 key={item.key}
@@ -126,7 +140,7 @@ export function LibraryShell({
                 onClick={() => onNavigate(item.key)}
               >
                 {item.icon}
-                <span>{item.label}</span>
+                <span>{t(item.label)}</span>
               </button>
             ))}
           </nav>

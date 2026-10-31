@@ -460,3 +460,9 @@ body {
   gap: 16px;
   flex-wrap: wrap;
 }
+.library-setting-row + .library-setting-row {
+  margin-top: 16px;
+}
+.library-setting-select {
+  min-width: 180px;
+}

@@ -20,8 +20,9 @@ import { GameActions } from '../features/games/GameActions.tsx'
 import { GameActionDialog } from '../features/games/GameActionDialog.tsx'
 import { ImportGameDialog } from '../features/games/ImportGameDialog.tsx'
 import { DesktopShell } from './DesktopShell.tsx'
-import { useAppPreferences } from './use-app-preferences.ts'
-import { PAGE_TITLES } from './navigation.ts'
+import type { AppPreferencesState } from './use-app-preferences.ts'
+import { useT } from '@savedata-sync/shared/ui'
+import { PAGE_TITLE_KEYS } from './navigation.ts'
 import type { Confirmation, Page } from './navigation.ts'
 import { BackupPage } from '../features/backup/BackupPage.tsx'
 import { DevicesPage } from '../features/devices/DevicesPage.tsx'
@@ -37,7 +38,12 @@ const EMPTY = emptyLibrary()
 const ADAPTER = createDesktopLibraryAdapter()
 
 /** 桌面页面、弹窗与轮询由本端持有；原生任务切页后继续运行。 */
-export function DesktopApp(): React.JSX.Element {
+export function DesktopApp({
+  appPreferences,
+}: {
+  readonly appPreferences: AppPreferencesState
+}): React.JSX.Element {
+  const t = useT()
   const adapter = ADAPTER
   const [messageApi, messageContextHolder] = message.useMessage()
   const [page, setPage] = useState<Page>('games')
@@ -65,7 +71,7 @@ export function DesktopApp(): React.JSX.Element {
   const [portDraft, setPort] = useState<number | null | undefined>(undefined)
   const [copied, setCopied] = useState('')
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null)
-  const appPreferences = useAppPreferences()
+
   const operating = useRef(false)
   const generation = useRef(0)
   const invalidate = useCallback(() => {
@@ -622,7 +628,7 @@ export function DesktopApp(): React.JSX.Element {
     <DesktopShell
       theme={appPreferences.theme}
       page={page}
-      title={PAGE_TITLES[page]}
+      title={t(PAGE_TITLE_KEYS[page])}
       gameName={game?.name ?? null}
       error={error}
       isBusy={isBusy}

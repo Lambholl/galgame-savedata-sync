@@ -1,12 +1,11 @@
 import { Segmented } from 'antd'
-import type { AppPreferences, ThemePreference } from '@savedata-sync/shared'
+import { Selector } from 'antd-mobile'
+import { APP_LOCALES, APP_VERSION, LOCALE_NAMES } from '@savedata-sync/shared'
+import type { AppPreferences, LocalePreference, ThemePreference } from '@savedata-sync/shared'
+import { useT } from '@savedata-sync/shared/ui'
 import { Panel } from '../../components/Panel'
 
-const THEME_OPTIONS: { value: ThemePreference; label: string }[] = [
-  { value: 'system', label: '跟随系统' },
-  { value: 'light', label: '浅色' },
-  { value: 'dark', label: '深色' },
-]
+const THEMES: readonly ThemePreference[] = ['system', 'light', 'dark']
 
 export function SettingsPage({
   preferences,
@@ -15,20 +14,37 @@ export function SettingsPage({
   readonly preferences: AppPreferences
   readonly onChange: (next: AppPreferences) => void
 }): React.JSX.Element {
+  const t = useT()
   return (
     <>
-      <Panel title="外观">
-        <p>主题</p>
+      <Panel title={t('settings.appearance')}>
+        <p>{t('settings.theme')}</p>
         <Segmented<ThemePreference>
           block
           size="large"
-          options={THEME_OPTIONS}
+          options={THEMES.map((value) => ({ value, label: t(`settings.theme.${value}`) }))}
           value={preferences.theme}
           onChange={(theme) => onChange({ ...preferences, theme })}
         />
+        <p>{t('settings.language')}</p>
+        <Selector<LocalePreference>
+          columns={2}
+          options={[
+            { value: 'system', label: t('settings.language.system') },
+            ...APP_LOCALES.map((value) => ({ value, label: LOCALE_NAMES[value] })),
+          ]}
+          value={[preferences.locale]}
+          onChange={([locale]) => {
+            if (locale) {
+              onChange({ ...preferences, locale })
+            }
+          }}
+        />
       </Panel>
-      <Panel title="存档同步">
-        <p>版本 0.1.2</p>
+      <Panel title={t('settings.about')}>
+        <p>
+          {t('settings.version')} {APP_VERSION}
+        </p>
       </Panel>
     </>
   )

@@ -1,6 +1,6 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import { DesktopApp } from './app/DesktopApp.tsx'
+import { DesktopRoot } from './app/DesktopRoot.tsx'
 import '@savedata-sync/shared/ui/tokens.css'
 import './styles/desktop.css'
 
@@ -11,6 +11,6 @@ if (!container) {
 
 createRoot(container).render(
   <StrictMode>
-    <DesktopApp />
+    <DesktopRoot />
   </StrictMode>,
 )

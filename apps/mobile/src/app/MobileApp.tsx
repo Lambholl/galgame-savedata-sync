@@ -21,7 +21,8 @@ import { GameActions } from '../features/games/GameActions'
 import { GameMenu } from '../features/games/GameActionSheet'
 import { ImportGameDialog } from '../components/ImportGameDialog.tsx'
 import { LibraryShell } from '../components/LibraryShell.tsx'
-import { PAGE_TITLES } from './navigation-types'
+import { PAGE_TITLE_KEYS } from './navigation-types'
+import { useT } from '@savedata-sync/shared/ui'
 import type { BackButtonController, Confirmation, Page } from './navigation-types'
 import { BackupPage } from '../features/backup/BackupPage'
 import { DevicesPage } from '../features/devices/DevicesPage'
@@ -54,6 +55,7 @@ export function MobileApp({
   readonly backButton?: BackButtonController
 }): React.JSX.Element {
   const appPreferences = useAppPreferences()
+  const t = useT()
   const [messageApi, messageContextHolder] = message.useMessage()
   const syncTasks = useSyncTasks(sync)
   const [page, setPage] = useState<Page>('games')
@@ -715,7 +717,7 @@ export function MobileApp({
   return (
     <LibraryShell
       page={page}
-      title={PAGE_TITLES[page]}
+      title={t(PAGE_TITLE_KEYS[page])}
       gameName={game?.name ?? null}
       error={error}
       isBusy={isBusy}

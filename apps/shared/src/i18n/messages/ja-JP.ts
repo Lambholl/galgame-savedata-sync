@@ -22,11 +22,11 @@ export const jaJP: Messages = {
 
   'settings.appearance': '外観',
   'settings.theme': 'テーマ',
-  'settings.theme.system': 'システムに合わせる',
+  'settings.theme.system': 'システム',
   'settings.theme.light': 'ライト',
   'settings.theme.dark': 'ダーク',
   'settings.language': '言語',
-  'settings.language.system': 'システムに合わせる',
+  'settings.language.system': 'システム',
   'settings.about': 'このアプリについて',
   'settings.version': 'バージョン',
 

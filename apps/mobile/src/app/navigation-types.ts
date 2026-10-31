@@ -1,3 +1,4 @@
+import type { MessageKey } from '@savedata-sync/shared'
 export type Page =
   'devices' | 'games' | 'settings' | 'edit' | 'task' | 'backup' | 'sync' | 'sync-plan'
 
@@ -13,15 +14,16 @@ export interface BackButtonController {
   subscribe(handler: () => boolean): () => void
 }
 
-export const PAGE_TITLES: Readonly<Record<Page, string>> = {
-  devices: '设备',
-  games: '游戏',
-  settings: '设置',
-  edit: '游戏目录',
-  task: '传输详情',
-  backup: '备份与恢复',
-  sync: '传输存档',
-  'sync-plan': '同步计划',
+/** 各页标题对应的文案键；按钮名与所打开页面的标题一致。 */
+export const PAGE_TITLE_KEYS: Readonly<Record<Page, MessageKey>> = {
+  devices: 'nav.devices',
+  games: 'nav.games',
+  settings: 'nav.settings',
+  edit: 'page.gameSettings',
+  task: 'page.task',
+  backup: 'page.backup',
+  sync: 'page.transfer',
+  'sync-plan': 'page.plan',
 }
 
 export function isRootPage(page: Page): boolean {
