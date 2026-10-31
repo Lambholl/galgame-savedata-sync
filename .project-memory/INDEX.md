@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 owner: project
-updated: 2026-10-31
+updated: 2026-11-01
 tags: [Agent导航, 项目记忆]
 related_files: []
 ---
@@ -32,6 +32,7 @@ related_files: []
 | 电脑端发起覆盖复制与 WebSocket 控制通道（CR-012、CR-013，解决 BUG-005） | done | requirements/change-requests.md、development/known-issues.md、architecture/api-contracts.md | shared/src/control；desktop main control-hub/http-service/library-store/remote-sync-requests、sync-ipc/sync-bridge、RemoteSyncPanel；Android ControlClient/TransferEngine/HttpTransfersPlugin、build.gradle；移动 control-channel/library-adapter/use-remote-sync | 用户确认：手机开着并已连接即可，只在电脑确认，登记 CR-012。轮询版已实现并通过 pnpm check 与 android:build。真机试用发现：手机目录偶尔要手动刷新（重复读取同一层报 busy，已改为共用查询）；电脑不显示完成结果；轮询延迟大。用户选定改用 WebSocket 控制通道（CR-013）：两端同版、不保留轮询回退，电脑 ws、Android Java-WebSocket，并按以后任意两设备传输（REQ-022）对称设计。CR-013 已实现：`/v1/control` 承担目录读取、电脑发起、完成回报、目录表变化通知和心跳，轮询路由已删除；新增 ws 8.22.0、Java-WebSocket 1.6.0，OSV 无公告；pnpm check、antd lint、android:build 通过，控制中心本地连通检查通过，未提交。首轮真机：手机发起正常；电脑扫描完成后切换方向被“另一项扫描请求还在进行”挡住，已改为新扫描取代未确认的旧请求；手机 → 电脑总提示计划与项目不符，原因是计划的项目 ID 取目标一侧（电脑项目），电脑却按手机项目核对，已修正；只改电脑端，pnpm check 通过；用户复测通过。按用户意见，电脑改设备名不再通知手机，各端保留自己的命名 | 用户确认后提交并打 v0.1.1 标签推送，由 Release 工作流生成草稿发布 |
 | Android 固定签名（BUG-006） | active | development/known-issues.md | apps/mobile/android/app/build.gradle、scripts/android-build.mjs、package.json android:release、.github/workflows/release.yml、docs/development.md、.gitignore | 用户选定私有密钥 + GitHub Secrets，Release 改发 release 包；签名配置、release 构建脚本、发布工作流与开发文档已改，用临时测试密钥验证构建；用户已生成正式密钥，本机 android:release 成功。补充 keystore.properties.example、自编译/fork/密钥丢失或泄露指引，发布工作流开头检查 Secrets，check-text 跳过本机 keystore.properties；未提交 | 用户配置四个 Secrets 后提交，下次发布验证 CI 产物可覆盖本机构建的包 |
 | 双端界面与设置后续调整 | active | development/known-issues.md、requirements/change-requests.md、development/implementation-notes.md、standards/coding-style.md | 双端传输/计划/目录/备份界面、主题偏好、备份设置和文案资源 | 移动端已有双列浏览、独立同步计划页、页面动画、浮动操作和 Message，工程检查与移动测试通过。剩余缺陷记为 BUG-003 至 BUG-005，界面、主题、备份设置和 i18n 变更记为 CR-007 至 CR-011。BUG-003：原生 jobId 等于 planId，SyncTaskDetails 里结果和计划两个同级组件 key 相同，轮询时旧结果节点留在常驻页面容器里；key 加前缀区分后，2026-10-31 真机复核通过；版本号已升到 0.1.1（四个 package.json、Android versionName、versionCode 1→2、双端界面版本文字），release 版本检查、pnpm check 与 android:build 通过。BUG-004：用户确认场景是电脑→手机且计划含覆盖；当前调试包在 OPD2404 用独立桌面配置和合成目录走同一流程，备份正常创建并可列出，用户在原手机手动复测也正常，按不可复现关闭。原手机装的还是 10-29 的包，结果重复是没有 BUG-003 修复的旧包现象。BUG-005 由 CR-012 处理 | 原手机安装新包后复核 BUG-003（adb 断开后不得重连，需用户手动安装）；清理平板测试游戏/授权/备份与 Download/GSS-Repro 及桌面临时配置；再做两端界面重构，最后处理主题/备份策略/i18n |
+| 双端 UI 审视与重设计原型（CR-007 至 CR-011） | done | requirements/change-requests.md、requirements/product.md、decisions/ADR-0002-ui-library-and-shared-rendering.md、standards/coding-style.md、development/known-issues.md | 原型 v2 只留本地 docs/design/ui-redesign-v2/（Git 忽略），发布于 [Artifact](https://claude.ai/artifact/94QdB3M9q6cuADZ9tPnWsT)；参照双端 features/* 现有页面 | 原型 v2 完成（手机 7 页、电脑 5 页、审视结论、设计语言、统一用语、已确认选择），浏览器渲染检查通过，未改应用代码。用户认可方向，原型选择 1–7 全部按建议确认并写入 CR-007 至 CR-011；REQ-015 改为全局与游戏单独设置、保留 1–10 份默认 3，REQ-019 加手动主题。路径换行登记为 BUG-007。i18n 扩为 zh-CN/zh-TW/en-US/ja-JP，与界面重构一起落地，主进程与原生层写死的中文提示需改为错误码。组件库维持 antd，共用渲染放 `@savedata-sync/shared/ui`（ADR-0002 accepted），共用组件 Props 全部导出、写明用途、不透传样式参数（编码规范“共用界面组件参数”） | 设计阶段结束；实现转入“双端界面与设置后续调整”：先按 ADR-0002 调整 shared 导出、JSX 配置与 ESLint 边界，再分批重构页面；正式编码前需用户授权实现范围 |
 
 开始产品、代码或文档工作前登记范围、入口和下一步；检查点、阻塞和完成时更新。完成时先更新长期事实，再记录完成状态与结果。
 
@@ -57,6 +58,7 @@ related_files: []
 | `architecture/dependencies.md` | 架构依赖 | draft | 依赖 |
 | `architecture/modules.md` | 模块设计 | draft | 模块 |
 | `architecture/overview.md` | 架构总览 | active | 架构总览 |
+| `decisions/ADR-0002-ui-library-and-shared-rendering.md` | ADR-0002 维持 antd 系列，抽取双端共用渲染 | accepted | 决策, 界面, 组件库, 共用组件 |
 | `development/code-map.md` | 代码地图 | active | 代码地图 |
 | `development/implementation-notes.md` | 实现细节 | active | 实现细节 |
 | `development/known-issues.md` | 已知问题 | active | 已知问题 |

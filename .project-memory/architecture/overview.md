@@ -3,7 +3,7 @@ doc_type: architecture-overview
 status: active
 priority: high
 owner: architecture
-updated: 2026-10-31
+updated: 2026-11-01
 tags: [架构总览]
 related_files: []
 ---
@@ -27,7 +27,7 @@ related_files: []
 - 核心模块：设备与地址管理、目录映射、当前目录预览、本次差异计划、文件流传输、平台文件适配。
 - 关键约束：明文 HTTP、手选方向、无历史同步基线、目录不递归汇总大小。
 - 已选技术栈：React + TypeScript + Vite；Windows 使用 Electron + Ant Design；Android 使用 Capacitor + Ant Design Mobile，文件能力沿用 Java 原生插件，用户已接受该选择。双端框架选择见 [Q-001](../requirements/open-questions.md)。
-- 技术选型理由：共用业务模型、协议和纯业务规则，桌面和移动端各自维护完整界面、状态与 Hooks。移动端优先 antd-mobile，使用 antd 时同样检查触控区域；两套组件库分别配置。
+- 技术选型理由：共用业务模型、协议和纯业务规则；按 [ADR-0002](../decisions/ADR-0002-ui-library-and-shared-rendering.md)，与两端交互差异无关的展示组件和页面主体也放 `@savedata-sync/shared/ui`，平台交互、页面状态与 Hooks 由各端维护。移动端优先 antd-mobile，使用 antd 时同样检查触控区域；两套组件库分别配置，颜色与圆角取同一套 CSS 变量。
 - 平台差异：Windows 使用 Node.js 文件与 HTTP 能力；Android 使用 SAF、ContentResolver 和原生文件流，不将 content URI 当成本地绝对路径。
 - 风险：SAF 属性及写入能力因提供者而异；自动发现受局域网组播条件影响。
 
