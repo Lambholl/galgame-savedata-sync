@@ -63,6 +63,11 @@ export const enUS: Messages = {
     'Backup before overwrite is off, so overwritten files cannot be restored. Start the transfer anyway?',
   'transfer.planUnavailable': 'This plan is no longer available. Go back and refresh.',
   'transfer.planStale': 'The game or a folder changed. Go back and refresh before transferring.',
+  'transfer.remoteScanning': ({ name }) =>
+    `${name} is scanning both folders. Keep the app open on the phone.`,
+  'transfer.remoteRoute': ({ source, target }) =>
+    `${source} → ${target} · The phone scans and writes; confirm the plan here`,
+  'transfer.remoteBusy': 'Another transfer is confirmed and waiting for the phone to start.',
 
   'compare.differs': ({ count }) => `${count} different`,
   'compare.only': ({ count }) => `${count} on one side only`,

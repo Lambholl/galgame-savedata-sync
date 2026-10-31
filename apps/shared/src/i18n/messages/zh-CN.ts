@@ -64,6 +64,11 @@ export const zhCN = {
   'transfer.noBackupText': '已关闭覆盖前备份，被覆盖的旧文件将无法恢复。仍要开始传输吗？',
   'transfer.planUnavailable': '本次计划不可用，请返回传输存档页刷新。',
   'transfer.planStale': '游戏或目录已变化，请返回刷新后再传输。',
+  'transfer.remoteScanning': ({ name }: { name: string }): string =>
+    `${name} 正在扫描两端目录，请保持手机应用打开`,
+  'transfer.remoteRoute': ({ source, target }: { source: string; target: string }): string =>
+    `${source} → ${target} · 扫描和写入由手机完成，计划在这里确认`,
+  'transfer.remoteBusy': '另一项传输已确认，正在等待手机开始。',
 
   'compare.differs': ({ count }: { count: number }): string => `${count} 个内容不同`,
   'compare.only': ({ count }: { count: number }): string => `${count} 个仅一端有`,

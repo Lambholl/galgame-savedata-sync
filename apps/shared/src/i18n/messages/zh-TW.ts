@@ -62,6 +62,10 @@ export const zhTW: Messages = {
   'transfer.noBackupText': '已關閉覆寫前備份，被覆寫的舊檔案將無法還原。仍要開始傳輸嗎？',
   'transfer.planUnavailable': '本次計畫無法使用，請回到傳輸存檔頁重新整理。',
   'transfer.planStale': '遊戲或目錄已變更，請返回重新整理後再傳輸。',
+  'transfer.remoteScanning': ({ name }) => `${name} 正在掃描兩端目錄，請保持手機應用程式開啟`,
+  'transfer.remoteRoute': ({ source, target }) =>
+    `${source} → ${target} · 掃描與寫入由手機完成，計畫在這裡確認`,
+  'transfer.remoteBusy': '另一項傳輸已確認，正在等待手機開始。',
 
   'compare.differs': ({ count }) => `${count} 個內容不同`,
   'compare.only': ({ count }) => `${count} 個僅一端有`,

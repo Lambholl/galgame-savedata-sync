@@ -63,6 +63,11 @@ export const jaJP: Messages = {
   'transfer.noBackupText':
     '上書き前のバックアップがオフのため、上書きされたファイルは復元できません。転送を開始しますか？',
   'transfer.planUnavailable': 'このプランは使用できません。戻って更新してください。',
+  'transfer.remoteScanning': ({ name }) =>
+    `${name} が両方のフォルダーをスキャンしています。スマートフォンのアプリを開いたままにしてください`,
+  'transfer.remoteRoute': ({ source, target }) =>
+    `${source} → ${target} · スキャンと書き込みはスマートフォンが行い、プランはここで確認します`,
+  'transfer.remoteBusy': '別の転送が確認済みで、スマートフォンの開始を待っています。',
   'transfer.planStale':
     'ゲームまたはフォルダーが変更されました。戻って更新してから転送してください。',
 

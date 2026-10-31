@@ -40,6 +40,7 @@ export function DesktopShell({
   gameName,
   error,
   isBusy,
+  headerAction,
   dialogs,
   onBack,
   onNavigate,
@@ -53,6 +54,8 @@ export function DesktopShell({
   readonly gameName: string | null
   readonly error: string
   readonly isBusy: boolean
+  /** 标题栏右侧的页面操作（如传输页的游戏设置、备份入口）。 */
+  readonly headerAction: ReactNode
   readonly dialogs: ReactNode
   readonly onBack: () => void
   readonly onNavigate: (page: Page) => void
@@ -101,6 +104,7 @@ export function DesktopShell({
               <h1>{title}</h1>
               {gameName && isNestedPage && page !== 'task' && <p>{gameName}</p>}
             </div>
+            {headerAction && <div className="library-header-actions">{headerAction}</div>}
           </header>
           <main className="library-main">
             {error && (

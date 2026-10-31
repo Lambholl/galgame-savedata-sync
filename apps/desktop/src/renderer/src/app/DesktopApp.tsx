@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Empty, message } from 'antd'
+import { Button, Empty, Tooltip, message } from 'antd'
+import { ControlOutlined, HistoryOutlined } from '@ant-design/icons'
 import {
   emptyLibrary,
   withGameLink,
@@ -478,7 +479,7 @@ export function DesktopApp({
   } else if (page === 'transfer' && game) {
     body = (
       <TransferPage
-        adapter={adapter}
+        key={game.id}
         game={game}
         peers={peers}
         selectedPeer={selectedPeer}
@@ -490,7 +491,6 @@ export function DesktopApp({
         isActive={isActive}
         onPeerChange={changePeer}
         onUploadChange={changeUpload}
-        onOpenSettings={() => setPage('edit')}
         onConfirm={(value) =>
           setConfirmation({
             ...value,
@@ -500,7 +500,7 @@ export function DesktopApp({
             },
           })
         }
-        onOpenTasks={() => setPage('task')}
+        onStarted={() => setPage('task')}
       />
     )
   } else if (page === 'task') {
@@ -632,6 +632,28 @@ export function DesktopApp({
       gameName={game?.name ?? null}
       error={error}
       isBusy={isBusy}
+      headerAction={
+        page === 'transfer' && game ? (
+          <>
+            <Tooltip title={t('page.gameSettings')}>
+              <Button
+                type="text"
+                icon={<ControlOutlined />}
+                aria-label={t('page.gameSettings')}
+                onClick={() => setPage('edit')}
+              />
+            </Tooltip>
+            <Tooltip title={t('page.backup')}>
+              <Button
+                type="text"
+                icon={<HistoryOutlined />}
+                aria-label={t('page.backup')}
+                onClick={() => (game.rootId ? openBackup(game.id, game.rootId) : go('backup'))}
+              />
+            </Tooltip>
+          </>
+        ) : null
+      }
       dialogs={dialogs}
       onBack={() => setPage('games')}
       onNavigate={go}
