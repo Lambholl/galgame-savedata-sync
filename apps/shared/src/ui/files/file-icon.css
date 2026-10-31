@@ -1,0 +1,35 @@
+.ss-file-icon {
+  position: relative;
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: var(--ss-raised);
+  color: var(--ss-muted);
+  font-size: 17px;
+}
+.ss-file-icon.is-directory {
+  background: var(--ss-accent-soft);
+  color: var(--ss-accent);
+}
+.ss-file-icon.is-image {
+  background: var(--ss-img-soft);
+  color: var(--ss-img);
+}
+.ss-file-icon-marker {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  width: 10px;
+  height: 10px;
+  border: 2px solid var(--ss-group);
+  border-radius: 50%;
+}
+.ss-file-icon-marker.is-warn {
+  background: var(--ss-warn);
+}
+.ss-file-icon-marker.is-only {
+  background: var(--ss-only);
+}

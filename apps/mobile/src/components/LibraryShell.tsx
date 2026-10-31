@@ -37,6 +37,7 @@ export function LibraryShell({
   error,
   isBusy,
   footer,
+  headerAction,
   dialogs,
   onBack,
   onNavigate,
@@ -50,6 +51,8 @@ export function LibraryShell({
   readonly error: string
   readonly isBusy: boolean
   readonly footer: ReactNode
+  /** 标题栏右侧的页面操作（如“更多”菜单按钮）。 */
+  readonly headerAction: ReactNode
   readonly dialogs: ReactNode
   readonly onBack: () => void
   readonly onNavigate: (page: Page) => void
@@ -108,6 +111,7 @@ export function LibraryShell({
             {!isRootPage(page) && gameName && page !== 'task' && <p>{gameName}</p>}
           </div>
           {isRootPage(page) && <span className="app-wordmark">{t('app.name')}</span>}
+          {headerAction}
         </header>
         <main
           className={`app-main${page === 'sync' || page === 'sync-plan' ? ' app-main-with-action' : ''}`}

@@ -131,7 +131,11 @@ export default tseslint.config(
         { selector: 'enumMember', format: ['PascalCase'] },
         // 对象字面量和导入可使用外部 API 定义的名称。
         { selector: ['objectLiteralProperty', 'import'], format: null },
-        { selector: 'property', modifiers: ['requiresQuotes'], format: null },
+        {
+          selector: ['property', 'objectLiteralMethod'],
+          modifiers: ['requiresQuotes'],
+          format: null,
+        },
       ],
     },
   },
@@ -158,7 +162,11 @@ export default tseslint.config(
         { selector: 'typeLike', format: ['PascalCase'] },
         { selector: 'enumMember', format: ['PascalCase'] },
         { selector: ['objectLiteralProperty', 'import'], format: null },
-        { selector: 'property', modifiers: ['requiresQuotes'], format: null },
+        {
+          selector: ['property', 'objectLiteralMethod'],
+          modifiers: ['requiresQuotes'],
+          format: null,
+        },
       ],
       'react-hooks/rules-of-hooks': 'error',
       'react-hooks/exhaustive-deps': 'error',

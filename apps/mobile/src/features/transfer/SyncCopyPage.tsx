@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
-import { Button } from 'antd-mobile'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { ActionSheet } from 'antd-mobile'
 import { CaretRightOutlined, RightOutlined } from '@ant-design/icons'
-import { syncPlanFromPreview } from '@savedata-sync/shared'
+import { compareSnapshots, syncPlanFromPreview } from '@savedata-sync/shared'
 import type {
   DirectoryReference,
   LibraryGame,
@@ -10,18 +10,24 @@ import type {
   SyncPreparationState,
   TransferDirection,
 } from '@savedata-sync/shared'
+import { TransferComparison, useT } from '@savedata-sync/shared/ui'
+import type { ComparisonStatus } from '@savedata-sync/shared/ui'
 import type { MobileSyncAdapter } from '../../platform/sync-adapter'
-import type { MobileLibraryAdapter } from '../../platform/library-types'
 import type { Confirmation } from '../../app/navigation-types'
-import { ChoiceField } from '../../components/ChoiceField'
-import { Panel } from '../../components/Panel'
+import { BottomAction } from '../../components/BottomAction'
 import { SyncPlanView } from './SyncPlanView'
-import { DirectoryPane } from './DirectoryPane'
-import { FloatingPageAction } from '../../components/FloatingPageAction'
 
-/** 手机发起两个方向；方向或设备变化后释放旧预览，执行始终引用原生固定计划。 */
+const POLL_INTERVAL_MS = 700
+
+function messageOf(cause: unknown, fallback: string): string {
+  return cause instanceof Error && cause.message ? cause.message : fallback
+}
+
+/**
+ * 传输存档与传输计划共用一次准备：进入页面、翻转方向、切换设备或刷新时自动扫描两端，
+ * 比较结果与计划来自同一份预览；离开页面或重新扫描时释放旧准备，已执行的准备交给原生任务。
+ */
 export function SyncCopyPage({
-  adapter,
   sync,
   game,
   peers,
@@ -29,15 +35,13 @@ export function SyncCopyPage({
   peerId,
   isPlan,
   isDisabled,
+  isTransferActive,
   onPeerChange,
   onConfirm,
   onStarted,
-  onPlanReady,
+  onPreview,
   onFailure,
-  onSettings,
-  onBackup,
 }: {
-  readonly adapter: MobileLibraryAdapter
   readonly sync: MobileSyncAdapter
   readonly game: LibraryGame
   readonly peers: readonly LibraryPeer[]
@@ -45,267 +49,242 @@ export function SyncCopyPage({
   readonly peerId: string
   readonly isPlan: boolean
   readonly isDisabled: boolean
+  /** 有传输或恢复在进行时不发起新的扫描。 */
+  readonly isTransferActive: boolean
   readonly onPeerChange: (id: string) => void
   readonly onConfirm: (confirmation: Confirmation) => void
   readonly onStarted: (jobId: string) => void
-  readonly onPlanReady: () => void
+  readonly onPreview: () => void
   readonly onFailure: (message: string) => void
-  readonly onSettings: () => void
-  readonly onBackup: () => void
 }): React.JSX.Element {
+  const t = useT()
   const [direction, setDirection] = useState<TransferDirection>('windows-to-android')
   const [preparation, setPreparation] = useState<SyncPreparationState | null>(null)
   const [preview, setPreview] = useState<SyncPreparationPreview | null>(null)
-  const [error, setError] = useState('')
-  const [isBusy, setIsBusy] = useState(false)
-  const [version, setVersion] = useState(0)
-  const operating = useRef(false)
+  /** 扫描失败的原因；空字符串表示失败但没有可显示的原因。 */
+  const [scanError, setScanError] = useState<string | null>(null)
+  const [scanVersion, setScanVersion] = useState(0)
+  const [isPeerSheetOpen, setIsPeerSheetOpen] = useState(false)
+  const [isStarting, setIsStarting] = useState(false)
+  const executed = useRef<string | null>(null)
   const peer = peers.find((item) => item.device.id === peerId)
   const remote = peer?.games.find(
     (item) => item.id === game.links.find((link) => link.deviceId === peerId)?.gameId,
   )
-  const isPreparing = preparation?.status === 'preparing'
-  const preparationId = preparation?.preparationId
-  const isLocked = isDisabled || isBusy || isPreparing
-  const plan = preview ? syncPlanFromPreview(preview) : null
-  const hasChanged =
-    preview !== null &&
-    (preview.binding.projectId !== game.id ||
-      preview.binding.remoteDeviceId !== peerId ||
-      preview.binding.localRootId !== game.rootId ||
-      preview.binding.remoteRootId !== remote?.root?.rootId ||
-      preview.binding.remoteProjectId !== remote?.id)
+  const remoteRootId = remote?.root?.rootId ?? null
+  const localRootId = localRoot?.rootId ?? null
+  const isConnected = Boolean(peer?.isConnected)
+  const canScan = isConnected && localRootId !== null && remoteRootId !== null && !isTransferActive
   useEffect(() => {
-    if (!preparationId || !isPreparing) {
+    if (!canScan) {
       return
     }
-    const id = preparationId
     let isCurrent = true
-    let timer: ReturnType<typeof setTimeout>
-    async function poll(): Promise<void> {
-      try {
-        const state = await sync.preparation(id)
-        const value = state.status === 'ready' ? await sync.preview(id) : null
-        if (!isCurrent) {
-          return
-        }
-        setPreparation(state)
-        if (value) {
-          setPreview(value)
-          onPlanReady()
-        }
-        if (state.status === 'failed') {
-          onFailure(state.error?.message ?? '扫描失败，请重试。')
-        }
-        if (state.status === 'preparing') {
-          timer = setTimeout(() => {
-            poll().catch(() => setError('读取扫描结果失败。'))
-          }, 700)
-        }
-      } catch (cause) {
+    let id: string | null = null
+    let timer: ReturnType<typeof setTimeout> | undefined
+    setPreparation(null)
+    setPreview(null)
+    setScanError(null)
+    async function accept(state: SyncPreparationState): Promise<void> {
+      if (!isCurrent) {
+        return
+      }
+      setPreparation(state)
+      if (state.status === 'ready') {
+        const value = await sync.preview(state.preparationId)
         if (isCurrent) {
-          setError(cause instanceof Error ? cause.message : '读取扫描结果失败。')
-          onFailure(cause instanceof Error ? cause.message : '读取扫描结果失败。')
+          setPreview(value)
         }
+      } else if (state.status === 'preparing') {
+        timer = setTimeout(() => {
+          sync.preparation(state.preparationId).then(accept).catch(fail)
+        }, POLL_INTERVAL_MS)
       }
     }
-    poll().catch(() => setError('读取扫描结果失败。'))
+    function fail(cause: unknown): void {
+      if (isCurrent) {
+        setScanError(messageOf(cause, ''))
+      }
+    }
+    sync
+      .prepare(game.id, peerId, direction)
+      .then((state) => {
+        id = state.preparationId
+        return accept(state)
+      })
+      .catch(fail)
     return () => {
       isCurrent = false
       clearTimeout(timer)
-    }
-  }, [sync, preparationId, isPreparing, version, onPlanReady, onFailure])
-  function run(work: () => Promise<void>): void {
-    if (operating.current) {
-      return
-    }
-    operating.current = true
-    setIsBusy(true)
-    setError('')
-    work()
-      .catch((cause: unknown) => {
-        const message = cause instanceof Error ? cause.message : '扫描操作失败。'
-        setError(message)
-        onFailure(message)
-      })
-      .finally(() => {
-        operating.current = false
-        setIsBusy(false)
-      })
-  }
-  async function discard(): Promise<void> {
-    if (preparation) {
-      await sync.releasePreparation(preparation.preparationId)
-    }
-    setPreparation(null)
-    setPreview(null)
-  }
-  function scan(): void {
-    run(async () => {
-      await discard()
-      const state = await sync.prepare(game.id, peerId, direction)
-      setPreparation(state)
-      if (state.status === 'ready') {
-        setPreview(await sync.preview(state.preparationId))
-        onPlanReady()
-      } else if (state.status === 'failed') {
-        onFailure(state.error?.message ?? '扫描失败，请重试。')
+      if (id !== null && id !== executed.current) {
+        sync.releasePreparation(id).catch(() => undefined)
       }
-    })
+    }
+  }, [canScan, sync, game.id, peerId, direction, localRootId, remoteRootId, scanVersion])
+  const comparison = useMemo(() => {
+    if (!preview) {
+      return null
+    }
+    const isPcSource = preview.direction === 'windows-to-android'
+    return isPcSource
+      ? compareSnapshots(preview.source, preview.target)
+      : compareSnapshots(preview.target, preview.source)
+  }, [preview])
+  const plan = useMemo(() => (preview ? syncPlanFromPreview(preview) : null), [preview])
+  const hasChanged =
+    preview !== null &&
+    (preview.direction !== direction ||
+      preview.binding.projectId !== game.id ||
+      preview.binding.remoteDeviceId !== peerId ||
+      preview.binding.localRootId !== localRootId ||
+      preview.binding.remoteRootId !== remoteRootId ||
+      preview.binding.remoteProjectId !== remote?.id)
+  let status: ComparisonStatus
+  if (!peer) {
+    status = { kind: 'unavailable', message: t('transfer.noPeer') }
+  } else if (!isConnected) {
+    status = { kind: 'unavailable', message: t('transfer.peerOffline', { name: peer.device.name }) }
+  } else if (localRootId === null) {
+    status = { kind: 'unavailable', message: t('transfer.noLocalRoot') }
+  } else if (remoteRootId === null) {
+    status = { kind: 'unavailable', message: t('transfer.noRemoteRoot') }
+  } else if (scanError !== null || preparation?.status === 'failed') {
+    status = {
+      kind: 'unavailable',
+      message: scanError || preparation?.error?.message || t('transfer.compareFailed'),
+    }
+  } else if (preparation?.status === 'cancelled') {
+    status = { kind: 'unavailable', message: t('transfer.compareCancelled') }
+  } else if (comparison && !hasChanged) {
+    status = { kind: 'ready', comparison }
+  } else {
+    status = { kind: 'comparing' }
   }
-  function execute(): void {
-    if (!plan?.canExecute || !preparation) {
+  const hasChanges =
+    plan?.entries.some((item) =>
+      ['create-file', 'replace-file', 'create-directory'].includes(item.action),
+    ) ?? false
+  const canStart = !hasChanged && Boolean(plan?.canExecute) && hasChanges
+  function start(): void {
+    if (!plan || !preparation || !canStart) {
       return
     }
     const id = preparation.preparationId
-    onConfirm({
-      title: direction === 'android-to-windows' ? '手机 → 电脑' : '电脑 → 手机',
-      text: `${game.name}，将向目标写入本次计划。${plan.shouldBackup ? '覆盖前先备份目标旧内容。' : '本次关闭覆盖前备份。'}请先退出使用该存档的游戏。`,
-      okType: plan.shouldBackup ? 'primary' : 'danger',
-      work: async () => {
+    async function work(): Promise<void> {
+      executed.current = id
+      try {
         const state = await sync.execute(id)
         onStarted(state.jobId)
-      },
-    })
+      } catch (cause) {
+        executed.current = null
+        throw cause
+      }
+    }
+    // 开启备份时直接开始；关闭备份时才确认一次。
+    if (!plan.shouldBackup) {
+      onConfirm({
+        title: t('transfer.noBackupTitle'),
+        text: t('transfer.noBackupText'),
+        okType: 'danger',
+        work,
+      })
+      return
+    }
+    setIsStarting(true)
+    work()
+      .catch((cause: unknown) => onFailure(messageOf(cause, t('transfer.compareFailed'))))
+      .finally(() => setIsStarting(false))
   }
-  const localLabel = `本机手机 · ${localRoot?.displayPath ?? localRoot?.displayName ?? '未选择目录'}`
-  const remoteLabel = `${peer?.device.name ?? '电脑'} · ${remote?.root?.displayPath ?? remote?.root?.displayName ?? '未选择目录'}`
-  const planLocalLabel =
-    preview?.binding.localRootId === localRoot?.rootId
-      ? localLabel
-      : '本机手机 · 本次扫描的目录已变更'
-  const planRemoteLabel =
-    preview?.binding.remoteRootId === remote?.root?.rootId
-      ? remoteLabel
-      : '电脑 · 本次扫描的目录已变更'
+  const remoteName = peer?.device.name ?? t('common.unknown')
   return (
     <>
-      <div hidden={isPlan}>
-        <div className="page-stack">
-          <Panel>
-            <ChoiceField
-              label="对端设备"
-              value={peerId}
-              options={game.links.map((link) => {
-                const device = peers.find((item) => item.device.id === link.deviceId)
-                return {
-                  value: link.deviceId,
-                  label: `${device?.device.name ?? '未知设备'} · ${device?.isConnected ? '已连接' : '未连接'}`,
-                }
-              })}
-              isDisabled={isLocked}
-              onChange={(id) =>
-                run(async () => {
-                  await discard()
-                  onPeerChange(id)
-                })
-              }
-            />
-            <div className="direction-picker" role="group" aria-label="复制方向">
-              {(['windows-to-android', 'android-to-windows'] as const).map((value) => (
-                <Button
-                  key={value}
-                  color={direction === value ? 'primary' : 'default'}
-                  disabled={isLocked}
-                  onClick={() =>
-                    run(async () => {
-                      await discard()
-                      setDirection(value)
-                    })
-                  }
-                >
-                  {value === 'windows-to-android' ? '电脑 → 手机' : '手机 → 电脑'}
-                </Button>
-              ))}
-            </div>
-          </Panel>
-          <div className="dual-directories">
-            <DirectoryPane
-              key={`local-${game.id}-${localRoot?.rootId ?? ''}`}
-              adapter={adapter}
-              deviceId={null}
-              root={localRoot}
-              title="本机手机"
-              isSource={direction === 'android-to-windows'}
-              isDisabled={isLocked}
-              isOnline
-            />
-            <DirectoryPane
-              key={`remote-${game.id}-${peerId}-${remote?.root?.rootId ?? ''}`}
-              adapter={adapter}
-              deviceId={peerId || null}
-              root={remote?.root ?? null}
-              title={peer?.device.name ?? '对端电脑'}
-              isSource={direction === 'windows-to-android'}
-              isDisabled={isLocked}
-              isOnline={Boolean(peer?.isConnected)}
-            />
-          </div>
-          <div className="action-row equal">
-            <Button disabled={isLocked} onClick={onSettings}>
-              目录设置
-            </Button>
-            <Button disabled={isLocked} onClick={onBackup}>
-              本机备份设置
-            </Button>
-          </div>
-          {(error || preparation?.error) && (
-            <div className="notice notice-error" role="alert">
-              <p>{error || preparation?.error?.message}</p>
-              <Button disabled={isBusy} onClick={() => setVersion((value) => value + 1)}>
-                重新读取扫描状态
-              </Button>
-            </div>
-          )}
-          {isPreparing && (
-            <Panel title="正在扫描两端当前内容">
-              <p>完成后显示本次计划。</p>
-              <Button
-                disabled={isBusy}
-                onClick={() =>
-                  run(async () => {
-                    setPreparation(await sync.cancelPreparation(preparation.preparationId))
-                  })
-                }
-              >
-                取消扫描
-              </Button>
-            </Panel>
-          )}
-          {preparation?.status === 'cancelled' && <p className="notice">扫描已取消。</p>}
-        </div>
-      </div>
+      {!isPlan && (
+        <TransferComparison
+          key={`${peerId}/${direction}`}
+          pc={{
+            name: remoteName,
+            caption: '',
+            isOnline: peer ? isConnected : null,
+            rootName: remote?.root?.displayName ?? '—',
+          }}
+          phone={{
+            name: t('transfer.local'),
+            caption: '',
+            isOnline: null,
+            rootName: localRoot?.displayName ?? '—',
+          }}
+          remoteSide="pc"
+          direction={direction}
+          status={status}
+          layout="compact"
+          isLocked={isDisabled || isStarting}
+          onFlip={() =>
+            setDirection(
+              direction === 'windows-to-android' ? 'android-to-windows' : 'windows-to-android',
+            )
+          }
+          onPickPeer={() => setIsPeerSheetOpen(true)}
+          onRefresh={() => setScanVersion((value) => value + 1)}
+        />
+      )}
       {isPlan && plan && (
         <>
-          {hasChanged && (
-            <p className="notice notice-error">项目或目录已变化，请重新扫描并确认。</p>
-          )}
+          {hasChanged && <p className="notice notice-error">{t('transfer.planStale')}</p>}
           <SyncPlanView
             key={plan.planId}
             plan={plan}
-            sourceLabel={direction === 'android-to-windows' ? planLocalLabel : planRemoteLabel}
-            targetLabel={direction === 'android-to-windows' ? planRemoteLabel : planLocalLabel}
+            sourceLabel={
+              direction === 'android-to-windows'
+                ? (localRoot?.displayPath ?? '')
+                : (remote?.root?.displayPath ?? '')
+            }
+            targetLabel={
+              direction === 'android-to-windows'
+                ? (remote?.root?.displayPath ?? '')
+                : (localRoot?.displayPath ?? '')
+            }
           />
         </>
       )}
-      {isPlan && !plan && <p className="notice">本次计划不可用，请返回传输存档后重新扫描。</p>}
-      <FloatingPageAction
-        icon={isPlan ? <CaretRightOutlined /> : <RightOutlined />}
-        label={isPlan ? '开始' : ''}
-        ariaLabel={isPlan ? '开始传输' : '扫描并预览本次变化'}
-        isLoading={isBusy || isPreparing}
-        isDisabled={
-          isLocked ||
-          (isPlan
-            ? hasChanged ||
-              !plan?.canExecute ||
-              !plan.entries.some((item) =>
-                ['create-file', 'replace-file', 'create-directory'].includes(item.action),
-              )
-            : !peer?.isConnected || !localRoot || !remote?.root)
-        }
-        onClick={isPlan ? execute : scan}
+      {isPlan && !plan && <p className="notice">{t('transfer.planUnavailable')}</p>}
+      <ActionSheet
+        visible={isPeerSheetOpen}
+        extra={t('transfer.pickPeerTitle')}
+        cancelText={t('common.cancel')}
+        actions={game.links.map((link) => {
+          const device = peers.find((item) => item.device.id === link.deviceId)
+          return {
+            key: link.deviceId,
+            text: device?.device.name ?? t('common.unknown'),
+            description: t(device?.isConnected ? 'transfer.connected' : 'transfer.disconnected'),
+            bold: link.deviceId === peerId,
+          }
+        })}
+        onAction={(action) => {
+          setIsPeerSheetOpen(false)
+          onPeerChange(String(action.key))
+        }}
+        onClose={() => setIsPeerSheetOpen(false)}
       />
+      {isPlan ? (
+        <BottomAction
+          note={t('transfer.startNote')}
+          icon={<CaretRightOutlined />}
+          label={t('transfer.start')}
+          isDisabled={isDisabled || !canStart}
+          isLoading={isStarting}
+          onClick={start}
+        />
+      ) : (
+        <BottomAction
+          note={null}
+          icon={<RightOutlined />}
+          label={status.kind === 'comparing' ? t('transfer.comparing') : t('transfer.preview')}
+          isDisabled={isDisabled || status.kind !== 'ready' || !plan}
+          isLoading={status.kind === 'comparing'}
+          onClick={onPreview}
+        />
+      )}
     </>
   )
 }

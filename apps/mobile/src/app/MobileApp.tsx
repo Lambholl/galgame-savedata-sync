@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { message } from 'antd'
+import { ActionSheet, Button } from 'antd-mobile'
+import { MoreOutlined } from '@ant-design/icons'
 import { EmptyState } from '../components/EmptyState'
 import {
   emptyLibrary,
@@ -65,6 +67,7 @@ export function MobileApp({
   const [gameId, setGameId] = useState('')
   const [peerId, setPeerId] = useState('')
   const [isGameMenuOpen, setIsGameMenuOpen] = useState(false)
+  const [isTransferMenuOpen, setIsTransferMenuOpen] = useState(false)
   const [isDeviceEditorOpen, setIsDeviceEditorOpen] = useState(false)
   const [editingDeviceId, setEditingDeviceId] = useState<string | null>(null)
   const [deviceName, setDeviceName] = useState('')
@@ -91,9 +94,6 @@ export function MobileApp({
     },
     [messageApi],
   )
-  const showSyncPlan = useCallback(() => {
-    setPage((current) => (current === 'sync' ? 'sync-plan' : current))
-  }, [])
   useEffect(() => {
     const state = syncTasks.copy?.state
     if (!state) {
@@ -502,6 +502,10 @@ export function MobileApp({
       setIsGameMenuOpen(false)
       return true
     }
+    if (isTransferMenuOpen) {
+      setIsTransferMenuOpen(false)
+      return true
+    }
     if (page !== 'games') {
       goBack()
       return true
@@ -565,7 +569,6 @@ export function MobileApp({
   } else if ((page === 'sync' || page === 'sync-plan') && game) {
     body = (
       <SyncCopyPage
-        adapter={adapter}
         key={game.id}
         sync={sync}
         game={game}
@@ -574,16 +577,15 @@ export function MobileApp({
         peerId={peerId}
         isPlan={page === 'sync-plan'}
         isDisabled={isDisabled || isActive}
+        isTransferActive={isActive}
         onPeerChange={setPeerId}
         onConfirm={confirmSync}
-        onPlanReady={showSyncPlan}
+        onPreview={() => setPage('sync-plan')}
         onFailure={showSyncFailure}
         onStarted={(jobId) => {
           announceStart(jobId)
           setPage('task')
         }}
-        onSettings={() => setPage('edit')}
-        onBackup={() => openBackup(game.id)}
       />
     )
   } else if (page === 'task') {
@@ -673,6 +675,19 @@ export function MobileApp({
           onRemove={removeGame}
         />
       </GameMenu>
+      <ActionSheet
+        visible={isTransferMenuOpen}
+        cancelText={t('common.cancel')}
+        actions={[
+          { key: 'edit', text: t('page.gameSettings') },
+          { key: 'backup', text: t('page.backup') },
+        ]}
+        onAction={(action) => {
+          setIsTransferMenuOpen(false)
+          setPage(action.key === 'edit' ? 'edit' : 'backup')
+        }}
+        onClose={() => setIsTransferMenuOpen(false)}
+      />
       <DeviceEditorDialog
         isOpen={isDeviceEditorOpen}
         editingDeviceId={editingDeviceId}
@@ -722,6 +737,17 @@ export function MobileApp({
       error={error}
       isBusy={isBusy}
       footer={null}
+      headerAction={
+        page === 'sync' ? (
+          <Button
+            fill="none"
+            aria-label={t('common.more')}
+            onClick={() => setIsTransferMenuOpen(true)}
+          >
+            <MoreOutlined />
+          </Button>
+        ) : null
+      }
       dialogs={dialogs}
       onBack={goBack}
       onNavigate={go}
