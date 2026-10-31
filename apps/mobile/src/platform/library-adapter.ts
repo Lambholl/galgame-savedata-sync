@@ -34,6 +34,7 @@ import type {
   CurrentTransfer,
   TransferStartOptions,
 } from './http-transfer-bridge'
+import { appStorage } from './app-storage'
 
 /** 平台依赖可由集成验证替换；默认使用真实原生桥和本机持久存储。 */
 export interface MobileLibraryDependencies {
@@ -57,7 +58,7 @@ export function createMobileLibraryAdapter(
   const androidDirectories = dependencies?.directories ?? defaultDirectories
   const androidTransfers = dependencies?.transfers ?? defaultTransfers
   const control = dependencies?.control ?? defaultControl
-  const storage = dependencies?.storage ?? localStorage
+  const storage = dependencies?.storage ?? appStorage
   let config: LibraryConfig | undefined
   const catalogs = new Map<string, readonly CatalogGame[]>()
   /** 每台设备上次交换成功的本机目录表，变化时才重新交换。 */

@@ -1000,3 +1000,10 @@ details small {
     gap: 3px;
   }
 }
+.startup-error {
+  margin: 0;
+  padding: 48px 24px;
+  color: var(--ss-fg);
+  font: 15px/1.6 var(--ss-font);
+  text-align: center;
+}
