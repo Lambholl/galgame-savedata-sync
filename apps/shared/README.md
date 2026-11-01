@@ -129,7 +129,7 @@ withGameLink、withoutGameLink、createImportedGame 返回新的游戏配置，�
 
 `createSyncPlan({ planId, projectId, operation, direction, shouldBackup, source, target })` 生成本次计划。`operation=copy` 使用明确的跨端方向；`operation=restore` 使用 `local-restore`、同一设备及开启的保护备份。源/目标是本次 `SyncSnapshot`，恢复源由本机已验证备份构造。非法输入抛 Error；读取错误、内容未知、类型/名称冲突和超限返回 `canExecute=false` 及问题列表。
 
-计划器复制输入快照，按固定路径顺序给出操作，父目录先创建；不会修改输入、执行 IO、按时间选方向或查询历史。待传/备份字节只统计本次操作，未知或无法表示为安全整数时为 null。`isSyncPlan` 重新推导完整计划；执行前用 `matchesSyncPlan(value, input)` 对照调用方保存的本次上下文，不能只校验 planId 或 canExecute。
+计划器复制输入快照，按固定路径顺序给出操作，父目录先创建；不会修改输入、执行 IO、按时间选方向或查询历史。待传字节统计本次写入文件；备份开启且有写入时，备份字节统计目标目录的全部文件，包括未变化和仅存在于目标的文件，并校验文件数、单文件大小和总大小。`selectSyncBackupFiles(plan)` 返回这个集合；备份关闭、无写入或目标没有文件时返回空集合。未知或无法表示为安全整数的字节数为 null。`isSyncPlan` 重新推导完整计划；执行前用 `matchesSyncPlan(value, input)` 对照调用方保存的本次上下文，不能只校验 planId 或 canExecute。
 
 `isSyncBackupManifest` 检查独立备份格式、连续 fileId、文件指纹、路径关系和预算；`isSyncBackupSettings` 检查项目/rootId 设置唯一性，缺少设置由平台层默认开启。备份列表只用于恢复，比较器不读取备份。
 

@@ -70,7 +70,7 @@ export const enUS: Messages = {
   'transfer.startNote': 'Quit the game before you start',
   'transfer.noBackupTitle': 'No backup this time',
   'transfer.noBackupText':
-    'Backup before overwrite is off, so overwritten files cannot be restored. Start the transfer anyway?',
+    'Backup before writing is off, so this transfer will not preserve the current files in the target folder. Start the transfer anyway?',
   'transfer.planUnavailable': 'This plan is no longer available. Go back and refresh.',
   'transfer.planStale': 'The game or a folder changed. Go back and refresh before transferring.',
   'transfer.remoteBusy': 'Another transfer is confirmed and waiting for the phone to start.',
@@ -94,8 +94,8 @@ export const enUS: Messages = {
   'plan.stat.replace': 'Overwrite',
   'plan.stat.keep': 'Keep',
   'plan.backupOn': ({ count }) =>
-    `Backup before overwrite · keep ${count} ${count === 1 ? 'copy' : 'copies'}`,
-  'plan.backupOff': 'No backup, overwrite directly',
+    `Back up before writing · keep ${count} ${count === 1 ? 'copy' : 'copies'}`,
+  'plan.backupOff': 'No backup; write directly',
   'plan.transferSize': ({ size }) => `Transfer ${size}`,
   'plan.group.replace': ({ count }) => `Overwrite ${count}`,
   'plan.group.replaceHint': 'Tap to compare both sides',
@@ -205,10 +205,10 @@ export const enUS: Messages = {
   'game.noRemoteGames': 'No games on this device yet.',
   'game.noDevices': 'No devices to link yet.',
 
-  'backup.on': 'Backup before overwrite is on',
-  'backup.off': 'Backup before overwrite is off',
+  'backup.on': 'Backup before writing is on',
+  'backup.off': 'Backup before writing is off',
   'backup.keep': ({ count }) => `keep ${count}`,
-  'backup.offHint': 'Incoming transfers overwrite old files directly',
+  'backup.offHint': 'Incoming transfers write directly to the target folder',
   'backup.location': 'Location',
   'backup.list': 'Backups',
   'backup.reason.copy': 'Before transfer',
@@ -216,13 +216,14 @@ export const enUS: Messages = {
   'backup.files': ({ count, size }) => `${count} ${count === 1 ? 'file' : 'files'} · ${size}`,
   'backup.restore': 'Restore',
   'backup.restoreThis': 'Restore this backup',
-  'backup.none': 'No backups yet. One is made automatically when a transfer overwrites old files.',
+  'backup.none':
+    'No backups yet. When backup before writing is on, a transfer that writes files preserves the current target folder.',
   'backup.incomplete': ({ count }) =>
     count === 1 ? '1 backup did not finish' : `${count} backups did not finish`,
   'backup.cleanup': 'Clean up',
   'backup.privateNote':
     "Backups are stored in the app's private folder. Uninstalling the app or clearing its data deletes them.",
-  'backup.switch': 'Backup before overwrite',
+  'backup.switch': 'Backup before writing',
   'backup.restoreTitle': ({ time }) => `Restore the backup from ${time}`,
   'backup.confirmRestore': 'Restore',
   'backup.back': 'Back',
@@ -245,7 +246,7 @@ export const enUS: Messages = {
   'backup.restoreTask': 'Restore on this device',
   'backup.openRestore': 'View restore',
   'plan.restoreBackup': 'Current files are backed up before restoring',
-  'plan.backupOnPlain': 'Backup before overwrite',
+  'plan.backupOnPlain': 'Back up before writing',
 
   'backup.followGlobal': 'Use global setting',
   'backup.customSetting': 'Custom setting',

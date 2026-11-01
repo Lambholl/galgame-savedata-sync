@@ -6,6 +6,7 @@ import { SYNC_LIMITS, SYNC_SCHEMA_VERSION } from './sync-contracts.ts'
 import type { SyncApplyResult, SyncPlan, SyncWriteOutcome } from './sync-contracts.ts'
 import { isSyncPath, syncPathKey } from './sync-paths.ts'
 import { isSyncPlan } from './sync-plan-validation.ts'
+import { selectSyncBackupFiles } from './sync-plan.ts'
 
 function isCleanupError(value: unknown): value is OperationError {
   return isOperationError(value) && value.code === 'cleanup-failed'
@@ -78,8 +79,7 @@ export function matchesSyncApplyResult(value: unknown, plan: SyncPlan): value is
     return false
   }
   const source = new Map(plan.source.entries.map((entry) => [entry.entryId, entry]))
-  const shouldCreateBackup =
-    plan.shouldBackup && expected.some((entry) => entry.action === 'replace-file')
+  const shouldCreateBackup = selectSyncBackupFiles(plan).length > 0
   let hasStopped = false
   let hasUnsuccessful = false
   let hasCancellation = false

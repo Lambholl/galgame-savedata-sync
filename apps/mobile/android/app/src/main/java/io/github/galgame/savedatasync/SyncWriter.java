@@ -157,7 +157,7 @@ final class SyncWriter implements AutoCloseable {
         check(job);
     }
     private long space(Job job, Path cacheRoot, long cacheBytes) throws Exception {
-        long growthBytes = targetGrowth(job.plan), oldBytes = job.plan.replacements.isEmpty() ? 0 :
+        long growthBytes = targetGrowth(job.plan), oldBytes = job.plan.backupFiles.isEmpty() ? 0 :
             number(job.plan.value.get("backupFileBytes"), 0, BackupModel.MAX_TOTAL) + bytes(job.plan.value).length + 8192L;
         Boolean sameVolume = null, sameCache = null;
         for (Map<String, Object> entry : job.plan.target.paths.values()) if (entry.get("kind").equals("file")) {
@@ -284,9 +284,9 @@ final class SyncWriter implements AutoCloseable {
             if (job.observer != null) job.observer.stage("verifying");
             preflight(job, material);
             if (job.observer != null) job.observer.stage("backing-up");
-            Map<String, Object> backup = backups.create(plan.project, plan.target.root, plan.reason, plan.backup, plan.replacements, control);
+            Map<String, Object> backup = backups.create(plan.project, plan.target.root, plan.reason, plan.backup, plan.backupFiles, control);
             cleanup = backup.get("cleanupError");
-            if (!plan.replacements.isEmpty() && backup.get("manifest") == null) throw new ArchiveFailure("io-failure", "A complete protective backup has not been committed.");
+            if (!plan.backupFiles.isEmpty() && backup.get("manifest") == null) throw new ArchiveFailure("io-failure", "A complete protective backup has not been committed.");
             if (backup.get("manifest") != null) backupId = map(backup.get("manifest")).get("backupId");
             // SAF 与私有目录可能使用不同的逻辑设备 ID；备份落盘后再查实际余量，覆盖共享物理卷。
             Long remaining = backend.available(plan.target.root, null, control);

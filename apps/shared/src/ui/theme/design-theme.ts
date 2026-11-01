@@ -40,6 +40,14 @@ export function designTheme(resolved: ResolvedTheme, platform: 'desktop' | 'mobi
       // 按钮和标签用胶囊。
       Button: { borderRadius: RADII.pill, borderRadiusLG: RADII.pill, borderRadiusSM: RADII.pill },
       Tag: { borderRadiusSM: RADII.pill },
+      ...(platform === 'desktop' && resolved === 'light'
+        ? {
+            Menu: {
+              itemSelectedBg: palette.accentSoft,
+              itemSelectedColor: palette.accent,
+            },
+          }
+        : {}),
       ...COMPONENTS[platform],
     },
   }

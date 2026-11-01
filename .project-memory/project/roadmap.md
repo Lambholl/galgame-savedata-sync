@@ -5,7 +5,7 @@ priority: high
 owner: project
 id_prefix: M
 id_high_water: 4
-updated: 2026-10-31
+updated: 2026-11-02
 tags: [路线图, 里程碑]
 related_files: []
 ---
@@ -35,7 +35,7 @@ related_files: []
 | --- | --- | --- | --- |
 | P0 | CR-013 WebSocket 控制通道，完成 CR-012 真机验收 | CR-012 | done，2026-10-31 真机验证通过，随 v0.1.1 发布 |
 | P2 | 任意两台设备传输（REQ-022） | CR-013 的对称控制通道；Android 监听和电脑拨号 | planned，未排期 |
-| P0 | 双端界面与设置后续调整 | BUG-003 至 BUG-005、CR-007 至 CR-011，见[已知问题](../development/known-issues.md)与[变更请求](../requirements/change-requests.md) | active |
+| P0 | CR-014 双端界面收尾 | A1–A4 已完成并确认；详细计划见 `docs/plans/ui-v2-follow-up.md` | active（下一步 B1） |
 | P0 | WP-029 M-002 总体验收与真实存档开放检查 | WP-016 至 WP-028 | planned |
 | P0 | 保持 Android 用户发起传输由持续通知保持、当前状态独立、目录不汇总大小的边界 | [项目约束](../requirements/constraints.md)、[验收标准](../testing/acceptance.md) | active |
 
@@ -45,4 +45,4 @@ M-001 只在专用测试目录中验证新文件往返，不开放真实存档�
 
 ADB 用于安装、控制与采样，归档内容通过实际局域网 HTTP。Android 10 与较新版本、授权恢复、后台继续与显式取消、目录不递归统计大小及满额 1 GiB 双向内容/资源验收均已通过，M-001 已收尾。用户取消功耗计算，本轮不注入磁盘耗尽；可取得的设备余量纳入每次传输预检。证据及后续交接见仓库根目录的 `docs/validation/m001-resources.md`。
 
-M-002 拆包入口为[工作包登记](../development/work-packages.md)。用户已确认默认备份保护提前到 M-002，以支持真实存档覆盖；REQ-015 的默认开启、可关闭、最近 3 次及手工恢复要求保持。覆盖功能开放前先完成相应平台的备份、恢复与受保护写入验收。Windows 发起已按 CR-012 提前，镜像删除仍留 M-004，自动发现与 DHCP 重连留 M-003。
+M-002 拆包入口为[工作包登记](../development/work-packages.md)。WP-016 至 WP-028 已实现，覆盖复制、写入前全量备份、本机恢复、双向编排和两端发起均已接入；WP-029 总体验收待完成，真实存档覆盖按验收结论开放。Windows 发起已按 CR-012 提前，镜像删除仍留 M-004，自动发现与 DHCP 重连留 M-003。

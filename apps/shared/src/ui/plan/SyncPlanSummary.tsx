@@ -33,7 +33,7 @@ export interface SyncPlanSummaryProps {
   readonly source: PlanEndpoint
   /** 被写入的一端。 */
   readonly target: PlanEndpoint
-  /** 被写入一端开启覆盖前备份时保留的份数；对端的份数读不到时为 null，只说明会备份。 */
+  /** 被写入一端开启写入前备份时保留的份数；对端的份数读不到时为 null，只说明会备份。 */
   readonly backupKeepCount: number | null
 }
 

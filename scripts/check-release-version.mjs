@@ -4,7 +4,7 @@ const RELEASE_TAG = /^v(\d+\.\d+\.\d+)$/
 const tag = process.argv[2]
 const match = tag ? RELEASE_TAG.exec(tag) : null
 if (!match) {
-  throw new Error('Release tag must use v<major>.<minor>.<patch>, for example v0.1.0.')
+  throw new Error('Release tag must use v<major>.<minor>.<patch>, for example v0.2.0.')
 }
 const expectedVersion = match[1]
 const packageFiles = [

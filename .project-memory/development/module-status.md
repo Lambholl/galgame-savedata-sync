@@ -3,7 +3,7 @@ doc_type: module-status
 status: active
 priority: high
 owner: development
-updated: 2026-11-01
+updated: 2026-11-02
 tags: [模块状态, 开发进度]
 related_files: []
 ---
@@ -27,11 +27,11 @@ M-001 已完成：工程基础设施、共享模型、双端目录/归档/发布
 | Android 确认执行、结果与本机恢复界面 | done | 开发 | mobile sync-adapter、SyncCopy/Plan/Task/Backup 页面、useSyncTasks、SyncWrites/BackupsPlugin | 双向执行仍由原生持有；发送完成与目标成功分开；真实存档开放仍待总体验收 | 平台绑定/通知变化等 6 组和实际 API 33 界面 11 组通过，含双向覆盖、恢复/关闭设置、重载恢复、失败/取消、64 MiB 通知保持与切出返回完整哈希；既有套件、工程和 Android 检查通过；合成数据已清理，移动尺寸调整已随 7ef20c6 提交 |
 | Windows 计划、结果与本机恢复界面 | done | 开发 | restore-registry、sync-ipc/bridge、preload、备份/任务页、platform/sync-adapter | 电脑发起复制（CR-012、CR-013）已真机验证；进程重启不恢复任务，备份/配置保留；真实存档开放仍待总体验收 | 原生实际恢复、有限 IPC、新桥/刷新恢复、清理失败/部分/未知结果、实际 Electron 的备份关闭/恢复确认/扫描失败/重扫/取消和明暗主题检查通过；电脑端发起已实现并迁到 WebSocket 控制通道（CR-013），pnpm check、android:build 和 2026-10-31 真机验证通过 |
 | Windows 分发包 | done | 开发 | apps/desktop/electron-builder.json、scripts/package-windows.mjs、双层 package.json、pnpm-lock.yaml | 当前未配置代码签名；使用已编译资源与隔离的最小应用清单 | 桌面资源编译及 electron-builder x64 安装版/免安装版打包成功，产物位于 apps/desktop/release；新增依赖 npm 审计通过；安装运行由用户验收 |
-| 正式设备/游戏/设置界面 | done | 开发 | apps/mobile/src、apps/desktop/src/renderer/src、apps/shared、桌面 bridge 与 library-ipc/store | 一个游戏关联多台设备，首期仅一个连接；覆盖与备份恢复安排在 M-002，镜像删除仍留 M-004；当前文件传输保持仅新建 | 双端独立界面、目录选择与进程内写入授权已实现，跨端真机验收通过；后续界面接入见 WP-027/WP-028 |
+| 正式设备/游戏/设置界面 | done | 开发 | apps/mobile/src、apps/desktop/src/renderer/src、apps/shared、桌面 bridge 与 library-ipc/store | 一个游戏关联多台设备，首期仅一个连接；覆盖复制、写入前全量备份和本机恢复已接入；镜像删除仍留 M-004 | 双端独立界面、目录选择、复制/计划/详情及备份恢复页面已接入，跨端真机验收通过；旧 v1 批量接口仅新建文件 |
 | Android HTTP 与持续通知 | done | 开发 | TransferJson/Schema/Http/Engine、HttpTransfersPlugin、TransferRuntime/Service、SafRuntime、TS 桥及最小检查 | 全校验前不发布，sender sent 与 receiver 成功分开；应用级任务持有，Activity 暂停/销毁时任务继续，通知提供显式取消；任务只由用户发起，不调度或重放旧任务 | Java/TS 桥、lint/双 APK/互通及 TC-011 的正式 LAN、后台、重连、取消和外部内容属性核对通过；供 WP-007 界面复用 |
 | 工作区与质量配置 | done | 开发 | 根目录配置、apps/shared、scripts/check-text.mjs | — | 维护质量检查与固定依赖 |
 | Android SAF 单文件发布 | done | 开发 | NewFilePublisher、PublicationModel/Json、SafPublicationBackend/DirectoryStore、单元测试及既有原生集成 | 排他创建取决于提供者能力；未知归属不写入或删除，目标所有权只在当前进程内有效；写入限定在明确授权的合成根 | 单元、lint/双 APK/原生互通及 API 33 实际 SAF 发布、外部原文与控制属性核对通过；供 WP-006 原生 HTTP 复用 |
-| 双端系统明暗主题 | done | 开发 | 桌面 app/DesktopApp、main、styles；移动 app/system-theme、main、styles、MainActivity、日夜主题/颜色资源 | 当前跟随系统，不增加手动开关或主题偏好存储 | 双端浏览器与 API 33 真机的初次加载、动态切换、原生背景和系统栏同步已通过实际操作与截图验收；未保留界面自动化测试 |
+| 双端系统明暗主题 | done | 开发 | 桌面 app/DesktopApp、main、styles、preferences-*；移动 app/system-theme、app-preferences、main、styles、MainActivity、日夜主题/颜色资源 | 支持跟随系统、浅色、深色；偏好保存在本机，重启后继续使用；桌面原生窗口和移动系统栏随解析后的主题更新 | 双端明暗主题、手动切换、持久化和重启恢复已实现；浏览器与 API 33 真机的原生背景和系统栏同步已核对；未保留界面自动化测试 |
 | 本地设备/目录共享模型 | done | 开发 | apps/shared/src/protocol/contracts.ts、validation.ts、protocol.ts | 纯 DTO 只描述数据；平台权限和实际 IO 由适配器处理 | 本地 DTO 与有限桥继续复用，传输使用独立批量模型 |
 | 共享批量模型 | done | 开发 | apps/shared/src/protocol/batch-*.ts、data-validation.ts、test、README.md | 处理数据与上下文；归档/JSON 解析、网络、发布和计时由其他模块负责 | v1 批量模型与稳定数据关系测试通过；供 HTTP、Java 归档和原生发布复用 |
 | 当前扫描与覆盖计划共享模型 | done | 开发 | apps/shared/src/sync、src/index.ts、README.md | 纯数据与确定比较；实际扫描/备份/写入、权限、会话及期限由平台包处理 | 快照/树关系、复制和本机恢复计划、备份格式/设置及实际结果守卫已实现；针对性运行、既有共享套件及工程检查通过；供 WP-018 至 WP-028 复用 |
@@ -51,7 +51,7 @@ M-001 已完成：工程基础设施、共享模型、双端目录/归档/发布
 | Android 私有归档 | done | 开发 | ArchiveAdapter/Model/Format/Cache/Control/Failure.java、SafArchiveSource.java、单元/设备测试与互通脚本 | 处理原生归档与私有缓存；JSON/HTTP、目标发布和前台网络调度由其他模块负责；固定预算是技术限制 | Java 单元、lint/双 APK、固定夹具、实际 SAF 快照与 Windows/JVM 互通通过；由 WP-006 复用 |
 | Windows 目录读取适配 | done | 开发 | apps/desktop/src/main/directory-*.ts、src/bridge/directory-bridge.ts、preload、test | 源目录只读；系统选择器与目录界面已通过 WP-007 实操；路径检查覆盖可观察边界，恶意并发重排命名空间不在隔离范围内 | 目录/IPC 回归、真实目录只读校验及 preload 构建隔离加载通过；原生定位与元数据供发布适配复用 |
 | Windows 验证界面 | done | 开发 | apps/desktop/src/renderer、src/bridge/service-bridge.ts、main/service-ipc.ts | 服务与根写授权分别显式操作；原生层持有文件路径和内容，界面只读公开快照 | 目录浏览、元数据、服务启停、目录写入授权、取消和清理重试已实现并通过真机验收 |
-| Android 验证界面 | done | 开发 | apps/mobile/src/app、features/transfer、platform | 手机发起原生传输；只在本次独立测试目标新建文件；地址与目录授权分开保存 | 手动连接、双端目录、方向/文件/目标名称、真实进度、逐项结果、取消与页面重载查询通过真机验收 |
+| Android 验证界面 | done | 开发 | apps/mobile/src/app、features/transfer、platform | 手机可发起或执行电脑发起的复制；地址与目录授权分开保存；旧 v1 批量接口只新建文件 | 手动连接、双端目录、方向/计划、真实进度、逐项结果、取消与页面重载查询通过真机验收；电脑发起经控制通道完成 |
 | Java SAF 读取适配 | done | 开发 | apps/mobile/README.md、原生插件、src/platform/saf-* 与最小回归 | 只开放只读读取；流调用者负责关闭资源 | TS 桥、Java 单元、lint、双 APK 和目标真机读取验收通过；读取桥保持只读 |
 | Android 原生工程与审计 | done | 开发 | apps/mobile/android、scripts/android-inventory.gradle | 审计覆盖依赖公告；系统/提供者能力另按设备验证 | 维持 pnpm android:test，依赖变化后复审 |
 | 工具链安全检查 | done | 开发 | scripts/security-*、scripts/toolchain-policy* | — | 依赖变更后重新审计与构建 |

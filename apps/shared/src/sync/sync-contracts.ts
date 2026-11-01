@@ -112,7 +112,7 @@ export interface SyncPlanInput {
   readonly target: SyncSnapshot
 }
 
-/** 快照随计划仅存本次内存；计数只统计本次写入/备份，不是目录大小。 */
+/** 快照只随计划留在本次内存中；传输统计待写入文件，备份统计写入前的全部目标文件。 */
 export interface SyncPlan extends SyncPlanInput {
   readonly schemaVersion: typeof SYNC_SCHEMA_VERSION
   readonly entries: readonly SyncPlanEntry[]
@@ -143,7 +143,7 @@ export interface SyncBackupManifest {
   readonly files: readonly SyncBackupFile[]
 }
 
-/** 覆盖前备份策略：是否备份，以及每个游戏、每个目录保留的完整备份份数。 */
+/** 写入前备份策略：是否备份，以及每个游戏、每个目录保留的完整备份份数。 */
 export interface SyncBackupPolicy {
   readonly shouldBackup: boolean
   /** BACKUP_KEEP_COUNT_MIN–BACKUP_KEEP_COUNT_MAX。 */

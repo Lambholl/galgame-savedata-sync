@@ -3,7 +3,7 @@ doc_type: architecture-modules
 status: draft
 priority: high
 owner: architecture
-updated: 2026-10-27
+updated: 2026-11-02
 tags: [模块]
 related_files: []
 ---
@@ -13,28 +13,24 @@ related_files: []
 ## 目录
 
 - [1. 设计状态](#1-设计状态)
-- [2. M-001 模块边界](#2-m-001-模块边界)
+- [2. 当前模块边界](#2-当前模块边界)
 
 ## 1. 设计状态
 
-v1 本地/批量共享模型、双端目录读取、双端私有归档、Windows HTTP sender/receiver 和新文件发布已经可用。WP-013 完成了实际 API 33 SAF 原生读流集成；Android SAF 单文件发布和 HTTP/通知保持传输已经可用；WP-007 最小目录、连接与传输界面已集成。tar.gz 批量设计位于仓库根目录的 `docs/plans/m001-tar-gzip-protocol.md`；Windows/Java 归档与目标发布分别验证，网络包负责集成编排。当前实现与验证状态见[模块状态](../development/module-status.md)，依赖与退出条件见[工作包](../development/work-packages.md)。
+M-001 已完成。M-002 的当前扫描、复制/本机恢复计划、写入前全量备份、双端受保护写入、双向复制编排和双端界面已实现，只剩 WP-029 总体验收。电脑发起复用 WebSocket 控制通道，mDNS/DNS-SD 自动发现和镜像删除尚未实现。协议规则见 `docs/plans/m002-sync-copy.md`，当前模块状态见[模块状态](../development/module-status.md)。
 
-## 2. M-001 模块边界
+## 2. 当前模块边界
 
-| 模块 | 职责 | 输入 | 输出 | 依赖 | 相关文件 |
+| 模块 | 职责 | 输入 | 输出 | 依赖与边界 | 相关文件 |
 | --- | --- | --- | --- | --- | --- |
-| 共享模型 | 提供 v1 本地目录及批量清单、映射、状态/结果、会话/资源/错误常量，以及纯守卫与任务上下文匹配 | 已解析 JSON/plain data；本次清单/方向及 receiver 目标请求 | 只读 DTO 或校验布尔值；真实 IO 由平台层检查 | 共享模块；不导入平台 API | apps/shared/src；apps/shared/README.md |
-| Windows 目录读取适配 | 负责选择登记与恢复、当前层查询、根内原生只读流 | 主进程选择器路径或本地 rootId/entryId | 公开 DTO 或仅主进程持有的 Readable | WP-002；无源目录写入入口 | apps/desktop 主进程与 preload |
-| Windows 新文件暂存发布 | 提供显式写授权/只读预检、同目录候选、排他硬链接发布、最终回读与失败/取消清理 | 独立测试目录与新文件请求 | 共享 FileOutcome 与独立清理状态/残留 | WP-009；原生授权不持久化，无覆盖/删除或 HTTP；WP-005 负责整批编排 | apps/desktop/src/main/new-file-publisher.ts、publication-errors.ts、目录原生定位及测试 |
-| Android SAF 读取适配 | 负责只读授权/恢复、当前层元数据、原生读流，API 33/35 读取验证通过 | 系统选择结果、本地目录引用 | 当前条目、原生 InputStream 和能力/错误 | WP-003；Java、SAF、ContentResolver | apps/mobile 原生插件；apps/mobile/README.md |
-| Android SAF 新文件写入 | 提供系统/进程授权分离、只读预检、新身份核实、非截断原生写流/最终回读和残留清理 | 已登记独立目标根/已有父目录、单文件请求及已验证私有原文流 | PublicationModel.Result 与 PublicationJson 单文件 outcome/cleanup，URI 留原生层 | WP-010；依赖 WP-003，供 WP-006 聚合；不恢复旧任务或覆盖/重命名 | apps/mobile Java NewFilePublisher、PublicationModel/Json、SafPublicationBackend、SafDirectoryStore 及测试 |
-| Windows 私有归档 | 负责源快照/变化检查、受限 USTAR/gzip1 编解码、完整计数/哈希/结束校验和缓存所有权/取消清理 | 本次源引用或清单/归档流、可选 signal/进度回调 | 主进程私有只读流句柄、实测清单；完整验证后返回，不发布目标 | WP-012；Windows 读取/共享批量模型；固定夹具供 Java 复用 | apps/desktop/src/main/archive-*.ts、独立合成夹具 |
-| Android Java 私有归档 | 负责原生源快照、未知长度实测/变化检查、严格 USTAR/gzip1、计数/取消/期限与缓存所有权及清理重试 | 本次 SAF 原生源引用或固定 v1 原生清单/归档流 | 完整校验后仅原生持有的不可变清单和私有只读句柄 | WP-013；复用 Android 读取及独立固定夹具，JVM/设备与 Windows 原生互通；不写 SAF 目标 | apps/mobile Java Archive*.java、SafArchiveSource.java 及测试；移动 README |
-| Windows HTTP 读取与任务注册 | 提供显式服务启停/会话、目录、异步下载/单次 content、状态/取消、期限与清理；默认不监听 | 经验证的引用、本次集合 | 设备/会话描述、当前层、tar.gz 流及 sender 实际状态 | WP-004；Windows 读取、共享批量模型与 WP-012 | apps/desktop/src/main/http-*.ts、transfer-registry.ts、index.ts、HTTP 集成测试 |
-| Windows HTTP 接收 | 提供上传预检/单次 PUT、压缩体确认及异步完整归档校验后非覆盖发布，管理 receiver 状态/取消/期限/清理 | 清单、逐项目标引用、tar.gz 原生流 | 逐文件实际结果、进度及残留 | WP-005；WP-004/WP-009/WP-012；接收能力与本机根写授权分开 | apps/desktop/src/main/upload-receiver.ts、http-*.ts、transfer-registry.ts、test/http-receiver.test.mjs |
-| Android 原生传输 | 负责严格 HTTP/JSON/会话上下文、双向归档编排、全校验后逐项发布、实际进度/显式取消与持续通知 | 公开本地/远端引用、本次集合、手动地址与方向 | sender/receiver 分开的实际状态及清理；current 可重新取得同任务 | WP-006；复用归档/发布；Activity 不拥有任务，不添加自动后台同步 | Java Transfer*.java、HttpTransfersPlugin、TS 桥；移动 README |
-| 双端独立界面 | 目录与元数据、服务状态、手动连接和双向传输操作 | 当前状态与用户操作 | 受限本地桥调用；源目标及结果展示 | 桌面 antd、移动 antd-mobile；共享业务位于 apps/shared | apps/desktop/src/renderer/src、apps/mobile/src |
+| 共享协议与项目模型 | 设备、目录、批量传输、游戏关联、错误和封闭 DTO；纯守卫与上下文匹配 | 已解析 JSON/plain data、本次快照与项目引用 | 只读 DTO、计划、校验结果 | 不导入平台 API、React 或组件库；文件 IO 留给平台 | `apps/shared/src/protocol`、`library`、`result.ts` |
+| 共享同步模型 | 当前扫描、复制/本机恢复计划、写入前全量备份集合、结果与预算 | 两端完整快照、方向、项目/根和备份设置 | 不可变计划、备份文件集合、结果守卫 | 不执行 IO、哈希、历史查询；备份包含目标目录全部文件 | `apps/shared/src/sync` |
+| Windows 目录与归档 | 目录登记、当前层读取、原生读流、私有快照和受限 USTAR/gzip1 | 系统选择器路径、rootId/entryId、本次源集合 | 公开目录 DTO、私有只读流与清单 | 源目录只读；缓存与同步根隔离，取消/清理失败显式报告 | `apps/desktop/src/main/directory-*`、`archive-*` |
+| Windows HTTP 与控制 | 严格 HTTP 会话、扫描、双向任务、单次清单/内容、查询/取消、WebSocket `/v1/control` | 已验证设备/项目引用、扫描与任务请求 | 任务状态、内容流、目录应答和控制事件 | 默认不监听；文件内容不走控制通道；旧 v1 批量接口保持仅新建 | `http-*`、`sync-*`、`control-hub.ts`、`remote-sync-requests.ts` |
+| Windows 备份、写入与恢复 | 目标目录全量备份、最近 3 次轮换、受保护覆盖、目录创建、本机恢复 | 固定 `SyncPlan`、已验证输入和本机目录授权 | 备份清单、逐项 `SyncApplyResult`、恢复任务 | 先备份并复核目标和输入再写入；通过候选、身份检查、fsync 和回读确认；目标独有条目保留 | `backup-*`、`sync-writer.ts`、`sync-target-files.ts`、`restore-registry.ts` |
+| Android SAF 与归档 | 持久目录授权、当前层读取、递归扫描、原生哈希和私有归档 | 系统选择器引用、本次 SAF 源集合 | 目录 DTO、扫描快照、私有归档句柄 | URI 和文件字节不跨 JS；普通读取/扫描不保活，实际传输才使用 dataSync 服务 | `SafDirectories*`、`SyncScanner*`、`Archive*` |
+| Android 备份、写入与恢复 | 私有备份、最近 3 次轮换、受保护覆盖、目录创建和本机恢复 | 固定计划、已验证输入、已授权 SAF 目标 | 备份清单、逐项结果、恢复任务 | 使用常规 FD 身份检查与非预截断写入；先备份目标目录全部文件；失败/未知如实报告 | `Backup*`、`SyncPlanModel`、`SyncWriter`、`SafSyncBackend`、`SyncWriteRuntime` |
+| Android 控制与复制编排 | HTTP/WebSocket 客户端、双向复制、后台通知、电脑发起请求和结果回报 | 项目、设备、扫描/计划、确认和取消请求 | 原生任务状态、逐项结果、控制事件 | 控制消息格式对称；文件内容仍走 HTTP；页面重建查询原任务，不重放 | `ControlClient`、`SyncTransferEngine`、`SyncJobModel`、`platform/control-channel.ts` |
+| 双端界面与共用渲染 | 设备、游戏、设置、传输、计划、详情、备份与恢复页面 | 平台适配器提供的只读 DTO 与用户操作 | 受限桥调用、状态展示和交互 | 页面状态/Hook/平台弹层各端维护；与平台无关的展示和设计变量放 shared/ui；主题支持跟随系统、浅色、深色并持久化 | `apps/shared/src/ui`、`apps/desktop/src/renderer/src`、`apps/mobile/src` |
 
-目录配置与地址分别保存；Windows 使用稳定设备 ID、本地根目录引用和受限路径解析，Android 保存 SAF 引用与实际持久权限。界面不接收完整文件内容，大小未知/读取失败/不存在分别展示，目录不做递归汇总。
-
-M-001 的范围是目录、归档和传输能力；同步算法、项目管理、备份、镜像、自动发现和 Windows 发起控制通道在后续里程碑实现。后续工作复用已经验证的适配器；归档往返通过后，完整同步仍按产品验收检查。
+真实存档覆盖仍等 WP-029 总体验收；关闭备份、备份失败、目标变化、取消、部分成功和结果未知都有独立状态。镜像删除、自动发现及任意两台设备互传仍是后续范围。

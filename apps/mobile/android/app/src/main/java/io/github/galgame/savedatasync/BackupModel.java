@@ -43,7 +43,7 @@ final class BackupModel {
         String hash = string(value); require(ArchiveModel.hash(hash)); return hash;
     }
 
-    /** 受信任编排器从确认计划中选取全部 replace-file 对应的目标文件，入口不跨桥。 */
+    /** 受信任的编排器用它从确认计划中选出写入前需要备份的全部目标文件，只在原生内部使用。 */
     static final class SourceFile {
         final String entryId, sha256;
         final List<String> path;

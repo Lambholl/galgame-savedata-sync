@@ -6,7 +6,7 @@ import './backup.css'
 
 /** BackupPolicyBlock 的参数。 */
 export interface BackupPolicyBlockProps {
-  /** 覆盖前备份是否开启；关闭时整块变红。 */
+  /** 写入前备份是否开启；关闭时整块变红。 */
   readonly isEnabled: boolean
   /** 开启时保留的份数。 */
   readonly keepCount: number

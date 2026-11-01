@@ -133,7 +133,7 @@ final class SyncJobModel {
             if (stopped) require(status.equals("not-attempted"));
             if (status.equals("succeeded")) {
                 require(outcome.get("error") == null);
-                if (plan.backup && !plan.replacements.isEmpty()) require(result.get("backupId") != null);
+                if (!plan.backupFiles.isEmpty()) require(result.get("backupId") != null);
                 if (outcome.get("action").equals("create-directory")) require(outcome.get("sizeBytes") == null && outcome.get("sha256") == null);
                 else {
                     Map<String, Object> source = plan.source.entry(operation.get("sourceEntryId"));

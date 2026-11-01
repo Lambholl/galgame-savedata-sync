@@ -230,30 +230,27 @@ body {
 }
 
 .library-add-game-directory.ant-btn {
-  display: flex;
-  justify-content: flex-start;
-  min-height: 80px;
-  height: auto;
-  gap: 14px;
-  padding: 16px;
-  white-space: normal;
-  text-align: left;
+  min-height: 56px;
 }
 .library-add-game-directory > span:not(.anticon) {
   flex: 1;
   min-width: 0;
+  text-box: normal;
 }
 .library-add-game-directory strong,
 .library-add-game-directory small {
   display: block;
   overflow-wrap: anywhere;
 }
+.library-add-game-directory strong {
+  font-size: 14px;
+  font-weight: 500;
+}
 .library-add-game-directory small {
-  margin-top: 5px;
+  margin-top: 3px;
   color: var(--ss-muted);
 }
 .library-add-game-directory > .anticon {
-  font-size: 24px;
   flex-shrink: 0;
 }
 

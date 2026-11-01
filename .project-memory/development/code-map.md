@@ -3,7 +3,7 @@ doc_type: code-map
 status: active
 priority: medium
 owner: development
-updated: 2026-10-31
+updated: 2026-11-02
 tags: [代码地图]
 related_files: []
 ---
@@ -18,7 +18,7 @@ related_files: []
 | `apps/desktop/` | Electron 主进程、preload 和独立 antd 界面 | Renderer 无 Node 集成；contextIsolation 和 sandbox 开启 |
 | `apps/desktop/src/main/directory-adapter.ts`、`directory-store.ts`、`directory-paths.ts`、`directory-errors.ts` | 目录选择登记、独立配置、当前层元数据、根内原生读流及脱敏错误 | 没有源目录写入 API；拒绝 symlink/junction 与失效身份，配置不保存历史文件索引 |
 | `apps/desktop/src/main/archive-adapter.ts`、`archive-cache.ts`、`archive-format.ts`、`archive-errors.ts` | 私有源快照、受限 USTAR/gzip1 编解码、逐层校验、资源/取消与缓存所有权/清理 | 无 HTTP 或目标发布；缓存与源根互不包含；句柄持有缓存，读流关闭后 dispose；清理失败阻止新任务 |
-| `apps/desktop/src/main/backup-store.ts`、`backup-files.ts`、`backup-ipc.ts`、`src/bridge/backup-bridge.ts` | 独立持久备份、流式校验/提交、最近 3 次轮换、恢复材料和有限本机查询 | 只写私有 backups；目录适配器排除该区域；原文读取和创建留主进程，摘要/设置/清理通过 preload，实际恢复写回由后续平台包提供 |
+| `apps/desktop/src/main/backup-store.ts`、`backup-files.ts`、`backup-ipc.ts`、`src/bridge/backup-bridge.ts` | 独立持久备份、流式校验/提交、最近 3 次轮换、恢复材料和有限本机查询 | 只写私有 backups；目录适配器排除该区域；备份开启且有写入时保存目标目录全部文件；原文读取和创建留主进程，摘要/设置/清理通过 preload，恢复写回由 `sync-writer` 与 `restore-registry` 接入 |
 | `apps/desktop/test/archive-adapter.test.mjs`、`test/fixtures/archive-v1.json` | Windows 私有归档的格式、资源与故障回归，以及独立格式夹具 | 合成数据，不操作真实存档；Java 复用固定字节与原文期望；各自自我往返不算互通证据 |
 | `apps/desktop/src/main/new-file-publisher.ts`、`publication-errors.ts`、`test/new-file-publisher.test.mjs` | 进程内写授权/预检、单文件候选/link/最终回读、逐项结果与清理重试 | 仅原生调用，目录/HTTP/UI 不自动授予写权限；候选与目标同卷，不覆盖/删除已有条目；崩溃后不猜测候选所有权 |
 | `apps/desktop/src/main/http-service.ts`、`http-wire.ts`、`http-errors.ts`、`transfer-registry.ts` | 原生 HTTP 读取/接收、严格协议字节边界、会话内双角色任务/查询/取消、期限与单次 ID/content | 显式监听且默认回环；进程仅一活动批次，清理失败不释放；sender sent 与目标发布分开，目标结果看 receiver；应用退出等待 stop |
@@ -38,7 +38,7 @@ related_files: []
 | `NewFilePublisherTest.java`、实际 SAF 发布验收记录 | 发布故障回归与原生日志/结果核对 | 独立命名夹具、控制文件前后保护、归档读流/冲突/取消/清理重试；设备授权只用于合成目标 |
 | 同 Java 目录 `TransferJson/Schema/Http/Engine.java`、`HttpTransfersPlugin.java`、`TransferRuntime/Service.java`、`SafRuntime.java` | 严格 HTTP/JSON、双向原生编排及应用级任务、持续通知和 Activity 重连 | 文件不跨 JS；用户发起后后台继续，完整校验后逐项发布；服务不导出、不自动重启旧任务；只读桥和传输共享当前 SAF 引用 |
 | 同 Java 目录 `SyncScanner.java`、`SafSyncSource.java`、`SyncScansPlugin.java`；`apps/mobile/src/platform/sync-scan-bridge.ts`、`sync-scans.ts` | 本次 SAF 递归扫描、原生哈希、取消和有限扫描桥 | 普通只读操作，不加保活或前后台处理；结果只存内存并校验 rootId/scanId，内容和 URI 不跨桥 |
-| 同 Java 目录 `BackupStore/Model/Files.java`、`AndroidBackupIo.java`、`SyncBackupsPlugin.java`；移动 `platform/backup-bridge.ts`、`backups.ts` | 私有持久备份、三轮保留、恢复材料引用和有限本机查询 | 只读已有 SAF 源、写私有 files/backups；真实身份/链接数由 Os.lstat 检查，数据不跨桥；供 SyncWriter 复用旧内容保护与恢复材料 |
+| 同 Java 目录 `BackupStore/Model/Files.java`、`AndroidBackupIo.java`、`SyncBackupsPlugin.java`；移动 `platform/backup-bridge.ts`、`backups.ts` | 私有持久备份、三轮保留、恢复材料引用和有限本机查询 | 读取已授权 SAF 源、写私有 files/backups；备份开启且有写入时保存目标目录全部文件；真实身份/链接数由 Os.lstat 检查，数据不跨桥；供 SyncWriter 复用 |
 | 同 Java 目录 `SyncPlanModel.java`、`SyncWriter.java`、`SafSyncBackend.java`、`SyncWriteRuntime.java`、`SyncWritesPlugin.java`、`TargetOperation.java`；移动 `platform/sync-write-bridge.ts`、`sync-writes.ts` | 确认计划的独立复核、SAF 目录创建/受保护覆盖与本机恢复、应用级任务及有限桥 | 整批复核和备份后写入，常规 FD 身份/rw/最终长度与回读；旧传输共用互斥，恢复预览与结果分开查询，应用不判断前后台；HTTP 编排和移动页面已接入 |
 | 同 Java 目录 `SyncJobModel.java`、`SyncTransferEngine/Runtime.java`、`SyncTransfersPlugin.java`；移动 `platform/sync-transfer-bridge.ts`、`sync-transfers.ts`；Windows `main/sync-registry.ts`、`upload-body.ts` | Android → Windows 的普通扫描准备、同次确认、原生归档/上传、保护后写入及实际结果查询 | 登记/清单/内容各一次，回执丢失只查询；两端任务共用原生名额，只有实际传输保持通知，长源读取通过原生心跳确认通信；页面重建按 ID 查询，不恢复或重放 |
 | `apps/mobile/src/platform/http-transfer-bridge.ts`、`http-transfers.ts` | 有限 TS 任务桥与 native 当前上下文/角色/结果校验、顺序事件订阅 | 浏览器不支持；通知/目标授权为显式动作，任务/清单仅存本进程；订阅 remove 不取消传输 |
@@ -49,7 +49,7 @@ related_files: []
 | `apps/shared/src/index.ts`、`library/game-links.ts`、`transfer`、`result.ts` | 应用名、共享模型、游戏关联、传输预检和任务判断导出入口 | 纯 TypeScript；界面、Hook、存储、文件与网络操作留在各端 |
 | `apps/shared/src/sync/` | 本次扫描/计划/备份/结果 DTO、路径关系、纯比较及上下文重算守卫 | 独立 schema 1，不改批量 v1；不做 IO、哈希计算或历史查询；复制方向显式，本机恢复强制保护当前内容 |
 | `apps/desktop/src/main/sync-scanner.ts`、HTTP sync 路由、service bridge/IPC | Windows 本次递归扫描、原生哈希及会话内查询/取消 | 单扫描、32 份结果、条目/深度/JSON/期限预算；只读源，目录不汇总大小；取消/停止等待关流，结果不持久化 |
-| `apps/desktop/src/main/sync-writer.ts`、`sync-target-files.ts`、`target-operation.ts`；transfer-registry、directory-adapter、启动 | 确认计划的目标目录创建、同卷候选替换/回读和本机恢复；旧批次共用互斥 | 完整旧内容备份后写入、每项实际结果、首次失败停止；同路径对象替换产生新 ID；原生流/候选不跨桥，Android 上传 HTTP 与本机界面已接入 |
+| `apps/desktop/src/main/sync-writer.ts`、`sync-target-files.ts`、`target-operation.ts`；transfer-registry、directory-adapter、启动 | 确认计划的目标目录创建、同卷候选替换/回读和本机恢复；旧批次共用互斥 | 写入前备份目标目录全部文件、每项实际结果、首次失败停止；同路径对象替换产生新 ID；原生流/候选不跨桥，Android 上传 HTTP 与本机界面已接入 |
 | `apps/shared/src/protocol/contracts.ts`、`protocol.ts`、`validation.ts` | 协议版本 1 DTO、错误/路由/头名映射与纯数据守卫 | 目录不汇总大小；封闭 DTO 区分空值/失败/未知结果；平台路径、权限和真实内容校验仍由适配器负责 |
 | `apps/shared/src/protocol/batch-contracts.ts`、`batch-limits.ts`、`batch-validation.ts`、`batch-context.ts`、`data-validation.ts` | v1 批量 DTO、固定预算/期限、结构/关系守卫与任务上下文匹配；基础容器/文本/数值辅助供内部复用 | sender/receiver 分开；清单与目标一一对应；matchesBatchState 核对实际结果；无归档、HTTP、IO 或历史存储 |
 | `apps/shared/test/`、`apps/shared/README.md` | 运行时数据关系回归、完整线格式与调用示例 | pnpm test:shared 单独运行，类型约束由 tsc 检查；pnpm check 不运行这两项 |

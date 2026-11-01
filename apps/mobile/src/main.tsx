@@ -1,10 +1,12 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
+import { flushSync } from 'react-dom'
 import { App } from './App'
 import { createTranslator, resolveLocale } from '@savedata-sync/shared'
 import { installDesignTokens } from '@savedata-sync/shared/ui'
 import { getAppPreferences, loadAppPreferences } from './app/app-preferences'
 import { loadAppStorage } from './platform/app-storage'
+import { finishStartup } from './platform/launch-animation'
 import { startSystemTheme } from './app/system-theme'
 import { startPressFeedback } from './app/press-feedback'
 import './styles/mobile.css'
@@ -30,11 +32,15 @@ const root = container
 // 偏好决定首屏主题与语言，游戏配置供首屏读取；两者读取完成（或失败回落）后再挂载。
 Promise.all([loadAppPreferences(), loadAppStorage()])
   .then(() => {
-    createRoot(root).render(
-      <StrictMode>
-        <App />
-      </StrictMode>,
-    )
+    // 先提交 React 首屏，再让原生等待 WebView 绘制；开屏淡出时，页面内容已经就绪。
+    flushSync(() => {
+      createRoot(root).render(
+        <StrictMode>
+          <App />
+        </StrictMode>,
+      )
+    })
+    finishStartup()
   })
   .catch((error: unknown) => {
     // 读不到原生配置时不挂载应用，避免以空配置启动后覆盖已保存的数据。
@@ -45,4 +51,5 @@ Promise.all([loadAppPreferences(), loadAppStorage()])
     notice.className = 'startup-error'
     notice.textContent = t('app.startFailed')
     root.replaceChildren(notice)
+    finishStartup()
   })

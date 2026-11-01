@@ -8,7 +8,7 @@
     <string name="transfer_stage_transferring">正在传输</string>
     <string name="transfer_stage_verifying">正在校验接收内容</string>
     <string name="transfer_stage_writing">正在保存并回读校验</string>
-    <string name="transfer_stage_backing_up">正在保护覆盖前的存档</string>
+    <string name="transfer_stage_backing_up">正在备份目标目录</string>
     <string name="transfer_stage_cleaning">正在清理本次资源</string>
     <string name="transfer_stage_sent">已发送，正在确认电脑接收结果</string>
     <string name="transfer_cleanup_pending">本次资源尚未完成清理</string>

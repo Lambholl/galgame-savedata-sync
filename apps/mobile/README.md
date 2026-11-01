@@ -35,7 +35,7 @@
 
 选择存档目录时申请并保存系统读写权限。配置好目录并连接设备后即可接收文件；权限有效时不用再次授权，接收前会重新检查权限，权限失效后到目录设置重新选择。
 
-手机可发起两个方向的复制，确认后新建或覆盖目标文件，保留目标独有内容。覆盖前备份默认开启，可在目标本机关闭；备份列表提供本机恢复预览与确认。任务页显示真实进度、取消和逐项结果，镜像删除留在后续里程碑。
+手机可发起两个方向的复制，电脑也能发起后由手机执行；确认后新建或覆盖目标文件，保留目标独有内容。写入前备份默认开启，可在目标本机关闭；备份列表提供本机恢复预览与确认。任务页显示真实进度、取消和逐项结果，镜像删除留在后续里程碑。
 
 地址单独保存在本地网页存储，目录引用及系统授权由原生层保存。传输由原生通知保持运行，页面重载通过 `current()` 取得同一传输任务。任务结果与当前比较计划分开展示；重启应用沿用已保存的目录、系统权限和有效备份，旧任务重新扫描确认。
 
@@ -76,7 +76,7 @@ TS 桥校验请求与响应，拒绝路径/URI、附加字段及跨根/跨层响
 
 开始传输、目标实际成功、失败和设备连接成功使用与桌面相同的 antd Message。状态轮询不重复提示，取回已有终态也不重复播报；已发送、待确认、取消和清理未完成分别提示。
 
-“备份与恢复”显示本机保存位置、覆盖前备份开关、有效轮次和未完成残留。关闭开关先确认；清除应用数据或卸载应用会丢失私有备份。选择轮次后先核对备份和当前内容，预览并确认恢复；恢复始终另存将被覆盖的当前内容，普通复制的备份开关不影响这项保护。
+“备份与恢复”显示本机保存位置、写入前备份开关、有效轮次和未完成残留。关闭开关会立即保存；清除应用数据或卸载应用会丢失私有备份。选择轮次后先核对备份和当前内容，预览并确认恢复；恢复写入前始终会备份当前目录的全部文件，普通复制的备份开关不影响这项保护。
 
 `src/platform/sync-adapter.ts` 的 `createMobileSyncAdapter(library, dependencies?)` 负责从持久配置与最新目录表固定项目绑定，在通知授权后再次复核；本机恢复也会在执行前核对保存的项目根。方法失败抛 `Error`；调用方提供确认和错误显示。Native 只接收公开 ID 和完整固定计划，文件流留在原生。
 
@@ -86,11 +86,11 @@ TS 桥校验请求与响应，拒绝路径/URI、附加字段及跨根/跨层响
 
 页面首次挂载前读取 `prefers-color-scheme`，通过 antd-mobile 的 `data-prefers-color-scheme` 属性切换完整主题，并监听运行时变化；热更新时释放旧监听。按用户要求，移动端暗色页面、启动及原生窗口背景统一为纯黑 `#000000`；文字和空状态说明使用组件库的明暗语义色，浏览器原生控件随主题切换。
 
-Android 使用日夜主题及 `values`/`values-night` 的窗口/启动背景，WebView 为透明底色；运行中以 MainActivity 的 `savedata:theme-change` 原生通知（仅含 `dark: boolean`）为准修正 WebView 缓存的媒体查询，并用 Capacitor 内置 `SystemBars` 显式同步系统栏图标颜色。媒体与原生事件监听均可清理。应用自行渲染暗色，关闭原生自动反色。当前没有手动开关或持久化主题偏好。
+Android 使用日夜主题及 `values`/`values-night` 的窗口/启动背景，WebView 为透明底色；运行中以 MainActivity 的 `savedata:theme-change` 原生通知（仅含 `dark: boolean`）为准修正 WebView 缓存的媒体查询，并用 Capacitor 内置 `SystemBars` 显式同步系统栏图标颜色。媒体与原生事件监听均可清理。应用自行渲染暗色，关闭原生自动反色。设置页可选择跟随系统、浅色或深色，偏好保存到原生存储，重启后继续使用。
 
 ## 应用图标
 
-Android 的 `drawable-nodpi/app_logo.png` 与仓库根目录 `assets/app-logo.png` 使用同一份用户 PNG。Manifest 的 icon、roundIcon 和系统启动画面直接引用该图片，保留原有透明背景，不额外留白或预裁圆形；具体显示形状由系统和启动器决定。既有启动画布使用同源图片。
+Android 的 `drawable-nodpi/app_logo.png` 与仓库根目录 `assets/app-logo.png` 使用同一份用户 PNG。Manifest 的 icon 和 roundIcon 直接引用该图片，保留原有透明背景，不额外留白或预裁圆形；具体显示形状由系统和启动器决定。系统启动画面改用 `drawable-nodpi/splash_open.webp`，随后由原生开屏动画接管，使用与动画帧一致的睁眼头像。
 
 应用页面保留文字标识，按用户要求不在安卓页面增加 logo。
 
@@ -135,7 +135,7 @@ try (ArchiveAdapter.Artifact prepared = adapter.prepare(transferId, deviceId, ro
 
 ## 原生新文件发布
 
-同包 `NewFilePublisher`/`SafPublicationBackend` 供可信原生 I/O 工作线程调用。系统 WRITE 权限与本次进程显式写授权分别检查；读取登记和 HTTP 接收能力不会顺带获得发布权限。调用方先通过真实系统选择器取得目标根的持久 READ/WRITE，再显式 `grant(rootId)`；当前只授权独立合成目标，真实存档保持只读。
+同包 `NewFilePublisher`/`SafPublicationBackend` 供可信原生 I/O 工作线程调用。系统 WRITE 权限与本次进程显式写授权分别检查；读取登记和 HTTP 接收能力不会顺带获得发布权限。调用方先通过真实系统选择器取得目标根的持久 READ/WRITE，再显式 `grant(rootId)`。这段单文件发布器只用于独立合成目标；应用内的复制与恢复使用受保护写入流程。
 
 ```java
 NewFilePublisher publisher = new NewFilePublisher(new SafPublicationBackend(context, store));
@@ -196,14 +196,14 @@ Android 行为依据见 [dataSync 前台服务](https://developer.android.com/de
 
 | 原生接口 | 输入、输出与资源责任 |
 | --- | --- |
-| `BackupStore.create(projectId, rootId, reason, shouldBackup, entries, control)` | 原生编排器传入确认计划中全部 replace-file 对应的目标 SyncEntry 文件项；按原相对路径复核本次引用，返回 `{ manifest, cleanupError }`；关闭备份或没有覆盖时 manifest 为 null，reason=restore 强制开启保护 |
+| `BackupStore.create(projectId, rootId, reason, shouldBackup, entries, control)` | 原生编排器传入确认计划中目标目录的全部 SyncEntry 文件项，包括未变化和仅存在于目标的文件；按原相对路径复核本次引用，返回 `{ manifest, cleanupError }`；关闭备份、没有写入或目标没有文件时 manifest 为 null，reason=restore 强制开启保护 |
 | `list` / `manifest` | 按项目/根返回轮次摘要和未完成 ID，或按 backupId 取得单轮清单；清单显示与实际文件复核分开，恢复前必须 acquire |
 | `settings` / `setPreference` / `capacity` | 独立 SyncBackupSettings，缺少项目设置时使用 true，坏文件保持原样；容量在完整新轮与旧轮共存时预检，未知值为 null，不足返回 insufficient-space |
 | `acquire(projectId, rootId, backupId, control)` | 重新核对全部原文后返回 Handle；manifest 为副本，snapshot 是本次恢复树，source(fileId) 提供原生只读流与身份观察；消费者先关闭流，再 release，引用期间不淘汰该轮 |
 | `rotate` / `cleanupIncomplete` | 明确重试轮换或清理归属已核实的未提交/已淘汰轮次；有效轮次和被恢复引用的材料不会按残留删除 |
 | `close` | 原生所有者关闭存储时取消当前操作、等待文件释放并关闭读取引用；已提交备份持久保留 |
 
-`BackupModel` 与共享备份 v1 清单一致。每个旧文件先校验源属性、流式大小/SHA-256，再同步落盘并独立读回；全部完成后原子提交清单。每个项目/根保留最近 3 次，新轮提交后才轮换，轮换失败单独报告。读取未知长度时按流实测并核对计划的大小与哈希，文件内容不经过 JS。取消、期限或实际失败在提交前结束时不产生有效轮次，清理错误附在主错误之外。预算、位置和恢复规则统一见 [M-002 文档](../../docs/plans/m002-sync-copy.md) 第 3 节。
+`BackupModel` 与共享备份 v1 清单一致。每个目标文件先校验源属性、流式大小/SHA-256，再同步落盘并独立读回；全部完成后原子提交清单。每个项目/根保留最近 3 次，新轮提交后才轮换，轮换失败单独报告。读取未知长度时按流实测并核对计划的大小与哈希，文件内容不经过 JS。取消、期限或实际失败在提交前结束时不产生有效轮次，清理错误附在主错误之外。预算、位置和恢复规则统一见 [M-002 文档](../../docs/plans/m002-sync-copy.md) 第 3 节。
 
 `BackupFiles` 只访问已核实的私有普通文件，Android 实际身份和链接数由 `Os.lstat` 读取；固定 fileId、所有权记录、根/轮次身份和前后属性共同约束访问与清理。未提交轮次重启后通过明确操作清理，既不恢复旧同步，也不按文件名前缀猜测用户文件归属。
 
@@ -213,7 +213,7 @@ Android 行为依据见 [dataSync 前台服务](https://developer.android.com/de
 
 `SyncPlanModel` 从两端完整快照重新推导全部动作、顺序、条目引用和预算；原生执行只接受完整可执行计划。`SyncWriter.apply(plan, material, control)` 供原生复制编排和本机恢复使用，目标必须为本机，方向为 windows-to-android 或 local-restore。material 提供与源快照匹配、可重复读取的原生 Source，调用期间保持其有效；writer 消费并关闭输入流。非法/过期/重复确认或 busy 抛异常，接纳后返回完整 `SyncApplyResult`，逐项成功、失败、取消、未知和未执行分开表示。
 
-写入前以任务自身控制器重扫目标，完整读取本批输入并核对指纹；备份开启时先提交所有将被覆盖的旧内容。Android 原地覆盖按文件增量预检目标空间，并合计已知同卷的备份峰值；备份落盘后再查目标实际余量，覆盖 SAF 与私有区逻辑设备 ID 不同但共用物理空间的情况。未知余量保持 null，实际读写失败仍返回具体结果。
+写入前以任务自身控制器重扫目标，完整读取本批输入并核对指纹；备份开启且有写入时，先保存目标目录全部文件，包括未变化和仅在目标端存在的文件。没有写入或目标没有文件时不创建备份。Android 原地覆盖按文件增量预检目标空间，并合计已知同卷的备份峰值；备份落盘后再查目标实际余量，覆盖 SAF 与私有区逻辑设备 ID 不同但共用物理空间的情况。未知余量保持 null，实际读写失败仍返回具体结果。
 
 `SafSyncBackend` 沿用已授权树和父目录引用。创建目录后核实文档 ID、类型、原始名称及父目录，创建竞争或不明回执不会报告成功；新文件复用已有非覆盖发布器。覆盖使用 `r` / `rw` 常规 FD，比较设备/inode、链接数、文档 ID、父目录、日期及旧内容；拒绝虚拟文档、额外硬链接和无法核实的文件。`rw` 打开保留旧内容，完整写入后才设置最终长度、fsync 并独立回读长度/SHA-256。
 
@@ -286,4 +286,4 @@ const running = unwrap(await androidSyncTransfers.execute(preparing.preparationI
 
 WP-006 的 API 33 实测通过 ADB 开发者控制台操作正式原生桥，文件数据走真实 LAN HTTP，调试通道不承载传输体。双向各 3 文件（空/UTF-8/131073 字节）及 2 轮后台 1 MiB 接收，共 8 份输出与原文逐字节一致；6 份原生/远端状态及 10 份进度快照通过共享守卫匹配。返回桌面后持续通知/dataSync 服务仍在，Activity 重建后 current 可取回同一任务，后台完成后通知和服务结束；显式取消没有目标残留，私有缓存只留下根所有权。两端原文件的内容、大小、mtime 和身份保持不变，测试目录权限与临时服务均已回收。通知截图及原始回执只保留在忽略的本地报告中。
 
-真实存档保持只读。损坏配置和失效权限夹具使用独立的应用私有配置，不改真实根授权。Android 10 及较新系统、SAF、正式 LAN HTTP、通知保持传输和独立界面已通过真机验收；空文件/中文名双向内容、子目录刷新后传输、准备前取消、同名冲突、页面重载与 64 MiB 后台上传已核对 SHA-256。满额 1 GiB 双向往返、进程内存及每次传输容量预检见[规模验收](../../docs/validation/m001-resources.md)。
+上述 SAF 读取、归档和新文件发布测试使用独立合成目标；应用内的复制与恢复已有受保护写入和本机恢复验收，真实存档覆盖仍待 WP-029 总体验收开放。损坏配置和失效权限夹具使用独立的应用私有配置，不改真实根授权。Android 10 及较新系统、SAF、正式 LAN HTTP、通知保持传输和独立界面已通过真机验收；空文件/中文名双向内容、子目录刷新后传输、准备前取消、同名冲突、页面重载与 64 MiB 后台上传已核对 SHA-256。满额 1 GiB 双向往返、进程内存及每次传输容量预检见[规模验收](../../docs/validation/m001-resources.md)。

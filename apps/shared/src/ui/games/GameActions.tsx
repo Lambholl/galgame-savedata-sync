@@ -70,7 +70,7 @@ export function GameActions({
     <div className="ss-game-actions">
       <p className="ss-game-caption">{caption}</p>
       <Button type="primary" block className="ss-game-primary" onClick={onTransfer}>
-        <SwapOutlined />
+        <SwapOutlined className="ss-game-transfer-icon" />
         <strong>{t('page.transfer')}</strong>
         <RightOutlined />
       </Button>

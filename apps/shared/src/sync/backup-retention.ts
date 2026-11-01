@@ -6,7 +6,7 @@ import type {
   SyncBackupSettings,
 } from './sync-contracts.ts'
 
-/** 每个游戏、每个目录最多保留的覆盖前备份份数的范围与默认值。 */
+/** 每个游戏、每个目录最多保留的写入前备份份数的范围与默认值。 */
 export const BACKUP_KEEP_COUNT_MIN = 1
 export const BACKUP_KEEP_COUNT_MAX = 10
 export const DEFAULT_BACKUP_KEEP_COUNT = 3

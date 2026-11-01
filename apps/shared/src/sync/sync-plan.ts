@@ -111,6 +111,24 @@ function jsonByteLength(value: unknown): number {
 }
 
 /**
+ * 从已校验计划选出写入前需要备份的全部目标文件，包括未变化和仅存在于目标的文件。
+ * 关闭备份、没有写入或目标没有文件时返回空集合。此函数只读取计划，不执行 IO。
+ */
+export function selectSyncBackupFiles(
+  plan: Pick<SyncPlan, 'shouldBackup' | 'entries' | 'target'>,
+): readonly SyncEntry[] {
+  if (
+    !plan.shouldBackup ||
+    !plan.entries.some((entry) =>
+      ['create-directory', 'create-file', 'replace-file'].includes(entry.action),
+    )
+  ) {
+    return []
+  }
+  return plan.target.entries.filter((entry) => entry.kind === 'file')
+}
+
+/**
  * 根据当前快照和显式方向生成确定计划；不读取历史、不执行 IO，也不修改输入。
  * 非法 DTO 抛 Error；业务冲突返回 canExecute=false。未知/溢出总量为 null。
  * 输出复制快照，调用方之后修改输入不会更改本次计划；有效会话/权限由平台复核。
@@ -164,16 +182,6 @@ export function createSyncPlan(input: SyncPlanInput): SyncPlan {
         }
       }
     }
-    if (action === 'replace-file' && input.shouldBackup) {
-      if (to?.sizeBytes === null || to?.sizeBytes === undefined) {
-        hasUnknownBackup = true
-      } else {
-        backupBytes += BigInt(to.sizeBytes)
-        if (to.sizeBytes > BATCH_LIMITS.maxFileBytes) {
-          issues.push({ code: 'resource-limit', side: 'target', path })
-        }
-      }
-    }
     entries.push({
       path,
       action,
@@ -181,8 +189,20 @@ export function createSyncPlan(input: SyncPlanInput): SyncPlan {
       targetEntryId: to?.entryId ?? null,
     })
   }
+  const backupFiles = selectSyncBackupFiles({ shouldBackup: input.shouldBackup, entries, target })
+  for (const file of backupFiles) {
+    if (file.sizeBytes === null) {
+      hasUnknownBackup = true
+    } else {
+      backupBytes += BigInt(file.sizeBytes)
+      if (file.sizeBytes > BATCH_LIMITS.maxFileBytes) {
+        issues.push({ code: 'resource-limit', side: 'target', path: file.path })
+      }
+    }
+  }
   if (
     transferFileCount > BATCH_LIMITS.maxFiles ||
+    backupFiles.length > BATCH_LIMITS.maxFiles ||
     transferBytes > BigInt(BATCH_LIMITS.maxTotalFileBytes) ||
     backupBytes > BigInt(BATCH_LIMITS.maxTotalFileBytes)
   ) {

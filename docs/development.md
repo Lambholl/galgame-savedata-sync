@@ -138,8 +138,8 @@ keytool -genkeypair -v -keystore savedata-sync-release.jks -alias savedata-sync 
 草稿说明由 GitHub 根据提交自动生成。发布前在 Release 页面补充本版已知问题、安装限制和下载说明；发布说明不保存在仓库。
 
 ```sh
-git tag -a v0.1.0 -m "存档同步 0.1.0"
-git push origin v0.1.0
+git tag -a v0.2.0 -m "存档同步 0.2.0"
+git push origin v0.2.0
 ```
 
 创建草稿需要仓库 Actions 工作流权限允许 `contents: write`。Android APK 用固定密钥签名（见 [Android 签名](#android-签名)），Windows 免安装版未签名。

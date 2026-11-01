@@ -16,6 +16,7 @@ import {
   isSyncPlan,
   isSyncSnapshot,
   resolveBackupPolicy,
+  selectSyncBackupFiles,
   syncPathKey,
   withBackupDefaults,
   withBackupPreference,
@@ -101,7 +102,7 @@ function targetFile(
   if (entry.kind !== 'file' || entry.sizeBytes === null || entry.sha256 === null) {
     throw new ArchiveError(
       'invalid-request',
-      'A file to be overwritten lacks a complete content fingerprint.',
+      'A file to be backed up lacks a complete content fingerprint.',
     )
   }
   return { ...entry, sizeBytes: entry.sizeBytes, sha256: entry.sha256 }
@@ -486,7 +487,7 @@ export class WindowsBackupStore {
     if (available !== null && available < BigInt(requiredBytes)) {
       throw new ArchiveError(
         'insufficient-space',
-        'Space is insufficient for a backup before overwriting.',
+        'Space is insufficient for a backup before writing.',
       )
     }
     return {
@@ -517,7 +518,7 @@ export class WindowsBackupStore {
       if (matches.length !== 1) {
         throw new ArchiveError(
           'source-changed',
-          'The directory or name of a file to be overwritten changed.',
+          'The directory or name of a file to be backed up changed.',
         )
       }
       const current = required(matches[0])
@@ -525,15 +526,12 @@ export class WindowsBackupStore {
         if (current.kind !== 'directory') {
           throw new ArchiveError(
             'source-changed',
-            'The parent directory of a file to be overwritten changed.',
+            'The parent directory of a file to be backed up changed.',
           )
         }
         parentId = current.entryId
       } else if (current.entryId !== entry.entryId || current.kind !== 'file') {
-        throw new ArchiveError(
-          'source-changed',
-          'The identity of a file to be overwritten changed.',
-        )
+        throw new ArchiveError('source-changed', 'The identity of a file to be backed up changed.')
       }
     }
     const opened = await this.source.openFile({
@@ -548,7 +546,7 @@ export class WindowsBackupStore {
       if (metadata.sizeBytes !== entry.sizeBytes || metadata.modifiedAt !== entry.modifiedAt) {
         throw new ArchiveError(
           'source-changed',
-          'The attributes of a file to be overwritten changed.',
+          'The attributes of a file to be backed up changed.',
         )
       }
       return opened.value
@@ -558,7 +556,7 @@ export class WindowsBackupStore {
       throw error
     }
   }
-  /** 只保存有效计划中将被替换的旧内容；返回 null 表示无备份轮次，绝不写同步目标。 */
+  /** 写入前保存目标目录的全部文件；没有备份轮次时返回 null，且不会写入同步目标。 */
   create(plan: SyncPlan, options: WindowsBackupOptions = {}): Promise<WindowsBackupCommit> {
     if (!isSyncPlan(plan) || !plan.canExecute || plan.target.deviceId !== this.source.deviceId) {
       throw new ArchiveError(
@@ -580,23 +578,22 @@ export class WindowsBackupStore {
         if (!fixed.shouldBackup) {
           return { manifest: null, cleanupError: null }
         }
-        const replacements = fixed.entries.filter((entry) => entry.action === 'replace-file')
-        if (!replacements.length) {
+        const targets = selectSyncBackupFiles(fixed).map((entry) =>
+          targetFile(fixed, entry.entryId),
+        )
+        if (!targets.length) {
           return { manifest: null, cleanupError: null }
         }
         if (rounds.some((item) => !item.manifest)) {
           throw new ArchiveError('cleanup-failed', 'Clean up incomplete backup versions first.')
         }
-        const files: SyncBackupFile[] = replacements.map((entry, index) => {
-          const target = targetFile(fixed, entry.targetEntryId)
-          return {
-            fileId: `f${String(index + 1).padStart(6, '0')}`,
-            path: target.path,
-            sizeBytes: target.sizeBytes,
-            sha256: target.sha256,
-            modifiedAt: target.modifiedAt,
-          }
-        })
+        const files: SyncBackupFile[] = targets.map((target, index) => ({
+          fileId: `f${String(index + 1).padStart(6, '0')}`,
+          path: target.path,
+          sizeBytes: target.sizeBytes,
+          sha256: target.sha256,
+          modifiedAt: target.modifiedAt,
+        }))
         const backupId = randomUUID(),
           manifest: SyncBackupManifest = {
             schemaVersion: 1,
@@ -636,7 +633,7 @@ export class WindowsBackupStore {
         await writeBackupJson(join(path, 'round.json'), marker, this.io)
         hasMarker = true
         for (const [index, file] of files.entries()) {
-          const target = targetFile(fixed, required(replacements[index]).targetEntryId)
+          const target = required(targets[index])
           await this.inspectRound(round)
           checkArchiveAbort(signal)
           const source = await this.sourceFile(fixed, target, signal),
@@ -658,7 +655,7 @@ export class WindowsBackupStore {
             if (value.sizeBytes !== file.sizeBytes || value.sha256 !== file.sha256) {
               throw new ArchiveError(
                 'source-changed',
-                'The content of a file to be overwritten changed.',
+                'The content of a file to be backed up changed.',
               )
             }
             await source.verifyUnchanged()

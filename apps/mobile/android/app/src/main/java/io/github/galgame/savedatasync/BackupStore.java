@@ -207,7 +207,7 @@ final class BackupStore implements AutoCloseable {
         alive(); Long available = files.space(root, required);
         return object("requiredBytes", required, "availableBytes", available == null ? null : Math.min(9007199254740991L, available));
     }
-    /** 保存已确认的全部旧文件；false 或无替换返回 null，不写 SAF 目标。恢复保护必须开启。 */
+    /** 保存编排器选定的全部目标文件；关闭备份或集合为空时返回 null，并保持 SAF 目标不变。恢复时必须开启保护备份。 */
     synchronized Map<String, Object> create(String projectId, String rootId, String reason, boolean shouldBackup,
                                            List<Object> entries, ArchiveControl control) throws Exception {
         ids(projectId, rootId); one(reason, "copy", "restore"); require(!reason.equals("restore") || shouldBackup);

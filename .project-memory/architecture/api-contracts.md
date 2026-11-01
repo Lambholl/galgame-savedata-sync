@@ -3,7 +3,7 @@ doc_type: api-contracts
 status: active
 priority: medium
 owner: architecture
-updated: 2026-11-01
+updated: 2026-11-02
 tags: [API, 接口约定]
 related_files: []
 ---
@@ -24,7 +24,7 @@ related_files: []
 
 版本 1 的本地/批量共享模型、双端目录读取、双端私有归档、Windows HTTP sender/receiver 和非覆盖发布已经可用。Android SAF 原生读写、HTTP、任务编排与持续通知保持传输已在目标真机上验证，见 TC-032、TC-034、TC-035。平台说明见 `apps/desktop/README.md`、`apps/mobile/README.md`，共享字段与线格式见 `apps/shared/README.md`；范围与依赖见[工作包](../development/work-packages.md)。
 
-M-001 的文件操作范围是专用测试目录内的新文件往返。游戏与设备配置、三页导航、并列目录视图和双端独立界面已经接入；覆盖、镜像删除、备份、mDNS 和 Windows 发起任务留后续里程碑。Windows 为服务端，Android 原生层为 HTTP 客户端。
+M-001 的文件操作范围是专用测试目录内的新文件往返。游戏与设备配置、三页导航、并列目录视图、双端独立界面、受保护覆盖、写入前全量备份、本机恢复和两端发起已经接入；镜像删除与 mDNS 自动发现留后续里程碑。Windows 为 HTTP 服务端，Android 原生层为拨号方和控制客户端。
 
 用户已在[Q-008](../requirements/open-questions.md)确定双向统一采用 tar.gz。完整设计位于 `docs/plans/m001-tar-gzip-protocol.md`；v1 批量共享数据与双端私有归档编解码可用。Windows 提供 v1 读取、sender 和上传 receiver 端点；双端新文件发布和批次编排可用，新增受保护复制接口见第 3 节。
 
@@ -146,4 +146,4 @@ Android 桥提供 `connections`、`selectDevice`、`disconnectDevice`、`exchang
 
 主动握手后的首个 catalog 请求携带 `x-sync-connect: 1`，之后的交换不携带。桌面断开只修改进程内会话并以 4001 关闭控制连接，不写入 `blocked=true`；断开后的普通交换收到 `session-mismatch`，手机再次主动连接时清除标记。连接失败返回 HTTP 状态、协议码及原生 errno 或异常类型，不附加原因改写或重试建议。
 
-界面由 `apps/desktop/src/renderer/src` 和 `apps/mobile/src` 各自维护，平台接入位于各端 `platform/library-adapter.ts`。`apps/shared` 提供协议、配置、任务数据、传输预检与游戏关联规则，不依赖组件库或平台 API。桌面已接入新复制计划/结果、备份设置/列表和本机恢复；手机确认页面已在 WP-028 接入；电脑发起复制按 CR-012 提前实现，镜像删除留 M-004。旧文件传输仍保持仅新建语义。
+界面由 `apps/desktop/src/renderer/src` 和 `apps/mobile/src` 各自维护，平台接入位于各端 `platform/library-adapter.ts`。`apps/shared` 提供协议、配置、任务数据、传输预检与游戏关联规则，不依赖组件库或平台 API。双端已接入复制计划/结果、备份设置/列表和本机恢复；电脑发起复制按 CR-012 提前实现，镜像删除留 M-004。旧 v1 批量文件传输仍保持仅新建语义。

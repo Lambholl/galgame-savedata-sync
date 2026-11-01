@@ -12,7 +12,7 @@
 
 按当时的 UI 设计原型（已从仓库删除）和用户最后一轮批注修改正式应用。用户已授权代码与配置修改，并允许使用 antd、antd-mobile 及 antd 图标。原型保持现状。
 
-设备、游戏、设置为三个主入口。一个游戏在本机保存一个目录，关联多个对端设备及对应游戏；每端只设置本机目录。传输页明确选择对端，并排查看目录、选择方向、预览与开始当前支持的新文件传输。覆盖、镜像删除、备份恢复的文件操作按 M-004 接入；界面标明其可用状态。
+设备、游戏、设置为三个主入口。一个游戏在本机保存一个目录，关联多个对端设备及对应游戏；每端只设置本机目录。传输页明确选择对端，并排查看目录、选择方向、预览并开始覆盖复制；写入前全量备份和本机恢复已接入。镜像删除按 M-004 交付。
 
 最后批注：文件条目直接显示全部元数据，删除重复属性弹窗；操作统一用按钮；电脑地址与手机地址统一显示完整 HTTP URL；服务地址用只读 Input 配复制按钮；目录选择用 Space.Compact、只读 Input 与文件夹图标按钮；桌面接收手机连接，不提供无效的添加设备入口。
 
@@ -30,6 +30,6 @@
 
 用户后续要求自行检查，已停止额外运行和界面核查，并中止当时的 Android 综合测试流程。随后按用户要求完成最新 `pnpm build` 与 `pnpm android:build`，并用 `adb install -r` 更新安装调试 APK，安装返回 `Success`。产物位于 `apps/desktop/out/` 和 `apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk`；最终交互验收由用户完成。
 
-Windows 分发包使用 `pnpm desktop:package` 构建，输出到 `apps/desktop/release/`：`SavedataSync-0.1.0-Setup-x64.exe` 为安装版，`SavedataSync-0.1.0-Portable-x64.exe` 为免安装版；文件名版本来自桌面包版本。打包使用隔离暂存目录中的编译资源，当前未配置代码签名。
+Windows 分发包使用 `pnpm desktop:package` 构建，输出到 `apps/desktop/release/`：`SavedataSync-0.2.0-Setup-x64.exe` 为安装版，`SavedataSync-0.2.0-Portable-x64.exe` 为免安装版；文件名版本来自桌面包版本。打包使用隔离暂存目录中的编译资源，当前未配置代码签名。
 
 本轮桌面资源编译、NSIS 安装版与 portable 免安装版打包均已成功，新增 electron-builder 依赖的 npm 审计通过。安装和运行由用户验收。

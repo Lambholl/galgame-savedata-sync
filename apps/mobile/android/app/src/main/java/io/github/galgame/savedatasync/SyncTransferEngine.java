@@ -152,7 +152,7 @@ final class SyncTransferEngine implements AutoCloseable {
                 throw new ArchiveFailure("unsupported-operation", "The peer does not provide this sync capability yet. Update both apps.");
             }
             Map<String, Object> limits = object("maxEntries", 10000, "maxDepth", 64, "maxPathLength", 4096, "maxNameLength", 255,
-                "maxRetainedScans", 32, "backupRetention", 3, "snapshotLifetimeMs", 600000, "scanTimeoutMs", 1800000);
+                "maxRetainedScans", 32, "snapshotLifetimeMs", 600000, "scanTimeoutMs", 1800000);
             if (!SyncPlanModel.same(limits, capabilities.get("limits"))) throw new ArchiveFailure("protocol-mismatch", "Sync budgets differ between devices. Update both apps.");
             String targetRoot = string(binding.get("remoteRootId")), sourceRoot = string(binding.get("localRootId"));
             Map<String, Object> remote = SyncJobModel.scan(connection.http.json("POST", "/v1/sync/scans", connection.session, object("schemaVersion", 1, "rootId", targetRoot), 202, preparation.control), connection.deviceId, targetRoot, null);

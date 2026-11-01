@@ -10,6 +10,7 @@ import {
   createSyncPlan,
   isSyncPlan,
   matchesSyncPlan,
+  selectSyncBackupFiles,
   syncPathKey,
 } from '@savedata-sync/shared'
 import type {
@@ -389,7 +390,7 @@ export class WindowsSyncWriter {
     const root = await this.source.locateNativeDirectory(plan.target.rootId)
     const newBytes = plan.totalFileBytes ?? 0
     const backupBytes =
-      plan.shouldBackup && plan.entries.some((entry) => entry.action === 'replace-file')
+      selectSyncBackupFiles(plan).length > 0
         ? (plan.backupFileBytes ?? 0) + 8192 + Buffer.byteLength(JSON.stringify(plan))
         : 0
     const backupDevice = (await inspectLocalPath(this.backups.path)).dev
@@ -580,11 +581,7 @@ export class WindowsSyncWriter {
       const backup = await this.backups.create(job.plan, { signal: job.signal })
       backupId = backup.manifest?.backupId ?? null
       cleanup = backup.cleanupError
-      if (
-        job.plan.shouldBackup &&
-        operations.some((entry) => entry.action === 'replace-file') &&
-        !backup.manifest
-      ) {
+      if (selectSyncBackupFiles(job.plan).length > 0 && !backup.manifest) {
         throw new ArchiveError('io-failure', 'A complete protective backup has not been committed.')
       }
       for (const [position, operation] of operations.entries()) {

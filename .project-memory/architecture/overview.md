@@ -3,7 +3,7 @@ doc_type: architecture-overview
 status: active
 priority: high
 owner: architecture
-updated: 2026-11-01
+updated: 2026-11-02
 tags: [架构总览]
 related_files: []
 ---
@@ -22,7 +22,7 @@ related_files: []
 
 ## 1. 摘要
 
-- 架构风格：Windows 内置 HTTP 服务，Android 主动连接，两端在同一局域网内工作。Windows HTTP sender/receiver、批次非覆盖发布、Android SAF 单文件发布、HTTP/通知保持传输和双端独立界面已经可用；M-002 的双向覆盖复制、覆盖前备份和本机恢复已接入，电脑也可发起复制（CR-012），设备间控制改用 WebSocket（CR-013），均已真机验证；M-002 总体验收和镜像还没做。
+- 架构风格：Windows 内置 HTTP 服务，Android 主动连接，两端在同一局域网内工作。Windows HTTP sender/receiver、Android SAF 单文件发布、HTTP/通知保持传输和双端独立界面已经可用；M-002 的双向覆盖复制、写入前全量备份和本机恢复已接入，电脑也可发起复制（CR-012），设备间控制改用 WebSocket（CR-013），均已真机验证；M-002 总体验收和镜像还没做。
 - 当前实现：双端已有独立游戏、设备和传输界面；v1 本地/批量共享模型、双端目录读取、私有归档、Windows HTTP 和 Android 原生传输已经建立。Windows 支持目录配置恢复、当前层枚举、源快照与受限归档编解码，有限桥不传文件字节。Java SAF 读取、跨端传输、应用级任务持有与 dataSync 持续通知已通过目标真机验收。接口边界见[接口约定](api-contracts.md)。
 - 核心模块：设备与地址管理、目录映射、当前目录预览、本次差异计划、文件流传输、平台文件适配。
 - 关键约束：明文 HTTP、手选方向、无历史同步基线、目录不递归汇总大小。
@@ -36,7 +36,7 @@ related_files: []
 | 原则 | 说明 |
 | --- | --- |
 | 配置与地址分离 | 本地生成并保存稳定安装设备 ID；地址只作为可更新的连接信息。同步项目引用设备 ID 和本地目录配置，不以 IP 或 MAC 作为主键 |
-| 明文 HTTP | 不部署 TLS、证书或数据加密。首版通过发现列表或手动 IP 选择设备并保存关联，扫码后续补充 |
+| 明文 HTTP | 不部署 TLS、证书或数据加密。当前通过手动 IP 连接并保存设备关联；发现列表与 mDNS/DNS-SD 留到 M-003 |
 | 当前状态决定操作 | 每次任务重新读取两端目录，仅结合本次方向与复制模式生成计划；不读取或维护历史共同基线、历史哈希或历史增量索引 |
 | 预览不执行写入 | 浏览与刷新读取当前条目；显示采集时间及未知状态；真正执行前重新校验可能变化的条目 |
 | 文件夹不汇总大小 | 目录大小列建议显示“—”，不递归汇总后代文件字节数；修改日期读取目录自身元数据。同步枚举后代文件不属于目录大小计算 |
@@ -51,30 +51,29 @@ related_files: []
 
 | 模块 | 职责 | 边界 | 状态 |
 | --- | --- | --- | --- |
-| 设备与连接 | 初次关联、保存设备 ID、获取当前地址、重连 | mDNS/DNS-SD 自动发现列表，另提供手动 IP 入口 | planned |
+| 设备与连接 | 初次关联、保存设备 ID、获取当前地址、重连 | 手动 IP、保存设备和重连已实现；mDNS/DNS-SD 自动发现列表留 M-003 | active |
 | 同步项目 | 保存项目名称、可选展示信息和两端目录映射 | 首版推荐本地 JSON 存储配置，不保存历史文件索引 | active（固定项目映射与两端目录关联已实现） |
 | 预览与比较 | 读取当前条目、属性对照、生成本次差异计划 | 共用 TypeScript 模型，原生适配只负责实际读取；排序与差异筛选为界面建议 | active（共享当前比较与复制计划已实现） |
-| Windows 应用 | 桌面界面、目录选择、HTTP 服务、托盘 | Electron 主进程运行 Node.js 能力，界面通过受限桥调用 | active（目录读取、私有归档、HTTP sender、单文件发布和 HTTP 接收可用；独立游戏/设备/传输界面可用，项目管理留后续） |
+| Windows 应用 | 桌面界面、目录选择、HTTP 服务、复制与恢复 | Electron 主进程运行 Node.js 能力，界面通过受限桥调用 | active（目录读取、归档、HTTP、受保护写入、本机恢复，以及游戏/设备/设置/传输界面均可用） |
 | Android 应用 | 移动界面、目录授权、NSD、HTTP 客户端 | Capacitor + Java 插件；活动传输由持续通知保持，持久目录授权与远端 IP 独立 | active（读取、归档、发布、HTTP 与通知保持可用；独立游戏/设备/传输界面可用，发现留后续） |
-| 任务控制与传输 | 显式方向、传输进度、文件流和结果 | Android 已连接时可接收 Windows 发起的任务；覆盖复制与镜像两种模式 | active（双向覆盖复制可从手机发起；电脑发起（CR-012）经 CR-013 控制通道传递，需手机开着应用并已连接，已真机验证；镜像留 M-004） |
-| 备份与恢复 | 覆盖前保存目标内容，提供手工恢复 | 默认开启、保留最近 3 次；独立于同步目录和任务比较数据 | active（双端备份、最近 3 次与本机恢复已实现；删除前备份留 M-004） |
+| 任务控制与传输 | 显式方向、传输进度、文件流和结果 | 手机或电脑均可发起；当前提供覆盖复制，镜像模式留 M-004 | active（双向覆盖复制可从手机或电脑发起；电脑发起经 CR-013 控制通道传递，需手机开着应用并已连接，已真机验证） |
+| 备份与恢复 | 写入前保存目标目录的全部文件，提供手工恢复 | 默认开启、保留最近 3 次；独立于同步目录和任务比较数据 | active（双端全量备份、最近 3 次与本机恢复已实现；删除前备份留 M-004） |
 
 ### 3.1 设备识别与地址更新
 
-1. Windows 发布 HTTP 服务并通过 mDNS/DNS-SD 发布服务；Android 发现并读取实际地址和端口。
-2. 建立连接后读取设备 ID，关联保存的设备记录；发现名称或地址不作为设备身份。
-3. DHCP 或网络变化时使旧连接失效，重新发现同一 ID 的当前地址。手动更新 IP 时也保留原项目与目录映射。
-4. 新地址返回不同设备 ID 时提示重新关联，不静默把另一台设备套进现有目录配置。应用卸载或数据清除导致 ID 变化的迁移策略在实现时定义。
-5. 首版入口为发现列表与手动 IP。自动发现不可用时，可以手动填写或更新地址；扫码后续补充，配对码不纳入首版，定位设备不依赖公网服务。
+1. Windows 启动 HTTP 服务并显示当前地址、端口和稳定设备 ID；Android 通过手动 IP 连接并读取设备描述。
+2. 建立连接后核对设备 ID，关联保存的设备记录；地址或显示名称不作为设备身份。
+3. DHCP 或网络变化时旧连接失效，用户手动更新 IP 后继续使用原项目与目录映射；新地址返回不同设备 ID 时要求重新关联。
+4. mDNS/DNS-SD 自动发现、发现列表和 DHCP 自动重连留到 M-003；扫码与配对码不在当前范围，定位设备不依赖公网服务。
 
 ### 3.2 本次同步流程
 
-1. Android 已连接后，用户可在任一端选择项目、电脑 → Android 或 Android → 电脑，以及复制模式；默认覆盖复制，可主动选择镜像同步。
+1. 两端已连接后，用户可在手机或电脑选择项目、电脑 → Android 或 Android → 电脑。当前执行覆盖复制；镜像同步留到 M-004。
 2. 重新扫描当前源目录和目标目录，生成本次临时清单；可按相对路径、类型、当前大小与内容哈希比较。
 3. 源端独有条目复制；同路径内容不同按所选方向覆盖；相同内容跳过；目标端独有条目由复制模式决定。
-4. 没有历史“首次同步”分支，没有依据日期选择权威端或双向修改冲突合并的逻辑。覆盖复制保留目标独有条目；镜像模式将其列入删除计划以使目标匹配源。
-5. 展示本次新增、覆盖和可选删除计划；源目录不可读、目录授权失效与真实空目录必须区分。
-6. 启用备份时，在目标端独立备份区保存将被覆盖或删除的内容；按项目保留最近 3 次，用于手工恢复。将本次计划中的待传文件合批为 tar.gz，经 HTTP 流传输；接收端暂存、验证归档及每个文件的内容后发布到目标，显示逐文件结果。发布按文件完成，部分成功会保留并列出未完成项。
+4. 没有历史“首次同步”分支，没有依据日期选择权威端或双向修改冲突合并的逻辑。覆盖复制保留目标独有条目；镜像模式计划在目标匹配源时删除独有条目，留到 M-004。
+5. 展示本次新增、覆盖和保留计划；源目录不可读、目录授权失效与真实空目录必须区分。
+6. 备份开启且计划有写入时，在目标端独立备份区保存目标目录的全部文件，包括未变化和目标独有文件；按项目保留最近 3 次，用于手工恢复。将本次计划中的待传文件合批为 tar.gz，经 HTTP 流传输；接收端暂存、验证归档及每个文件的内容后发布到目标，显示逐文件结果。发布按文件完成，部分成功会保留并列出未完成项。
 7. 断线重连后重新扫描；已成功写入的文件成为当前文件状态，不依赖旧任务清单、历史数量或旧方向继续判定。临时比较数据在任务结束后丢弃。
 8. 备份默认开启且可关闭，仅用于手工恢复，不参与下次比较。传输期间发现文件变化时重扫或报告失败。Android 不判断前后台，仅传输保活；中断后重新读取当前目录，界面重建时查询同一原生传输任务。
 
@@ -97,11 +96,11 @@ related_files: []
 | --- | --- | --- |
 | 明文 HTTP、手选方向、无历史基线、目录不递归计算大小 | 用户已明确要求；具体约束见[产品需求](../requirements/product.md) | accepted |
 | React 双端技术栈 | React + TypeScript + Vite，Windows Electron + antd，Android Capacitor + antd-mobile | accepted |
-| 稳定 ID、地址和目录映射解耦 | mDNS/DNS-SD 自动重发现，手动 IP 作为备用入口，目录配置保留 | accepted |
-| 首次连接入口 | 发现列表 + 手动 IP，扫码后续补充 | accepted |
-| 复制与备份 | 覆盖复制和镜像均提供，默认覆盖复制；备份可关闭、默认开启、保留最近 3 次 | accepted |
+| 稳定 ID、地址和目录映射解耦 | 手动改址已保留目录配置；mDNS/DNS-SD 自动重发现留 M-003 | accepted |
+| 首次连接入口 | 当前为手动 IP；发现列表和扫码均留后续 | accepted |
+| 复制与备份 | 产品目标包含覆盖复制和镜像，默认覆盖复制；当前覆盖复制与写入前全量备份已实现，镜像留 M-004。备份可关闭、默认开启、保留最近 3 次 | accepted |
 | Android 生命周期 | 不判断前后台，仅传输保活；普通操作不处理切后台后的成败。任务由用户显式发起，自动调度不在范围内；连接可用时两端均可发起任务 | accepted |
 | 文件传输格式 | 双向唯一 tar.gz；v1 批量共享模型、双端私有归档、Windows HTTP sender/receiver、非覆盖发布、SAF 发布和 Android 原生网络已经可用；完整校验通过后才逐项发布；见仓库根目录的 `docs/plans/m001-tar-gzip-protocol.md` | accepted |
 | 开发阶段协议修订 | 用户确认 HTTP 无业务消费者，已原位修订 v1 的类型/守卫/测试及线格式，不另建 v2；本地目录 DTO 保持复用 | accepted |
 
-上述结论记录于已关闭的[问题登记表](../requirements/open-questions.md)；独立 ADR 还没建立。参考：[Ant Design](https://ant.design/docs/react/introduce/)、[Ant Design Mobile](https://github.com/ant-design/ant-design-mobile)、[Capacitor Android](https://capacitorjs.com/docs/android)、[Android NSD](https://developer.android.com/develop/connectivity/wifi/use-nsd)、[SAF 文件属性](https://developer.android.com/reference/android/provider/DocumentsContract.Document)。
+上述结论记录于已关闭的[问题登记表](../requirements/open-questions.md)和[ADR-0002](../decisions/ADR-0002-ui-library-and-shared-rendering.md)。参考：[Ant Design](https://ant.design/docs/react/introduce/)、[Ant Design Mobile](https://github.com/ant-design/ant-design-mobile)、[Capacitor Android](https://capacitorjs.com/docs/android)、[Android NSD](https://developer.android.com/develop/connectivity/wifi/use-nsd)、[SAF 文件属性](https://developer.android.com/reference/android/provider/DocumentsContract.Document)。

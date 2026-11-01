@@ -6,7 +6,7 @@
     <string name="transfer_stage_transferring">正在傳輸</string>
     <string name="transfer_stage_verifying">正在驗證接收內容</string>
     <string name="transfer_stage_writing">正在儲存並讀回驗證</string>
-    <string name="transfer_stage_backing_up">正在保護覆寫前的存檔</string>
+    <string name="transfer_stage_backing_up">正在備份目標目錄</string>
     <string name="transfer_stage_cleaning">正在清理本次資源</string>
     <string name="transfer_stage_sent">已傳送，正在確認電腦接收結果</string>
     <string name="transfer_cleanup_pending">本次資源尚未完成清理</string>

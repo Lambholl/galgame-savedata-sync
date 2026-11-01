@@ -2,13 +2,23 @@ package io.github.galgame.savedatasync;
 
 import android.os.Bundle;
 import android.content.res.Configuration;
+import android.webkit.WebView;
+import android.view.ViewGroup;
+import androidx.core.splashscreen.SplashScreen;
 import com.getcapacitor.BridgeActivity;
 
 public class MainActivity extends BridgeActivity {
+    private LaunchAnimation launchAnimation;
+
     @Override
     public void onCreate(Bundle savedInstanceState) {
         // 先按已保存主题设置夜间模式，窗口背景和启动画面随之取 values / values-night。
         AppPreferencesPlugin.applyStoredTheme(this);
+        SplashScreen splash = SplashScreen.installSplashScreen(this);
+        launchAnimation = new LaunchAnimation();
+        if (savedInstanceState != null) launchAnimation.stop();
+        splash.setOnExitAnimationListener(launchAnimation::start);
+        registerPlugin(LaunchAnimationPlugin.class);
         registerPlugin(AppPreferencesPlugin.class);
         registerPlugin(AppStoragePlugin.class);
         registerPlugin(SafDirectoriesPlugin.class);
@@ -18,6 +28,27 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(SyncWritesPlugin.class);
         registerPlugin(SyncTransfersPlugin.class);
         super.onCreate(savedInstanceState);
+        launchAnimation.prepare((ViewGroup) getWindow().getDecorView());
+    }
+
+    /** 由首屏就绪插件调用；WebView 确认可绘制后再让开屏淡出，避免露出尚未渲染的背景。 */
+    void onStartupContentReady() {
+        if (getBridge() == null) return;
+        getBridge().getWebView().postVisualStateCallback(0, new WebView.VisualStateCallback() {
+            @Override public void onComplete(long requestId) {
+                if (launchAnimation != null) launchAnimation.contentReady();
+            }
+        });
+    }
+
+    @Override public void onStop() {
+        if (launchAnimation != null) launchAnimation.stop();
+        super.onStop();
+    }
+
+    @Override public void onDestroy() {
+        if (launchAnimation != null) launchAnimation.stop();
+        super.onDestroy();
     }
 
     /**

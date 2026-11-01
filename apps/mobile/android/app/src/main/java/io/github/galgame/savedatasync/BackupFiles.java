@@ -120,9 +120,9 @@ final class BackupFiles {
     static ArchiveFailure failure(String code) {
         String message;
         switch (code) {
-            case "source-changed": message = "The backup or a file to be overwritten changed. Scan again."; break;
+            case "source-changed": message = "The backup or a file in the target folder changed. Scan again."; break;
             case "checksum-mismatch": message = "Backup content verification failed."; break;
-            case "insufficient-space": message = "Space is insufficient for a backup before overwriting."; break;
+            case "insufficient-space": message = "Space is insufficient for a backup before writing."; break;
             case "cleanup-failed": message = "Backup rotation or leftover cleanup failed."; break;
             case "busy": message = "The backup is in use or the store is closed."; break;
             case "not-found": message = "The backup or file reference does not exist."; break;

@@ -4,7 +4,7 @@ import type { SyncBackupPolicy } from '@savedata-sync/shared'
 import { useT } from '@savedata-sync/shared/ui'
 import { NUMBER_FIELD } from '../settings/setting-form.ts'
 
-/** 覆盖前备份的开关与保留份数，放在设置表单里；关闭时不显示份数。 */
+/** 写入前备份的开关与保留份数，放在设置表单里；关闭时不显示份数。 */
 export function BackupPolicyFields({
   policy,
   isDisabled,

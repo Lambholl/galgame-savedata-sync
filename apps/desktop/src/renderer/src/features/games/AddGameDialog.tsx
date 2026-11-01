@@ -42,7 +42,8 @@ export function AddGameDialog({
     >
       <Button
         block
-        className="library-add-game-directory"
+        variant="filled"
+        className="ss-game-action library-add-game-directory"
         disabled={isBusy}
         onClick={onChooseDirectory}
       >

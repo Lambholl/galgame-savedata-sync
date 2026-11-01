@@ -72,7 +72,7 @@ final class SyncPlanModel {
         final String id, project, reason;
         final boolean backup;
         final List<Map<String, Object>> writes = new ArrayList<>();
-        final List<Object> replacements = new ArrayList<>();
+        final List<Object> backupFiles = new ArrayList<>();
         Plan(Object raw) throws Exception {
             value = shape(copy(raw), "planId", "projectId", "operation", "direction", "shouldBackup", "source", "target", "schemaVersion", "entries", "issues", "transferFileCount", "totalFileBytes", "backupFileBytes", "canExecute");
             bytes(value); number(value.get("schemaVersion"), 1, 1); id = id(value.get("planId")); project = id(value.get("projectId"));
@@ -102,9 +102,16 @@ final class SyncPlanModel {
                     "sourceEntryId", from == null ? null : from.get("entryId"), "targetEntryId", to == null ? null : to.get("entryId"));
                 operations.add(operation);
                 if (action.equals("create-file") || action.equals("replace-file")) { count++; total += number(from.get("sizeBytes"), 0, BackupModel.MAX_FILE); require(total <= BackupModel.MAX_TOTAL); }
-                if (action.equals("replace-file") && backup) { old += number(to.get("sizeBytes"), 0, BackupModel.MAX_FILE); replacements.add(to); require(old <= BackupModel.MAX_TOTAL); }
             }
-            require(count <= 1024 && replacements.size() <= 1024);
+            boolean hasWrites = count > 0;
+            for (Object operation : operations) if (map(operation).get("action").equals("create-directory")) hasWrites = true;
+            if (backup && hasWrites) {
+                for (Map<String, Object> entry : target.paths.values()) if (entry.get("kind").equals("file")) {
+                    old += number(entry.get("sizeBytes"), 0, BackupModel.MAX_FILE);
+                    backupFiles.add(entry); require(old <= BackupModel.MAX_TOTAL);
+                }
+            }
+            require(count <= 1024 && backupFiles.size() <= 1024);
             operations.sort((left, right) -> {
                 try {
                     Map<String, Object> a = map(left), b = map(right); boolean ad = a.get("action").equals("create-directory"), bd = b.get("action").equals("create-directory");

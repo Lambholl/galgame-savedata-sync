@@ -11,6 +11,7 @@
   font-size: 12px;
   line-height: 1.5;
 }
+/* 预留与 antd 悬停态相同的边框，并从内边距扣除，避免文字和图标被挤动。 */
 .ss-game-actions .ss-game-primary {
   display: flex;
   align-items: center;
@@ -18,8 +19,8 @@
   width: 100%;
   height: auto;
   min-height: 56px;
-  padding: 14px 16px;
-  border: 0;
+  padding: 13px 15px;
+  border: 1px solid transparent;
   border-radius: var(--ss-r-md);
   background: var(--ss-accent);
   color: var(--ss-accent-fg);
@@ -27,7 +28,7 @@
   text-align: left;
   cursor: pointer;
 }
-.ss-game-primary > .anticon:first-child {
+.ss-game-primary > .ss-game-transfer-icon {
   font-size: 22px;
 }
 .ss-game-primary > .anticon:last-child {
@@ -44,7 +45,7 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
 }
-.ss-game-actions .ss-game-action {
+.ss-game-action.ant-btn {
   display: flex;
   align-items: center;
   justify-content: flex-start;
@@ -52,8 +53,8 @@
   min-width: 0;
   height: auto;
   min-height: 52px;
-  padding: 12px;
-  border: 0;
+  padding: 11px;
+  border: 1px solid transparent;
   border-radius: var(--ss-r-md);
   background: var(--ss-raised);
   color: var(--ss-fg);

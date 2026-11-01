@@ -6,7 +6,7 @@
     <string name="transfer_stage_transferring">Transferring</string>
     <string name="transfer_stage_verifying">Verifying received content</string>
     <string name="transfer_stage_writing">Saving and reading back to verify</string>
-    <string name="transfer_stage_backing_up">Protecting save data before overwriting</string>
+    <string name="transfer_stage_backing_up">Backing up the target folder</string>
     <string name="transfer_stage_cleaning">Cleaning up transfer resources</string>
     <string name="transfer_stage_sent">Sent; confirming the PC received the files</string>
     <string name="transfer_cleanup_pending">Transfer resources still need cleanup</string>
