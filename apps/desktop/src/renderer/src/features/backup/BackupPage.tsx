@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Alert, Button, Empty, Modal, Switch, Table } from 'antd'
+import { Alert, Button, Empty, Form, Modal, Switch, Table } from 'antd'
 import { HistoryOutlined } from '@ant-design/icons'
 import {
-  DEFAULT_BACKUP_KEEP_COUNT,
   formatBytes,
   formatDateTime,
   formatShortDateTime,
+  resolveBackupPolicy,
   unwrap,
 } from '@savedata-sync/shared'
 import type {
@@ -13,11 +13,16 @@ import type {
   LibraryGame,
   SyncBackupFile,
   SyncBackupManifest,
+  SyncBackupPolicy,
 } from '@savedata-sync/shared'
 import type { DesktopBackupInfo, DesktopBackupList } from '../../../../bridge/backup-bridge.ts'
 import { BackupPolicyBlock, BackupTimeline, useLocale, useT } from '@savedata-sync/shared/ui'
 import { desktopBackups, desktopSync } from '../../platform/sync-adapter.ts'
+import { SETTING_FORM } from '../settings/setting-form.ts'
+import { BackupPolicyFields } from './BackupPolicyFields.tsx'
 import { RestoreDetails } from './RestoreDetails.tsx'
+
+type PolicyMode = 'follow' | 'custom'
 
 /**
  * 备份与恢复：从游戏进入，顶部一条备份策略；左侧备份时间线，右侧显示所选备份里的文件，
@@ -30,6 +35,7 @@ export function BackupPage({
   isActive,
   hasRunningWork,
   onOpenSettings,
+  onOpenAppSettings,
   onChanged,
 }: {
   readonly roots: readonly DirectoryReference[]
@@ -39,11 +45,12 @@ export function BackupPage({
   readonly isActive: boolean
   readonly hasRunningWork: boolean
   readonly onOpenSettings: () => void
+  /** 打开应用设置，修改全局备份设置。 */
+  readonly onOpenAppSettings: () => void
   readonly onChanged: () => void
 }): React.JSX.Element {
   const t = useT()
   const locale = useLocale()
-  const [modal, modalHolder] = Modal.useModal()
   const [info, setInfo] = useState<DesktopBackupInfo | null>(null)
   const [listing, setListing] = useState<DesktopBackupList | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -56,7 +63,10 @@ export function BackupPage({
   const [manifestError, setManifestError] = useState('')
   const [restoreId, setRestoreId] = useState<string | null>(null)
   const [isPolicyOpen, setIsPolicyOpen] = useState(false)
+  const [mode, setMode] = useState<PolicyMode>('follow')
+  const [draft, setDraft] = useState<SyncBackupPolicy | null>(null)
   const isCurrent = useRef(true)
+  const saving = useRef(Promise.resolve())
   const manifestVersion = useRef(0)
   const invalidateManifest = useCallback(() => {
     manifestVersion.current++
@@ -166,29 +176,41 @@ export function BackupPage({
       </Empty>
     )
   }
-  const shouldBackup =
-    info?.settings.projects.find((item) => item.projectId === game.id && item.rootId === rootId)
-      ?.shouldBackup ?? true
-  function setPreference(isEnabled: boolean): void {
+  const settings = info?.settings ?? null
+  const policy = settings && resolveBackupPolicy(settings, game.id, rootId)
+  function openPolicy(): void {
+    if (!policy) {
+      return
+    }
+    setMode(policy.isCustom ? 'custom' : 'follow')
+    setDraft({ shouldBackup: policy.shouldBackup, keepCount: policy.keepCount })
+    setIsPolicyOpen(true)
+  }
+  /** 弹窗里的改动立即保存，依次写入；跟随全局时删掉单独设置。 */
+  function savePolicy(nextMode: PolicyMode, nextDraft: SyncBackupPolicy): void {
     if (!rootId || !game) {
       return
     }
-    const save = (): void =>
-      run(async () => {
-        unwrap(await desktopBackups().setPreference(game.id, rootId, isEnabled))
+    const projectId = game.id
+    const root = rootId
+    setMode(nextMode)
+    setDraft(nextDraft)
+    setError('')
+    const next = nextMode === 'custom' ? nextDraft : null
+    saving.current = saving.current
+      .then(async () => {
+        unwrap(await desktopBackups().setPreference(projectId, root, next))
       })
-    if (isEnabled) {
-      save()
-      return
-    }
-    void modal.confirm({
-      title: t('backup.offConfirmTitle'),
-      content: t('backup.offConfirmText'),
-      okText: t('backup.offConfirm'),
-      okButtonProps: { danger: true },
-      cancelText: t('common.cancel'),
-      onOk: save,
-    })
+      .catch((cause: unknown) => {
+        if (isCurrent.current) {
+          setError(cause instanceof Error ? cause.message : t('common.unknown'))
+        }
+      })
+      .finally(() => {
+        if (isCurrent.current) {
+          refresh()
+        }
+      })
   }
   function prepare(): void {
     if (!selected) {
@@ -282,13 +304,15 @@ export function BackupPage({
   }
   return (
     <div className="library-stack">
-      {modalHolder}
-      <BackupPolicyBlock
-        isEnabled={shouldBackup}
-        keepCount={DEFAULT_BACKUP_KEEP_COUNT}
-        location={info?.displayPath ?? null}
-        onEdit={isCurrentRoot && info && !isActive ? () => setIsPolicyOpen(true) : null}
-      />
+      {policy && (
+        <BackupPolicyBlock
+          isEnabled={policy.shouldBackup}
+          keepCount={policy.keepCount}
+          isCustom={policy.isCustom}
+          location={info?.displayPath ?? null}
+          onEdit={isCurrentRoot && !isActive ? openPolicy : null}
+        />
+      )}
       {!isCurrentRoot && (
         <Alert
           showIcon
@@ -341,9 +365,11 @@ export function BackupPage({
           <section>
             <h3 className="group-title">
               {t('backup.list')}
-              <small>
-                {backups.length} / {DEFAULT_BACKUP_KEEP_COUNT}
-              </small>
+              {policy && (
+                <small>
+                  {backups.length} / {policy.keepCount}
+                </small>
+              )}
             </h3>
             <BackupTimeline
               backups={backups.map((item) => ({
@@ -369,23 +395,49 @@ export function BackupPage({
       )}
       <Modal
         open={isPolicyOpen}
-        title={t('backup.switch')}
+        title={t('backup.policyTitle', { name: game.name })}
         footer={null}
         onCancel={() => setIsPolicyOpen(false)}
       >
-        <div className="backup-switch">
-          <div>
-            <b>{t('backup.switch')}</b>
-            <p>{t('backup.switchHint')}</p>
-          </div>
-          <Switch
-            aria-label={t('backup.switch')}
-            checked={shouldBackup}
-            loading={isBusy}
-            disabled={isActive}
-            onChange={setPreference}
-          />
-        </div>
+        {settings && draft && (
+          <Form {...SETTING_FORM}>
+            <Form.Item label={t('backup.followGlobal')}>
+              <Switch
+                aria-label={t('backup.followGlobal')}
+                checked={mode === 'follow'}
+                disabled={isActive}
+                onChange={(isFollowing) =>
+                  // 取消跟随时从当前显示的全局值开始单独设置。
+                  isFollowing
+                    ? savePolicy('follow', draft)
+                    : savePolicy('custom', settings.defaults)
+                }
+              />
+            </Form.Item>
+            {mode === 'follow' ? (
+              <>
+                <BackupPolicyFields policy={settings.defaults} isDisabled onChange={() => {}} />
+                <Form.Item label=" ">
+                  <Button
+                    type="link"
+                    onClick={() => {
+                      setIsPolicyOpen(false)
+                      onOpenAppSettings()
+                    }}
+                  >
+                    {t('backup.editGlobal')}
+                  </Button>
+                </Form.Item>
+              </>
+            ) : (
+              <BackupPolicyFields
+                policy={draft}
+                isDisabled={isActive}
+                onChange={(next) => savePolicy('custom', next)}
+              />
+            )}
+          </Form>
+        )}
       </Modal>
     </div>
   )

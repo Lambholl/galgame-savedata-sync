@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Button, Drawer, Modal } from 'antd'
 import { CaretRightOutlined, LoadingOutlined, RightOutlined } from '@ant-design/icons'
-import { compareSnapshots, unwrap } from '@savedata-sync/shared'
+import { compareSnapshots, resolveBackupPolicy, unwrap } from '@savedata-sync/shared'
 import type {
   CatalogGame,
   DirectoryReference,
   LibraryGame,
   LibraryPeer,
+  SyncBackupSettings,
   SyncPlan,
   TransferDirection,
 } from '@savedata-sync/shared'
@@ -14,7 +15,7 @@ import { SyncPlanSummary, TransferComparison, useT } from '@savedata-sync/shared
 import type { ComparisonStatus, PlanEndpoint } from '@savedata-sync/shared/ui'
 import type { DesktopRemoteRequest } from '../../../../bridge/sync-bridge.ts'
 import type { Confirmation } from '../../app/navigation.ts'
-import { desktopSync } from '../../platform/sync-adapter.ts'
+import { desktopBackups, desktopSync } from '../../platform/sync-adapter.ts'
 
 const POLL_INTERVAL_MS = 400
 const SCANNING: readonly DesktopRemoteRequest['status'][] = ['waiting', 'preparing']
@@ -38,7 +39,6 @@ export function TransferPage({
   upload,
   isDisabled,
   isActive,
-  backupKeepCount,
   onPeerChange,
   onUploadChange,
   onConfirm,
@@ -53,8 +53,6 @@ export function TransferPage({
   readonly upload: boolean
   readonly isDisabled: boolean
   readonly isActive: boolean
-  /** 目标端覆盖前备份保留的份数，显示在计划摘要里。 */
-  readonly backupKeepCount: number
   readonly onPeerChange: (id: string) => void
   readonly onUploadChange: (isUpload: boolean) => void
   readonly onConfirm: (confirmation: Confirmation) => void
@@ -78,6 +76,28 @@ export function TransferPage({
   const localRootId = localRoot?.rootId ?? null
   const remoteRootId = remoteGame?.root?.rootId ?? null
   const isConnected = Boolean(selectedPeer?.isConnected)
+  const [backupSettings, setBackupSettings] = useState<SyncBackupSettings | null>(null)
+  useEffect(() => {
+    let isCurrent = true
+    desktopBackups()
+      .read()
+      .then((result) => {
+        if (isCurrent) {
+          setBackupSettings(unwrap(result).settings)
+        }
+      })
+      .catch(() => {
+        // 读不到时计划只说明会备份，不显示份数。
+      })
+    return () => {
+      isCurrent = false
+    }
+  }, [])
+  /** 本机被写入时显示本机保留的份数；手机的份数在这里读不到。 */
+  const backupKeepCount =
+    upload && backupSettings && localRootId !== null
+      ? resolveBackupPolicy(backupSettings, game.id, localRootId).keepCount
+      : null
   const canScan = isConnected && localRootId !== null && remoteRootId !== null && !isActive
   useEffect(() => {
     let isCurrent = true

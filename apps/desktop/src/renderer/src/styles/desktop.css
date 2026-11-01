@@ -298,18 +298,12 @@ body {
 .library-add-game-name {
   margin-top: 16px;
 }
-.library-setting-row {
+/* 设置页：内容列不随窗口拉宽。 */
+.settings-column {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  flex-direction: column;
   gap: 16px;
-  flex-wrap: wrap;
-}
-.library-setting-row + .library-setting-row {
-  margin-top: 16px;
-}
-.library-setting-select {
-  min-width: 180px;
+  max-width: 560px;
 }
 .library-header {
   display: flex;
@@ -490,14 +484,4 @@ body {
 }
 .backup-file {
   overflow-wrap: anywhere;
-}
-.backup-switch {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-.backup-switch p {
-  margin: 4px 0 0;
-  color: var(--ss-muted);
-  font-size: 13px;
 }

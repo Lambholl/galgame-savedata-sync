@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Alert, Button, Skeleton } from 'antd'
-import { DEFAULT_BACKUP_KEEP_COUNT, unwrap } from '@savedata-sync/shared'
+import { unwrap } from '@savedata-sync/shared'
 import { RestoreSummary, SyncPlanSummary, useT } from '@savedata-sync/shared/ui'
 import { desktopSync } from '../../platform/sync-adapter.ts'
 import { useRestoreDetails } from '../transfer/use-sync-details.ts'
@@ -93,7 +93,7 @@ export function RestoreDetails({
           plan={plan}
           source={{ name: sourceName, kind: 'backup' }}
           target={{ name: t('transfer.local'), kind: 'pc' }}
-          backupKeepCount={DEFAULT_BACKUP_KEEP_COUNT}
+          backupKeepCount={null}
         />
       ) : (
         <RestoreSummary

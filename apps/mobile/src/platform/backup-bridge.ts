@@ -3,9 +3,16 @@ import {
   isOpaqueId,
   isOperationResult,
   isSyncBackupManifest,
+  isSyncBackupPolicy,
   isSyncBackupSettings,
+  resolveBackupPolicy,
 } from '@savedata-sync/shared'
-import type { OperationResult, SyncBackupManifest, SyncBackupSettings } from '@savedata-sync/shared'
+import type {
+  OperationResult,
+  SyncBackupManifest,
+  SyncBackupPolicy,
+  SyncBackupSettings,
+} from '@savedata-sync/shared'
 
 /** 本机列表只传轮次摘要，完整清单按单轮读取。 */
 export interface AndroidBackupSummary {
@@ -32,8 +39,9 @@ export interface BackupNativePlugin {
   setPreference(options: {
     projectId: string
     rootId: string
-    shouldBackup: boolean
+    policy: SyncBackupPolicy | null
   }): Promise<unknown>
+  setDefaults(options: { policy: SyncBackupPolicy }): Promise<unknown>
   rotate(options: { projectId: string; rootId: string }): Promise<unknown>
   cleanupIncomplete(options: {
     projectId: string
@@ -50,11 +58,14 @@ export interface AndroidBackupApi {
     rootId: string,
     backupId: string,
   ): Promise<OperationResult<SyncBackupManifest>>
+  /** 单独设置某个游戏目录；policy 为 null 时改回跟随全局。 */
   setPreference(
     projectId: string,
     rootId: string,
-    shouldBackup: boolean,
+    policy: SyncBackupPolicy | null,
   ): Promise<OperationResult<SyncBackupSettings>>
+  /** 修改全局设置。 */
+  setDefaults(policy: SyncBackupPolicy): Promise<OperationResult<SyncBackupSettings>>
   rotate(projectId: string, rootId: string): Promise<OperationResult<null>>
   cleanupIncomplete(
     projectId: string,
@@ -170,19 +181,34 @@ export function createBackupBridge(
               value.rootId === rootId &&
               value.backupId === backupId,
           ),
-    setPreference: (projectId: string, rootId: string, shouldBackup: boolean) =>
-      !isOpaqueId(projectId) || !isOpaqueId(rootId) || typeof shouldBackup !== 'boolean'
+    setPreference: (projectId: string, rootId: string, policy: SyncBackupPolicy | null) =>
+      !isOpaqueId(projectId) ||
+      !isOpaqueId(rootId) ||
+      !(policy === null || isSyncBackupPolicy(policy))
         ? Promise.resolve(failure('invalid-request'))
         : invoke(
-            () => plugin.setPreference({ projectId, rootId, shouldBackup }),
+            () => plugin.setPreference({ projectId, rootId, policy }),
+            (value): value is SyncBackupSettings => {
+              if (!isSyncBackupSettings(value)) {
+                return false
+              }
+              const saved = resolveBackupPolicy(value, projectId, rootId)
+              return policy
+                ? saved.isCustom &&
+                    saved.shouldBackup === policy.shouldBackup &&
+                    saved.keepCount === policy.keepCount
+                : !saved.isCustom
+            },
+          ),
+    setDefaults: (policy: SyncBackupPolicy) =>
+      !isSyncBackupPolicy(policy)
+        ? Promise.resolve(failure('invalid-request'))
+        : invoke(
+            () => plugin.setDefaults({ policy }),
             (value): value is SyncBackupSettings =>
               isSyncBackupSettings(value) &&
-              value.projects.some(
-                (item) =>
-                  item.projectId === projectId &&
-                  item.rootId === rootId &&
-                  item.shouldBackup === shouldBackup,
-              ),
+              value.defaults.shouldBackup === policy.shouldBackup &&
+              value.defaults.keepCount === policy.keepCount,
           ),
     rotate: (projectId: string, rootId: string) =>
       !isOpaqueId(projectId) || !isOpaqueId(rootId)

@@ -10,6 +10,8 @@ export interface BackupPolicyBlockProps {
   readonly isEnabled: boolean
   /** 开启时保留的份数。 */
   readonly keepCount: number
+  /** 这个游戏单独设置；false 表示跟随全局设置。 */
+  readonly isCustom: boolean
   /** 备份保存位置；不在这里显示时为 null（手机放在页脚）。 */
   readonly location: string | null
   /** 点开修改策略；不能修改时为 null。 */
@@ -20,11 +22,14 @@ export interface BackupPolicyBlockProps {
 export function BackupPolicyBlock({
   isEnabled,
   keepCount,
+  isCustom,
   location,
   onEdit,
 }: BackupPolicyBlockProps): ReactElement {
   const t = useT()
-  const caption = isEnabled ? t('backup.keep', { count: keepCount }) : t('backup.offHint')
+  const caption = `${isCustom ? t('backup.customSetting') : t('backup.followGlobal')} · ${
+    isEnabled ? t('backup.keep', { count: keepCount }) : t('backup.offHint')
+  }`
   return (
     <button
       type="button"

@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Button, Empty, Tooltip, message } from 'antd'
 import { ControlOutlined, HistoryOutlined } from '@ant-design/icons'
 import {
-  DEFAULT_BACKUP_KEEP_COUNT,
   emptyLibrary,
   withGameLink,
   withoutGameLink,
@@ -495,7 +494,6 @@ export function DesktopApp({
         upload={upload}
         isDisabled={isDisabled}
         isActive={isActive}
-        backupKeepCount={DEFAULT_BACKUP_KEEP_COUNT}
         onPeerChange={changePeer}
         onUploadChange={changeUpload}
         onConfirm={(value) =>
@@ -541,6 +539,7 @@ export function DesktopApp({
         isActive={isActive}
         hasRunningWork={hasRunningWork}
         onOpenSettings={() => setPage('edit')}
+        onOpenAppSettings={() => setPage('settings')}
         onChanged={tasksChanged}
       />
     )

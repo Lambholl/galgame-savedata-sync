@@ -6,6 +6,8 @@ import {
 } from '@savedata-sync/shared'
 import type {
   DirectoryReference,
+  SyncBackupPolicy,
+  SyncBackupSettings,
   SyncPlan,
   SyncPreparationPreview,
   SyncPreparationState,
@@ -52,7 +54,12 @@ export interface MobileSyncAdapter {
   cancelCopy(id: string): Promise<void>
   cleanupCopy(): Promise<void>
   backups(projectId: string): Promise<MobileBackupDetails>
-  setBackup(projectId: string, shouldBackup: boolean): Promise<void>
+  /** 读取全局与各游戏的备份设置，不需要游戏目录。 */
+  backupSettings(): Promise<SyncBackupSettings>
+  /** 单独设置这个游戏当前目录的备份；null 改回跟随全局。 */
+  setBackup(projectId: string, policy: SyncBackupPolicy | null): Promise<void>
+  /** 修改全局备份设置。 */
+  setBackupDefaults(policy: SyncBackupPolicy): Promise<void>
   rotateBackups(projectId: string): Promise<void>
   cleanupBackup(projectId: string, backupId: string): Promise<void>
   prepareRestore(projectId: string, backupId: string): Promise<AndroidRestoreState>
@@ -187,9 +194,15 @@ export function createMobileSyncAdapter(
         listing: unwrap(await backups.list(projectId, root.rootId)),
       }
     },
-    async setBackup(projectId, shouldBackup) {
+    async backupSettings() {
+      return unwrap(await backups.read()).settings
+    },
+    async setBackup(projectId, policy) {
       const root = await local(projectId)
-      unwrap(await backups.setPreference(projectId, root.rootId, shouldBackup))
+      unwrap(await backups.setPreference(projectId, root.rootId, policy))
+    },
+    async setBackupDefaults(policy) {
+      unwrap(await backups.setDefaults(policy))
     },
     async rotateBackups(projectId) {
       const root = await local(projectId)

@@ -1,5 +1,6 @@
 import type { IpcMain, IpcMainInvokeEvent } from 'electron'
-import { BATCH_LIMITS, isOpaqueId } from '@savedata-sync/shared'
+import { BATCH_LIMITS, isOpaqueId, isSyncBackupPolicy } from '@savedata-sync/shared'
+import type { SyncBackupPolicy } from '@savedata-sync/shared'
 import { BACKUP_CHANNELS } from '../bridge/backup-bridge.ts'
 import type { WindowsBackupStore } from './backup-store.ts'
 import type { DesktopLibrary } from './library-store.ts'
@@ -26,13 +27,29 @@ export function registerBackupIpc(
             throw new HttpOperationError('invalid-request', '备份读取参数无效。')
           }
           value = { displayPath: store.path, settings: await store.settings() }
+        } else if (action === 'setDefaults') {
+          const input = args[0]
+          if (
+            args.length !== 1 ||
+            typeof input !== 'object' ||
+            input === null ||
+            Array.isArray(input) ||
+            Object.keys(input).length !== 1 ||
+            !isSyncBackupPolicy((input as Record<string, unknown>).policy)
+          ) {
+            throw new HttpOperationError('invalid-request', '备份设置无效。')
+          }
+          if (hasTargetOperation()) {
+            throw new HttpOperationError('busy', '请等当前文件操作结束后再修改备份设置。')
+          }
+          value = await store.setDefaults((input as { policy: SyncBackupPolicy }).policy)
         } else {
           const input = args[0]
           const fields = [
             'projectId',
             'rootId',
             ...(action === 'manifest' || action === 'cleanupIncomplete' ? ['backupId'] : []),
-            ...(action === 'setPreference' ? ['shouldBackup'] : []),
+            ...(action === 'setPreference' ? ['policy'] : []),
           ]
           if (
             args.length !== 1 ||
@@ -59,8 +76,10 @@ export function registerBackupIpc(
             throw new HttpOperationError('busy', '请等当前文件操作结束后再修改备份设置或清理备份。')
           }
           if (action === 'setPreference') {
+            if (!(data.policy === null || isSyncBackupPolicy(data.policy))) {
+              throw new HttpOperationError('invalid-request', '备份设置无效。')
+            }
             if (
-              typeof data.shouldBackup !== 'boolean' ||
               !library
                 .snapshot()
                 .config.games.some(
@@ -69,7 +88,7 @@ export function registerBackupIpc(
             ) {
               throw new HttpOperationError('invalid-request', '请先配置该游戏的本机目录。')
             }
-            value = await store.setPreference(data.projectId, data.rootId, data.shouldBackup)
+            value = await store.setPreference(data.projectId, data.rootId, data.policy)
           } else if (action === 'rotate') {
             await store.rotate(data.projectId, data.rootId)
             value = null

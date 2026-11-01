@@ -75,16 +75,43 @@ summary:focus-visible {
   outline: 3px solid var(--adm-color-primary);
   outline-offset: 3px;
 }
-button,
+/* 卡片列表与其他卡片同色；深色下页面是纯黑，卡片要比它亮一级才看得出边界。 */
+.adm-list-card {
+  --adm-color-background: var(--surface);
+}
+/*
+ * 可点的行按下时整行渐变出一层 10% 的文字色遮罩，松开后稍慢褪去（参考 Miuix 的按下反馈），
+ * 浅色下变暗、深色下变亮；选择行的菜单打开期间保持遮罩。is-pressed 由 app/press-feedback 加减，
+ * 这里不用 :active，轻点时它一闪而过；也不用 antd-mobile 自带的按下底色。
+ */
+a.adm-list-item:active:not(.adm-list-item-disabled) {
+  background-color: var(--adm-color-background);
+}
+a.adm-list-item::before {
+  position: absolute;
+  inset: 0;
+  background: var(--text);
+  content: '';
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.35s cubic-bezier(0.25, 0.6, 0.3, 1);
+}
+a.adm-list-item.is-pressed::before,
+a.adm-list-item.is-held::before {
+  opacity: 0.1;
+  transition-duration: 0.2s;
+}
+/* Stepper 的加减按钮保持 antd-mobile 自己的尺寸，不套用这里的按钮规则。 */
+button:not(.adm-stepper > *),
 summary,
-.adm-button,
+.adm-button:not(.adm-stepper > *),
 .adm-radio,
 .adm-checkbox,
 .adm-switch {
   min-width: var(--mobile-icon-target);
   min-height: var(--mobile-control-height);
 }
-.adm-button {
+.adm-button:not(.adm-stepper > *) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -106,7 +133,7 @@ summary,
 .adm-button > span {
   min-width: 0;
 }
-.adm-button-fill-none {
+.adm-button-fill-none:not(.adm-stepper > *) {
   padding: 6px;
 }
 .adm-input {
@@ -752,25 +779,6 @@ small {
   color: var(--danger);
   font-size: 14px;
   padding: 12px 4px;
-}
-.rule-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 6px 0;
-}
-.rule-row > div {
-  min-width: 0;
-  line-height: 1.5;
-}
-.rule-row small {
-  display: block;
-  color: var(--muted);
-  margin-top: 3px;
-}
-.rule-row .adm-switch {
-  flex-shrink: 0;
 }
 .task-state {
   display: inline-block;

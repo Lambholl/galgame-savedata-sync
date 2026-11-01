@@ -170,17 +170,25 @@ final class BackupStore implements AutoCloseable {
         if (round.manifest == null) throw BackupFiles.failure("not-found");
         return map(copy(round.manifest));
     }
-    /** 缺少项目设置时使用 true，坏设置不被默认值覆盖；格式独立于游戏配置。 */
+    /** 缺少文件时使用默认全局设置，坏设置不被默认值覆盖；格式独立于游戏配置。 */
     synchronized Map<String, Object> settings() throws Exception {
         alive(); Path path = root.resolve("settings.json");
-        return exists(path) ? BackupModel.settings(files.readJson(path)) : object("schemaVersion", 1, "projects", new ArrayList<>());
+        return exists(path) ? BackupModel.settings(files.readJson(path)) : BackupModel.emptySettings();
     }
-    synchronized Map<String, Object> setPreference(String projectId, String rootId, boolean shouldBackup) throws Exception {
+    /** 单独设置某个游戏目录；policy 为 null 时改回跟随全局。 */
+    synchronized Map<String, Object> setPreference(String projectId, String rootId, Map<String, Object> policy) throws Exception {
         ids(projectId, rootId); Map<String, Object> settings = settings();
         List<Object> values = new ArrayList<>(TransferJson.list(settings.get("projects")));
         values.removeIf(value -> mapUnchecked(value).get("projectId").equals(projectId) && mapUnchecked(value).get("rootId").equals(rootId));
-        values.add(object("projectId", projectId, "rootId", rootId, "shouldBackup", shouldBackup));
-        Map<String, Object> next = BackupModel.settings(object("schemaVersion", 1, "projects", values));
+        if (policy != null) values.add(object("projectId", projectId, "rootId", rootId, "shouldBackup", policy.get("shouldBackup"), "keepCount", policy.get("keepCount")));
+        return writeSettings(BackupModel.settings(object("schemaVersion", 2, "defaults", settings.get("defaults"), "projects", values)));
+    }
+    /** 修改全局设置；单独设置的游戏目录不受影响。 */
+    synchronized Map<String, Object> setDefaults(Map<String, Object> policy) throws Exception {
+        Map<String, Object> settings = settings();
+        return writeSettings(BackupModel.settings(object("schemaVersion", 2, "defaults", policy, "projects", settings.get("projects"))));
+    }
+    private Map<String, Object> writeSettings(Map<String, Object> next) throws Exception {
         Path temporary = root.resolve("settings-" + UUID.randomUUID() + ".tmp");
         try { files.writeJson(temporary, next); verifyRoot(); files.move(temporary, root.resolve("settings.json"), true); }
         catch (Exception cause) {
@@ -303,9 +311,10 @@ final class BackupStore implements AutoCloseable {
     }
     private void prune(String projectId, String rootId, Active work) throws Exception {
         List<Round> rounds = rounds(); rounds.removeIf(round -> round.manifest == null || !group(round, projectId, rootId)); sort(rounds);
-        if (rounds.size() <= 3) return;
-        for (Round round : rounds.subList(0, 3)) for (Object file : TransferJson.list(round.manifest.get("files"))) verifyFile(round, map(file), work);
-        for (Round round : rounds.subList(3, rounds.size())) if (!handles.containsValue(round.id())) {
+        int keep = (int) ((Number) BackupModel.resolve(settings(), projectId, rootId).get("keepCount")).longValue();
+        if (rounds.size() <= keep) return;
+        for (Round round : rounds.subList(0, keep)) for (Object file : TransferJson.list(round.manifest.get("files"))) verifyFile(round, map(file), work);
+        for (Round round : rounds.subList(keep, rounds.size())) if (!handles.containsValue(round.id())) {
             try { remove(round, true); }
             catch (Exception failure) { pendingCleanup = round; pendingHasMarker = true; throw failure; }
         }

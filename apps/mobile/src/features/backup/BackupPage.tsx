@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import { Button, Switch } from 'antd-mobile'
+import { Button, List } from 'antd-mobile'
 import { ExclamationCircleOutlined } from '@ant-design/icons'
-import { DEFAULT_BACKUP_KEEP_COUNT, formatShortDateTime } from '@savedata-sync/shared'
-import type { LibraryGame } from '@savedata-sync/shared'
+import { formatShortDateTime, resolveBackupPolicy } from '@savedata-sync/shared'
+import type { LibraryGame, SyncBackupPolicy } from '@savedata-sync/shared'
 import {
   BackupPolicyBlock,
   BackupTimeline,
@@ -12,13 +12,16 @@ import {
   useLocale,
   useT,
 } from '@savedata-sync/shared/ui'
-import type { Confirmation } from '../../app/navigation-types'
 import type {
   MobileBackupDetails,
   MobileRestoreDetails,
   MobileSyncAdapter,
 } from '../../platform/sync-adapter'
+import { BackupPolicyFields } from '../../components/BackupPolicyFields'
 import { Sheet } from '../../components/Sheet'
+import { SwitchItem } from '../../components/SwitchItem'
+
+type PolicyMode = 'follow' | 'custom'
 
 /**
  * 备份与恢复：顶部是备份策略，下面按时间列出备份；点“恢复”在弹层里先看恢复预览，
@@ -29,18 +32,19 @@ export function BackupPage({
   game,
   restore,
   isDisabled,
-  onConfirm,
   onChanged,
   onSettings,
+  onOpenAppSettings,
   onOverlayChange,
 }: {
   readonly sync: MobileSyncAdapter
   readonly game: LibraryGame
   readonly restore: MobileRestoreDetails | null
   readonly isDisabled: boolean
-  readonly onConfirm: (confirmation: Confirmation) => void
   readonly onChanged: () => void
   readonly onSettings: () => void
+  /** 打开应用设置，修改全局备份设置。 */
+  readonly onOpenAppSettings: () => void
   /** 打开弹层时交给应用一个关闭函数，供返回键使用；关闭后传 null。 */
   readonly onOverlayChange: (close: (() => void) | null) => void
 }): React.JSX.Element {
@@ -51,9 +55,12 @@ export function BackupPage({
   const [isBusy, setIsBusy] = useState(false)
   const [version, setVersion] = useState(0)
   const [isPolicyOpen, setIsPolicyOpen] = useState(false)
+  const [mode, setMode] = useState<PolicyMode>('follow')
+  const [draft, setDraft] = useState<SyncBackupPolicy | null>(null)
   const current = restore?.state.projectId === game.id ? restore : null
   const [isRestoreOpen, setIsRestoreOpen] = useState(current !== null)
   const operating = useRef(false)
+  const saving = useRef(Promise.resolve())
   const state = current?.state
   const plan = current?.plan
   useEffect(() => {
@@ -88,10 +95,8 @@ export function BackupPage({
     })
     return () => onOverlayChange(null)
   }, [isOverlayOpen, onOverlayChange])
-  const shouldBackup =
-    details?.info.settings.projects.find(
-      (item) => item.projectId === game.id && item.rootId === game.rootId,
-    )?.shouldBackup ?? true
+  const settings = details?.info.settings
+  const policy = details && resolveBackupPolicy(details.info.settings, game.id, details.root.rootId)
   const isLocked = isDisabled || isBusy
   function reload(): void {
     setVersion((value) => value + 1)
@@ -115,20 +120,27 @@ export function BackupPage({
         setIsBusy(false)
       })
   }
-  function setPreference(isEnabled: boolean): void {
-    if (isEnabled) {
-      run(() => sync.setBackup(game.id, true))
+  function openPolicy(): void {
+    if (!policy) {
       return
     }
-    onConfirm({
-      title: t('backup.offConfirmTitle'),
-      text: t('backup.offConfirmText'),
-      okType: 'danger',
-      work: async () => {
-        await sync.setBackup(game.id, false)
+    setMode(policy.isCustom ? 'custom' : 'follow')
+    setDraft({ shouldBackup: policy.shouldBackup, keepCount: policy.keepCount })
+    setIsPolicyOpen(true)
+  }
+  /** 弹层里的改动立即保存，依次写入；跟随全局时删掉单独设置。 */
+  function savePolicy(nextMode: PolicyMode, nextDraft: SyncBackupPolicy): void {
+    setMode(nextMode)
+    setDraft(nextDraft)
+    setError('')
+    const next = nextMode === 'custom' ? nextDraft : null
+    saving.current = saving.current
+      .then(() => sync.setBackup(game.id, next))
+      .then(reload)
+      .catch((cause: unknown) => {
+        setError(cause instanceof Error ? cause.message : t('common.unknown'))
         reload()
-      },
-    })
+      })
   }
   function prepare(backupId: string): void {
     setIsRestoreOpen(true)
@@ -170,18 +182,21 @@ export function BackupPage({
           </div>
         </div>
       )}
-      <BackupPolicyBlock
-        isEnabled={shouldBackup}
-        keepCount={DEFAULT_BACKUP_KEEP_COUNT}
-        location={null}
-        onEdit={details && !isLocked ? () => setIsPolicyOpen(true) : null}
-      />
-      {details && (
+      {policy && (
+        <BackupPolicyBlock
+          isEnabled={policy.shouldBackup}
+          keepCount={policy.keepCount}
+          isCustom={policy.isCustom}
+          location={null}
+          onEdit={isLocked ? null : openPolicy}
+        />
+      )}
+      {details && policy && (
         <section>
           <h3 className="group-title">
             {t('backup.list')}
             <small>
-              {backups.length} / {DEFAULT_BACKUP_KEEP_COUNT}
+              {backups.length} / {policy.keepCount}
             </small>
           </h3>
           <BackupTimeline
@@ -228,21 +243,41 @@ export function BackupPage({
       )}
       <Sheet
         isOpen={isPolicyOpen}
-        title={t('backup.switch')}
+        title={t('backup.policyTitle', { name: game.name })}
         onClose={() => setIsPolicyOpen(false)}
       >
-        <div className="rule-row">
-          <div>
-            {t('backup.switch')}
-            <small>{t('backup.switchHint')}</small>
-          </div>
-          <Switch
-            checked={shouldBackup}
-            disabled={isLocked}
-            aria-label={t('backup.switch')}
-            onChange={setPreference}
-          />
-        </div>
+        {settings && draft && (
+          <List>
+            <SwitchItem
+              title={t('backup.followGlobal')}
+              isChecked={mode === 'follow'}
+              isDisabled={isDisabled}
+              onChange={(isFollowing) =>
+                // 取消跟随时从当前显示的全局值开始单独设置。
+                isFollowing ? savePolicy('follow', draft) : savePolicy('custom', settings.defaults)
+              }
+            />
+            {mode === 'follow' ? (
+              <>
+                <BackupPolicyFields policy={settings.defaults} isDisabled onChange={() => {}} />
+                <List.Item
+                  onClick={() => {
+                    setIsPolicyOpen(false)
+                    onOpenAppSettings()
+                  }}
+                >
+                  {t('backup.editGlobal')}
+                </List.Item>
+              </>
+            ) : (
+              <BackupPolicyFields
+                policy={draft}
+                isDisabled={isDisabled}
+                onChange={(next) => savePolicy('custom', next)}
+              />
+            )}
+          </List>
+        )}
       </Sheet>
       <Sheet
         isOpen={isRestoreShown}
@@ -259,7 +294,7 @@ export function BackupPage({
                   plan={plan}
                   source={{ name: backupTime || t('backup.list'), kind: 'backup' }}
                   target={{ name: t('transfer.local'), kind: 'phone' }}
-                  backupKeepCount={DEFAULT_BACKUP_KEEP_COUNT}
+                  backupKeepCount={null}
                 />
                 {isOldFolder && <p className="notice notice-warning">{t('backup.oldFolder')}</p>}
                 <Button

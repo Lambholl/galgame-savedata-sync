@@ -209,12 +209,6 @@ export const enUS: Messages = {
   'backup.privateNote':
     "Backups are stored in the app's private folder. Uninstalling the app or clearing its data deletes them.",
   'backup.switch': 'Backup before overwrite',
-  'backup.switchHint':
-    'Before a transfer overwrites files, back up the old ones. Restoring a backup always backs up the current files first.',
-  'backup.offConfirmTitle': 'Turn off backup before overwrite?',
-  'backup.offConfirmText':
-    'Incoming transfers will overwrite old files directly and the old content cannot be recovered. Existing backups are kept.',
-  'backup.offConfirm': 'Turn off',
   'backup.restoreTitle': ({ time }) => `Restore the backup from ${time}`,
   'backup.confirmRestore': 'Restore',
   'backup.back': 'Back',
@@ -237,4 +231,13 @@ export const enUS: Messages = {
   'backup.restoreTask': 'Restore on this device',
   'backup.openRestore': 'View restore',
   'plan.restoreBackup': 'Current files are backed up before restoring',
+  'plan.backupOnPlain': 'Backup before overwrite',
+
+  'backup.followGlobal': 'Use global setting',
+  'backup.customSetting': 'Custom setting',
+  'backup.keepCount': 'Copies to keep',
+  'backup.editGlobal': 'Change global setting',
+  'backup.policyTitle': ({ name }) => `Backups for ${name}`,
+  'backup.saveFailed': ({ message }) => `Could not save backup settings: ${message}`,
+  'settings.backup': 'Backup before overwrite',
 }

@@ -96,17 +96,45 @@ final class BackupModel {
             "deviceId", id(value.get("deviceId")), "rootId", id(value.get("rootId")), "createdAt", number(value.get("createdAt"), -MAX_DATE, MAX_DATE),
             "reason", value.get("reason"), "files", validateFiles(value.get("files"), false));
     }
+    static final long KEEP_MIN = 1, KEEP_MAX = 10, KEEP_DEFAULT = 3;
+    /** 没有设置文件时的设置：全局开启、保留 3 份，没有单独设置的游戏目录。 */
+    static Map<String, Object> emptySettings() {
+        return object("schemaVersion", 2, "defaults", policy(true, KEEP_DEFAULT), "projects", new ArrayList<>());
+    }
+    static Map<String, Object> policy(boolean shouldBackup, long keepCount) {
+        return object("shouldBackup", shouldBackup, "keepCount", keepCount);
+    }
+    /** 备份策略：是否备份与保留份数（1–10）。 */
+    static Map<String, Object> policy(Object raw) throws Exception {
+        Map<String, Object> value = shape(raw, "shouldBackup", "keepCount");
+        require(value.get("shouldBackup") instanceof Boolean);
+        return policy((Boolean) value.get("shouldBackup"), number(value.get("keepCount"), KEEP_MIN, KEEP_MAX));
+    }
+    /** 备份设置：全局设置加按游戏目录的单独设置；格式不符即视为损坏。 */
     static Map<String, Object> settings(Object raw) throws Exception {
-        Map<String, Object> value = shape(raw, "schemaVersion", "projects"); number(value.get("schemaVersion"), 1, 1);
+        Map<String, Object> value = shape(raw, "schemaVersion", "defaults", "projects");
+        number(value.get("schemaVersion"), 2, 2);
+        Map<String, Object> defaults = policy(value.get("defaults"));
         List<Object> projects = list(value.get("projects")); require(projects.size() <= 128);
         Set<String> keys = new HashSet<>(); List<Object> result = new ArrayList<>();
         for (Object entry : projects) {
-            Map<String, Object> item = shape(entry, "projectId", "rootId", "shouldBackup");
+            Map<String, Object> item = shape(entry, "projectId", "rootId", "shouldBackup", "keepCount");
             String project = id(item.get("projectId")), root = id(item.get("rootId"));
-            require(item.get("shouldBackup") instanceof Boolean && keys.add(project + ":" + root));
-            result.add(object("projectId", project, "rootId", root, "shouldBackup", item.get("shouldBackup")));
+            require(keys.add(project + ":" + root));
+            Map<String, Object> custom = policy(object("shouldBackup", item.get("shouldBackup"), "keepCount", item.get("keepCount")));
+            result.add(object("projectId", project, "rootId", root, "shouldBackup", custom.get("shouldBackup"), "keepCount", custom.get("keepCount")));
         }
-        return object("schemaVersion", 1, "projects", result);
+        return object("schemaVersion", 2, "defaults", defaults, "projects", result);
+    }
+    /** 某个游戏目录实际使用的策略：有单独设置用单独设置，否则用全局设置。 */
+    static Map<String, Object> resolve(Map<String, Object> settings, String projectId, String rootId) throws Exception {
+        for (Object item : list(settings.get("projects"))) {
+            Map<String, Object> setting = map(item);
+            if (setting.get("projectId").equals(projectId) && setting.get("rootId").equals(rootId)) {
+                return policy((Boolean) setting.get("shouldBackup"), ((Number) setting.get("keepCount")).longValue());
+            }
+        }
+        return map(settings.get("defaults"));
     }
     /** 恢复使用的本次临时树；不把备份清单混入以后同步比较。 */
     static Map<String, Object> snapshot(Map<String, Object> manifest) throws Exception {

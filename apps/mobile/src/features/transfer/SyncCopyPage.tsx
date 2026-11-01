@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { ActionSheet } from 'antd-mobile'
 import { CaretRightOutlined, RightOutlined } from '@ant-design/icons'
-import { compareSnapshots, syncPlanFromPreview } from '@savedata-sync/shared'
+import { compareSnapshots, resolveBackupPolicy, syncPlanFromPreview } from '@savedata-sync/shared'
 import type {
   DirectoryReference,
   LibraryGame,
   LibraryPeer,
+  SyncBackupSettings,
   SyncPreparationPreview,
   SyncPreparationState,
   TransferDirection,
@@ -35,7 +36,6 @@ export function SyncCopyPage({
   isPlan,
   isDisabled,
   isTransferActive,
-  backupKeepCount,
   onPeerChange,
   onConfirm,
   onStarted,
@@ -51,8 +51,6 @@ export function SyncCopyPage({
   readonly isDisabled: boolean
   /** 有传输或恢复在进行时不发起新的扫描。 */
   readonly isTransferActive: boolean
-  /** 本机覆盖前备份保留的份数，显示在计划摘要里。 */
-  readonly backupKeepCount: number
   readonly onPeerChange: (id: string) => void
   readonly onConfirm: (confirmation: Confirmation) => void
   readonly onStarted: (jobId: string) => void
@@ -77,6 +75,28 @@ export function SyncCopyPage({
   const localRootId = localRoot?.rootId ?? null
   const isConnected = Boolean(peer?.isConnected)
   const canScan = isConnected && localRootId !== null && remoteRootId !== null && !isTransferActive
+  const [backupSettings, setBackupSettings] = useState<SyncBackupSettings | null>(null)
+  useEffect(() => {
+    let isCurrent = true
+    sync
+      .backupSettings()
+      .then((value) => {
+        if (isCurrent) {
+          setBackupSettings(value)
+        }
+      })
+      .catch(() => {
+        // 读不到时计划只说明会备份，不显示份数。
+      })
+    return () => {
+      isCurrent = false
+    }
+  }, [sync])
+  /** 本机被写入时显示本机保留的份数；电脑的份数在这里读不到。 */
+  const backupKeepCount =
+    direction === 'windows-to-android' && backupSettings && localRootId !== null
+      ? resolveBackupPolicy(backupSettings, game.id, localRootId).keepCount
+      : null
   useEffect(() => {
     if (!canScan) {
       return

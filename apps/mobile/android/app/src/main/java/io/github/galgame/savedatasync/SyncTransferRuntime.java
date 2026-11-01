@@ -39,11 +39,7 @@ final class SyncTransferRuntime {
                 return sources;
             }
             @Override public boolean backup(String projectId, String rootId) throws Exception {
-                for (Object item : list(backups.settings().get("projects"))) {
-                    Map<String, Object> setting = map(item);
-                    if (setting.get("projectId").equals(projectId) && setting.get("rootId").equals(rootId)) return (Boolean) setting.get("shouldBackup");
-                }
-                return true;
+                return (Boolean) BackupModel.resolve(backups.settings(), projectId, rootId).get("shouldBackup");
             }
             @Override public long checkReceiveSpace(SyncPlanModel.Plan plan, java.nio.file.Path cacheRoot, long cacheBytes, ArchiveControl control, SyncWriter.Execution execution) throws Exception {
                 return writer.checkReceiveSpace(plan, cacheRoot, cacheBytes, control, execution);

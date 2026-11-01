@@ -55,8 +55,13 @@ public class SyncBackupsPlugin extends Plugin {
         return store.manifest(id(value.get("projectId")), id(value.get("rootId")), id(value.get("backupId")));
     }); }
     @PluginMethod public void setPreference(PluginCall call) { submit(call, store -> {
-        Map<String, Object> value = arguments(call, "projectId", "rootId", "shouldBackup"); require(value.get("shouldBackup") instanceof Boolean);
-        return mutate(store, target -> target.setPreference(id(value.get("projectId")), id(value.get("rootId")), (Boolean) value.get("shouldBackup")));
+        Map<String, Object> value = arguments(call, "projectId", "rootId", "policy");
+        Map<String, Object> policy = value.get("policy") == null ? null : BackupModel.policy(value.get("policy"));
+        return mutate(store, target -> target.setPreference(id(value.get("projectId")), id(value.get("rootId")), policy));
+    }); }
+    @PluginMethod public void setDefaults(PluginCall call) { submit(call, store -> {
+        Map<String, Object> policy = BackupModel.policy(arguments(call, "policy").get("policy"));
+        return mutate(store, target -> target.setDefaults(policy));
     }); }
     @PluginMethod public void rotate(PluginCall call) { submit(call, store -> {
         Map<String, Object> value = arguments(call, "projectId", "rootId");

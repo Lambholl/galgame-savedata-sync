@@ -12,8 +12,6 @@ import { SYNC_LIMITS, SYNC_SCHEMA_VERSION } from './sync-contracts.ts'
 import type {
   SyncBackupFile,
   SyncBackupManifest,
-  SyncBackupPreference,
-  SyncBackupSettings,
   SyncCapabilities,
   SyncEntry,
   SyncPlanInput,
@@ -268,27 +266,5 @@ export function isSyncBackupManifest(value: unknown): value is SyncBackupManifes
       (segment, index) =>
         segment.length > 0 && (index === 0 || !paths.has(syncNameKey(file.path.slice(0, index)))),
     ),
-  )
-}
-
-function isPreference(value: unknown): value is SyncBackupPreference {
-  return (
-    hasShape(value, ['projectId', 'rootId', 'shouldBackup']) &&
-    isOpaqueId(value.projectId) &&
-    isOpaqueId(value.rootId) &&
-    typeof value.shouldBackup === 'boolean'
-  )
-}
-
-/** 独立设置格式，不迁移旧 LibraryConfig；坏配置不能被默认空设置覆盖。 */
-export function isSyncBackupSettings(value: unknown): value is SyncBackupSettings {
-  return (
-    hasShape(value, ['schemaVersion', 'projects']) &&
-    value.schemaVersion === SYNC_SCHEMA_VERSION &&
-    Array.isArray(value.projects) &&
-    value.projects.length <= 128 &&
-    isArrayOf(value.projects, isPreference) &&
-    new Set(value.projects.map((item) => JSON.stringify([item.projectId, item.rootId]))).size ===
-      value.projects.length
   )
 }

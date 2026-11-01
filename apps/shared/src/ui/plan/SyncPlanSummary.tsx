@@ -33,8 +33,8 @@ export interface SyncPlanSummaryProps {
   readonly source: PlanEndpoint
   /** 被写入的一端。 */
   readonly target: PlanEndpoint
-  /** 开启覆盖前备份时保留的份数，显示在备份说明里。 */
-  readonly backupKeepCount: number
+  /** 被写入一端开启覆盖前备份时保留的份数；对端的份数读不到时为 null，只说明会备份。 */
+  readonly backupKeepCount: number | null
 }
 
 type Group = 'replace' | 'create' | 'keep'
@@ -212,7 +212,9 @@ export function SyncPlanSummary({
         ) : plan.shouldBackup ? (
           <span className="is-on">
             <SafetyOutlined />
-            {t('plan.backupOn', { count: backupKeepCount })}
+            {backupKeepCount === null
+              ? t('plan.backupOnPlain')
+              : t('plan.backupOn', { count: backupKeepCount })}
           </span>
         ) : (
           <span className="is-off">

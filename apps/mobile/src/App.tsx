@@ -51,6 +51,8 @@ export function App(): React.JSX.Element {
         theme={{
           algorithm: resolvedTheme === 'dark' ? theme.darkAlgorithm : theme.defaultAlgorithm,
           token: themeTokens(resolvedTheme),
+          // 选择菜单按触控尺寸放大。
+          components: { Dropdown: { paddingBlock: 12, fontSize: 15 } },
         }}
       >
         <MobileApp adapter={ADAPTER} sync={SYNC} backButton={androidBackButton} />

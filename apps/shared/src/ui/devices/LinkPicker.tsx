@@ -140,8 +140,10 @@ export function LinkPicker({
                     onClick={() => onSelectGame(item.id)}
                   >
                     <span className="ss-list-body">
-                      <b>{item.name}</b>
-                      {item.isRecommended && <small className="is-ok">{t('game.sameName')}</small>}
+                      <span className="ss-list-title">
+                        <b>{item.name}</b>
+                        {item.isRecommended && <i className="ss-tag">{t('game.sameName')}</i>}
+                      </span>
                     </span>
                     <span className={`ss-radio${isSelected ? ' is-on' : ''}`} />
                   </button>

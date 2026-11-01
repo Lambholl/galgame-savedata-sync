@@ -207,12 +207,6 @@ export const jaJP: Messages = {
   'backup.privateNote':
     '控えはこのアプリ専用の保存場所にあります。アプリを削除したりデータを消去したりすると一緒に消えます。',
   'backup.switch': '上書き前の控え',
-  'backup.switchHint':
-    '転送で上書きする前に、古いファイルの控えを取ります。控えを復元する前には必ず現在のファイルの控えを取ります。',
-  'backup.offConfirmTitle': '上書き前の控えを無効にしますか？',
-  'backup.offConfirmText':
-    '無効にすると、転送を受けたときに古いファイルをそのまま上書きし、元に戻せなくなります。既存の控えは残ります。',
-  'backup.offConfirm': '無効にする',
   'backup.restoreTitle': ({ time }) => `${time} の控えを復元`,
   'backup.confirmRestore': '復元する',
   'backup.back': '戻る',
@@ -234,4 +228,13 @@ export const jaJP: Messages = {
   'backup.restoreTask': 'この端末での復元',
   'backup.openRestore': '復元を見る',
   'plan.restoreBackup': '復元する前に現在のファイルの控えを取ります',
+  'plan.backupOnPlain': '上書き前に控えを取ります',
+
+  'backup.followGlobal': '全体の設定に従う',
+  'backup.customSetting': '個別に設定',
+  'backup.keepCount': '保持する件数',
+  'backup.editGlobal': '全体の設定を変更',
+  'backup.policyTitle': ({ name }) => `${name} の控え`,
+  'backup.saveFailed': ({ message }) => `控えの設定を保存できません：${message}`,
+  'settings.backup': '上書き前の控え',
 }

@@ -13,6 +13,7 @@ import {
   matchesSyncJobManifest,
   matchesSyncJobState,
   matchesSyncPlan,
+  resolveBackupPolicy,
 } from '@savedata-sync/shared'
 import type {
   BatchManifest,
@@ -250,10 +251,7 @@ export class WindowsSyncRegistry {
       projectId,
       deviceId: this.options.deviceId,
       rootId: game.rootId,
-      shouldBackup:
-        settings.projects.find(
-          (item) => item.projectId === projectId && item.rootId === game.rootId,
-        )?.shouldBackup ?? true,
+      shouldBackup: resolveBackupPolicy(settings, projectId, game.rootId).shouldBackup,
     }
   }
   private async verify(task: SyncTask): Promise<void> {
@@ -272,11 +270,11 @@ export class WindowsSyncRegistry {
       return
     }
     const settings = await this.options.backups.settings()
-    const shouldBackup =
-      settings.projects.find(
-        (item) =>
-          item.projectId === task.request.targetProjectId && item.rootId === plan.target.rootId,
-      )?.shouldBackup ?? true
+    const { shouldBackup } = resolveBackupPolicy(
+      settings,
+      task.request.targetProjectId,
+      plan.target.rootId,
+    )
     if (shouldBackup !== plan.shouldBackup) {
       throw new HttpOperationError('source-changed', '目标备份设置已变化，请重新确认。')
     }

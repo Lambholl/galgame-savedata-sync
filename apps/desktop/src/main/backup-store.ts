@@ -6,6 +6,7 @@ import type { Readable } from 'node:stream'
 import { finished } from 'node:stream/promises'
 import {
   BATCH_LIMITS,
+  EMPTY_BACKUP_SETTINGS,
   SYNC_LIMITS,
   compareSyncPaths,
   isBatchFileId,
@@ -14,12 +15,16 @@ import {
   isSyncBackupSettings,
   isSyncPlan,
   isSyncSnapshot,
+  resolveBackupPolicy,
   syncPathKey,
+  withBackupDefaults,
+  withBackupPreference,
 } from '@savedata-sync/shared'
 import type {
   KnownOperationError,
   SyncBackupFile,
   SyncBackupManifest,
+  SyncBackupPolicy,
   SyncBackupSettings,
   SyncEntry,
   SyncPlan,
@@ -393,14 +398,14 @@ export class WindowsBackupStore {
       }
     })
   }
-  /** 缺少文件时备份默认开启；坏设置不会被默认值覆盖。 */
+  /** 缺少文件时用默认全局设置；坏设置不会被默认值覆盖。 */
   settings(): Promise<SyncBackupSettings> {
     return this.exclusive(() => this.readSettings())
   }
   private async readSettings(): Promise<SyncBackupSettings> {
     await this.inspect()
     if (!(await exists(join(this.path, 'settings.json')))) {
-      return { schemaVersion: 1, projects: [] }
+      return EMPTY_BACKUP_SETTINGS
     }
     const value = await readBackupJson(join(this.path, 'settings.json'))
     if (!isSyncBackupSettings(value)) {
@@ -408,47 +413,48 @@ export class WindowsBackupStore {
     }
     return value
   }
-  /** 独立于 LibraryConfig v1；false 只影响普通复制，恢复保护由计划器强制开启。 */
+  /** 单独设置某个游戏目录；null 改回跟随全局。关闭只影响普通复制，恢复保护由计划器强制开启。 */
   setPreference(
     projectId: string,
     rootId: string,
-    shouldBackup: boolean,
+    policy: SyncBackupPolicy | null,
   ): Promise<SyncBackupSettings> {
     group(projectId, rootId)
-    return this.exclusive(async () => {
-      const previous = await this.readSettings()
-      const settings = {
-        schemaVersion: 1,
-        projects: [
-          ...previous.projects.filter(
-            (item) => item.projectId !== projectId || item.rootId !== rootId,
-          ),
-          { projectId, rootId, shouldBackup },
-        ],
-      } as const
-      if (!isSyncBackupSettings(settings)) {
-        throw new ArchiveError('resource-limit', '备份设置超过限制。')
-      }
-      const temporary = join(this.path, `settings-${randomUUID()}.tmp`)
+    return this.exclusive(async () =>
+      this.writeSettings(
+        withBackupPreference(await this.readSettings(), projectId, rootId, policy),
+      ),
+    )
+  }
+  /** 修改全局设置；单独设置的游戏目录不受影响。 */
+  setDefaults(policy: SyncBackupPolicy): Promise<SyncBackupSettings> {
+    return this.exclusive(async () =>
+      this.writeSettings(withBackupDefaults(await this.readSettings(), policy)),
+    )
+  }
+  private async writeSettings(settings: SyncBackupSettings): Promise<SyncBackupSettings> {
+    if (!isSyncBackupSettings(settings)) {
+      throw new ArchiveError('resource-limit', '备份设置无效或超过限制。')
+    }
+    const temporary = join(this.path, `settings-${randomUUID()}.tmp`)
+    try {
+      await writeBackupJson(temporary, settings, this.io)
+      await this.inspect()
+      await rename(temporary, join(this.path, 'settings.json'))
+    } catch (error) {
+      const failure = toArchiveError(error)
       try {
-        await writeBackupJson(temporary, settings, this.io)
-        await this.inspect()
-        await rename(temporary, join(this.path, 'settings.json'))
-      } catch (error) {
-        const failure = toArchiveError(error)
-        try {
-          if (await exists(temporary)) {
-            await this.inspect()
-            await inspectBackupFile(temporary, BATCH_LIMITS.maxJsonBytes)
-            await unlink(temporary)
-          }
-        } catch (cleanup) {
-          failure.cleanupError = cleanupFailure(cleanup)
+        if (await exists(temporary)) {
+          await this.inspect()
+          await inspectBackupFile(temporary, BATCH_LIMITS.maxJsonBytes)
+          await unlink(temporary)
         }
-        throw failure
+      } catch (cleanup) {
+        failure.cleanupError = cleanupFailure(cleanup)
       }
-      return settings
-    })
+      throw failure
+    }
+    return settings
   }
   /** 容量包含完整新轮及清单，旧有效备份保持到新轮提交后；不提前释放旧备份换空间。 */
   async capacity(
@@ -727,15 +733,16 @@ export class WindowsBackupStore {
           round.manifest && round.marker.projectId === projectId && round.marker.rootId === rootId,
       )
       .sort((a, b) => required(b.manifest).createdAt - required(a.manifest).createdAt)
-    if (rounds.length <= SYNC_LIMITS.backupRetention) {
+    const { keepCount } = resolveBackupPolicy(await this.readSettings(), projectId, rootId)
+    if (rounds.length <= keepCount) {
       return
     }
-    for (const round of rounds.slice(0, SYNC_LIMITS.backupRetention)) {
+    for (const round of rounds.slice(0, keepCount)) {
       for (const file of required(round.manifest).files) {
         await this.verifyFile(round, file, signal)
       }
     }
-    for (const round of rounds.slice(SYNC_LIMITS.backupRetention)) {
+    for (const round of rounds.slice(keepCount)) {
       if (![...this.handles.values()].includes(round.marker.backupId)) {
         await this.remove(round)
       }

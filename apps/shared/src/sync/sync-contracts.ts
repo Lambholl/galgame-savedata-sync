@@ -10,7 +10,6 @@ export const SYNC_LIMITS = Object.freeze({
   maxPathLength: 4096,
   maxNameLength: 255,
   maxRetainedScans: 32,
-  backupRetention: 3,
   snapshotLifetimeMs: 600000,
   scanTimeoutMs: 1800000,
 } as const)
@@ -144,15 +143,24 @@ export interface SyncBackupManifest {
   readonly files: readonly SyncBackupFile[]
 }
 
-/** 与旧游戏配置分开保存，缺少项目设置时由读取方使用 true。 */
-export interface SyncBackupPreference {
-  readonly projectId: string
-  readonly rootId: string
+/** 覆盖前备份策略：是否备份，以及每个游戏、每个目录保留的完整备份份数。 */
+export interface SyncBackupPolicy {
   readonly shouldBackup: boolean
+  /** BACKUP_KEEP_COUNT_MIN–BACKUP_KEEP_COUNT_MAX。 */
+  readonly keepCount: number
 }
 
+/** 某个游戏目录的单独设置；没有记录的游戏目录跟随全局设置。 */
+export interface SyncBackupPreference extends SyncBackupPolicy {
+  readonly projectId: string
+  readonly rootId: string
+}
+
+/** 与游戏配置分开保存在本机备份目录；v1 只有逐目录开关，读取时升级。 */
 export interface SyncBackupSettings {
-  readonly schemaVersion: typeof SYNC_SCHEMA_VERSION
+  readonly schemaVersion: 2
+  /** 全局设置。 */
+  readonly defaults: SyncBackupPolicy
   readonly projects: readonly SyncBackupPreference[]
 }
 
