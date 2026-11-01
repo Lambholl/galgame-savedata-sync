@@ -1,11 +1,6 @@
 import { useState } from 'react'
 import { Button, Card, Empty, Modal, Space, Tag } from 'antd'
-import type {
-  DirectoryReference,
-  LibraryGame,
-  LibraryPeer,
-  TransferTask,
-} from '@savedata-sync/shared'
+import type { LibraryGame, LibraryPeer, TransferTask } from '@savedata-sync/shared'
 import type { DesktopCopySummary, DesktopRestoreSummary } from '../../../../bridge/sync-bridge.ts'
 import { TaskView } from './TaskView.tsx'
 import { SyncCopyDetails } from './SyncCopyDetails.tsx'
@@ -19,7 +14,6 @@ export function TaskPage({
   copies,
   restores,
   games,
-  roots,
   peers,
   isActive,
   isBusy,
@@ -33,7 +27,6 @@ export function TaskPage({
   readonly copies: readonly DesktopCopySummary[]
   readonly restores: readonly DesktopRestoreSummary[]
   readonly games: readonly LibraryGame[]
-  readonly roots: readonly DirectoryReference[]
   readonly peers: readonly LibraryPeer[]
   readonly isActive: boolean
   readonly isBusy: boolean
@@ -123,10 +116,12 @@ export function TaskPage({
           <RestoreDetails
             key={restoreId}
             restoreId={restoreId}
-            games={games}
-            roots={roots}
+            sourceName={t('backup.list')}
             isActive={isActive}
-            onNewTask={setRestoreId}
+            onClose={() => {
+              setRestoreId(null)
+              onChanged()
+            }}
             onChanged={onChanged}
             onOpenBackup={backup}
           />

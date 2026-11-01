@@ -1,0 +1,155 @@
+/* 设置类页面共用的分组列表：关联设备、关联选择、备份时间线。 */
+.ss-list {
+  overflow: hidden;
+  border-radius: var(--ss-r-md);
+  background: var(--ss-group);
+  color: var(--ss-fg);
+  font-family: var(--ss-font);
+}
+.ss-list > * + * {
+  border-top: 1px solid var(--ss-line);
+}
+.ss-list-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 58px;
+  padding: 9px 12px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+button.ss-list-row {
+  cursor: pointer;
+}
+button.ss-list-row:hover {
+  background: var(--ss-raised);
+}
+.ss-list-row.is-selected {
+  background: var(--ss-accent-soft);
+}
+.ss-list-row.is-disabled .ss-list-body b {
+  opacity: 0.55;
+}
+.ss-list-lead {
+  position: relative;
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--ss-r-sm);
+  background: var(--ss-raised);
+  color: var(--ss-muted);
+  font-size: 18px;
+}
+.ss-list-lead.is-accent {
+  background: var(--ss-accent-soft);
+  color: var(--ss-accent);
+}
+.ss-list-dot {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  width: 10px;
+  height: 10px;
+  border: 2px solid var(--ss-group);
+  border-radius: 50%;
+  background: var(--ss-faint);
+}
+.ss-list-dot.is-on {
+  background: var(--ss-ok);
+}
+.ss-list-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.ss-list-body b {
+  overflow-wrap: anywhere;
+  font-size: 14.5px;
+  font-weight: 600;
+}
+.ss-list-body b.is-faint {
+  color: var(--ss-faint);
+}
+.ss-list-body small {
+  color: var(--ss-muted);
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.ss-list-body small.is-ok {
+  color: var(--ss-ok);
+}
+.ss-list-end {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+}
+.ss-list-check {
+  color: var(--ss-faint);
+}
+.ss-list-link {
+  flex: none;
+  padding: 4px 0;
+  border: 0;
+  background: none;
+  color: var(--ss-accent);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.ss-list-empty {
+  margin: 0;
+  padding: 18px 12px;
+  border-radius: var(--ss-r-md);
+  background: var(--ss-group);
+  color: var(--ss-muted);
+  font-size: 13px;
+  text-align: center;
+}
+
+.ss-radio {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--ss-line);
+  border-radius: 50%;
+}
+.ss-radio.is-on {
+  border: 6px solid var(--ss-accent);
+}
+
+.ss-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.ss-step-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 8px;
+  padding: 0 4px;
+  color: var(--ss-muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+.ss-step-title b {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--ss-accent);
+  color: var(--ss-accent-fg);
+  font-size: 11.5px;
+}

@@ -1,49 +1,5 @@
 @import 'antd-mobile/es/global/global.css';
 
-.sync-facts dd,
-.sync-path,
-.sync-entry {
-  overflow-wrap: anywhere;
-}
-.sync-facts {
-  margin: 0;
-}
-.sync-facts dt {
-  margin-top: 8px;
-  color: var(--muted);
-}
-.sync-facts dd {
-  margin: 4px 0 0;
-}
-.sync-entry {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 12px 0;
-  border-bottom: 1px solid var(--line);
-  content-visibility: auto;
-  contain-intrinsic-size: auto 112px;
-}
-.sync-entry:last-child {
-  border-bottom: 0;
-}
-.sync-attributes {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 10px;
-}
-.sync-attributes > div {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.sync-attributes small {
-  color: var(--muted);
-}
-.sync-error {
-  color: var(--danger);
-}
-
 :root {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif;
   font-synthesis: none;
@@ -375,13 +331,6 @@ small {
 .action-row > .adm-button {
   min-width: var(--mobile-icon-target);
 }
-.sync-pagination {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
-  align-items: center;
-  font-size: 12px;
-  text-align: center;
-}
 .section-heading {
   display: flex;
   flex-wrap: wrap;
@@ -545,9 +494,56 @@ small {
   font-size: 14px;
   overflow-wrap: anywhere;
 }
-.directory-name {
-  margin-bottom: 10px;
+/* 游戏设置：标题位置就地编辑游戏名 */
+.name-edit {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 4px;
   color: var(--muted);
+}
+.name-edit .adm-input {
+  flex: 1;
+  border: 0;
+  background: transparent;
+}
+.name-edit .adm-input-element {
+  color: var(--text);
+  font-size: 22px;
+  font-weight: 650;
+}
+.group-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 32px;
+  margin: 0 0 6px;
+  padding: 0 4px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+.group-title small {
+  color: var(--muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 400;
+}
+.group-title .adm-button {
+  min-height: 32px;
+  padding: 0 4px;
+  font-weight: 600;
+}
+.sheet-caption {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: center;
+}
+.sheet-caption span {
+  color: var(--muted);
+  font-size: 12.5px;
 }
 .add-game-dialog {
   padding: 18px 14px 12px;
@@ -602,18 +598,6 @@ small {
 }
 .add-game-name {
   margin-top: 12px;
-}
-.linked-device {
-  border-bottom: 1px solid var(--line);
-  padding-bottom: 12px;
-  margin-bottom: 12px;
-}
-.linked-device strong {
-  overflow-wrap: anywhere;
-}
-.linked-device p {
-  color: var(--muted);
-  margin: 6px 0 10px;
 }
 .choice-field {
   border: 0;
@@ -763,25 +747,6 @@ small {
 }
 .confirmation-text {
   margin-bottom: 14px;
-}
-.pane-count {
-  padding: 6px;
-  border-top: 1px solid var(--line);
-  color: var(--muted);
-  font-size: 10px;
-  overflow-wrap: anywhere;
-}
-.pane-empty {
-  min-height: 120px;
-  padding: 16px 4px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  color: var(--muted);
-  font-size: 12px;
-  text-align: center;
 }
 .pane-error {
   color: var(--danger);

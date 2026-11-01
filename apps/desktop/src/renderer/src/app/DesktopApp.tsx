@@ -67,8 +67,6 @@ export function DesktopApp({
     null,
   )
   const [importKey, setImportKey] = useState('')
-  const [linkPeerId, setLinkPeerId] = useState('')
-  const [linkGameId, setLinkGameId] = useState('')
   const [upload, setUpload] = useState(false)
   const [portDraft, setPort] = useState<number | null | undefined>(undefined)
   const [copied, setCopied] = useState('')
@@ -373,25 +371,32 @@ export function DesktopApp({
     setUpload(isUpload)
     setPage('transfer')
   }
-  function changeLinkPeer(id: string): void {
-    setLinkPeerId(id)
-    setLinkGameId('')
-  }
   function unlinkGame(deviceId: string): void {
     if (!game) {
       return
     }
     run(() => saveGame(withoutGameLink(game, deviceId)))
   }
-  function linkGame(): void {
-    if (!game || !linkPeerId || !linkGameId) {
-      return
-    }
-    run(async () => {
-      await saveGame(withGameLink(game, linkPeerId, linkGameId))
-      setPeerId(linkPeerId)
-      setLinkPeerId('')
-      setLinkGameId('')
+  /** 新关联或改为对应其他游戏；保存成功后 resolve，失败显示错误并 reject。 */
+  function linkGame(deviceId: string, remoteGameId: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      if (!game || operating.current) {
+        reject(new Error('busy'))
+        return
+      }
+      const base = game.links.some((link) => link.deviceId === deviceId)
+        ? withoutGameLink(game, deviceId)
+        : game
+      run(async () => {
+        try {
+          await saveGame(withGameLink(base, deviceId, remoteGameId))
+        } catch (cause) {
+          reject(cause instanceof Error ? cause : new Error(String(cause)))
+          throw cause
+        }
+        setPeerId(deviceId)
+        resolve()
+      })
     })
   }
 
@@ -464,16 +469,16 @@ export function DesktopApp({
         game={game}
         peers={peers}
         localRoot={localRoot}
-        linkPeerId={linkPeerId}
-        linkGameId={linkGameId}
         isDisabled={isDisabled}
         isActive={isActive}
         onRename={renameGame}
         onChooseDirectory={chooseDirectory}
-        onUnlink={unlinkGame}
-        onLinkPeerChange={changeLinkPeer}
-        onLinkGameChange={setLinkGameId}
         onLink={linkGame}
+        onUnlink={unlinkGame}
+        onTransfer={(deviceId) => {
+          setPeerId(deviceId)
+          setPage('transfer')
+        }}
         onManageDevices={() => setPage('devices')}
       />
     )
@@ -512,7 +517,6 @@ export function DesktopApp({
         copies={snapshot?.copies ?? []}
         restores={snapshot?.restores ?? []}
         games={config.games}
-        roots={snapshot?.roots ?? []}
         peers={peers}
         isActive={isActive}
         isBusy={isBusy}
@@ -531,16 +535,11 @@ export function DesktopApp({
     body = (
       <BackupPage
         key={`${gameId}/${backupRootId ?? game?.rootId ?? ''}`}
-        games={config.games}
         roots={snapshot?.roots ?? []}
         game={game}
         rootId={backupRootId ?? game?.rootId ?? null}
         isActive={isActive}
         hasRunningWork={hasRunningWork}
-        onSelectGame={(id) => {
-          setGameId(id)
-          setBackupRootId(null)
-        }}
         onOpenSettings={() => setPage('edit')}
         onChanged={tasksChanged}
       />

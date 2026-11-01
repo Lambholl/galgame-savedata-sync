@@ -1,137 +1,223 @@
-import { Button, Card, Empty, Input, Select, Space } from 'antd'
-import { FolderOpenOutlined } from '@ant-design/icons'
+import { useEffect, useState } from 'react'
+import { Button, Dropdown, Input, Modal } from 'antd'
+import { EditOutlined, MoreOutlined, PlusOutlined } from '@ant-design/icons'
 import type { DirectoryReference, LibraryGame, LibraryPeer } from '@savedata-sync/shared'
-import { PathText } from '@savedata-sync/shared/ui'
-import { BackupPreference } from '../backup/BackupPreference.tsx'
+import {
+  FolderRow,
+  LinkedDeviceList,
+  LinkPicker,
+  linkedDevices,
+  linkPickerDevices,
+  linkPickerGames,
+  useT,
+} from '@savedata-sync/shared/ui'
 
+/** 关联对话框的状态：link 先选设备再选游戏；relink 设备已定，只改对应的游戏。 */
+interface LinkDraft {
+  readonly mode: 'link' | 'relink'
+  readonly deviceId: string | null
+  readonly gameId: string | null
+}
+
+/** 默认选中同名游戏。 */
+function recommendedGame(game: LibraryGame, peer: LibraryPeer | undefined): string | null {
+  const first = linkPickerGames(game, peer)[0]
+  return first?.isRecommended ? first.id : null
+}
+
+/** 游戏设置：左栏名称与本机目录，右栏关联设备；备份设置只在“备份与恢复”。 */
 export function GameSettingsPage({
   game,
   peers,
   localRoot,
-  linkPeerId,
-  linkGameId,
   isDisabled,
   isActive,
   onRename,
   onChooseDirectory,
-  onUnlink,
-  onLinkPeerChange,
-  onLinkGameChange,
   onLink,
+  onUnlink,
+  onTransfer,
   onManageDevices,
 }: {
   readonly game: LibraryGame
   readonly peers: readonly LibraryPeer[]
   readonly localRoot: DirectoryReference | null
-  readonly linkPeerId: string
-  readonly linkGameId: string
   readonly isDisabled: boolean
   readonly isActive: boolean
   readonly onRename: (value: string) => void
   readonly onChooseDirectory: () => void
+  /** 关联或改为对应其他游戏，成功后 resolve。 */
+  readonly onLink: (deviceId: string, gameId: string) => Promise<void>
   readonly onUnlink: (deviceId: string) => void
-  readonly onLinkPeerChange: (id: string) => void
-  readonly onLinkGameChange: (id: string) => void
-  readonly onLink: () => void
+  readonly onTransfer: (deviceId: string) => void
   readonly onManageDevices: () => void
 }): React.JSX.Element {
+  const t = useT()
+  const [name, setName] = useState(game.name)
+  const [draft, setDraft] = useState<LinkDraft | null>(null)
+  const [isLinking, setIsLinking] = useState(false)
+  // 只在已保存名称变化后同步；保存失败时保留输入草稿。
+  useEffect(() => setName(game.name), [game.id, game.name])
+  const isLocked = isDisabled || isActive
+  const draftPeer = peers.find((peer) => peer.device.id === draft?.deviceId)
+  function openLink(): void {
+    const available = linkPickerDevices(game, peers, 'phone').filter(
+      (item) => item.state === 'available',
+    )
+    const only = available.length === 1 ? available[0] : undefined
+    const peer = peers.find((item) => item.device.id === only?.deviceId)
+    setDraft({
+      mode: 'link',
+      deviceId: only?.deviceId ?? null,
+      gameId: only ? recommendedGame(game, peer) : null,
+    })
+  }
+  function confirmLink(): void {
+    if (!draft?.deviceId || !draft.gameId || isLinking) {
+      return
+    }
+    setIsLinking(true)
+    onLink(draft.deviceId, draft.gameId)
+      .then(() => setDraft(null))
+      .catch(() => undefined)
+      .finally(() => setIsLinking(false))
+  }
   return (
-    <>
-      <Card>
-        <label className="library-field">
-          游戏名称
+    <div className="settings-columns">
+      <div className="library-stack">
+        <label className="name-edit">
           <Input
-            key={game.id}
-            defaultValue={game.name}
+            variant="borderless"
+            aria-label={t('game.name')}
+            value={name}
             maxLength={128}
-            onBlur={(event) => onRename(event.target.value)}
+            disabled={isDisabled}
+            onChange={(event) => setName(event.target.value)}
+            onBlur={() => onRename(name)}
           />
+          <EditOutlined />
         </label>
-      </Card>
-      <Card title="本机电脑目录">
-        <div className="library-directory-setting">
-          <p className="library-directory-path" aria-label="本机存档目录">
-            <PathText path={localRoot?.displayPath ?? localRoot?.displayName ?? '未选择目录'} />
-          </p>
+        <section>
+          <h3 className="group-title">{t('game.localFolder')}</h3>
+          <FolderRow
+            name={localRoot?.displayName ?? null}
+            path={localRoot?.displayPath ?? null}
+            onChange={isLocked ? null : onChooseDirectory}
+          />
+        </section>
+      </div>
+      <section>
+        <h3 className="group-title">
+          {t('game.linkedDevices')}
           <Button
-            icon={<FolderOpenOutlined />}
-            aria-label="选择目录"
-            disabled={isDisabled || isActive}
-            onClick={onChooseDirectory}
-          />
-        </div>
-      </Card>
-      {game.rootId && (
-        <Card title="本机备份保护">
-          <BackupPreference
-            key={`${game.id}/${game.rootId}`}
-            projectId={game.id}
-            rootId={game.rootId}
-            rootLabel={localRoot?.displayPath ?? localRoot?.displayName ?? game.name}
-            isDisabled={isDisabled || isActive}
-          />
-        </Card>
-      )}
-      <Card title="已关联设备">
-        {game.links.map((link) => {
-          const peer = peers.find((item) => item.device.id === link.deviceId)
-          const remote = peer?.games.find((item) => item.id === link.gameId)
-          return (
-            <div className="library-linked-row" key={link.deviceId}>
-              <div>
-                <strong>{peer?.device.name ?? '设备已移除'}</strong>
-                <p>
-                  <PathText
-                    path={
-                      remote?.root?.displayPath ??
-                      remote?.root?.displayName ??
-                      (peer?.isConnected ? '此设备尚未设置目录' : '连接后读取目录')
-                    }
-                  />
-                </p>
-              </div>
-              <Button disabled={isDisabled || isActive} onClick={() => onUnlink(link.deviceId)}>
-                解除关联
-              </Button>
-            </div>
-          )
-        })}
-        {!game.links.length && (
-          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="尚未关联设备" />
-        )}
-        <Space orientation="vertical" className="library-full">
-          <Select
-            aria-label="关联设备"
-            className="library-full"
-            placeholder="选择设备"
-            value={linkPeerId || null}
-            options={peers
-              .filter((peer) => !game.links.some((link) => link.deviceId === peer.device.id))
-              .map((peer) => ({
-                value: peer.device.id,
-                label: peer.device.name,
-                disabled: !peer.isConnected,
-              }))}
-            onChange={onLinkPeerChange}
-          />
-          <Select
-            aria-label="对应游戏"
-            className="library-full"
-            placeholder="选择这台设备上的游戏"
-            value={linkGameId || null}
-            options={
-              peers
-                .find((item) => item.device.id === linkPeerId)
-                ?.games.map((item) => ({ value: item.id, label: item.name })) ?? []
-            }
-            onChange={onLinkGameChange}
-          />
-          <Button disabled={isDisabled || !linkPeerId || !linkGameId || isActive} onClick={onLink}>
-            关联
+            type="link"
+            size="small"
+            icon={<PlusOutlined />}
+            disabled={isLocked}
+            onClick={openLink}
+          >
+            {t('game.link')}
           </Button>
-        </Space>
-      </Card>
-      <Button onClick={onManageDevices}>管理设备</Button>
-    </>
+        </h3>
+        <LinkedDeviceList
+          items={linkedDevices(game, peers, 'phone', t('game.deviceRemoved'))}
+          actions={(item) => (
+            <>
+              {item.isConnected && (
+                <Button
+                  size="small"
+                  disabled={isActive || !localRoot}
+                  onClick={() => onTransfer(item.deviceId)}
+                >
+                  {t('game.transfer')}
+                </Button>
+              )}
+              <Dropdown
+                trigger={['click']}
+                placement="bottomRight"
+                menu={{
+                  items: [
+                    {
+                      key: 'relink',
+                      label: t('game.relink'),
+                      disabled: isLocked || !item.isConnected,
+                    },
+                    { type: 'divider' },
+                    {
+                      key: 'unlink',
+                      label: (
+                        <span className="menu-label">
+                          {t('game.unlink')}
+                          <small>{t('game.unlinkHint')}</small>
+                        </span>
+                      ),
+                      danger: true,
+                      disabled: isLocked,
+                    },
+                  ],
+                  onClick: ({ key }) => {
+                    if (key === 'relink') {
+                      const current = game.links.find((link) => link.deviceId === item.deviceId)
+                      setDraft({
+                        mode: 'relink',
+                        deviceId: item.deviceId,
+                        gameId: current?.gameId ?? null,
+                      })
+                    } else {
+                      onUnlink(item.deviceId)
+                    }
+                  },
+                }}
+              >
+                <Button type="text" aria-label={t('game.deviceMenu')} icon={<MoreOutlined />} />
+              </Dropdown>
+            </>
+          )}
+        />
+      </section>
+      <Modal
+        open={draft !== null}
+        title={
+          draft?.mode === 'relink' && draftPeer
+            ? t('game.relinkTitle', { name: draftPeer.device.name })
+            : t('game.linkTitle')
+        }
+        okText={t('game.link')}
+        cancelText={t('common.cancel')}
+        confirmLoading={isLinking}
+        okButtonProps={{ disabled: isLocked || !draft?.deviceId || !draft.gameId }}
+        mask={{ closable: !isLinking }}
+        destroyOnHidden
+        onOk={confirmLink}
+        onCancel={() => setDraft(null)}
+      >
+        {draft && (
+          <LinkPicker
+            devices={linkPickerDevices(game, peers, 'phone')}
+            isDeviceStepShown={draft.mode === 'link'}
+            selectedDevice={
+              draftPeer ? { deviceId: draftPeer.device.id, name: draftPeer.device.name } : null
+            }
+            games={linkPickerGames(game, draftPeer)}
+            selectedGameId={draft.gameId}
+            onSelectDevice={(deviceId) =>
+              setDraft({
+                mode: 'link',
+                deviceId,
+                gameId: recommendedGame(
+                  game,
+                  peers.find((peer) => peer.device.id === deviceId),
+                ),
+              })
+            }
+            onSelectGame={(gameId) => setDraft({ ...draft, gameId })}
+            onConnect={() => {
+              setDraft(null)
+              onManageDevices()
+            }}
+          />
+        )}
+      </Modal>
+    </div>
   )
 }

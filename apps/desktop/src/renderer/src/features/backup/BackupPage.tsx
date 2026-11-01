@@ -1,61 +1,63 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Alert, Button, Card, Empty, Modal, Select, Space, Table } from 'antd'
-import { unwrap } from '@savedata-sync/shared'
+import { Alert, Button, Empty, Modal, Switch, Table } from 'antd'
+import { HistoryOutlined } from '@ant-design/icons'
+import {
+  DEFAULT_BACKUP_KEEP_COUNT,
+  formatBytes,
+  formatDateTime,
+  formatShortDateTime,
+  unwrap,
+} from '@savedata-sync/shared'
 import type {
   DirectoryReference,
   LibraryGame,
-  SyncBackupManifest,
   SyncBackupFile,
+  SyncBackupManifest,
 } from '@savedata-sync/shared'
-import type {
-  DesktopBackupInfo,
-  DesktopBackupList,
-  DesktopBackupSummary,
-} from '../../../../bridge/backup-bridge.ts'
-import { PathText } from '@savedata-sync/shared/ui'
+import type { DesktopBackupInfo, DesktopBackupList } from '../../../../bridge/backup-bridge.ts'
+import { BackupPolicyBlock, BackupTimeline, useLocale, useT } from '@savedata-sync/shared/ui'
 import { desktopBackups, desktopSync } from '../../platform/sync-adapter.ts'
-import { displayBytes, displayTime } from '../../components/display.ts'
-import { BackupPreference } from './BackupPreference.tsx'
 import { RestoreDetails } from './RestoreDetails.tsx'
 
-/** 只读取所选项目和目录的私有备份；恢复先准备固定计划，再由用户确认写入。 */
+/**
+ * 备份与恢复：从游戏进入，顶部一条备份策略；左侧备份时间线，右侧显示所选备份里的文件，
+ * “恢复此备份”在右侧原地切换为恢复预览，确认后在原处显示结果。
+ */
 export function BackupPage({
-  games,
   roots,
   game,
   rootId,
   isActive,
   hasRunningWork,
-  onSelectGame,
   onOpenSettings,
   onChanged,
 }: {
-  readonly games: readonly LibraryGame[]
   readonly roots: readonly DirectoryReference[]
   readonly game: LibraryGame | null
+  /** 要查看的目录；可能是游戏之前用过的目录。 */
   readonly rootId: string | null
   readonly isActive: boolean
   readonly hasRunningWork: boolean
-  readonly onSelectGame: (id: string) => void
   readonly onOpenSettings: () => void
   readonly onChanged: () => void
 }): React.JSX.Element {
-  const [info, setInfo] = useState<DesktopBackupInfo | null>(null),
-    [listing, setListing] = useState<DesktopBackupList | null>(null),
-    [isLoading, setIsLoading] = useState(true),
-    [isBusy, setIsBusy] = useState(false),
-    [error, setError] = useState(''),
-    [readError, setReadError] = useState(''),
-    [version, setVersion] = useState(0)
-  const [selected, setSelected] = useState<DesktopBackupSummary | null>(null),
-    [manifest, setManifest] = useState<SyncBackupManifest | null>(null),
-    [isReading, setIsReading] = useState(false),
-    [manifestError, setManifestError] = useState('')
-  const [restoreId, setRestoreId] = useState<string | null>(null),
-    [isRestoreOpen, setIsRestoreOpen] = useState(false),
-    [isCleanupOpen, setIsCleanupOpen] = useState(false)
-  const isCurrent = useRef(true),
-    manifestVersion = useRef(0)
+  const t = useT()
+  const locale = useLocale()
+  const [modal, modalHolder] = Modal.useModal()
+  const [info, setInfo] = useState<DesktopBackupInfo | null>(null)
+  const [listing, setListing] = useState<DesktopBackupList | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [isBusy, setIsBusy] = useState(false)
+  const [error, setError] = useState('')
+  const [version, setVersion] = useState(0)
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [manifest, setManifest] = useState<SyncBackupManifest | null>(null)
+  const [isReading, setIsReading] = useState(false)
+  const [manifestError, setManifestError] = useState('')
+  const [restoreId, setRestoreId] = useState<string | null>(null)
+  const [isPolicyOpen, setIsPolicyOpen] = useState(false)
+  const isCurrent = useRef(true)
+  const manifestVersion = useRef(0)
   const invalidateManifest = useCallback(() => {
     manifestVersion.current++
   }, [])
@@ -66,28 +68,25 @@ export function BackupPage({
       invalidateManifest()
     }
   }, [invalidateManifest])
-  const root = roots.find((item) => item.rootId === rootId),
-    rootLabel = root?.displayPath ?? root?.displayName ?? '目录记录暂不可用'
   const isCurrentRoot = Boolean(game && rootId && game.rootId === rootId)
   const projectId = game?.id ?? null
   useEffect(() => {
     let hasResult = true
     setIsLoading(true)
-    setReadError('')
-    setListing(null)
     async function read(): Promise<void> {
-      const api = desktopBackups(),
-        details = unwrap(await api.read())
+      const api = desktopBackups()
+      const details = unwrap(await api.read())
       const values = projectId && rootId ? unwrap(await api.list(projectId, rootId)) : null
       if (hasResult) {
         setInfo(details)
         setListing(values)
+        setError('')
       }
     }
     void read()
       .catch((cause: unknown) => {
         if (hasResult) {
-          setReadError(cause instanceof Error ? cause.message : '备份读取失败。')
+          setError(cause instanceof Error ? cause.message : t('common.unknown'))
         }
       })
       .finally(() => {
@@ -98,7 +97,42 @@ export function BackupPage({
     return () => {
       hasResult = false
     }
-  }, [projectId, rootId, version])
+  }, [projectId, rootId, version, t])
+  const backups = listing?.backups ?? []
+  const selected = backups.find((item) => item.backupId === selectedId) ?? backups[0] ?? null
+  // 所选备份变化时读取它的文件清单；切换得快时只保留最后一次的结果。
+  useEffect(() => {
+    if (!selected) {
+      setManifest(null)
+      return
+    }
+    const current = ++manifestVersion.current
+    setManifest(null)
+    setManifestError('')
+    setIsReading(true)
+    async function read(): Promise<void> {
+      if (!selected) {
+        return
+      }
+      const value = unwrap(
+        await desktopBackups().manifest(selected.projectId, selected.rootId, selected.backupId),
+      )
+      if (isCurrent.current && current === manifestVersion.current) {
+        setManifest(value)
+      }
+    }
+    void read()
+      .catch((cause: unknown) => {
+        if (isCurrent.current && current === manifestVersion.current) {
+          setManifestError(cause instanceof Error ? cause.message : t('common.unknown'))
+        }
+      })
+      .finally(() => {
+        if (isCurrent.current && current === manifestVersion.current) {
+          setIsReading(false)
+        }
+      })
+  }, [selected, t])
   function refresh(): void {
     setVersion((value) => value + 1)
     onChanged()
@@ -112,7 +146,7 @@ export function BackupPage({
     void work()
       .catch((cause: unknown) => {
         if (isCurrent.current) {
-          setError(cause instanceof Error ? cause.message : '备份操作失败。')
+          setError(cause instanceof Error ? cause.message : t('common.unknown'))
         }
       })
       .finally(() => {
@@ -122,297 +156,237 @@ export function BackupPage({
         }
       })
   }
-  function view(item: DesktopBackupSummary): void {
-    if (!game || !rootId) {
+  if (!game) {
+    return <Empty description={t('backup.noGame')} />
+  }
+  if (!rootId) {
+    return (
+      <Empty description={t('backup.noFolder')}>
+        <Button onClick={onOpenSettings}>{t('page.gameSettings')}</Button>
+      </Empty>
+    )
+  }
+  const shouldBackup =
+    info?.settings.projects.find((item) => item.projectId === game.id && item.rootId === rootId)
+      ?.shouldBackup ?? true
+  function setPreference(isEnabled: boolean): void {
+    if (!rootId || !game) {
       return
     }
-    const current = ++manifestVersion.current
-    setSelected(item)
-    setManifest(null)
-    setManifestError('')
-    setIsReading(true)
-    async function read(): Promise<void> {
-      const value = unwrap(
-        await desktopBackups().manifest(item.projectId, item.rootId, item.backupId),
-      )
-      if (isCurrent.current && current === manifestVersion.current) {
-        setManifest(value)
-      }
+    const save = (): void =>
+      run(async () => {
+        unwrap(await desktopBackups().setPreference(game.id, rootId, isEnabled))
+      })
+    if (isEnabled) {
+      save()
+      return
     }
-    void read()
-      .catch((cause: unknown) => {
-        if (isCurrent.current && current === manifestVersion.current) {
-          setManifestError(cause instanceof Error ? cause.message : '备份详情读取失败。')
-        }
-      })
-      .finally(() => {
-        if (isCurrent.current && current === manifestVersion.current) {
-          setIsReading(false)
-        }
-      })
+    void modal.confirm({
+      title: t('backup.offConfirmTitle'),
+      content: t('backup.offConfirmText'),
+      okText: t('backup.offConfirm'),
+      okButtonProps: { danger: true },
+      cancelText: t('common.cancel'),
+      onOk: save,
+    })
   }
-  function prepare(item: DesktopBackupSummary): void {
+  function prepare(): void {
+    if (!selected) {
+      return
+    }
+    const item = selected
     run(async () => {
-      const api = desktopSync()
-      if (restoreId) {
-        const previous = await api.restoreState(restoreId)
-        if (
-          previous.status === 'success' &&
-          ['ready', 'preparing'].includes(previous.value.status)
-        ) {
-          let cancelled = unwrap(await api.cancelRestore(restoreId))
-          for (let index = 0; index < 100 && cancelled.isWorking; index++) {
-            await new Promise((resolve) => setTimeout(resolve, 50))
-            cancelled = unwrap(await api.restoreState(restoreId))
-          }
-          if (cancelled.isWorking) {
-            throw new Error('上次准备尚未结束，请稍后重新预览。')
-          }
-          if (cancelled.cleanupError) {
-            throw new Error(cancelled.cleanupError.message)
-          }
-          unwrap(await api.releaseRestore(restoreId))
-        }
-      }
-      const next = unwrap(await api.prepareRestore(item.projectId, item.rootId, item.backupId))
+      const next = unwrap(
+        await desktopSync().prepareRestore(item.projectId, item.rootId, item.backupId),
+      )
       if (isCurrent.current) {
         setRestoreId(next.restoreId)
-        setIsRestoreOpen(true)
       }
     })
   }
-  function cleanup(): void {
-    if (!game || !rootId) {
-      return
-    }
-    const ids = [...(listing?.incomplete ?? [])]
-    run(async () => {
-      for (const id of ids) {
-        unwrap(await desktopBackups().cleanupIncomplete(game.id, rootId, id))
-      }
-      setIsCleanupOpen(false)
-    })
-  }
-  return (
-    <>
-      <Card title="选择本机游戏">
-        <Select
-          className="library-full"
-          aria-label="查看游戏备份"
-          placeholder="选择游戏"
-          value={game?.id ?? null}
-          options={games.map((item) => ({ value: item.id, label: item.name }))}
-          onChange={onSelectGame}
-        />
-      </Card>
-      {game && rootId ? (
-        <>
-          <Card title={isCurrentRoot ? '本机目录与备份设置' : '原目录备份'}>
-            <p className="library-directory-path">
-              <PathText path={rootLabel} />
-            </p>
-            {isCurrentRoot ? (
-              <BackupPreference
-                key={`${game.id}/${rootId}`}
-                projectId={game.id}
-                rootId={rootId}
-                rootLabel={rootLabel}
-                isDisabled={isActive}
-              />
-            ) : (
-              <Alert
-                showIcon
-                type="info"
-                title="这是之前目录的备份。恢复前请在目录设置中切回这个目录。"
-              />
-            )}
-            {!isCurrentRoot && (
-              <Button onClick={() => onSelectGame(game.id)}>查看当前目录备份</Button>
-            )}
-            <Button onClick={onOpenSettings}>目录设置</Button>
-          </Card>
-          <Card
-            title="完整备份"
-            loading={isLoading}
-            extra={
-              <Button disabled={isBusy || isLoading} onClick={refresh}>
-                刷新备份
-              </Button>
-            }
-          >
-            <div className="library-stack">
-              {(error || readError) && <Alert showIcon type="error" title={error || readError} />}
-              {listing && listing.backups.length > 0 && (
-                <Table<DesktopBackupSummary>
-                  size="small"
-                  dataSource={[...listing.backups]}
-                  rowKey="backupId"
-                  pagination={{ defaultPageSize: 10, hideOnSinglePage: true }}
-                  scroll={{ x: 600 }}
-                  columns={[
-                    {
-                      title: '备份时间',
-                      key: 'time',
-                      render: (_, item) => displayTime(item.createdAt),
-                    },
-                    {
-                      title: '保护时机',
-                      key: 'reason',
-                      render: (_, item) => (item.reason === 'copy' ? '同步覆盖前' : '本机恢复前'),
-                    },
-                    {
-                      title: '文件',
-                      key: 'files',
-                      render: (_, item) =>
-                        `${item.fileCount} 个 · ${displayBytes(item.totalFileBytes)}`,
-                    },
-                    {
-                      title: '操作',
-                      key: 'actions',
-                      render: (_, item) => (
-                        <Space wrap>
-                          <Button
-                            size="small"
-                            disabled={isBusy || isReading}
-                            onClick={() => view(item)}
-                          >
-                            查看内容
-                          </Button>
-                          <Button
-                            size="small"
-                            disabled={isBusy || !isCurrentRoot}
-                            onClick={() => prepare(item)}
-                          >
-                            预览恢复
-                          </Button>
-                        </Space>
-                      ),
-                    },
-                  ]}
-                />
-              )}
-              {!isLoading && !error && !readError && listing?.backups.length === 0 && (
-                <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="这个目录还没有完整备份" />
-              )}
-              {listing && listing.backups.length > 3 && (
-                <p>
-                  当前保留 {listing.backups.length}{' '}
-                  次完整备份。操作结束后可重试整理，正在使用的备份会继续保留。
-                </p>
-              )}
-              <Space wrap>
-                <Button
-                  disabled={isBusy || hasRunningWork}
-                  onClick={() =>
-                    run(async () => {
-                      unwrap(await desktopBackups().rotate(game.id, rootId))
-                    })
-                  }
-                >
-                  整理到最近 3 次
-                </Button>
-                {Boolean(listing?.incomplete.length) && (
-                  <Button
-                    disabled={isBusy || hasRunningWork}
-                    onClick={() => setIsCleanupOpen(true)}
-                  >
-                    清理未完成备份（{listing?.incomplete.length}）
-                  </Button>
-                )}
-              </Space>
-            </div>
-          </Card>
-        </>
-      ) : (
-        <Empty description={game ? '请先为这个游戏选择本机存档目录' : '选择游戏后查看本机备份'}>
-          {game && <Button onClick={onOpenSettings}>目录设置</Button>}
-        </Empty>
-      )}
-      {info && (
-        <Card size="small" title="本机备份位置">
-          <p className="library-directory-path">
-            <PathText path={info.displayPath} />
-          </p>
-        </Card>
-      )}
-      <Modal
-        open={selected !== null}
-        title={selected ? `备份内容 · ${displayTime(selected.createdAt)}` : '备份内容'}
-        footer={null}
-        width={900}
-        onCancel={() => {
-          manifestVersion.current++
-          setSelected(null)
-          setIsReading(false)
+  const incomplete = listing?.incomplete ?? []
+  const when = (value: number): string => formatShortDateTime(value, locale, Date.now())
+  const root = roots.find((item) => item.rootId === rootId)
+  let detail: React.ReactNode
+  if (restoreId) {
+    detail = (
+      <RestoreDetails
+        key={restoreId}
+        restoreId={restoreId}
+        sourceName={selected ? when(selected.createdAt) : t('backup.list')}
+        isActive={isActive}
+        onClose={() => {
+          setRestoreId(null)
+          refresh()
         }}
-      >
+        onChanged={onChanged}
+        onOpenBackup={null}
+      />
+    )
+  } else if (selected) {
+    detail = (
+      <>
+        <div className="backup-detail-head">
+          <div>
+            <h2>{when(selected.createdAt)}</h2>
+            <p>
+              {t(`backup.reason.${selected.reason}`)} ·{' '}
+              {t('backup.files', {
+                count: selected.fileCount,
+                size: formatBytes(selected.totalFileBytes),
+              })}
+            </p>
+          </div>
+          <Button
+            type="primary"
+            icon={<HistoryOutlined />}
+            loading={isBusy}
+            disabled={!isCurrentRoot || isActive || hasRunningWork}
+            onClick={prepare}
+          >
+            {t('backup.restoreThis')}
+          </Button>
+        </div>
         {manifestError && <Alert showIcon type="error" title={manifestError} />}
         <Table<SyncBackupFile>
           size="small"
           loading={isReading}
           dataSource={[...(manifest?.files ?? [])]}
           rowKey="fileId"
-          pagination={{ defaultPageSize: 20, hideOnSinglePage: true }}
+          pagination={{ defaultPageSize: 50, hideOnSinglePage: true }}
           columns={[
             {
-              title: '相对位置',
+              title: t('backup.file'),
               key: 'path',
-              render: (_, item) => (
-                <span className="library-sync-path">{item.path.join(' / ')}</span>
-              ),
+              render: (_, item) => <span className="backup-file">{item.path.join(' / ')}</span>,
             },
-            { title: '文件大小', key: 'size', render: (_, item) => displayBytes(item.sizeBytes) },
-            { title: '原修改时间', key: 'time', render: (_, item) => displayTime(item.modifiedAt) },
+            {
+              title: t('compare.size'),
+              key: 'size',
+              align: 'right',
+              render: (_, item) => formatBytes(item.sizeBytes),
+            },
+            {
+              title: t('backup.originalModified'),
+              key: 'time',
+              align: 'right',
+              render: (_, item) =>
+                item.modifiedAt === null ? '' : formatDateTime(item.modifiedAt, locale),
+            },
           ]}
         />
-      </Modal>
-      <Modal
-        open={isRestoreOpen && restoreId !== null}
-        title="本机恢复"
-        footer={null}
-        width={1000}
-        destroyOnHidden
-        onCancel={() => {
-          setIsRestoreOpen(false)
-          refresh()
-        }}
-      >
-        {restoreId && (
-          <RestoreDetails
-            key={restoreId}
-            restoreId={restoreId}
-            games={games}
-            roots={roots}
-            isActive={isActive}
-            onNewTask={setRestoreId}
-            onChanged={refresh}
-          />
-        )}
-      </Modal>
-      <Modal
-        open={isCleanupOpen}
-        title="清理本目录未完成的备份"
-        okText="清理残留"
-        cancelText="保留"
-        okButtonProps={{ danger: true, disabled: hasRunningWork }}
-        cancelButtonProps={{ disabled: isBusy }}
-        confirmLoading={isBusy}
-        mask={{ closable: !isBusy }}
-        closable={!isBusy}
-        keyboard={!isBusy}
-        onCancel={() => {
-          if (!isBusy) {
-            setIsCleanupOpen(false)
+      </>
+    )
+  } else {
+    detail = null
+  }
+  return (
+    <div className="library-stack">
+      {modalHolder}
+      <BackupPolicyBlock
+        isEnabled={shouldBackup}
+        keepCount={DEFAULT_BACKUP_KEEP_COUNT}
+        location={info?.displayPath ?? null}
+        onEdit={isCurrentRoot && info && !isActive ? () => setIsPolicyOpen(true) : null}
+      />
+      {!isCurrentRoot && (
+        <Alert
+          showIcon
+          type="info"
+          title={t('backup.oldFolder')}
+          description={root?.displayPath ?? root?.displayName}
+          action={
+            <Button size="small" onClick={onOpenSettings}>
+              {t('page.gameSettings')}
+            </Button>
           }
-        }}
-        onOk={cleanup}
+        />
+      )}
+      {error && (
+        <Alert
+          showIcon
+          type="error"
+          title={t('backup.readFailed', { message: error })}
+          action={
+            <Button size="small" onClick={refresh}>
+              {t('common.retry')}
+            </Button>
+          }
+        />
+      )}
+      {incomplete.length > 0 && (
+        <Alert
+          showIcon
+          type="warning"
+          title={t('backup.incomplete', { count: incomplete.length })}
+          action={
+            <Button
+              size="small"
+              disabled={isBusy || hasRunningWork}
+              onClick={() =>
+                run(async () => {
+                  for (const id of incomplete) {
+                    unwrap(await desktopBackups().cleanupIncomplete(game.id, rootId, id))
+                  }
+                })
+              }
+            >
+              {t('backup.cleanup')}
+            </Button>
+          }
+        />
+      )}
+      {isLoading && !listing ? null : (
+        <div className="backup-columns">
+          <section>
+            <h3 className="group-title">
+              {t('backup.list')}
+              <small>
+                {backups.length} / {DEFAULT_BACKUP_KEEP_COUNT}
+              </small>
+            </h3>
+            <BackupTimeline
+              backups={backups.map((item) => ({
+                id: item.backupId,
+                createdAt: item.createdAt,
+                reason: item.reason,
+                fileCount: item.fileCount,
+                totalBytes: item.totalFileBytes,
+              }))}
+              action={{
+                kind: 'select',
+                selectedId: selected?.backupId ?? null,
+                onSelect: (id) => {
+                  if (!restoreId) {
+                    setSelectedId(id)
+                  }
+                },
+              }}
+            />
+          </section>
+          <section className="backup-detail">{detail}</section>
+        </div>
+      )}
+      <Modal
+        open={isPolicyOpen}
+        title={t('backup.switch')}
+        footer={null}
+        onCancel={() => setIsPolicyOpen(false)}
       >
-        <p className="library-directory-path">
-          <PathText path={rootLabel} />
-        </p>
-        <p>将清理这个目录下尚未提交或已淘汰的备份残留，完整备份和存档文件继续保留。</p>
-        {error && <Alert showIcon type="error" title={error} />}
+        <div className="backup-switch">
+          <div>
+            <b>{t('backup.switch')}</b>
+            <p>{t('backup.switchHint')}</p>
+          </div>
+          <Switch
+            aria-label={t('backup.switch')}
+            checked={shouldBackup}
+            loading={isBusy}
+            disabled={isActive}
+            onChange={setPreference}
+          />
+        </div>
       </Modal>
-    </>
+    </div>
   )
 }

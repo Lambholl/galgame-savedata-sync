@@ -204,7 +204,12 @@ export function SyncPlanSummary({
         </div>
       </div>
       <div className="ss-metaline">
-        {plan.shouldBackup ? (
+        {plan.operation === 'restore' ? (
+          <span className="is-on">
+            <SafetyOutlined />
+            {t('plan.restoreBackup')}
+          </span>
+        ) : plan.shouldBackup ? (
           <span className="is-on">
             <SafetyOutlined />
             {t('plan.backupOn', { count: backupKeepCount })}
@@ -215,7 +220,7 @@ export function SyncPlanSummary({
             {t('plan.backupOff')}
           </span>
         )}
-        {plan.totalFileBytes !== null && (
+        {plan.operation === 'copy' && plan.totalFileBytes !== null && (
           <span>
             <DownloadOutlined />
             {t('plan.transferSize', { size: formatBytes(plan.totalFileBytes) })}

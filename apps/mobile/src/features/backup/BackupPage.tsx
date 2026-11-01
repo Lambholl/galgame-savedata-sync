@@ -1,18 +1,29 @@
 import { useEffect, useRef, useState } from 'react'
 import { Button, Switch } from 'antd-mobile'
+import { ExclamationCircleOutlined } from '@ant-design/icons'
+import { DEFAULT_BACKUP_KEEP_COUNT, formatShortDateTime } from '@savedata-sync/shared'
 import type { LibraryGame } from '@savedata-sync/shared'
-import { PathText } from '@savedata-sync/shared/ui'
+import {
+  BackupPolicyBlock,
+  BackupTimeline,
+  PathText,
+  RestoreSummary,
+  SyncPlanSummary,
+  useLocale,
+  useT,
+} from '@savedata-sync/shared/ui'
 import type { Confirmation } from '../../app/navigation-types'
 import type {
   MobileBackupDetails,
   MobileRestoreDetails,
   MobileSyncAdapter,
 } from '../../platform/sync-adapter'
-import { Panel } from '../../components/Panel'
-import { displayBytes, displayTime } from '../transfer/display'
-import { SyncOutcomeView, SyncPlanView } from '../transfer/SyncPlanView'
+import { Sheet } from '../../components/Sheet'
 
-/** 本机备份设置和恢复：准备只读预览，确认执行时始终保护被覆盖的当前内容。 */
+/**
+ * 备份与恢复：顶部是备份策略，下面按时间列出备份；点“恢复”在弹层里先看恢复预览，
+ * 确认后结果留在同一弹层。恢复前总会先备份当前文件。
+ */
 export function BackupPage({
   sync,
   game,
@@ -21,6 +32,7 @@ export function BackupPage({
   onConfirm,
   onChanged,
   onSettings,
+  onOverlayChange,
 }: {
   readonly sync: MobileSyncAdapter
   readonly game: LibraryGame
@@ -29,13 +41,19 @@ export function BackupPage({
   readonly onConfirm: (confirmation: Confirmation) => void
   readonly onChanged: () => void
   readonly onSettings: () => void
+  /** 打开弹层时交给应用一个关闭函数，供返回键使用；关闭后传 null。 */
+  readonly onOverlayChange: (close: (() => void) | null) => void
 }): React.JSX.Element {
+  const t = useT()
+  const locale = useLocale()
   const [details, setDetails] = useState<MobileBackupDetails | null>(null)
   const [error, setError] = useState('')
   const [isBusy, setIsBusy] = useState(false)
   const [version, setVersion] = useState(0)
-  const operating = useRef(false)
+  const [isPolicyOpen, setIsPolicyOpen] = useState(false)
   const current = restore?.state.projectId === game.id ? restore : null
+  const [isRestoreOpen, setIsRestoreOpen] = useState(current !== null)
+  const operating = useRef(false)
   const state = current?.state
   const plan = current?.plan
   useEffect(() => {
@@ -51,13 +69,25 @@ export function BackupPage({
       .catch((cause: unknown) => {
         if (isCurrent) {
           setDetails(null)
-          setError(cause instanceof Error ? cause.message : '读取备份失败。')
+          setError(cause instanceof Error ? cause.message : t('common.unknown'))
         }
       })
     return () => {
       isCurrent = false
     }
-  }, [sync, game.id, game.rootId, version, state?.status])
+  }, [sync, game.id, game.rootId, version, state?.status, t])
+  const isRestoreShown = isRestoreOpen && current !== null
+  const isOverlayOpen = isPolicyOpen || isRestoreShown
+  useEffect(() => {
+    if (!isOverlayOpen) {
+      return
+    }
+    onOverlayChange(() => {
+      setIsPolicyOpen(false)
+      setIsRestoreOpen(false)
+    })
+    return () => onOverlayChange(null)
+  }, [isOverlayOpen, onOverlayChange])
   const shouldBackup =
     details?.info.settings.projects.find(
       (item) => item.projectId === game.id && item.rootId === game.rootId,
@@ -77,7 +107,7 @@ export function BackupPage({
     work()
       .then(reload)
       .catch((cause: unknown) => {
-        setError(cause instanceof Error ? cause.message : '备份操作失败。')
+        setError(cause instanceof Error ? cause.message : t('common.unknown'))
         onChanged()
       })
       .finally(() => {
@@ -85,14 +115,14 @@ export function BackupPage({
         setIsBusy(false)
       })
   }
-  function preference(isEnabled: boolean): void {
+  function setPreference(isEnabled: boolean): void {
     if (isEnabled) {
       run(() => sync.setBackup(game.id, true))
       return
     }
     onConfirm({
-      title: '关闭覆盖前备份',
-      text: '关闭后，这个项目收到复制时会直接覆盖文件，本次旧内容无法从备份找回。已有备份继续保留，手工恢复仍会保护当前内容。',
+      title: t('backup.offConfirmTitle'),
+      text: t('backup.offConfirmText'),
       okType: 'danger',
       work: async () => {
         await sync.setBackup(game.id, false)
@@ -101,6 +131,7 @@ export function BackupPage({
     })
   }
   function prepare(backupId: string): void {
+    setIsRestoreOpen(true)
     run(async () => {
       if (restore) {
         await sync.releaseRestore(restore.state.restoreId)
@@ -108,168 +139,168 @@ export function BackupPage({
       await sync.prepareRestore(game.id, backupId)
     })
   }
-  function execute(): void {
-    if (!state || !plan?.canExecute) {
+  /** 关闭恢复弹层：准备中的取消，未开始或已结束的释放；进行中的只收起，恢复继续。 */
+  function closeRestore(): void {
+    setIsRestoreOpen(false)
+    if (!state || state.status === 'running') {
       return
     }
     const id = state.restoreId
-    onConfirm({
-      title: '恢复本机备份',
-      text: '按本次预览恢复备份包含的文件，其他内容保留。覆盖前会另存当前内容，请先退出使用该存档的游戏。',
-      work: async () => {
-        await sync.executeRestore(id)
-        reload()
-      },
-    })
+    run(() => (state.status === 'preparing' ? sync.cancelRestore(id) : sync.releaseRestore(id)))
   }
+  const backups = details?.listing.backups ?? []
+  const backup = backups.find((item) => item.backupId === state?.backupId)
+  const backupTime = backup ? formatShortDateTime(backup.createdAt, locale, Date.now()) : ''
+  const incomplete = details?.listing.incomplete ?? []
+  const isOldFolder = state !== undefined && state.rootId !== game.rootId
   return (
-    <>
+    <div className="page-stack">
       {error && (
         <div className="notice notice-error" role="alert">
-          <p>{error}</p>
-          <Button disabled={isBusy} onClick={reload}>
-            重新读取备份
-          </Button>
-          <Button disabled={isLocked} onClick={onSettings}>
-            目录设置
+          <p>{t('backup.readFailed', { message: error })}</p>
+          <div className="action-row">
+            <Button size="small" disabled={isBusy} onClick={reload}>
+              {t('common.retry')}
+            </Button>
+            {!game.rootId && (
+              <Button size="small" onClick={onSettings}>
+                {t('page.gameSettings')}
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
+      <BackupPolicyBlock
+        isEnabled={shouldBackup}
+        keepCount={DEFAULT_BACKUP_KEEP_COUNT}
+        location={null}
+        onEdit={details && !isLocked ? () => setIsPolicyOpen(true) : null}
+      />
+      {details && (
+        <section>
+          <h3 className="group-title">
+            {t('backup.list')}
+            <small>
+              {backups.length} / {DEFAULT_BACKUP_KEEP_COUNT}
+            </small>
+          </h3>
+          <BackupTimeline
+            backups={backups.map((item) => ({
+              id: item.backupId,
+              createdAt: item.createdAt,
+              reason: item.reason,
+              fileCount: item.fileCount,
+              totalBytes: item.totalFileBytes,
+            }))}
+            action={{ kind: 'restore', isDisabled: isLocked, onRestore: prepare }}
+          />
+        </section>
+      )}
+      {incomplete.length > 0 && (
+        <div className="notice notice-warning">
+          <p>
+            <ExclamationCircleOutlined /> {t('backup.incomplete', { count: incomplete.length })}
+          </p>
+          <Button
+            size="small"
+            disabled={isLocked}
+            onClick={() =>
+              run(async () => {
+                for (const id of incomplete) {
+                  await sync.cleanupBackup(game.id, id)
+                }
+              })
+            }
+          >
+            {t('backup.cleanup')}
           </Button>
         </div>
       )}
-      <Panel title="本机备份设置">
+      {current && !isRestoreOpen && (
+        <Button onClick={() => setIsRestoreOpen(true)}>{t('backup.openRestore')}</Button>
+      )}
+      {details && (
+        <p className="foot-note">
+          {t('backup.privateNote')}
+          <br />
+          {t('backup.location')} <PathText path={details.info.displayPath} />
+        </p>
+      )}
+      <Sheet
+        isOpen={isPolicyOpen}
+        title={t('backup.switch')}
+        onClose={() => setIsPolicyOpen(false)}
+      >
         <div className="rule-row">
           <div>
-            覆盖前备份<small>接收复制时使用，默认开启；最近保留 3 次。</small>
+            {t('backup.switch')}
+            <small>{t('backup.switchHint')}</small>
           </div>
           <Switch
             checked={shouldBackup}
-            disabled={isLocked || !details}
-            onChange={preference}
-            aria-label="覆盖前备份"
+            disabled={isLocked}
+            aria-label={t('backup.switch')}
+            onChange={setPreference}
           />
         </div>
-        {details && (
-          <>
-            <p className="sync-path">
-              <span>保存位置：</span>
-              <PathText path={details.info.displayPath} />
-            </p>
-            <p className="muted">清除应用数据、卸载应用或手工删除备份文件会丢失这些备份。</p>
-          </>
-        )}
-      </Panel>
-      <Panel title="可恢复备份">
-        {!details ? (
-          <p>正在读取备份；读取失败时可在上方重试。</p>
-        ) : details.listing.backups.length ? (
-          details.listing.backups.map((backup) => (
-            <article className="sync-entry" key={backup.backupId}>
-              <strong>{displayTime(backup.createdAt)}</strong>
-              <span>
-                {backup.reason === 'restore' ? '恢复前保护' : '复制前保护'} · {backup.fileCount}{' '}
-                个文件 · {displayBytes(backup.totalFileBytes)}
-              </span>
-              <Button disabled={isLocked} onClick={() => prepare(backup.backupId)}>
-                预览恢复
-              </Button>
-            </article>
-          ))
-        ) : (
-          <p>还没有备份；需要覆盖旧内容时才产生备份轮次。</p>
-        )}
-        <Button disabled={isBusy} onClick={reload}>
-          刷新备份与任务
-        </Button>
-        {details && details.listing.backups.length > 3 && (
-          <Button disabled={isLocked} onClick={() => run(() => sync.rotateBackups(game.id))}>
-            重试保留最近 3 次
-          </Button>
-        )}
-        {details?.listing.incomplete.map((id) => (
-          <article className="sync-entry" key={id}>
-            <span>未完成的备份：{id}</span>
-            <Button
-              disabled={isLocked}
-              onClick={() =>
-                onConfirm({
-                  title: '清理未完成备份',
-                  text: '删除这份未完成备份的自有残留文件，有效备份继续保留。',
-                  work: async () => {
-                    await sync.cleanupBackup(game.id, id)
-                    reload()
-                  },
-                })
-              }
-            >
-              清理这份残留
-            </Button>
-          </article>
-        ))}
-      </Panel>
-      {current && (
-        <Panel title="本次恢复">
-          <p>
-            {
-              {
-                preparing: '正在核对备份并扫描当前内容',
-                ready: '预览已准备，请确认',
-                running: '正在保护并恢复当前文件',
-                succeeded: '恢复已完成',
-                failed: '恢复失败',
-                cancelled: '恢复已取消',
-              }[current.state.status]
-            }
-          </p>
-          {state?.error && <p className="notice notice-error">{state.error.message}</p>}
-          {state &&
-            (state.status === 'preparing' ||
-              state.status === 'running' ||
-              state.status === 'ready') && (
-              <Button
-                disabled={isBusy}
-                onClick={() => run(() => sync.cancelRestore(state.restoreId))}
-              >
-                取消本次恢复
-              </Button>
+      </Sheet>
+      <Sheet
+        isOpen={isRestoreShown}
+        title={backupTime ? t('backup.restoreTitle', { time: backupTime }) : t('backup.restore')}
+        isBusy={isBusy}
+        onClose={closeRestore}
+      >
+        {state && (
+          <div className="page-stack">
+            {state.status === 'ready' && plan ? (
+              <>
+                <SyncPlanSummary
+                  key={plan.planId}
+                  plan={plan}
+                  source={{ name: backupTime || t('backup.list'), kind: 'backup' }}
+                  target={{ name: t('transfer.local'), kind: 'phone' }}
+                  backupKeepCount={DEFAULT_BACKUP_KEEP_COUNT}
+                />
+                {isOldFolder && <p className="notice notice-warning">{t('backup.oldFolder')}</p>}
+                <Button
+                  block
+                  color="primary"
+                  disabled={isLocked || !plan.canExecute || isOldFolder}
+                  onClick={() => run(() => sync.executeRestore(state.restoreId).then(() => {}))}
+                >
+                  {t('backup.confirmRestore')}
+                </Button>
+              </>
+            ) : (
+              <>
+                <RestoreSummary
+                  phase={state.status === 'ready' ? 'preparing' : state.status}
+                  progress={null}
+                  result={state.result}
+                  error={state.error?.message ?? null}
+                  cleanupError={null}
+                  onRetryCleanup={
+                    state.result?.cleanupError && !isBusy
+                      ? () => run(() => sync.cleanupRestore())
+                      : null
+                  }
+                />
+                {state.status === 'preparing' ? (
+                  <Button block disabled={isBusy} onClick={closeRestore}>
+                    {t('common.cancel')}
+                  </Button>
+                ) : (
+                  state.status !== 'running' && (
+                    <Button block color="primary" disabled={isBusy} onClick={closeRestore}>
+                      {t('backup.done')}
+                    </Button>
+                  )
+                )}
+              </>
             )}
-          {state?.result?.cleanupError && (
-            <Button
-              disabled={isBusy || state.status === 'running'}
-              onClick={() => run(() => sync.cleanupRestore())}
-            >
-              重试恢复清理
-            </Button>
-          )}
-          {state && state.status !== 'preparing' && state.status !== 'running' && (
-            <Button
-              disabled={isBusy}
-              onClick={() => run(() => sync.releaseRestore(state.restoreId))}
-            >
-              关闭本次恢复记录
-            </Button>
-          )}
-        </Panel>
-      )}
-      {plan && (
-        <>
-          <SyncPlanView
-            key={plan.planId}
-            plan={plan}
-            sourceLabel="本机已验证备份"
-            targetLabel={`本机手机 · ${details?.root.rootId === plan.target.rootId ? (details.root.displayPath ?? details.root.displayName) : '本次记录的存档目录已变更'}`}
-          />
-          {state?.status === 'ready' && (
-            <Button
-              block
-              color="primary"
-              disabled={isLocked || !plan.canExecute || game.rootId !== state.rootId}
-              onClick={execute}
-            >
-              确认恢复
-            </Button>
-          )}
-        </>
-      )}
-      {state?.result && <SyncOutcomeView key={state.restoreId} result={state.result} />}
-    </>
+          </div>
+        )}
+      </Sheet>
+    </div>
   )
 }

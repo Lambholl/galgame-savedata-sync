@@ -81,8 +81,7 @@ export function MobileApp({
     null,
   )
   const [importKey, setImportKey] = useState('')
-  const [linkPeerId, setLinkPeerId] = useState('')
-  const [linkGameId, setLinkGameId] = useState('')
+  const [closePageOverlay, setClosePageOverlay] = useState<(() => void) | null>(null)
   const [copied, setCopied] = useState('')
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null)
   const operating = useRef(false)
@@ -94,6 +93,10 @@ export function MobileApp({
       void messageApi.error({ content, duration: 3.5, key: 'sync-action-failed' })
     },
     [messageApi],
+  )
+  const changePageOverlay = useCallback(
+    (close: (() => void) | null) => setClosePageOverlay(() => close),
+    [],
   )
   useEffect(() => {
     const state = syncTasks.copy?.state
@@ -435,25 +438,34 @@ export function MobileApp({
   function goBack(): void {
     setPage(page === 'sync-plan' ? 'sync' : 'games')
   }
-  function changeLinkPeer(id: string): void {
-    setLinkPeerId(id)
-    setLinkGameId('')
-  }
   function unlinkGame(deviceId: string): void {
     if (!game) {
       return
     }
     run(() => saveGame(withoutGameLink(game, deviceId)))
   }
-  function linkGame(): void {
-    if (!game || !linkPeerId || !linkGameId) {
-      return
-    }
-    run(async () => {
-      await saveGame(withGameLink(game, linkPeerId, linkGameId))
-      setPeerId(linkPeerId)
-      setLinkPeerId('')
-      setLinkGameId('')
+  /** 新关联或改为对应其他游戏；保存成功后 resolve，失败已提示并 reject。 */
+  function linkGame(deviceId: string, remoteGameId: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      if (!game || operating.current) {
+        reject(new Error('busy'))
+        return
+      }
+      const base = game.links.some((link) => link.deviceId === deviceId)
+        ? withoutGameLink(game, deviceId)
+        : game
+      run(
+        async () => {
+          await saveGame(withGameLink(base, deviceId, remoteGameId))
+          setPeerId(deviceId)
+          resolve()
+        },
+        (message) => {
+          setError(message)
+          showSyncFailure(message)
+          reject(new Error(message))
+        },
+      )
     })
   }
   function importGame(): void {
@@ -507,6 +519,10 @@ export function MobileApp({
       setIsTransferMenuOpen(false)
       return true
     }
+    if (closePageOverlay) {
+      closePageOverlay()
+      return true
+    }
     if (page !== 'games') {
       goBack()
       return true
@@ -554,17 +570,18 @@ export function MobileApp({
         game={game}
         peers={peers}
         localRoot={localRoot}
-        linkPeerId={linkPeerId}
-        linkGameId={linkGameId}
         isDisabled={isDisabled}
         isActive={isActive}
         onRename={renameGame}
         onChooseDirectory={chooseDirectory}
-        onUnlink={unlinkGame}
-        onLinkPeerChange={changeLinkPeer}
-        onLinkGameChange={setLinkGameId}
         onLink={linkGame}
+        onUnlink={unlinkGame}
+        onTransfer={(deviceId) => {
+          setPeerId(deviceId)
+          setPage('sync')
+        }}
         onManageDevices={() => setPage('devices')}
+        onOverlayChange={changePageOverlay}
       />
     )
   } else if ((page === 'sync' || page === 'sync-plan') && game) {
@@ -629,9 +646,10 @@ export function MobileApp({
         onConfirm={confirmSync}
         onChanged={syncTasks.reload}
         onSettings={() => setPage('edit')}
+        onOverlayChange={changePageOverlay}
       />
     ) : (
-      <EmptyState description="请选择游戏查看本机备份" />
+      <EmptyState description={t('backup.noGame')} />
     )
   } else if (page === 'settings') {
     body = (

@@ -257,6 +257,13 @@ button.ss-task-row {
   transform: rotate(180deg);
 }
 
+.ss-task-wait {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 24px 0;
+}
+
 .ss-task-tech {
   padding: 0 6px;
   color: var(--ss-faint);

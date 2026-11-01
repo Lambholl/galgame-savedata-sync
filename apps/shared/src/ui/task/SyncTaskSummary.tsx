@@ -1,18 +1,12 @@
-import { useState, type ReactElement } from 'react'
-import {
-  ArrowRightOutlined,
-  CheckOutlined,
-  CloseOutlined,
-  DeleteOutlined,
-  DownOutlined,
-  ExclamationOutlined,
-  MinusOutlined,
-} from '@ant-design/icons'
-import type { SyncWriteOutcome } from '../../sync/sync-contracts.ts'
+import type { ReactElement } from 'react'
+import { ArrowRightOutlined, CheckOutlined } from '@ant-design/icons'
 import type { SyncJobState } from '../../sync/sync-job-contracts.ts'
 import { formatBytes, formatDateTime } from '../../i18n/format.ts'
 import type { PlanEndpoint } from '../plan/SyncPlanSummary.tsx'
 import { useLocale, useT } from '../i18n/i18n-context.ts'
+import { OutcomeList } from './OutcomeList.tsx'
+import { unsettledOutcomes } from './outcomes.ts'
+import { ProgressRing, Verdict, type VerdictTone } from './TaskHero.tsx'
 import './sync-task-summary.css'
 
 /** SyncTaskSummary 的参数。 */
@@ -31,10 +25,6 @@ export interface SyncTaskSummaryProps {
   readonly remoteError: string | null
   /** 重试清理临时文件；本端不能重试时为 null。 */
   readonly onRetryCleanup: (() => void) | null
-}
-
-type UnsettledOutcome = SyncWriteOutcome & {
-  readonly status: Exclude<SyncWriteOutcome['status'], 'succeeded'>
 }
 
 type Phase = 'running' | 'done' | 'partial' | 'failed' | 'cancelled' | 'unknown'
@@ -78,10 +68,6 @@ function stepFraction(state: SyncJobState, step: number): number {
   return 0
 }
 
-function fileName(outcome: SyncWriteOutcome): string {
-  return outcome.path[outcome.path.length - 1] ?? ''
-}
-
 /**
  * 传输详情：先给结论（进度环或成功/部分完成/失败），再给五步进度和需要处理的文件；
  * 两端角色的内部状态只放在折叠的“技术详情”里。
@@ -97,13 +83,12 @@ export function SyncTaskSummary({
 }: SyncTaskSummaryProps): ReactElement {
   const t = useT()
   const locale = useLocale()
-  const [isWrittenOpen, setIsWrittenOpen] = useState(false)
   const receiver = local.role === 'receiver' ? local : remote?.role === 'receiver' ? remote : null
   const states = remote ? [local, remote] : [local]
   const result = receiver?.result ?? null
   const outcomes = result?.outcomes ?? []
   const succeeded = outcomes.filter((item) => item.status === 'succeeded')
-  const unsettled = outcomes.filter((item): item is UnsettledOutcome => item.status !== 'succeeded')
+  const unsettled = unsettledOutcomes(outcomes)
   let phase: Phase
   if (states.some((item) => item.status === 'running')) {
     phase = 'running'
@@ -129,27 +114,9 @@ export function SyncTaskSummary({
   const files = leading.progress
   let hero: ReactElement
   if (phase === 'running') {
-    const radius = 64
-    const circle = 2 * Math.PI * radius
     hero = (
       <>
-        <div className="ss-ring">
-          <svg viewBox="0 0 150 150" aria-hidden="true">
-            <circle className="is-track" cx="75" cy="75" r={radius} />
-            <circle
-              className="is-fill"
-              cx="75"
-              cy="75"
-              r={radius}
-              strokeDasharray={circle}
-              strokeDashoffset={circle * (1 - percent / 100)}
-            />
-          </svg>
-          <div>
-            <b>{percent}%</b>
-            <span>{t(`task.stage.${leading.stage}`)}</span>
-          </div>
-        </div>
+        <ProgressRing percent={percent} label={t(`task.stage.${leading.stage}`)} />
         {files.totalFiles > 0 && (
           <p>
             {t('task.files', { done: files.publishedFiles, total: files.totalFiles })} ·{' '}
@@ -159,13 +126,16 @@ export function SyncTaskSummary({
       </>
     )
   } else {
-    const verdict = {
-      done: { tone: 'ok', icon: <CheckOutlined />, title: t('task.done') },
-      partial: { tone: 'warn', icon: <ExclamationOutlined />, title: t('task.partial') },
-      failed: { tone: 'bad', icon: <CloseOutlined />, title: t('task.failed') },
-      cancelled: { tone: 'muted', icon: <MinusOutlined />, title: t('task.cancelled') },
-      unknown: { tone: 'warn', icon: <ExclamationOutlined />, title: t('task.unknown') },
-    }[phase]
+    const verdicts: Readonly<
+      Record<Exclude<Phase, 'running'>, { tone: VerdictTone; title: string }>
+    > = {
+      done: { tone: 'ok', title: t('task.done') },
+      partial: { tone: 'warn', title: t('task.partial') },
+      failed: { tone: 'bad', title: t('task.failed') },
+      cancelled: { tone: 'muted', title: t('task.cancelled') },
+      unknown: { tone: 'warn', title: t('task.unknown') },
+    }
+    const verdict = verdicts[phase]
     let detail: string | null = null
     if (phase === 'done') {
       detail = t('task.doneDetail', { count: succeeded.length })
@@ -179,15 +149,8 @@ export function SyncTaskSummary({
     } else if (phase === 'unknown') {
       detail = t('task.unknownDetail')
     }
-    hero = (
-      <>
-        <div className={`ss-verdict is-${verdict.tone}`}>{verdict.icon}</div>
-        <h2>{verdict.title}</h2>
-        {detail && <p>{detail}</p>}
-      </>
-    )
+    hero = <Verdict tone={verdict.tone} title={verdict.title} detail={detail} />
   }
-  const hasAction = unsettled.length > 0 || cleanupError !== null || remoteError !== null
   return (
     <div className="ss-task">
       <div className="ss-task-hero">
@@ -210,97 +173,12 @@ export function SyncTaskSummary({
           ))}
         </div>
       )}
-      {hasAction && (
-        <section>
-          <h3 className="ss-task-title">{t('task.needsAction')}</h3>
-          <div className="ss-task-group">
-            {unsettled.map((item) => (
-              <div className="ss-task-row" key={item.path.join('/')}>
-                <span className="ss-task-lead is-bad">
-                  <CloseOutlined />
-                </span>
-                <span className="ss-task-body">
-                  <span>{fileName(item)}</span>
-                  <small className="is-bad">
-                    {item.error?.message ?? t(`task.outcome.${item.status}`)}
-                  </small>
-                </span>
-              </div>
-            ))}
-            {cleanupError && (
-              <div className="ss-task-row">
-                <span className="ss-task-lead is-warn">
-                  <DeleteOutlined />
-                </span>
-                <span className="ss-task-body">
-                  <span>{t('task.cleanupFailed')}</span>
-                  <small>{cleanupError.message}</small>
-                </span>
-                {onRetryCleanup && (
-                  <button type="button" className="ss-task-link" onClick={onRetryCleanup}>
-                    {t('common.retry')}
-                  </button>
-                )}
-              </div>
-            )}
-            {remoteError && (
-              <div className="ss-task-row">
-                <span className="ss-task-lead is-warn">
-                  <ExclamationOutlined />
-                </span>
-                <span className="ss-task-body">
-                  <small>{t('task.remoteError', { message: remoteError })}</small>
-                </span>
-              </div>
-            )}
-          </div>
-        </section>
-      )}
-      {succeeded.length > 0 && (
-        <section>
-          <h3 className="ss-task-title">{t('task.written')}</h3>
-          <div className="ss-task-group">
-            <button
-              type="button"
-              className="ss-task-row"
-              aria-expanded={isWrittenOpen}
-              onClick={() => setIsWrittenOpen(!isWrittenOpen)}
-            >
-              <span className="ss-task-lead is-ok">
-                <CheckOutlined />
-              </span>
-              <span className="ss-task-body">
-                <span>{t('task.fileCount', { count: succeeded.length })}</span>
-                <small>
-                  {succeeded
-                    .slice(0, 2)
-                    .map(fileName)
-                    .join(locale.startsWith('zh') || locale === 'ja-JP' ? '、' : ', ')}
-                </small>
-              </span>
-              <DownOutlined className={`ss-task-chevron${isWrittenOpen ? ' is-open' : ''}`} />
-            </button>
-            {isWrittenOpen &&
-              succeeded.map((item) => (
-                <div className="ss-task-row is-sub" key={item.path.join('/')}>
-                  <span className="ss-task-body">
-                    <span>{item.path.join(' / ')}</span>
-                    <small>
-                      {item.action === 'create-directory'
-                        ? t('task.folderCreated')
-                        : t('task.verified', {
-                            size:
-                              item.sizeBytes === null
-                                ? t('common.sizeUnknown')
-                                : formatBytes(item.sizeBytes),
-                          })}
-                    </small>
-                  </span>
-                </div>
-              ))}
-          </div>
-        </section>
-      )}
+      <OutcomeList
+        outcomes={outcomes}
+        cleanupError={cleanupError?.message ?? null}
+        remoteError={remoteError}
+        onRetryCleanup={onRetryCleanup}
+      />
       <details className="ss-task-tech">
         <summary>{t('task.tech')}</summary>
         <p>

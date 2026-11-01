@@ -230,21 +230,6 @@ body {
 .library-full {
   width: 100%;
 }
-.library-sync-path {
-  min-width: 0;
-  overflow-wrap: anywhere;
-  white-space: normal;
-}
-.library-sync-entry {
-  display: grid;
-  gap: 4px;
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-.library-sync-entry small {
-  color: inherit;
-  opacity: 0.8;
-}
 .library-field {
   display: block;
   font-size: 13px;
@@ -253,24 +238,6 @@ body {
 .library-field > .ant-input,
 .library-field > .ant-select {
   margin-top: 8px;
-}
-.library-linked-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 0;
-  border-bottom: 1px solid #e5ebf4;
-  margin-bottom: 12px;
-}
-.library-linked-row > div {
-  min-width: 0;
-}
-.library-linked-row p {
-  color: #77849a;
-  font-size: 12px;
-  margin: 6px 0 0;
-  overflow-wrap: anywhere;
 }
 .library-task-actions {
   margin: 16px 0;
@@ -287,16 +254,6 @@ body {
 .library-task-shortcut {
   height: auto;
   padding: 12px;
-}
-.library-transfer-action {
-  padding: 14px;
-  background: #fff;
-  border-top: 1px solid #e5ebf4;
-  flex-shrink: 0;
-}
-.library-dark .library-transfer-action {
-  background: #141414;
-  border-color: #303030;
 }
 @media (max-width: 800px) {
   .library-sidebar {
@@ -338,22 +295,6 @@ body {
   flex-shrink: 0;
 }
 
-.library-directory-setting {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-.library-directory-path {
-  flex: 1;
-  min-width: 0;
-  margin: 0;
-  overflow-wrap: anywhere;
-  white-space: pre-wrap;
-  line-height: 1.6;
-}
-.library-directory-setting > .ant-btn {
-  flex-shrink: 0;
-}
 .library-add-game-name {
   margin-top: 16px;
 }
@@ -471,4 +412,92 @@ body {
   display: block;
   color: var(--ss-muted);
   font-size: 12px;
+}
+
+/* 游戏设置：左栏名称与目录，右栏关联设备 */
+.settings-columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  align-items: start;
+  gap: 24px;
+}
+.name-edit {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ss-muted);
+}
+.name-edit .ant-input {
+  padding-left: 0;
+  font-size: 22px;
+  font-weight: 650;
+}
+.group-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 30px;
+  margin: 0 0 6px;
+  padding: 0 4px;
+  color: var(--ss-muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+.group-title small {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 400;
+}
+.menu-label small {
+  display: block;
+  color: var(--ss-muted);
+  font-size: 12px;
+}
+
+/* 备份与恢复：左侧时间线，右侧所选备份或恢复预览 */
+.backup-columns {
+  display: grid;
+  grid-template-columns: minmax(240px, 300px) minmax(0, 1fr);
+  align-items: start;
+  gap: 20px;
+}
+@media (max-width: 760px) {
+  .backup-columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.backup-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+.backup-detail-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+}
+.backup-detail-head h2 {
+  margin: 0;
+  font-size: 18px;
+}
+.backup-detail-head p {
+  margin: 2px 0 0;
+  color: var(--ss-muted);
+  font-size: 12.5px;
+}
+.backup-file {
+  overflow-wrap: anywhere;
+}
+.backup-switch {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.backup-switch p {
+  margin: 4px 0 0;
+  color: var(--ss-muted);
+  font-size: 13px;
 }

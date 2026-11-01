@@ -1,0 +1,89 @@
+/* 备份策略状态块：开启为绿色盾牌，关闭整块变红。 */
+.ss-policy {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 14px;
+  border: 0;
+  border-radius: var(--ss-r-md);
+  background: var(--ss-group);
+  color: var(--ss-fg);
+  font: inherit;
+  font-family: var(--ss-font);
+  text-align: left;
+  cursor: pointer;
+}
+.ss-policy:disabled {
+  cursor: default;
+}
+.ss-policy-icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: var(--ss-ok-soft);
+  color: var(--ss-ok);
+  font-size: 20px;
+}
+.ss-policy-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.ss-policy-body b {
+  font-size: 15px;
+}
+.ss-policy-body small {
+  color: var(--ss-muted);
+  font-size: 12.5px;
+}
+.ss-policy-chevron {
+  color: var(--ss-faint);
+  font-size: 12px;
+}
+.ss-policy.is-off {
+  background: var(--ss-danger-soft);
+}
+.ss-policy.is-off .ss-policy-icon {
+  background: var(--ss-danger);
+  color: var(--ss-accent-fg);
+}
+.ss-policy.is-off b {
+  color: var(--ss-danger);
+}
+
+/* 时间线左侧的日期与时间 */
+.ss-tl-when {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: center;
+  width: 52px;
+  color: var(--ss-muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.ss-tl-when b {
+  color: var(--ss-fg);
+  font-size: 14px;
+}
+.ss-tl-restore {
+  flex: none;
+  padding: 5px 14px;
+  border: 1px solid var(--ss-line);
+  border-radius: var(--ss-r-pill);
+  background: var(--ss-group);
+  color: var(--ss-fg);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.ss-tl-restore:disabled {
+  color: var(--ss-faint);
+  cursor: not-allowed;
+}
