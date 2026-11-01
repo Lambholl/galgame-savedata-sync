@@ -29,6 +29,19 @@ const rendererUrl = process.env.ELECTRON_RENDERER_URL
 const rendererFileUrl = new URL('../renderer/index.html', import.meta.url)
 const expectedRendererUrl = rendererUrl ? new URL(rendererUrl).href : rendererFileUrl.href
 let preferencesStore: AppPreferencesStore | null = null
+let initializationStage = 'app-data'
+
+/** 只记录文件系统错误码，原始异常中的路径与堆栈留在进程内。 */
+function systemErrorCode(error: unknown): string | null {
+  let cause = error
+  for (let depth = 0; depth < 8 && typeof cause === 'object' && cause !== null; depth++) {
+    if ('code' in cause && typeof cause.code === 'string' && /^[A-Z][A-Z0-9_]+$/.test(cause.code)) {
+      return cause.code
+    }
+    cause = 'cause' in cause ? cause.cause : null
+  }
+  return null
+}
 
 /** 原生窗口与系统弹窗每次按已保存偏好取文案；配置未读到时跟随系统。 */
 function getT(): Translate {
@@ -86,13 +99,18 @@ if (hasInstanceLock) {
       // 用户选择的存档目录仍由目录适配器独立拒绝链接和越界。
       await mkdir(app.getPath('userData'), { recursive: true })
       const privateDirectory = await realpath(app.getPath('userData'))
+      initializationStage = 'directories'
       const adapter = await createDirectoryAdapter(join(privateDirectory, 'directory-config.json'))
+      initializationStage = 'archive-cache'
       const archive = await createWindowsArchiveAdapter(adapter, privateDirectory)
       // 网络监听由本机界面启动；已配置的存档目录在每次接收前重新核实写入权限。
       const publisher = new WindowsNewFilePublisher(adapter)
+      initializationStage = 'library'
       const library = new DesktopLibrary(join(privateDirectory, 'game-library.json'), adapter)
       await library.load()
+      initializationStage = 'backups'
       const backups = await createWindowsBackupStore(adapter, privateDirectory)
+      initializationStage = 'sync-writer'
       const syncWriter = new WindowsSyncWriter(adapter, backups, {
         authorize: (plan) => {
           if (
@@ -109,6 +127,7 @@ if (hasInstanceLock) {
           }
         },
       })
+      initializationStage = 'preferences'
       const preferences = new AppPreferencesStore(join(privateDirectory, 'app-preferences.json'))
       await preferences.load()
       preferencesStore = preferences
@@ -125,8 +144,10 @@ if (hasInstanceLock) {
           },
         ),
       )
+      initializationStage = 'service-settings'
       const portSettings = new ServicePortSettings(join(privateDirectory, 'service-settings.json'))
       await portSettings.load()
+      initializationStage = 'services'
       const httpService = new WindowsHttpService(adapter, archive, {
         scanSource: adapter,
         publisher,
@@ -232,6 +253,7 @@ if (hasInstanceLock) {
         },
       })
       app.once('will-quit', disposeServiceIpc)
+      initializationStage = 'window'
       createWindow()
       app.on('activate', () => {
         if (BrowserWindow.getAllWindows().length === 0) {
@@ -240,12 +262,21 @@ if (hasInstanceLock) {
       })
     })
     .catch((error: unknown) => {
-      console.error(
-        'Failed to initialize desktop application',
-        toDirectoryError(error).operationError,
-      )
+      // 各模块已有的脱敏错误必须保留，避免备份等异常被改写为通用目录错误。
+      const failure =
+        typeof error === 'object' && error !== null && 'operationError' in error
+          ? toHttpError(error).operationError
+          : toDirectoryError(error).operationError
+      console.error('Failed to initialize desktop application', {
+        stage: initializationStage,
+        ...failure,
+        systemCode: systemErrorCode(error),
+      })
       const t = getT()
-      dialog.showErrorBox(t('app.initializeFailedTitle'), t('app.initializeFailed'))
+      dialog.showErrorBox(
+        t('app.initializeFailedTitle'),
+        `${t(`error.code.${failure.code}`)}\n\n${failure.message} (${failure.code})`,
+      )
       app.exit(1)
     })
 }

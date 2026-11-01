@@ -178,7 +178,12 @@ export function isLibraryPeer(value: unknown): value is LibraryPeer {
 export function emptyLibrary(): LibraryConfig {
   return { schemaVersion: 1, games: [], devices: [] }
 }
-/** 统一地址显示；拒绝账户、路径和非 HTTP 地址，出错时抛 invalid-request 供界面翻译。 */
+/** 显示与复制连接地址：省略内部 HTTP 地址的协议前缀，保留 IP、IPv6 方括号与端口。 */
+export function formatConnectionAddress(value: string): string {
+  return value.replace(/^http:\/\//i, '')
+}
+
+/** 将 IP 与端口规范为内部 HTTP 地址；也接受完整 HTTP 地址，拒绝账户、路径及其他协议。 */
 export function normalizeHttpAddress(value: string): string {
   const match =
     /^(?:http:\/\/)?(\[[a-f\d:]+\]|(?:0|[1-9]\d{0,2})(?:\.(?:0|[1-9]\d{0,2})){3})(?::([1-9]\d{0,4}))?\/?$/i.exec(
@@ -193,7 +198,7 @@ export function normalizeHttpAddress(value: string): string {
   ) {
     throw new OperationFailure(
       'invalid-request',
-      'Enter the complete HTTP address displayed on the PC.',
+      'Enter the IP address and port displayed on the PC.',
     )
   }
   return `http://${host.toLowerCase()}${port ? `:${Number(port)}` : ''}`

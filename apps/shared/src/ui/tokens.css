@@ -1,3 +1,5 @@
+@import './text-selection.css';
+
 /*
  * 双端共用的设计变量（原型 v2）。应用在 <html> 上设置 data-theme="light|dark"（已解析的主题），
  * 两端 ConfigProvider 的主色、圆角与这里保持一致。

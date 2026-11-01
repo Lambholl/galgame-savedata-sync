@@ -42,7 +42,9 @@ export function BackupPolicyBlock({
         <b>{isEnabled ? t('backup.on') : t('backup.off')}</b>
         <small>
           {location ? (
-            <PathText path={`${caption} · ${t('backup.location')} ${location}`} />
+            <>
+              {caption} · {t('backup.location')} <PathText path={location} />
+            </>
           ) : (
             caption
           )}

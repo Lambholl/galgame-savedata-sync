@@ -87,8 +87,16 @@ export function DevicesPage({
                 <div className="library-device-icon">
                   <AndroidOutlined />
                 </div>
-                <Flex vertical={true}>
-                  <div style={{ fontWeight: 'bold' }}>{peer.device.name}</div>
+                <Flex vertical className="library-device-info">
+                  <Flex align="center" gap="small">
+                    <strong className="library-device-name ss-copyable">{peer.device.name}</strong>
+                    <Tag
+                      color={peer.isConnected ? 'success' : 'default'}
+                      style={{ flexShrink: 0, marginInlineEnd: 0 }}
+                    >
+                      {t(peer.isConnected ? 'transfer.connected' : 'transfer.disconnected')}
+                    </Tag>
+                  </Flex>
                   {peer.device.address && (
                     <AddressField
                       address={peer.device.address}
@@ -96,12 +104,6 @@ export function DevicesPage({
                       onCopy={onCopyAddress}
                     />
                   )}
-                  <Tag
-                    color={peer.isConnected ? 'success' : 'default'}
-                    style={{ alignSelf: 'flex-start', flexShrink: 0 }}
-                  >
-                    {t(peer.isConnected ? 'transfer.connected' : 'transfer.disconnected')}
-                  </Tag>
                 </Flex>
               </Flex>
               <Space wrap>

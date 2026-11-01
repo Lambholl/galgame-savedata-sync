@@ -112,7 +112,9 @@ export function SettingsPage({
       </Card>
       <Card title={t('settings.about')}>
         <Form {...SETTING_FORM}>
-          <Form.Item label={t('settings.version')}>{APP_VERSION}</Form.Item>
+          <Form.Item label={t('settings.version')}>
+            <span className="ss-copyable">{APP_VERSION}</span>
+          </Form.Item>
         </Form>
       </Card>
     </div>

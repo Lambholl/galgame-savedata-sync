@@ -102,7 +102,9 @@ export function SettingsPage({
         </List>
       )}
       <List mode="card" header={t('settings.about')}>
-        <List.Item extra={APP_VERSION}>{t('settings.version')}</List.Item>
+        <List.Item extra={<span className="ss-copyable">{APP_VERSION}</span>}>
+          {t('settings.version')}
+        </List.Item>
       </List>
     </>
   )

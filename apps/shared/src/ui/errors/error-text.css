@@ -4,11 +4,18 @@
   gap: 2px;
   min-width: 0;
 }
+.ss-error-detail {
+  margin: 0;
+  font-size: inherit;
+}
 .ss-error-detail summary {
+  margin: 0;
   width: fit-content;
   cursor: pointer;
   font-size: 0.9em;
   opacity: 0.75;
+  -webkit-user-select: none;
+  user-select: none;
 }
 .ss-error-detail code {
   display: block;

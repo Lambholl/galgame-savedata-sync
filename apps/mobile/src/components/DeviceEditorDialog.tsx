@@ -53,7 +53,7 @@ export function DeviceEditorDialog({
           <Input
             placeholder={t('device.addressPlaceholder')}
             value={deviceAddress}
-            type="url"
+            inputMode="url"
             autoCapitalize="off"
             autoCorrect="off"
             disabled={isBusy}

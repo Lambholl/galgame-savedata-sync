@@ -3,6 +3,7 @@ import { Button, Empty, Tooltip, message } from 'antd'
 import { ControlOutlined, HistoryOutlined } from '@ant-design/icons'
 import {
   emptyLibrary,
+  formatConnectionAddress,
   withGameLink,
   withoutGameLink,
   createImportedGame,
@@ -319,7 +320,7 @@ export function DesktopApp({
   }
   function copyAddress(address: string): void {
     run(async () => {
-      await navigator.clipboard.writeText(address)
+      await navigator.clipboard.writeText(formatConnectionAddress(address))
       setCopied(address)
     })
   }

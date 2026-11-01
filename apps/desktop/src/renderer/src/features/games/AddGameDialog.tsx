@@ -52,9 +52,11 @@ export function AddGameDialog({
         <span>
           <strong>{t('game.chooseFolder')}</strong>
           <small>
-            <PathText
-              path={directory?.displayPath ?? directory?.displayName ?? t('game.noFolder')}
-            />
+            {directory ? (
+              <PathText path={directory.displayPath ?? directory.displayName} />
+            ) : (
+              t('game.noFolder')
+            )}
           </small>
         </span>
         <RightOutlined aria-hidden="true" />

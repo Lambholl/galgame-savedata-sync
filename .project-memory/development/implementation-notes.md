@@ -19,6 +19,9 @@ related_files: []
 
 | 主题 | 结论 | 相关文件 |
 | --- | --- | --- |
+| 移动 Stepper 原生外观 | Stepper 内部的 Input 和原生 input 元素排除普通输入框的全局样式，避免圆角、边框、左右内边距和最小高度覆盖官方组件；加减按钮已排除普通按钮覆盖。保留 antd-mobile 5.43.0 原生 28px 高度和组件样式，颜色随应用主题。相同主题下与单独渲染的官方组件比较，明暗模式的尺寸、颜色和边框一致；1–10 边界、加减及直接输入通过，普通输入框仍保留原样式 | apps/mobile/src/styles/mobile.css、components/BackupPolicyFields.tsx |
+| 界面文字选择与提示布局 | 普通界面标签默认禁选；输入框、错误主提示及原文、路径/文件名、地址、版本号等可复制数据显式保留选择，详情开关文字禁选。错误详情独立控制间距，避免套用页面通用 details/summary 的上下边距；桌面 Alert 的图标和重试按钮与主提示首行对齐。桌面设备卡片名称与连接标签同行，名称较长时在名称区域换行 | shared/ui/text-selection.css、ErrorText 样式、双端设置/设备/添加游戏页、desktop.css/mobile.css |
+| 连接地址显示与复制 | 双端显示、编辑与复制连接地址时省略 http://，输入框的占位文字在所有语言中统一为 IP:Port，标签按当前语言显示 IP 和端口。formatConnectionAddress 保留 IPv6 方括号；输入原本就支持 IP:端口，normalizeHttpAddress 继续生成内部完整 HTTP 地址，配置与网络请求格式保持一致 | shared/library/library.ts、i18n、双端 App/DevicesPage、desktop AddressField、mobile DeviceEditorDialog |
 | 四语言界面与错误显示 | 双端界面、窗口及系统目录选择器按 zh-CN/zh-TW/ja-JP/en-US 取共用文案。后端自有错误说明默认英文；unwrap 和平台异常保留错误码，ErrorText 按码显示当前语言的主提示，英文原文和错误码折叠在详情；无错误码时显示原文。APP_NAME 已移除，名称取 app.name；共用组件参数命名导出并注释，不透传样式 | shared i18n/result/ui、双端 app/features/platform、desktop main/index.ts |
 | Android 原生语言 | 应用名称、通知渠道、传输阶段、标题、取消和重试按钮使用默认中文、zh-rTW、en、ja 字符串资源。TransferService 与 AppPreferencesPlugin 共用 app-preferences 的 locale；每次通知更新读取偏好并用 createConfigurationContext 取资源，system 或未设置时取系统语言，渠道名随语言更新。Activity 与应用统一引用 app_name | AppPreferencesPlugin.java、TransferService.java、AndroidManifest.xml、res/values*/strings.xml |
 | 移动计划页与浮动操作 | 子页面覆盖底部导航。传输页右下角箭头扫描后进入独立同步计划页，返回保留双列浏览状态；计划隐藏 skip 展示，计划及结果用连续列表，执行仍提交完整原生计划。“开始”浮动按钮与扫描箭头使用独立 portal，距边缘 24px 加系统安全区，内容底部预留 104px 加安全区。开始、实际目标成功/失败及新连接使用 antd Message，按任务状态变化提示并限制记录数量 | LibraryShell、FloatingPageAction、MobileApp、SyncCopy/PlanView、transfer-feedback、mobile.css |

@@ -1,0 +1,18 @@
+/* 界面标签不参与选择；输入内容、错误和可复制的数据保留系统选择与复制。 */
+body {
+  -webkit-user-select: none;
+  user-select: none;
+}
+input,
+textarea,
+[contenteditable='true'],
+code,
+pre,
+.ss-copyable,
+.ss-path-text,
+.ss-row-name,
+.backup-file,
+.ss-error {
+  -webkit-user-select: text;
+  user-select: text;
+}

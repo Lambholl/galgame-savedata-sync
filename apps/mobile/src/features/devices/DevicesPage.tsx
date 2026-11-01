@@ -1,6 +1,7 @@
 import { Button } from 'antd-mobile'
 import { DesktopOutlined, PlusOutlined, CopyOutlined } from '@ant-design/icons'
 import type { LibraryPeer } from '@savedata-sync/shared'
+import { formatConnectionAddress } from '@savedata-sync/shared'
 import { useT } from '@savedata-sync/shared/ui'
 import { EmptyState } from '../../components/EmptyState'
 import { Panel } from '../../components/Panel'
@@ -44,7 +45,7 @@ export function DevicesPage({
                 <DesktopOutlined />
               </span>
               <div>
-                <h2>{peer.device.name}</h2>
+                <h2 className="ss-copyable">{peer.device.name}</h2>
                 <span className={`device-status ${peer.isConnected ? 'connected' : ''}`}>
                   {t(peer.isConnected ? 'transfer.connected' : 'transfer.disconnected')}
                 </span>
@@ -52,7 +53,7 @@ export function DevicesPage({
             </div>
             {peer.device.address && (
               <div className="device-address">
-                <span>{peer.device.address}</span>
+                <span className="ss-copyable">{formatConnectionAddress(peer.device.address)}</span>
                 <Button
                   fill="none"
                   aria-label={t('device.copyAddress')}

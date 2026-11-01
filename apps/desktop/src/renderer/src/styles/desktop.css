@@ -88,6 +88,12 @@ body {
 .library-main > .ant-alert {
   margin-bottom: 16px;
 }
+.library-app .ant-alert {
+  align-items: flex-start;
+}
+.library-app .ant-alert:not(.ant-alert-with-description) > .ant-alert-icon {
+  margin-top: 4px;
+}
 .library-stack {
   display: flex;
   flex-direction: column;
@@ -131,6 +137,14 @@ body {
 .library-device-card .ant-space {
   display: flex;
 }
+.library-device-info {
+  flex: 1;
+  min-width: 0;
+}
+.library-device-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
 .library-compact {
   width: 100%;
 }
@@ -145,11 +159,11 @@ body {
 .library-address + .library-address {
   margin-top: 8px;
 }
-.library-app details {
+.library-app details:not(.ss-error-detail) {
   margin-top: 14px;
   font-size: 12px;
 }
-.library-app summary {
+.library-app details:not(.ss-error-detail) > summary {
   cursor: pointer;
   margin-bottom: 10px;
 }

@@ -6,6 +6,7 @@ import { EmptyState } from '../components/EmptyState'
 import {
   OperationFailure,
   emptyLibrary,
+  formatConnectionAddress,
   taskIsActive,
   toShownError,
   withGameLink,
@@ -384,7 +385,7 @@ export function MobileApp({
     const item = config.devices.find((value) => value.id === id)
     setEditingDeviceId(id)
     setDeviceName(item?.name ?? '')
-    setDeviceAddress(item?.address ?? '')
+    setDeviceAddress(formatConnectionAddress(item?.address ?? ''))
     setIsDeviceEditorOpen(true)
   }
   function saveDevice(): void {
@@ -418,7 +419,7 @@ export function MobileApp({
   }
   function copyAddress(address: string): void {
     run(async () => {
-      await navigator.clipboard.writeText(address)
+      await navigator.clipboard.writeText(formatConnectionAddress(address))
       setCopied(address)
     })
   }
