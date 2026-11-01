@@ -20,6 +20,7 @@ export const enUS: Messages = {
   'nav.main': 'Main navigation',
   'nav.backToGames': 'Back to games',
   'nav.backToTransfer': 'Back to transfer',
+  'nav.backToBackup': 'Back to backups',
 
   'page.gameSettings': 'Game settings',
   'page.transfer': 'Transfer saves',
@@ -53,9 +54,9 @@ export const enUS: Messages = {
   'transfer.target': 'Target',
   'transfer.connected': 'Connected',
   'transfer.disconnected': 'Not connected',
-  'transfer.flip': 'Reverse transfer direction',
+  'transfer.flip': 'Swap source and target',
   'transfer.pickPeer': 'Switch device',
-  'transfer.preview': 'Preview transfer plan',
+  'transfer.preview': 'Next',
   'transfer.comparing': 'Comparing both sides…',
   'transfer.pickPeerTitle': 'Choose a device',
   'transfer.noPeer': 'No linked device yet. Link one in game settings.',
@@ -63,6 +64,7 @@ export const enUS: Messages = {
   'transfer.noLocalRoot': 'No save folder chosen on this device yet.',
   'transfer.noRemoteRoot': 'The other device has no save folder chosen yet.',
   'transfer.compareFailed': 'Comparison failed. Refresh to try again.',
+  'transfer.compareFailedContext': 'Comparison failed',
   'transfer.compareCancelled': 'Comparison cancelled.',
   'transfer.start': 'Start transfer',
   'transfer.startNote': 'Quit the game before you start',
@@ -71,19 +73,14 @@ export const enUS: Messages = {
     'Backup before overwrite is off, so overwritten files cannot be restored. Start the transfer anyway?',
   'transfer.planUnavailable': 'This plan is no longer available. Go back and refresh.',
   'transfer.planStale': 'The game or a folder changed. Go back and refresh before transferring.',
-  'transfer.remoteScanning': ({ name }) =>
-    `${name} is scanning both folders. Keep the app open on the phone.`,
-  'transfer.remoteRoute': ({ source, target }) =>
-    `${source} → ${target} · The phone scans and writes; confirm the plan here`,
   'transfer.remoteBusy': 'Another transfer is confirmed and waiting for the phone to start.',
 
   'compare.differs': ({ count }) => `${count} different`,
-  'compare.only': ({ count }) => `${count} on one side only`,
+  'compare.onlySource': ({ count }) => `${count} only in source`,
+  'compare.onlyTarget': ({ count }) => `${count} only in target`,
   'compare.allSame': 'Both sides match',
-  'compare.filter': 'Differences only',
+  'compare.filter': 'Diff',
   'compare.refresh': 'Refresh',
-  'compare.containsDifferences': ({ count }) =>
-    count === 1 ? '1 difference inside' : `${count} differences inside`,
   'compare.noDifferences': 'No differences here',
   'compare.emptyFolder': 'Empty folder',
   'compare.summary': ({ directories, files }) =>
@@ -174,6 +171,7 @@ export const enUS: Messages = {
   'task.techLocal': 'This device',
   'task.techRemote': 'Other device',
   'task.techUpdated': 'Updated',
+  'task.techError': 'Error',
 
   'game.name': 'Game name',
   'game.localFolder': 'Save folder on this device',
@@ -326,7 +324,6 @@ export const enUS: Messages = {
   'backup.status.ready': 'Waiting for confirmation',
   'backup.status.running': 'Restoring',
 
-  'error.details': 'Details',
   'error.withContext': ({ context, text }) => `${context}: ${text}`,
   'error.code.invalid-request': 'The request was not valid. Refresh and try again.',
   'error.code.protocol-mismatch':

@@ -28,8 +28,8 @@ export interface CompareItem {
 export interface SnapshotComparison {
   /** 两端都有、内容不同的文件数。 */
   readonly differingFiles: number
-  /** 只在一端有的文件数（两端合计）。 */
-  readonly onlyFiles: number
+  /** 只在这一端有的文件数，按端分开。 */
+  readonly onlyFiles: Readonly<Record<CompareSide, number>>
   readonly children: ReadonlyMap<string, readonly CompareItem[]>
 }
 
@@ -78,7 +78,7 @@ export function compareSnapshots(pc: SyncSnapshot, phone: SyncSnapshot): Snapsho
   // 先找出所有不一致的文件路径，再给它们的每一级上级文件夹计数。
   const differing = new Map<string, readonly string[]>()
   let differingFiles = 0
-  let onlyFiles = 0
+  const onlyFiles = { pc: 0, phone: 0 }
   for (const [side, other] of [
     ['pc', 'phone'],
     ['phone', 'pc'],
@@ -89,7 +89,7 @@ export function compareSnapshots(pc: SyncSnapshot, phone: SyncSnapshot): Snapsho
       }
       const counterpart = sides[other].get(key)
       if (!counterpart) {
-        onlyFiles++
+        onlyFiles[side]++
         differing.set(key, entry.path)
       } else if (!isSameFile(entry, counterpart)) {
         differingFiles++

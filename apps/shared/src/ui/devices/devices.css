@@ -22,12 +22,6 @@
   font: inherit;
   text-align: left;
 }
-button.ss-list-row {
-  cursor: pointer;
-}
-button.ss-list-row:hover {
-  background: var(--ss-raised);
-}
 .ss-list-row.is-selected {
   background: var(--ss-accent-soft);
 }
@@ -93,7 +87,7 @@ button.ss-list-row:hover {
 .ss-tag {
   flex: none;
   padding: 0 6px;
-  border-radius: 4px;
+  border-radius: var(--ss-r-pill);
   background: var(--ss-ok-soft);
   color: var(--ss-ok);
   font-size: 12px;

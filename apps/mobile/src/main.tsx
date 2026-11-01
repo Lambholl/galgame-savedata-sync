@@ -2,12 +2,14 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { App } from './App'
 import { createTranslator, resolveLocale } from '@savedata-sync/shared'
+import { installDesignTokens } from '@savedata-sync/shared/ui'
 import { getAppPreferences, loadAppPreferences } from './app/app-preferences'
 import { loadAppStorage } from './platform/app-storage'
 import { startSystemTheme } from './app/system-theme'
 import { startPressFeedback } from './app/press-feedback'
-import '@savedata-sync/shared/ui/tokens.css'
 import './styles/mobile.css'
+
+installDesignTokens()
 
 // 先按系统明暗设置主题；读到已保存的偏好后由订阅自动更新。
 const stopSystemTheme = startSystemTheme()

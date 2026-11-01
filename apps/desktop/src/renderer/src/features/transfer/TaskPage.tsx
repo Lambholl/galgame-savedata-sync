@@ -1,11 +1,11 @@
 import { useState } from 'react'
-import { Button, Card, Empty, Modal, Space, Tag } from 'antd'
+import { Button, Card, Empty, Space, Tag } from 'antd'
 import type { LibraryGame, LibraryPeer, TransferTask } from '@savedata-sync/shared'
 import type { DesktopCopySummary, DesktopRestoreSummary } from '../../../../bridge/sync-bridge.ts'
 import { TaskView } from './TaskView.tsx'
 import { SyncCopyDetails } from './SyncCopyDetails.tsx'
 import { RestoreDetails } from '../backup/RestoreDetails.tsx'
-import { useLocale, useT } from '@savedata-sync/shared/ui'
+import { useT } from '@savedata-sync/shared/ui'
 import { restoreStateTitle, syncStateTitle } from './sync-display.ts'
 import { formatShortDateTime } from '@savedata-sync/shared'
 
@@ -43,8 +43,6 @@ export function TaskPage({
   readonly onRescan: (projectId: string, peerId: string) => void
 }): React.JSX.Element {
   const t = useT()
-  const locale = useLocale()
-  const now = Date.now()
   const [copyId, setCopyId] = useState<string | null>(initialCopyId),
     [restoreId, setRestoreId] = useState<string | null>(initialRestoreId)
   // 默认显示最近一次传输；点历史记录切换。
@@ -54,7 +52,8 @@ export function TaskPage({
     onOpenBackup(projectId, rootId)
   }
   return (
-    <>
+    // 详情放在居中的窄栏里，与手机共用同一结构。
+    <div className="task-page">
       {!tasks.length && !copies.length && !restores.length && (
         <Empty
           description={
@@ -82,7 +81,7 @@ export function TaskPage({
             <button
               type="button"
               key={item.jobId}
-              className={`task-history-row${item.jobId === copy?.jobId ? ' is-current' : ''}`}
+              className={`task-history-row ss-pressable${item.jobId === copy?.jobId ? ' is-current' : ''}`}
               onClick={() => setCopyId(item.jobId)}
             >
               <span>
@@ -91,7 +90,7 @@ export function TaskPage({
                   {item.direction === 'android-to-windows'
                     ? `${peers.find((peer) => peer.device.id === item.peerId)?.device.name ?? t('common.unknown')} → ${t('transfer.local')}`
                     : `${t('transfer.local')} → ${peers.find((peer) => peer.device.id === item.peerId)?.device.name ?? t('common.unknown')}`}{' '}
-                  · {formatShortDateTime(item.updatedAt, locale, now)}
+                  · {formatShortDateTime(item.updatedAt)}
                 </small>
               </span>
               <Tag>{syncStateTitle(t, item)}</Tag>
@@ -106,7 +105,7 @@ export function TaskPage({
           extra={<Tag>{restoreStateTitle(t, item)}</Tag>}
         >
           <Space orientation="vertical" className="library-full">
-            <span>{formatShortDateTime(item.updatedAt, locale, now)}</span>
+            <span>{formatShortDateTime(item.updatedAt)}</span>
             {item.hasCleanupError && <span>{t('task.cleanupFailed')}</span>}
             <Button onClick={() => setRestoreId(item.restoreId)}>{t('backup.openRestore')}</Button>
           </Space>
@@ -115,32 +114,26 @@ export function TaskPage({
       {tasks.length > 0 && (
         <TaskView tasks={tasks} isBusy={isBusy} onCancel={onCancel} onCleanup={onCleanup} />
       )}
-      <Modal
-        open={restoreId !== null}
-        title={t('backup.restoreTask')}
-        footer={null}
-        width={1000}
-        destroyOnHidden
-        onCancel={() => {
-          setRestoreId(null)
-          onChanged()
-        }}
-      >
-        {restoreId && (
-          <RestoreDetails
-            key={restoreId}
-            restoreId={restoreId}
-            sourceName={t('backup.list')}
-            isActive={isActive}
-            onClose={() => {
-              setRestoreId(null)
-              onChanged()
-            }}
-            onChanged={onChanged}
-            onOpenBackup={backup}
-          />
-        )}
-      </Modal>
-    </>
+      {restoreId && (
+        <RestoreDetails
+          key={restoreId}
+          restoreId={restoreId}
+          gameName={
+            games.find(
+              (game) =>
+                game.id === restores.find((item) => item.restoreId === restoreId)?.projectId,
+            )?.name ?? t('common.unknown')
+          }
+          sourceName={t('backup.list')}
+          isActive={isActive}
+          onClose={() => {
+            setRestoreId(null)
+            onChanged()
+          }}
+          onChanged={onChanged}
+          onOpenBackup={backup}
+        />
+      )}
+    </div>
   )
 }

@@ -23,7 +23,7 @@
   place-items: center;
   width: 40px;
   height: 40px;
-  border-radius: 12px;
+  border-radius: var(--ss-r-md);
   background: var(--ss-ok-soft);
   color: var(--ss-ok);
   font-size: 20px;

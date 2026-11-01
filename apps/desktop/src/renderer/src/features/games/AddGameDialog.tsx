@@ -1,7 +1,7 @@
 import { Button, Input, Modal } from 'antd'
 import { FolderOpenOutlined, RightOutlined } from '@ant-design/icons'
-import type { DirectoryReference, ShownError } from '@savedata-sync/shared'
-import { ErrorText, PathText, useT } from '@savedata-sync/shared/ui'
+import type { DirectoryReference } from '@savedata-sync/shared'
+import { PathText, useT } from '@savedata-sync/shared/ui'
 
 /** 选择目录后才保存游戏；取消弹窗保留现有游戏列表。 */
 export function AddGameDialog({
@@ -9,7 +9,6 @@ export function AddGameDialog({
   directory,
   gameName,
   isBusy,
-  error,
   onChooseDirectory,
   onGameNameChange,
   onCancel,
@@ -19,7 +18,6 @@ export function AddGameDialog({
   readonly directory: DirectoryReference | null
   readonly gameName: string
   readonly isBusy: boolean
-  readonly error: ShownError | null
   readonly onChooseDirectory: () => void
   readonly onGameNameChange: (value: string) => void
   readonly onCancel: () => void
@@ -73,11 +71,6 @@ export function AddGameDialog({
             placeholder={t('game.namePlaceholder')}
           />
         </label>
-      )}
-      {error && (
-        <p role="alert">
-          <ErrorText error={error} context={null} />
-        </p>
       )}
     </Modal>
   )

@@ -35,7 +35,7 @@ export function FolderRow({ name, path, onChange }: FolderRowProps): ReactElemen
   return (
     <div className="ss-list">
       {onChange ? (
-        <button type="button" className="ss-list-row" onClick={onChange}>
+        <button type="button" className="ss-list-row ss-pressable" onClick={onChange}>
           {body}
           <span className="ss-list-link">
             {name ? t('game.changeFolder') : t('game.chooseFolder')}

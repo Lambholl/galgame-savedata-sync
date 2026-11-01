@@ -1,6 +1,6 @@
 import type { MessageKey } from '@savedata-sync/shared'
 export type Page =
-  'devices' | 'games' | 'settings' | 'edit' | 'task' | 'backup' | 'sync' | 'sync-plan'
+  'devices' | 'games' | 'settings' | 'edit' | 'task' | 'backup' | 'restore' | 'sync' | 'sync-plan'
 
 export interface Confirmation {
   readonly title: string
@@ -22,6 +22,7 @@ export const PAGE_TITLE_KEYS: Readonly<Record<Page, MessageKey>> = {
   edit: 'page.gameSettings',
   task: 'page.task',
   backup: 'page.backup',
+  restore: 'backup.restoreTask',
   sync: 'page.transfer',
   'sync-plan': 'page.plan',
 }

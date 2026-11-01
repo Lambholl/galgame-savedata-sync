@@ -1,10 +1,14 @@
-import { useState } from 'react'
-import { Alert, Button, Skeleton } from 'antd'
+import { useEffect, useState } from 'react'
+import { Button, Empty, Skeleton } from 'antd'
 import { OperationFailure, toShownError, unwrap } from '@savedata-sync/shared'
 import type { ShownError } from '@savedata-sync/shared'
-import { ErrorText, RestoreSummary, SyncPlanSummary, useT } from '@savedata-sync/shared/ui'
+import { CaretRightOutlined, HistoryOutlined, StopOutlined } from '@ant-design/icons'
+import { RestoreSummary, SyncPlanSummary, useT } from '@savedata-sync/shared/ui'
+import { useFailureMessage } from '../../app/failure-message.ts'
 import { desktopSync } from '../../platform/sync-adapter.ts'
 import { useRestoreDetails } from '../transfer/use-sync-details.ts'
+import { PlanDrawer } from '../transfer/PlanDrawer.tsx'
+import type { PlanDrawerAction } from '../transfer/PlanDrawer.tsx'
 
 /** 取消准备中或待确认的恢复并释放；原生仍在收尾时稍等。 */
 async function discardRestore(restoreId: string): Promise<void> {
@@ -21,11 +25,12 @@ async function discardRestore(restoreId: string): Promise<void> {
 }
 
 /**
- * 一次本机恢复：待确认时显示恢复预览（与传输计划同一套数字与列表），确认后原地显示进度和结果。
- * 关闭页面不取消原生已经接纳的恢复。
+ * 一次本机恢复，放在与传输计划相同的确认抽屉里：待确认时显示恢复预览（与传输计划同一套数字与列表），
+ * 确认后在抽屉里显示进度和结果。关闭抽屉不取消原生已经接纳的恢复。
  */
 export function RestoreDetails({
   restoreId,
+  gameName,
   sourceName,
   isActive,
   onClose,
@@ -33,10 +38,12 @@ export function RestoreDetails({
   onOpenBackup,
 }: {
   readonly restoreId: string
+  /** 抽屉标题右侧的游戏名。 */
+  readonly gameName: string
   /** 所选备份的显示名，通常是备份时间。 */
   readonly sourceName: string
   readonly isActive: boolean
-  /** 返回上一层；准备中或待确认时先取消并释放这次恢复。 */
+  /** 关闭抽屉；准备中或待确认时先取消并释放这次恢复。 */
   readonly onClose: () => void
   readonly onChanged: () => void
   /** 打开这次恢复所在游戏的备份页；已经在备份页时为 null。 */
@@ -71,28 +78,58 @@ export function RestoreDetails({
     }
   }
   const failure = error ?? resource.error
+  // 失败用 Message 提示一次；读不到任务时正文留一个重试入口。
+  const [showFailure, failureHolder] = useFailureMessage()
+  useEffect(() => {
+    showFailure(failure, failure ? t(error ? 'app.actionFailed' : 'task.readFailed') : null)
+  }, [failure, error, showFailure, t])
   const isReady = state?.status === 'ready' && plan
+  let action: PlanDrawerAction | null = null
+  if (isReady) {
+    action = {
+      label: t('backup.confirmRestore'),
+      icon: <CaretRightOutlined />,
+      isDanger: false,
+      isLoading: isBusy,
+      isDisabled: isActive || !plan.canExecute || state.hasCleanupError,
+      onClick: () =>
+        run(async () => void unwrap(await desktopSync().executeRestore(restoreId, plan))),
+    }
+  } else if (state?.status === 'running') {
+    action = {
+      label: t('task.cancel'),
+      icon: <StopOutlined />,
+      isDanger: true,
+      isLoading: false,
+      isDisabled: isBusy,
+      onClick: () => run(async () => void unwrap(await desktopSync().cancelRestore(restoreId))),
+    }
+  } else if (state && state.status !== 'preparing' && onOpenBackup) {
+    action = {
+      label: t('task.viewBackup'),
+      icon: <HistoryOutlined />,
+      isDanger: false,
+      isLoading: false,
+      isDisabled: false,
+      onClick: () => onOpenBackup(state.projectId, state.rootId),
+    }
+  }
   return (
-    <div className="library-stack">
-      {failure && (
-        <Alert
-          showIcon
-          type="error"
-          title={
-            <ErrorText
-              error={failure}
-              context={t(error ? 'app.actionFailed' : 'task.readFailed')}
-            />
-          }
-          action={
-            <Button size="small" onClick={resource.reload}>
-              {t('common.retry')}
-            </Button>
-          }
-        />
-      )}
+    <PlanDrawer
+      isOpen
+      title={t('backup.restoreTask')}
+      gameName={gameName}
+      action={action}
+      onClose={close}
+    >
+      {failureHolder}
       {!state ? (
-        resource.isLoading && <Skeleton active />
+        (resource.isLoading && <Skeleton active />) ||
+        (failure && (
+          <Empty description={t('task.readFailed')}>
+            <Button onClick={resource.reload}>{t('common.retry')}</Button>
+          </Empty>
+        ))
       ) : isReady ? (
         <SyncPlanSummary
           key={plan.planId}
@@ -119,42 +156,6 @@ export function RestoreDetails({
           }
         />
       )}
-      <div className="task-actions">
-        {state?.status === 'running' ? (
-          <Button
-            danger
-            disabled={isBusy}
-            onClick={() =>
-              run(async () => void unwrap(await desktopSync().cancelRestore(restoreId)))
-            }
-          >
-            {t('task.cancel')}
-          </Button>
-        ) : (
-          <>
-            {state && onOpenBackup && (
-              <Button onClick={() => onOpenBackup(state.projectId, state.rootId)}>
-                {t('task.viewBackup')}
-              </Button>
-            )}
-            <Button disabled={isBusy} onClick={close}>
-              {isReady || state?.status === 'preparing' ? t('backup.back') : t('backup.done')}
-            </Button>
-            {isReady && (
-              <Button
-                type="primary"
-                loading={isBusy}
-                disabled={isActive || !plan.canExecute || state.hasCleanupError}
-                onClick={() =>
-                  run(async () => void unwrap(await desktopSync().executeRestore(restoreId, plan)))
-                }
-              >
-                {t('backup.confirmRestore')}
-              </Button>
-            )}
-          </>
-        )}
-      </div>
-    </div>
+    </PlanDrawer>
   )
 }

@@ -20,6 +20,7 @@ export const zhCN = {
   'nav.main': '主导航',
   'nav.backToGames': '返回游戏',
   'nav.backToTransfer': '返回传输存档',
+  'nav.backToBackup': '返回备份与恢复',
 
   'page.gameSettings': '游戏设置',
   'page.transfer': '传输存档',
@@ -53,9 +54,9 @@ export const zhCN = {
   'transfer.target': '目标',
   'transfer.connected': '已连接',
   'transfer.disconnected': '未连接',
-  'transfer.flip': '翻转传输方向',
+  'transfer.flip': '交换来源与目标',
   'transfer.pickPeer': '切换设备',
-  'transfer.preview': '预览传输计划',
+  'transfer.preview': '下一步',
   'transfer.comparing': '正在比较两端…',
   'transfer.pickPeerTitle': '选择对端设备',
   'transfer.noPeer': '还没有关联设备，请在游戏设置中关联。',
@@ -63,6 +64,7 @@ export const zhCN = {
   'transfer.noLocalRoot': '本机还没有选择存档目录。',
   'transfer.noRemoteRoot': '对端还没有选择存档目录。',
   'transfer.compareFailed': '比较失败，请刷新重试。',
+  'transfer.compareFailedContext': '比较失败',
   'transfer.compareCancelled': '比较已取消。',
   'transfer.start': '开始传输',
   'transfer.startNote': '开始前请先退出正在运行的游戏',
@@ -70,18 +72,14 @@ export const zhCN = {
   'transfer.noBackupText': '已关闭覆盖前备份，被覆盖的旧文件将无法恢复。仍要开始传输吗？',
   'transfer.planUnavailable': '本次计划不可用，请返回传输存档页刷新。',
   'transfer.planStale': '游戏或目录已变化，请返回刷新后再传输。',
-  'transfer.remoteScanning': ({ name }: { name: string }): string =>
-    `${name} 正在扫描两端目录，请保持手机应用打开`,
-  'transfer.remoteRoute': ({ source, target }: { source: string; target: string }): string =>
-    `${source} → ${target} · 扫描和写入由手机完成，计划在这里确认`,
   'transfer.remoteBusy': '另一项传输已确认，正在等待手机开始。',
 
   'compare.differs': ({ count }: { count: number }): string => `${count} 个内容不同`,
-  'compare.only': ({ count }: { count: number }): string => `${count} 个仅一端有`,
+  'compare.onlySource': ({ count }: { count: number }): string => `${count} 个仅来源有`,
+  'compare.onlyTarget': ({ count }: { count: number }): string => `${count} 个仅目标有`,
   'compare.allSame': '两端一致',
-  'compare.filter': '只看不一致',
+  'compare.filter': '差异',
   'compare.refresh': '刷新',
-  'compare.containsDifferences': ({ count }: { count: number }): string => `含 ${count} 项不一致`,
   'compare.noDifferences': '没有不一致的项',
   'compare.emptyFolder': '文件夹为空',
   'compare.summary': ({ directories, files }: { directories: number; files: number }): string =>
@@ -171,6 +169,7 @@ export const zhCN = {
   'task.techLocal': '本机',
   'task.techRemote': '对端',
   'task.techUpdated': '更新于',
+  'task.techError': '错误',
 
   'game.name': '游戏名称',
   'game.localFolder': '本机存档目录',
@@ -321,7 +320,6 @@ export const zhCN = {
   'backup.status.ready': '等待确认',
   'backup.status.running': '恢复中',
 
-  'error.details': '详情',
   'error.withContext': ({ context, text }: { context: string; text: string }): string =>
     `${context}：${text}`,
   'error.code.invalid-request': '请求内容无效，请刷新后重试。',

@@ -82,7 +82,7 @@ export function LinkPicker({
                   return (
                     <button
                       type="button"
-                      className="ss-list-row"
+                      className="ss-list-row ss-pressable"
                       key={item.deviceId}
                       aria-pressed={isSelected}
                       onClick={() => onSelectDevice(item.deviceId)}
@@ -134,7 +134,7 @@ export function LinkPicker({
                 return (
                   <button
                     type="button"
-                    className="ss-list-row"
+                    className="ss-list-row ss-pressable"
                     key={item.id}
                     aria-pressed={isSelected}
                     onClick={() => onSelectGame(item.id)}

@@ -1,5 +1,5 @@
 /** 可点的列表行；禁用的行不给按下反馈。 */
-const PRESSABLE = 'a.adm-list-item:not(.adm-list-item-disabled)'
+const PRESSABLE = 'a.adm-list-item:not(.adm-list-item-disabled), .ss-pressable:not(:disabled)'
 /** 按下动画的时长，与 mobile.css 里的按下过渡一致。 */
 const PRESS_IN_MS = 200
 

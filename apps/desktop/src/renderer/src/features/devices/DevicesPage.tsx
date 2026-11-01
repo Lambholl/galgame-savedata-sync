@@ -59,7 +59,7 @@ export function DevicesPage({
               <AddressField address={address} copied={copied} onCopy={onCopyAddress} />
             </div>
           ))}
-          <Flex align="center" style={{ margin: '16px 4px 0px' }} gap="small">
+          <Flex align="center" className="library-port" gap="small">
             {t('service.portSettings')}
             <InputNumber
               aria-label={t('service.port')}
@@ -92,7 +92,7 @@ export function DevicesPage({
                     <strong className="library-device-name ss-copyable">{peer.device.name}</strong>
                     <Tag
                       color={peer.isConnected ? 'success' : 'default'}
-                      style={{ flexShrink: 0, marginInlineEnd: 0 }}
+                      className="library-device-state"
                     >
                       {t(peer.isConnected ? 'transfer.connected' : 'transfer.disconnected')}
                     </Tag>

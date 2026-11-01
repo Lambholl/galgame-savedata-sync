@@ -1,7 +1,8 @@
 import type { ReactElement, ReactNode } from 'react'
-import { ArrowRightOutlined } from '@ant-design/icons'
+import { ArrowRightOutlined, HistoryOutlined, RightOutlined } from '@ant-design/icons'
 import type { ShownError } from '../../result.ts'
 import { ErrorText } from '../errors/ErrorText.tsx'
+import { errorDetail } from '../errors/error-detail.ts'
 import type { SyncJobState } from '../../sync/sync-job-contracts.ts'
 import { formatBytes, formatDateTime } from '../../i18n/format.ts'
 import type { PlanEndpoint } from '../plan/SyncPlanSummary.tsx'
@@ -30,6 +31,11 @@ export interface SyncTaskSummaryProps {
   readonly remoteError: ShownError | null
   /** 重试清理临时文件；本端不能重试时为 null。 */
   readonly onRetryCleanup: (() => void) | null
+  /**
+   * 打开被写入一端的备份；本机不是被写入的一端（备份不在本机）时为 null。
+   * 传输结束后显示为技术详情上方可点的一行，进行中不显示。
+   */
+  readonly onViewBackup: (() => void) | null
   /** 任务观察接口提供的失败阶段；没有记录时仍显示步骤条，但不标出具体出错位置。 */
   readonly failureStage?: SyncJobState['stage'] | null
   /** 由平台包装的技术详情卡片，负责复制、长按和展开状态。 */
@@ -48,6 +54,7 @@ export function SyncTaskSummary({
   remote,
   remoteError,
   onRetryCleanup,
+  onViewBackup,
   failureStage = null,
   renderTechnicalDetails,
 }: SyncTaskSummaryProps): ReactElement {
@@ -83,6 +90,13 @@ export function SyncTaskSummary({
     `${t('task.techLocal')} ${local.role}/${local.status}/${local.stage}`,
     ...(remote ? [`${t('task.techRemote')} ${remote.role}/${remote.status}/${remote.stage}`] : []),
     `${t('task.techUpdated')} ${formatDateTime(local.updatedAt, locale)}`,
+    // 界面只写本地化说明，原始消息与错误码都在这里。
+    ...(error ? [`${t('task.techError')} ${errorDetail(error)}`] : []),
+    ...(remoteError ? [`${t('task.remoteError')} ${errorDetail(remoteError)}`] : []),
+    ...(cleanupError ? [`${t('task.cleanupFailed')} ${errorDetail(cleanupError)}`] : []),
+    ...unsettled.flatMap((item) =>
+      item.error ? [`${item.path.join('/')} ${errorDetail(item.error)}`] : [],
+    ),
   ].join('\n')
   let hero: ReactElement
   if (phase === 'running') {
@@ -138,6 +152,18 @@ export function SyncTaskSummary({
         remoteError={remoteError}
         onRetryCleanup={onRetryCleanup}
       />
+      {/* 整行可点的入口，与技术详情同一形式；不用文字链接。 */}
+      {phase !== 'running' && onViewBackup && (
+        <div className="ss-task-group">
+          <button type="button" className="ss-task-row ss-pressable" onClick={onViewBackup}>
+            <span className="ss-task-lead is-accent">
+              <HistoryOutlined />
+            </span>
+            <span className="ss-task-body">{t('task.viewBackup')}</span>
+            <RightOutlined className="ss-task-chevron" />
+          </button>
+        </div>
+      )}
       {renderTechnicalDetails(technicalText)}
     </div>
   )

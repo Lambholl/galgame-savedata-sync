@@ -80,7 +80,7 @@ export function BackupTimeline({ backups, action }: BackupTimelineProps): ReactE
             <button
               type="button"
               key={item.id}
-              className={`ss-list-row${isSelected ? ' is-selected' : ''}`}
+              className={`ss-list-row ss-pressable${isSelected ? ' is-selected' : ''}`}
               aria-pressed={isSelected}
               onClick={() => action.onSelect(item.id)}
             >

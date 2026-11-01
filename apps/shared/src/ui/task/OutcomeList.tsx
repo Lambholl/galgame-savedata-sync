@@ -1,15 +1,16 @@
 import { useState, type ReactElement } from 'react'
+import { Button } from 'antd'
 import {
   CheckOutlined,
   CloseOutlined,
   DeleteOutlined,
-  DownOutlined,
   ExclamationOutlined,
 } from '@ant-design/icons'
 import type { ShownError } from '../../result.ts'
 import type { SyncWriteOutcome } from '../../sync/sync-contracts.ts'
 import { formatBytes } from '../../i18n/format.ts'
 import { ErrorText } from '../errors/ErrorText.tsx'
+import { Expand, ExpandChevron } from '../expand/Expand.tsx'
 import { useLocale, useT } from '../i18n/i18n-context.ts'
 import { unsettledOutcomes } from './outcomes.ts'
 import './sync-task-summary.css'
@@ -78,9 +79,9 @@ export function OutcomeList({
                   </small>
                 </span>
                 {onRetryCleanup && (
-                  <button type="button" className="ss-task-link" onClick={onRetryCleanup}>
+                  <Button size="small" onClick={onRetryCleanup}>
                     {t('common.retry')}
-                  </button>
+                  </Button>
                 )}
               </div>
             )}
@@ -105,7 +106,7 @@ export function OutcomeList({
           <div className="ss-task-group">
             <button
               type="button"
-              className="ss-task-row"
+              className="ss-task-row ss-pressable"
               aria-expanded={isWrittenOpen}
               onClick={() => setIsWrittenOpen(!isWrittenOpen)}
             >
@@ -121,10 +122,10 @@ export function OutcomeList({
                     .join(locale.startsWith('zh') || locale === 'ja-JP' ? '、' : ', ')}
                 </small>
               </span>
-              <DownOutlined className={`ss-task-chevron${isWrittenOpen ? ' is-open' : ''}`} />
+              <ExpandChevron isOpen={isWrittenOpen} />
             </button>
-            {isWrittenOpen &&
-              succeeded.map((item) => (
+            <Expand isOpen={isWrittenOpen}>
+              {succeeded.map((item) => (
                 <div className="ss-task-row is-sub" key={item.path.join('/')}>
                   <span className="ss-task-body">
                     <span>{item.path.join(' / ')}</span>
@@ -141,6 +142,7 @@ export function OutcomeList({
                   </span>
                 </div>
               ))}
+            </Expand>
           </div>
         </section>
       )}

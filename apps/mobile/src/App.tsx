@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react'
-import { ConfigProvider, theme } from 'antd'
+import { ConfigProvider } from 'antd'
 import antdEnUS from 'antd/locale/en_US'
 import antdJaJP from 'antd/locale/ja_JP'
 import antdZhCN from 'antd/locale/zh_CN'
 import antdZhTW from 'antd/locale/zh_TW'
 import type { Locale } from 'antd/es/locale'
-import { createTranslator, resolveLocale, themeTokens } from '@savedata-sync/shared'
+import { createTranslator, resolveLocale } from '@savedata-sync/shared'
 import type { AppLocale, ResolvedTheme } from '@savedata-sync/shared'
-import { I18nProvider } from '@savedata-sync/shared/ui'
+import { I18nProvider, designTheme } from '@savedata-sync/shared/ui'
 import { MobileApp } from './app/MobileApp'
 import { useAppPreferences } from './app/app-preferences'
 import { androidBackButton } from './app/back-button'
@@ -47,15 +47,7 @@ export function App(): React.JSX.Element {
   }, [locale])
   return (
     <I18nProvider locale={locale}>
-      <ConfigProvider
-        locale={ANTD_LOCALES[locale]}
-        theme={{
-          algorithm: resolvedTheme === 'dark' ? theme.darkAlgorithm : theme.defaultAlgorithm,
-          token: themeTokens(resolvedTheme),
-          // 选择菜单按触控尺寸放大。
-          components: { Dropdown: { paddingBlock: 12, fontSize: 15 } },
-        }}
-      >
+      <ConfigProvider locale={ANTD_LOCALES[locale]} theme={designTheme(resolvedTheme, 'mobile')}>
         <MobileApp adapter={ADAPTER} sync={SYNC} backButton={androidBackButton} />
       </ConfigProvider>
     </I18nProvider>

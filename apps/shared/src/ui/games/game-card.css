@@ -16,6 +16,10 @@
   white-space: normal;
   -webkit-touch-callout: none;
 }
+/* 卡片里是多行文字，不沿用按钮文字裁去行框上下空白的做法，否则名称和摘要会重叠。 */
+.ss-game-card.ant-btn > span:not(.anticon) {
+  text-box: normal;
+}
 .ss-game-card.ant-btn:not(:disabled):not(.ant-btn-disabled):is(:hover, :active) {
   border: 0;
   background: transparent;
@@ -31,8 +35,8 @@
   padding: 10px;
   overflow: hidden;
   border-radius: var(--ss-r-md);
-  background: linear-gradient(155deg, #c3dcf2, #7b9fc8 45%, #2f4a7d);
-  color: #fff;
+  background: var(--ss-cover-0);
+  color: var(--ss-on-cover);
 }
 .ss-game-cover::before {
   position: absolute;
@@ -57,19 +61,19 @@
   right: -55%;
   width: 120%;
   aspect-ratio: 1;
-  border: 1px solid rgb(255 255 255 / 35%);
+  border: 1px solid var(--ss-on-cover-line);
   border-radius: 50%;
   content: '';
   pointer-events: none;
 }
 .ss-game-cover.is-1 {
-  background: linear-gradient(155deg, #f2d9c6, #c497ae 50%, #5f507f);
+  background: var(--ss-cover-1);
 }
 .ss-game-cover.is-2 {
-  background: linear-gradient(155deg, #cdeadf, #74b2a6 50%, #2e5e66);
+  background: var(--ss-cover-2);
 }
 .ss-game-cover.is-3 {
-  background: linear-gradient(155deg, #e7dcf6, #9b8ad0 50%, #3f3b78);
+  background: var(--ss-cover-3);
 }
 .ss-game-cover strong {
   display: -webkit-box;

@@ -1,0 +1,153 @@
+/* 文件列（FilePane）：传输页两端与备份文件共用的列头、文件行和按列宽切换的排版。 */
+.ss-pane {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border: 1px solid var(--ss-line);
+  border-radius: var(--ss-r-md);
+  background: var(--ss-group);
+}
+.ss-pane-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  flex: none;
+  padding: 8px 10px;
+  background: var(--ss-group);
+  border-bottom: 1px solid var(--ss-line);
+  color: var(--ss-muted);
+  font-size: 12px;
+}
+.ss-pane-crumb {
+  display: block;
+  overflow: hidden;
+  font-family: var(--ss-mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* 列内容超出时由列滚动，各行保持自身高度，不被压缩 */
+.ss-pane > * {
+  flex: none;
+}
+/* 列末空白：悬浮按钮盖住列底时，最后几行仍能滚到按钮上方 */
+.ss-pane::after {
+  flex: none;
+  height: var(--ss-pane-end-space, 0px);
+  content: '';
+}
+.ss-pane-placeholder {
+  margin: 0;
+  padding: 24px 10px;
+  color: var(--ss-muted);
+  font-size: 13px;
+  text-align: center;
+}
+.ss-pane-foot {
+  margin: 0;
+  padding: 8px 10px;
+  color: var(--ss-faint);
+  font-size: 12px;
+  text-align: center;
+}
+/*
+ * 文件行：两端用同一套结构，只按这一列的宽度切换。
+ * 窄列（默认）：文件名最多两行，下方小字写修改时间与大小；
+ * 宽列：表格三列（名称 / 大小 / 修改时间），名称一行。过长时省略，悬停显示全名。
+ */
+.ss-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  padding: 7px 10px;
+  border: 0;
+  border-bottom: 1px solid var(--ss-line);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+.ss-row.is-up {
+  align-items: center;
+}
+/* 行的差异底色：覆盖琥珀、只在目标蓝、新建绿；可点的行再叠 ss-pressable 的遮罩 */
+.ss-row.is-differs {
+  background: var(--ss-warn-soft);
+}
+.ss-row.is-only {
+  background: var(--ss-only-soft);
+}
+.ss-row.is-new {
+  background: var(--ss-ok-soft);
+}
+.ss-row-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.ss-row-name {
+  display: -webkit-box;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 13px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+.ss-row-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 8px;
+  color: var(--ss-muted);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+}
+.ss-row-meta:empty {
+  display: none;
+}
+.ss-pane-label,
+.ss-row-cell {
+  display: none;
+  color: var(--ss-muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.ss-pane {
+  container: ss-pane / inline-size;
+}
+@container ss-pane (min-width: 400px) {
+  .ss-pane-head,
+  .ss-row:not(.is-up) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 76px 116px;
+    gap: 8px;
+    align-items: center;
+  }
+  .ss-row:not(.is-up) {
+    grid-template-columns: 30px minmax(0, 1fr) 76px 116px;
+  }
+  .ss-pane-label,
+  .ss-row-cell {
+    display: block;
+  }
+  .ss-row-meta {
+    display: none;
+  }
+  .ss-row-name {
+    display: block;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}

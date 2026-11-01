@@ -16,7 +16,6 @@ import type {
   DirectoryReference,
   LibraryGame,
   LibraryPeer,
-  ShownError,
 } from '@savedata-sync/shared'
 import type { DesktopSnapshot } from '../platform/library-types.ts'
 import { createDesktopLibraryAdapter } from '../platform/library-adapter.ts'
@@ -35,6 +34,7 @@ import {
   syncTaskPreview,
   useT,
 } from '@savedata-sync/shared/ui'
+import { useFailureMessage } from './failure-message.ts'
 import type { TaskStripInfo } from '@savedata-sync/shared/ui'
 import { PAGE_TITLE_KEYS } from './navigation.ts'
 import type { Confirmation, Page } from './navigation.ts'
@@ -44,6 +44,7 @@ import { GamesPage } from '../features/games/GamesPage.tsx'
 import { GameSettingsPage } from '../features/games/GameSettingsPage.tsx'
 import { SettingsPage } from '../features/settings/SettingsPage.tsx'
 import { TaskPage } from '../features/transfer/TaskPage.tsx'
+import { syncStateTitle } from '../features/transfer/sync-display.ts'
 import { TransferPage } from '../features/transfer/TransferPage.tsx'
 
 import { AddGameDialog } from '../features/games/AddGameDialog'
@@ -52,6 +53,14 @@ const EMPTY = emptyLibrary()
 const ADAPTER = createDesktopLibraryAdapter()
 
 /** 桌面页面、弹窗与轮询由本端持有；原生任务切页后继续运行。 */
+const COPY_MESSAGE_TYPES = {
+  sent: 'info',
+  succeeded: 'success',
+  failed: 'error',
+  cancelled: 'info',
+  unknown: 'warning',
+} as const
+
 export function DesktopApp({
   appPreferences,
 }: {
@@ -65,7 +74,8 @@ export function DesktopApp({
   const [taskCopyId, setTaskCopyId] = useState<string | null>(null)
   const [taskRestoreId, setTaskRestoreId] = useState<string | null>(null)
   const [snapshot, setSnapshot] = useState<DesktopSnapshot | null>(null)
-  const [error, setError] = useState<ShownError | null>(null)
+  // 失败用 Message 提示一次，不在页面里放横幅。
+  const [showError, failureHolder] = useFailureMessage()
   const [isBusy, setIsBusy] = useState(false)
   const [gameId, setGameId] = useState('')
   const [backupRootId, setBackupRootId] = useState<string | null>(null)
@@ -110,10 +120,10 @@ export function DesktopApp({
       snapshotRef.current = value
       setSnapshot(value)
       if (value.warning) {
-        setError({ code: null, message: value.warning })
+        showError({ code: null, message: value.warning })
       }
     }
-  }, [adapter, messageApi, t])
+  }, [adapter, messageApi, showError, t])
   useEffect(() => {
     let isCurrent = true
     let timer: ReturnType<typeof setTimeout>
@@ -126,23 +136,48 @@ export function DesktopApp({
           await refresh()
         } catch (cause) {
           if (isCurrent) {
-            setError(toShownError(cause))
+            showError(toShownError(cause))
           }
         }
       }
       if (isCurrent) {
         timer = setTimeout(() => {
-          poll().catch((cause: unknown) => setError(toShownError(cause)))
+          poll().catch((cause: unknown) => showError(toShownError(cause)))
         }, 1800)
       }
     }
-    poll().catch((cause: unknown) => setError(toShownError(cause)))
+    poll().catch((cause: unknown) => showError(toShownError(cause)))
     return () => {
       isCurrent = false
       invalidate()
       clearTimeout(timer)
     }
-  }, [refresh, invalidate])
+  }, [refresh, invalidate, showError])
+  // 传输结束时用 Message 提示一次结果；打开应用时已结束的旧任务只在详情里看。
+  const copyStatuses = useRef<ReadonlyMap<string, string> | null>(null)
+  useEffect(() => {
+    if (!snapshot) {
+      return
+    }
+    const previous = copyStatuses.current
+    copyStatuses.current = new Map(snapshot.copies.map((item) => [item.jobId, item.status]))
+    if (!previous) {
+      return
+    }
+    for (const item of snapshot.copies) {
+      const before = previous.get(item.jobId)
+      if (item.status === 'running' || (before !== undefined && before !== 'running')) {
+        continue
+      }
+      const name = snapshot.config.games.find((game) => game.id === item.projectId)?.name
+      void messageApi.open({
+        type: COPY_MESSAGE_TYPES[item.status],
+        content: `${name ?? t('common.unknown')} · ${syncStateTitle(t, item)}`,
+        key: `sync-transfer-${item.jobId}`,
+        duration: 3.5,
+      })
+    }
+  }, [snapshot, messageApi, t])
   function run(work: () => Promise<void>): void {
     if (operating.current) {
       return
@@ -150,10 +185,10 @@ export function DesktopApp({
     operating.current = true
     generation.current++
     setIsBusy(true)
-    setError(null)
+    showError(null)
     work()
       .then(refresh)
-      .catch((cause: unknown) => setError(toShownError(cause)))
+      .catch((cause: unknown) => showError(toShownError(cause)))
       .finally(() => {
         operating.current = false
         setIsBusy(false)
@@ -258,7 +293,7 @@ export function DesktopApp({
     }
     const name = value.trim()
     if (!name) {
-      setError({ code: null, message: t('game.nameRequired') })
+      showError({ code: null, message: t('game.nameRequired') })
       return
     }
     if (name !== game.name) {
@@ -283,7 +318,7 @@ export function DesktopApp({
     setNewDirectory(null)
     setNewGameName('')
     setImportedGame(null)
-    setError(null)
+    showError(null)
     setIsAddGameOpen(true)
   }
   function closeAddGame(): void {
@@ -294,7 +329,7 @@ export function DesktopApp({
     setNewDirectory(null)
     setNewGameName('')
     setImportedGame(null)
-    setError(null)
+    showError(null)
   }
   function chooseNewDirectory(): void {
     run(async () => {
@@ -428,7 +463,7 @@ export function DesktopApp({
     setPage('backup')
   }
   function tasksChanged(): void {
-    void refresh().catch((cause: unknown) => setError(toShownError(cause)))
+    void refresh().catch((cause: unknown) => showError(toShownError(cause)))
   }
   function changePeer(id: string): void {
     setPeerId(id)
@@ -475,7 +510,7 @@ export function DesktopApp({
     setImportedGame({ deviceId: choice.peer.device.id, game: choice.item })
     setNewDirectory(null)
     setNewGameName('')
-    setError(null)
+    showError(null)
     setIsImportOpen(false)
     setIsAddGameOpen(true)
   }
@@ -635,12 +670,12 @@ export function DesktopApp({
             .save(next)
             .then((failure) => {
               if (failure) {
-                setError(failure)
+                showError(failure)
               }
             })
             .catch((failure: unknown) => {
               console.error('Failed to save app preferences', failure)
-              setError({ code: null, message: t('settings.saveFailed') })
+              showError({ code: null, message: t('settings.saveFailed') })
             })
         }}
       />
@@ -651,12 +686,12 @@ export function DesktopApp({
   const dialogs = (
     <>
       {messageContextHolder}
+      {failureHolder}
       <AddGameDialog
         isOpen={isAddGameOpen}
         directory={newDirectory}
         gameName={newGameName}
         isBusy={isBusy}
-        error={error}
         onChooseDirectory={chooseNewDirectory}
         onGameNameChange={setNewGameName}
         onCancel={closeAddGame}
@@ -722,8 +757,6 @@ export function DesktopApp({
       page={page}
       title={t(PAGE_TITLE_KEYS[page])}
       gameName={game?.name ?? null}
-      error={error}
-      isBusy={isBusy}
       headerAction={
         page === 'transfer' && game ? (
           <>
@@ -749,8 +782,6 @@ export function DesktopApp({
       dialogs={dialogs}
       onBack={() => setPage('games')}
       onNavigate={go}
-      onCloseError={() => setError(null)}
-      onRetry={() => run(async () => {})}
     >
       {body}
     </DesktopShell>

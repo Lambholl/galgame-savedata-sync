@@ -1,0 +1,35 @@
+/* 所有可展开行共用：0fr → 1fr 的行高过渡，内容高度不需要预先知道。 */
+.ss-expand {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.22s ease;
+}
+.ss-expand.is-open {
+  grid-template-rows: 1fr;
+}
+.ss-expand-inner {
+  min-height: 0;
+  overflow: hidden;
+  visibility: hidden;
+  /* 收起动画结束后再隐藏，展开时立即可见。 */
+  transition: visibility 0s linear 0.22s;
+}
+.ss-expand.is-open > .ss-expand-inner {
+  visibility: visible;
+  transition-delay: 0s;
+}
+.ss-expand-chevron {
+  color: var(--ss-faint);
+  font-size: 12px;
+  transition: transform 0.22s ease;
+}
+.ss-expand-chevron.is-open {
+  transform: rotate(180deg);
+}
+@media (prefers-reduced-motion: reduce) {
+  .ss-expand,
+  .ss-expand-inner,
+  .ss-expand-chevron {
+    transition: none;
+  }
+}

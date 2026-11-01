@@ -35,9 +35,11 @@ import {
   syncTaskPreview,
   useT,
 } from '@savedata-sync/shared/ui'
+import { useFailureMessage } from './failure-message'
 import type { TaskStripInfo } from '@savedata-sync/shared/ui'
 import type { BackButtonController, Confirmation, Page } from './navigation-types'
 import { BackupPage } from '../features/backup/BackupPage'
+import { RestorePage } from '../features/backup/RestorePage'
 import { DevicesPage } from '../features/devices/DevicesPage'
 import { GamesPage } from '../features/games/GamesPage'
 import { GameSettingsPage } from '../features/games/GameSettingsPage'
@@ -74,7 +76,8 @@ export function MobileApp({
   const [page, setPage] = useState<Page>('games')
   const [taskProjectId, setTaskProjectId] = useState<string | null>(null)
   const [snapshot, setSnapshot] = useState<MobileSnapshot | null>(null)
-  const [error, setError] = useState<ShownError | null>(null)
+  // 失败用 Message 提示一次，不在页面里放横幅。
+  const [showError, failureHolder] = useFailureMessage()
   const [isBusy, setIsBusy] = useState(false)
   const [gameId, setGameId] = useState('')
   const [peerId, setPeerId] = useState('')
@@ -93,6 +96,11 @@ export function MobileApp({
   )
   const [importKey, setImportKey] = useState('')
   const [closePageOverlay, setClosePageOverlay] = useState<(() => void) | null>(null)
+  /** 恢复页显示的那次恢复，以及计划里来源一端的名称。 */
+  const [restoreTarget, setRestoreTarget] = useState<{
+    readonly restoreId: string
+    readonly sourceName: string
+  } | null>(null)
   const [copied, setCopied] = useState('')
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null)
   const operating = useRef(false)
@@ -180,10 +188,10 @@ export function MobileApp({
       snapshotRef.current = value
       setSnapshot(value)
       if (value.warning) {
-        setError({ code: null, message: value.warning })
+        showError({ code: null, message: value.warning })
       }
     }
-  }, [adapter, messageApi, t])
+  }, [adapter, messageApi, showError, t])
   useEffect(() => {
     let isCurrent = true
     let timer: ReturnType<typeof setTimeout>
@@ -196,23 +204,23 @@ export function MobileApp({
           await refresh()
         } catch (cause) {
           if (isCurrent) {
-            setError(toShownError(cause))
+            showError(toShownError(cause))
           }
         }
       }
       if (isCurrent) {
         timer = setTimeout(() => {
-          poll().catch((cause: unknown) => setError(toShownError(cause)))
+          poll().catch((cause: unknown) => showError(toShownError(cause)))
         }, 1800)
       }
     }
-    poll().catch((cause: unknown) => setError(toShownError(cause)))
+    poll().catch((cause: unknown) => showError(toShownError(cause)))
     return () => {
       isCurrent = false
       invalidate()
       clearTimeout(timer)
     }
-  }, [refresh, invalidate])
+  }, [refresh, invalidate, showError])
   useEffect(() => backButton?.subscribe(() => backHandler.current()), [backButton])
   function run(work: () => Promise<void>, onError?: (failure: ShownError) => void): void {
     if (operating.current) {
@@ -221,7 +229,7 @@ export function MobileApp({
     operating.current = true
     generation.current++
     setIsBusy(true)
-    setError(null)
+    showError(null)
     work()
       .then(refresh)
       .catch((cause: unknown) => {
@@ -229,7 +237,7 @@ export function MobileApp({
         if (onError) {
           onError(failure)
         } else {
-          setError(failure)
+          showError(failure)
           showSyncFailure(failure)
         }
       })
@@ -249,6 +257,8 @@ export function MobileApp({
   const copyPreview = syncTasks.copy
     ? syncTaskPreview(syncTasks.copy.state.local, syncTasks.copy.state.remote, t)
     : null
+  const openRestore =
+    syncTasks.restore?.state.restoreId === restoreTarget?.restoreId ? syncTasks.restore : null
   const restorePreview = syncTasks.restore
     ? restoreTaskPreview(
         syncTasks.restore.state.status,
@@ -338,7 +348,7 @@ export function MobileApp({
     }
     const name = value.trim()
     if (!name) {
-      setError({ code: null, message: t('game.nameRequired') })
+      showError({ code: null, message: t('game.nameRequired') })
       return
     }
     if (name !== game.name) {
@@ -363,7 +373,7 @@ export function MobileApp({
     setNewDirectory(null)
     setNewGameName('')
     setImportedGame(null)
-    setError(null)
+    showError(null)
     setIsAddGameOpen(true)
   }
   function closeAddGame(): void {
@@ -374,7 +384,7 @@ export function MobileApp({
     setNewDirectory(null)
     setNewGameName('')
     setImportedGame(null)
-    setError(null)
+    showError(null)
   }
   function chooseNewDirectory(): void {
     run(async () => {
@@ -502,7 +512,24 @@ export function MobileApp({
     setGameId(projectId)
     setPage('backup')
   }
+  /** 离开恢复页：准备中的取消，未开始或已结束的释放；进行中的恢复继续。 */
+  function closeRestore(): void {
+    setPage('backup')
+    const id = restoreTarget?.restoreId
+    const status = restoreTarget && openRestore?.state.status
+    setRestoreTarget(null)
+    if (!id || status === 'running') {
+      return
+    }
+    ;(status === 'preparing' || !status ? sync.cancelRestore(id) : sync.releaseRestore(id))
+      .catch((cause: unknown) => showSyncFailure(toShownError(cause)))
+      .finally(syncTasks.reload)
+  }
   function goBack(): void {
+    if (page === 'restore') {
+      closeRestore()
+      return
+    }
     setPage(page === 'sync-plan' ? 'sync' : 'games')
   }
   function unlinkGame(deviceId: string): void {
@@ -528,7 +555,7 @@ export function MobileApp({
           resolve()
         },
         (failure) => {
-          setError(failure)
+          showError(failure)
           showSyncFailure(failure)
           reject(new Error(failure.message))
         },
@@ -543,7 +570,7 @@ export function MobileApp({
     setImportedGame({ deviceId: choice.peer.device.id, game: choice.item })
     setNewDirectory(null)
     setNewGameName('')
-    setError(null)
+    showError(null)
     setIsImportOpen(false)
     setIsAddGameOpen(true)
   }
@@ -713,10 +740,29 @@ export function MobileApp({
         onChanged={syncTasks.reload}
         onSettings={() => setPage('edit')}
         onOpenAppSettings={() => setPage('settings')}
+        onOpenRestore={(restoreId, sourceName) => {
+          setRestoreTarget({ restoreId, sourceName })
+          syncTasks.reload()
+          setPage('restore')
+        }}
         onOverlayChange={changePageOverlay}
       />
     ) : (
       <EmptyState description={t('backup.noGame')} />
+    )
+  } else if (page === 'restore' && restoreTarget) {
+    body = (
+      <RestorePage
+        key={restoreTarget.restoreId}
+        sync={sync}
+        restore={openRestore}
+        rootId={game?.rootId ?? null}
+        sourceName={restoreTarget.sourceName}
+        isDisabled={isDisabled || isActive}
+        onChanged={syncTasks.reload}
+        onDone={closeRestore}
+        onFailure={showSyncFailure}
+      />
     )
   } else if (page === 'settings') {
     body = (
@@ -726,7 +772,7 @@ export function MobileApp({
         onChange={(next) => {
           setAppPreferences(next).catch((failure: unknown) => {
             console.error('Failed to save app preferences', failure)
-            setError({ code: null, message: t('settings.saveFailed') })
+            showError({ code: null, message: t('settings.saveFailed') })
           })
         }}
       />
@@ -737,12 +783,12 @@ export function MobileApp({
   const dialogs = (
     <>
       {messageContextHolder}
+      {failureHolder}
       <AddGameDialog
         isOpen={isAddGameOpen}
         directory={newDirectory}
         gameName={newGameName}
         isBusy={isBusy}
-        error={error}
         onChooseDirectory={chooseNewDirectory}
         onGameNameChange={setNewGameName}
         onCancel={closeAddGame}
@@ -822,8 +868,6 @@ export function MobileApp({
       page={page}
       title={t(PAGE_TITLE_KEYS[page])}
       gameName={game?.name ?? null}
-      error={error}
-      isBusy={isBusy}
       footer={null}
       headerAction={
         page === 'games' ? (
@@ -856,8 +900,6 @@ export function MobileApp({
       dialogs={dialogs}
       onBack={goBack}
       onNavigate={go}
-      onCloseError={() => setError(null)}
-      onRetry={() => run(async () => {})}
     >
       {body}
     </LibraryShell>

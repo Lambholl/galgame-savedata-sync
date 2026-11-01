@@ -1,8 +1,10 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
+import { installDesignTokens } from '@savedata-sync/shared/ui'
 import { DesktopRoot } from './app/DesktopRoot.tsx'
-import '@savedata-sync/shared/ui/tokens.css'
 import './styles/desktop.css'
+
+installDesignTokens()
 
 const container = document.getElementById('root')
 if (!container) {

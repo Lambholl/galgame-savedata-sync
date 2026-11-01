@@ -28,15 +28,11 @@ export function formatDateTime(value: number, locale: AppLocale): string {
   }).format(value)
 }
 
-/** 列表里的短时间：同一年省略年份。 */
-export function formatShortDateTime(value: number, locale: AppLocale, now: number): string {
-  const isSameYear = new Date(value).getFullYear() === new Date(now).getFullYear()
-  return new Intl.DateTimeFormat(locale, {
-    ...(isSameYear ? {} : { year: '2-digit' }),
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    hourCycle: 'h23',
-  }).format(value)
+/**
+ * 列表里的短时间，按本地时区固定为 yy-MM-dd HH:mm，各语言相同，上下行可直接对齐比较。
+ */
+export function formatShortDateTime(value: number): string {
+  const date = new Date(value)
+  const pad = (part: number): string => String(part).padStart(2, '0')
+  return `${pad(date.getFullYear() % 100)}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`
 }

@@ -1,7 +1,7 @@
 import { Button, Input, Popup } from 'antd-mobile'
 import { FolderOpenOutlined, RightOutlined } from '@ant-design/icons'
-import type { DirectoryReference, ShownError } from '@savedata-sync/shared'
-import { ErrorText, PathText, useT } from '@savedata-sync/shared/ui'
+import type { DirectoryReference } from '@savedata-sync/shared'
+import { PathText, useT } from '@savedata-sync/shared/ui'
 
 /** 选定目录后确认添加；系统选择器同时申请持久读写权限。 */
 export function AddGameDialog({
@@ -9,7 +9,6 @@ export function AddGameDialog({
   directory,
   gameName,
   isBusy,
-  error,
   onChooseDirectory,
   onGameNameChange,
   onCancel,
@@ -19,7 +18,6 @@ export function AddGameDialog({
   readonly directory: DirectoryReference | null
   readonly gameName: string
   readonly isBusy: boolean
-  readonly error: ShownError | null
   readonly onChooseDirectory: () => void
   readonly onGameNameChange: (value: string) => void
   readonly onCancel: () => void
@@ -34,13 +32,6 @@ export function AddGameDialog({
       onClose={onCancel}
       style={{ '--z-index': '1100' }}
       bodyClassName="add-game-dialog"
-      bodyStyle={{
-        left: 12,
-        right: 12,
-        bottom: 'calc(12px + env(safe-area-inset-bottom))',
-        width: 'auto',
-        borderRadius: 12,
-      }}
       destroyOnClose
     >
       <section role="dialog" aria-modal="true" aria-label={t('game.add')}>
@@ -76,11 +67,6 @@ export function AddGameDialog({
               placeholder={t('game.namePlaceholder')}
             />
           </label>
-        )}
-        {error && (
-          <div className="pane-error" role="alert">
-            <ErrorText error={error} context={null} />
-          </div>
         )}
         <div className="add-game-footer">
           <Button fill="none" disabled={isBusy} onClick={onCancel}>

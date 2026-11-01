@@ -5,7 +5,7 @@
   place-items: center;
   width: 30px;
   height: 30px;
-  border-radius: 8px;
+  border-radius: var(--ss-r-xs);
   background: var(--ss-raised);
   color: var(--ss-muted);
   font-size: 17px;
@@ -29,6 +29,9 @@
 }
 .ss-file-icon-marker.is-warn {
   background: var(--ss-warn);
+}
+.ss-file-icon-marker.is-new {
+  background: var(--ss-ok);
 }
 .ss-file-icon-marker.is-only {
   background: var(--ss-only);

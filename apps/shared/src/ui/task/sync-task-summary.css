@@ -94,9 +94,10 @@
 .ss-task-steps {
   padding-block: 4px;
 }
-.ss-task-stage-missing {
-  margin: 8px 0 0;
+.ss-task .ss-task-stage-missing {
+  margin: 10px 0 0;
   color: var(--ss-muted);
+  text-align: center;
   font-size: 12px;
   line-height: 1.5;
 }
@@ -115,6 +116,10 @@
 .ss-task-group > * + * {
   border-top: 1px solid var(--ss-line);
 }
+/* 展开区收起时不画分隔线。 */
+.ss-task-group > .ss-expand {
+  border-top: 0;
+}
 .ss-task-row {
   display: flex;
   align-items: center;
@@ -126,9 +131,6 @@
   color: inherit;
   font: inherit;
   text-align: left;
-}
-button.ss-task-row {
-  cursor: pointer;
 }
 .ss-task-row.is-sub {
   padding-left: 52px;
@@ -154,6 +156,10 @@ button.ss-task-row {
   background: var(--ss-warn-soft);
   color: var(--ss-warn);
 }
+.ss-task-lead.is-accent {
+  background: var(--ss-accent-soft);
+  color: var(--ss-accent);
+}
 .ss-task-body {
   display: flex;
   flex: 1;
@@ -170,23 +176,9 @@ button.ss-task-row {
 .ss-task-body small.is-bad {
   color: var(--ss-danger);
 }
-.ss-task-link {
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--ss-accent);
-  font: inherit;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-}
 .ss-task-chevron {
   color: var(--ss-faint);
   font-size: 12px;
-  transition: transform 0.2s;
-}
-.ss-task-chevron.is-open {
-  transform: rotate(180deg);
 }
 
 .ss-task-wait {

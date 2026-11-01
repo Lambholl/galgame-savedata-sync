@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Button, Drawer, Modal } from 'antd'
-import { CaretRightOutlined, LoadingOutlined, RightOutlined } from '@ant-design/icons'
+import { Button, Modal } from 'antd'
+import { CaretRightOutlined, RightOutlined } from '@ant-design/icons'
 import { compareSnapshots, resolveBackupPolicy, toShownError, unwrap } from '@savedata-sync/shared'
 import type {
   CatalogGame,
@@ -12,11 +12,12 @@ import type {
   SyncPlan,
   TransferDirection,
 } from '@savedata-sync/shared'
-import { ErrorText, SyncPlanSummary, TransferComparison, useT } from '@savedata-sync/shared/ui'
+import { SyncPlanSummary, TransferComparison, useT } from '@savedata-sync/shared/ui'
 import type { ComparisonStatus, PlanEndpoint } from '@savedata-sync/shared/ui'
 import type { DesktopRemoteRequest } from '../../../../bridge/sync-bridge.ts'
 import type { Confirmation } from '../../app/navigation.ts'
 import { desktopBackups, desktopSync } from '../../platform/sync-adapter.ts'
+import { PlanDrawer } from './PlanDrawer.tsx'
 
 const POLL_INTERVAL_MS = 400
 const SCANNING: readonly DesktopRemoteRequest['status'][] = ['waiting', 'preparing']
@@ -194,34 +195,29 @@ export function TransferPage({
     request !== null && request.requestId !== requestId && request.status === 'starting'
   let status: ComparisonStatus
   if (!selectedPeer) {
-    status = { kind: 'unavailable', message: t('transfer.noPeer') }
+    status = { kind: 'unavailable', reason: t('transfer.noPeer') }
   } else if (!isConnected) {
     status = {
       kind: 'unavailable',
-      message: t('transfer.peerOffline', { name: selectedPeer.device.name }),
+      reason: t('transfer.peerOffline', { name: selectedPeer.device.name }),
     }
   } else if (localRootId === null) {
-    status = { kind: 'unavailable', message: t('transfer.noLocalRoot') }
+    status = { kind: 'unavailable', reason: t('transfer.noLocalRoot') }
   } else if (remoteRootId === null) {
-    status = { kind: 'unavailable', message: t('transfer.noRemoteRoot') }
+    status = { kind: 'unavailable', reason: t('transfer.noRemoteRoot') }
   } else if (scanError !== null || shown?.status === 'failed') {
-    const reason = scanError ?? shown?.error ?? null
-    status = {
-      kind: 'unavailable',
-      message: reason ? (
-        <ErrorText error={reason} context={t('transfer.compareFailed')} />
-      ) : (
-        t('transfer.compareFailed')
-      ),
-    }
+    status = { kind: 'failed', error: scanError ?? shown?.error ?? null }
   } else if (shown?.status === 'cancelled') {
-    status = { kind: 'unavailable', message: t('transfer.compareCancelled') }
+    status = { kind: 'cancelled' }
   } else if (comparison) {
     status = { kind: 'ready', comparison }
   } else if (isOtherConfirmed) {
-    status = { kind: 'unavailable', message: t('transfer.remoteBusy') }
+    status = { kind: 'unavailable', reason: t('transfer.remoteBusy') }
+  } else if (shown === null || shown.status === 'waiting') {
+    // 请求还没登记或手机还没响应。
+    status = { kind: 'waiting' }
   } else {
-    status = { kind: 'comparing' }
+    status = { kind: 'scanning' }
   }
   const hasChanges =
     current?.entries.some((item) =>
@@ -260,7 +256,7 @@ export function TransferPage({
   return (
     <div className="transfer-page">
       <TransferComparison
-        key={`${peerId}/${direction}`}
+        key={peerId}
         pc={{
           name: localName,
           caption: '',
@@ -276,71 +272,45 @@ export function TransferPage({
         remoteSide="phone"
         direction={direction}
         status={status}
-        layout="wide"
         isLocked={isDisabled || isActive || isStarting}
         onFlip={() => onUploadChange(!upload)}
         onPickPeer={() => setIsPeerPickerOpen(true)}
         onRefresh={() => setScanVersion((value) => value + 1)}
-      />
-      <footer className="transfer-footer">
-        <span className="transfer-footer-status">
-          {isScanning ? (
-            <>
-              <LoadingOutlined />
-              {t('transfer.remoteScanning', { name: peerName })}
-            </>
-          ) : status.kind === 'ready' ? (
-            t('transfer.remoteRoute', {
-              source: upload ? peerName : localName,
-              target: upload ? localName : peerName,
-            })
-          ) : null}
-        </span>
-        {isScanning && shown && (
-          <Button
-            size="small"
-            onClick={() => {
-              desktopSync()
-                .cancelRemote(shown.requestId)
-                .then((result) => setRequest(unwrap(result)))
-                .catch((cause: unknown) => setScanError(toShownError(cause)))
-            }}
-          >
-            {t('common.cancel')}
-          </Button>
-        )}
-        <Button
-          type="primary"
-          size="small"
-          icon={<RightOutlined />}
-          iconPlacement="end"
-          disabled={isDisabled || status.kind !== 'ready' || !current}
-          onClick={() => setIsPlanOpen(true)}
-        >
-          {t('transfer.preview')}
-        </Button>
-      </footer>
-      <Drawer
-        open={isPlanOpen && current !== null}
-        size={560}
-        title={t('page.plan')}
-        extra={<span className="transfer-drawer-game">{game.name}</span>}
-        destroyOnHidden
-        footer={
-          <div className="transfer-footer is-drawer">
-            <span className="transfer-footer-status">{t('transfer.startNote')}</span>
-            <Button onClick={() => setIsPlanOpen(false)}>{t('common.cancel')}</Button>
-            <Button
-              type="primary"
-              icon={<CaretRightOutlined />}
-              loading={isStarting}
-              disabled={isDisabled || !canStart}
-              onClick={start}
-            >
-              {t('transfer.start')}
-            </Button>
-          </div>
+        onCancel={
+          isScanning && shown
+            ? () => {
+                desktopSync()
+                  .cancelRemote(shown.requestId)
+                  .then((result) => setRequest(unwrap(result)))
+                  .catch((cause: unknown) => setScanError(toShownError(cause)))
+              }
+            : null
         }
+      />
+      {/* 底部只有一个悬浮的下一步按钮；文件列末尾留出它的高度。 */}
+      <Button
+        className="transfer-next"
+        type="primary"
+        size="large"
+        icon={<RightOutlined />}
+        iconPlacement="end"
+        disabled={isDisabled || status.kind !== 'ready' || !current}
+        onClick={() => setIsPlanOpen(true)}
+      >
+        {t('transfer.preview')}
+      </Button>
+      <PlanDrawer
+        isOpen={isPlanOpen && current !== null}
+        title={t('page.plan')}
+        gameName={game.name}
+        action={{
+          label: t('transfer.start'),
+          icon: <CaretRightOutlined />,
+          isDanger: false,
+          isLoading: isStarting,
+          isDisabled: isDisabled || !canStart,
+          onClick: start,
+        }}
         onClose={() => setIsPlanOpen(false)}
       >
         {current && (
@@ -351,7 +321,7 @@ export function TransferPage({
             backupKeepCount={backupKeepCount}
           />
         )}
-      </Drawer>
+      </PlanDrawer>
       <Modal
         open={isPeerPickerOpen}
         width={360}

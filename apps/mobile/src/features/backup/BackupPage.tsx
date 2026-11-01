@@ -3,16 +3,8 @@ import { Button, List } from 'antd-mobile'
 import { ExclamationCircleOutlined } from '@ant-design/icons'
 import { formatShortDateTime, resolveBackupPolicy, toShownError } from '@savedata-sync/shared'
 import type { LibraryGame, ShownError, SyncBackupPolicy } from '@savedata-sync/shared'
-import {
-  BackupPolicyBlock,
-  BackupTimeline,
-  ErrorText,
-  PathText,
-  RestoreSummary,
-  SyncPlanSummary,
-  useLocale,
-  useT,
-} from '@savedata-sync/shared/ui'
+import { BackupPolicyBlock, BackupTimeline, PathText, useT } from '@savedata-sync/shared/ui'
+import { useFailureMessage } from '../../app/failure-message'
 import type {
   MobileBackupDetails,
   MobileRestoreDetails,
@@ -25,8 +17,8 @@ import { SwitchItem } from '../../components/SwitchItem'
 type PolicyMode = 'follow' | 'custom'
 
 /**
- * 备份与恢复：顶部是备份策略，下面按时间列出备份；点“恢复”在弹层里先看恢复预览，
- * 确认后结果留在同一弹层。恢复前总会先备份当前文件。
+ * 备份与恢复：顶部是备份策略，下面按时间列出备份；点“恢复”准备好后打开恢复页，
+ * 在那里确认并查看结果。恢复前总会先备份当前文件。
  */
 export function BackupPage({
   sync,
@@ -36,6 +28,7 @@ export function BackupPage({
   onChanged,
   onSettings,
   onOpenAppSettings,
+  onOpenRestore,
   onOverlayChange,
 }: {
   readonly sync: MobileSyncAdapter
@@ -46,11 +39,12 @@ export function BackupPage({
   readonly onSettings: () => void
   /** 打开应用设置，修改全局备份设置。 */
   readonly onOpenAppSettings: () => void
+  /** 打开恢复页；sourceName 是计划里来源一端的名称。 */
+  readonly onOpenRestore: (restoreId: string, sourceName: string) => void
   /** 打开弹层时交给应用一个关闭函数，供返回键使用；关闭后传 null。 */
   readonly onOverlayChange: (close: (() => void) | null) => void
 }): React.JSX.Element {
   const t = useT()
-  const locale = useLocale()
   const [details, setDetails] = useState<MobileBackupDetails | null>(null)
   /** 最近一次失败，连同出错的操作。 */
   const [error, setError] = useState<{
@@ -63,11 +57,13 @@ export function BackupPage({
   const [mode, setMode] = useState<PolicyMode>('follow')
   const [draft, setDraft] = useState<SyncBackupPolicy | null>(null)
   const current = restore?.state.projectId === game.id ? restore : null
-  const [isRestoreOpen, setIsRestoreOpen] = useState(current !== null)
   const operating = useRef(false)
   const saving = useRef(Promise.resolve())
-  const state = current?.state
-  const plan = current?.plan
+  // 失败用 Message 提示一次；读不到备份时正文留一个重试入口。
+  const [showFailure, failureHolder] = useFailureMessage()
+  useEffect(() => {
+    showFailure(error?.error ?? null, error?.context ?? null)
+  }, [error, showFailure])
   useEffect(() => {
     let isCurrent = true
     sync
@@ -87,19 +83,14 @@ export function BackupPage({
     return () => {
       isCurrent = false
     }
-  }, [sync, game.id, game.rootId, version, state?.status, t])
-  const isRestoreShown = isRestoreOpen && current !== null
-  const isOverlayOpen = isPolicyOpen || isRestoreShown
+  }, [sync, game.id, game.rootId, version, current?.state.status, t])
   useEffect(() => {
-    if (!isOverlayOpen) {
+    if (!isPolicyOpen) {
       return
     }
-    onOverlayChange(() => {
-      setIsPolicyOpen(false)
-      setIsRestoreOpen(false)
-    })
+    onOverlayChange(() => setIsPolicyOpen(false))
     return () => onOverlayChange(null)
-  }, [isOverlayOpen, onOverlayChange])
+  }, [isPolicyOpen, onOverlayChange])
   const settings = details?.info.settings
   const policy = details && resolveBackupPolicy(details.info.settings, game.id, details.root.rootId)
   const isLocked = isDisabled || isBusy
@@ -147,34 +138,28 @@ export function BackupPage({
         reload()
       })
   }
+  const backups = details?.listing.backups ?? []
+  /** 计划里来源一端的名称：备份时间，找不到这份备份时写“备份”。 */
+  function sourceName(backupId: string): string {
+    const backup = backups.find((item) => item.backupId === backupId)
+    return backup ? formatShortDateTime(backup.createdAt) : t('backup.list')
+  }
   function prepare(backupId: string): void {
-    setIsRestoreOpen(true)
     run(async () => {
       if (restore) {
         await sync.releaseRestore(restore.state.restoreId)
       }
-      await sync.prepareRestore(game.id, backupId)
+      const state = await sync.prepareRestore(game.id, backupId)
+      onOpenRestore(state.restoreId, sourceName(backupId))
     })
   }
-  /** 关闭恢复弹层：准备中的取消，未开始或已结束的释放；进行中的只收起，恢复继续。 */
-  function closeRestore(): void {
-    setIsRestoreOpen(false)
-    if (!state || state.status === 'running') {
-      return
-    }
-    const id = state.restoreId
-    run(() => (state.status === 'preparing' ? sync.cancelRestore(id) : sync.releaseRestore(id)))
-  }
-  const backups = details?.listing.backups ?? []
-  const backup = backups.find((item) => item.backupId === state?.backupId)
-  const backupTime = backup ? formatShortDateTime(backup.createdAt, locale, Date.now()) : ''
   const incomplete = details?.listing.incomplete ?? []
-  const isOldFolder = state !== undefined && state.rootId !== game.rootId
   return (
     <div className="page-stack">
-      {error && (
-        <div className="notice notice-error" role="alert">
-          <ErrorText error={error.error} context={error.context} />
+      {failureHolder}
+      {error && !details && (
+        <div className="empty-state">
+          <p>{error.context}</p>
           <div className="action-row">
             <Button size="small" disabled={isBusy} onClick={reload}>
               {t('common.retry')}
@@ -236,8 +221,12 @@ export function BackupPage({
           </Button>
         </div>
       )}
-      {current && !isRestoreOpen && (
-        <Button onClick={() => setIsRestoreOpen(true)}>{t('backup.openRestore')}</Button>
+      {current && (
+        <Button
+          onClick={() => onOpenRestore(current.state.restoreId, sourceName(current.state.backupId))}
+        >
+          {t('backup.openRestore')}
+        </Button>
       )}
       {details && (
         <p className="foot-note">
@@ -282,63 +271,6 @@ export function BackupPage({
               />
             )}
           </List>
-        )}
-      </Sheet>
-      <Sheet
-        isOpen={isRestoreShown}
-        title={backupTime ? t('backup.restoreTitle', { time: backupTime }) : t('backup.restore')}
-        isBusy={isBusy}
-        onClose={closeRestore}
-      >
-        {state && (
-          <div className="page-stack">
-            {state.status === 'ready' && plan ? (
-              <>
-                <SyncPlanSummary
-                  key={plan.planId}
-                  plan={plan}
-                  source={{ name: backupTime || t('backup.list'), kind: 'backup' }}
-                  target={{ name: t('transfer.local'), kind: 'phone' }}
-                  backupKeepCount={null}
-                />
-                {isOldFolder && <p className="notice notice-warning">{t('backup.oldFolder')}</p>}
-                <Button
-                  block
-                  color="primary"
-                  disabled={isLocked || !plan.canExecute || isOldFolder}
-                  onClick={() => run(() => sync.executeRestore(state.restoreId).then(() => {}))}
-                >
-                  {t('backup.confirmRestore')}
-                </Button>
-              </>
-            ) : (
-              <>
-                <RestoreSummary
-                  phase={state.status === 'ready' ? 'preparing' : state.status}
-                  progress={null}
-                  result={state.result}
-                  error={state.error ?? null}
-                  cleanupError={null}
-                  onRetryCleanup={
-                    state.result?.cleanupError && !isBusy
-                      ? () => run(() => sync.cleanupRestore())
-                      : null
-                  }
-                />
-                {state.status === 'preparing' ? (
-                  <Button block disabled={isBusy} onClick={closeRestore}>
-                    {t('common.cancel')}
-                  </Button>
-                ) : (
-                  state.status !== 'running' && (
-                    <Button block color="primary" disabled={isBusy} onClick={closeRestore}>
-                      {t('backup.done')}
-                    </Button>
-                  )
-                )}
-              </>
-            )}
-          </div>
         )}
       </Sheet>
     </div>

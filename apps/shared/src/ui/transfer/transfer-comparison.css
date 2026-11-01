@@ -1,13 +1,25 @@
 .ss-transfer {
   display: flex;
+  flex: 1;
   flex-direction: column;
   gap: 10px;
   min-width: 0;
+  min-height: 0;
   color: var(--ss-fg);
   font-family: var(--ss-font);
+  container: ss-transfer / inline-size;
+}
+/* 设备图标只在整体够宽时显示，与平台无关 */
+.ss-end-icon {
+  display: none;
+}
+@container ss-transfer (min-width: 560px) {
+  .ss-end-icon {
+    display: inline-flex;
+  }
 }
 
-/* 方向条：左电脑、中间翻转、右手机 */
+/* 方向条：左边来源、中间交换、右边目标 */
 .ss-dirbar {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
@@ -100,21 +112,18 @@ button.ss-end:disabled {
   padding: 0;
   border: 0;
   border-radius: 50%;
-  background: var(--ss-accent-soft);
-  color: var(--ss-accent);
+  background: var(--ss-accent);
+  box-shadow: var(--ss-shadow);
+  color: var(--ss-accent-fg);
   font-size: 16px;
   cursor: pointer;
-  transition: transform 0.2s ease;
-}
-.ss-flip.is-reversed {
-  transform: rotate(180deg);
 }
 .ss-flip:disabled {
   opacity: 0.5;
   cursor: default;
 }
 
-/* 差异摘要与筛选 */
+/* 摘要行：比较前写进度说明，完成后写差异数；右边是差异筛选和刷新 */
 .ss-diffbar {
   display: flex;
   flex-wrap: wrap;
@@ -122,29 +131,38 @@ button.ss-end:disabled {
   gap: 6px;
   min-height: 30px;
 }
-.ss-diffbar-status {
-  color: var(--ss-muted);
-  font-size: 13px;
-}
 .ss-diffbar-space {
   flex: 1;
 }
-.ss-pill {
-  padding: 3px 8px;
-  white-space: nowrap;
+/*
+ * 差异数标签：符号加数量，与文件行底色、图标状态点同色。
+ * + 新建为绿，~ 覆盖为琥珀，− 只在目标有：保留时为蓝；以后支持删除目标多出的文件时，删除用红色。
+ */
+.ss-count {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 2px;
+  padding: 2px 9px;
   border-radius: var(--ss-r-pill);
-  font-size: 12px;
-  font-weight: 600;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+  white-space: nowrap;
 }
-.ss-pill.is-ok {
-  background: var(--ss-ok-soft);
-  color: var(--ss-ok);
+.ss-count b {
+  font-family: var(--ss-mono);
+  font-weight: 700;
 }
-.ss-pill.is-warn {
+.ss-count.is-differs {
   background: var(--ss-warn-soft);
   color: var(--ss-warn);
 }
-.ss-pill.is-only {
+.ss-count.is-new,
+.ss-count.is-same {
+  background: var(--ss-ok-soft);
+  color: var(--ss-ok);
+}
+.ss-count.is-only {
   background: var(--ss-only-soft);
   color: var(--ss-only);
 }
@@ -160,6 +178,7 @@ button.ss-end:disabled {
   color: var(--ss-fg);
   font: inherit;
   font-size: 12px;
+  white-space: nowrap;
   cursor: pointer;
 }
 .ss-chip.is-icon {
@@ -177,127 +196,12 @@ button.ss-end:disabled {
   cursor: default;
 }
 
-/* 两端文件列 */
+/* 两端文件列：父容器限高时铺满剩余高度，两列各自滚动 */
 .ss-panes {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-  align-items: start;
-}
-.ss-pane {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  overflow: hidden;
-  border: 1px solid var(--ss-line);
-  border-radius: var(--ss-r-md);
-  background: var(--ss-group);
-}
-.ss-pane-head {
-  padding: 8px 10px;
-  border-bottom: 1px solid var(--ss-line);
-  color: var(--ss-muted);
-  font-size: 12px;
-}
-.ss-pane-crumb {
-  display: block;
-  overflow: hidden;
-  font-family: var(--ss-mono);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.ss-pane-placeholder {
-  margin: 0;
-  padding: 24px 10px;
-  color: var(--ss-muted);
-  font-size: 13px;
-  text-align: center;
-}
-.ss-pane-foot {
-  margin: 0;
-  padding: 8px 10px;
-  color: var(--ss-faint);
-  font-size: 12px;
-  text-align: center;
-}
-.ss-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  min-width: 0;
-  padding: 7px 10px;
-  border: 0;
-  border-bottom: 1px solid var(--ss-line);
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  text-align: left;
-}
-button.ss-row {
-  cursor: pointer;
-}
-button.ss-row:hover {
-  background: var(--ss-raised);
-}
-.ss-row.is-differs {
-  background: var(--ss-warn-soft);
-}
-.ss-row.is-only {
-  background: var(--ss-only-soft);
-}
-.ss-row-body {
-  display: flex;
   flex: 1;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-.ss-row-name {
-  min-width: 0;
-  overflow: hidden;
-  font-size: 13px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.ss-row-meta {
-  display: flex;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: minmax(0, 1fr);
   gap: 8px;
-  overflow: hidden;
-  color: var(--ss-muted);
-  font-size: 11px;
-  white-space: nowrap;
-}
-.ss-row-flag {
-  color: var(--ss-warn);
-  font-weight: 600;
-}
-
-/* 电脑：表格三列 */
-.ss-pane.is-wide .ss-pane-columns,
-.ss-pane.is-wide .ss-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 76px 116px;
-  gap: 8px;
-  align-items: center;
-}
-.ss-pane.is-wide .ss-row {
-  grid-template-columns: 30px minmax(0, 1fr) 76px 116px;
-}
-.ss-pane.is-wide .ss-pane-columns > span:not(.ss-pane-crumb),
-.ss-row-cell {
-  color: var(--ss-muted);
-  font-size: 12px;
-  text-align: right;
-  white-space: nowrap;
-}
-.ss-pane.is-wide .ss-row-name {
-  display: flex;
-  flex-direction: column;
-}
-.ss-pane.is-wide .ss-row-name > small {
-  font-size: 11px;
-}
-.ss-pane.is-wide .ss-row.is-up {
-  grid-template-columns: 30px minmax(0, 1fr);
+  min-height: 0;
 }

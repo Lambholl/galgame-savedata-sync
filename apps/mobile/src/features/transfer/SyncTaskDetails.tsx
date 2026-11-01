@@ -1,8 +1,10 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Button } from 'antd-mobile'
+import { ReloadOutlined, StopOutlined } from '@ant-design/icons'
 import { toShownError } from '@savedata-sync/shared'
 import type { LibraryGame, LibraryPeer, ShownError } from '@savedata-sync/shared'
-import { ErrorText, SyncTaskSummary, useT } from '@savedata-sync/shared/ui'
+import { SyncTaskSummary, useT } from '@savedata-sync/shared/ui'
+import { useFailureMessage } from '../../app/failure-message'
 import type { PlanEndpoint } from '@savedata-sync/shared/ui'
 import type {
   MobileCopyDetails,
@@ -10,6 +12,7 @@ import type {
   MobileSyncAdapter,
 } from '../../platform/sync-adapter'
 import { Panel } from '../../components/Panel'
+import { FloatingAction } from '../../components/FloatingAction'
 import { TechnicalDetails } from './TechnicalDetails'
 
 const RESTORE_STATUS = {
@@ -21,7 +24,10 @@ const RESTORE_STATUS = {
   cancelled: 'backup.restoreCancelled',
 } as const
 
-/** 先给结论再给细节；目标是否写入成功只依据接收端回读的结果。 */
+/**
+ * 先给结论再给细节；目标是否写入成功只依据接收端回读的结果。
+ * 右下角只悬浮当下能做的一件事：进行中取消传输，结束后重新扫描；查看备份是技术详情上方的一行。
+ */
 export function SyncTaskDetails({
   projectId,
   sync,
@@ -70,18 +76,24 @@ export function SyncTaskDetails({
   const phoneEnd: PlanEndpoint = { name: t('transfer.local'), kind: 'phone' }
   const pcEnd: PlanEndpoint = { name: peer?.device.name ?? t('common.unknown'), kind: 'pc' }
   const isUpload = copy?.preview.direction === 'android-to-windows'
-  const failures = [...errors, ...(error ? [error] : [])]
+  const failure = error ?? errors[0] ?? null
+  // 失败用 Message 提示一次；读不到任务时正文留一个重试入口。
+  const [showFailure, failureHolder] = useFailureMessage()
+  useEffect(() => {
+    showFailure(failure, failure ? t(error ? 'app.actionFailed' : 'task.readFailed') : null)
+  }, [failure, error, showFailure, t])
   return (
     <div className="page-stack">
-      {failures.map((value, index) => (
-        <div className="notice notice-error" role="alert" key={index}>
-          <ErrorText error={value} context={t('task.readFailed')} />
+      {failureHolder}
+      {!copy && !restore && failure && (
+        <div className="empty-state">
+          <p>{t('task.readFailed')}</p>
           <Button size="small" disabled={isBusy} onClick={() => act(() => sync.currentCopy(true))}>
             {t('common.retry')}
           </Button>
         </div>
-      ))}
-      {!copy && !restore && !failures.length && (
+      )}
+      {!copy && !restore && !failure && (
         <p className="notice">
           {projectId
             ? `${games.find((item) => item.id === projectId)?.name ?? t('common.unknown')} · ${t('game.noTask')}`
@@ -101,32 +113,33 @@ export function SyncTaskDetails({
             onRetryCleanup={
               isRunning || !state.local.cleanupError ? null : () => act(() => sync.cleanupCopy())
             }
+            // 备份建在被写入的一端；手机发送时备份在电脑上，这里不提供入口。
+            onViewBackup={
+              state.local.role === 'receiver' ? () => onBackup(binding.projectId) : null
+            }
             renderTechnicalDetails={(text) => <TechnicalDetails text={text} />}
           />
+          {isRunning && <p className="foot-note">{t('task.backgroundNote')}</p>}
           {isRunning ? (
-            <>
-              <p className="foot-note">{t('task.backgroundNote')}</p>
-              <Button
-                block
-                color="danger"
-                fill="outline"
-                disabled={isBusy}
-                onClick={() => act(() => sync.cancelCopy(state.jobId))}
-              >
-                {t('task.cancel')}
-              </Button>
-            </>
+            <FloatingAction
+              color="danger"
+              icon={<StopOutlined />}
+              iconPlacement="start"
+              label={t('task.cancel')}
+              isDisabled={isBusy}
+              isLoading={false}
+              onClick={() => act(() => sync.cancelCopy(state.jobId))}
+            />
           ) : (
-            <div className="action-row equal">
-              <Button onClick={() => onBackup(binding.projectId)}>{t('task.viewBackup')}</Button>
-              <Button
-                color="primary"
-                disabled={isBusy}
-                onClick={() => onRescan(binding.projectId, binding.remoteDeviceId)}
-              >
-                {t('task.rescan')}
-              </Button>
-            </div>
+            <FloatingAction
+              color="primary"
+              icon={<ReloadOutlined />}
+              iconPlacement="start"
+              label={t('task.rescan')}
+              isDisabled={isBusy}
+              isLoading={false}
+              onClick={() => onRescan(binding.projectId, binding.remoteDeviceId)}
+            />
           )}
         </>
       )}

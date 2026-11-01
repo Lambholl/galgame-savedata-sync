@@ -29,7 +29,7 @@
   place-items: center;
   width: 48px;
   height: 48px;
-  border-radius: 16px;
+  border-radius: var(--ss-r-md);
   background: var(--ss-group);
   color: var(--ss-muted);
   font-size: 24px;
@@ -213,14 +213,6 @@ button.ss-prow {
 }
 .ss-prow-change .is-up {
   color: var(--ss-ok);
-}
-.ss-prow-chevron {
-  color: var(--ss-faint);
-  font-size: 12px;
-  transition: transform 0.2s;
-}
-.ss-prow.is-open .ss-prow-chevron {
-  transform: rotate(90deg);
 }
 .ss-pdetail {
   display: grid;

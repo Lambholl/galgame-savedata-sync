@@ -1,15 +1,20 @@
-import { useState } from 'react'
-import { Alert, Button, Skeleton } from 'antd'
+import { useEffect, useState } from 'react'
+import { Button, Empty, Skeleton } from 'antd'
+import { ReloadOutlined, StopOutlined } from '@ant-design/icons'
 import { toShownError, unwrap } from '@savedata-sync/shared'
 import type { LibraryGame, LibraryPeer, ShownError } from '@savedata-sync/shared'
-import { ErrorText, SyncTaskSummary, useT } from '@savedata-sync/shared/ui'
+import { SyncTaskSummary, useT } from '@savedata-sync/shared/ui'
+import { useFailureMessage } from '../../app/failure-message.ts'
 import type { PlanEndpoint } from '@savedata-sync/shared/ui'
 import type { DesktopCopySummary } from '../../../../bridge/sync-bridge.ts'
 import { desktopSync } from '../../platform/sync-adapter.ts'
 import { useCopyDetails } from './use-sync-details.ts'
 import { TechnicalDetails } from './TechnicalDetails.tsx'
 
-/** 电脑只看得到本机角色；电脑发送时，手机写入结果在手机查看。 */
+/**
+ * 电脑只看得到本机角色；电脑发送时，手机写入结果在手机查看。
+ * 右下角只放当下能做的一件事：进行中取消传输，结束后重新扫描；查看备份是技术详情上方的一行。
+ */
 export function SyncCopyDetails({
   task,
   games,
@@ -59,25 +64,14 @@ export function SyncCopyDetails({
   const isUpload = task.direction === 'android-to-windows'
   const isRunning = (state ?? task).status === 'running'
   const failure = error ?? resource.error
+  // 失败用 Message 提示一次；读不到任务时正文留一个重试入口。
+  const [showFailure, failureHolder] = useFailureMessage()
+  useEffect(() => {
+    showFailure(failure, failure ? t(error ? 'app.actionFailed' : 'task.readFailed') : null)
+  }, [failure, error, showFailure, t])
   return (
     <div className="library-stack">
-      {failure && (
-        <Alert
-          showIcon
-          type="error"
-          title={
-            <ErrorText
-              error={failure}
-              context={t(error ? 'app.actionFailed' : 'task.readFailed')}
-            />
-          }
-          action={
-            <Button size="small" onClick={resource.reload}>
-              {t('common.retry')}
-            </Button>
-          }
-        />
-      )}
+      {failureHolder}
       {state ? (
         <SyncTaskSummary
           gameName={game?.name ?? t('common.unknown')}
@@ -87,27 +81,44 @@ export function SyncCopyDetails({
           remote={null}
           remoteError={null}
           onRetryCleanup={state.cleanupError && !isRunning ? () => act('cleanup') : null}
+          // 备份建在被写入的一端；电脑发送时备份在手机上，这里不提供入口。
+          onViewBackup={
+            state.role === 'receiver' && plan
+              ? () => onOpenBackup(task.projectId, plan.target.rootId)
+              : null
+          }
           renderTechnicalDetails={(text) => <TechnicalDetails text={text} />}
         />
       ) : (
-        resource.isLoading && <Skeleton active />
+        (resource.isLoading && <Skeleton active />) ||
+        (failure && (
+          <Empty description={t('task.readFailed')}>
+            <Button onClick={resource.reload}>{t('common.retry')}</Button>
+          </Empty>
+        ))
       )}
-      <div className="task-actions">
+      {/* 悬浮在窗口底边；滚到最后时回到内容下方，不遮住最后一行。 */}
+      <div className="task-float">
         {isRunning ? (
-          <Button danger disabled={isBusy} onClick={() => act('cancel')}>
+          <Button
+            danger
+            type="primary"
+            size="large"
+            icon={<StopOutlined />}
+            disabled={isBusy}
+            onClick={() => act('cancel')}
+          >
             {t('task.cancel')}
           </Button>
         ) : (
-          <>
-            {state?.role === 'receiver' && plan && (
-              <Button onClick={() => onOpenBackup(task.projectId, plan.target.rootId)}>
-                {t('task.viewBackup')}
-              </Button>
-            )}
-            <Button type="primary" onClick={() => onRescan(task.projectId, task.peerId)}>
-              {t('task.rescan')}
-            </Button>
-          </>
+          <Button
+            type="primary"
+            size="large"
+            icon={<ReloadOutlined />}
+            onClick={() => onRescan(task.projectId, task.peerId)}
+          >
+            {t('task.rescan')}
+          </Button>
         )}
       </div>
     </div>

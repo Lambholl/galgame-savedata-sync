@@ -5,7 +5,6 @@ import {
   ExclamationCircleOutlined,
   HistoryOutlined,
   MobileOutlined,
-  RightOutlined,
   SafetyOutlined,
   StopOutlined,
 } from '@ant-design/icons'
@@ -14,7 +13,8 @@ import { fileKindOf } from '../../sync/snapshot-compare.ts'
 import { formatBytes, formatShortDateTime } from '../../i18n/format.ts'
 import type { Translate } from '../../i18n/translate.ts'
 import { FileIcon } from '../files/FileIcon.tsx'
-import { useLocale, useT } from '../i18n/i18n-context.ts'
+import { Expand, ExpandChevron } from '../expand/Expand.tsx'
+import { useT } from '../i18n/i18n-context.ts'
 import './sync-plan-summary.css'
 
 /** 计划一端的显示信息。 */
@@ -72,7 +72,6 @@ export function SyncPlanSummary({
   backupKeepCount,
 }: SyncPlanSummaryProps): ReactElement {
   const t = useT()
-  const locale = useLocale()
   const [openKey, setOpenKey] = useState<string | null>(null)
   const sources = new Map(plan.source.entries.map((item) => [item.entryId, item]))
   const targets = new Map(plan.target.entries.map((item) => [item.entryId, item]))
@@ -95,13 +94,12 @@ export function SyncPlanSummary({
     }
   }
   const issue = issueText(plan, t)
-  const now = Date.now()
   const size = (entry: SyncEntry | undefined): string =>
     entry?.sizeBytes === null || entry?.sizeBytes === undefined ? '—' : formatBytes(entry.sizeBytes)
   const time = (entry: SyncEntry | undefined): string =>
     entry?.modifiedAt === null || entry?.modifiedAt === undefined
       ? t('common.timeUnknown')
-      : formatShortDateTime(entry.modifiedAt, locale, now)
+      : formatShortDateTime(entry.modifiedAt)
   function rows(group: Group): ReactElement[] {
     return groups[group].map((row) => {
       const path = row.entry.path
@@ -148,14 +146,14 @@ export function SyncPlanSummary({
         <div key={key}>
           <button
             type="button"
-            className={`ss-prow${isOpen ? ' is-open' : ''}`}
+            className={`ss-prow ss-pressable${isOpen ? ' is-open' : ''}`}
             aria-expanded={isOpen}
             onClick={() => setOpenKey(isOpen ? null : key)}
           >
             {content}
-            <RightOutlined className="ss-prow-chevron" />
+            <ExpandChevron isOpen={isOpen} />
           </button>
-          {isOpen && (
+          <Expand isOpen={isOpen}>
             <div className="ss-pdetail">
               <div>
                 <b>{t('plan.detailSource', { name: source.name })}</b>
@@ -168,7 +166,7 @@ export function SyncPlanSummary({
                 <span>{size(row.target)}</span>
               </div>
             </div>
-          )}
+          </Expand>
         </div>
       )
     })
@@ -228,6 +226,11 @@ export function SyncPlanSummary({
             {t('plan.transferSize', { size: formatBytes(plan.totalFileBytes) })}
           </span>
         )}
+        {/* 写入前要退出游戏；底部只放开始按钮，这条提示放在计划里。 */}
+        <span>
+          <ExclamationCircleOutlined />
+          {t('transfer.startNote')}
+        </span>
       </div>
       {issue && (
         <div className="ss-banner" role="alert">

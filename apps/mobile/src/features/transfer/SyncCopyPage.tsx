@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { ActionSheet } from 'antd-mobile'
-import { CaretRightOutlined, RightOutlined } from '@ant-design/icons'
+import { RightOutlined } from '@ant-design/icons'
 import {
   compareSnapshots,
   resolveBackupPolicy,
@@ -17,11 +17,12 @@ import type {
   SyncPreparationState,
   TransferDirection,
 } from '@savedata-sync/shared'
-import { ErrorText, SyncPlanSummary, TransferComparison, useT } from '@savedata-sync/shared/ui'
+import { TransferComparison, useT } from '@savedata-sync/shared/ui'
 import type { ComparisonStatus, PlanEndpoint } from '@savedata-sync/shared/ui'
 import type { MobileSyncAdapter } from '../../platform/sync-adapter'
 import type { Confirmation } from '../../app/navigation-types'
-import { BottomAction } from '../../components/BottomAction'
+import { FloatingAction } from '../../components/FloatingAction'
+import { PlanConfirm } from './PlanConfirm'
 
 const POLL_INTERVAL_MS = 700
 
@@ -165,29 +166,37 @@ export function SyncCopyPage({
       preview.binding.remoteProjectId !== remote?.id)
   let status: ComparisonStatus
   if (!peer) {
-    status = { kind: 'unavailable', message: t('transfer.noPeer') }
+    status = { kind: 'unavailable', reason: t('transfer.noPeer') }
   } else if (!isConnected) {
-    status = { kind: 'unavailable', message: t('transfer.peerOffline', { name: peer.device.name }) }
+    status = { kind: 'unavailable', reason: t('transfer.peerOffline', { name: peer.device.name }) }
   } else if (localRootId === null) {
-    status = { kind: 'unavailable', message: t('transfer.noLocalRoot') }
+    status = { kind: 'unavailable', reason: t('transfer.noLocalRoot') }
   } else if (remoteRootId === null) {
-    status = { kind: 'unavailable', message: t('transfer.noRemoteRoot') }
+    status = { kind: 'unavailable', reason: t('transfer.noRemoteRoot') }
   } else if (scanError !== null || preparation?.status === 'failed') {
-    const reason = scanError ?? preparation?.error ?? null
-    status = {
-      kind: 'unavailable',
-      message: reason ? (
-        <ErrorText error={reason} context={t('transfer.compareFailed')} />
-      ) : (
-        t('transfer.compareFailed')
-      ),
-    }
+    status = { kind: 'failed', error: scanError ?? preparation?.error ?? null }
   } else if (preparation?.status === 'cancelled') {
-    status = { kind: 'unavailable', message: t('transfer.compareCancelled') }
+    status = { kind: 'cancelled' }
   } else if (comparison && !hasChanged) {
     status = { kind: 'ready', comparison }
   } else {
-    status = { kind: 'comparing' }
+    status = { kind: 'scanning' }
+  }
+  /** 扫描已开始、还没出结果时可以取消；取消后由刷新重新扫描。 */
+  const cancellableId =
+    status.kind === 'scanning' && preparation?.status === 'preparing'
+      ? preparation.preparationId
+      : null
+  function cancelScan(id: string): void {
+    sync
+      .cancelPreparation(id)
+      // 期间若已开始新的扫描，保留新扫描的状态。
+      .then((state) =>
+        setPreparation((current) =>
+          current?.preparationId === state.preparationId ? state : current,
+        ),
+      )
+      .catch((cause: unknown) => setScanError(toShownError(cause)))
   }
   const hasChanges =
     plan?.entries.some((item) =>
@@ -229,9 +238,10 @@ export function SyncCopyPage({
   const remoteEnd: PlanEndpoint = { name: remoteName, kind: 'pc' }
   return (
     <>
-      {!isPlan && (
+      {/* 打开计划时只隐藏比较区，返回后文件夹位置和筛选保持不变。 */}
+      <div className="transfer-fill" hidden={isPlan}>
         <TransferComparison
-          key={`${peerId}/${direction}`}
+          key={peerId}
           pc={{
             name: remoteName,
             caption: '',
@@ -247,7 +257,6 @@ export function SyncCopyPage({
           remoteSide="pc"
           direction={direction}
           status={status}
-          layout="compact"
           isLocked={isDisabled || isStarting}
           onFlip={() =>
             setDirection(
@@ -256,19 +265,23 @@ export function SyncCopyPage({
           }
           onPickPeer={() => setIsPeerSheetOpen(true)}
           onRefresh={() => setScanVersion((value) => value + 1)}
+          onCancel={cancellableId === null ? null : () => cancelScan(cancellableId)}
         />
-      )}
+      </div>
       {isPlan && plan && (
-        <>
-          {hasChanged && <p className="notice notice-error">{t('transfer.planStale')}</p>}
-          <SyncPlanSummary
-            key={plan.planId}
-            plan={plan}
-            source={direction === 'android-to-windows' ? localEnd : remoteEnd}
-            target={direction === 'android-to-windows' ? remoteEnd : localEnd}
-            backupKeepCount={backupKeepCount}
-          />
-        </>
+        <PlanConfirm
+          plan={plan}
+          source={direction === 'android-to-windows' ? localEnd : remoteEnd}
+          target={direction === 'android-to-windows' ? remoteEnd : localEnd}
+          backupKeepCount={backupKeepCount}
+          notice={hasChanged && <p className="notice notice-error">{t('transfer.planStale')}</p>}
+          action={{
+            label: t('transfer.start'),
+            isDisabled: isDisabled || !canStart,
+            isLoading: isStarting,
+            onClick: start,
+          }}
+        />
       )}
       {isPlan && !plan && <p className="notice">{t('transfer.planUnavailable')}</p>}
       <ActionSheet
@@ -290,22 +303,14 @@ export function SyncCopyPage({
         }}
         onClose={() => setIsPeerSheetOpen(false)}
       />
-      {isPlan ? (
-        <BottomAction
-          note={t('transfer.startNote')}
-          icon={<CaretRightOutlined />}
-          label={t('transfer.start')}
-          isDisabled={isDisabled || !canStart}
-          isLoading={isStarting}
-          onClick={start}
-        />
-      ) : (
-        <BottomAction
-          note={null}
+      {!isPlan && (
+        <FloatingAction
+          color="primary"
           icon={<RightOutlined />}
-          label={status.kind === 'comparing' ? t('transfer.comparing') : t('transfer.preview')}
+          iconPlacement="end"
+          label={t('transfer.preview')}
           isDisabled={isDisabled || status.kind !== 'ready' || !plan}
-          isLoading={status.kind === 'comparing'}
+          isLoading={false}
           onClick={onPreview}
         />
       )}

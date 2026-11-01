@@ -1,9 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Alert, Button, Empty, Form, Modal, Switch, Table } from 'antd'
+import { Alert, Button, Empty, Form, Modal, Switch } from 'antd'
 import { HistoryOutlined } from '@ant-design/icons'
 import {
   formatBytes,
-  formatDateTime,
   formatShortDateTime,
   resolveBackupPolicy,
   toShownError,
@@ -13,18 +12,12 @@ import type {
   DirectoryReference,
   LibraryGame,
   ShownError,
-  SyncBackupFile,
   SyncBackupManifest,
   SyncBackupPolicy,
 } from '@savedata-sync/shared'
 import type { DesktopBackupInfo, DesktopBackupList } from '../../../../bridge/backup-bridge.ts'
-import {
-  BackupPolicyBlock,
-  BackupTimeline,
-  ErrorText,
-  useLocale,
-  useT,
-} from '@savedata-sync/shared/ui'
+import { BackupFiles, BackupPolicyBlock, BackupTimeline, useT } from '@savedata-sync/shared/ui'
+import { useFailureMessage } from '../../app/failure-message.ts'
 import { desktopBackups, desktopSync } from '../../platform/sync-adapter.ts'
 import { SETTING_FORM } from '../settings/setting-form.ts'
 import { BackupPolicyFields } from './BackupPolicyFields.tsx'
@@ -58,7 +51,6 @@ export function BackupPage({
   readonly onChanged: () => void
 }): React.JSX.Element {
   const t = useT()
-  const locale = useLocale()
   const [info, setInfo] = useState<DesktopBackupInfo | null>(null)
   const [listing, setListing] = useState<DesktopBackupList | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -89,6 +81,12 @@ export function BackupPage({
       invalidateManifest()
     }
   }, [invalidateManifest])
+  // 失败用 Message 提示一次；读不到列表时正文留一个重试入口。
+  const [showFailure, failureHolder] = useFailureMessage()
+  const failure = error ?? manifestError
+  useEffect(() => {
+    showFailure(failure?.error ?? null, failure?.context ?? null)
+  }, [failure, showFailure])
   const isCurrentRoot = Boolean(game && rootId && game.rootId === rootId)
   const projectId = game?.id ?? null
   useEffect(() => {
@@ -238,25 +236,10 @@ export function BackupPage({
     })
   }
   const incomplete = listing?.incomplete ?? []
-  const when = (value: number): string => formatShortDateTime(value, locale, Date.now())
+  const when = (value: number): string => formatShortDateTime(value)
   const root = roots.find((item) => item.rootId === rootId)
   let detail: React.ReactNode
-  if (restoreId) {
-    detail = (
-      <RestoreDetails
-        key={restoreId}
-        restoreId={restoreId}
-        sourceName={selected ? when(selected.createdAt) : t('backup.list')}
-        isActive={isActive}
-        onClose={() => {
-          setRestoreId(null)
-          refresh()
-        }}
-        onChanged={onChanged}
-        onOpenBackup={null}
-      />
-    )
-  } else if (selected) {
+  if (selected) {
     detail = (
       <>
         <div className="backup-detail-head">
@@ -280,39 +263,11 @@ export function BackupPage({
             {t('backup.restoreThis')}
           </Button>
         </div>
-        {manifestError && (
-          <Alert
-            showIcon
-            type="error"
-            title={<ErrorText error={manifestError.error} context={manifestError.context} />}
-          />
-        )}
-        <Table<SyncBackupFile>
-          size="small"
-          loading={isReading}
-          dataSource={[...(manifest?.files ?? [])]}
-          rowKey="fileId"
-          pagination={{ defaultPageSize: 50, hideOnSinglePage: true }}
-          columns={[
-            {
-              title: t('backup.file'),
-              key: 'path',
-              render: (_, item) => <span className="backup-file">{item.path.join(' / ')}</span>,
-            },
-            {
-              title: t('compare.size'),
-              key: 'size',
-              align: 'right',
-              render: (_, item) => formatBytes(item.sizeBytes),
-            },
-            {
-              title: t('backup.originalModified'),
-              key: 'time',
-              align: 'right',
-              render: (_, item) =>
-                item.modifiedAt === null ? '' : formatDateTime(item.modifiedAt, locale),
-            },
-          ]}
+        <BackupFiles
+          key={selected.backupId}
+          rootName={root?.displayName ?? '—'}
+          files={isReading ? null : (manifest?.files ?? (manifestError ? [] : null))}
+          failure={manifestError?.context ?? null}
         />
       </>
     )
@@ -343,17 +298,27 @@ export function BackupPage({
           }
         />
       )}
-      {error && (
-        <Alert
-          showIcon
-          type="error"
-          title={<ErrorText error={error.error} context={error.context} />}
-          action={
-            <Button size="small" onClick={refresh}>
-              {t('common.retry')}
-            </Button>
-          }
+      {failureHolder}
+      {/* 恢复预览在与传输计划相同的确认抽屉里打开，不改动本页内容。 */}
+      {restoreId && (
+        <RestoreDetails
+          key={restoreId}
+          restoreId={restoreId}
+          gameName={game.name}
+          sourceName={selected ? when(selected.createdAt) : t('backup.list')}
+          isActive={isActive}
+          onClose={() => {
+            setRestoreId(null)
+            refresh()
+          }}
+          onChanged={onChanged}
+          onOpenBackup={null}
         />
+      )}
+      {error && !listing && !isLoading && (
+        <Empty description={error.context}>
+          <Button onClick={refresh}>{t('common.retry')}</Button>
+        </Empty>
       )}
       {incomplete.length > 0 && (
         <Alert
@@ -377,7 +342,7 @@ export function BackupPage({
           }
         />
       )}
-      {isLoading && !listing ? null : (
+      {(isLoading || error) && !listing ? null : (
         <div className="backup-columns">
           <section>
             <h3 className="group-title">

@@ -12,6 +12,13 @@ body {
   background: var(--ss-page-bg);
   font-family: var(--ss-font);
 }
+/*
+ * 按钮文字按大写字母高度到基线裁去行框上下的空白再居中：界面字体的上方留白比下方多，
+ * 不裁时文字会比图标低约 1px；中文字形的中心恰好落在这段范围的中心。
+ */
+.ant-btn > span:not(.anticon) {
+  text-box: trim-both cap alphabetic;
+}
 .library-dark {
   color: var(--ss-fg);
   background: var(--ss-page-bg);
@@ -79,10 +86,22 @@ body {
   margin: 3px 0 0;
 }
 .library-main {
+  --main-inline: 30px;
   flex: 1;
   min-height: 0;
   overflow: auto;
-  padding: 0 30px 28px;
+  padding: 0 var(--main-inline) 28px;
+}
+/* 铺满型页面：正文不整体滚动，由页面内部的区域各自滚动，底栏贴住窗口底边 */
+.library-main.is-fill {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding-bottom: 20px;
+}
+.library-main.is-fill > .library-stack {
+  flex: 1;
+  min-height: 0;
 }
 .library-main > .ant-alert {
   margin-bottom: 16px;
@@ -145,6 +164,10 @@ body {
   min-width: 0;
   overflow-wrap: anywhere;
 }
+.library-device-state.ant-tag {
+  flex: none;
+  margin-inline-end: 0;
+}
 .library-compact {
   width: 100%;
 }
@@ -159,13 +182,8 @@ body {
 .library-address + .library-address {
   margin-top: 8px;
 }
-.library-app details:not(.ss-error-detail) {
-  margin-top: 14px;
-  font-size: 12px;
-}
-.library-app details:not(.ss-error-detail) > summary {
-  cursor: pointer;
-  margin-bottom: 10px;
+.library-port {
+  margin: 16px 4px 0;
 }
 .library-game-grid {
   display: grid;
@@ -204,7 +222,7 @@ body {
     width: 160px;
   }
   .library-desktop .library-main {
-    padding-inline: 20px;
+    --main-inline: 20px;
   }
   .library-desktop .library-header {
     padding-inline: 20px;
@@ -330,37 +348,28 @@ body {
   font-size: 18px;
 }
 .transfer-page {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-.transfer-footer {
-  position: sticky;
-  bottom: -28px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 0 -30px -28px;
-  padding: 12px 30px;
-  border-top: 1px solid var(--ss-line);
-  background: var(--ss-chrome);
-  backdrop-filter: blur(16px);
-}
-.transfer-footer.is-drawer {
-  position: static;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  background: none;
-}
-.transfer-footer-status {
+  /* 悬浮按钮的高度加上与列底的间距，文件列末尾留出同样的空白 */
+  --ss-pane-end-space: 64px;
+  position: relative;
   display: flex;
   flex: 1;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-  color: var(--ss-muted);
-  font-size: 13px;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+}
+/* 唯一的下一步操作，悬浮在文件列右下角 */
+.transfer-next.ant-btn {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  z-index: 2;
+  box-shadow: var(--ss-shadow);
+}
+/* 计划抽屉底部只有开始按钮，靠右，不加分隔线 */
+.ant-drawer .ant-drawer-footer.transfer-drawer-footer {
+  display: flex;
+  justify-content: flex-end;
+  border-top: 0;
 }
 .transfer-drawer-game {
   color: var(--ss-muted);
@@ -377,11 +386,27 @@ body {
 .transfer-peer-list small {
   opacity: 0.7;
 }
-.task-actions {
+/* 传输详情：居中的窄栏（原型 620px） */
+.task-page {
   display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 8px;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+  max-width: 620px;
+  margin: 0 auto;
+}
+/* 详情唯一的操作：贴住窗口底边悬浮在右侧，滚到最后时回到内容下方 */
+.task-float {
+  position: sticky;
+  bottom: 20px;
+  z-index: 2;
+  display: flex;
+  justify-content: flex-end;
+  pointer-events: none;
+}
+.task-float > .ant-btn {
+  box-shadow: var(--ss-shadow);
+  pointer-events: auto;
 }
 .task-history {
   display: flex;
@@ -490,7 +515,4 @@ body {
   margin: 2px 0 0;
   color: var(--ss-muted);
   font-size: 12.5px;
-}
-.backup-file {
-  overflow-wrap: anywhere;
 }

@@ -1,16 +1,28 @@
 @import 'antd-mobile/es/global/global.css';
 
+/* antd-mobile 的主题变量全部取自共用设计变量（--ss-*），这里不写颜色、圆角和字体的字面值。 */
 :root,
 :root[data-prefers-color-scheme='dark'] {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif;
+  font-family: var(--ss-font);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
+  --adm-font-family: var(--ss-font);
   --adm-color-primary: var(--ss-accent);
+  --adm-color-success: var(--ss-ok);
+  --adm-color-warning: var(--ss-warn);
+  --adm-color-danger: var(--ss-danger);
+  --adm-color-wathet: var(--ss-accent-soft);
   --adm-color-text: var(--ss-fg);
+  --adm-color-text-secondary: var(--ss-muted);
   --adm-color-weak: var(--ss-muted);
+  --adm-color-light: var(--ss-faint);
   --adm-color-border: var(--ss-line);
+  --adm-color-background: var(--ss-group);
   --adm-color-box: var(--ss-group);
+  --adm-radius-s: var(--ss-r-xs);
+  --adm-radius-m: var(--ss-r-sm);
+  --adm-radius-l: var(--ss-r-md);
   --adm-font-size-main: 14px;
   --mobile-control-height: 36px;
   --mobile-primary-height: 40px;
@@ -18,24 +30,11 @@
   --mobile-primary-button-height: 50px;
   --mobile-icon-target: 36px;
   --mobile-row-height: 44px;
-  --page-bg: var(--ss-bg);
-  --surface: var(--ss-group);
-  --surface-raised: var(--ss-raised);
-  --text: var(--ss-fg);
-  --muted: var(--ss-muted);
-  --line: var(--ss-line);
-  --accent-bg: var(--ss-accent-soft);
-  --danger: var(--ss-danger);
-  --file-selection-bg: #bce7f4;
-  --file-selection-muted: #315968;
 }
 
+/* 深色页面是纯黑，组件背景跟随页面。 */
 :root[data-prefers-color-scheme='dark'] {
-  --adm-color-background: #000;
-  --adm-color-box: var(--ss-group);
-  --page-bg: #000;
-  --file-selection-bg: #174c62;
-  --file-selection-muted: #c1dce8;
+  --adm-color-background: var(--ss-bg);
 }
 
 * {
@@ -51,8 +50,8 @@ body,
 }
 html,
 body {
-  background: var(--page-bg);
-  color: var(--text);
+  background: var(--ss-bg);
+  color: var(--ss-fg);
 }
 button,
 input,
@@ -75,7 +74,7 @@ summary:focus-visible {
 }
 /* 卡片列表与其他卡片同色；深色下页面是纯黑，卡片要比它亮一级才看得出边界。 */
 .adm-list-card {
-  --adm-color-background: var(--surface);
+  --adm-color-background: var(--ss-group);
 }
 .adm-list-card .adm-list-body {
   border-radius: var(--ss-r-md);
@@ -107,7 +106,7 @@ a.adm-list-item:active:not(.adm-list-item-disabled) {
 a.adm-list-item::before {
   position: absolute;
   inset: 0;
-  background: var(--text);
+  background: var(--ss-fg);
   content: '';
   opacity: 0;
   pointer-events: none;
@@ -134,12 +133,17 @@ summary,
   justify-content: center;
   height: auto;
   min-height: var(--mobile-button-height);
-  padding: 6px 12px;
+  padding: 6px 16px;
   font-size: 14px;
   line-height: 1.4;
-  white-space: normal;
-  overflow-wrap: anywhere;
-  --border-radius: var(--ss-r-sm);
+  /* 按钮文字不换行；放不下时改短文字或调整按钮，而不是让它折行 */
+  white-space: nowrap;
+  --border-radius: var(--ss-r-pill);
+}
+/* 按钮文字按大写字母高度到基线裁去上下空白再居中；不裁时比图标低约半像素（字体上方留白较多） */
+.adm-button:not(.adm-stepper > *) > span,
+.floating-action > span > span {
+  text-box: trim-both cap alphabetic;
 }
 .adm-button-block {
   display: flex;
@@ -158,14 +162,14 @@ summary,
   padding: 0 10px;
   min-height: var(--mobile-primary-height);
   width: 100%;
-  border: 1px solid var(--line);
+  border: 1px solid var(--ss-line);
   border-radius: var(--ss-r-sm);
-  background: var(--surface-raised);
+  background: var(--ss-raised);
   --font-size: 14px;
 }
 .adm-input-element:not(.adm-stepper *) {
   min-height: 38px;
-  color: var(--text);
+  color: var(--ss-fg);
 }
 .adm-input-element:focus,
 .adm-input-element:focus-visible {
@@ -243,7 +247,7 @@ small {
   gap: 6px;
   padding: max(8px, env(safe-area-inset-top)) 12px 8px;
   min-height: 52px;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--ss-line);
   flex-shrink: 0;
 }
 .app-heading > div {
@@ -251,7 +255,7 @@ small {
   min-width: 0;
 }
 .app-heading p {
-  color: var(--muted);
+  color: var(--ss-muted);
   font-size: 12px;
   line-height: 1.25;
   margin-top: 2px;
@@ -266,7 +270,7 @@ small {
 }
 .app-wordmark {
   margin-left: auto;
-  color: var(--muted);
+  color: var(--ss-muted);
   font-size: 12px;
   flex-shrink: 0;
 }
@@ -283,8 +287,61 @@ small {
   padding: 12px;
   min-height: 0;
 }
+/* 有悬浮主按钮的页面：正文末尾留出按钮的高度，最后的内容可以滚到按钮上方 */
 .app-main.app-main-with-action {
-  padding-bottom: calc(104px + env(safe-area-inset-bottom));
+  padding-bottom: calc(var(--mobile-primary-button-height) + 28px + env(safe-area-inset-bottom));
+}
+/* 铺满型页面：正文不整体滚动，两列文件各自滚动；按钮盖住列底，由列末空白让出位置 */
+.app-main.app-main-fill {
+  --ss-pane-end-space: calc(var(--mobile-primary-button-height) + 16px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding-bottom: calc(12px + env(safe-area-inset-bottom));
+}
+.app-main-fill > .page-stack {
+  flex: 1;
+  min-height: 0;
+}
+.transfer-fill {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+.transfer-fill[hidden] {
+  display: none;
+}
+.app-main.app-main-with-nav {
+  padding-bottom: calc(100px + env(safe-area-inset-bottom));
+}
+/* 页面唯一的主操作：右下角悬浮的胶囊按钮，没有底栏 */
+.floating-action.adm-button:not(.adm-stepper > *) {
+  position: fixed;
+  right: calc(16px + env(safe-area-inset-right));
+  bottom: calc(16px + env(safe-area-inset-bottom));
+  z-index: 500;
+  min-height: var(--mobile-primary-button-height);
+  padding: 0 22px;
+  box-shadow: var(--ss-shadow);
+}
+.floating-action > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.page-stack {
+  flex: 1;
+  min-height: 0;
+}
+.transfer-fill {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+.transfer-fill[hidden] {
+  display: none;
 }
 .app-main.app-main-with-nav {
   padding-bottom: calc(100px + env(safe-area-inset-bottom));
@@ -304,11 +361,21 @@ small {
   background: var(--ss-chrome);
   backdrop-filter: blur(16px);
 }
-.bottom-action p {
-  margin: 0;
+.bottom-action-note {
   color: var(--ss-muted);
   font-size: 12px;
   text-align: center;
+}
+/* 传输存档的状态栏：说明靠左，取消按钮靠右 */
+.transfer-status-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 24px;
+  text-align: left;
+}
+.transfer-status-row > .adm-button {
+  flex: none;
 }
 .bottom-action .adm-button > span {
   display: inline-flex;
@@ -323,9 +390,9 @@ small {
 }
 .panel {
   padding: 12px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--ss-line);
   border-radius: var(--ss-r-md);
-  background: var(--surface);
+  background: var(--ss-group);
   min-width: 0;
 }
 .panel > h2 {
@@ -346,15 +413,15 @@ small {
   max-width: calc(100% - 32px);
   gap: 4px;
   padding: 6px;
-  background: var(--surface);
-  border: 1px solid var(--line);
+  background: var(--ss-group);
+  border: 1px solid var(--ss-line);
   border-radius: var(--ss-r-pill);
   box-shadow: var(--ss-shadow);
 }
 .bottom-nav button {
   border: 0;
   background: transparent;
-  color: var(--muted);
+  color: var(--ss-muted);
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -370,14 +437,14 @@ small {
   font-size: 22px;
 }
 .bottom-nav .active {
-  background: var(--accent-bg);
+  background: var(--ss-accent-soft);
   color: var(--adm-color-primary);
   font-weight: 600;
 }
 .library-transfer-action {
   padding: 12px 16px;
-  border-top: 1px solid var(--line);
-  background: var(--surface);
+  border-top: 1px solid var(--ss-line);
+  background: var(--ss-group);
   flex-shrink: 0;
 }
 .library-transfer-action .adm-button {
@@ -407,7 +474,7 @@ small {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: var(--muted);
+  color: var(--ss-muted);
   font-size: 13px;
   overflow-wrap: anywhere;
 }
@@ -415,11 +482,11 @@ small {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #8a93a1;
+  background: var(--ss-faint);
   flex-shrink: 0;
 }
 .status-dot.online {
-  background: #36b77b;
+  background: var(--ss-ok);
 }
 .game-grid {
   display: grid;
@@ -437,7 +504,7 @@ small {
   align-items: center;
   justify-content: center;
   gap: 10px;
-  color: var(--muted);
+  color: var(--ss-muted);
   padding: 16px 12px;
   text-align: center;
 }
@@ -461,7 +528,7 @@ small {
 }
 .device-icon {
   padding: 8px;
-  background: var(--accent-bg);
+  background: var(--ss-accent-soft);
   color: var(--adm-color-primary);
   border-radius: var(--ss-r-sm);
   font-size: 20px;
@@ -469,11 +536,11 @@ small {
 .device-status {
   display: inline-block;
   margin-top: 4px;
-  color: var(--muted);
+  color: var(--ss-muted);
   font-size: 12px;
 }
 .device-status.connected {
-  color: #36b77b;
+  color: var(--ss-ok);
 }
 .device-address {
   display: flex;
@@ -484,7 +551,7 @@ small {
 .device-address > span {
   min-width: 0;
   flex: 1;
-  color: var(--muted);
+  color: var(--ss-muted);
   overflow-wrap: anywhere;
   font-size: 12px;
 }
@@ -504,7 +571,7 @@ small {
   align-items: center;
   gap: 8px;
   padding: 2px 4px;
-  color: var(--muted);
+  color: var(--ss-muted);
 }
 .name-edit .adm-input {
   flex: 1;
@@ -512,7 +579,7 @@ small {
   background: transparent;
 }
 .name-edit .adm-input-element {
-  color: var(--text);
+  color: var(--ss-fg);
   font-size: 22px;
   font-weight: 650;
 }
@@ -524,12 +591,12 @@ small {
   min-height: 32px;
   margin: 0 0 6px;
   padding: 0 4px;
-  color: var(--muted);
+  color: var(--ss-muted);
   font-size: 13px;
   font-weight: 600;
 }
 .group-title small {
-  color: var(--muted);
+  color: var(--ss-muted);
   font-size: 12px;
   font-variant-numeric: tabular-nums;
   font-weight: 400;
@@ -546,13 +613,21 @@ small {
   text-align: center;
 }
 .sheet-caption span {
-  color: var(--muted);
+  color: var(--ss-muted);
   font-size: 12.5px;
+}
+/* 悬浮在底部、四周留边的弹层。 */
+.adm-popup-body.add-game-dialog {
+  left: 12px;
+  right: 12px;
+  bottom: calc(12px + env(safe-area-inset-bottom));
+  width: auto;
+  border-radius: var(--ss-r-lg);
 }
 .add-game-dialog {
   padding: 18px 14px 12px;
-  background: var(--surface);
-  color: var(--text);
+  background: var(--ss-group);
+  color: var(--ss-fg);
   max-height: 88dvh;
   overflow-y: auto;
 }
@@ -570,7 +645,7 @@ small {
   padding: 12px;
   border: 0;
   border-radius: var(--ss-r-md);
-  background: var(--surface-raised);
+  background: var(--ss-raised);
   text-align: left;
 }
 .add-game-directory > .anticon {
@@ -592,7 +667,7 @@ small {
 }
 .add-game-directory small {
   margin-top: 3px;
-  color: var(--muted);
+  color: var(--ss-muted);
 }
 .add-game-footer {
   display: flex;
@@ -618,39 +693,39 @@ small {
   display: flex;
   min-height: var(--mobile-row-height);
   padding: 8px 2px;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--ss-line);
 }
 .choice-row:last-child {
   border-bottom: 0;
 }
 .muted {
-  color: var(--muted);
+  color: var(--ss-muted);
 }
 .notice {
   padding: 10px;
   border-radius: var(--ss-r-sm);
-  background: var(--accent-bg);
-  color: var(--text);
+  background: var(--ss-accent-soft);
+  color: var(--ss-fg);
   font-size: 13px;
   line-height: 1.5;
   overflow-wrap: anywhere;
 }
 .notice-error {
-  border: 1px solid var(--danger);
+  border: 1px solid var(--ss-danger);
   margin-bottom: 12px;
 }
 .notice-error p {
   margin-bottom: 8px;
 }
 .notice-warning {
-  border: 1px solid #b98527;
+  border: 1px solid var(--ss-warn);
   margin-top: 14px;
 }
 
 .mobile-sheet {
   border-radius: var(--ss-r-lg) var(--ss-r-lg) 0 0;
-  background: var(--surface);
-  color: var(--text);
+  background: var(--ss-group);
+  color: var(--ss-fg);
   max-height: min(88dvh, 900px);
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -659,8 +734,8 @@ small {
 .sheet-handle {
   height: 3px;
   width: 32px;
-  border-radius: 3px;
-  background: var(--line);
+  border-radius: var(--ss-r-pill);
+  background: var(--ss-line);
   margin: 0 auto 8px;
 }
 .sheet-heading {
@@ -686,7 +761,7 @@ small {
   margin-bottom: 14px;
 }
 .pane-error {
-  color: var(--danger);
+  color: var(--ss-danger);
   font-size: 14px;
   padding: 12px 4px;
 }
@@ -694,7 +769,7 @@ small {
   display: inline-block;
   padding: 4px 8px;
   border-radius: var(--ss-r-sm);
-  background: var(--accent-bg);
+  background: var(--ss-accent-soft);
   margin-bottom: 10px;
 }
 .panel .adm-progress-bar {
@@ -708,25 +783,11 @@ small {
   flex-direction: column;
   gap: 6px;
   padding: 10px 0;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--ss-line);
   overflow-wrap: anywhere;
 }
 .file-result span {
-  color: var(--muted);
-}
-details:not(.ss-error-detail) {
-  margin-top: 12px;
-  overflow-wrap: anywhere;
-}
-summary {
-  display: flex;
-  align-items: center;
-  cursor: pointer;
-  color: var(--adm-color-primary);
-}
-details small {
-  display: block;
-  color: var(--muted);
+  color: var(--ss-muted);
 }
 
 @media (min-width: 700px) {

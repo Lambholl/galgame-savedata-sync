@@ -25,6 +25,7 @@ export const jaJP: Messages = {
   'nav.main': '主な画面',
   'nav.backToGames': 'ゲーム一覧に戻る',
   'nav.backToTransfer': '転送画面に戻る',
+  'nav.backToBackup': '控えと復元に戻る',
 
   'page.gameSettings': 'ゲーム設定',
   'page.transfer': 'セーブデータ転送',
@@ -58,9 +59,9 @@ export const jaJP: Messages = {
   'transfer.target': '転送先',
   'transfer.connected': '接続中',
   'transfer.disconnected': '未接続',
-  'transfer.flip': '転送方向を反転',
+  'transfer.flip': '転送元と転送先を入れ替え',
   'transfer.pickPeer': '相手の端末を切り替え',
-  'transfer.preview': '転送計画を確認',
+  'transfer.preview': '次へ',
   'transfer.comparing': '両方を比較しています…',
   'transfer.pickPeerTitle': '相手の端末を選択',
   'transfer.noPeer': '関連付けた端末がありません。ゲーム設定で関連付けてください。',
@@ -68,6 +69,7 @@ export const jaJP: Messages = {
   'transfer.noLocalRoot': 'この端末の保存先が未選択です。',
   'transfer.noRemoteRoot': '相手の端末の保存先が未選択です。',
   'transfer.compareFailed': '比較に失敗しました。更新して再試行してください。',
+  'transfer.compareFailedContext': '比較に失敗しました',
   'transfer.compareCancelled': '比較を取り消しました。',
   'transfer.start': '転送を開始',
   'transfer.startNote': '開始する前にゲームを終了してください',
@@ -75,19 +77,15 @@ export const jaJP: Messages = {
   'transfer.noBackupText':
     '上書き前の控えが無効のため、上書きされたファイルは復元できません。転送を開始しますか？',
   'transfer.planUnavailable': 'この計画は使用できません。戻って更新してください。',
-  'transfer.remoteScanning': ({ name }) =>
-    `${name} が両方のフォルダーを読み取っています。携帯端末のアプリを開いたままにしてください`,
-  'transfer.remoteRoute': ({ source, target }) =>
-    `${source} → ${target} · 読み取りと書き込みは携帯端末が行い、計画はここで確認します`,
   'transfer.remoteBusy': '別の転送が確認済みで、携帯端末での開始を待っています。',
   'transfer.planStale': 'ゲームまたは保存先が変更されました。戻って更新してから転送してください。',
 
   'compare.differs': ({ count }) => `内容が異なる ${count} 件`,
-  'compare.only': ({ count }) => `片方のみ ${count} 件`,
+  'compare.onlySource': ({ count }) => `転送元のみ ${count} 件`,
+  'compare.onlyTarget': ({ count }) => `転送先のみ ${count} 件`,
   'compare.allSame': '両方とも一致',
-  'compare.filter': '差分のみ',
+  'compare.filter': '差分',
   'compare.refresh': '更新',
-  'compare.containsDifferences': ({ count }) => `差分 ${count} 件`,
   'compare.noDifferences': '差分はありません',
   'compare.emptyFolder': '空のフォルダー',
   'compare.summary': ({ directories, files }) => `フォルダー ${directories} · ファイル ${files}`,
@@ -173,6 +171,7 @@ export const jaJP: Messages = {
   'task.techLocal': 'この端末',
   'task.techRemote': '相手の端末',
   'task.techUpdated': '更新',
+  'task.techError': '失敗の原因',
 
   'game.name': 'ゲーム名',
   'game.localFolder': 'この端末の保存先',
@@ -323,7 +322,6 @@ export const jaJP: Messages = {
   'backup.status.ready': '確認待ち',
   'backup.status.running': '復元中',
 
-  'error.details': '詳細',
   'error.withContext': ({ context, text }) => `${context}：${text}`,
   'error.code.invalid-request':
     '要求の内容が正しくありません。更新してからもう一度お試しください。',

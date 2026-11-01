@@ -46,7 +46,7 @@ const phone = snapshot([
 test('counts differing and one-sided files', () => {
   const comparison = compareSnapshots(pc, phone)
   assert.equal(comparison.differingFiles, 1)
-  assert.equal(comparison.onlyFiles, 4)
+  assert.deepEqual(comparison.onlyFiles, { pc: 2, phone: 2 })
 })
 
 test('lists folders first in natural order with states', () => {

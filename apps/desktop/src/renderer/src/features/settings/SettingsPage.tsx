@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Alert, Button, Form } from 'antd'
+import { Button, Empty, Form } from 'antd'
 import { APP_LOCALES, APP_VERSION, LOCALE_NAMES, toShownError, unwrap } from '@savedata-sync/shared'
 import type {
   AppPreferences,
@@ -8,7 +8,8 @@ import type {
   SyncBackupPolicy,
   ThemePreference,
 } from '@savedata-sync/shared'
-import { ErrorText, useT } from '@savedata-sync/shared/ui'
+import { useT } from '@savedata-sync/shared/ui'
+import { useFailureMessage } from '../../app/failure-message.ts'
 import { desktopBackups } from '../../platform/sync-adapter.ts'
 import { BackupPolicyFields } from '../backup/BackupPolicyFields.tsx'
 import { SETTING_FORM } from './setting-form.ts'
@@ -35,6 +36,11 @@ export function SettingsPage({
   const [version, setVersion] = useState(0)
   /** 保存依次进行，连续调整时后一次等前一次写完。 */
   const saving = useRef(Promise.resolve())
+  // 失败用 Message 提示一次；读不到设置时这一节留一个重试入口。
+  const [showFailure, failureHolder] = useFailureMessage()
+  useEffect(() => {
+    showFailure(backupError?.error ?? null, backupError?.context ?? null)
+  }, [backupError, showFailure])
   useEffect(() => {
     let isCurrent = true
     desktopBackups()
@@ -95,19 +101,11 @@ export function SettingsPage({
       </section>
       <section className="settings-section">
         <h2>{t('settings.backup')}</h2>
-        {backupError && (
-          <Alert
-            showIcon
-            type="error"
-            title={<ErrorText error={backupError.error} context={backupError.context} />}
-            action={
-              !policy && (
-                <Button size="small" onClick={() => setVersion((value) => value + 1)}>
-                  {t('common.retry')}
-                </Button>
-              )
-            }
-          />
+        {failureHolder}
+        {backupError && !policy && (
+          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={backupError.context}>
+            <Button onClick={() => setVersion((value) => value + 1)}>{t('common.retry')}</Button>
+          </Empty>
         )}
         {policy && (
           <Form {...SETTING_FORM}>

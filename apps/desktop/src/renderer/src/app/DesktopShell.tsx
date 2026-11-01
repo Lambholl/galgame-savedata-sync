@@ -1,13 +1,13 @@
 import type { ReactNode } from 'react'
-import { Alert, Button, ConfigProvider, Menu, theme } from 'antd'
+import { Button, ConfigProvider, Menu } from 'antd'
 import antdEnUS from 'antd/locale/en_US'
 import antdJaJP from 'antd/locale/ja_JP'
 import antdZhCN from 'antd/locale/zh_CN'
 import antdZhTW from 'antd/locale/zh_TW'
 import type { Locale } from 'antd/es/locale'
-import { ErrorText, useLocale, useT } from '@savedata-sync/shared/ui'
+import { designTheme, useLocale, useT } from '@savedata-sync/shared/ui'
 import { APP_VERSION } from '@savedata-sync/shared'
-import type { AppLocale, ShownError } from '@savedata-sync/shared'
+import type { AppLocale } from '@savedata-sync/shared'
 import {
   AppstoreOutlined,
   ArrowLeftOutlined,
@@ -17,7 +17,6 @@ import {
 import appLogo from '../../../../../../assets/app-logo.png'
 import { isRootPage } from './navigation.ts'
 import type { Page } from './navigation.ts'
-import { themeTokens } from '@savedata-sync/shared'
 import type { ResolvedTheme } from '@savedata-sync/shared'
 
 const NAV = [
@@ -38,29 +37,21 @@ export function DesktopShell({
   page,
   title,
   gameName,
-  error,
-  isBusy,
   headerAction,
   dialogs,
   onBack,
   onNavigate,
-  onCloseError,
-  onRetry,
   children,
 }: {
   readonly theme: ResolvedTheme
   readonly page: Page
   readonly title: string
   readonly gameName: string | null
-  readonly error: ShownError | null
-  readonly isBusy: boolean
   /** 标题栏右侧的页面操作（如传输页的游戏设置、备份入口）。 */
   readonly headerAction: ReactNode
   readonly dialogs: ReactNode
   readonly onBack: () => void
   readonly onNavigate: (page: Page) => void
-  readonly onCloseError: () => void
-  readonly onRetry: () => void
   readonly children: ReactNode
 }): React.JSX.Element {
   const activeNav = page === 'devices' || page === 'settings' ? page : 'games'
@@ -69,14 +60,7 @@ export function DesktopShell({
   const t = useT()
   const locale = useLocale()
   return (
-    <ConfigProvider
-      locale={ANTD_LOCALES[locale]}
-      theme={{
-        algorithm: isDark ? theme.darkAlgorithm : theme.defaultAlgorithm,
-        token: themeTokens(resolvedTheme),
-        components: { Card: { bodyPadding: 20 } },
-      }}
-    >
+    <ConfigProvider locale={ANTD_LOCALES[locale]} theme={designTheme(resolvedTheme, 'desktop')}>
       <div className={`library-app library-desktop ${isDark ? 'library-dark' : ''}`}>
         <aside className="library-sidebar">
           <div className="library-brand">
@@ -106,24 +90,13 @@ export function DesktopShell({
             )}
             <div className="library-header-title">
               <h1>{title}</h1>
-              {gameName && isNestedPage && page !== 'task' && <p>{gameName}</p>}
+              {/* 游戏设置页正文就是可编辑的游戏名，不在标题下重复。 */}
+              {gameName && isNestedPage && page !== 'task' && page !== 'edit' && <p>{gameName}</p>}
             </div>
             {headerAction && <div className="library-header-actions">{headerAction}</div>}
           </header>
-          <main className="library-main">
-            {error && (
-              <Alert
-                type="error"
-                title={<ErrorText error={error} context={null} />}
-                showIcon
-                closable={{ onClose: onCloseError }}
-                action={
-                  <Button size="small" disabled={isBusy} onClick={onRetry}>
-                    {t('common.retry')}
-                  </Button>
-                }
-              />
-            )}
+          {/* 传输页铺满窗口高度：两列文件各自滚动，状态栏贴在底部。 */}
+          <main className={`library-main${page === 'transfer' ? ' is-fill' : ''}`}>
             <div className="library-stack">{children}</div>
           </main>
         </div>

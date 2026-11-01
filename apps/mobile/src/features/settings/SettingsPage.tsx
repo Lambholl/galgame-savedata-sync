@@ -8,7 +8,8 @@ import type {
   SyncBackupPolicy,
   ThemePreference,
 } from '@savedata-sync/shared'
-import { ErrorText, useT } from '@savedata-sync/shared/ui'
+import { useT } from '@savedata-sync/shared/ui'
+import { useFailureMessage } from '../../app/failure-message'
 import type { MobileSyncAdapter } from '../../platform/sync-adapter'
 import { BackupPolicyFields } from '../../components/BackupPolicyFields'
 import { ChoiceItem } from '../../components/ChoiceItem'
@@ -36,6 +37,11 @@ export function SettingsPage({
   const [version, setVersion] = useState(0)
   /** 保存依次进行，连续点击时后一次等前一次写完。 */
   const saving = useRef(Promise.resolve())
+  // 失败用 Message 提示一次；读不到设置时留一个重试入口。
+  const [showFailure, failureHolder] = useFailureMessage()
+  useEffect(() => {
+    showFailure(backupError?.error ?? null, backupError?.context ?? null)
+  }, [backupError, showFailure])
   useEffect(() => {
     let isCurrent = true
     sync
@@ -84,16 +90,13 @@ export function SettingsPage({
           onChange={(theme) => onChange({ ...preferences, theme })}
         />
       </List>
-      {backupError && (
-        <div className="notice notice-error" role="alert">
-          <ErrorText error={backupError.error} context={backupError.context} />
-          {!policy && (
-            <div className="action-row">
-              <Button size="small" onClick={() => setVersion((value) => value + 1)}>
-                {t('common.retry')}
-              </Button>
-            </div>
-          )}
+      {failureHolder}
+      {backupError && !policy && (
+        <div className="empty-state">
+          <p>{backupError.context}</p>
+          <Button size="small" onClick={() => setVersion((value) => value + 1)}>
+            {t('common.retry')}
+          </Button>
         </div>
       )}
       {policy && (

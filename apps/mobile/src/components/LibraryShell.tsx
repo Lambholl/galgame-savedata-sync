@@ -5,14 +5,13 @@ import admEnUS from 'antd-mobile/es/locales/en-US'
 import admJaJP from 'antd-mobile/es/locales/ja-JP'
 import admZhCN from 'antd-mobile/es/locales/zh-CN'
 import admZhTW from 'antd-mobile/es/locales/zh-TW'
-import type { AppLocale, ShownError } from '@savedata-sync/shared'
-import { ErrorText, useLocale, useT } from '@savedata-sync/shared/ui'
+import type { AppLocale, MessageKey } from '@savedata-sync/shared'
+import { useLocale, useT } from '@savedata-sync/shared/ui'
 import {
   AppstoreOutlined,
   ArrowLeftOutlined,
   DesktopOutlined,
   SettingOutlined,
-  CloseOutlined,
 } from '@ant-design/icons'
 import { isRootPage } from '../app/navigation-types'
 import type { Page } from '../app/navigation-types'
@@ -22,6 +21,15 @@ const NAV = [
   { key: 'games', label: 'nav.games', icon: <AppstoreOutlined /> },
   { key: 'settings', label: 'nav.settings', icon: <SettingOutlined /> },
 ] as const
+
+/** 返回按钮的名称；不在这里的页面返回游戏。 */
+const BACK_LABELS: Partial<Record<Page, MessageKey>> = {
+  'sync-plan': 'nav.backToTransfer',
+  restore: 'nav.backToBackup',
+}
+
+/** 右下角有悬浮主操作的页面，正文末尾留出按钮的高度。 */
+const WITH_ACTION: readonly Page[] = ['sync', 'sync-plan', 'task', 'restore']
 
 const ADM_LOCALES = {
   'zh-CN': admZhCN,
@@ -34,30 +42,22 @@ export function LibraryShell({
   page,
   title,
   gameName,
-  error,
-  isBusy,
   footer,
   headerAction,
   dialogs,
   onBack,
   onNavigate,
-  onCloseError,
-  onRetry,
   children,
 }: {
   readonly page: Page
   readonly title: string
   readonly gameName: string | null
-  readonly error: ShownError | null
-  readonly isBusy: boolean
   readonly footer: ReactNode
   /** 标题栏右侧的页面操作（如“更多”菜单按钮）。 */
   readonly headerAction: ReactNode
   readonly dialogs: ReactNode
   readonly onBack: () => void
   readonly onNavigate: (page: Page) => void
-  readonly onCloseError: () => void
-  readonly onRetry: () => void
   readonly children: ReactNode
 }): React.JSX.Element {
   const t = useT()
@@ -79,6 +79,7 @@ export function LibraryShell({
     }
     const isMovingBack =
       (previous === 'sync-plan' && page === 'sync') ||
+      (previous === 'restore' && page === 'backup') ||
       (isRootPage(page) &&
         (!isRootPage(previous) ||
           NAV.findIndex((item) => item.key === page) <
@@ -100,7 +101,7 @@ export function LibraryShell({
           {!isRootPage(page) && (
             <Button
               fill="none"
-              aria-label={t(page === 'sync-plan' ? 'nav.backToTransfer' : 'nav.backToGames')}
+              aria-label={t(BACK_LABELS[page] ?? 'nav.backToGames')}
               onClick={onBack}
             >
               <ArrowLeftOutlined />
@@ -108,7 +109,10 @@ export function LibraryShell({
           )}
           <div>
             <h1>{title}</h1>
-            {!isRootPage(page) && gameName && page !== 'task' && <p>{gameName}</p>}
+            {/* 游戏设置页正文就是可编辑的游戏名，不在标题下重复。 */}
+            {!isRootPage(page) && gameName && page !== 'task' && page !== 'edit' && (
+              <p>{gameName}</p>
+            )}
           </div>
           {isRootPage(page) && !headerAction && (
             <span className="app-wordmark">{t('app.name')}</span>
@@ -116,22 +120,9 @@ export function LibraryShell({
           {headerAction}
         </header>
         <main
-          className={`app-main${isRootPage(page) ? ' app-main-with-nav' : ''}${page === 'sync' || page === 'sync-plan' ? ' app-main-with-action' : ''}`}
+          className={`app-main${isRootPage(page) ? ' app-main-with-nav' : ''}${WITH_ACTION.includes(page) ? ' app-main-with-action' : ''}${page === 'sync' ? ' app-main-fill' : ''}`}
           ref={main}
         >
-          {error && (
-            <div className="notice notice-error" role="alert">
-              <ErrorText error={error} context={null} />
-              <div className="action-row">
-                <Button disabled={isBusy} onClick={onRetry}>
-                  {t('common.retry')}
-                </Button>
-                <Button fill="none" aria-label={t('common.closeError')} onClick={onCloseError}>
-                  <CloseOutlined />
-                </Button>
-              </div>
-            </div>
-          )}
           <div className="page-stack">{children}</div>
         </main>
         {footer}

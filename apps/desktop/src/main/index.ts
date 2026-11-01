@@ -2,7 +2,7 @@ import { app, BrowserWindow, dialog, ipcMain, nativeTheme } from 'electron'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { mkdir, realpath } from 'node:fs/promises'
-import { createTranslator, resolveLocale } from '@savedata-sync/shared'
+import { PALETTES, createTranslator, resolveLocale } from '@savedata-sync/shared'
 import type { Translate } from '@savedata-sync/shared'
 import { createDirectoryAdapter } from './directory-adapter.ts'
 import { isTrustedDirectorySender, registerDirectoryIpc } from './directory-ipc.ts'
@@ -51,7 +51,8 @@ function getT(): Translate {
 }
 
 function createWindow(): void {
-  const getBackgroundColor = (): string => (nativeTheme.shouldUseDarkColors ? '#000000' : '#f5f5f5')
+  const getBackgroundColor = (): string =>
+    PALETTES[nativeTheme.shouldUseDarkColors ? 'dark' : 'light'].bg
   const window = new BrowserWindow({
     width: 1100,
     height: 760,

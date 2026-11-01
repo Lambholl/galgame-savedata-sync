@@ -1,0 +1,20 @@
+.ss-transfer-status {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  color: var(--ss-muted);
+  font-family: var(--ss-font);
+  font-size: 13px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+.ss-transfer-status > .anticon {
+  flex: none;
+  color: var(--ss-accent);
+}
+.ss-transfer-status.is-error {
+  align-items: flex-start;
+  color: var(--ss-danger);
+}

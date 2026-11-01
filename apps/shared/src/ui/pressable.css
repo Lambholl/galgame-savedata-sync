@@ -1,0 +1,28 @@
+/*
+ * 可点的行与卡片（ss-pressable）：悬停或按下时不直接换底色，而是叠一层文字色的透明遮罩并渐变，
+ * 浅色下变暗、深色下变亮，与手机列表行的按下反馈相同。手机由 press-feedback 加减 is-pressed。
+ */
+.ss-pressable {
+  position: relative;
+  cursor: pointer;
+}
+.ss-pressable::before {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--ss-fg);
+  content: '';
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.35s cubic-bezier(0.25, 0.6, 0.3, 1);
+}
+@media (hover: hover) {
+  .ss-pressable:not(:disabled):hover::before {
+    opacity: 0.05;
+  }
+}
+.ss-pressable:not(:disabled):active::before,
+.ss-pressable.is-pressed::before {
+  opacity: 0.1;
+  transition-duration: 0.2s;
+}
