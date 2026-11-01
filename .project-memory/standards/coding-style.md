@@ -55,6 +55,7 @@ related_files: []
 | Agent 开发准入 | 按目标路径发现并读取实际存在且适用的 `AGENTS.md`；桌面应用规则位于 `apps/desktop/AGENTS.md`，要求完整读取 `antd` skill；编写 Ant Design 组件时按 Skill 查询实际版本 API |
 | 平台边界 | 源码分为 `apps/mobile`、`apps/desktop`、`apps/shared`。按 ADR-0002，与两端交互差异无关的计算和渲染放 shared：主入口 `@savedata-sync/shared` 保持纯 TypeScript，不引入 React、组件库、DOM、Node、Electron 或 Android 接口，供电脑主进程、协议与 node 测试使用；界面入口 `@savedata-sync/shared/ui`（`apps/shared/src/ui`）可用 React、`@ant-design/icons` 和不涉及平台交互的 antd 组件（如 Flex），禁止 antd-mobile、Electron、Capacitor、Node 与平台接口，主入口不得导入它。弹层、抽屉、返回键、系统选择器、确认、提示消息等平台交互，以及页面状态与 Hook 留在各端；平台能力留在各应用适配层。ESLint 限制跨应用源码导入和 shared 依赖：主入口禁止 React、组件库与 `src/ui`，ui 入口禁止 antd-mobile、react-dom、Electron、Capacitor 与 Node；ui 用独立的 `src/ui/tsconfig.json`（含 DOM），主入口 tsconfig 排除它 |
 | 共用界面组件参数 | shared/ui 组件的 Props 类型全部命名导出，每个参数用 TSDoc 写明用途；不接受、不透传 `style`、`className`、`styles`、`classNames` 或任意剩余属性。两端差异只能通过含义明确的参数表达（方向、尺寸、边距档位、紧凑程度等）；功能相近的一组参数可以合并为一个导出的结构化类型（如 `layout: PaneLayout`）。原因：用户要求共用组件接口可读，两端只能按约定的方式变化 |
+| 现有组件优先 | 界面优先复用 antd 的展示组件：列表中的紧凑进度使用 Progress steps，五段等分；详情使用带编号的 Steps，阶段名放在下方，并显示当前阶段的 percent；圆形进度使用 Progress，操作使用 Button。五段表示流程位置，当前段按本阶段计数局部填充（50% 为半段），不按五等分估算总耗时。取消传输使用外形和点击范围都清楚的普通按钮；移动弹层等平台交互沿用 antd-mobile |
 | 移动组件与触控 | 优先使用 antd-mobile，按实际需要使用 antd。尺寸参照用户提供的 QQ 界面，Button 高度在此基础上加高四分之一：普通按钮 45 CSS px 起、整行主操作 50 CSS px 起；图标点击区 36 CSS px 起，选项行约 44–52 CSS px；游戏主操作 56 CSS px、次级操作卡片 52 CSS px 起。标题 18px、常用文字和按钮 14px、辅助文字 12px；长文字换行后可增长高度，常规字号和窄屏下保持可读、可点按 |
 | 原生生成工程 | Android 模板保留原生工具风格，不用 Prettier 重写；手写改动仍需检查 UTF-8 与换行 |
 | Android Java | 用户同意沿用 Java；通用基线无专属 Java 文件，适用通用编码规则、现有 Android 风格及官方 Java 约定。原生代码用 javac、Android lint、单元/仪器测试验证，不为本包引入 Kotlin 插件 |
@@ -107,7 +108,7 @@ related_files: []
 | TypeScript 布尔变量、参数和属性使用语义前缀；主体保持 PascalCase，保证整体名称符合 lowerCamelCase | `eslint.config.mjs` 的 `@typescript-eslint/naming-convention`；已在协议中发布的 `blocked`、`cancelRequested`、`dark`、`upload`、`refresh` 保留原名，改协议时再迁移 |
 | 编码、BOM、换行与严格类型 | `scripts/check-text.mjs`、`tsconfig.base.json`；`pnpm check:text`、`pnpm typecheck` |
 | 自动化测试准入 | 默认不新增或扩写，只有用户在当前任务明确要求时才写；长期测试只守 API、数据结构、持久化、文件安全和核心业务结果 |
-| 界面检查 | 使用实际运行、设备操作或截图，按常规字号和常用手机尺寸检查；按用户要求不验证极端字体大小。按钮、文案、DOM、CSS、颜色、布局和快照不进入长期自动化测试 |
+| 界面检查 | 通过实际运行、设备操作和浏览器交互，按常规字号及常用手机尺寸检查；按用户要求不验证极端字体大小。交付效果时直接打开可交互的浏览器预览并保留，不再提供截图。按钮、文案、DOM、CSS、颜色、布局和快照不进入长期自动化测试 |
 | 全量测试 | `pnpm test:all`；用于发布前、大范围高风险改动或用户明确要求，`pnpm check` 和普通 CI 不运行它 |
 | shared/ui 组件参数不透传样式（禁止 `style`、`className`、`styles`、`classNames` 与剩余属性展开）、主入口不导入 ui 入口 | `eslint.config.mjs` 按 `apps/shared/src/ui` 目录用 `no-restricted-syntax` 禁止这些参数名、继承 `HTMLAttributes`/`ComponentProps`/`CSSProperties`、JSX 展开与剩余参数，并用 `no-restricted-imports` 限制导入；Props 命名导出与 TSDoc 用途说明由人工评审 |
 | 文件与目录命名、JavaScript 布尔变量业务命名、文档语义完整性、日志脱敏、事件生命周期及 JS Promise 失败处理 | 由人工评审；JavaScript 无类型信息，ESLint 只检查其 lowerCamelCase 基础命名 |

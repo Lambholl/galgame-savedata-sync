@@ -1,11 +1,16 @@
 @import 'antd-mobile/es/global/global.css';
 
-:root {
+:root,
+:root[data-prefers-color-scheme='dark'] {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
-  --adm-color-primary: #286add;
+  --adm-color-primary: var(--ss-accent);
+  --adm-color-text: var(--ss-fg);
+  --adm-color-weak: var(--ss-muted);
+  --adm-color-border: var(--ss-line);
+  --adm-color-box: var(--ss-group);
   --adm-font-size-main: 14px;
   --mobile-control-height: 36px;
   --mobile-primary-height: 40px;
@@ -13,29 +18,22 @@
   --mobile-primary-button-height: 50px;
   --mobile-icon-target: 36px;
   --mobile-row-height: 44px;
-  --page-bg: #f3f6fb;
-  --surface: #fff;
-  --surface-raised: #f0f4fa;
-  --text: #182334;
-  --muted: #5d6c80;
-  --line: #dce4ee;
-  --accent-bg: #e8f0ff;
-  --danger: #c43742;
+  --page-bg: var(--ss-bg);
+  --surface: var(--ss-group);
+  --surface-raised: var(--ss-raised);
+  --text: var(--ss-fg);
+  --muted: var(--ss-muted);
+  --line: var(--ss-line);
+  --accent-bg: var(--ss-accent-soft);
+  --danger: var(--ss-danger);
   --file-selection-bg: #bce7f4;
   --file-selection-muted: #315968;
 }
 
 :root[data-prefers-color-scheme='dark'] {
   --adm-color-background: #000;
-  --adm-color-box: #141414;
+  --adm-color-box: var(--ss-group);
   --page-bg: #000;
-  --surface: #111;
-  --surface-raised: #1d1d1d;
-  --text: #f0f2f5;
-  --muted: #a6adba;
-  --line: #303238;
-  --accent-bg: #0e2243;
-  --danger: #ff7b84;
   --file-selection-bg: #174c62;
   --file-selection-muted: #c1dce8;
 }
@@ -78,6 +76,25 @@ summary:focus-visible {
 /* 卡片列表与其他卡片同色；深色下页面是纯黑，卡片要比它亮一级才看得出边界。 */
 .adm-list-card {
   --adm-color-background: var(--surface);
+}
+.adm-list-card .adm-list-body {
+  border-radius: var(--ss-r-md);
+}
+.settings-choice-popup .ant-dropdown-menu {
+  border: 1px solid var(--ss-line);
+  border-radius: var(--ss-r-md);
+}
+.settings-choice-popup .ant-dropdown-menu-title-content {
+  white-space: normal;
+}
+.settings-choice-value {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.settings-choice-value > .anticon {
+  flex: none;
+  font-size: 12px;
 }
 /*
  * 可点的行按下时整行渐变出一层 10% 的文字色遮罩，松开后稍慢褪去（参考 Miuix 的按下反馈），
@@ -122,7 +139,7 @@ summary,
   line-height: 1.4;
   white-space: normal;
   overflow-wrap: anywhere;
-  --border-radius: 8px;
+  --border-radius: var(--ss-r-sm);
 }
 .adm-button-block {
   display: flex;
@@ -142,7 +159,7 @@ summary,
   min-height: var(--mobile-primary-height);
   width: 100%;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--ss-r-sm);
   background: var(--surface-raised);
   --font-size: 14px;
 }
@@ -212,12 +229,13 @@ small {
 }
 
 .mobile-app {
+  position: relative;
   width: 100%;
   height: 100dvh;
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  background: var(--page-bg);
+  background: var(--ss-page-bg);
 }
 .app-heading {
   display: flex;
@@ -252,6 +270,12 @@ small {
   font-size: 12px;
   flex-shrink: 0;
 }
+.games-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
 .app-main {
   flex: 1;
   overflow-y: auto;
@@ -261,6 +285,9 @@ small {
 }
 .app-main.app-main-with-action {
   padding-bottom: calc(104px + env(safe-area-inset-bottom));
+}
+.app-main.app-main-with-nav {
+  padding-bottom: calc(100px + env(safe-area-inset-bottom));
 }
 .bottom-action {
   position: fixed;
@@ -297,7 +324,7 @@ small {
 .panel {
   padding: 12px;
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: var(--ss-r-md);
   background: var(--surface);
   min-width: 0;
 }
@@ -308,13 +335,21 @@ small {
   margin-top: 6px;
 }
 .bottom-nav {
+  position: absolute;
+  left: 50%;
+  bottom: calc(18px + env(safe-area-inset-bottom));
+  z-index: 600;
+  transform: translateX(-50%);
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 6px;
-  padding: 4px 10px max(4px, env(safe-area-inset-bottom));
+  width: max-content;
+  max-width: calc(100% - 32px);
+  gap: 4px;
+  padding: 6px;
   background: var(--surface);
-  border-top: 1px solid var(--line);
-  flex-shrink: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--ss-r-pill);
+  box-shadow: var(--ss-shadow);
 }
 .bottom-nav button {
   border: 0;
@@ -325,8 +360,10 @@ small {
   justify-content: center;
   align-items: center;
   gap: 2px;
-  min-height: 48px;
-  border-radius: 8px;
+  min-width: 74px;
+  min-height: 50px;
+  padding-inline: 12px;
+  border-radius: var(--ss-r-pill);
   font-size: 12px;
 }
 .bottom-nav .anticon {
@@ -384,75 +421,14 @@ small {
 .status-dot.online {
   background: #36b77b;
 }
-.task-shortcut {
-  color: var(--adm-color-primary);
-  border-color: var(--adm-color-primary);
-}
 .game-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px 10px;
 }
 .game-card {
-  display: flex;
-  flex-direction: column;
   min-width: 0;
-  padding: 0;
-  border: 1px solid var(--line);
-  background: var(--surface);
-  border-radius: 16px;
-  overflow: hidden;
-  text-align: left;
   -webkit-touch-callout: none;
-  user-select: none;
-}
-.game-cover {
-  width: 100%;
-  min-height: 152px;
-  padding: 20px 12px;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  gap: 12px;
-  text-align: center;
-  color: #f4f7ff;
-  background: linear-gradient(145deg, #385d91, #1b2b47);
-}
-.game-cover .anticon {
-  font-size: 30px;
-}
-.game-cover strong {
-  font-size: 16px;
-  overflow-wrap: anywhere;
-}
-.cover-1 {
-  background: linear-gradient(145deg, #755486, #30253f);
-}
-.cover-2 {
-  background: linear-gradient(145deg, #417875, #203c41);
-}
-.game-card-info {
-  width: 100%;
-  min-height: 88px;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 16px;
-  padding: 10px;
-  gap: 6px;
-}
-.game-card-info > strong {
-  grid-column: 1 / -1;
-  font-size: 15px;
-  overflow-wrap: anywhere;
-}
-.game-card-info > span {
-  color: var(--muted);
-  font-size: 12px;
-  overflow-wrap: anywhere;
-}
-.game-card-info .anticon {
-  color: var(--muted);
-  align-self: center;
 }
 .empty-state {
   min-height: 140px;
@@ -487,7 +463,7 @@ small {
   padding: 8px;
   background: var(--accent-bg);
   color: var(--adm-color-primary);
-  border-radius: 8px;
+  border-radius: var(--ss-r-sm);
   font-size: 20px;
 }
 .device-status {
@@ -593,7 +569,7 @@ small {
   gap: 10px;
   padding: 12px;
   border: 0;
-  border-radius: 12px;
+  border-radius: var(--ss-r-md);
   background: var(--surface-raised);
   text-align: left;
 }
@@ -652,7 +628,7 @@ small {
 }
 .notice {
   padding: 10px;
-  border-radius: 8px;
+  border-radius: var(--ss-r-sm);
   background: var(--accent-bg);
   color: var(--text);
   font-size: 13px;
@@ -672,7 +648,7 @@ small {
 }
 
 .mobile-sheet {
-  border-radius: 16px 16px 0 0;
+  border-radius: var(--ss-r-lg) var(--ss-r-lg) 0 0;
   background: var(--surface);
   color: var(--text);
   max-height: min(88dvh, 900px);
@@ -706,73 +682,6 @@ small {
 .sheet-content {
   padding-bottom: 4px;
 }
-.game-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.game-action-main {
-  display: flex;
-  align-items: center;
-  min-height: 56px;
-  gap: 10px;
-  padding: 12px;
-  border: 1px solid var(--adm-color-primary);
-  background: var(--accent-bg);
-  border-radius: 10px;
-  color: var(--adm-color-primary);
-  text-align: left;
-}
-.game-action-main strong {
-  min-width: 0;
-  flex: 1;
-  font-size: 16px;
-  overflow-wrap: anywhere;
-}
-.action-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 30px;
-  height: 30px;
-  font-size: 22px;
-}
-.game-action-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-}
-.game-action-card {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  text-align: left;
-  padding: 12px 10px;
-  min-height: 52px;
-  background: var(--surface-raised);
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  font-size: 14px;
-}
-.game-action-card > .anticon:first-child {
-  font-size: 20px;
-  flex-shrink: 0;
-}
-.game-action-card > span:not(.anticon) {
-  flex: 1;
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-.game-action-card > .anticon:last-child:not(:first-child) {
-  font-size: 12px;
-  flex-shrink: 0;
-}
-.game-action-card.danger {
-  color: var(--danger);
-}
-.game-action-card:disabled {
-  opacity: 0.45;
-}
 .confirmation-text {
   margin-bottom: 14px;
 }
@@ -784,7 +693,7 @@ small {
 .task-state {
   display: inline-block;
   padding: 4px 8px;
-  border-radius: 8px;
+  border-radius: var(--ss-r-sm);
   background: var(--accent-bg);
   margin-bottom: 10px;
 }

@@ -1,11 +1,13 @@
 /**
- * 设置表单的统一排版：标签左对齐、不带冒号，控件紧跟标签。
- * 宽度交给栅格列：下拉框 200px，数字框 132px，开关不受影响。
+ * 设置表单的统一排版：标签居左，允许换行；控件居右，标签后不加冒号。
+ * 数字框单独限宽，选择器随设置行的可用宽度收缩。
  */
 export const SETTING_FORM = {
-  labelCol: { flex: '160px' },
-  wrapperCol: { flex: '0 0 200px' },
+  className: 'settings-form',
+  labelCol: { flex: '1 1 0' },
+  wrapperCol: { flex: '0 1 auto' },
   labelAlign: 'left',
+  labelWrap: true,
   colon: false,
 } as const
 

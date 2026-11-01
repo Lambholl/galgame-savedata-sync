@@ -95,12 +95,16 @@ export function DesktopShell({
         </aside>
         <div className="library-surface">
           <header className="library-header">
-            <div>
-              {isNestedPage && (
-                <Button icon={<ArrowLeftOutlined />} onClick={onBack}>
-                  {t('nav.games')}
-                </Button>
-              )}
+            {isNestedPage && (
+              <Button
+                type="text"
+                className="library-back"
+                aria-label={t('nav.backToGames')}
+                icon={<ArrowLeftOutlined />}
+                onClick={onBack}
+              />
+            )}
+            <div className="library-header-title">
               <h1>{title}</h1>
               {gameName && isNestedPage && page !== 'task' && <p>{gameName}</p>}
             </div>

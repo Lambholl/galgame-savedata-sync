@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { message } from 'antd'
 import { ActionSheet, Button } from 'antd-mobile'
-import { MoreOutlined } from '@ant-design/icons'
+import { DownloadOutlined, MoreOutlined, PlusOutlined } from '@ant-design/icons'
 import { EmptyState } from '../components/EmptyState'
 import {
   OperationFailure,
@@ -23,12 +23,19 @@ import type {
 import type { MobileLibraryAdapter, MobileSnapshot } from '../platform/library-types'
 import { ConfirmationDialog } from '../components/ConfirmationDialog.tsx'
 import { DeviceEditorDialog } from '../components/DeviceEditorDialog.tsx'
-import { GameActions } from '../features/games/GameActions'
 import { GameMenu } from '../features/games/GameActionSheet'
 import { ImportGameDialog } from '../components/ImportGameDialog.tsx'
 import { LibraryShell } from '../components/LibraryShell.tsx'
 import { PAGE_TITLE_KEYS } from './navigation-types'
-import { ErrorText, useT } from '@savedata-sync/shared/ui'
+import {
+  ErrorText,
+  GameActions,
+  legacyTaskPreview,
+  restoreTaskPreview,
+  syncTaskPreview,
+  useT,
+} from '@savedata-sync/shared/ui'
+import type { TaskStripInfo } from '@savedata-sync/shared/ui'
 import type { BackButtonController, Confirmation, Page } from './navigation-types'
 import { BackupPage } from '../features/backup/BackupPage'
 import { DevicesPage } from '../features/devices/DevicesPage'
@@ -65,6 +72,7 @@ export function MobileApp({
   const [messageApi, messageContextHolder] = message.useMessage()
   const syncTasks = useSyncTasks(sync)
   const [page, setPage] = useState<Page>('games')
+  const [taskProjectId, setTaskProjectId] = useState<string | null>(null)
   const [snapshot, setSnapshot] = useState<MobileSnapshot | null>(null)
   const [error, setError] = useState<ShownError | null>(null)
   const [isBusy, setIsBusy] = useState(false)
@@ -237,6 +245,41 @@ export function MobileApp({
   const localRoot = snapshot?.roots.find((item) => item.rootId === game?.rootId) ?? null
   const isActive = (snapshot?.tasks.some(taskIsActive) ?? false) || syncTasks.isActive
   const isDisabled = isBusy || !snapshot
+  const copyProjectId = syncTasks.copy?.preview.binding.projectId ?? null
+  const copyPreview = syncTasks.copy
+    ? syncTaskPreview(syncTasks.copy.state.local, syncTasks.copy.state.remote, t)
+    : null
+  const restorePreview = syncTasks.restore
+    ? restoreTaskPreview(
+        syncTasks.restore.state.status,
+        Boolean(syncTasks.restore.state.result?.cleanupError),
+        t,
+      )
+    : null
+  const legacy = snapshot?.tasks.find(taskIsActive) ?? snapshot?.tasks.at(-1) ?? null
+  const shouldShowCopy =
+    copyPreview && (copyPreview.phase === 'running' || restorePreview?.phase !== 'running')
+  const shouldShowLegacy = legacy && (taskIsActive(legacy) || (!copyPreview && !restorePreview))
+  const stripProjectId = shouldShowLegacy
+    ? null
+    : shouldShowCopy
+      ? copyProjectId
+      : (syncTasks.restore?.state.projectId ?? null)
+  const stripTask: TaskStripInfo | null = shouldShowLegacy
+    ? { ...legacyTaskPreview(legacy, t), gameName: legacy.title }
+    : shouldShowCopy && copyPreview
+      ? {
+          ...copyPreview,
+          gameName:
+            config.games.find((item) => item.id === copyProjectId)?.name ?? t('common.unknown'),
+        }
+      : restorePreview
+        ? {
+            ...restorePreview,
+            gameName:
+              config.games.find((item) => item.id === stripProjectId)?.name ?? t('common.unknown'),
+          }
+        : null
   const { reload: reloadTasks } = syncTasks
   const announceStart = useCallback(
     (jobId: string) => {
@@ -440,6 +483,11 @@ export function MobileApp({
     setIsGameMenuOpen(false)
     setPage(value)
   }
+  function openTasks(projectId: string | null): void {
+    setTaskProjectId(projectId)
+    setIsGameMenuOpen(false)
+    setPage('task')
+  }
   function confirmSync(value: Confirmation): void {
     setConfirmation({
       ...value,
@@ -569,17 +617,13 @@ export function MobileApp({
       <GamesPage
         games={config.games}
         online={online}
-        hasTasks={Boolean(snapshot?.tasks.length || syncTasks.copy || syncTasks.restore)}
-        hasImportableGames={Boolean(importable.length)}
-        isDisabled={isDisabled}
-        isActive={isActive}
+        task={stripTask}
         onOpenGame={openGame}
-        onOpenImport={() => {
-          setImportKey('')
-          setIsImportOpen(true)
-        }}
-        onAddGame={addGame}
-        onOpenTasks={() => setPage('task')}
+        onOpenTasks={() =>
+          !shouldShowLegacy && !shouldShowCopy && stripProjectId
+            ? openBackup(stripProjectId)
+            : openTasks(stripProjectId)
+        }
       />
     )
   } else if (page === 'edit' && game) {
@@ -621,7 +665,7 @@ export function MobileApp({
         onFailure={showSyncFailure}
         onStarted={(jobId) => {
           announceStart(jobId)
-          setPage('task')
+          openTasks(game.id)
         }}
       />
     )
@@ -629,9 +673,14 @@ export function MobileApp({
     body = (
       <>
         <SyncTaskDetails
+          projectId={taskProjectId}
           sync={sync}
-          copy={syncTasks.copy}
-          restore={syncTasks.restore}
+          copy={taskProjectId === null || copyProjectId === taskProjectId ? syncTasks.copy : null}
+          restore={
+            taskProjectId === null || syncTasks.restore?.state.projectId === taskProjectId
+              ? syncTasks.restore
+              : null
+          }
           games={config.games}
           peers={peers}
           errors={syncTasks.errors}
@@ -643,7 +692,7 @@ export function MobileApp({
           }}
           onBackup={openBackup}
         />
-        {Boolean(snapshot?.tasks.length) && (
+        {taskProjectId === null && Boolean(snapshot?.tasks.length) && (
           <TaskPage
             tasks={snapshot?.tasks ?? []}
             isBusy={isBusy}
@@ -705,11 +754,12 @@ export function MobileApp({
         onClose={() => setIsGameMenuOpen(false)}
       >
         <GameActions
-          isActive={isActive}
+          caption={`${localRoot?.displayName ?? t('game.noFolder')} · ${t('game.linkCount', { count: game?.links.length ?? 0 })}`}
+          isRemoveDisabled={isActive}
           onTransfer={() => go('sync')}
           onSettings={() => go('edit')}
           onBackup={() => go('backup')}
-          onTasks={() => go('task')}
+          onTasks={() => openTasks(game?.id ?? null)}
           onRemove={removeGame}
         />
       </GameMenu>
@@ -776,7 +826,24 @@ export function MobileApp({
       isBusy={isBusy}
       footer={null}
       headerAction={
-        page === 'sync' ? (
+        page === 'games' ? (
+          <span className="games-header-actions">
+            <Button
+              fill="none"
+              aria-label={t('game.importGame')}
+              disabled={isDisabled || !importable.length}
+              onClick={() => {
+                setImportKey('')
+                setIsImportOpen(true)
+              }}
+            >
+              <DownloadOutlined />
+            </Button>
+            <Button fill="none" aria-label={t('game.add')} disabled={isDisabled} onClick={addGame}>
+              <PlusOutlined />
+            </Button>
+          </span>
+        ) : page === 'sync' ? (
           <Button
             fill="none"
             aria-label={t('common.more')}

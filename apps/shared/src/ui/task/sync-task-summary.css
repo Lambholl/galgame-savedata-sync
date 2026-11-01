@@ -4,6 +4,8 @@
   gap: 16px;
   color: var(--ss-fg);
   font-family: var(--ss-font);
+  min-width: 0;
+  max-width: 100%;
 }
 .ss-task h2,
 .ss-task h3,
@@ -33,47 +35,32 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  flex-wrap: wrap;
+  justify-content: center;
+  max-width: 100%;
+  overflow-wrap: anywhere;
   color: var(--ss-faint);
   font-size: 12px;
 }
 
-.ss-ring {
-  position: relative;
-  width: 150px;
-  height: 150px;
-}
-.ss-ring svg {
-  width: 100%;
-  height: 100%;
-  transform: rotate(-90deg);
-}
-.ss-ring circle {
-  fill: none;
-  stroke-width: 10;
-}
-.ss-ring .is-track {
-  stroke: var(--ss-group);
-}
-.ss-ring .is-fill {
-  stroke: var(--ss-accent);
-  stroke-linecap: round;
-  transition: stroke-dashoffset 0.4s ease;
-}
-.ss-ring > div {
-  position: absolute;
-  inset: 0;
+.ss-ring-label {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  color: var(--ss-fg);
 }
-.ss-ring b {
+.ss-ring-label b {
   font-size: 34px;
   font-variant-numeric: tabular-nums;
   font-weight: 650;
   line-height: 1;
 }
-.ss-ring span {
+.ss-ring-label > .anticon {
+  color: var(--ss-accent);
+  font-size: 34px;
+}
+.ss-ring-label > span {
   margin-top: 4px;
   color: var(--ss-muted);
   font-size: 12.5px;
@@ -104,70 +91,14 @@
   color: var(--ss-muted);
 }
 
-.ss-steps {
-  position: relative;
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  padding: 4px 0;
+.ss-task-steps {
+  padding-block: 4px;
 }
-.ss-steps::before {
-  position: absolute;
-  top: 15px;
-  right: 10%;
-  left: 10%;
-  height: 2px;
-  background: var(--ss-line);
-  content: '';
-}
-.ss-steps-bar {
-  position: absolute;
-  top: 15px;
-  left: 10%;
-  height: 2px;
-  background: var(--ss-ok);
-}
-.ss-step {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 5px;
-  color: var(--ss-faint);
-  font-size: 11.5px;
-}
-.ss-step i {
-  display: grid;
-  place-items: center;
-  width: 24px;
-  height: 24px;
-  border: 2px solid var(--ss-line);
-  border-radius: 50%;
-  background: var(--ss-group);
-  font-size: 12px;
-  font-style: normal;
-}
-.ss-step.is-done {
+.ss-task-stage-missing {
+  margin: 8px 0 0;
   color: var(--ss-muted);
-}
-.ss-step.is-done i {
-  border-color: var(--ss-ok);
-  background: var(--ss-ok);
-  color: #fff;
-}
-.ss-step.is-now {
-  color: var(--ss-accent);
-  font-weight: 650;
-}
-.ss-step.is-now i {
-  border-color: var(--ss-accent);
-  box-shadow: 0 0 0 4px var(--ss-accent-soft);
-}
-.ss-step.is-now i::after {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--ss-accent);
-  content: '';
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .ss-task-title {
@@ -263,19 +194,4 @@ button.ss-task-row {
   align-items: center;
   gap: 8px;
   padding: 24px 0;
-}
-
-.ss-task-tech {
-  padding: 0 6px;
-  color: var(--ss-faint);
-  font-size: 12px;
-}
-.ss-task-tech summary {
-  cursor: pointer;
-}
-.ss-task-tech p {
-  margin-top: 6px;
-  font-family: var(--ss-mono);
-  font-size: 11px;
-  overflow-wrap: anywhere;
 }

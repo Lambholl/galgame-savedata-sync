@@ -1,5 +1,5 @@
 import type { ReactElement, ReactNode } from 'react'
-import { ArrowRightOutlined, CheckOutlined } from '@ant-design/icons'
+import { ArrowRightOutlined } from '@ant-design/icons'
 import type { ShownError } from '../../result.ts'
 import { ErrorText } from '../errors/ErrorText.tsx'
 import type { SyncJobState } from '../../sync/sync-job-contracts.ts'
@@ -9,6 +9,9 @@ import { useLocale, useT } from '../i18n/i18n-context.ts'
 import { OutcomeList } from './OutcomeList.tsx'
 import { unsettledOutcomes } from './outcomes.ts'
 import { ProgressRing, Verdict, type VerdictTone } from './TaskHero.tsx'
+import { presentSyncTask } from './task-presentation.ts'
+import { TaskSteps } from './TaskSteps.tsx'
+import type { SyncTaskPhase } from './task-presentation.ts'
 import './sync-task-summary.css'
 
 /** SyncTaskSummary 的参数。 */
@@ -27,47 +30,10 @@ export interface SyncTaskSummaryProps {
   readonly remoteError: ShownError | null
   /** 重试清理临时文件；本端不能重试时为 null。 */
   readonly onRetryCleanup: (() => void) | null
-}
-
-type Phase = 'running' | 'done' | 'partial' | 'failed' | 'cancelled' | 'unknown'
-
-const STEPS = [
-  'task.step.pack',
-  'task.step.transfer',
-  'task.step.verify',
-  'task.step.backup',
-  'task.step.write',
-] as const
-
-const STEP_OF: Readonly<Record<SyncJobState['stage'], number>> = {
-  preparing: 0,
-  ready: 1,
-  'awaiting-content': 1,
-  transferring: 1,
-  verifying: 2,
-  'backing-up': 3,
-  writing: 4,
-  cleaning: 4,
-  done: 5,
-}
-
-function ratio(done: number, total: number | null): number {
-  return total ? Math.min(1, Math.max(0, done / total)) : 0
-}
-
-/** 当前步骤内的完成比例，用于估算整体进度。 */
-function stepFraction(state: SyncJobState, step: number): number {
-  const progress = state.progress
-  if (step === 1) {
-    return ratio(progress.archiveBytesTransferred, progress.totalArchiveBytes)
-  }
-  if (step === 2) {
-    return ratio(progress.verifiedFiles, progress.totalFiles)
-  }
-  if (step === 4) {
-    return ratio(progress.publishedFiles, progress.totalFiles)
-  }
-  return 0
+  /** 任务观察接口提供的失败阶段；没有记录时仍显示步骤条，但不标出具体出错位置。 */
+  readonly failureStage?: SyncJobState['stage'] | null
+  /** 由平台包装的技术详情卡片，负责复制、长按和展开状态。 */
+  readonly renderTechnicalDetails: (text: string) => ReactNode
 }
 
 /**
@@ -82,6 +48,8 @@ export function SyncTaskSummary({
   remote,
   remoteError,
   onRetryCleanup,
+  failureStage = null,
+  renderTechnicalDetails,
 }: SyncTaskSummaryProps): ReactElement {
   const t = useT()
   const locale = useLocale()
@@ -91,45 +59,49 @@ export function SyncTaskSummary({
   const outcomes = result?.outcomes ?? []
   const succeeded = outcomes.filter((item) => item.status === 'succeeded')
   const unsettled = unsettledOutcomes(outcomes)
-  let phase: Phase
-  if (states.some((item) => item.status === 'running')) {
-    phase = 'running'
-  } else if (result) {
-    phase =
-      result.error && succeeded.length === 0
-        ? 'failed'
-        : result.error || unsettled.length > 0
-          ? 'partial'
-          : 'done'
-  } else if (states.some((item) => item.status === 'cancelled')) {
-    phase = 'cancelled'
-  } else if (states.some((item) => item.status === 'failed')) {
-    phase = 'failed'
-  } else {
-    phase = 'unknown'
-  }
-  const leading = receiver ?? local
-  const step = phase === 'done' ? 5 : STEP_OF[leading.stage]
-  const percent = Math.round(((step + stepFraction(leading, step)) / STEPS.length) * 100)
+  const { phase, leading, step, percent } = presentSyncTask(local, remote, failureStage)
   const error = result?.error ?? states.find((item) => item.error)?.error ?? null
   const cleanupError = result?.cleanupError ?? local.cleanupError
   const files = leading.progress
+  const isVerifying = leading.stage === 'verifying'
+  const isNetwork =
+    leading.stage === 'transferring' ||
+    leading.stage === 'awaiting-content' ||
+    leading.stage === 'ready'
+  const hasFileCounter = isVerifying || leading.stage === 'writing'
+  const completedFiles = isVerifying ? files.verifiedFiles : files.publishedFiles
+  const completedBytes = isVerifying
+    ? files.fileBytesVerified
+    : isNetwork
+      ? files.archiveBytesTransferred
+      : leading.stage === 'preparing'
+        ? files.sourceBytesRead
+        : files.fileBytesPublished
+  const totalBytes = isNetwork ? files.totalArchiveBytes : files.totalFileBytes
+  const technicalText = [
+    `${t('task.techTask')} ${local.jobId}`,
+    `${t('task.techLocal')} ${local.role}/${local.status}/${local.stage}`,
+    ...(remote ? [`${t('task.techRemote')} ${remote.role}/${remote.status}/${remote.stage}`] : []),
+    `${t('task.techUpdated')} ${formatDateTime(local.updatedAt, locale)}`,
+  ].join('\n')
   let hero: ReactElement
   if (phase === 'running') {
     hero = (
       <>
         <ProgressRing percent={percent} label={t(`task.stage.${leading.stage}`)} />
-        {files.totalFiles > 0 && (
+        {percent !== null && files.totalFiles > 0 && (
           <p>
-            {t('task.files', { done: files.publishedFiles, total: files.totalFiles })} ·{' '}
-            {formatBytes(files.fileBytesPublished)} / {formatBytes(files.totalFileBytes)}
+            {hasFileCounter && (
+              <>{t('task.files', { done: completedFiles, total: files.totalFiles })} · </>
+            )}
+            {formatBytes(completedBytes)} / {totalBytes === null ? '—' : formatBytes(totalBytes)}
           </p>
         )}
       </>
     )
   } else {
     const verdicts: Readonly<
-      Record<Exclude<Phase, 'running'>, { tone: VerdictTone; title: string }>
+      Record<Exclude<SyncTaskPhase, 'running'>, { tone: VerdictTone; title: string }>
     > = {
       done: { tone: 'ok', title: t('task.done') },
       partial: { tone: 'warn', title: t('task.partial') },
@@ -159,35 +131,14 @@ export function SyncTaskSummary({
         </span>
         {hero}
       </div>
-      {(phase === 'running' || phase === 'done') && (
-        <div className="ss-steps">
-          <span className="ss-steps-bar" style={{ width: `${(Math.min(step, 4) / 4) * 80}%` }} />
-          {STEPS.map((key, index) => (
-            <div
-              key={key}
-              className={`ss-step${index < step ? ' is-done' : index === step ? ' is-now' : ''}`}
-            >
-              <i>{index < step && <CheckOutlined />}</i>
-              {t(key)}
-            </div>
-          ))}
-        </div>
-      )}
+      <TaskSteps step={step} phase={phase} percent={percent} />
       <OutcomeList
         outcomes={outcomes}
         cleanupError={cleanupError}
         remoteError={remoteError}
         onRetryCleanup={onRetryCleanup}
       />
-      <details className="ss-task-tech">
-        <summary>{t('task.tech')}</summary>
-        <p>
-          {local.jobId} · {t('task.techLocal')} {local.role}/{local.status}/{local.stage}
-          {remote &&
-            ` · ${t('task.techRemote')} ${remote.role}/${remote.status}/${remote.stage}`} ·{' '}
-          {t('task.techUpdated')} {formatDateTime(local.updatedAt, locale)}
-        </p>
-      </details>
+      {renderTechnicalDetails(technicalText)}
     </div>
   )
 }

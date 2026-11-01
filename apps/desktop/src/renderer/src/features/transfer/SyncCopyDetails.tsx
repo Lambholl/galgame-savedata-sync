@@ -7,6 +7,7 @@ import type { PlanEndpoint } from '@savedata-sync/shared/ui'
 import type { DesktopCopySummary } from '../../../../bridge/sync-bridge.ts'
 import { desktopSync } from '../../platform/sync-adapter.ts'
 import { useCopyDetails } from './use-sync-details.ts'
+import { TechnicalDetails } from './TechnicalDetails.tsx'
 
 /** 电脑只看得到本机角色；电脑发送时，手机写入结果在手机查看。 */
 export function SyncCopyDetails({
@@ -86,6 +87,7 @@ export function SyncCopyDetails({
           remote={null}
           remoteError={null}
           onRetryCleanup={state.cleanupError && !isRunning ? () => act('cleanup') : null}
+          renderTechnicalDetails={(text) => <TechnicalDetails text={text} />}
         />
       ) : (
         resource.isLoading && <Skeleton active />

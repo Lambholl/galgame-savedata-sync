@@ -1,0 +1,183 @@
+.ss-game-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  color: var(--ss-fg);
+  font-family: var(--ss-font);
+}
+.ss-game-caption {
+  margin: 0 0 2px;
+  color: var(--ss-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.ss-game-actions .ss-game-primary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  height: auto;
+  min-height: 56px;
+  padding: 14px 16px;
+  border: 0;
+  border-radius: var(--ss-r-md);
+  background: var(--ss-accent);
+  color: var(--ss-accent-fg);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.ss-game-primary > .anticon:first-child {
+  font-size: 22px;
+}
+.ss-game-primary > .anticon:last-child {
+  font-size: 12px;
+}
+.ss-game-primary strong {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 16px;
+}
+.ss-game-action-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.ss-game-actions .ss-game-action {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+  min-width: 0;
+  height: auto;
+  min-height: 52px;
+  padding: 12px;
+  border: 0;
+  border-radius: var(--ss-r-md);
+  background: var(--ss-raised);
+  color: var(--ss-fg);
+  font: inherit;
+  text-align: left;
+  white-space: normal;
+  cursor: pointer;
+}
+.ss-game-action > .anticon {
+  flex: none;
+  color: var(--ss-accent);
+  font-size: 20px;
+}
+.ss-game-action b {
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+.ss-game-action.is-danger,
+.ss-game-action.is-danger > .anticon {
+  color: var(--ss-danger);
+}
+.ss-game-action:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+.ss-task-strip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
+  min-height: 56px;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: var(--ss-r-md);
+  background: var(--ss-group);
+  color: var(--ss-fg);
+  font: inherit;
+  text-align: left;
+  position: relative;
+}
+.ss-task-strip-icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--ss-accent-soft);
+  color: var(--ss-accent);
+  font-size: 17px;
+}
+.ss-task-strip.is-done .ss-task-strip-icon {
+  background: var(--ss-ok-soft);
+  color: var(--ss-ok);
+}
+.ss-task-strip.is-failed .ss-task-strip-icon {
+  background: var(--ss-danger-soft);
+  color: var(--ss-danger);
+}
+.ss-task-strip.is-partial .ss-task-strip-icon,
+.ss-task-strip.is-unknown .ss-task-strip-icon {
+  background: var(--ss-warn-soft);
+  color: var(--ss-warn);
+}
+.ss-task-strip-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.ss-task-strip .ss-task-strip-link {
+  position: static;
+  display: flex;
+  flex-wrap: nowrap;
+  justify-content: flex-start;
+  align-items: baseline;
+  gap: 4px;
+  width: 100%;
+  min-width: 0;
+  height: auto;
+  min-height: 0;
+  padding: 0;
+  white-space: normal;
+  text-align: left;
+  font-size: 13px;
+}
+.ss-task-strip-link::before {
+  position: absolute;
+  inset: 0;
+  content: '';
+}
+.ss-task-strip-link b {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ss-task-strip-link > span {
+  flex: none;
+  min-width: 0;
+  max-width: 65%;
+  color: var(--ss-muted);
+  overflow-wrap: anywhere;
+}
+.ss-task-strip-progress {
+  width: 100%;
+  margin: 0;
+  line-height: 1;
+  pointer-events: none;
+}
+.ss-task-strip[data-current-step='0'] .ss-task-strip-segment:nth-child(1),
+.ss-task-strip[data-current-step='1'] .ss-task-strip-segment:nth-child(2),
+.ss-task-strip[data-current-step='2'] .ss-task-strip-segment:nth-child(3),
+.ss-task-strip[data-current-step='3'] .ss-task-strip-segment:nth-child(4),
+.ss-task-strip[data-current-step='4'] .ss-task-strip-segment:nth-child(5) {
+  background-image: var(--ss-task-stage-fill);
+}
+.ss-task-strip-chevron {
+  flex: none;
+  color: var(--ss-faint);
+  font-size: 12px;
+}

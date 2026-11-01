@@ -1,8 +1,7 @@
-import { FolderOutlined, RightOutlined } from '@ant-design/icons'
 import type { LibraryGame } from '@savedata-sync/shared'
-import { useT } from '@savedata-sync/shared/ui'
+import { GameCard as SharedGameCard } from '@savedata-sync/shared/ui'
 
-/** 沿用手机卡片的封面与信息区；鼠标两键及键盘均打开本机游戏菜单。 */
+/** 共用卡片的桌面包装；右键在本端打开游戏菜单。 */
 export function GameCard({
   game,
   coverIndex,
@@ -12,27 +11,20 @@ export function GameCard({
   readonly coverIndex: number
   readonly onOpenGame: (game: LibraryGame) => void
 }): React.JSX.Element {
-  const t = useT()
   return (
-    <button
+    <div
       className="library-game-card"
-      type="button"
-      onClick={() => onOpenGame(game)}
       onContextMenu={(event) => {
         event.preventDefault()
         onOpenGame(game)
       }}
-      onDragStart={(event) => event.preventDefault()}
     >
-      <span className={`library-game-cover cover-${coverIndex % 3}`}>
-        <FolderOutlined aria-hidden="true" />
-        <strong>{game.name}</strong>
-      </span>
-      <span className="library-game-card-info">
-        <strong>{game.name}</strong>
-        <span>{t('game.linkCount', { count: game.links.length })}</span>
-        <RightOutlined aria-hidden="true" />
-      </span>
-    </button>
+      <SharedGameCard
+        gameName={game.name}
+        linkCount={game.links.length}
+        coverIndex={coverIndex}
+        onOpen={() => onOpenGame(game)}
+      />
+    </div>
   )
 }

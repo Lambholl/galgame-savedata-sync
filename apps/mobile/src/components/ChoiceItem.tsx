@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { Dropdown } from 'antd'
 import { List } from 'antd-mobile'
-import { SwapOutlined } from '@ant-design/icons'
+import { DownOutlined } from '@ant-design/icons'
+import { ChoiceLabel } from '@savedata-sync/shared/ui'
 
 /** 选择行的一个选项。 */
 export interface ChoiceOption<Value extends string> {
@@ -31,13 +32,18 @@ export function ChoiceItem<Value extends string>({
     <Dropdown
       trigger={['click']}
       placement="bottomRight"
+      classNames={{ root: 'settings-choice-popup' }}
+      styles={{ root: { width: 'max-content', minWidth: 160, maxWidth: 'calc(100vw - 32px)' } }}
       disabled={isDisabled}
       open={isOpen}
       onOpenChange={setIsOpen}
       menu={{
         selectable: true,
         selectedKeys: [value],
-        items: options.map((item) => ({ key: item.value, label: item.label })),
+        items: options.map((item) => ({
+          key: item.value,
+          label: <ChoiceLabel text={item.label} isSelected={item.value === value} />,
+        })),
         onClick: ({ key }) => {
           setIsOpen(false)
           const picked = options.find((item) => item.value === key)
@@ -51,8 +57,13 @@ export function ChoiceItem<Value extends string>({
         clickable
         className={isOpen ? 'is-held' : ''}
         disabled={isDisabled}
-        extra={options.find((item) => item.value === value)?.label}
-        arrowIcon={<SwapOutlined rotate={90} />}
+        extra={
+          <span className="settings-choice-value">
+            <span>{options.find((item) => item.value === value)?.label}</span>
+            <DownOutlined />
+          </span>
+        }
+        arrowIcon={false}
       >
         {title}
       </List.Item>

@@ -9,6 +9,7 @@ import {
   createImportedGame,
   OperationFailure,
   toShownError,
+  taskIsActive,
 } from '@savedata-sync/shared'
 import type {
   CatalogGame,
@@ -21,12 +22,20 @@ import type { DesktopSnapshot } from '../platform/library-types.ts'
 import { createDesktopLibraryAdapter } from '../platform/library-adapter.ts'
 import { ConfirmationDialog } from '../components/ConfirmationDialog.tsx'
 import { DeviceEditorDialog } from '../features/devices/DeviceEditorDialog.tsx'
-import { GameActions } from '../features/games/GameActions.tsx'
+import { useCopyPreview } from '../features/games/use-game-preview.ts'
 import { GameActionDialog } from '../features/games/GameActionDialog.tsx'
 import { ImportGameDialog } from '../features/games/ImportGameDialog.tsx'
 import { DesktopShell } from './DesktopShell.tsx'
 import type { AppPreferencesState } from './use-app-preferences.ts'
-import { useT } from '@savedata-sync/shared/ui'
+import {
+  GameActions,
+  legacyTaskPreview,
+  restoreTaskPreview,
+  syncSummaryPreview,
+  syncTaskPreview,
+  useT,
+} from '@savedata-sync/shared/ui'
+import type { TaskStripInfo } from '@savedata-sync/shared/ui'
 import { PAGE_TITLE_KEYS } from './navigation.ts'
 import type { Confirmation, Page } from './navigation.ts'
 import { BackupPage } from '../features/backup/BackupPage.tsx'
@@ -52,6 +61,9 @@ export function DesktopApp({
   const adapter = ADAPTER
   const [messageApi, messageContextHolder] = message.useMessage()
   const [page, setPage] = useState<Page>('games')
+  const [taskProjectId, setTaskProjectId] = useState<string | null>(null)
+  const [taskCopyId, setTaskCopyId] = useState<string | null>(null)
+  const [taskRestoreId, setTaskRestoreId] = useState<string | null>(null)
   const [snapshot, setSnapshot] = useState<DesktopSnapshot | null>(null)
   const [error, setError] = useState<ShownError | null>(null)
   const [isBusy, setIsBusy] = useState(false)
@@ -168,6 +180,51 @@ export function DesktopApp({
   const hasRunningWork =
     hasRunningNetworkWork || Boolean(snapshot?.restores.some((task) => task.isWorking))
   const isDisabled = isBusy || !snapshot
+  const copiesByRecent = [...(snapshot?.copies ?? [])].sort((a, b) => b.updatedAt - a.updatedAt)
+  const copy = copiesByRecent.find((item) => item.status === 'running') ?? copiesByRecent[0] ?? null
+  const gameCopy = copiesByRecent.find((item) => item.projectId === game?.id) ?? null
+  const restoresByRecent = [...(snapshot?.restores ?? [])].sort((a, b) => b.updatedAt - a.updatedAt)
+  const restore = restoresByRecent.find((item) => item.isWorking) ?? restoresByRecent[0] ?? null
+  const previewTask = page === 'games' ? copy : null
+  const preview = useCopyPreview(previewTask)
+  const copyPreview = copy
+    ? preview.state?.jobId === copy.jobId
+      ? syncTaskPreview(preview.state, null, t)
+      : {
+          ...syncSummaryPreview(copy, copy.hasCleanupError, t),
+          ...(previewTask?.jobId === copy.jobId && preview.error
+            ? { status: t('task.readFailed') }
+            : {}),
+        }
+    : null
+  const legacy = snapshot?.tasks.find(taskIsActive) ?? snapshot?.tasks.at(-1) ?? null
+  const shouldShowLegacy = legacy && (taskIsActive(legacy) || (!copy && !restore))
+  const shouldShowCopy =
+    copy &&
+    (copy.status === 'running' ||
+      !restore ||
+      (!restore.isWorking && copy.updatedAt >= restore.updatedAt))
+  const stripProjectId = shouldShowLegacy
+    ? null
+    : shouldShowCopy
+      ? copy.projectId
+      : (restore?.projectId ?? null)
+  const stripTask: TaskStripInfo | null = shouldShowLegacy
+    ? { ...legacyTaskPreview(legacy, t), gameName: legacy.title }
+    : shouldShowCopy && copyPreview
+      ? {
+          ...copyPreview,
+          gameName:
+            config.games.find((item) => item.id === copy.projectId)?.name ?? t('common.unknown'),
+        }
+      : restore
+        ? {
+            ...restoreTaskPreview(restore.status, restore.hasCleanupError, t),
+            gameName:
+              config.games.find((item) => item.id === restore.projectId)?.name ??
+              t('common.unknown'),
+          }
+        : null
   const importable = peers
     .filter((item) => item.isConnected)
     .flatMap((peer) =>
@@ -354,6 +411,17 @@ export function DesktopApp({
     }
     setPage(value)
   }
+  function openTasks(
+    projectId: string | null,
+    copyId: string | null,
+    restoreId: string | null = null,
+  ): void {
+    setTaskProjectId(projectId)
+    setTaskCopyId(copyId)
+    setTaskRestoreId(restoreId)
+    setIsGameActionDialogOpen(false)
+    setPage('task')
+  }
   function openBackup(projectId: string, rootId: string): void {
     setGameId(projectId)
     setBackupRootId(rootId)
@@ -447,19 +515,22 @@ export function DesktopApp({
       <GamesPage
         games={config.games}
         online={online}
-        hasTasks={Boolean(
-          snapshot?.tasks.length || snapshot?.copies.length || snapshot?.restores.length,
-        )}
+        task={stripTask}
         hasImportableGames={Boolean(importable.length)}
         isDisabled={isDisabled}
-        isActive={isActive}
         onOpenGame={openGame}
         onOpenImport={() => {
           setImportKey('')
           setIsImportOpen(true)
         }}
         onAddGame={addGame}
-        onOpenTasks={() => setPage('task')}
+        onOpenTasks={() =>
+          openTasks(
+            stripProjectId,
+            !shouldShowLegacy && shouldShowCopy ? copy.jobId : null,
+            !shouldShowLegacy && !shouldShowCopy ? (restore?.restoreId ?? null) : null,
+          )
+        }
       />
     )
   } else if (page === 'edit' && game) {
@@ -505,15 +576,27 @@ export function DesktopApp({
             },
           })
         }
-        onStarted={() => setPage('task')}
+        onStarted={() => openTasks(game.id, null)}
       />
     )
   } else if (page === 'task') {
     body = (
       <TaskPage
-        tasks={snapshot?.tasks ?? []}
-        copies={snapshot?.copies ?? []}
-        restores={snapshot?.restores ?? []}
+        key={`${taskProjectId ?? 'all'}/${taskCopyId ?? 'recent'}/${taskRestoreId ?? ''}`}
+        initialCopyId={taskCopyId}
+        initialRestoreId={taskRestoreId}
+        projectId={taskProjectId}
+        tasks={taskProjectId === null ? (snapshot?.tasks ?? []) : []}
+        copies={
+          snapshot?.copies.filter(
+            (item) => taskProjectId === null || item.projectId === taskProjectId,
+          ) ?? []
+        }
+        restores={
+          snapshot?.restores.filter(
+            (item) => taskProjectId === null || item.projectId === taskProjectId,
+          ) ?? []
+        }
         games={config.games}
         peers={peers}
         isActive={isActive}
@@ -585,11 +668,12 @@ export function DesktopApp({
         onClose={() => setIsGameActionDialogOpen(false)}
       >
         <GameActions
-          isActive={isActive}
+          caption={`${localRoot?.displayName ?? t('game.noFolder')} · ${t('game.linkCount', { count: game?.links.length ?? 0 })}`}
+          isRemoveDisabled={isActive}
           onTransfer={() => go('transfer')}
           onSettings={() => go('edit')}
           onBackup={() => go('backup')}
-          onTasks={() => go('task')}
+          onTasks={() => openTasks(game?.id ?? null, gameCopy?.jobId ?? null)}
           onRemove={removeGame}
         />
       </GameActionDialog>

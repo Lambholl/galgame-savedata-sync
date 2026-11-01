@@ -10,6 +10,9 @@ import { restoreStateTitle, syncStateTitle } from './sync-display.ts'
 import { formatShortDateTime } from '@savedata-sync/shared'
 
 export function TaskPage({
+  initialCopyId,
+  initialRestoreId,
+  projectId,
   tasks,
   copies,
   restores,
@@ -23,6 +26,9 @@ export function TaskPage({
   onOpenBackup,
   onRescan,
 }: {
+  readonly initialCopyId: string | null
+  readonly initialRestoreId: string | null
+  readonly projectId: string | null
   readonly tasks: readonly TransferTask[]
   readonly copies: readonly DesktopCopySummary[]
   readonly restores: readonly DesktopRestoreSummary[]
@@ -39,8 +45,8 @@ export function TaskPage({
   const t = useT()
   const locale = useLocale()
   const now = Date.now()
-  const [copyId, setCopyId] = useState<string | null>(null),
-    [restoreId, setRestoreId] = useState<string | null>(null)
+  const [copyId, setCopyId] = useState<string | null>(initialCopyId),
+    [restoreId, setRestoreId] = useState<string | null>(initialRestoreId)
   // 默认显示最近一次传输；点历史记录切换。
   const copy = copies.find((item) => item.jobId === copyId) ?? copies[copies.length - 1] ?? null
   function backup(projectId: string, rootId: string): void {
@@ -50,7 +56,13 @@ export function TaskPage({
   return (
     <>
       {!tasks.length && !copies.length && !restores.length && (
-        <Empty description={t('task.none')} />
+        <Empty
+          description={
+            projectId
+              ? `${games.find((item) => item.id === projectId)?.name ?? t('common.unknown')} · ${t('game.noTask')}`
+              : t('task.none')
+          }
+        />
       )}
       {copy && (
         <SyncCopyDetails

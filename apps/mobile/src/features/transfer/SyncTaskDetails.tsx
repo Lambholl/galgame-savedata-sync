@@ -10,6 +10,7 @@ import type {
   MobileSyncAdapter,
 } from '../../platform/sync-adapter'
 import { Panel } from '../../components/Panel'
+import { TechnicalDetails } from './TechnicalDetails'
 
 const RESTORE_STATUS = {
   preparing: 'backup.status.preparing',
@@ -22,6 +23,7 @@ const RESTORE_STATUS = {
 
 /** 先给结论再给细节；目标是否写入成功只依据接收端回读的结果。 */
 export function SyncTaskDetails({
+  projectId,
   sync,
   copy,
   restore,
@@ -32,6 +34,7 @@ export function SyncTaskDetails({
   onRescan,
   onBackup,
 }: {
+  readonly projectId: string | null
   readonly sync: MobileSyncAdapter
   readonly copy: MobileCopyDetails | null
   readonly restore: MobileRestoreDetails | null
@@ -78,7 +81,13 @@ export function SyncTaskDetails({
           </Button>
         </div>
       ))}
-      {!copy && !restore && !failures.length && <p className="notice">{t('task.none')}</p>}
+      {!copy && !restore && !failures.length && (
+        <p className="notice">
+          {projectId
+            ? `${games.find((item) => item.id === projectId)?.name ?? t('common.unknown')} · ${t('game.noTask')}`
+            : t('task.none')}
+        </p>
+      )}
       {copy && state && binding && (
         <>
           <SyncTaskSummary
@@ -92,6 +101,7 @@ export function SyncTaskDetails({
             onRetryCleanup={
               isRunning || !state.local.cleanupError ? null : () => act(() => sync.cleanupCopy())
             }
+            renderTechnicalDetails={(text) => <TechnicalDetails text={text} />}
           />
           {isRunning ? (
             <>

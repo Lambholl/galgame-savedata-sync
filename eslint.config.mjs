@@ -60,6 +60,7 @@ export default tseslint.config(
       '**/out/**',
       '**/release/**',
       '**/.reports/**',
+      'docs/design/**',
       'apps/mobile/android/**',
     ],
   },

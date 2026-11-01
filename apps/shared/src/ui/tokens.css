@@ -9,6 +9,7 @@
   --ss-bg: #e9edf5;
   --ss-app-a: #eaf0fb;
   --ss-app-b: #ece8f8;
+  --ss-page-bg: linear-gradient(165deg, var(--ss-app-a), var(--ss-app-b));
   --ss-chrome: #f7f8fc;
   --ss-side: rgba(255, 255, 255, 0.6);
   --ss-group: #ffffff;
@@ -47,6 +48,7 @@
   --ss-bg: #000000;
   --ss-app-a: #000000;
   --ss-app-b: #000000;
+  --ss-page-bg: #000000;
   --ss-chrome: #0f1116;
   --ss-side: #0b0c0f;
   --ss-group: #141518;

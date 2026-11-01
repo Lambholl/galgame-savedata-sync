@@ -1,0 +1,102 @@
+.ss-game-card.ant-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: 0;
+  height: auto;
+  min-width: 0;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ss-fg);
+  font-family: var(--ss-font);
+  text-align: left;
+  white-space: normal;
+  -webkit-touch-callout: none;
+}
+.ss-game-card.ant-btn:not(:disabled):not(.ant-btn-disabled):is(:hover, :active) {
+  border: 0;
+  background: transparent;
+  color: var(--ss-fg);
+  box-shadow: none;
+}
+.ss-game-cover {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  aspect-ratio: 3 / 4;
+  width: 100%;
+  padding: 10px;
+  overflow: hidden;
+  border-radius: var(--ss-r-md);
+  background: linear-gradient(155deg, #c3dcf2, #7b9fc8 45%, #2f4a7d);
+  color: #fff;
+}
+.ss-game-cover::before {
+  position: absolute;
+  inset: 0;
+  background: var(--ss-accent);
+  opacity: 0;
+  transition: opacity 120ms;
+  content: '';
+  pointer-events: none;
+}
+@media (hover: hover) {
+  .ss-game-card:hover .ss-game-cover::before {
+    opacity: 0.08;
+  }
+}
+.ss-game-card:active .ss-game-cover::before {
+  opacity: 0.12;
+}
+.ss-game-cover::after {
+  position: absolute;
+  top: -45%;
+  right: -55%;
+  width: 120%;
+  aspect-ratio: 1;
+  border: 1px solid rgb(255 255 255 / 35%);
+  border-radius: 50%;
+  content: '';
+  pointer-events: none;
+}
+.ss-game-cover.is-1 {
+  background: linear-gradient(155deg, #f2d9c6, #c497ae 50%, #5f507f);
+}
+.ss-game-cover.is-2 {
+  background: linear-gradient(155deg, #cdeadf, #74b2a6 50%, #2e5e66);
+}
+.ss-game-cover.is-3 {
+  background: linear-gradient(155deg, #e7dcf6, #9b8ad0 50%, #3f3b78);
+}
+.ss-game-cover strong {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+.ss-game-card-name {
+  display: block;
+  margin-top: 6px;
+  overflow: hidden;
+  color: var(--ss-fg);
+  font-size: 14px;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ss-game-card-subtitle {
+  display: block;
+  overflow: hidden;
+  color: var(--ss-faint);
+  font-size: 12px;
+  line-height: 1.5;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

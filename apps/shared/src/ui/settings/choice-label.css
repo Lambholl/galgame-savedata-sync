@@ -1,0 +1,20 @@
+.ss-choice-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  min-width: 0;
+  white-space: normal;
+}
+.ss-choice-label > span:first-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.ss-choice-check {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 16px;
+  color: var(--ss-accent);
+  font-size: 14px;
+}

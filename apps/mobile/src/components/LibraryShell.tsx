@@ -110,11 +110,13 @@ export function LibraryShell({
             <h1>{title}</h1>
             {!isRootPage(page) && gameName && page !== 'task' && <p>{gameName}</p>}
           </div>
-          {isRootPage(page) && <span className="app-wordmark">{t('app.name')}</span>}
+          {isRootPage(page) && !headerAction && (
+            <span className="app-wordmark">{t('app.name')}</span>
+          )}
           {headerAction}
         </header>
         <main
-          className={`app-main${page === 'sync' || page === 'sync-plan' ? ' app-main-with-action' : ''}`}
+          className={`app-main${isRootPage(page) ? ' app-main-with-nav' : ''}${page === 'sync' || page === 'sync-plan' ? ' app-main-with-action' : ''}`}
           ref={main}
         >
           {error && (

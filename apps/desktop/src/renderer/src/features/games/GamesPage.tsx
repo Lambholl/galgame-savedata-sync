@@ -1,16 +1,16 @@
 import { Button, Empty, Space, Typography } from 'antd'
-import { DownloadOutlined, PlusOutlined, SwapOutlined } from '@ant-design/icons'
+import { DownloadOutlined, PlusOutlined } from '@ant-design/icons'
 import type { LibraryGame, LibraryPeer } from '@savedata-sync/shared'
-import { useT } from '@savedata-sync/shared/ui'
+import { TaskStrip, useT } from '@savedata-sync/shared/ui'
+import type { TaskStripInfo } from '@savedata-sync/shared/ui'
 import { GameCard } from './GameCard.tsx'
 
 export function GamesPage({
   games,
   online,
-  hasTasks,
+  task,
   hasImportableGames,
   isDisabled,
-  isActive,
   onOpenGame,
   onOpenImport,
   onAddGame,
@@ -18,10 +18,9 @@ export function GamesPage({
 }: {
   readonly games: readonly LibraryGame[]
   readonly online: LibraryPeer | null
-  readonly hasTasks: boolean
+  readonly task: TaskStripInfo | null
   readonly hasImportableGames: boolean
   readonly isDisabled: boolean
-  readonly isActive: boolean
   readonly onOpenGame: (game: LibraryGame) => void
   readonly onOpenImport: () => void
   readonly onAddGame: () => void
@@ -47,16 +46,7 @@ export function GamesPage({
           </Button>
         </Space>
       </div>
-      {hasTasks && (
-        <Button
-          block
-          icon={<SwapOutlined />}
-          className="library-task-shortcut"
-          onClick={onOpenTasks}
-        >
-          {t(isActive ? 'game.viewTaskProgress' : 'game.viewTasks')}
-        </Button>
-      )}
+      {task && <TaskStrip task={task} onOpen={onOpenTasks} />}
       {games.length ? (
         <div className="library-game-grid">
           {games.map((item, index) => (

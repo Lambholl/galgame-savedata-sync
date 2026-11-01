@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Alert, Button, Card, Form, Select } from 'antd'
+import { Alert, Button, Form } from 'antd'
 import { APP_LOCALES, APP_VERSION, LOCALE_NAMES, toShownError, unwrap } from '@savedata-sync/shared'
 import type {
   AppPreferences,
@@ -12,6 +12,7 @@ import { ErrorText, useT } from '@savedata-sync/shared/ui'
 import { desktopBackups } from '../../platform/sync-adapter.ts'
 import { BackupPolicyFields } from '../backup/BackupPolicyFields.tsx'
 import { SETTING_FORM } from './setting-form.ts'
+import { SettingSelect } from './SettingSelect.tsx'
 
 const THEMES: readonly ThemePreference[] = ['system', 'light', 'dark']
 
@@ -68,10 +69,12 @@ export function SettingsPage({
   }
   return (
     <div className="settings-column">
-      <Card title={t('settings.appearance')}>
+      <section className="settings-section">
+        <h2>{t('settings.appearance')}</h2>
         <Form {...SETTING_FORM}>
           <Form.Item label={t('settings.language')}>
-            <Select<LocalePreference>
+            <SettingSelect<LocalePreference>
+              label={t('settings.language')}
               value={preferences.locale}
               options={[
                 { value: 'system', label: t('settings.language.system') },
@@ -81,15 +84,17 @@ export function SettingsPage({
             />
           </Form.Item>
           <Form.Item label={t('settings.theme')}>
-            <Select<ThemePreference>
+            <SettingSelect<ThemePreference>
+              label={t('settings.theme')}
               value={preferences.theme}
               options={THEMES.map((value) => ({ value, label: t(`settings.theme.${value}`) }))}
               onChange={(theme) => onChange({ ...preferences, theme })}
             />
           </Form.Item>
         </Form>
-      </Card>
-      <Card title={t('settings.backup')}>
+      </section>
+      <section className="settings-section">
+        <h2>{t('settings.backup')}</h2>
         {backupError && (
           <Alert
             showIcon
@@ -109,14 +114,15 @@ export function SettingsPage({
             <BackupPolicyFields policy={policy} isDisabled={false} onChange={changePolicy} />
           </Form>
         )}
-      </Card>
-      <Card title={t('settings.about')}>
+      </section>
+      <section className="settings-section">
+        <h2>{t('settings.about')}</h2>
         <Form {...SETTING_FORM}>
           <Form.Item label={t('settings.version')}>
             <span className="ss-copyable">{APP_VERSION}</span>
           </Form.Item>
         </Form>
-      </Card>
+      </section>
     </div>
   )
 }

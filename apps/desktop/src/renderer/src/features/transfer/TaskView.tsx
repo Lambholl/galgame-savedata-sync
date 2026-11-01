@@ -2,6 +2,7 @@ import { Alert, Button, Card, Empty, Progress, Space, Tag } from 'antd'
 import type { BatchState, FileOutcome, Translate, TransferTask } from '@savedata-sync/shared'
 import { formatBytes, taskIsActive } from '@savedata-sync/shared'
 import { ErrorText, useT } from '@savedata-sync/shared/ui'
+import { TechnicalDetails } from './TechnicalDetails.tsx'
 
 function stateTitle(t: Translate, state: BatchState | null): string {
   if (!state) {
@@ -119,16 +120,9 @@ export function TaskView({
                 </span>
               </div>
             ))}
-            <details>
-              <summary>{t('task.tech')}</summary>
-              <small>{task.id}</small>
-              <p>
-                {t('task.techLocal')}: {stateTitle(t, local)}
-              </p>
-              <p>
-                {t('task.techRemote')}: {stateTitle(t, task.remote)}
-              </p>
-            </details>
+            <TechnicalDetails
+              text={`${t('task.techTask')} ${task.id}\n${t('task.techLocal')}: ${stateTitle(t, local)}\n${t('task.techRemote')}: ${stateTitle(t, task.remote)}`}
+            />
           </Card>
         )
       })}

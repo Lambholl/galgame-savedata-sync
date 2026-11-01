@@ -1,0 +1,80 @@
+.ss-tech-card.ant-card {
+  min-width: 0;
+  max-width: 100%;
+  border-radius: var(--ss-r-md);
+  background: var(--ss-group);
+  box-shadow: none;
+  overflow: hidden;
+}
+.ss-tech-card .ss-tech-card-shell,
+.ss-tech-card .ss-tech-body {
+  padding: 0;
+}
+.ss-tech-card .ss-tech-header {
+  align-items: center;
+  min-height: 52px;
+  padding: 10px 14px;
+}
+.ss-tech-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--ss-fg);
+  font-size: 14px;
+}
+.ss-tech-symbol {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--ss-r-sm);
+  background: var(--ss-accent-soft);
+  color: var(--ss-accent);
+  font-size: 16px;
+}
+.ss-tech-content {
+  position: relative;
+  min-width: 0;
+  margin: 0 12px 12px;
+  border-radius: var(--ss-r-sm);
+  background: var(--ss-raised);
+  color: var(--ss-muted);
+}
+.ss-tech-content.is-pointer {
+  padding: 12px 48px 12px 12px;
+}
+.ss-tech-content pre {
+  min-width: 0;
+  max-width: 100%;
+  margin: 0;
+  font-family: var(--ss-mono);
+  font-size: 12px;
+  line-height: 1.65;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.ss-tech-content .ss-tech-copy {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  color: var(--ss-muted);
+}
+.ss-tech-content .ss-tech-touch-content {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  height: auto;
+  padding: 12px;
+  color: inherit;
+  text-align: left;
+  white-space: normal;
+}
+.ss-tech-touch-content pre {
+  -webkit-user-select: none;
+  user-select: none;
+}
+.ss-tech-touch-card {
+  -webkit-touch-callout: none;
+  touch-action: pan-y;
+}
