@@ -43,7 +43,7 @@ final class SafSyncBackend implements SyncWriter.Backend {
     @Override public NewFilePublisher publisher() { return publisher; }
     @Override public Boolean sharesPrivateVolume(Path left, Path right) throws Exception {
         StructStat first = Os.lstat(left.toString()), second = Os.lstat(right.toString());
-        if (!OsConstants.S_ISDIR(first.st_mode) || !OsConstants.S_ISDIR(second.st_mode)) throw new ArchiveFailure("source-changed", "私有存储目录类型已变化");
+        if (!OsConstants.S_ISDIR(first.st_mode) || !OsConstants.S_ISDIR(second.st_mode)) throw new ArchiveFailure("source-changed", "The private storage directory type changed.");
         return first.st_dev == second.st_dev;
     }
     @Override public void authorizeProject(String projectId, String rootId, ArchiveControl control) throws Exception {
@@ -60,7 +60,7 @@ final class SafSyncBackend implements SyncWriter.Backend {
     }
     private void checked(SafDirectoryStore.PublicationDirectory directory, ArchiveControl control) throws Exception {
         SafDirectoryStore.PublicationDirectory current = locate(directory.rootId, directory.parentId, false, control);
-        if (!current.tree.equals(directory.tree) || !current.documentId.equals(directory.documentId) || !current.name.equals(directory.name)) throw new ArchiveFailure("source-changed", "目标父目录引用已变化");
+        if (!current.tree.equals(directory.tree) || !current.documentId.equals(directory.documentId) || !current.name.equals(directory.name)) throw new ArchiveFailure("source-changed", "The target parent directory reference changed.");
     }
     private List<SafDirectoryStore.Snapshot> children(SafDirectoryStore.PublicationDirectory directory, ArchiveControl control) throws Exception {
         checked(directory, control); Signal signal = control.track(new Signal()); List<SafDirectoryStore.Snapshot> result = new ArrayList<>(); Set<String> ids = new HashSet<>();
@@ -68,8 +68,8 @@ final class SafSyncBackend implements SyncWriter.Backend {
             if (cursor == null) throw new java.io.IOException("Missing provider cursor");
             while (cursor.moveToNext()) {
                 control.check(); SafDirectoryStore.Snapshot value = SafDirectoryStore.decode(cursor);
-                if (result.size() >= 32768) throw new ArchiveFailure("resource-limit", "目标目录条目超过限制");
-                if (value.documentId.equals(directory.documentId) || !ids.add(value.documentId)) throw new ArchiveFailure("result-unknown", "提供者返回了重复或无效文档身份");
+                if (result.size() >= 32768) throw new ArchiveFailure("resource-limit", "Target directory entries exceed the limit.");
+                if (value.documentId.equals(directory.documentId) || !ids.add(value.documentId)) throw new ArchiveFailure("result-unknown", "The provider returned duplicate or invalid document identities.");
                 result.add(value);
             }
         } finally { control.untrack(signal); }
@@ -78,10 +78,10 @@ final class SafSyncBackend implements SyncWriter.Backend {
     private SafDirectoryStore.Snapshot named(SafDirectoryStore.PublicationDirectory directory, String name, String expectedId, ArchiveControl control) throws Exception {
         SafDirectoryStore.Snapshot selected = null;
         for (SafDirectoryStore.Snapshot child : children(directory, control)) if (BackupModel.key(java.util.Collections.singletonList(child.name)).equals(BackupModel.key(java.util.Collections.singletonList(name)))) {
-            if (selected != null || !child.name.equals(name) || expectedId == null || !child.documentId.equals(expectedId)) throw new ArchiveFailure("source-changed", "目标名称、文档身份或等价名称已变化");
+            if (selected != null || !child.name.equals(name) || expectedId == null || !child.documentId.equals(expectedId)) throw new ArchiveFailure("source-changed", "The target name, document identity, or equivalent name changed.");
             selected = child;
         }
-        if (expectedId != null && selected == null) throw new ArchiveFailure("source-changed", "目标文件已经不在确认的父目录");
+        if (expectedId != null && selected == null) throw new ArchiveFailure("source-changed", "The target file is no longer in the confirmed parent directory.");
         return selected;
     }
     @Override public Long available(String rootId, String parentId, ArchiveControl control) throws Exception {
@@ -94,21 +94,21 @@ final class SafSyncBackend implements SyncWriter.Backend {
         List<SafDirectoryStore.Snapshot> before = children(directory, control); Set<String> ids = new HashSet<>();
         for (SafDirectoryStore.Snapshot child : before) {
             ids.add(child.documentId);
-            if (BackupModel.key(java.util.Collections.singletonList(child.name)).equals(BackupModel.key(java.util.Collections.singletonList(name)))) throw new ArchiveFailure("source-changed", "计划创建的目录名称已存在");
+            if (BackupModel.key(java.util.Collections.singletonList(child.name)).equals(BackupModel.key(java.util.Collections.singletonList(name)))) throw new ArchiveFailure("source-changed", "The name of the directory to be created already exists.");
         }
         control.check(); boolean attempted = false;
         try {
             attempted = true;
             Uri created = DocumentsContract.createDocument(resolver, directory.uri, Document.MIME_TYPE_DIR, name);
             if (created == null || !"content".equals(created.getScheme()) || !Objects.equals(created.getAuthority(), directory.tree.getAuthority()) ||
-                !DocumentsContract.isTreeUri(created) || !DocumentsContract.getTreeDocumentId(created).equals(DocumentsContract.getTreeDocumentId(directory.tree))) throw new ArchiveFailure("result-unknown", "创建目录返回了未知引用");
+                !DocumentsContract.isTreeUri(created) || !DocumentsContract.getTreeDocumentId(created).equals(DocumentsContract.getTreeDocumentId(directory.tree))) throw new ArchiveFailure("result-unknown", "Directory creation returned an unknown reference.");
             String id = DocumentsContract.getDocumentId(created);
-            if (ids.contains(id)) throw new ArchiveFailure("result-unknown", "创建目录返回了原有文档");
+            if (ids.contains(id)) throw new ArchiveFailure("result-unknown", "Directory creation returned an existing document.");
             SafDirectoryStore.Snapshot value = named(directory, name, id, new ArchiveControl());
-            if (value == null || !value.isDirectory || value.isVirtual) throw new ArchiveFailure("result-unknown", "新目录的名称或类型无法核实");
+            if (value == null || !value.isDirectory || value.isVirtual) throw new ArchiveFailure("result-unknown", "The new directory name or type cannot be verified.");
             return store.publicationEntry(directory, value).entryId;
         } catch (Exception cause) {
-            if (attempted) throw new ArchiveFailure("result-unknown", "目录创建已开始，结果需要重新读取目标确认", false, cause);
+            if (attempted) throw new ArchiveFailure("result-unknown", "Directory creation started. Read the target again to confirm the result.", false, cause);
             throw cause;
         }
     }
@@ -124,13 +124,13 @@ final class SafSyncBackend implements SyncWriter.Backend {
         List<String> path = BackupModel.path(expected.get("path")); String name = path.get(path.size() - 1);
         SafDirectoryStore.Snapshot value = null;
         for (SafDirectoryStore.Snapshot child : children(directory, control)) if (child.name.equals(name)) {
-            if (value != null) throw new ArchiveFailure("name-conflict", "目标有重复名称"); value = child;
+            if (value != null) throw new ArchiveFailure("name-conflict", "The target contains duplicate names."); value = child;
         }
-        if (value == null) throw new ArchiveFailure("source-changed", "被覆盖文件已不存在");
+        if (value == null) throw new ArchiveFailure("source-changed", "The file to be overwritten no longer exists.");
         named(directory, name, value.documentId, control);
         if (!store.publicationEntry(directory, value).entryId.equals(expected.get("entryId")) || value.isDirectory || value.isVirtual ||
             (requireWrite && (value.flags & Document.FLAG_SUPPORTS_WRITE) == 0) || !Objects.equals(value.modified, nullable(expected.get("modifiedAt"), -BackupModel.MAX_DATE, BackupModel.MAX_DATE)) ||
-            (value.size != null && value.size.longValue() != number(expected.get("sizeBytes"), 0, 9007199254740991L))) throw new ArchiveFailure("source-changed", "目标身份、类型、写权限或属性已变化");
+            (value.size != null && value.size.longValue() != number(expected.get("sizeBytes"), 0, 9007199254740991L))) throw new ArchiveFailure("source-changed", "The target identity, type, write permission, or attributes changed.");
         return new Existing(directory, value, control);
     }
     private final class Existing implements SyncWriter.Replacement {
@@ -155,19 +155,19 @@ final class SafSyncBackend implements SyncWriter.Backend {
                 fd = resolver.openFileDescriptor(uri, mode, signal.value);
                 if (fd == null) throw new java.io.IOException("Missing provider descriptor");
                 StructStat value = Os.fstat(fd.getFileDescriptor());
-                if (!OsConstants.S_ISREG(value.st_mode) || value.st_nlink != 1) throw new ArchiveFailure("unsupported-operation", "提供者未返回独立常规文件");
-                if (expected != null && (value.st_dev != expected.st_dev || value.st_ino != expected.st_ino)) throw new ArchiveFailure("source-changed", "目标文件描述符身份已变化");
+                if (!OsConstants.S_ISREG(value.st_mode) || value.st_nlink != 1) throw new ArchiveFailure("unsupported-operation", "The provider did not return an independent regular file.");
+                if (expected != null && (value.st_dev != expected.st_dev || value.st_ino != expected.st_ino)) throw new ArchiveFailure("source-changed", "The target file descriptor identity changed.");
                 control.check(); return fd;
             } catch (Exception cause) { if (fd != null) fd.close(); throw cause; }
             finally { control.untrack(signal); }
         }
         @Override public void verify(ArchiveControl control) throws Exception {
             SafDirectoryStore.Snapshot current = named(directory, name, id, control);
-            if (current.isDirectory || current.isVirtual || (current.flags & Document.FLAG_SUPPORTS_WRITE) == 0) throw new ArchiveFailure("unsupported-operation", "目标类型或写入能力已变化");
+            if (current.isDirectory || current.isVirtual || (current.flags & Document.FLAG_SUPPORTS_WRITE) == 0) throw new ArchiveFailure("unsupported-operation", "The target type or write capability changed.");
             try (ParcelFileDescriptor fd = descriptor("r", control, baseline)) {
                 StructStat stat = Os.fstat(fd.getFileDescriptor());
                 if (!writing && (stat.st_size != baseline.st_size || stat.st_mtime != baseline.st_mtime || stat.st_ctime != baseline.st_ctime ||
-                    !Objects.equals(current.size, original.size) || !Objects.equals(current.modified, original.modified))) throw new ArchiveFailure("source-changed", "目标内容属性已变化");
+                    !Objects.equals(current.size, original.size) || !Objects.equals(current.modified, original.modified))) throw new ArchiveFailure("source-changed", "The target content attributes changed.");
             }
         }
         @Override public InputStream read(ArchiveControl control) throws Exception {
@@ -177,14 +177,14 @@ final class SafSyncBackend implements SyncWriter.Backend {
             verify(control); ParcelFileDescriptor fd = descriptor("rw", control, baseline);
             try {
                 StructStat stat = Os.fstat(fd.getFileDescriptor());
-                if (stat.st_size != baseline.st_size || stat.st_mtime != baseline.st_mtime || stat.st_ctime != baseline.st_ctime) throw new ArchiveFailure("source-changed", "目标在 rw 打开时已变化");
+                if (stat.st_size != baseline.st_size || stat.st_mtime != baseline.st_mtime || stat.st_ctime != baseline.st_ctime) throw new ArchiveFailure("source-changed", "The target changed while opening in rw mode.");
                 Os.lseek(fd.getFileDescriptor(), 0, OsConstants.SEEK_SET); writable = fd; writing = true;
                 return new ParcelFileDescriptor.AutoCloseOutputStream(fd);
             } catch (Exception cause) { fd.close(); throw cause; }
         }
         @Override public void finish(long size, ArchiveControl control) throws Exception {
             control.check(); verify(control);
-            if (writable == null) throw new ArchiveFailure("io-failure", "目标写句柄已关闭");
+            if (writable == null) throw new ArchiveFailure("io-failure", "The target write handle is closed.");
             Os.ftruncate(writable.getFileDescriptor(), size); Os.fsync(writable.getFileDescriptor());
         }
         @Override public Boolean sharesVolume(Path privateDirectory) throws Exception { return baseline.st_dev == Os.stat(privateDirectory.toString()).st_dev; }

@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { Alert, Button, Skeleton } from 'antd'
-import { unwrap } from '@savedata-sync/shared'
-import type { LibraryGame, LibraryPeer } from '@savedata-sync/shared'
-import { SyncTaskSummary, useT } from '@savedata-sync/shared/ui'
+import { toShownError, unwrap } from '@savedata-sync/shared'
+import type { LibraryGame, LibraryPeer, ShownError } from '@savedata-sync/shared'
+import { ErrorText, SyncTaskSummary, useT } from '@savedata-sync/shared/ui'
 import type { PlanEndpoint } from '@savedata-sync/shared/ui'
 import type { DesktopCopySummary } from '../../../../bridge/sync-bridge.ts'
 import { desktopSync } from '../../platform/sync-adapter.ts'
@@ -27,7 +27,7 @@ export function SyncCopyDetails({
   const t = useT()
   const resource = useCopyDetails(task.jobId)
   const [isBusy, setIsBusy] = useState(false)
-  const [error, setError] = useState('')
+  const [error, setError] = useState<ShownError | null>(null)
   const state = resource.data?.state
   const plan = resource.data?.request?.plan
   const game = games.find((item) => item.id === task.projectId)
@@ -37,7 +37,7 @@ export function SyncCopyDetails({
       return
     }
     setIsBusy(true)
-    setError('')
+    setError(null)
     async function work(): Promise<void> {
       if (action === 'cancel') {
         unwrap(await desktopSync().cancelCopy(task.jobId))
@@ -46,7 +46,7 @@ export function SyncCopyDetails({
       }
     }
     void work()
-      .catch((cause: unknown) => setError(cause instanceof Error ? cause.message : ''))
+      .catch((cause: unknown) => setError(toShownError(cause)))
       .finally(() => {
         resource.reload()
         onChanged()
@@ -57,14 +57,19 @@ export function SyncCopyDetails({
   const phoneEnd: PlanEndpoint = { name: peer?.device.name ?? t('common.unknown'), kind: 'phone' }
   const isUpload = task.direction === 'android-to-windows'
   const isRunning = (state ?? task).status === 'running'
-  const failure = error || resource.error
+  const failure = error ?? resource.error
   return (
     <div className="library-stack">
       {failure && (
         <Alert
           showIcon
           type="error"
-          title={t('task.readFailed', { message: failure })}
+          title={
+            <ErrorText
+              error={failure}
+              context={t(error ? 'app.actionFailed' : 'task.readFailed')}
+            />
+          }
           action={
             <Button size="small" onClick={resource.reload}>
               {t('common.retry')}

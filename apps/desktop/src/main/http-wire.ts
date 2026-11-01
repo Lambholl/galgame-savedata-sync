@@ -28,7 +28,7 @@ export interface HttpRoute {
 }
 
 function invalid(): never {
-  throw new HttpOperationError('invalid-request', 'HTTP 请求格式无效。')
+  throw new HttpOperationError('invalid-request', 'The HTTP request format is invalid.')
 }
 
 /** 唯一头名按不区分大小写检查；拒绝编码、Range 和歧义定界。 */
@@ -79,7 +79,7 @@ export function inspectHttpRequest(request: IncomingMessage): HttpRoute {
       }
     }
   } catch (error) {
-    throw new HttpOperationError('invalid-request', 'HTTP 路由编码无效。', error)
+    throw new HttpOperationError('invalid-request', 'The HTTP route encoding is invalid.', error)
   }
   const [version, resource, id, action] = segments
   const detail = segments[4]
@@ -275,7 +275,7 @@ export async function readHttpJson(request: IncomingMessage): Promise<unknown> {
   }
   const length = request.headers['content-length']
   if (length !== undefined && Number(length) > BATCH_LIMITS.maxJsonBytes) {
-    throw new HttpOperationError('resource-limit', 'JSON 请求超过资源预算。')
+    throw new HttpOperationError('resource-limit', 'The JSON request exceeds the resource budget.')
   }
   const chunks: Buffer[] = []
   let size = 0
@@ -286,7 +286,10 @@ export async function readHttpJson(request: IncomingMessage): Promise<unknown> {
       }
       size += chunk.length
       if (size > BATCH_LIMITS.maxJsonBytes) {
-        throw new HttpOperationError('resource-limit', 'JSON 请求超过资源预算。')
+        throw new HttpOperationError(
+          'resource-limit',
+          'The JSON request exceeds the resource budget.',
+        )
       }
       chunks.push(chunk)
     }
@@ -303,7 +306,11 @@ export async function readHttpJson(request: IncomingMessage): Promise<unknown> {
     if (error instanceof HttpOperationError) {
       throw error
     }
-    throw new HttpOperationError('invalid-request', 'JSON 请求损坏或未完整结束。', error)
+    throw new HttpOperationError(
+      'invalid-request',
+      'The JSON request is damaged or incomplete.',
+      error,
+    )
   }
 }
 
@@ -318,7 +325,7 @@ export function sendHttpJson(
   }
   const body = Buffer.from(JSON.stringify(result), 'utf8')
   if (body.length > BATCH_LIMITS.maxJsonBytes) {
-    throw new HttpOperationError('resource-limit', 'JSON 响应超过资源预算。')
+    throw new HttpOperationError('resource-limit', 'The JSON response exceeds the resource budget.')
   }
   response.writeHead(status, {
     'content-type': 'application/json; charset=utf-8',

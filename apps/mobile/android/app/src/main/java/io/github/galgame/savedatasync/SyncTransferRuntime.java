@@ -53,13 +53,13 @@ final class SyncTransferRuntime {
     }
     private void authorize(String projectId, String rootId) throws Exception { engine.verifyTargetContext(projectId, rootId); }
     Map<String, Object> execute(String id, Object plan) throws Exception {
-        if (!TransferService.notificationsAllowed(context)) throw new ArchiveFailure("permission-denied", "请先允许文件传输通知");
+        if (!TransferService.notificationsAllowed(context)) throw new ArchiveFailure("permission-denied", "Allow file transfer notifications first.");
         engine.reserve(id, plan);
         try {
             TransferService.launch(context).get(10, TimeUnit.SECONDS);
             engine.begin(id);
         } catch (Exception cause) {
-            ArchiveFailure failure = new ArchiveFailure("permission-denied", "系统未接受本次文件传输服务", false, cause);
+            ArchiveFailure failure = new ArchiveFailure("permission-denied", "The system did not accept this file transfer service.", false, cause);
             engine.failStart(id, failure); throw failure;
         }
         return engine.query(id, false);

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Savedata Sync</string>
+    <string name="transfer_channel">File transfers</string>
+    <string name="transfer_stage_preparing">Preparing transfer</string>
+    <string name="transfer_stage_transferring">Transferring</string>
+    <string name="transfer_stage_verifying">Verifying received content</string>
+    <string name="transfer_stage_writing">Saving and reading back to verify</string>
+    <string name="transfer_stage_backing_up">Protecting save data before overwriting</string>
+    <string name="transfer_stage_cleaning">Cleaning up transfer resources</string>
+    <string name="transfer_stage_sent">Sent; confirming the PC received the files</string>
+    <string name="transfer_cleanup_pending">Transfer resources still need cleanup</string>
+    <string name="transfer_title_sending">%1$s: Sending files</string>
+    <string name="transfer_title_receiving">%1$s: Receiving files</string>
+    <string name="transfer_cancel">Cancel transfer</string>
+    <string name="transfer_retry_cleanup">Retry cleanup</string>
+</resources>

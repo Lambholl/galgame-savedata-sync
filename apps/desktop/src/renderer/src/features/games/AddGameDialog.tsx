@@ -1,7 +1,7 @@
 import { Button, Input, Modal } from 'antd'
 import { FolderOpenOutlined, RightOutlined } from '@ant-design/icons'
-import type { DirectoryReference } from '@savedata-sync/shared'
-import { PathText } from '@savedata-sync/shared/ui'
+import type { DirectoryReference, ShownError } from '@savedata-sync/shared'
+import { ErrorText, PathText, useT } from '@savedata-sync/shared/ui'
 
 /** 选择目录后才保存游戏；取消弹窗保留现有游戏列表。 */
 export function AddGameDialog({
@@ -19,19 +19,20 @@ export function AddGameDialog({
   readonly directory: DirectoryReference | null
   readonly gameName: string
   readonly isBusy: boolean
-  readonly error: string
+  readonly error: ShownError | null
   readonly onChooseDirectory: () => void
   readonly onGameNameChange: (value: string) => void
   readonly onCancel: () => void
   readonly onConfirm: () => void
 }): React.JSX.Element {
+  const t = useT()
   return (
     <Modal
-      title="添加游戏"
+      title={t('game.add')}
       centered
       open={isOpen}
-      okText="确定"
-      cancelText="取消"
+      okText={t('common.confirm')}
+      cancelText={t('common.cancel')}
       confirmLoading={isBusy}
       okButtonProps={{ disabled: isBusy || !directory || !gameName.trim() }}
       cancelButtonProps={{ disabled: isBusy }}
@@ -49,27 +50,33 @@ export function AddGameDialog({
       >
         <FolderOpenOutlined aria-hidden="true" />
         <span>
-          <strong>选择存档目录</strong>
+          <strong>{t('game.chooseFolder')}</strong>
           <small>
-            <PathText path={directory?.displayPath ?? directory?.displayName ?? '未选择目录'} />
+            <PathText
+              path={directory?.displayPath ?? directory?.displayName ?? t('game.noFolder')}
+            />
           </small>
         </span>
         <RightOutlined aria-hidden="true" />
       </Button>
       {directory && (
         <label className="library-field library-add-game-name">
-          游戏名称
+          {t('game.name')}
           <Input
-            aria-label="游戏名称"
+            aria-label={t('game.name')}
             value={gameName}
             maxLength={128}
             disabled={isBusy}
             onChange={(event) => onGameNameChange(event.target.value)}
-            placeholder="输入游戏名称"
+            placeholder={t('game.namePlaceholder')}
           />
         </label>
       )}
-      {error && <p role="alert">{error}</p>}
+      {error && (
+        <p role="alert">
+          <ErrorText error={error} context={null} />
+        </p>
+      )}
     </Modal>
   )
 }

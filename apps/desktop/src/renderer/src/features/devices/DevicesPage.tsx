@@ -1,6 +1,7 @@
 import { Button, Card, Empty, Flex, InputNumber, Space, Tag } from 'antd'
 import { AndroidOutlined } from '@ant-design/icons'
 import type { LibraryPeer } from '@savedata-sync/shared'
+import { useT } from '@savedata-sync/shared/ui'
 import type { DesktopSnapshot } from '../../platform/library-types.ts'
 import { AddressField } from './AddressField.tsx'
 
@@ -33,12 +34,13 @@ export function DevicesPage({
   readonly onDeviceAction: (peer: LibraryPeer) => void
   readonly onManageDevice: (id: string) => void
 }): React.JSX.Element {
+  const t = useT()
   const service = snapshot?.service
   return (
     <>
       {service && (
         <Card
-          title="本机服务"
+          title={t('service.title')}
           extra={
             <Button
               disabled={
@@ -48,7 +50,7 @@ export function DevicesPage({
               }
               onClick={onToggleService}
             >
-              {service.isRunning ? '停止' : '启动'}
+              {t(service.isRunning ? 'service.stop' : 'service.start')}
             </Button>
           }
         >
@@ -58,9 +60,9 @@ export function DevicesPage({
             </div>
           ))}
           <Flex align="center" style={{ margin: '16px 4px 0px' }} gap="small">
-            端口设置
+            {t('service.portSettings')}
             <InputNumber
-              aria-label="监听端口"
+              aria-label={t('service.port')}
               min={1}
               max={65535}
               precision={0}
@@ -69,13 +71,13 @@ export function DevicesPage({
               onChange={onPortChange}
             />
             <Button disabled={service.isRunning || isBusy} onClick={onRandomizePort}>
-              随机生成
+              {t('service.randomizePort')}
             </Button>
           </Flex>
         </Card>
       )}
       <div className="library-section-heading">
-        <h2>已保存的设备</h2>
+        <h2>{t('device.saved')}</h2>
       </div>
       {peers.length ? (
         <div className="library-device-grid">
@@ -98,7 +100,7 @@ export function DevicesPage({
                     color={peer.isConnected ? 'success' : 'default'}
                     style={{ alignSelf: 'flex-start', flexShrink: 0 }}
                   >
-                    {peer.isConnected ? '已连接' : '未连接'}
+                    {t(peer.isConnected ? 'transfer.connected' : 'transfer.disconnected')}
                   </Tag>
                 </Flex>
               </Flex>
@@ -108,17 +110,17 @@ export function DevicesPage({
                   disabled={isDisabled || isActive || !peer.isConnected}
                   onClick={() => onDeviceAction(peer)}
                 >
-                  {peer.isConnected ? '断开' : '等待手机连接'}
+                  {t(peer.isConnected ? 'device.disconnect' : 'device.waitingPhone')}
                 </Button>
                 <Button disabled={isDisabled} onClick={() => onManageDevice(peer.device.id)}>
-                  管理
+                  {t('device.manage')}
                 </Button>
               </Space>
             </Card>
           ))}
         </div>
       ) : (
-        <Empty description="手机连接后会显示在这里" />
+        <Empty description={t('device.emptyPc')} />
       )}
     </>
   )

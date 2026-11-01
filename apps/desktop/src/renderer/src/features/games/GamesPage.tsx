@@ -1,6 +1,7 @@
 import { Button, Empty, Space, Typography } from 'antd'
 import { DownloadOutlined, PlusOutlined, SwapOutlined } from '@ant-design/icons'
 import type { LibraryGame, LibraryPeer } from '@savedata-sync/shared'
+import { useT } from '@savedata-sync/shared/ui'
 import { GameCard } from './GameCard.tsx'
 
 export function GamesPage({
@@ -26,11 +27,12 @@ export function GamesPage({
   readonly onAddGame: () => void
   readonly onOpenTasks: () => void
 }): React.JSX.Element {
+  const t = useT()
   return (
     <>
       <div className="library-section-heading">
         <Typography.Text type="secondary">
-          {online ? `${online.device.name} · 已连接` : '未连接设备'}
+          {online ? t('app.connectedTo', { name: online.device.name }) : t('device.noneConnected')}
         </Typography.Text>
         <Space>
           <Button
@@ -38,10 +40,10 @@ export function GamesPage({
             disabled={isDisabled || !hasImportableGames}
             onClick={onOpenImport}
           >
-            导入游戏
+            {t('game.importGame')}
           </Button>
           <Button type="primary" icon={<PlusOutlined />} disabled={isDisabled} onClick={onAddGame}>
-            添加游戏
+            {t('game.add')}
           </Button>
         </Space>
       </div>
@@ -52,7 +54,7 @@ export function GamesPage({
           className="library-task-shortcut"
           onClick={onOpenTasks}
         >
-          {isActive ? '查看任务进度' : '任务与结果'}
+          {t(isActive ? 'game.viewTaskProgress' : 'game.viewTasks')}
         </Button>
       )}
       {games.length ? (
@@ -62,7 +64,7 @@ export function GamesPage({
           ))}
         </div>
       ) : (
-        <Empty description="添加游戏并选择本机存档目录" />
+        <Empty description={t('game.empty')} />
       )}
     </>
   )

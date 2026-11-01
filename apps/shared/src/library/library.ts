@@ -2,6 +2,7 @@ import type { DirectoryReference } from '../protocol/contracts.ts'
 import { isDirectoryReference } from '../protocol/validation.ts'
 import { isOpaqueId } from '../protocol/protocol.ts'
 import { isArrayOf } from '../validation/data-validation.ts'
+import { OperationFailure } from '../result.ts'
 
 /** 本机的游戏目录与对端关联；不保存文件清单、哈希或平台路径。 */
 export interface LibraryGame {
@@ -177,7 +178,7 @@ export function isLibraryPeer(value: unknown): value is LibraryPeer {
 export function emptyLibrary(): LibraryConfig {
   return { schemaVersion: 1, games: [], devices: [] }
 }
-/** 统一地址显示；拒绝账户、路径和非 HTTP 地址，出错时抛普通 Error 供界面显示。 */
+/** 统一地址显示；拒绝账户、路径和非 HTTP 地址，出错时抛 invalid-request 供界面翻译。 */
 export function normalizeHttpAddress(value: string): string {
   const match =
     /^(?:http:\/\/)?(\[[a-f\d:]+\]|(?:0|[1-9]\d{0,2})(?:\.(?:0|[1-9]\d{0,2})){3})(?::([1-9]\d{0,4}))?\/?$/i.exec(
@@ -190,7 +191,10 @@ export function normalizeHttpAddress(value: string): string {
     (port && Number(port) > 65535) ||
     (!host.startsWith('[') && host.split('.').some((part) => Number(part) > 255))
   ) {
-    throw new Error('请输入电脑显示的完整 HTTP 地址。')
+    throw new OperationFailure(
+      'invalid-request',
+      'Enter the complete HTTP address displayed on the PC.',
+    )
   }
   return `http://${host.toLowerCase()}${port ? `:${Number(port)}` : ''}`
 }

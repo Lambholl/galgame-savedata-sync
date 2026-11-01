@@ -68,15 +68,17 @@ export function registerServiceIpc(
         error: { code, message, canRetry: false },
       })
       if (!options.isTrustedSender(event)) {
-        return fail('permission-denied', '此页面无法控制本地服务。')
+        return fail('permission-denied', 'This page cannot control the local service.')
       }
       if (action === 'status') {
-        return args.length === 0 ? snapshot() : fail('invalid-request', '服务参数无效。')
+        return args.length === 0
+          ? snapshot()
+          : fail('invalid-request', 'Service parameters are invalid.')
       }
       if (action === 'scanQuery') {
         const id = argument(args, 'scanId')
         if (!isOpaqueId(id)) {
-          return fail('invalid-request', '扫描引用无效。')
+          return fail('invalid-request', 'The scan reference is invalid.')
         }
         try {
           return { status: 'success', value: service.getScan(id) }
@@ -85,14 +87,14 @@ export function registerServiceIpc(
         }
       }
       if (isMutating) {
-        return fail('busy', '正在处理上一项服务操作。')
+        return fail('busy', 'The previous service operation is still being processed.')
       }
       isMutating = true
       try {
         if (action === 'scanStart' || action === 'scanCancel') {
           const id = argument(args, action === 'scanStart' ? 'rootId' : 'scanId')
           if (!isOpaqueId(id)) {
-            return fail('invalid-request', '扫描引用无效。')
+            return fail('invalid-request', 'The scan reference is invalid.')
           }
           return {
             status: 'success',
@@ -101,17 +103,17 @@ export function registerServiceIpc(
         } else if (action === 'start') {
           const port = argument(args, 'port')
           if (typeof port !== 'number' || !Number.isInteger(port) || port < 1 || port > 65535) {
-            return fail('invalid-request', '端口应为 1 到 65535 的整数。')
+            return fail('invalid-request', 'The port must be an integer from 1 to 65535.')
           }
           if (service.getAddress()) {
-            return fail('busy', '请先停止服务再修改端口。')
+            return fail('busy', 'Stop the service before changing the port.')
           }
           await options.portSettings.save(port)
           await service.start({ host: '0.0.0.0', port })
         } else if (action === 'revokeTarget' || action === 'cancel') {
           const id = argument(args, action === 'cancel' ? 'transferId' : 'rootId')
           if (!isOpaqueId(id)) {
-            return fail('invalid-request', '引用无效。')
+            return fail('invalid-request', 'The reference is invalid.')
           }
           if (action === 'cancel') {
             service.cancel(id)
@@ -121,18 +123,18 @@ export function registerServiceIpc(
           }
         } else {
           if (args.length !== 0) {
-            return fail('invalid-request', '服务参数无效。')
+            return fail('invalid-request', 'Service parameters are invalid.')
           }
           if (action === 'randomizePort') {
             if (service.getAddress()) {
-              return fail('busy', '请先停止服务再修改端口。')
+              return fail('busy', 'Stop the service before changing the port.')
             }
             await options.portSettings.randomize()
           }
           if (action === 'chooseTarget') {
             const path = await options.chooseTargetPath()
             if (!options.isTrustedSender(event)) {
-              return fail('permission-denied', '页面已离开应用。')
+              return fail('permission-denied', 'The page has left the app.')
             }
             if (path === null) {
               return { status: 'cancelled' }

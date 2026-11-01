@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { Alert, Button, Skeleton } from 'antd'
-import { unwrap } from '@savedata-sync/shared'
-import { RestoreSummary, SyncPlanSummary, useT } from '@savedata-sync/shared/ui'
+import { OperationFailure, toShownError, unwrap } from '@savedata-sync/shared'
+import type { ShownError } from '@savedata-sync/shared'
+import { ErrorText, RestoreSummary, SyncPlanSummary, useT } from '@savedata-sync/shared/ui'
 import { desktopSync } from '../../platform/sync-adapter.ts'
 import { useRestoreDetails } from '../transfer/use-sync-details.ts'
 
@@ -14,7 +15,7 @@ async function discardRestore(restoreId: string): Promise<void> {
     state = unwrap(await api.restoreState(restoreId))
   }
   if (state.cleanupError) {
-    throw new Error(state.cleanupError.message)
+    throw new OperationFailure(state.cleanupError.code, state.cleanupError.message)
   }
   unwrap(await api.releaseRestore(restoreId))
 }
@@ -44,7 +45,7 @@ export function RestoreDetails({
   const t = useT()
   const resource = useRestoreDetails(restoreId)
   const [isBusy, setIsBusy] = useState(false)
-  const [error, setError] = useState('')
+  const [error, setError] = useState<ShownError | null>(null)
   const state = resource.data?.state
   const plan = resource.data?.plan
   function run(work: () => Promise<void>, after?: () => void): void {
@@ -52,10 +53,10 @@ export function RestoreDetails({
       return
     }
     setIsBusy(true)
-    setError('')
+    setError(null)
     void work()
       .then(after)
-      .catch((cause: unknown) => setError(cause instanceof Error ? cause.message : ''))
+      .catch((cause: unknown) => setError(toShownError(cause)))
       .finally(() => {
         resource.reload()
         onChanged()
@@ -69,7 +70,7 @@ export function RestoreDetails({
       onClose()
     }
   }
-  const failure = error || resource.error
+  const failure = error ?? resource.error
   const isReady = state?.status === 'ready' && plan
   return (
     <div className="library-stack">
@@ -77,7 +78,12 @@ export function RestoreDetails({
         <Alert
           showIcon
           type="error"
-          title={failure}
+          title={
+            <ErrorText
+              error={failure}
+              context={t(error ? 'app.actionFailed' : 'task.readFailed')}
+            />
+          }
           action={
             <Button size="small" onClick={resource.reload}>
               {t('common.retry')}
@@ -104,8 +110,8 @@ export function RestoreDetails({
               : null
           }
           result={state.result}
-          error={state.error?.message ?? null}
-          cleanupError={state.cleanupError?.message ?? null}
+          error={state.error ?? null}
+          cleanupError={state.cleanupError ?? null}
           onRetryCleanup={
             state.hasCleanupError && !state.isWorking
               ? () => run(async () => void unwrap(await desktopSync().cleanupRestore(restoreId)))

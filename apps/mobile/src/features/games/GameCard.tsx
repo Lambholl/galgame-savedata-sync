@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import type { MouseEvent, PointerEvent } from 'react'
 import { FolderOutlined, RightOutlined } from '@ant-design/icons'
 import type { LibraryGame } from '@savedata-sync/shared'
+import { useT } from '@savedata-sync/shared/ui'
 
 /** 点击和长按打开同一个游戏菜单；滚动或取消触控时撤销长按计时。 */
 export function GameCard({
@@ -13,6 +14,7 @@ export function GameCard({
   readonly coverIndex: number
   readonly onOpenGame: (game: LibraryGame) => void
 }): React.JSX.Element {
+  const t = useT()
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const origin = useRef<{ x: number; y: number } | null>(null)
   const didLongPress = useRef(false)
@@ -92,7 +94,7 @@ export function GameCard({
       </span>
       <span className="game-card-info">
         <strong>{game.name}</strong>
-        <span>已关联 {game.links.length} 台设备</span>
+        <span>{t('game.linkCount', { count: game.links.length })}</span>
         <RightOutlined />
       </span>
     </button>

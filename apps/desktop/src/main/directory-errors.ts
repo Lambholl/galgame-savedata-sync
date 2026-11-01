@@ -22,12 +22,24 @@ export function toDirectoryError(error: unknown): DirectoryAccessError {
   }
   const code = error && typeof error === 'object' && 'code' in error ? error.code : null
   if (code === 'ENOENT' || code === 'ENOTDIR') {
-    return new DirectoryAccessError('not-found', '目录或文件已不存在，请刷新目录。', error)
+    return new DirectoryAccessError(
+      'not-found',
+      'The directory or file no longer exists. Refresh the directory.',
+      error,
+    )
   }
   if (code === 'EACCES' || code === 'EPERM') {
-    return new DirectoryAccessError('permission-denied', '无法读取所选目录或文件。', error)
+    return new DirectoryAccessError(
+      'permission-denied',
+      'Cannot read the selected directory or file.',
+      error,
+    )
   }
-  return new DirectoryAccessError('io-failure', '目录操作失败，请检查权限与存储状态。', error)
+  return new DirectoryAccessError(
+    'io-failure',
+    'The directory operation failed. Check permissions and storage status.',
+    error,
+  )
 }
 
 /** 本地操作失败转为共享包络；原始错误只保留在进程内，不暴露路径或堆栈。 */

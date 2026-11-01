@@ -1,7 +1,7 @@
 import { Button, Input, Popup } from 'antd-mobile'
 import { FolderOpenOutlined, RightOutlined } from '@ant-design/icons'
-import type { DirectoryReference } from '@savedata-sync/shared'
-import { PathText } from '@savedata-sync/shared/ui'
+import type { DirectoryReference, ShownError } from '@savedata-sync/shared'
+import { ErrorText, PathText, useT } from '@savedata-sync/shared/ui'
 
 /** 选定目录后确认添加；系统选择器同时申请持久读写权限。 */
 export function AddGameDialog({
@@ -19,12 +19,13 @@ export function AddGameDialog({
   readonly directory: DirectoryReference | null
   readonly gameName: string
   readonly isBusy: boolean
-  readonly error: string
+  readonly error: ShownError | null
   readonly onChooseDirectory: () => void
   readonly onGameNameChange: (value: string) => void
   readonly onCancel: () => void
   readonly onConfirm: () => void
 }): React.JSX.Element {
+  const t = useT()
   return (
     <Popup
       visible={isOpen}
@@ -42,8 +43,8 @@ export function AddGameDialog({
       }}
       destroyOnClose
     >
-      <section role="dialog" aria-modal="true" aria-label="添加游戏">
-        <h2>添加游戏</h2>
+      <section role="dialog" aria-modal="true" aria-label={t('game.add')}>
+        <h2>{t('game.add')}</h2>
         <button
           type="button"
           className="add-game-directory"
@@ -52,34 +53,36 @@ export function AddGameDialog({
         >
           <FolderOpenOutlined aria-hidden="true" />
           <span>
-            <strong>选择存档目录</strong>
+            <strong>{t('game.chooseFolder')}</strong>
             <small>
-              <PathText path={directory?.displayPath ?? directory?.displayName ?? '未选择目录'} />
+              <PathText
+                path={directory?.displayPath ?? directory?.displayName ?? t('game.noFolder')}
+              />
             </small>
           </span>
           <RightOutlined aria-hidden="true" />
         </button>
         {directory && (
           <label className="field add-game-name">
-            游戏名称
+            {t('game.name')}
             <Input
-              aria-label="游戏名称"
+              aria-label={t('game.name')}
               value={gameName}
               maxLength={128}
               disabled={isBusy}
               onChange={onGameNameChange}
-              placeholder="输入游戏名称"
+              placeholder={t('game.namePlaceholder')}
             />
           </label>
         )}
         {error && (
-          <p className="pane-error" role="alert">
-            {error}
-          </p>
+          <div className="pane-error" role="alert">
+            <ErrorText error={error} context={null} />
+          </div>
         )}
         <div className="add-game-footer">
           <Button fill="none" disabled={isBusy} onClick={onCancel}>
-            取消
+            {t('common.cancel')}
           </Button>
           <Button
             fill="none"
@@ -88,7 +91,7 @@ export function AddGameDialog({
             loading={isBusy}
             onClick={onConfirm}
           >
-            确定
+            {t('common.confirm')}
           </Button>
         </div>
       </section>

@@ -5,9 +5,9 @@ import antdJaJP from 'antd/locale/ja_JP'
 import antdZhCN from 'antd/locale/zh_CN'
 import antdZhTW from 'antd/locale/zh_TW'
 import type { Locale } from 'antd/es/locale'
-import { useLocale, useT } from '@savedata-sync/shared/ui'
+import { ErrorText, useLocale, useT } from '@savedata-sync/shared/ui'
 import { APP_VERSION } from '@savedata-sync/shared'
-import type { AppLocale } from '@savedata-sync/shared'
+import type { AppLocale, ShownError } from '@savedata-sync/shared'
 import {
   AppstoreOutlined,
   ArrowLeftOutlined,
@@ -52,7 +52,7 @@ export function DesktopShell({
   readonly page: Page
   readonly title: string
   readonly gameName: string | null
-  readonly error: string
+  readonly error: ShownError | null
   readonly isBusy: boolean
   /** 标题栏右侧的页面操作（如传输页的游戏设置、备份入口）。 */
   readonly headerAction: ReactNode
@@ -110,7 +110,7 @@ export function DesktopShell({
             {error && (
               <Alert
                 type="error"
-                title={error}
+                title={<ErrorText error={error} context={null} />}
                 showIcon
                 closable={{ onClose: onCloseError }}
                 action={

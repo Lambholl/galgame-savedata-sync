@@ -24,7 +24,7 @@ final class SyncJobModel {
             Map<String, Object> game = shape(item, "id", "name", "root"); require(ids.add(id(game.get("id")))); text(game.get("name"));
             if (expected.equals(game.get("id"))) found = game;
         }
-        if (found == null) throw new ArchiveFailure("session-mismatch", "已连接目录表中的项目已变化"); return found;
+        if (found == null) throw new ArchiveFailure("session-mismatch", "A project in the connected catalog changed."); return found;
     }
     private static boolean linked(Object raw, Object local, Object remote) throws Exception {
         boolean found = false; Set<String> ids = new HashSet<>(); List<Object> links = list(raw); require(links.size() <= 128);
@@ -43,7 +43,7 @@ final class SyncJobModel {
             String device = string(binding.get(isLocal ? "localDeviceId" : "remoteDeviceId"));
             TransferSchema.roots(java.util.Collections.singletonList(root), device);
             if (!root.get("rootId").equals(binding.get(isLocal ? "localRootId" : "remoteRootId")) || !root.get("authorization").equals("granted")) {
-                throw new ArchiveFailure("authorization-expired", "项目目录授权或绑定已变化");
+                throw new ArchiveFailure("authorization-expired", "Project directory authorization or binding changed.");
             }
         }
         if (!linked(hello.get("links"), binding.get("projectId"), binding.get("remoteProjectId")) ||

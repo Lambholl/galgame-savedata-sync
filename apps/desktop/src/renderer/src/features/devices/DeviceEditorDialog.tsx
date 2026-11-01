@@ -1,4 +1,5 @@
 import { Button, Input, Modal, Space } from 'antd'
+import { useT } from '@savedata-sync/shared/ui'
 
 export function DeviceEditorDialog({
   isOpen,
@@ -21,19 +22,21 @@ export function DeviceEditorDialog({
   readonly onSave: () => void
   readonly onRemove: () => void
 }): React.JSX.Element {
+  const t = useT()
   return (
     <Modal
-      title="管理设备"
+      title={t('device.manage')}
       open={isOpen}
       confirmLoading={isBusy}
-      okText="保存"
+      okText={t('common.save')}
+      cancelText={t('common.cancel')}
       onCancel={onCancel}
       onOk={onSave}
       footer={(_, { OkBtn, CancelBtn }) => (
         <>
           {editingDeviceId && (
             <Button danger disabled={isBusy || isActive} onClick={onRemove}>
-              移除设备
+              {t('device.removeTitle')}
             </Button>
           )}
           <OkBtn />
@@ -44,7 +47,7 @@ export function DeviceEditorDialog({
       <Space orientation="vertical" className="library-full">
         {editingDeviceId && (
           <label className="library-field">
-            设备名称
+            {t('device.name')}
             <Input
               value={deviceName}
               maxLength={128}

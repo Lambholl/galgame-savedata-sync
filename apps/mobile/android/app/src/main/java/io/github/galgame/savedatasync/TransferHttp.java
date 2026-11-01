@@ -93,7 +93,7 @@ interface TransferHttp {
                 }
                 if (timedOut || cause instanceof java.net.SocketTimeoutException) return new ArchiveFailure("timeout", "timeout", false, cause);
                 if (cause instanceof ArchiveFailure) return (ArchiveFailure) cause;
-                return new ArchiveFailure("network-failure", "网络连接中断，请查询并核实实际结果", false, cause);
+                return new ArchiveFailure("network-failure", "The network connection was interrupted. Query and verify the actual result.", false, cause);
             }
             InputStream ownedInput(InputStream input) {
                 Thread owner = Thread.currentThread();

@@ -25,16 +25,16 @@ public class SyncWritesPlugin extends Plugin {
         try {
             controls.execute(() -> {
                 try {
-                    if (destroyed) throw new ArchiveFailure("unsupported-operation", "恢复桥已关闭");
+                    if (destroyed) throw new ArchiveFailure("unsupported-operation", "The restore bridge is closed.");
                     Object value = work.run(SafRuntime.writes(getContext()));
                     call.resolve(new JSObject(new String(bytes(object("status", "success", "value", value)), StandardCharsets.UTF_8)));
                 } catch (Exception cause) {
                     ArchiveFailure failure = ArchiveFailure.from(cause);
                     try { call.resolve(new JSObject(new String(bytes(object("status", "error", "error", object("code", failure.code, "message", failure.getMessage(), "canRetry", false))), StandardCharsets.UTF_8))); }
-                    catch (Exception invalid) { call.resolve(new SafFailure("io-failure", "恢复响应无效", invalid).result()); }
+                    catch (Exception invalid) { call.resolve(new SafFailure("io-failure", "The restore response is invalid.", invalid).result()); }
                 }
             });
-        } catch (java.util.concurrent.RejectedExecutionException cause) { call.resolve(new SafFailure("unsupported-operation", "恢复桥已关闭", cause).result()); }
+        } catch (java.util.concurrent.RejectedExecutionException cause) { call.resolve(new SafFailure("unsupported-operation", "The restore bridge is closed.", cause).result()); }
     }
     @PluginMethod public void bindProject(PluginCall call) { submit(call, runtime -> {
         Map<String, Object> value = arguments(call, "projectId", "rootId"); runtime.bindProject(id(value.get("projectId")), id(value.get("rootId"))); return null;
@@ -51,7 +51,7 @@ public class SyncWritesPlugin extends Plugin {
     @PluginMethod public void cancel(PluginCall call) { submit(call, runtime -> runtime.cancel(id(arguments(call, "restoreId").get("restoreId")))); }
     @PluginMethod public void release(PluginCall call) { submit(call, runtime -> { runtime.release(id(arguments(call, "restoreId").get("restoreId"))); return null; }); }
     @PluginMethod public void retryCleanup(PluginCall call) { submit(call, runtime -> {
-        arguments(call); if (!runtime.retryCleanup()) throw new ArchiveFailure("cleanup-failed", "恢复资源尚未完整释放"); return null;
+        arguments(call); if (!runtime.retryCleanup()) throw new ArchiveFailure("cleanup-failed", "Restore resources have not been fully released."); return null;
     }); }
     @Override protected void handleOnDestroy() { destroyed = true; controls.shutdownNow(); }
 }

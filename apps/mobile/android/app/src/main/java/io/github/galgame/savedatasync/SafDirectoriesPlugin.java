@@ -42,7 +42,7 @@ public class SafDirectoriesPlugin extends Plugin {
                 signals.add(signal);
                 try {
                     if (destroyed) {
-                        throw new SafFailure("unsupported-operation", "目录服务已关闭");
+                        throw new SafFailure("unsupported-operation", "The directory service is closed.");
                     }
                     JSObject result = work.run(signal);
                     if (result != null) {
@@ -57,13 +57,13 @@ public class SafDirectoriesPlugin extends Plugin {
                 }
             });
         } catch (RejectedExecutionException cause) {
-            call.resolve(new SafFailure("io-failure", "应用已关闭，请重新打开", cause).result());
+            call.resolve(new SafFailure("io-failure", "The app is closed. Open it again.", cause).result());
         }
     }
 
     private boolean noArguments(PluginCall call) {
         if (call.getData().length() == 0) return true;
-        call.resolve(new SafFailure("invalid-request", "不接受额外参数").result());
+        call.resolve(new SafFailure("invalid-request", "Extra parameters are not accepted.").result());
         return false;
     }
 
@@ -79,7 +79,7 @@ public class SafDirectoriesPlugin extends Plugin {
     public void chooseDirectory(PluginCall call) {
         if (!noArguments(call)) return;
         if (destroyed || !choosing.compareAndSet(false, true)) {
-            call.resolve(new SafFailure("unsupported-operation", "请先完成当前目录选择").result());
+            call.resolve(new SafFailure("unsupported-operation", "Complete the current directory selection first.").result());
             return;
         }
         // 启动可授予权限的选择器前，先校验登记表。
@@ -115,7 +115,7 @@ public class SafDirectoriesPlugin extends Plugin {
         }
         Intent data = activityResult.getData();
         if (activityResult.getResultCode() != Activity.RESULT_OK || data == null || data.getData() == null) {
-            call.resolve(new SafFailure("permission-denied", "系统未返回有效的目录授权").result());
+            call.resolve(new SafFailure("permission-denied", "The system did not return valid directory authorization.").result());
             return;
         }
         // 系统结果直接登记授权，不根据 Activity 可见状态决定是否接收。
@@ -141,7 +141,7 @@ public class SafDirectoriesPlugin extends Plugin {
         Object parent = data.opt("parentId");
         if (data.length() != 2 || !SafValues.isId(root) ||
             (parent != JSONObject.NULL && !SafValues.isId(parent))) {
-            call.resolve(new SafFailure("invalid-request", "目录读取参数无效").result());
+            call.resolve(new SafFailure("invalid-request", "Directory read parameters are invalid.").result());
             return;
         }
         submit(call, signal -> success(store().listDirectory(

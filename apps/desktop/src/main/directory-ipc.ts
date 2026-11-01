@@ -27,7 +27,11 @@ export function isTrustedDirectorySender(
 function invalidRequest(): { status: 'error'; error: OperationError } {
   return {
     status: 'error',
-    error: { code: 'invalid-request', message: '目录请求参数无效。', canRetry: false },
+    error: {
+      code: 'invalid-request',
+      message: 'Directory request parameters are invalid.',
+      canRetry: false,
+    },
   }
 }
 
@@ -45,7 +49,7 @@ export function registerDirectoryIpc(
     status: 'error' as const,
     error: {
       code: 'permission-denied' as const,
-      message: '不允许此页面访问本地目录。',
+      message: 'This page is not allowed to access local directories.',
       canRetry: false,
     },
   }

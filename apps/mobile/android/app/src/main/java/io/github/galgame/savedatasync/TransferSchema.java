@@ -96,7 +96,7 @@ final class TransferSchema {
         return e;
     }
     static Map<String, Object> error(String code) { return object("code", code, "message",
-        "insufficient-space".equals(code) ? "设备可用空间不足，请释放空间后重新发起传输" : "传输未完成，请核实本次目录与实际结果", "canRetry", false); }
+        "insufficient-space".equals(code) ? "The device has insufficient free space. Free up space and start the transfer again." : "The transfer is incomplete. Verify the directory and actual result.", "canRetry", false); }
     static Object unwrap(Object value) throws ArchiveFailure {
         Map<String, Object> m = map(value);
         if ("error".equals(m.get("status"))) {

@@ -79,7 +79,7 @@ export class WindowsSyncScanner {
       [this.retentionMs, SYNC_LIMITS.snapshotLifetimeMs],
     ] as const) {
       if (!Number.isSafeInteger(value) || value < 1 || value > maximum) {
-        throw new HttpOperationError('invalid-request', '扫描预算无效。')
+        throw new HttpOperationError('invalid-request', 'The scan budget is invalid.')
       }
     }
   }
@@ -87,13 +87,16 @@ export class WindowsSyncScanner {
   /** 先登记任务再异步读取，非法根由原生适配器返回具体错误。 */
   start(rootId: string): SyncScanState {
     if (!isOpaqueId(rootId)) {
-      throw new HttpOperationError('invalid-request', '扫描目录引用无效。')
+      throw new HttpOperationError('invalid-request', 'The scan directory reference is invalid.')
     }
     if (this.isClosed || this.active) {
-      throw new HttpOperationError('busy', '扫描器已停止或已有扫描正在进行。')
+      throw new HttpOperationError('busy', 'The scanner stopped or another scan is running.')
     }
     if (this.jobs.size >= SYNC_LIMITS.maxRetainedScans) {
-      throw new HttpOperationError('resource-limit', '扫描结果数量已达上限，请稍后重新扫描。')
+      throw new HttpOperationError(
+        'resource-limit',
+        'The scan result limit has been reached. Scan again later.',
+      )
     }
     const scanId = randomUUID()
     const controller = new AbortController()
@@ -104,7 +107,7 @@ export class WindowsSyncScanner {
       startedAt: performance.now(),
       entries: [],
       timeout: setTimeout(
-        () => controller.abort(new HttpOperationError('timeout', '当前扫描超时。')),
+        () => controller.abort(new HttpOperationError('timeout', 'The current scan timed out.')),
         this.timeoutMs,
       ),
       state: {
@@ -145,7 +148,7 @@ export class WindowsSyncScanner {
     const job = this.find(scanId)
     if (job.state.status === 'running') {
       job.hasCancelled = true
-      job.controller.abort(new HttpOperationError('io-failure', '扫描已取消。'))
+      job.controller.abort(new HttpOperationError('io-failure', 'The scan was cancelled.'))
     }
     return structuredClone(job.state)
   }
@@ -168,11 +171,11 @@ export class WindowsSyncScanner {
 
   private find(scanId: string): ScanJob {
     if (!isOpaqueId(scanId)) {
-      throw new HttpOperationError('invalid-request', '扫描引用无效。')
+      throw new HttpOperationError('invalid-request', 'The scan reference is invalid.')
     }
     const job = this.jobs.get(scanId)
     if (!job) {
-      throw new HttpOperationError('not-found', '扫描不存在或已过期，请重新扫描。')
+      throw new HttpOperationError('not-found', 'The scan does not exist or expired. Scan again.')
     }
     return job
   }
@@ -182,7 +185,7 @@ export class WindowsSyncScanner {
       throw job.controller.signal.reason
     }
     if (performance.now() - job.startedAt >= this.timeoutMs) {
-      throw new HttpOperationError('timeout', '当前扫描超时。')
+      throw new HttpOperationError('timeout', 'The current scan timed out.')
     }
   }
 
@@ -204,10 +207,10 @@ export class WindowsSyncScanner {
       this.check(job)
       const snapshot = this.snapshot(job, null)
       if (!isSyncSnapshot(snapshot)) {
-        throw new HttpOperationError('io-failure', '扫描结果格式无效。')
+        throw new HttpOperationError('io-failure', 'The scan result format is invalid.')
       }
       if (Buffer.byteLength(JSON.stringify(snapshot), 'utf8') > BATCH_LIMITS.maxJsonBytes - 4096) {
-        throw new HttpOperationError('resource-limit', '扫描清单超过传输限制。')
+        throw new HttpOperationError('resource-limit', 'The scan manifest exceeds transfer limits.')
       }
       job.state = { ...job.state, status: 'succeeded', snapshot }
     } catch (cause) {
@@ -252,7 +255,10 @@ export class WindowsSyncScanner {
       this.check(job)
       const path = [...parentPath, entry.name]
       if (!isSyncPath(path) || job.entries.length >= this.maxEntries) {
-        throw new HttpOperationError('resource-limit', '扫描条目、名称或目录深度超过限制。')
+        throw new HttpOperationError(
+          'resource-limit',
+          'Scan entries, names, or directory depth exceed the limit.',
+        )
       }
       const index = job.entries.length
       job.entries.push({
@@ -286,7 +292,10 @@ export class WindowsSyncScanner {
       throw new HttpOperationError(after.error.code, after.error.message)
     }
     if (listingKey(before.value) !== listingKey(after.value)) {
-      throw new HttpOperationError('source-changed', '目录在扫描期间变化，请重新扫描。')
+      throw new HttpOperationError(
+        'source-changed',
+        'The directory changed during the scan. Scan again.',
+      )
     }
   }
 
@@ -308,19 +317,25 @@ export class WindowsSyncScanner {
         metadata.sizeBytes !== entry.sizeBytes ||
         metadata.modifiedAt !== entry.modifiedAt
       ) {
-        throw new HttpOperationError('source-changed', '文件在扫描前变化，请重新扫描。')
+        throw new HttpOperationError(
+          'source-changed',
+          'The file changed before scanning. Scan again.',
+        )
       }
       const hash = createHash('sha256')
       let sizeBytes = 0
       for await (const chunk of stream as AsyncIterable<unknown>) {
         this.check(job)
         if (!Buffer.isBuffer(chunk)) {
-          throw new HttpOperationError('io-failure', '文件读取流格式无效。')
+          throw new HttpOperationError('io-failure', 'The file read stream format is invalid.')
         }
         sizeBytes += chunk.length
         const bytesRead = job.state.bytesRead + chunk.length
         if (!Number.isSafeInteger(sizeBytes) || !Number.isSafeInteger(bytesRead)) {
-          throw new HttpOperationError('resource-limit', '读取字节数超过可表示范围。')
+          throw new HttpOperationError(
+            'resource-limit',
+            'The number of bytes read exceeds the representable range.',
+          )
         }
         job.state = { ...job.state, bytesRead }
         hash.update(chunk)
@@ -328,7 +343,10 @@ export class WindowsSyncScanner {
       await verifyUnchanged()
       this.check(job)
       if (metadata.sizeBytes !== null && metadata.sizeBytes !== sizeBytes) {
-        throw new HttpOperationError('source-changed', '文件实测长度与当前属性不一致。')
+        throw new HttpOperationError(
+          'source-changed',
+          'The measured file length does not match its current attributes.',
+        )
       }
       return {
         entryId: entry.entryId,

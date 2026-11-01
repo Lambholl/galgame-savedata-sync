@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { createTranslator } from '@savedata-sync/shared'
 import { I18nProvider } from '@savedata-sync/shared/ui'
 import { DesktopApp } from './DesktopApp.tsx'
 import { useAppPreferences } from './use-app-preferences.ts'
@@ -8,6 +9,7 @@ export function DesktopRoot(): React.JSX.Element {
   const appPreferences = useAppPreferences()
   useEffect(() => {
     document.documentElement.lang = appPreferences.locale
+    document.title = createTranslator(appPreferences.locale)('app.name')
   }, [appPreferences.locale])
   return (
     <I18nProvider locale={appPreferences.locale}>

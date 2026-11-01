@@ -71,16 +71,19 @@ function isCacheName(name: string): boolean {
 async function readMarker(path: string): Promise<Record<string, unknown>> {
   const stats = await lstat(path)
   if (!stats.isFile() || stats.isSymbolicLink() || stats.nlink !== 1 || stats.size > 256) {
-    throw new ArchiveError('cleanup-failed', '缓存所有权记录无效，停止访问。')
+    throw new ArchiveError(
+      'cleanup-failed',
+      'The cache ownership record is invalid. Access stopped.',
+    )
   }
   let value: unknown
   try {
     value = JSON.parse(await readFile(path, 'utf8'))
   } catch (error) {
-    throw new ArchiveError('cleanup-failed', '缓存所有权记录无法解析。', error)
+    throw new ArchiveError('cleanup-failed', 'The cache ownership record cannot be parsed.', error)
   }
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
-    throw new ArchiveError('cleanup-failed', '缓存所有权记录无效。')
+    throw new ArchiveError('cleanup-failed', 'The cache ownership record is invalid.')
   }
   return value as Record<string, unknown>
 }
@@ -131,11 +134,11 @@ export class ArchiveCacheJob {
       bytes < 0 ||
       this.bytes + bytes > this.cache.quota.maxCacheBytes
     ) {
-      throw new ArchiveError('resource-limit', '私有缓存超过资源预算。')
+      throw new ArchiveError('resource-limit', 'The private cache exceeds the resource budget.')
     }
     const available = await this.cache.io.availableBytes(this.path)
     if (available < BigInt(bytes)) {
-      throw new ArchiveError('insufficient-space', '私有缓存空间不足。')
+      throw new ArchiveError('insufficient-space', 'Private cache space is insufficient.')
     }
     this.bytes += bytes
   }
@@ -144,7 +147,7 @@ export class ArchiveCacheJob {
   async writer(name: string): Promise<WriteStream> {
     await this.inspect()
     if (!isCacheName(name) || name === 'job.json') {
-      throw new ArchiveError('invalid-request', '私有缓存文件名无效。')
+      throw new ArchiveError('invalid-request', 'The private cache file name is invalid.')
     }
     return createWriteStream(join(this.path, name), {
       flags: 'wx',
@@ -160,15 +163,15 @@ export class ArchiveCacheJob {
   ): Promise<ReadStream> {
     await this.inspect()
     if (!isCacheName(name) || name === 'job.json') {
-      throw new ArchiveError('invalid-request', '私有缓存引用无效。')
+      throw new ArchiveError('invalid-request', 'The private cache reference is invalid.')
     }
     const path = join(this.path, name)
     const stats = await lstat(path)
     if (!stats.isFile() || stats.isSymbolicLink() || stats.nlink !== 1) {
-      throw new ArchiveError('path-outside-root', '私有缓存文件身份无效。')
+      throw new ArchiveError('path-outside-root', 'The private cache file identity is invalid.')
     }
     if (this.isCleaned || this.cleaning) {
-      throw new ArchiveError('task-conflict', '缓存已经释放或正在清理。')
+      throw new ArchiveError('task-conflict', 'The cache has been released or is being cleaned up.')
     }
     const stream = createReadStream(path, {
       highWaterMark: BATCH_RESOURCES.maxBufferBytes,
@@ -182,14 +185,17 @@ export class ArchiveCacheJob {
   /** 校验根、任务目录身份及标记；不承诺对抗外部恶意并发命名空间替换。 */
   async inspect(): Promise<void> {
     if (this.isCleaned || this.cleaning) {
-      throw new ArchiveError('task-conflict', '私有缓存已经释放或正在清理。')
+      throw new ArchiveError(
+        'task-conflict',
+        'The private cache has been released or is being cleaned up.',
+      )
     }
     await this.cache.inspect()
     if (
       !isWithinDirectory(this.cache.path, this.path) ||
       !hasSameIdentity(await inspectLocalPath(this.path), this.identity)
     ) {
-      throw new ArchiveError('path-outside-root', '任务缓存目录身份发生变化。')
+      throw new ArchiveError('path-outside-root', 'The task cache directory identity changed.')
     }
     if (this.isMarkerWritten) {
       const marker = await readMarker(join(this.path, 'job.json'))
@@ -198,7 +204,7 @@ export class ArchiveCacheJob {
         marker.ownerId !== this.cache.ownerId ||
         marker.jobId !== this.jobId
       ) {
-        throw new ArchiveError('cleanup-failed', '任务缓存所有权不匹配。')
+        throw new ArchiveError('cleanup-failed', 'The task cache ownership does not match.')
       }
     }
   }
@@ -212,7 +218,10 @@ export class ArchiveCacheJob {
       return this.cleaning
     }
     if (this.isBusy || this.readers.size > 0) {
-      throw new ArchiveError('busy', '请先停止归档操作并关闭缓存读流。')
+      throw new ArchiveError(
+        'busy',
+        'Stop the archive operation and close cache read streams first.',
+      )
     }
     // 在第一个 await 返回前发布清理 Promise，让并发 dispose 共享同一次操作。
     this.cleaning = this.removeVerifiedFiles()
@@ -226,7 +235,7 @@ export class ArchiveCacheJob {
         (error: unknown) => {
           throw new ArchiveError(
             'cleanup-failed',
-            '私有缓存清理失败，保留所有权记录以便重试。',
+            'Private cache cleanup failed. The ownership record is retained for retry.',
             error,
           )
         },
@@ -243,7 +252,10 @@ export class ArchiveCacheJob {
     for (const name of names) {
       const stats = await lstat(join(this.path, name))
       if (!isCacheName(name) || !stats.isFile() || stats.isSymbolicLink() || stats.nlink !== 1) {
-        throw new ArchiveError('cleanup-failed', '缓存包含未确认归属的条目，停止清理。')
+        throw new ArchiveError(
+          'cleanup-failed',
+          'The cache contains entries with unconfirmed ownership. Cleanup stopped.',
+        )
       }
     }
     for (const name of names.filter((name) => name !== 'job.json')) {
@@ -289,7 +301,10 @@ export class ArchiveCache {
         this.quota[key] <= 0 ||
         this.quota[key] > DEFAULT_QUOTA[key]
       ) {
-        throw new ArchiveError('invalid-request', '本机归档预算只能收紧，不能放宽。')
+        throw new ArchiveError(
+          'invalid-request',
+          'The local archive budget can only be tightened, not relaxed.',
+        )
       }
     }
     this.io = { ...DEFAULT_IO, ...options.io }
@@ -299,19 +314,19 @@ export class ArchiveCache {
   async inspect(): Promise<void> {
     this.assertIsolated(this.path)
     if (!hasSameIdentity(await inspectLocalPath(this.path), this.identity)) {
-      throw new ArchiveError('path-outside-root', '缓存根目录身份发生变化。')
+      throw new ArchiveError('path-outside-root', 'The cache root directory identity changed.')
     }
   }
 
   /** 原子领取进程内互斥并创建随机任务目录；不是持久化传输账本。 */
   async createJob(): Promise<ArchiveCacheJob> {
     if (activeJob) {
-      throw new ArchiveError('busy', '已有归档任务或未释放的缓存。')
+      throw new ArchiveError('busy', 'An archive task or unreleased cache already exists.')
     }
     await this.inspect()
     // inspect 的 await 之后再次检查，避免并发调用同时取得互斥。
     if (activeJob) {
-      throw new ArchiveError('busy', '已有归档任务或未释放的缓存。')
+      throw new ArchiveError('busy', 'An archive task or unreleased cache already exists.')
     }
     const jobId = randomUUID()
     const path = join(this.path, `job-${jobId}`)
@@ -335,7 +350,11 @@ export class ArchiveCache {
         try {
           await job.dispose()
         } catch (cleanup) {
-          throw new ArchiveError('cleanup-failed', '缓存初始化失败且无法清理。', cleanup)
+          throw new ArchiveError(
+            'cleanup-failed',
+            'Cache initialization failed and cleanup was unsuccessful.',
+            cleanup,
+          )
         }
         throw error
       }
@@ -343,7 +362,11 @@ export class ArchiveCache {
     } catch (error) {
       if (activeJob === placeholder) {
         if (wasDirectoryCreated) {
-          throw new ArchiveError('cleanup-failed', '已创建缓存但无法核实身份，停止新任务。', error)
+          throw new ArchiveError(
+            'cleanup-failed',
+            'The cache was created but its identity could not be verified. New tasks stopped.',
+            error,
+          )
         }
         activeJob = null
       }
@@ -354,7 +377,7 @@ export class ArchiveCache {
   /** 调用失败遗留缓存的显式重试；正在操作/仍有读流时拒绝清理。 */
   async retryCleanup(): Promise<void> {
     if (activeJob && !isWithinDirectory(this.path, activeJob.path)) {
-      throw new ArchiveError('busy', '另一个缓存根仍有活动任务。')
+      throw new ArchiveError('busy', 'Another cache root still has an active task.')
     }
     if (activeJob) {
       await activeJob.dispose()
@@ -373,10 +396,13 @@ export async function createArchiveCache(
   options: ArchiveCacheOptions = {},
 ): Promise<ArchiveCache> {
   if (activeJob) {
-    throw new ArchiveError('busy', '已有归档任务尚未释放。')
+    throw new ArchiveError('busy', 'An archive task has not yet been released.')
   }
   if (!isAbsolute(privateDirectory)) {
-    throw new ArchiveError('invalid-request', '缓存位置必须为应用私有绝对目录。')
+    throw new ArchiveError(
+      'invalid-request',
+      'The cache location must be an absolute path in app-private storage.',
+    )
   }
   await inspectLocalPath(privateDirectory)
   const parent = await realpath(privateDirectory)
@@ -393,7 +419,7 @@ export async function createArchiveCache(
   }
   const stats = await inspectLocalPath(path)
   if (!stats.isDirectory()) {
-    throw new ArchiveError('invalid-request', '缓存根不是目录。')
+    throw new ArchiveError('invalid-request', 'The cache root is not a directory.')
   }
   const markerPath = join(path, 'cache-root.json')
   if (wasCreated) {
@@ -410,7 +436,7 @@ export async function createArchiveCache(
     marker.version !== 1 ||
     !isOpaqueId(marker.ownerId)
   ) {
-    throw new ArchiveError('cleanup-failed', '缓存根所有权记录不匹配。')
+    throw new ArchiveError('cleanup-failed', 'The cache root ownership record does not match.')
   }
   const cache = new ArchiveCache(
     path,
@@ -425,12 +451,15 @@ export async function createArchiveCache(
     }
     const match = /^job-([0-9a-f-]{36})$/.exec(name)
     if (!match?.[1]) {
-      throw new ArchiveError('cleanup-failed', '缓存根存在未确认归属的条目。')
+      throw new ArchiveError(
+        'cleanup-failed',
+        'The cache root contains entries with unconfirmed ownership.',
+      )
     }
     const jobPath = join(path, name)
     const jobStats = await inspectLocalPath(jobPath)
     if (!jobStats.isDirectory()) {
-      throw new ArchiveError('cleanup-failed', '孤儿缓存类型无效。')
+      throw new ArchiveError('cleanup-failed', 'An orphaned cache has an invalid type.')
     }
     const job = new ArchiveCacheJob(cache, jobPath, match[1], getFileIdentity(jobStats))
     job.markOrphan()

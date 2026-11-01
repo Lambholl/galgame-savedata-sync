@@ -1,4 +1,5 @@
 import { Modal, Select } from 'antd'
+import { useT } from '@savedata-sync/shared/ui'
 
 export interface ImportGameOption {
   readonly value: string
@@ -22,11 +23,13 @@ export function ImportGameDialog({
   readonly onCancel: () => void
   readonly onImport: () => void
 }): React.JSX.Element {
+  const t = useT()
   return (
     <Modal
-      title="从设备导入游戏"
+      title={t('game.importTitle')}
       open={isOpen}
-      okText="导入"
+      okText={t('game.import')}
+      cancelText={t('common.cancel')}
       okButtonProps={{ disabled: !importKey }}
       confirmLoading={isBusy}
       onCancel={onCancel}
@@ -34,9 +37,9 @@ export function ImportGameDialog({
     >
       <Select
         className="library-full"
-        aria-label="导入游戏"
+        aria-label={t('game.import')}
         value={importKey || null}
-        placeholder="选择游戏"
+        placeholder={t('game.pickGame')}
         options={[...options]}
         onChange={onImportKeyChange}
       />

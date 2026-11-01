@@ -82,14 +82,14 @@ function cleanupFailure(error: unknown): KnownOperationError {
   const failure = toArchiveError(error)
   return {
     code: 'cleanup-failed',
-    message: '备份轮换或残留清理失败。',
+    message: 'Backup rotation or leftover cleanup failed.',
     canRetry: false,
     ...(failure instanceof ArchiveError ? { message: failure.operationError.message } : {}),
   }
 }
 function required<T>(value: T | null | undefined): T {
   if (value === null || value === undefined) {
-    throw new ArchiveError('invalid-request', '备份上下文不完整。')
+    throw new ArchiveError('invalid-request', 'The backup context is incomplete.')
   }
   return value
 }
@@ -99,14 +99,17 @@ function targetFile(
 ): SyncEntry & { sizeBytes: number; sha256: string } {
   const entry = required(plan.target.entries.find((item) => item.entryId === entryId))
   if (entry.kind !== 'file' || entry.sizeBytes === null || entry.sha256 === null) {
-    throw new ArchiveError('invalid-request', '被覆盖文件缺少完整内容指纹。')
+    throw new ArchiveError(
+      'invalid-request',
+      'A file to be overwritten lacks a complete content fingerprint.',
+    )
   }
   return { ...entry, sizeBytes: entry.sizeBytes, sha256: entry.sha256 }
 }
 function operationSignal(controller: AbortController, options: WindowsBackupOptions): AbortSignal {
   const timeoutMs = options.timeoutMs ?? SYNC_LIMITS.scanTimeoutMs
   if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > SYNC_LIMITS.scanTimeoutMs) {
-    throw new ArchiveError('invalid-request', '备份期限无效。')
+    throw new ArchiveError('invalid-request', 'The backup deadline is invalid.')
   }
   return AbortSignal.any([
     controller.signal,
@@ -116,7 +119,10 @@ function operationSignal(controller: AbortController, options: WindowsBackupOpti
 }
 function group(projectId: string, rootId: string): void {
   if (!isOpaqueId(projectId) || !isOpaqueId(rootId)) {
-    throw new ArchiveError('invalid-request', '备份项目或目录引用无效。')
+    throw new ArchiveError(
+      'invalid-request',
+      'The backup project or directory reference is invalid.',
+    )
   }
 }
 function isMissing(error: unknown): boolean {
@@ -150,7 +156,7 @@ export class WindowsBackupHandle {
   }
   snapshot(): SyncSnapshot {
     if (this.isReleased) {
-      throw new ArchiveError('not-found', '备份材料已释放。')
+      throw new ArchiveError('not-found', 'The backup material has been released.')
     }
     const manifest = this.manifest
     const entries = new Map<string, SyncEntry>()
@@ -160,7 +166,10 @@ export class WindowsBackupHandle {
           key = syncPathKey(path)
         if (!entries.has(key)) {
           if (entries.size >= SYNC_LIMITS.maxEntries) {
-            throw new ArchiveError('resource-limit', '备份目录树超过恢复限制。')
+            throw new ArchiveError(
+              'resource-limit',
+              'The backup directory tree exceeds restore limits.',
+            )
           }
           entries.set(key, {
             entryId: `d${entries.size + 1}`,
@@ -174,7 +183,10 @@ export class WindowsBackupHandle {
         }
       }
       if (entries.size >= SYNC_LIMITS.maxEntries) {
-        throw new ArchiveError('resource-limit', '备份目录树超过恢复限制。')
+        throw new ArchiveError(
+          'resource-limit',
+          'The backup directory tree exceeds restore limits.',
+        )
       }
       entries.set(syncPathKey(file.path), {
         entryId: file.fileId,
@@ -196,7 +208,7 @@ export class WindowsBackupHandle {
       entries: [...entries.values()].sort((a, b) => compareSyncPaths(a.path, b.path)),
     }
     if (!isSyncSnapshot(snapshot)) {
-      throw new ArchiveError('resource-limit', '备份目录树超过恢复限制。')
+      throw new ArchiveError('resource-limit', 'The backup directory tree exceeds restore limits.')
     }
     return snapshot
   }
@@ -205,11 +217,11 @@ export class WindowsBackupHandle {
     fileId: string,
   ): Promise<{ stream: Readable; verifyUnchanged: () => Promise<void> }> {
     if (this.isReleased) {
-      throw new ArchiveError('not-found', '备份材料已释放。')
+      throw new ArchiveError('not-found', 'The backup material has been released.')
     }
     const file = required(this.round.manifest).files.find((item) => item.fileId === fileId)
     if (!file) {
-      throw new ArchiveError('not-found', '备份文件引用不存在。')
+      throw new ArchiveError('not-found', 'The backup file reference does not exist.')
     }
     await this.store.inspectRound(this.round)
     const value = await openBackupFile(
@@ -219,7 +231,7 @@ export class WindowsBackupHandle {
     if (this.isReleased) {
       value.stream.destroy()
       await finished(value.stream).catch(() => {})
-      throw new ArchiveError('not-found', '备份材料已释放。')
+      throw new ArchiveError('not-found', 'The backup material has been released.')
     }
     this.readers.add(value.stream)
     value.stream.once('close', () => this.readers.delete(value.stream))
@@ -234,7 +246,7 @@ export class WindowsBackupHandle {
   /** 释放后重新尝试轮换；清理错误不改写备份或恢复结果。 */
   async release(): Promise<KnownOperationError | null> {
     if (this.readers.size) {
-      throw new ArchiveError('busy', '请先关闭备份读流。')
+      throw new ArchiveError('busy', 'Close backup read streams first.')
     }
     if (this.isReleased) {
       return null
@@ -276,7 +288,7 @@ export class WindowsBackupStore {
     const next = this.queue
       .then(() => {
         if (this.isClosed) {
-          throw new ArchiveError('busy', '备份存储已关闭。')
+          throw new ArchiveError('busy', 'The backup store is closed.')
         }
         return work()
       })
@@ -292,7 +304,7 @@ export class WindowsBackupStore {
   private async inspect(): Promise<void> {
     this.source.assertCacheIsolated(this.path)
     if (!hasSameIdentity(await inspectLocalPath(this.path), this.identity)) {
-      throw new ArchiveError('source-changed', '备份目录身份已变化。')
+      throw new ArchiveError('source-changed', 'The backup directory identity changed.')
     }
     const marker = await readBackupJson(join(this.path, 'owner.json'))
     if (
@@ -306,7 +318,7 @@ export class WindowsBackupStore {
       marker.schemaVersion !== 1 ||
       Object.keys(marker).length !== 3
     ) {
-      throw new ArchiveError('permission-denied', '备份目录归属无效。')
+      throw new ArchiveError('permission-denied', 'The backup directory ownership is invalid.')
     }
   }
   /** 同包恢复句柄每次读取前核对根、轮次身份和所有权。 */
@@ -319,7 +331,7 @@ export class WindowsBackupStore {
         JSON.stringify(await readBackupJson(join(path, 'round.json'))) !==
           JSON.stringify(round.marker))
     ) {
-      throw new ArchiveError('source-changed', '备份轮次身份或归属已变化。')
+      throw new ArchiveError('source-changed', 'The backup version identity or ownership changed.')
     }
   }
   private async rounds(): Promise<BackupRound[]> {
@@ -327,7 +339,7 @@ export class WindowsBackupStore {
     const result: BackupRound[] = [],
       names = await readdir(this.path)
     if (names.length > 4096) {
-      throw new ArchiveError('resource-limit', '备份轮次数量超过限制。')
+      throw new ArchiveError('resource-limit', 'The number of backup versions exceeds the limit.')
     }
     for (const name of names) {
       if (
@@ -337,12 +349,15 @@ export class WindowsBackupStore {
         continue
       }
       if (!ROUND_ID.test(name)) {
-        throw new ArchiveError('invalid-request', '备份目录含未知条目，请手工检查。')
+        throw new ArchiveError(
+          'invalid-request',
+          'The backup directory contains unknown entries. Inspect it manually.',
+        )
       }
       const path = join(this.path, name),
         stats = await inspectLocalPath(path)
       if (!stats.isDirectory()) {
-        throw new ArchiveError('invalid-request', '备份轮次不是目录。')
+        throw new ArchiveError('invalid-request', 'The backup version is not a directory.')
       }
       const marker: unknown = await readBackupJson(join(path, 'round.json'))
       if (
@@ -360,7 +375,7 @@ export class WindowsBackupStore {
         !isOpaqueId(marker.rootId) ||
         Object.keys(marker).length !== 5
       ) {
-        throw new ArchiveError('permission-denied', '备份轮次归属无效。')
+        throw new ArchiveError('permission-denied', 'The backup version ownership is invalid.')
       }
       let manifest: SyncBackupManifest | null = null
       if (await exists(join(path, 'manifest.json'))) {
@@ -372,12 +387,15 @@ export class WindowsBackupStore {
           value.projectId !== marker.projectId ||
           value.rootId !== marker.rootId
         ) {
-          throw new ArchiveError('invalid-archive', '备份清单损坏或归属不符。')
+          throw new ArchiveError(
+            'invalid-archive',
+            'The backup manifest is damaged or its ownership does not match.',
+          )
         }
         manifest = value
       }
       if (manifest && (await exists(join(path, 'manifest.retired')))) {
-        throw new ArchiveError('invalid-archive', '备份提交状态冲突。')
+        throw new ArchiveError('invalid-archive', 'The backup commit state conflicts.')
       }
       result.push({ marker: marker as RoundMarker, identity: getFileIdentity(stats), manifest })
     }
@@ -409,7 +427,7 @@ export class WindowsBackupStore {
     }
     const value = await readBackupJson(join(this.path, 'settings.json'))
     if (!isSyncBackupSettings(value)) {
-      throw new ArchiveError('invalid-request', '备份设置损坏。')
+      throw new ArchiveError('invalid-request', 'Backup settings are damaged.')
     }
     return value
   }
@@ -434,7 +452,7 @@ export class WindowsBackupStore {
   }
   private async writeSettings(settings: SyncBackupSettings): Promise<SyncBackupSettings> {
     if (!isSyncBackupSettings(settings)) {
-      throw new ArchiveError('resource-limit', '备份设置无效或超过限制。')
+      throw new ArchiveError('resource-limit', 'Backup settings are invalid or exceed the limit.')
     }
     const temporary = join(this.path, `settings-${randomUUID()}.tmp`)
     try {
@@ -461,12 +479,15 @@ export class WindowsBackupStore {
     requiredBytes: number,
   ): Promise<{ requiredBytes: number; availableBytes: number | null }> {
     if (!Number.isSafeInteger(requiredBytes) || requiredBytes < 0) {
-      throw new ArchiveError('invalid-request', '备份容量无效。')
+      throw new ArchiveError('invalid-request', 'The backup capacity is invalid.')
     }
     await this.inspect()
     const available = await this.io.availableBytes(this.path)
     if (available !== null && available < BigInt(requiredBytes)) {
-      throw new ArchiveError('insufficient-space', '覆盖前备份空间不足。')
+      throw new ArchiveError(
+        'insufficient-space',
+        'Space is insufficient for a backup before overwriting.',
+      )
     }
     return {
       requiredBytes,
@@ -494,16 +515,25 @@ export class WindowsBackupStore {
       }
       const matches = listed.value.entries.filter((item) => item.name === name)
       if (matches.length !== 1) {
-        throw new ArchiveError('source-changed', '被覆盖文件的目录或名称已变化。')
+        throw new ArchiveError(
+          'source-changed',
+          'The directory or name of a file to be overwritten changed.',
+        )
       }
       const current = required(matches[0])
       if (index < entry.path.length - 1) {
         if (current.kind !== 'directory') {
-          throw new ArchiveError('source-changed', '被覆盖文件的父目录已变化。')
+          throw new ArchiveError(
+            'source-changed',
+            'The parent directory of a file to be overwritten changed.',
+          )
         }
         parentId = current.entryId
       } else if (current.entryId !== entry.entryId || current.kind !== 'file') {
-        throw new ArchiveError('source-changed', '被覆盖文件身份已变化。')
+        throw new ArchiveError(
+          'source-changed',
+          'The identity of a file to be overwritten changed.',
+        )
       }
     }
     const opened = await this.source.openFile({
@@ -516,7 +546,10 @@ export class WindowsBackupStore {
     const { stream, metadata } = opened.value
     try {
       if (metadata.sizeBytes !== entry.sizeBytes || metadata.modifiedAt !== entry.modifiedAt) {
-        throw new ArchiveError('source-changed', '被覆盖文件属性已变化。')
+        throw new ArchiveError(
+          'source-changed',
+          'The attributes of a file to be overwritten changed.',
+        )
       }
       return opened.value
     } catch (error) {
@@ -528,7 +561,10 @@ export class WindowsBackupStore {
   /** 只保存有效计划中将被替换的旧内容；返回 null 表示无备份轮次，绝不写同步目标。 */
   create(plan: SyncPlan, options: WindowsBackupOptions = {}): Promise<WindowsBackupCommit> {
     if (!isSyncPlan(plan) || !plan.canExecute || plan.target.deviceId !== this.source.deviceId) {
-      throw new ArchiveError('invalid-request', '备份计划无效或目标设备不符。')
+      throw new ArchiveError(
+        'invalid-request',
+        'The backup plan is invalid or the target device does not match.',
+      )
     }
     const fixed = structuredClone(plan)
     return this.exclusive(async () => {
@@ -549,7 +585,7 @@ export class WindowsBackupStore {
           return { manifest: null, cleanupError: null }
         }
         if (rounds.some((item) => !item.manifest)) {
-          throw new ArchiveError('cleanup-failed', '请先清理未完成的备份轮次。')
+          throw new ArchiveError('cleanup-failed', 'Clean up incomplete backup versions first.')
         }
         const files: SyncBackupFile[] = replacements.map((entry, index) => {
           const target = targetFile(fixed, entry.targetEntryId)
@@ -576,7 +612,10 @@ export class WindowsBackupStore {
             files,
           }
         if (!isSyncBackupManifest(manifest)) {
-          throw new ArchiveError('resource-limit', '备份清单超过格式或资源限制。')
+          throw new ArchiveError(
+            'resource-limit',
+            'The backup manifest exceeds format or resource limits.',
+          )
         }
         await this.capacity(
           files.reduce((total, file) => total + file.sizeBytes, 0) +
@@ -611,13 +650,16 @@ export class WindowsBackupStore {
                 checkArchiveAbort(signal)
                 const written = await destination.write(chunk, offset, chunk.length - offset)
                 if (written.bytesWritten === 0) {
-                  throw new ArchiveError('io-failure', '备份写入没有进展。')
+                  throw new ArchiveError('io-failure', 'The backup write made no progress.')
                 }
                 offset += written.bytesWritten
               }
             })
             if (value.sizeBytes !== file.sizeBytes || value.sha256 !== file.sha256) {
-              throw new ArchiveError('source-changed', '被覆盖文件内容已变化。')
+              throw new ArchiveError(
+                'source-changed',
+                'The content of a file to be overwritten changed.',
+              )
             }
             await source.verifyUnchanged()
             await this.io.sync(output)
@@ -669,13 +711,13 @@ export class WindowsBackupStore {
     const value = await hashBackupStream(input.stream, file.sizeBytes, signal)
     await input.verify()
     if (value.sizeBytes !== file.sizeBytes || value.sha256 !== file.sha256) {
-      throw new ArchiveError('checksum-mismatch', '备份内容校验失败。')
+      throw new ArchiveError('checksum-mismatch', 'Backup content verification failed.')
     }
   }
   private async remove(round: BackupRound, hasMarker = true): Promise<void> {
     await this.inspectRound(round, hasMarker)
     if ([...this.handles.values()].includes(round.marker.backupId)) {
-      throw new ArchiveError('busy', '备份正在用于恢复。')
+      throw new ArchiveError('busy', 'The backup is being used for a restore.')
     }
     const path = join(this.path, round.marker.backupId),
       names = await readdir(path)
@@ -685,7 +727,10 @@ export class WindowsBackupStore {
         !['round.json', 'manifest.json', 'manifest.pending', 'manifest.retired'].includes(name) &&
         !isBatchFileId(name)
       ) {
-        throw new ArchiveError('cleanup-failed', '备份含未知文件，停止清理。')
+        throw new ArchiveError(
+          'cleanup-failed',
+          'The backup contains unknown files. Cleanup stopped.',
+        )
       }
       identities.set(
         name,
@@ -706,7 +751,7 @@ export class WindowsBackupStore {
       if (
         !hasSameIdentity(await inspectLocalPath(join(path, name)), required(identities.get(name)))
       ) {
-        throw new ArchiveError('cleanup-failed', '清理时备份文件身份变化。')
+        throw new ArchiveError('cleanup-failed', 'A backup file identity changed during cleanup.')
       }
       await unlink(join(path, name))
     }
@@ -758,7 +803,7 @@ export class WindowsBackupStore {
     group(projectId, rootId)
     return this.exclusive(async () => {
       if (this.handles.size >= 32) {
-        throw new ArchiveError('resource-limit', '备份读取引用过多。')
+        throw new ArchiveError('resource-limit', 'Too many backup read references are open.')
       }
       const round = (await this.rounds()).find(
         (item) =>
@@ -768,7 +813,10 @@ export class WindowsBackupStore {
           item.marker.rootId === rootId,
       )
       if (!round) {
-        throw new ArchiveError('not-found', '备份不存在或不属于该项目目录。')
+        throw new ArchiveError(
+          'not-found',
+          'The backup does not exist or does not belong to this project directory.',
+        )
       }
       const controller = new AbortController(),
         signal = operationSignal(controller, options)
@@ -821,10 +869,13 @@ export class WindowsBackupStore {
           item.marker.rootId === rootId,
       )
       if (!round) {
-        throw new ArchiveError('not-found', '未完成备份不存在。')
+        throw new ArchiveError('not-found', 'The incomplete backup does not exist.')
       }
       if (round.manifest) {
-        throw new ArchiveError('permission-denied', '有效备份通过轮换保留，不能当作残留清理。')
+        throw new ArchiveError(
+          'permission-denied',
+          'Valid backups are retained through rotation and cannot be cleaned up as leftovers.',
+        )
       }
       await this.remove(round)
     })
@@ -855,13 +906,13 @@ export async function createWindowsBackupStore(
   io: Partial<BackupDiskIO> = {},
 ): Promise<WindowsBackupStore> {
   if (!isAbsolute(privateDirectory) || !isOpaqueId(source.deviceId)) {
-    throw new ArchiveError('invalid-request', '备份初始化参数无效。')
+    throw new ArchiveError('invalid-request', 'Backup initialization parameters are invalid.')
   }
   await inspectLocalPath(privateDirectory)
   const path = join(privateDirectory, 'backups')
   source.assertCacheIsolated(path)
   if (stores.has(path)) {
-    throw new ArchiveError('busy', '该备份存储已打开。')
+    throw new ArchiveError('busy', 'This backup store is already open.')
   }
   stores.add(path)
   const disk = { ...BACKUP_DISK_IO, ...io }
@@ -871,11 +922,14 @@ export async function createWindowsBackupStore(
     }
     const stats = await inspectLocalPath(path)
     if (!stats.isDirectory()) {
-      throw new ArchiveError('invalid-request', '备份位置不是目录。')
+      throw new ArchiveError('invalid-request', 'The backup location is not a directory.')
     }
     if (!(await exists(join(path, 'owner.json')))) {
       if ((await readdir(path)).length) {
-        throw new ArchiveError('permission-denied', '备份目录非空且缺少归属记录。')
+        throw new ArchiveError(
+          'permission-denied',
+          'The backup directory is nonempty and has no ownership record.',
+        )
       }
       await writeBackupJson(
         join(path, 'owner.json'),
@@ -895,7 +949,7 @@ export async function createWindowsBackupStore(
       owner.deviceId !== source.deviceId ||
       Object.keys(owner).length !== 3
     ) {
-      throw new ArchiveError('permission-denied', '备份归属记录无效。')
+      throw new ArchiveError('permission-denied', 'The backup ownership record is invalid.')
     }
     source.excludePrivateDirectory(path)
     return new WindowsBackupStore(source, path, owner.storeId, getFileIdentity(stats), disk)

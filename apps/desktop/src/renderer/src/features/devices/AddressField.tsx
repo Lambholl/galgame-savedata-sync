@@ -1,5 +1,6 @@
 import { Button, Input, Space } from 'antd'
 import { CheckOutlined, CopyOutlined } from '@ant-design/icons'
+import { useT } from '@savedata-sync/shared/ui'
 
 export function AddressField({
   address,
@@ -10,12 +11,13 @@ export function AddressField({
   readonly copied: string
   readonly onCopy: (address: string) => void
 }): React.JSX.Element {
+  const t = useT()
   return (
     <Space.Compact block className="library-compact">
-      <Input readOnly aria-label="HTTP 地址" value={address} />
+      <Input readOnly aria-label={t('device.address')} value={address} />
       <Button
         icon={copied === address ? <CheckOutlined /> : <CopyOutlined />}
-        aria-label="复制地址"
+        aria-label={t('device.copyAddress')}
         onClick={() => onCopy(address)}
       />
     </Space.Compact>

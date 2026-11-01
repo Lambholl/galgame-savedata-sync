@@ -7,6 +7,7 @@ import type {
   LibraryPeer,
   OperationResult,
   TransferTask,
+  Translate,
 } from '@savedata-sync/shared'
 import type { DesktopCopySummary, DesktopRestoreSummary } from '../../../bridge/sync-bridge.ts'
 
@@ -28,7 +29,8 @@ export interface DesktopSnapshot {
 }
 /** 配置、设备和任务操作失败时抛 Error；目录结果由调用端解包，切页保留原生任务。 */
 export interface DesktopLibraryAdapter {
-  read(): Promise<DesktopSnapshot>
+  /** 按当前界面语言生成任务的方向标题。 */
+  read(t: Translate): Promise<DesktopSnapshot>
   saveGames(games: readonly LibraryGame[]): Promise<void>
   chooseDirectory(): Promise<DirectorySelectionResult>
   device(id: string, action: 'disconnect' | 'forget' | 'rename', name?: string): Promise<void>

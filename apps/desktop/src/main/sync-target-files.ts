@@ -57,7 +57,7 @@ export async function checkTargetName(
     (item) => syncNameKey([item]) === syncNameKey([name]),
   )
   if (shouldExist ? matches.length !== 1 || matches[0] !== name : matches.length !== 0) {
-    throw new ArchiveError('source-changed', '目标名称或类型已变化，请重新扫描。')
+    throw new ArchiveError('source-changed', 'The target name or type changed. Scan again.')
   }
   await parent.verify()
 }
@@ -80,13 +80,13 @@ export async function verifyTargetFile(
     before.size !== BigInt(entry.sizeBytes ?? -1) ||
     (shouldCheckDate && Number(before.mtimeMs) !== entry.modifiedAt)
   ) {
-    throw new ArchiveError('source-changed', '目标文件身份、大小或日期已变化。')
+    throw new ArchiveError('source-changed', 'The target file identity, size, or date changed.')
   }
   const file = await open(path, 'r')
   try {
     const opened = await file.stat({ bigint: true })
     if (!hasSameIdentity(opened, getFileIdentity(before))) {
-      throw new ArchiveError('source-changed', '目标在打开时已被替换。')
+      throw new ArchiveError('source-changed', 'The target was replaced while opening.')
     }
     const hash = createHash('sha256'),
       buffer = Buffer.alloc(65536)
@@ -99,7 +99,7 @@ export async function verifyTargetFile(
       }
       size += bytesRead
       if (size > (entry.sizeBytes ?? -1)) {
-        throw new ArchiveError('source-changed', '目标文件长度已变化。')
+        throw new ArchiveError('source-changed', 'The target file length changed.')
       }
       hash.update(buffer.subarray(0, bytesRead))
     }
@@ -116,7 +116,10 @@ export async function verifyTargetFile(
       size !== entry.sizeBytes ||
       hash.digest('hex') !== entry.sha256
     ) {
-      throw new ArchiveError('source-changed', '目标文件内容或读取期间属性已变化。')
+      throw new ArchiveError(
+        'source-changed',
+        'The target file content or attributes changed while reading.',
+      )
     }
     return current
   } finally {
@@ -152,25 +155,28 @@ export async function stageCandidate(
   const before = await candidate.handle.stat({ bigint: true })
   candidate.identity = getFileIdentity(before)
   if (!before.isFile() || before.nlink !== 1n) {
-    throw new ArchiveError('source-changed', '候选文件身份无效。')
+    throw new ArchiveError('source-changed', 'The candidate file identity is invalid.')
   }
   const actual = await hashBackupStream(input, entry.sizeBytes ?? -1, signal, async (chunk) => {
     await candidate.parent.verify()
     const available = await io.availableBytes(candidate.parent.path)
     if (available !== null && available < BigInt(chunk.length)) {
-      throw new ArchiveError('insufficient-space', '目标卷空间不足。')
+      throw new ArchiveError('insufficient-space', 'The target volume has insufficient space.')
     }
     for (let offset = 0; offset < chunk.length;) {
       checkArchiveAbort(signal)
       const written = await candidate.handle.write(chunk, offset, chunk.length - offset)
       if (!written.bytesWritten) {
-        throw new ArchiveError('io-failure', '候选写入没有进展。')
+        throw new ArchiveError('io-failure', 'The candidate write made no progress.')
       }
       offset += written.bytesWritten
     }
   })
   if (actual.sizeBytes !== entry.sizeBytes || actual.sha256 !== entry.sha256) {
-    throw new ArchiveError('checksum-mismatch', '输入内容与确认计划不同。')
+    throw new ArchiveError(
+      'checksum-mismatch',
+      'The input content differs from the confirmed plan.',
+    )
   }
   await verifySource()
   await io.sync(candidate.handle)
@@ -214,7 +220,7 @@ export async function cleanupCandidate(candidate: SyncCandidate, io: SyncTargetI
       !hasExpectedLinks ||
       !hasSameIdentity(value, candidate.identity)
     ) {
-      throw new ArchiveError('cleanup-failed', '候选身份已变化，请核实残留。')
+      throw new ArchiveError('cleanup-failed', 'The candidate identity changed. Inspect leftovers.')
     }
     await io.unlink(candidate.path)
   }

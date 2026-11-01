@@ -34,12 +34,17 @@ body {
 }
 .library-brand {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   font-size: 18px;
   font-weight: 600;
   padding: 0 12px 36px;
-  white-space: nowrap;
+  white-space: normal;
+}
+.library-brand span {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 .library-brand img {
   flex-shrink: 0;

@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { Button } from 'antd-mobile'
-import type { LibraryGame, LibraryPeer } from '@savedata-sync/shared'
-import { SyncTaskSummary, useT } from '@savedata-sync/shared/ui'
+import { toShownError } from '@savedata-sync/shared'
+import type { LibraryGame, LibraryPeer, ShownError } from '@savedata-sync/shared'
+import { ErrorText, SyncTaskSummary, useT } from '@savedata-sync/shared/ui'
 import type { PlanEndpoint } from '@savedata-sync/shared/ui'
 import type {
   MobileCopyDetails,
@@ -11,12 +12,12 @@ import type {
 import { Panel } from '../../components/Panel'
 
 const RESTORE_STATUS = {
-  preparing: '准备中',
-  ready: '等待确认',
-  running: '恢复中',
-  succeeded: '已完成',
-  failed: '失败',
-  cancelled: '已取消',
+  preparing: 'backup.status.preparing',
+  ready: 'backup.status.ready',
+  running: 'backup.status.running',
+  succeeded: 'backup.restored',
+  failed: 'backup.restoreFailed',
+  cancelled: 'backup.restoreCancelled',
 } as const
 
 /** 先给结论再给细节；目标是否写入成功只依据接收端回读的结果。 */
@@ -36,24 +37,24 @@ export function SyncTaskDetails({
   readonly restore: MobileRestoreDetails | null
   readonly games: readonly LibraryGame[]
   readonly peers: readonly LibraryPeer[]
-  readonly errors: readonly string[]
+  readonly errors: readonly ShownError[]
   readonly onChanged: () => void
   readonly onRescan: (projectId: string, deviceId: string) => void
   readonly onBackup: (projectId: string) => void
 }): React.JSX.Element {
   const t = useT()
   const [isBusy, setIsBusy] = useState(false)
-  const [error, setError] = useState('')
+  const [error, setError] = useState<ShownError | null>(null)
   function act(work: () => Promise<unknown>): void {
     if (isBusy) {
       return
     }
     setIsBusy(true)
-    setError('')
+    setError(null)
     work()
       .then(onChanged)
       .catch((cause: unknown) => {
-        setError(cause instanceof Error ? cause.message : t('common.unknown'))
+        setError(toShownError(cause))
         onChanged()
       })
       .finally(() => setIsBusy(false))
@@ -71,7 +72,7 @@ export function SyncTaskDetails({
     <div className="page-stack">
       {failures.map((value, index) => (
         <div className="notice notice-error" role="alert" key={index}>
-          <p>{t('task.readFailed', { message: value })}</p>
+          <ErrorText error={value} context={t('task.readFailed')} />
           <Button size="small" disabled={isBusy} onClick={() => act(() => sync.currentCopy(true))}>
             {t('common.retry')}
           </Button>
@@ -87,7 +88,7 @@ export function SyncTaskDetails({
             target={isUpload ? pcEnd : phoneEnd}
             local={state.local}
             remote={state.remote}
-            remoteError={state.remoteError?.message ?? null}
+            remoteError={state.remoteError}
             onRetryCleanup={
               isRunning || !state.local.cleanupError ? null : () => act(() => sync.cleanupCopy())
             }
@@ -120,12 +121,14 @@ export function SyncTaskDetails({
         </>
       )}
       {restore && (
-        <Panel title="本机恢复任务">
+        <Panel title={t('backup.restoreTask')}>
           <p>
-            {games.find((item) => item.id === restore.state.projectId)?.name ?? '本次记录的项目'} ·{' '}
-            {RESTORE_STATUS[restore.state.status]}
+            {games.find((item) => item.id === restore.state.projectId)?.name ?? t('common.unknown')}{' '}
+            · {t(RESTORE_STATUS[restore.state.status])}
           </p>
-          <Button onClick={() => onBackup(restore.state.projectId)}>查看恢复预览与实际结果</Button>
+          <Button onClick={() => onBackup(restore.state.projectId)}>
+            {t('backup.openRestore')}
+          </Button>
         </Panel>
       )}
     </div>

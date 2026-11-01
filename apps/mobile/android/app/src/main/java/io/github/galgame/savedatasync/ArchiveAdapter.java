@@ -34,7 +34,7 @@ final class ArchiveAdapter {
     /** 原生调用者合并同卷目标增量与备份峰值；不向页面暴露私有路径。 */
     void checkReceiveSpace(ArchiveModel.Manifest manifest, long extraPrivateBytes) throws Exception {
         manifest.validate(limits);
-        if (extraPrivateBytes < 0 || extraPrivateBytes > Long.MAX_VALUE - manifest.archive.sizeBytes - manifest.totalFileBytes) throw new ArchiveFailure("invalid-request", "空间预检字节数无效");
+        if (extraPrivateBytes < 0 || extraPrivateBytes > Long.MAX_VALUE - manifest.archive.sizeBytes - manifest.totalFileBytes) throw new ArchiveFailure("invalid-request", "The space preflight byte count is invalid.");
         cache.checkSpace(manifest.archive.sizeBytes + manifest.totalFileBytes + extraPrivateBytes);
     }
     java.nio.file.Path privateRoot() throws Exception { cache.checkSpace(0); return cache.root; }
@@ -80,7 +80,7 @@ final class ArchiveAdapter {
                 } finally { control.untrack(input); }
                 ArchiveModel.Observation after = source.observe(control);
                 if (!before.same(after) || (before.size != null && before.size != size)) {
-                    throw new ArchiveFailure("source-changed", "源文件在归档准备期间发生变化");
+                    throw new ArchiveFailure("source-changed", "The source file changed during archive preparation.");
                 }
                 tarSize += 512 + ArchiveModel.padded(size);
                 ArchiveModel.limit(tarSize <= limits.tar);
@@ -153,7 +153,7 @@ final class ArchiveAdapter {
                     byte[] header = new byte[512];
                     ArchiveFormat.exact(tar, header, 512, control);
                     if (!Arrays.equals(header, ArchiveFormat.header(file.fileId, file.sizeBytes))) {
-                        throw ArchiveFormat.invalid("tar 头、顺序、类型、长度或字段不符合清单");
+                        throw ArchiveFormat.invalid("A tar header, order, type, length, or field does not match the manifest.");
                     }
                     MessageDigest contentHash = ArchiveFormat.sha256();
                     long remaining = file.sizeBytes;
@@ -172,7 +172,7 @@ final class ArchiveAdapter {
                     ArchiveFormat.exact(tar, buffer, padding, control); ArchiveFormat.zeros(buffer, padding);
                 }
                 ArchiveFormat.exact(tar, buffer, 1024, control); ArchiveFormat.zeros(buffer, 1024);
-                if (tar.read() != -1) throw ArchiveFormat.invalid("tar 结束后存在额外记录");
+                if (tar.read() != -1) throw ArchiveFormat.invalid("Extra records follow the end of the tar archive.");
                 emit(progress, "verifying", completed, manifest.totalFileBytes, control);
             }
             control.check();
@@ -214,7 +214,7 @@ final class ArchiveAdapter {
         control.check();
         int n = stream.read(buffer);
         control.check();
-        if (n == 0) throw new ArchiveFailure("io-failure", "输入流读取无进展");
+        if (n == 0) throw new ArchiveFailure("io-failure", "The input stream made no read progress.");
         return n;
     }
     private static void emit(ArchiveModel.Progress progress, String stage, long count, Long total,
@@ -223,7 +223,7 @@ final class ArchiveAdapter {
         if (progress != null) progress.update(stage, count, total);
         control.check();
     }
-    private static ArchiveFailure mismatch() { return new ArchiveFailure("checksum-mismatch", "归档或原文长度/哈希不匹配"); }
+    private static ArchiveFailure mismatch() { return new ArchiveFailure("checksum-mismatch", "The archive or uncompressed content length/hash does not match."); }
 
     /** 不暴露路径的原生句柄；清单不可变，读流归调用者，dispose 失败可再次调用。 */
     final class Artifact implements AutoCloseable {
@@ -236,7 +236,7 @@ final class ArchiveAdapter {
         InputStream openArchive() throws IOException { return job.open("archive.gz", control); }
         InputStream openFile(String fileId) throws IOException {
             for (ArchiveModel.PreparedFile file : manifest.files) if (file.fileId.equals(fileId)) return job.open(fileId, control);
-            throw new ArchiveFailure("invalid-request", "文件引用不属于此归档清单");
+            throw new ArchiveFailure("invalid-request", "The file reference does not belong to this archive manifest.");
         }
         @Override public void close() throws IOException { dispose(job); }
     }

@@ -62,7 +62,7 @@ export class WindowsRemoteSyncRequests {
   plan(requestId: string): SyncPlan {
     const entry = this.entry(requestId)
     if (!entry.plan) {
-      throw new HttpOperationError('not-found', '手机还没有返回本次计划。')
+      throw new HttpOperationError('not-found', 'The phone has not returned this plan yet.')
     }
     return entry.plan
   }
@@ -74,10 +74,16 @@ export class WindowsRemoteSyncRequests {
    */
   start(projectId: string, peerId: string, direction: TransferDirection): DesktopRemoteRequest {
     if (this.current?.value.status === 'starting') {
-      throw new HttpOperationError('busy', '上一个计划已确认，正在等待手机开始传输。')
+      throw new HttpOperationError(
+        'busy',
+        'The previous plan is confirmed. Waiting for the phone to start transferring.',
+      )
     }
     if (this.options.isBusy()) {
-      throw new HttpOperationError('busy', '还有传输正在进行，请等它结束后再发起。')
+      throw new HttpOperationError(
+        'busy',
+        'A transfer is still running. Wait for it to finish before starting another.',
+      )
     }
     const { config, peers } = this.options.library.snapshot()
     const game = config.games.find((item) => item.id === projectId)
@@ -85,13 +91,22 @@ export class WindowsRemoteSyncRequests {
     const link = game?.links.find((item) => item.deviceId === peerId)
     const remote = peer?.games.find((item) => item.id === link?.gameId)
     if (!game?.rootId || !link) {
-      throw new HttpOperationError('invalid-request', '请先在目录设置中选择电脑目录并关联手机。')
+      throw new HttpOperationError(
+        'invalid-request',
+        'Select a PC directory and link the phone in Game settings first.',
+      )
     }
     if (!peer?.isConnected || !this.options.control.isOpen(peerId)) {
-      throw new HttpOperationError('network-failure', '手机未连接，请在手机打开应用并连接电脑。')
+      throw new HttpOperationError(
+        'network-failure',
+        'The phone is not connected. Open the app on the phone and connect to the PC.',
+      )
     }
     if (!remote?.root) {
-      throw new HttpOperationError('invalid-request', '手机还没有为这个游戏选择目录。')
+      throw new HttpOperationError(
+        'invalid-request',
+        'The phone has not selected a directory for this game yet.',
+      )
     }
     this.options.library.verifyProjectPeer(
       projectId,
@@ -143,10 +158,13 @@ export class WindowsRemoteSyncRequests {
     const entry = this.entry(requestId)
     const plan = entry.plan
     if (entry.value.status !== 'ready' || !plan?.canExecute) {
-      throw new HttpOperationError('invalid-request', '本次计划不能执行，请重新扫描。')
+      throw new HttpOperationError('invalid-request', 'This plan cannot be executed. Scan again.')
     }
     if (this.options.isBusy()) {
-      throw new HttpOperationError('busy', '还有传输正在进行，请等它结束后再确认。')
+      throw new HttpOperationError(
+        'busy',
+        'A transfer is still running. Wait for it to finish before confirming.',
+      )
     }
     this.options.library.verifyProjectPeer(
       entry.value.projectId,
@@ -167,7 +185,7 @@ export class WindowsRemoteSyncRequests {
         } else {
           this.fail(entry, {
             code: 'invalid-request',
-            message: '手机开始的任务与本次计划不符，请到任务列表核对。',
+            message: 'The task started by the phone does not match this plan. Check the task list.',
             canRetry: false,
           })
         }
@@ -184,7 +202,10 @@ export class WindowsRemoteSyncRequests {
   cancel(requestId: string): DesktopRemoteRequest {
     const entry = this.entry(requestId)
     if (entry.value.status === 'starting') {
-      throw new HttpOperationError('busy', '手机已在开始传输，请到任务列表取消。')
+      throw new HttpOperationError(
+        'busy',
+        'The phone is already starting the transfer. Cancel it from the task list.',
+      )
     }
     if (isActive(entry.value.status)) {
       this.update(entry, { status: 'cancelled' })
@@ -211,7 +232,7 @@ export class WindowsRemoteSyncRequests {
       } else {
         this.fail(entry, {
           code: 'invalid-request',
-          message: '手机返回的计划与项目不符，请重新扫描。',
+          message: 'The plan returned by the phone does not match the project. Scan again.',
           canRetry: false,
         })
       }
@@ -232,7 +253,7 @@ export class WindowsRemoteSyncRequests {
           jobId: report.jobId,
           error: report.error ?? {
             code: 'result-unknown',
-            message: '传输结果待确认，请到任务列表查看。',
+            message: 'The transfer result is unconfirmed. Check the task list.',
             canRetry: false,
           },
         })
@@ -249,13 +270,14 @@ export class WindowsRemoteSyncRequests {
     if (isActive(entry.value.status)) {
       this.fail(entry, {
         code: 'network-failure',
-        message: '手机已断开或应用已关闭，请在手机打开应用后重试。',
+        message: 'The phone disconnected or the app closed. Open the app on the phone and retry.',
         canRetry: true,
       })
     } else if (entry.value.status === 'running') {
       this.fail(entry, {
         code: 'network-failure',
-        message: '与手机的连接已断开，传输结果请到任务列表查看。',
+        message:
+          'The connection to the phone was lost. Check the task list for the transfer result.',
         canRetry: false,
       })
     }
@@ -263,7 +285,7 @@ export class WindowsRemoteSyncRequests {
 
   private entry(requestId: string): RemoteEntry {
     if (this.current?.value.requestId !== requestId) {
-      throw new HttpOperationError('not-found', '发起请求已结束，请重新扫描。')
+      throw new HttpOperationError('not-found', 'The initiation request ended. Scan again.')
     }
     return this.current
   }

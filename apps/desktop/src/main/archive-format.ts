@@ -63,7 +63,7 @@ export class ArchiveReader {
 
   async read(size: number): Promise<Buffer> {
     if (!Number.isSafeInteger(size) || size < 0 || size > BATCH_RESOURCES.maxBufferBytes) {
-      throw new ArchiveError('invalid-request', '归档读取缓冲大小无效。')
+      throw new ArchiveError('invalid-request', 'The archive read buffer size is invalid.')
     }
     const result = Buffer.alloc(size)
     let written = 0
@@ -72,10 +72,10 @@ export class ArchiveReader {
       if (this.offset === this.chunk.length) {
         const next = await this.iterator.next()
         if (next.done) {
-          throw new ArchiveError('invalid-archive', 'tar 成员或结束块被截断。')
+          throw new ArchiveError('invalid-archive', 'A tar member or end block is truncated.')
         }
         if (!Buffer.isBuffer(next.value)) {
-          throw new ArchiveError('invalid-archive', '归档流必须是二进制字节。')
+          throw new ArchiveError('invalid-archive', 'The archive stream must contain binary bytes.')
         }
         this.chunk = next.value
         this.offset = 0
@@ -93,7 +93,7 @@ export class ArchiveReader {
 
   async expectEnd(): Promise<void> {
     if (this.offset !== this.chunk.length) {
-      throw new ArchiveError('invalid-archive', 'tar 结束后存在多余内容。')
+      throw new ArchiveError('invalid-archive', 'Extra content follows the end of the tar archive.')
     }
     for (;;) {
       checkArchiveAbort(this.signal)
@@ -102,7 +102,10 @@ export class ArchiveReader {
         return
       }
       if (!Buffer.isBuffer(next.value) || next.value.length !== 0) {
-        throw new ArchiveError('invalid-archive', 'tar 结束后存在多余内容。')
+        throw new ArchiveError(
+          'invalid-archive',
+          'Extra content follows the end of the tar archive.',
+        )
       }
     }
   }

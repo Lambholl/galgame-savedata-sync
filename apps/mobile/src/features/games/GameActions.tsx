@@ -6,6 +6,7 @@ import {
   DeleteOutlined,
   RightOutlined,
 } from '@ant-design/icons'
+import { useT } from '@savedata-sync/shared/ui'
 
 export function GameActions({
   isActive,
@@ -22,11 +23,12 @@ export function GameActions({
   readonly onTasks: () => void
   readonly onRemove: () => void
 }): React.JSX.Element {
+  const t = useT()
   const actions = [
-    { label: '目录设置', icon: <FolderOpenOutlined />, action: onSettings },
-    { label: '备份与恢复', icon: <CloudDownloadOutlined />, action: onBackup },
-    { label: '本次传输', icon: <HistoryOutlined />, action: onTasks },
-    { label: '移除游戏', icon: <DeleteOutlined />, action: onRemove, isDanger: true },
+    { label: t('page.gameSettings'), icon: <FolderOpenOutlined />, action: onSettings },
+    { label: t('page.backup'), icon: <CloudDownloadOutlined />, action: onBackup },
+    { label: t('page.task'), icon: <HistoryOutlined />, action: onTasks },
+    { label: t('game.removeTitle'), icon: <DeleteOutlined />, action: onRemove, isDanger: true },
   ]
   return (
     <div className="game-actions">
@@ -34,7 +36,7 @@ export function GameActions({
         <span className="action-icon">
           <SwapOutlined />
         </span>
-        <strong>传输存档</strong>
+        <strong>{t('page.transfer')}</strong>
         <RightOutlined />
       </button>
       <div className="game-action-grid">

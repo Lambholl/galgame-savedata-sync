@@ -24,9 +24,9 @@ final class ArchiveControl {
     }
     void check() throws ArchiveFailure {
         if (cancelled || Thread.currentThread().isInterrupted()) {
-            throw new ArchiveFailure("io-failure", "归档已取消", true, null);
+            throw new ArchiveFailure("io-failure", "The archive was cancelled.", true, null);
         }
-        if (clock.getAsLong() - started >= timeout) throw new ArchiveFailure("timeout", "归档任务已超时");
+        if (clock.getAsLong() - started >= timeout) throw new ArchiveFailure("timeout", "The archive task timed out.");
     }
     synchronized <T extends Closeable> T track(T resource) throws IOException {
         try { check(); } catch (ArchiveFailure failure) { resource.close(); throw failure; }

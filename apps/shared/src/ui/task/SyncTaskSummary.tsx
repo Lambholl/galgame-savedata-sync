@@ -1,5 +1,7 @@
-import type { ReactElement } from 'react'
+import type { ReactElement, ReactNode } from 'react'
 import { ArrowRightOutlined, CheckOutlined } from '@ant-design/icons'
+import type { ShownError } from '../../result.ts'
+import { ErrorText } from '../errors/ErrorText.tsx'
 import type { SyncJobState } from '../../sync/sync-job-contracts.ts'
 import { formatBytes, formatDateTime } from '../../i18n/format.ts'
 import type { PlanEndpoint } from '../plan/SyncPlanSummary.tsx'
@@ -22,7 +24,7 @@ export interface SyncTaskSummaryProps {
   /** 对端角色的任务状态；读不到时为 null。 */
   readonly remote: SyncJobState | null
   /** 读取对端状态失败的原因；没有失败时为 null。 */
-  readonly remoteError: string | null
+  readonly remoteError: ShownError | null
   /** 重试清理临时文件；本端不能重试时为 null。 */
   readonly onRetryCleanup: (() => void) | null
 }
@@ -136,16 +138,14 @@ export function SyncTaskSummary({
       unknown: { tone: 'warn', title: t('task.unknown') },
     }
     const verdict = verdicts[phase]
-    let detail: string | null = null
+    let detail: ReactNode = null
     if (phase === 'done') {
-      detail = t('task.doneDetail', { count: succeeded.length })
-      if (result?.backupId) {
-        detail += ` · ${t('task.backedUp')}`
-      }
+      const written = t('task.doneDetail', { count: succeeded.length })
+      detail = result?.backupId ? `${written} · ${t('task.backedUp')}` : written
     } else if (phase === 'partial') {
       detail = t('task.partialDetail', { ok: succeeded.length, failed: unsettled.length })
     } else if (phase === 'failed') {
-      detail = error?.message ?? null
+      detail = error && <ErrorText error={error} context={null} />
     } else if (phase === 'unknown') {
       detail = t('task.unknownDetail')
     }
@@ -175,7 +175,7 @@ export function SyncTaskSummary({
       )}
       <OutcomeList
         outcomes={outcomes}
-        cleanupError={cleanupError?.message ?? null}
+        cleanupError={cleanupError}
         remoteError={remoteError}
         onRetryCleanup={onRetryCleanup}
       />

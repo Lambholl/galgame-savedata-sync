@@ -31,10 +31,10 @@ public class SyncTransfersPlugin extends Plugin {
                 } catch (Exception cause) {
                     ArchiveFailure failure = ArchiveFailure.from(cause);
                     try { call.resolve(new JSObject(new String(bytes(object("status", "error", "error", object("code", failure.code, "message", failure.getMessage(), "canRetry", false))), StandardCharsets.UTF_8))); }
-                    catch (Exception invalid) { call.resolve(new SafFailure("io-failure", "复制响应无效", invalid).result()); }
+                    catch (Exception invalid) { call.resolve(new SafFailure("io-failure", "The copy response is invalid.", invalid).result()); }
                 }
             });
-        } catch (java.util.concurrent.RejectedExecutionException cause) { call.resolve(new SafFailure("unsupported-operation", "复制桥已关闭", cause).result()); }
+        } catch (java.util.concurrent.RejectedExecutionException cause) { call.resolve(new SafFailure("unsupported-operation", "The copy bridge is closed.", cause).result()); }
     }
     @PluginMethod public void prepare(PluginCall call) { submit(call, runtime -> {
         Map<String, Object> value = arguments(call, "binding", "direction"); return runtime.engine.prepare(value.get("binding"), string(value.get("direction")));

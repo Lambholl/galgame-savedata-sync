@@ -15,18 +15,18 @@ function input(args: readonly unknown[], fields: readonly string[]): Record<stri
     Object.keys(value).length !== fields.length ||
     fields.some((key) => !Object.hasOwn(value, key))
   ) {
-    throw new HttpOperationError('invalid-request', '同步参数无效。')
+    throw new HttpOperationError('invalid-request', 'Sync parameters are invalid.')
   }
   const data = value as Record<string, unknown>
   if (fields.some((key) => key !== 'plan' && key !== 'direction' && !isOpaqueId(data[key]))) {
-    throw new HttpOperationError('invalid-request', '同步引用无效。')
+    throw new HttpOperationError('invalid-request', 'The sync reference is invalid.')
   }
   if (
     fields.includes('direction') &&
     data.direction !== 'android-to-windows' &&
     data.direction !== 'windows-to-android'
   ) {
-    throw new HttpOperationError('invalid-request', '复制方向无效。')
+    throw new HttpOperationError('invalid-request', 'The copy direction is invalid.')
   }
   return data
 }
@@ -44,7 +44,7 @@ export function registerSyncIpc(
       let hasMutation = false
       try {
         if (!isTrusted(event)) {
-          throw new HttpOperationError('permission-denied', '此页面无法访问同步任务。')
+          throw new HttpOperationError('permission-denied', 'This page cannot access sync tasks.')
         }
         const isMutation = [
           'cancelCopy',
@@ -60,7 +60,7 @@ export function registerSyncIpc(
         ].includes(action)
         if (isMutation) {
           if (isMutating) {
-            throw new HttpOperationError('busy', '上一项同步操作尚未结束。')
+            throw new HttpOperationError('busy', 'The previous sync operation has not finished.')
           }
           isMutating = true
           hasMutation = true
@@ -73,7 +73,7 @@ export function registerSyncIpc(
           action === 'remoteRequest'
         ) {
           if (args.length) {
-            throw new HttpOperationError('invalid-request', '任务列表参数无效。')
+            throw new HttpOperationError('invalid-request', 'Task list parameters are invalid.')
           }
           value =
             action === 'copies'
@@ -115,13 +115,13 @@ export function registerSyncIpc(
           try {
             serialized = JSON.stringify(data.plan)
           } catch {
-            throw new HttpOperationError('invalid-request', '确认计划格式无效。')
+            throw new HttpOperationError('invalid-request', 'The confirmed plan format is invalid.')
           }
           if (serialized === undefined) {
-            throw new HttpOperationError('invalid-request', '确认计划格式无效。')
+            throw new HttpOperationError('invalid-request', 'The confirmed plan format is invalid.')
           }
           if (Buffer.byteLength(serialized) > BATCH_LIMITS.maxJsonBytes) {
-            throw new HttpOperationError('resource-limit', '确认计划超过限制。')
+            throw new HttpOperationError('resource-limit', 'The confirmed plan exceeds the limit.')
           }
           value = restores.execute(data.restoreId as string, data.plan)
         } else if (
@@ -160,12 +160,15 @@ export function registerSyncIpc(
             await restores.release(id)
             value = null
           } else {
-            throw new HttpOperationError('invalid-request', '同步操作无效。')
+            throw new HttpOperationError('invalid-request', 'The sync operation is invalid.')
           }
         }
         const result = { status: 'success', value }
         if (Buffer.byteLength(JSON.stringify(result)) > BATCH_LIMITS.maxJsonBytes) {
-          throw new HttpOperationError('resource-limit', '同步响应超过限制，请分别读取计划和结果。')
+          throw new HttpOperationError(
+            'resource-limit',
+            'The sync response exceeds the limit. Read the plan and result separately.',
+          )
         }
         return result
       } catch (cause) {

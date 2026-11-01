@@ -70,8 +70,8 @@ function invalid(
       code,
       message:
         code === 'unsupported-operation'
-          ? '请在 Android 应用中恢复本机备份。'
-          : '本机恢复参数或响应无效。',
+          ? 'Restore local backups in the Android app.'
+          : 'Local restore parameters or the response are invalid.',
       canRetry: false,
     },
   }

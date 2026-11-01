@@ -63,8 +63,8 @@ function failure(
       code,
       message:
         code === 'unsupported-operation'
-          ? '请在 Android 应用中发起同步。'
-          : '本次同步参数或响应无效。',
+          ? 'Start sync in the Android app.'
+          : 'Sync parameters or the response are invalid.',
       canRetry: false,
     },
   }

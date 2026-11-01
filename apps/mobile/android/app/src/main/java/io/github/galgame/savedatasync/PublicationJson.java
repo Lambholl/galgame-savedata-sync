@@ -29,8 +29,8 @@ final class PublicationJson {
     }
     private static JSObject error(String code) {
         JSObject value = new JSObject(); value.put("code", code);
-        value.put("message", "result-unknown".equals(code) ? "文件发布结果待确认，请刷新目录，勿自动重试" :
-            "cleanup-failed".equals(code) ? "本次新建条目或句柄尚未完成清理" : "新文件发布失败，请检查目标授权和文件状态");
+        value.put("message", "result-unknown".equals(code) ? "The file publication result is unconfirmed. Refresh the directory; do not retry automatically." :
+            "cleanup-failed".equals(code) ? "Cleanup of this new entry or handle is incomplete." : "New file publication failed. Check target authorization and file status.");
         value.put("canRetry", false);
         return value;
     }

@@ -1,4 +1,5 @@
 import { Button, Input } from 'antd-mobile'
+import { useT } from '@savedata-sync/shared/ui'
 import { Sheet } from './Sheet'
 
 export function DeviceEditorDialog({
@@ -26,10 +27,11 @@ export function DeviceEditorDialog({
   readonly onSave: () => void
   readonly onRemove: () => void
 }): React.JSX.Element {
+  const t = useT()
   return (
     <Sheet
       isOpen={isOpen}
-      title={editingDeviceId ? '管理设备' : '添加电脑'}
+      title={t(editingDeviceId ? 'device.manage' : 'device.addPc')}
       isBusy={isBusy}
       layer={1100}
       onClose={onCancel}
@@ -37,7 +39,7 @@ export function DeviceEditorDialog({
       <div className="page-stack">
         {editingDeviceId && (
           <label className="field">
-            设备名称
+            {t('device.name')}
             <Input
               value={deviceName}
               maxLength={128}
@@ -47,9 +49,9 @@ export function DeviceEditorDialog({
           </label>
         )}
         <label className="field">
-          电脑 HTTP 地址
+          {t('device.address')}
           <Input
-            placeholder="http://192.168.1.100:端口"
+            placeholder={t('device.addressPlaceholder')}
             value={deviceAddress}
             type="url"
             autoCapitalize="off"
@@ -65,7 +67,7 @@ export function DeviceEditorDialog({
           disabled={isBusy || (!editingDeviceId && isActive)}
           onClick={onSave}
         >
-          {editingDeviceId ? '保存' : '连接'}
+          {t(editingDeviceId ? 'common.save' : 'device.connect')}
         </Button>
         {editingDeviceId && (
           <Button
@@ -75,11 +77,11 @@ export function DeviceEditorDialog({
             disabled={isBusy || isActive}
             onClick={onRemove}
           >
-            移除设备
+            {t('device.removeTitle')}
           </Button>
         )}
         <Button block disabled={isBusy} onClick={onCancel}>
-          取消
+          {t('common.cancel')}
         </Button>
       </div>
     </Sheet>

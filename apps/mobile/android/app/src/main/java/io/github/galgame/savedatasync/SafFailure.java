@@ -32,14 +32,14 @@ final class SafFailure extends Exception {
     static SafFailure from(Exception cause) {
         if (cause instanceof SafFailure) return (SafFailure) cause;
         if (cause instanceof SecurityException) {
-            return new SafFailure("permission-denied", "目录访问被拒绝，请重新选择目录", cause);
+            return new SafFailure("permission-denied", "Directory access was denied. Select the directory again.", cause);
         }
         if (cause instanceof FileNotFoundException) {
-            return new SafFailure("not-found", "目录或文件已不可用，请重新读取", cause);
+            return new SafFailure("not-found", "The directory or file is no longer available. Read it again.", cause);
         }
         if (cause instanceof OperationCanceledException || cause instanceof InterruptedException) {
-            return new SafFailure("io-failure", "读取已因应用生命周期或取消而停止", cause);
+            return new SafFailure("io-failure", "Reading stopped because of the app lifecycle or cancellation.", cause);
         }
-        return new SafFailure("io-failure", "无法读取目录提供者或本地配置", cause);
+        return new SafFailure("io-failure", "Cannot read the directory provider or local configuration.", cause);
     }
 }

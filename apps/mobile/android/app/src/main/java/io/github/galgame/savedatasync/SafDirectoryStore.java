@@ -86,7 +86,7 @@ final class SafDirectoryStore {
                 roots.add(new Root(id, uri, SafValues.text(record.getString("displayName"))));
             }
         } catch (Exception cause) {
-            throw new SafFailure("io-failure", "目录配置无法恢复；请保留配置并检查格式", cause);
+            throw new SafFailure("io-failure", "The directory configuration cannot be restored. Preserve it and inspect its format.", cause);
         }
     }
 
@@ -127,11 +127,11 @@ final class SafDirectoryStore {
     private Root requireRoot(String rootId) throws SafFailure {
         for (Root root : roots) {
             if (root.id.equals(rootId)) {
-                if (!hasGrant(root)) throw new SafFailure("authorization-expired", "目录授权已失效，请重新选择");
+                if (!hasGrant(root)) throw new SafFailure("authorization-expired", "Directory authorization expired. Select the directory again.");
                 return root;
             }
         }
-        throw new SafFailure("not-found", "目录引用不存在，请重新选择");
+        throw new SafFailure("not-found", "The directory reference does not exist. Select the directory again.");
     }
 
     private JSObject describe(Root root, String authorization) {
@@ -159,14 +159,14 @@ final class SafDirectoryStore {
             Uri uri = treeUri(selected.toString());
             if ((flags & Intent.FLAG_GRANT_READ_URI_PERMISSION) == 0 ||
                 (flags & Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION) == 0) {
-                throw new SafFailure("permission-denied", "提供者未授予可持久化的读取权限");
+                throw new SafFailure("permission-denied", "The provider did not grant persistable read permission.");
             }
-            candidate = new Root(UUID.randomUUID().toString(), uri, "目录");
+            candidate = new Root(UUID.randomUUID().toString(), uri, "Directory");
             for (Root root : roots) if (root.uri.equals(uri)) candidate = root;
             hadGrant = hasGrant(candidate);
             resolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
             Snapshot snapshot = query(candidate, DocumentsContract.getTreeDocumentId(uri), signal);
-            if (!snapshot.isDirectory) throw new SafFailure("not-readable", "所选引用不是目录");
+            if (!snapshot.isDirectory) throw new SafFailure("not-readable", "The selected reference is not a directory.");
             Root saved = new Root(candidate.id, uri, snapshot.name);
             if (!roots.contains(candidate)) {
                 roots.add(saved);
@@ -225,10 +225,10 @@ final class SafDirectoryStore {
             if (parentId != null) {
                 Entry parent = requireEntry(rootId, parentId);
                 Snapshot current = query(root, parent.documentId, signal);
-                if (!current.isDirectory) throw new SafFailure("not-readable", "当前引用不是目录");
+                if (!current.isDirectory) throw new SafFailure("not-readable", "The current reference is not a directory.");
                 documentId = parent.documentId;
             } else if (!query(root, documentId, signal).isDirectory) {
-                throw new SafFailure("not-readable", "根目录已不可用");
+                throw new SafFailure("not-readable", "The root directory is no longer available.");
             }
             Uri children = DocumentsContract.buildChildDocumentsUriUsingTree(root.uri, documentId);
             JSONArray values = new JSONArray();
@@ -266,7 +266,7 @@ final class SafDirectoryStore {
     private Entry requireEntry(String rootId, String entryId) throws SafFailure {
         Entry entry = entries.get(entryId);
         if (entry == null || !entry.rootId.equals(rootId)) {
-            throw new SafFailure("not-found", "条目引用不存在或已过期，请重新读取目录");
+            throw new SafFailure("not-found", "The entry reference does not exist or expired. Read the directory again.");
         }
         return entry;
     }
@@ -292,15 +292,15 @@ final class SafDirectoryStore {
             for (UriPermission permission : resolver.getPersistedUriPermissions()) {
                 if (permission.getUri().equals(root.uri) && permission.isWritePermission()) write = true;
             }
-            if (!write) throw new SafFailure("permission-denied", "系统尚未授予该目录持久写权限");
+            if (!write) throw new SafFailure("permission-denied", "The system has not granted persistent write permission for this directory.");
             Entry parent = parentId == null ? null : requireEntry(rootId, parentId);
             String id = parent == null ? DocumentsContract.getTreeDocumentId(root.uri) : parent.documentId;
             Snapshot current = query(root, id, signal);
-            if (!current.isDirectory || current.isVirtual) throw new SafFailure("unsupported-operation", "目标不是普通目录");
+            if (!current.isDirectory || current.isVirtual) throw new SafFailure("unsupported-operation", "The target is not a regular directory.");
             String expected = parent == null ? root.name : parent.snapshot.name;
-            if (!expected.equals(current.name)) throw new SafFailure("source-changed", "目标目录名称已变化");
+            if (!expected.equals(current.name)) throw new SafFailure("source-changed", "The target directory name changed.");
             if (requireCreate && (current.flags & Document.FLAG_DIR_SUPPORTS_CREATE) == 0) {
-                throw new SafFailure("unsupported-operation", "提供者未声明支持新建文件");
+                throw new SafFailure("unsupported-operation", "The provider does not declare support for creating files.");
             }
             return new PublicationDirectory(rootId, parentId, id, current.name, root.uri);
         } catch (Exception cause) { throw SafFailure.from(cause); }
@@ -326,11 +326,11 @@ final class SafDirectoryStore {
             Entry entry = requireEntry(rootId, entryId);
             Snapshot current = query(root, entry.documentId, signal);
             if (current.isDirectory || current.isVirtual) {
-                throw new SafFailure("unsupported-operation", "该条目不支持原始文件归档");
+                throw new SafFailure("unsupported-operation", "This entry does not support raw file archiving.");
             }
             ArchiveModel.Observation baseline = observation(entry, entry.snapshot);
             ArchiveModel.Observation observed = observation(entry, current);
-            if (!baseline.same(observed)) throw new SafFailure("source-changed", "源文件属性已变化，请重新读取目录");
+            if (!baseline.same(observed)) throw new SafFailure("source-changed", "Source file attributes changed. Read the directory again.");
             return observed;
         } catch (Exception cause) { throw SafFailure.from(cause); }
     }
@@ -352,12 +352,12 @@ final class SafDirectoryStore {
             Entry entry = requireEntry(rootId, entryId);
             Snapshot current = query(root, entry.documentId, signal);
             if (current.isDirectory || current.isVirtual) {
-                throw new SafFailure("unsupported-operation", "该条目不支持原始文件读取");
+                throw new SafFailure("unsupported-operation", "This entry does not support raw file reading.");
             }
             if (!current.name.equals(entry.snapshot.name) ||
                 !java.util.Objects.equals(current.size, entry.snapshot.size) ||
                 !java.util.Objects.equals(current.modified, entry.snapshot.modified)) {
-                throw new SafFailure("source-changed", "源文件属性已变化，请重新读取目录");
+                throw new SafFailure("source-changed", "Source file attributes changed. Read the directory again.");
             }
             AssetFileDescriptor descriptor = resolver.openAssetFileDescriptor(documentUri(root, entry.documentId), "r", signal);
             if (descriptor == null) throw new IOException("Provider returned no descriptor");

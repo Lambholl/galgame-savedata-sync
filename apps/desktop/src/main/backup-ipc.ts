@@ -19,12 +19,12 @@ export function registerBackupIpc(
     ipc.handle(channel, async (event, ...args: unknown[]) => {
       try {
         if (!isTrusted(event)) {
-          throw new HttpOperationError('permission-denied', '此页面无法访问备份。')
+          throw new HttpOperationError('permission-denied', 'This page cannot access backups.')
         }
         let value: unknown
         if (action === 'read') {
           if (args.length) {
-            throw new HttpOperationError('invalid-request', '备份读取参数无效。')
+            throw new HttpOperationError('invalid-request', 'Backup read parameters are invalid.')
           }
           value = { displayPath: store.path, settings: await store.settings() }
         } else if (action === 'setDefaults') {
@@ -37,10 +37,13 @@ export function registerBackupIpc(
             Object.keys(input).length !== 1 ||
             !isSyncBackupPolicy((input as Record<string, unknown>).policy)
           ) {
-            throw new HttpOperationError('invalid-request', '备份设置无效。')
+            throw new HttpOperationError('invalid-request', 'Backup settings are invalid.')
           }
           if (hasTargetOperation()) {
-            throw new HttpOperationError('busy', '请等当前文件操作结束后再修改备份设置。')
+            throw new HttpOperationError(
+              'busy',
+              'Wait for the current file operation to finish before changing backup settings.',
+            )
           }
           value = await store.setDefaults((input as { policy: SyncBackupPolicy }).policy)
         } else {
@@ -59,7 +62,7 @@ export function registerBackupIpc(
             Object.keys(input).length !== fields.length ||
             fields.some((field) => !Object.hasOwn(input, field))
           ) {
-            throw new HttpOperationError('invalid-request', '备份参数无效。')
+            throw new HttpOperationError('invalid-request', 'Backup parameters are invalid.')
           }
           const data = input as Record<string, unknown>
           if (
@@ -67,17 +70,20 @@ export function registerBackupIpc(
             !isOpaqueId(data.rootId) ||
             (fields.includes('backupId') && !isOpaqueId(data.backupId))
           ) {
-            throw new HttpOperationError('invalid-request', '备份引用无效。')
+            throw new HttpOperationError('invalid-request', 'The backup reference is invalid.')
           }
           if (
             (action === 'setPreference' && hasTargetOperation()) ||
             ((action === 'rotate' || action === 'cleanupIncomplete') && hasRunningWork())
           ) {
-            throw new HttpOperationError('busy', '请等当前文件操作结束后再修改备份设置或清理备份。')
+            throw new HttpOperationError(
+              'busy',
+              'Wait for the current file operation to finish before changing backup settings or cleaning up backups.',
+            )
           }
           if (action === 'setPreference') {
             if (!(data.policy === null || isSyncBackupPolicy(data.policy))) {
-              throw new HttpOperationError('invalid-request', '备份设置无效。')
+              throw new HttpOperationError('invalid-request', 'Backup settings are invalid.')
             }
             if (
               !library
@@ -86,7 +92,10 @@ export function registerBackupIpc(
                   (game) => game.id === data.projectId && game.rootId === data.rootId,
                 )
             ) {
-              throw new HttpOperationError('invalid-request', '请先配置该游戏的本机目录。')
+              throw new HttpOperationError(
+                'invalid-request',
+                "Configure this game's local directory first.",
+              )
             }
             value = await store.setPreference(data.projectId, data.rootId, data.policy)
           } else if (action === 'rotate') {
@@ -100,7 +109,10 @@ export function registerBackupIpc(
             if (action === 'manifest') {
               const manifest = listing.backups.find((item) => item.backupId === data.backupId)
               if (!manifest) {
-                throw new HttpOperationError('not-found', '备份不存在或归属不符。')
+                throw new HttpOperationError(
+                  'not-found',
+                  'The backup does not exist or its ownership does not match.',
+                )
               }
               value = manifest
             } else {
@@ -120,7 +132,7 @@ export function registerBackupIpc(
           }
         }
         if (Buffer.byteLength(JSON.stringify(value)) > BATCH_LIMITS.maxJsonBytes) {
-          throw new HttpOperationError('resource-limit', '备份响应超过限制。')
+          throw new HttpOperationError('resource-limit', 'The backup response exceeds the limit.')
         }
         return { status: 'success', value }
       } catch (error) {

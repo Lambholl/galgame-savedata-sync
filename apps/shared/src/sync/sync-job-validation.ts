@@ -1,4 +1,5 @@
 import { BATCH_LIMITS } from '../protocol/batch-limits.ts'
+import { OperationFailure } from '../result.ts'
 import { isBatchManifest } from '../protocol/batch-validation.ts'
 import { isOpaqueId } from '../protocol/protocol.ts'
 import { isOperationError } from '../protocol/validation.ts'
@@ -348,7 +349,7 @@ export function isSyncPreparationPreview(value: unknown): value is SyncPreparati
 /** 纯比较，不执行 IO；项目 ID 使用目标端本机项目，避免两端不同 ID 混入备份分组。 */
 export function syncPlanFromPreview(preview: SyncPreparationPreview): SyncPlan {
   if (!isSyncPreparationPreview(preview)) {
-    throw new Error('本次同步预览上下文无效。')
+    throw new OperationFailure('invalid-request', 'The sync preview context is invalid.')
   }
   return createSyncPlan({
     planId: preview.preparationId,

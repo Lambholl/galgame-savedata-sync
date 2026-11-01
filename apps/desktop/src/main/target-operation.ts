@@ -16,7 +16,7 @@ export function ownsTargetOperation(token: symbol): boolean {
 /** 仅原生编排持有 token；重复接纳和其他任务均返回 busy。 */
 export function acquireTargetOperation(token: symbol): void {
   if (owner !== null) {
-    throw new PublicationError('busy', '已有传输、恢复或文件资源等待清理。')
+    throw new PublicationError('busy', 'Transfer, restore, or file resources are awaiting cleanup.')
   }
   owner = token
 }

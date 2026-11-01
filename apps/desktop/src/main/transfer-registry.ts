@@ -106,7 +106,7 @@ export class WindowsTransferRegistry {
       this.maxTransfers < 1 ||
       this.maxTransfers > BATCH_LIMITS.maxTransfersPerSession
     ) {
-      throw new HttpOperationError('invalid-request', '任务容量配置无效。')
+      throw new HttpOperationError('invalid-request', 'The task capacity configuration is invalid.')
     }
     for (const key of [
       'ready',
@@ -120,7 +120,10 @@ export class WindowsTransferRegistry {
         this.timeouts[key] < 1 ||
         this.timeouts[key] > BATCH_TIMEOUTS_MS[key]
       ) {
-        throw new HttpOperationError('invalid-request', '任务期限配置无效。')
+        throw new HttpOperationError(
+          'invalid-request',
+          'The task deadline configuration is invalid.',
+        )
       }
     }
     this.timer = setInterval(() => this.sweep(), Math.min(1000, ...Object.values(this.timeouts)))
@@ -137,7 +140,7 @@ export class WindowsTransferRegistry {
         value.protocolVersion !== 1
       throw new HttpOperationError(
         mismatch ? 'protocol-mismatch' : 'invalid-request',
-        '下载批次请求无效。',
+        'The batch download request is invalid.',
       )
     }
     this.assertAvailable(value.transferId)
@@ -197,11 +200,11 @@ export class WindowsTransferRegistry {
         value.protocolVersion !== 1
       throw new HttpOperationError(
         mismatch ? 'protocol-mismatch' : 'invalid-request',
-        '上传登记请求无效。',
+        'The upload registration request is invalid.',
       )
     }
     if (!this.receiver) {
-      throw new HttpOperationError('unsupported-operation', '未启用原生接收能力。')
+      throw new HttpOperationError('unsupported-operation', 'Native receiving is not enabled.')
     }
     const request = clone(value)
     this.assertAvailable(request.manifest.transferId)
@@ -230,12 +233,15 @@ export class WindowsTransferRegistry {
         privateSpace,
       )
       if (targets.has(key)) {
-        throw new HttpOperationError('name-conflict', '多个文件映射到相同实际目标。')
+        throw new HttpOperationError(
+          'name-conflict',
+          'Multiple files map to the same actual target.',
+        )
       }
       targets.add(key)
     }
     if (this.isStopped) {
-      throw new HttpOperationError('busy', '服务正在停止。')
+      throw new HttpOperationError('busy', 'The service is stopping.')
     }
     const at = this.now()
     const state: BatchRunningState = {
@@ -313,7 +319,10 @@ export class WindowsTransferRegistry {
       !task.receiver ||
       !task.manifest
     ) {
-      throw new HttpOperationError('task-conflict', '该任务当前不接受上传内容。')
+      throw new HttpOperationError(
+        'task-conflict',
+        'This task currently does not accept upload content.',
+      )
     }
     const length = request.headers['content-length']
     const hash = request.headers[HTTP_HEADERS.archiveSha256]
@@ -324,16 +333,19 @@ export class WindowsTransferRegistry {
       request.headers['content-type'].toLowerCase() !== 'application/gzip' ||
       !isSha256(hash)
     ) {
-      throw new HttpOperationError('invalid-request', '上传内容头无效。')
+      throw new HttpOperationError('invalid-request', 'Upload content headers are invalid.')
     }
     if (Number(length) > BATCH_LIMITS.maxArchiveBytes) {
-      throw new HttpOperationError('resource-limit', '上传体超过协议预算。')
+      throw new HttpOperationError('resource-limit', 'The upload body exceeds the protocol budget.')
     }
     if (
       Number(length) !== task.manifest.archive.sizeBytes ||
       hash !== task.manifest.archive.sha256
     ) {
-      throw new HttpOperationError('checksum-mismatch', '上传头与登记清单不符。')
+      throw new HttpOperationError(
+        'checksum-mismatch',
+        'Upload headers do not match the registered manifest.',
+      )
     }
     this.running(task, 'transferring')
     task.networkAt = this.now()
@@ -345,16 +357,22 @@ export class WindowsTransferRegistry {
   private assertAvailable(id: string): void {
     this.sweep()
     if (this.isStopped) {
-      throw new HttpOperationError('busy', '服务正在停止。')
+      throw new HttpOperationError('busy', 'The service is stopping.')
     }
     if (this.usedIds.has(id) || this.pendingId === id) {
-      throw new HttpOperationError('task-conflict', '本会话已使用或正在登记该任务标识。')
+      throw new HttpOperationError(
+        'task-conflict',
+        'This task ID has been used or is being registered in the current session.',
+      )
     }
     if (hasTargetOperation()) {
-      throw new HttpOperationError('busy', '已有活动批次或缓存等待清理。')
+      throw new HttpOperationError('busy', 'An active batch or cache is awaiting cleanup.')
     }
     if (this.usedIds.size >= this.maxTransfers) {
-      throw new HttpOperationError('resource-limit', '会话任务标识容量已满，请重新启动服务。')
+      throw new HttpOperationError(
+        'resource-limit',
+        'The session task ID capacity is full. Restart the service.',
+      )
     }
   }
 
@@ -380,7 +398,7 @@ export class WindowsTransferRegistry {
   getManifest(id: string): BatchManifest {
     const task = this.find(id)
     if (!task.manifest) {
-      throw new HttpOperationError('task-conflict', '任务清单尚不可用。')
+      throw new HttpOperationError('task-conflict', 'The task manifest is not available yet.')
     }
     return clone(task.manifest)
   }
@@ -401,7 +419,10 @@ export class WindowsTransferRegistry {
       task.state.stage !== 'ready' ||
       !task.artifact
     ) {
-      throw new HttpOperationError('task-conflict', '任务内容已领取或当前阶段不允许领取。')
+      throw new HttpOperationError(
+        'task-conflict',
+        'The task content was claimed or cannot be claimed in the current stage.',
+      )
     }
     this.running(task, 'transferring')
     task.networkAt = this.now()
@@ -432,7 +453,7 @@ export class WindowsTransferRegistry {
           now - task.stageAt >= this.timeouts.awaitingContent) ||
         (task.state.stage === 'transferring' && now - task.networkAt >= this.timeouts.networkIdle)
       ) {
-        this.abort(task, operation('timeout', '批次操作超过期限。'))
+        this.abort(task, operation('timeout', 'The batch operation exceeded its deadline.'))
       }
     }
   }
@@ -445,7 +466,7 @@ export class WindowsTransferRegistry {
     }
     const task = this.tasks.get(id)
     if (task?.state.status === 'running') {
-      throw new HttpOperationError('busy', '任务仍在使用缓存。')
+      throw new HttpOperationError('busy', 'The task is still using the cache.')
     }
     await this.archive.retryCleanup()
     await this.receiver?.archive.retryCleanup()
@@ -482,7 +503,10 @@ export class WindowsTransferRegistry {
     this.sweep()
     const task = this.tasks.get(id)
     if (!task) {
-      throw new HttpOperationError('result-unknown', '任务不存在或结果已到期，请核实当前目标。')
+      throw new HttpOperationError(
+        'result-unknown',
+        'The task does not exist or its result expired. Verify the current target.',
+      )
     }
     return task
   }
@@ -514,8 +538,8 @@ export class WindowsTransferRegistry {
     task.state = { ...task.state, cancelRequested: reason === null, updatedAt: this.now() }
     task.controller.abort(
       reason?.code === 'timeout'
-        ? new DOMException('任务超时。', 'TimeoutError')
-        : new Error('任务中断。'),
+        ? new DOMException('The task timed out.', 'TimeoutError')
+        : new Error('The task was interrupted.'),
     )
     if (task.state.stage === 'ready') {
       task.worker = this.finish(task, reason ? 'failed' : 'cancelled', reason)
@@ -556,7 +580,10 @@ export class WindowsTransferRegistry {
           (file, index) => file.sourceEntryId !== request.files[index]?.entryId,
         )
       ) {
-        throw new HttpOperationError('invalid-archive', '归档清单与当前任务不符。')
+        throw new HttpOperationError(
+          'invalid-archive',
+          'The archive manifest does not match the current task.',
+        )
       }
       task.manifest = clone(artifact.manifest)
       if (task.controller.signal.aborted) {
@@ -574,7 +601,7 @@ export class WindowsTransferRegistry {
     } catch (error) {
       const cleanup =
         error && typeof error === 'object' && 'cleanupError' in error && error.cleanupError
-          ? operation('cleanup-failed', '私有缓存清理失败，请重试。')
+          ? operation('cleanup-failed', 'Private cache cleanup failed. Retry.')
           : null
       const wasCancelled =
         task.reason === null &&
@@ -591,7 +618,7 @@ export class WindowsTransferRegistry {
   private async send(task: TransferTask, response: ServerResponse): Promise<void> {
     const artifact = task.artifact
     if (!artifact) {
-      throw new HttpOperationError('task-conflict', '任务缓存不可用。')
+      throw new HttpOperationError('task-conflict', 'The task cache is unavailable.')
     }
     const descriptor = artifact.manifest.archive
     const hash = createHash('sha256')
@@ -603,7 +630,10 @@ export class WindowsTransferRegistry {
     let removeErrorListeners = (): void => undefined
     const disconnected = (): void => {
       if (!response.writableFinished) {
-        this.abort(task, localFailure ?? operation('network-failure', '归档连接中断。'))
+        this.abort(
+          task,
+          localFailure ?? operation('network-failure', 'The archive connection was interrupted.'),
+        )
       }
     }
     response.once('close', disconnected)
@@ -611,14 +641,19 @@ export class WindowsTransferRegistry {
       const input = await artifact.openArchive()
       if (task.controller.signal.aborted) {
         input.destroy()
-        throw new Error('任务已中断。')
+        throw new Error('The task has been interrupted.')
       }
       const counter = new Transform({
         highWaterMark: BATCH_RESOURCES.maxBufferBytes,
         transform: (chunk: Buffer, encoding, callback) => {
           void encoding
           if (!Buffer.isBuffer(chunk) || bytes + chunk.length > descriptor.sizeBytes) {
-            callback(new HttpOperationError('checksum-mismatch', '归档发送长度不符。'))
+            callback(
+              new HttpOperationError(
+                'checksum-mismatch',
+                'The transmitted archive length does not match.',
+              ),
+            )
             return
           }
           bytes += chunk.length
@@ -636,7 +671,10 @@ export class WindowsTransferRegistry {
           callback(
             bytes === descriptor.sizeBytes && hash.digest('hex') === descriptor.sha256
               ? null
-              : new HttpOperationError('checksum-mismatch', '归档发送内容不符。'),
+              : new HttpOperationError(
+                  'checksum-mismatch',
+                  'The transmitted archive content does not match.',
+                ),
           ),
       })
       // 本地流失败会连带关闭响应，必须先保留原错误，避免被 close 误归为网络故障。
@@ -668,7 +706,7 @@ export class WindowsTransferRegistry {
   private knownError(error: unknown): KnownOperationError {
     const failure = toHttpError(error).operationError
     return failure.code === 'result-unknown'
-      ? operation('io-failure', '本地任务处理失败。')
+      ? operation('io-failure', 'Local task processing failed.')
       : failure
   }
 
@@ -698,7 +736,7 @@ export class WindowsTransferRegistry {
     try {
       await task.artifact?.dispose()
     } catch {
-      cleanupError = operation('cleanup-failed', '私有缓存清理失败，请重试。')
+      cleanupError = operation('cleanup-failed', 'Private cache cleanup failed. Retry.')
     }
     task.artifact = null
     const at = this.now()
@@ -720,7 +758,7 @@ export class WindowsTransferRegistry {
       status,
       error:
         status === 'failed'
-          ? (error ?? operation('io-failure', '本地任务失败。'))
+          ? (error ?? operation('io-failure', 'The local task failed.'))
           : status === 'unknown'
             ? error
             : null,
@@ -735,7 +773,10 @@ export class WindowsTransferRegistry {
           task.receiverRequest,
         ))
     ) {
-      throw new HttpOperationError('result-unknown', '批次最终结果未能对应当前清单。')
+      throw new HttpOperationError(
+        'result-unknown',
+        'The final batch result could not be matched to the current manifest.',
+      )
     }
     task.state = terminal
     task.terminalAt = at

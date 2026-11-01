@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">存檔同步</string>
+    <string name="transfer_channel">檔案傳輸</string>
+    <string name="transfer_stage_preparing">正在準備傳輸</string>
+    <string name="transfer_stage_transferring">正在傳輸</string>
+    <string name="transfer_stage_verifying">正在驗證接收內容</string>
+    <string name="transfer_stage_writing">正在儲存並讀回驗證</string>
+    <string name="transfer_stage_backing_up">正在保護覆寫前的存檔</string>
+    <string name="transfer_stage_cleaning">正在清理本次資源</string>
+    <string name="transfer_stage_sent">已傳送，正在確認電腦接收結果</string>
+    <string name="transfer_cleanup_pending">本次資源尚未完成清理</string>
+    <string name="transfer_title_sending">%1$s：傳送檔案</string>
+    <string name="transfer_title_receiving">%1$s：接收檔案</string>
+    <string name="transfer_cancel">取消傳輸</string>
+    <string name="transfer_retry_cleanup">重試清理</string>
+</resources>

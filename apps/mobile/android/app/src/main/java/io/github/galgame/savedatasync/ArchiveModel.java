@@ -129,9 +129,9 @@ final class ArchiveModel {
         return true;
     }
     static void require(boolean condition) throws ArchiveFailure {
-        if (!condition) throw new ArchiveFailure("invalid-request", "归档请求或清单字段不合法");
+        if (!condition) throw new ArchiveFailure("invalid-request", "Archive request or manifest fields are invalid.");
     }
     static void limit(boolean condition) throws ArchiveFailure {
-        if (!condition) throw new ArchiveFailure("resource-limit", "归档超过本次资源预算");
+        if (!condition) throw new ArchiveFailure("resource-limit", "The archive exceeds the resource budget for this operation.");
     }
 }

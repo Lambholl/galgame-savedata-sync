@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react'
+import { toShownError } from '@savedata-sync/shared'
+import type { ShownError } from '@savedata-sync/shared'
 import type {
   MobileCopyDetails,
   MobileRestoreDetails,
@@ -9,13 +11,13 @@ import type {
 export function useSyncTasks(adapter: MobileSyncAdapter): {
   readonly copy: MobileCopyDetails | null
   readonly restore: MobileRestoreDetails | null
-  readonly errors: readonly string[]
+  readonly errors: readonly ShownError[]
   readonly isActive: boolean
   readonly reload: () => void
 } {
   const [copy, setCopy] = useState<MobileCopyDetails | null>(null)
   const [restore, setRestore] = useState<MobileRestoreDetails | null>(null)
-  const [errors, setErrors] = useState<readonly string[]>([])
+  const [errors, setErrors] = useState<readonly ShownError[]>([])
   const [version, setVersion] = useState(0)
   useEffect(() => {
     let isCurrent = true
@@ -34,26 +36,20 @@ export function useSyncTasks(adapter: MobileSyncAdapter): {
       }
       setErrors(
         results.flatMap((result) =>
-          result.status === 'rejected'
-            ? [
-                result.reason instanceof Error
-                  ? result.reason.message
-                  : '读取当前任务失败，请重新读取。',
-              ]
-            : [],
+          result.status === 'rejected' ? [toShownError(result.reason)] : [],
         ),
       )
       timer = setTimeout(() => {
-        poll().catch(() => {
+        poll().catch((cause: unknown) => {
           if (isCurrent) {
-            setErrors(['读取当前任务失败，请重新读取。'])
+            setErrors([toShownError(cause)])
           }
         })
       }, 1500)
     }
-    poll().catch(() => {
+    poll().catch((cause: unknown) => {
       if (isCurrent) {
-        setErrors(['读取当前任务失败，请重新读取。'])
+        setErrors([toShownError(cause)])
       }
     })
     return () => {

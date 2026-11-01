@@ -127,7 +127,9 @@ function failure(
     error: {
       code,
       message:
-        code === 'unsupported-operation' ? '请在 Android 应用中查看备份。' : '备份参数或响应无效。',
+        code === 'unsupported-operation'
+          ? 'View backups in the Android app.'
+          : 'Backup parameters or the response are invalid.',
       canRetry: false,
     },
   }

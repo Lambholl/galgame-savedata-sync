@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { Button, List } from 'antd-mobile'
 import { ExclamationCircleOutlined } from '@ant-design/icons'
-import { formatShortDateTime, resolveBackupPolicy } from '@savedata-sync/shared'
-import type { LibraryGame, SyncBackupPolicy } from '@savedata-sync/shared'
+import { formatShortDateTime, resolveBackupPolicy, toShownError } from '@savedata-sync/shared'
+import type { LibraryGame, ShownError, SyncBackupPolicy } from '@savedata-sync/shared'
 import {
   BackupPolicyBlock,
   BackupTimeline,
+  ErrorText,
   PathText,
   RestoreSummary,
   SyncPlanSummary,
@@ -51,7 +52,11 @@ export function BackupPage({
   const t = useT()
   const locale = useLocale()
   const [details, setDetails] = useState<MobileBackupDetails | null>(null)
-  const [error, setError] = useState('')
+  /** 最近一次失败，连同出错的操作。 */
+  const [error, setError] = useState<{
+    readonly context: string
+    readonly error: ShownError
+  } | null>(null)
   const [isBusy, setIsBusy] = useState(false)
   const [version, setVersion] = useState(0)
   const [isPolicyOpen, setIsPolicyOpen] = useState(false)
@@ -70,13 +75,13 @@ export function BackupPage({
       .then((value) => {
         if (isCurrent) {
           setDetails(value)
-          setError('')
+          setError(null)
         }
       })
       .catch((cause: unknown) => {
         if (isCurrent) {
           setDetails(null)
-          setError(cause instanceof Error ? cause.message : t('common.unknown'))
+          setError({ context: t('backup.readFailed'), error: toShownError(cause) })
         }
       })
     return () => {
@@ -108,11 +113,11 @@ export function BackupPage({
     }
     operating.current = true
     setIsBusy(true)
-    setError('')
+    setError(null)
     work()
       .then(reload)
       .catch((cause: unknown) => {
-        setError(cause instanceof Error ? cause.message : t('common.unknown'))
+        setError({ context: t('app.actionFailed'), error: toShownError(cause) })
         onChanged()
       })
       .finally(() => {
@@ -132,13 +137,13 @@ export function BackupPage({
   function savePolicy(nextMode: PolicyMode, nextDraft: SyncBackupPolicy): void {
     setMode(nextMode)
     setDraft(nextDraft)
-    setError('')
+    setError(null)
     const next = nextMode === 'custom' ? nextDraft : null
     saving.current = saving.current
       .then(() => sync.setBackup(game.id, next))
       .then(reload)
       .catch((cause: unknown) => {
-        setError(cause instanceof Error ? cause.message : t('common.unknown'))
+        setError({ context: t('backup.saveFailed'), error: toShownError(cause) })
         reload()
       })
   }
@@ -169,7 +174,7 @@ export function BackupPage({
     <div className="page-stack">
       {error && (
         <div className="notice notice-error" role="alert">
-          <p>{t('backup.readFailed', { message: error })}</p>
+          <ErrorText error={error.error} context={error.context} />
           <div className="action-row">
             <Button size="small" disabled={isBusy} onClick={reload}>
               {t('common.retry')}
@@ -312,7 +317,7 @@ export function BackupPage({
                   phase={state.status === 'ready' ? 'preparing' : state.status}
                   progress={null}
                   result={state.result}
-                  error={state.error?.message ?? null}
+                  error={state.error ?? null}
                   cleanupError={null}
                   onRetryCleanup={
                     state.result?.cleanupError && !isBusy

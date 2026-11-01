@@ -43,15 +43,15 @@ export function createSyncScanBridge(
     guard: (value: unknown) => value is T,
   ): Promise<OperationResult<T>> {
     if (!isAndroid()) {
-      return failure('unsupported-operation', '请在 Android 应用中扫描目录。')
+      return failure('unsupported-operation', 'Scan directories in the Android app.')
     }
     try {
       const value = await work()
       return isOperationResult(value, guard)
         ? value
-        : failure('io-failure', '原生扫描响应无效，请重新读取。')
+        : failure('io-failure', 'The native scan response is invalid. Read it again.')
     } catch {
-      return failure('io-failure', '原生扫描服务不可用，请重新读取。')
+      return failure('io-failure', 'The native scan service is unavailable. Read it again.')
     }
   }
   async function task(
@@ -59,7 +59,7 @@ export function createSyncScanBridge(
     id: string,
   ): Promise<OperationResult<SyncScanState>> {
     if (!isOpaqueId(id)) {
-      return failure('invalid-request', '扫描或目录引用无效。')
+      return failure('invalid-request', 'The scan or directory reference is invalid.')
     }
     const value = await invoke(
       () =>
@@ -72,7 +72,7 @@ export function createSyncScanBridge(
       value.status === 'success' &&
       value.value[action === 'start' ? 'rootId' : 'scanId'] !== id
     ) {
-      return failure('io-failure', '扫描结果与本次请求不匹配。')
+      return failure('io-failure', 'The scan result does not match this request.')
     }
     return value
   }

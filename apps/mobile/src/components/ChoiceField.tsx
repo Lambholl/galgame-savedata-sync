@@ -1,4 +1,5 @@
 import { Radio } from 'antd-mobile'
+import { useT } from '@savedata-sync/shared/ui'
 
 export interface ChoiceOption {
   readonly value: string
@@ -20,6 +21,7 @@ export function ChoiceField({
   readonly isDisabled?: boolean
   readonly onChange: (value: string) => void
 }): React.JSX.Element {
+  const t = useT()
   return (
     <fieldset className="choice-field" disabled={isDisabled}>
       <legend>{label}</legend>
@@ -42,7 +44,7 @@ export function ChoiceField({
           </Radio>
         ))
       ) : (
-        <p className="muted">暂无可选项</p>
+        <p className="muted">{t('common.noOptions')}</p>
       )}
     </fieldset>
   )

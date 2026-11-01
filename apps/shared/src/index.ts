@@ -1,5 +1,3 @@
-/** 两端界面共用的应用名称，不包含平台 API 或同步状态。 */
-export const APP_NAME = '存档同步'
 /** 界面显示的版本号；发布检查要求与各 package.json、Android versionName 一致。 */
 export const APP_VERSION = '0.1.2'
 

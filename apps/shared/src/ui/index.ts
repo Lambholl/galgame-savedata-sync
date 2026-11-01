@@ -1,12 +1,15 @@
 // 双端共用的界面渲染（ADR-0002）。只放与两端交互差异无关的展示组件；
 // 主入口 `@savedata-sync/shared` 不得导入本目录。
 export * from './path-text/PathText.tsx'
+export * from './errors/ErrorText.tsx'
 export * from './i18n/I18nProvider.tsx'
 export * from './files/FileIcon.tsx'
 export * from './transfer/TransferComparison.tsx'
 export * from './plan/SyncPlanSummary.tsx'
 export * from './task/SyncTaskSummary.tsx'
 export * from './task/RestoreSummary.tsx'
+export type { OutcomeListProps } from './task/OutcomeList.tsx'
+export type { ProgressRingProps, VerdictProps, VerdictTone } from './task/TaskHero.tsx'
 export * from './devices/LinkedDeviceList.tsx'
 export * from './devices/LinkPicker.tsx'
 export * from './devices/FolderRow.tsx'

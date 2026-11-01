@@ -6,17 +6,25 @@ import {
   formatDateTime,
   formatShortDateTime,
   resolveBackupPolicy,
+  toShownError,
   unwrap,
 } from '@savedata-sync/shared'
 import type {
   DirectoryReference,
   LibraryGame,
+  ShownError,
   SyncBackupFile,
   SyncBackupManifest,
   SyncBackupPolicy,
 } from '@savedata-sync/shared'
 import type { DesktopBackupInfo, DesktopBackupList } from '../../../../bridge/backup-bridge.ts'
-import { BackupPolicyBlock, BackupTimeline, useLocale, useT } from '@savedata-sync/shared/ui'
+import {
+  BackupPolicyBlock,
+  BackupTimeline,
+  ErrorText,
+  useLocale,
+  useT,
+} from '@savedata-sync/shared/ui'
 import { desktopBackups, desktopSync } from '../../platform/sync-adapter.ts'
 import { SETTING_FORM } from '../settings/setting-form.ts'
 import { BackupPolicyFields } from './BackupPolicyFields.tsx'
@@ -55,12 +63,15 @@ export function BackupPage({
   const [listing, setListing] = useState<DesktopBackupList | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isBusy, setIsBusy] = useState(false)
-  const [error, setError] = useState('')
+  const [error, setError] = useState<{ context: string; error: ShownError } | null>(null)
   const [version, setVersion] = useState(0)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [manifest, setManifest] = useState<SyncBackupManifest | null>(null)
   const [isReading, setIsReading] = useState(false)
-  const [manifestError, setManifestError] = useState('')
+  const [manifestError, setManifestError] = useState<{
+    context: string
+    error: ShownError
+  } | null>(null)
   const [restoreId, setRestoreId] = useState<string | null>(null)
   const [isPolicyOpen, setIsPolicyOpen] = useState(false)
   const [mode, setMode] = useState<PolicyMode>('follow')
@@ -90,13 +101,13 @@ export function BackupPage({
       if (hasResult) {
         setInfo(details)
         setListing(values)
-        setError('')
+        setError(null)
       }
     }
     void read()
       .catch((cause: unknown) => {
         if (hasResult) {
-          setError(cause instanceof Error ? cause.message : t('common.unknown'))
+          setError({ context: t('backup.readFailed'), error: toShownError(cause) })
         }
       })
       .finally(() => {
@@ -118,7 +129,7 @@ export function BackupPage({
     }
     const current = ++manifestVersion.current
     setManifest(null)
-    setManifestError('')
+    setManifestError(null)
     setIsReading(true)
     async function read(): Promise<void> {
       if (!selected) {
@@ -134,7 +145,7 @@ export function BackupPage({
     void read()
       .catch((cause: unknown) => {
         if (isCurrent.current && current === manifestVersion.current) {
-          setManifestError(cause instanceof Error ? cause.message : t('common.unknown'))
+          setManifestError({ context: t('backup.readFailed'), error: toShownError(cause) })
         }
       })
       .finally(() => {
@@ -152,11 +163,11 @@ export function BackupPage({
       return
     }
     setIsBusy(true)
-    setError('')
+    setError(null)
     void work()
       .catch((cause: unknown) => {
         if (isCurrent.current) {
-          setError(cause instanceof Error ? cause.message : t('common.unknown'))
+          setError({ context: t('app.actionFailed'), error: toShownError(cause) })
         }
       })
       .finally(() => {
@@ -195,7 +206,7 @@ export function BackupPage({
     const root = rootId
     setMode(nextMode)
     setDraft(nextDraft)
-    setError('')
+    setError(null)
     const next = nextMode === 'custom' ? nextDraft : null
     saving.current = saving.current
       .then(async () => {
@@ -203,7 +214,7 @@ export function BackupPage({
       })
       .catch((cause: unknown) => {
         if (isCurrent.current) {
-          setError(cause instanceof Error ? cause.message : t('common.unknown'))
+          setError({ context: t('backup.saveFailed'), error: toShownError(cause) })
         }
       })
       .finally(() => {
@@ -269,7 +280,13 @@ export function BackupPage({
             {t('backup.restoreThis')}
           </Button>
         </div>
-        {manifestError && <Alert showIcon type="error" title={manifestError} />}
+        {manifestError && (
+          <Alert
+            showIcon
+            type="error"
+            title={<ErrorText error={manifestError.error} context={manifestError.context} />}
+          />
+        )}
         <Table<SyncBackupFile>
           size="small"
           loading={isReading}
@@ -330,7 +347,7 @@ export function BackupPage({
         <Alert
           showIcon
           type="error"
-          title={t('backup.readFailed', { message: error })}
+          title={<ErrorText error={error.error} context={error.context} />}
           action={
             <Button size="small" onClick={refresh}>
               {t('common.retry')}

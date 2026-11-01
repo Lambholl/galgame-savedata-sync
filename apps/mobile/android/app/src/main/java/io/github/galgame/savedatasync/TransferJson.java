@@ -45,7 +45,7 @@ final class TransferJson {
         if (!(value instanceof List)) throw fail("invalid-request");
         return (List<Object>) value;
     }
-    static ArchiveFailure fail(String code) { return new ArchiveFailure(code, "传输数据或协议状态无效，请重新核实本次操作"); }
+    static ArchiveFailure fail(String code) { return new ArchiveFailure(code, "Transfer data or protocol state is invalid. Verify this operation again."); }
     private void space() { while (offset < text.length() && " \r\n\t".indexOf(text.charAt(offset)) >= 0) offset++; }
     private Object value(int depth) throws Exception {
         if (depth > 32) throw fail("resource-limit");

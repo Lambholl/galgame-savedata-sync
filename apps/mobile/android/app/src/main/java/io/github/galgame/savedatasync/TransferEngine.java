@@ -336,7 +336,7 @@ final class TransferEngine {
                 job.lastEvent = System.nanoTime(); snapshot = map(copy(job.state));
             }
             listener.state(snapshot);
-        } catch (Exception cause) { job.notificationFailure = new IllegalStateException("状态通知失败；可通过 query 获取实际状态", cause); }
+        } catch (Exception cause) { job.notificationFailure = new IllegalStateException("Status notification failed. Use query to get the actual status.", cause); }
     }
     private void run(Job job) {
         try {

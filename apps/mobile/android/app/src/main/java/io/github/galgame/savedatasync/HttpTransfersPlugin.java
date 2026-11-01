@@ -38,7 +38,7 @@ public class HttpTransfersPlugin extends Plugin {
     private TransferRuntime runtime;
     private final TransferEngine.Listener listener = value -> {
         if (!destroyed) try { notifyListeners("transferState", json(value)); }
-        catch (Exception cause) { throw new IllegalStateException("无法通知任务状态，可查询实际结果", cause); }
+        catch (Exception cause) { throw new IllegalStateException("Task status notification failed. Query the actual result.", cause); }
     };
     private final TransferEngine.ControlListener control = new TransferEngine.ControlListener() {
         @Override public void message(String deviceId, String text) {
@@ -100,10 +100,10 @@ public class HttpTransfersPlugin extends Plugin {
                             ? connectionError(cause) : error(NewFilePublisher.failure(cause).code);
                         call.resolve(json(object("status", "error", "error", failure)));
                     }
-                    catch (Exception invalid) { call.resolve(new SafFailure("io-failure", "任务服务不可用").result()); }
+                    catch (Exception invalid) { call.resolve(new SafFailure("io-failure", "The task service is unavailable.").result()); }
                 } finally { queries.remove(control); }
             });
-        } catch (java.util.concurrent.RejectedExecutionException cause) { call.resolve(new SafFailure("unsupported-operation", "应用已关闭").result()); }
+        } catch (java.util.concurrent.RejectedExecutionException cause) { call.resolve(new SafFailure("unsupported-operation", "The app is closed.").result()); }
     }
     private Map<String, Object> arguments(PluginCall call, String... fields) throws Exception {
         return shape(parse(call.getData().toString().getBytes(StandardCharsets.UTF_8)), fields);
@@ -144,18 +144,18 @@ public class HttpTransfersPlugin extends Plugin {
                 requestPermissionForAlias("notifications", call, "onNotificationPermission"); return;
             }
             call.resolve(json(object("status", "success", "value", TransferService.notificationsAllowed(getContext()))));
-        } catch (Exception cause) { call.resolve(new SafFailure("permission-denied", "无法申请传输通知权限", cause).result()); }
+        } catch (Exception cause) { call.resolve(new SafFailure("permission-denied", "Cannot request transfer notification permission.", cause).result()); }
     }
     @PermissionCallback private void onNotificationPermission(PluginCall call) {
         if (call == null) return;
         try { call.resolve(json(object("status", "success", "value", TransferService.notificationsAllowed(getContext())))); }
-        catch (Exception cause) { call.resolve(new SafFailure("permission-denied", "传输通知不可用", cause).result()); }
+        catch (Exception cause) { call.resolve(new SafFailure("permission-denied", "Transfer notifications are unavailable.", cause).result()); }
     }
 
     /** 选择存档目录时保存系统读写权限；以后接收会重新核实已有持久权限。 */
     @PluginMethod public void chooseTarget(PluginCall call) {
         try { arguments(call); if (destroyed || !choosing.compareAndSet(false, true)) throw fail("unsupported-operation"); }
-        catch (Exception cause) { call.resolve(new SafFailure("invalid-request", "请先完成当前目录选择").result()); return; }
+        catch (Exception cause) { call.resolve(new SafFailure("invalid-request", "Complete the current directory selection first.").result()); return; }
         io.execute(() -> {
             try {
                 engine();
@@ -166,9 +166,9 @@ public class HttpTransfersPlugin extends Plugin {
                         intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION |
                             Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION | Intent.FLAG_GRANT_PREFIX_URI_PERMISSION);
                         startActivityForResult(call, intent, "onTargetChosen");
-                    } catch (Exception cause) { choosing.set(false); call.resolve(new SafFailure("permission-denied", "无法打开目标目录选择器").result()); }
+                    } catch (Exception cause) { choosing.set(false); call.resolve(new SafFailure("permission-denied", "Cannot open the target directory picker.").result()); }
                 });
-            } catch (Exception cause) { choosing.set(false); call.resolve(new SafFailure("permission-denied", "无法打开目标目录选择器").result()); }
+            } catch (Exception cause) { choosing.set(false); call.resolve(new SafFailure("permission-denied", "Cannot open the target directory picker.").result()); }
         });
     }
     @ActivityCallback private void onTargetChosen(PluginCall call, ActivityResult result) {
@@ -189,10 +189,10 @@ public class HttpTransfersPlugin extends Plugin {
                     call.resolve(json(object("status", "selected", "directory", parse(directory.toString().getBytes(StandardCharsets.UTF_8)))));
                 } catch (Exception cause) {
                     if (!hadWrite) try { getContext().getContentResolver().releasePersistableUriPermission(uri, Intent.FLAG_GRANT_WRITE_URI_PERMISSION); } catch (Exception ignored) { /* 不撤销既有用户授权。 */ }
-                    call.resolve(new SafFailure("permission-denied", "未取得目标目录写入授权", cause).result());
+                    call.resolve(new SafFailure("permission-denied", "Write authorization for the target directory was not obtained.", cause).result());
                 }
             });
-        } catch (Exception cause) { call.resolve(new SafFailure("permission-denied", "系统未返回有效写入授权", cause).result()); }
+        } catch (Exception cause) { call.resolve(new SafFailure("permission-denied", "The system did not return valid write authorization.", cause).result()); }
     }
     @Override protected void handleOnDestroy() {
         destroyed = true; for (ArchiveControl control : queries) control.cancel();

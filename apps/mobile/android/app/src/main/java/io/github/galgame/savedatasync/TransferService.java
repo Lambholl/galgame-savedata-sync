@@ -31,7 +31,13 @@ public class TransferService extends Service {
     private TransferRuntime runtime;
     private int lastStartId;
     static void prepareChannel(Context context) {
-        context.getSystemService(NotificationManager.class).createNotificationChannel(new NotificationChannel(CHANNEL, "文件传输", NotificationManager.IMPORTANCE_LOW));
+        Context localized = AppPreferencesPlugin.localizedContext(context);
+        String name = localized.getString(R.string.transfer_channel);
+        NotificationManager manager = context.getSystemService(NotificationManager.class);
+        NotificationChannel channel = manager.getNotificationChannel(CHANNEL);
+        if (channel == null || !name.contentEquals(channel.getName())) {
+            manager.createNotificationChannel(new NotificationChannel(CHANNEL, name, NotificationManager.IMPORTANCE_LOW));
+        }
     }
     static boolean notificationsAllowed(Context context) {
         prepareChannel(context);
@@ -79,33 +85,36 @@ public class TransferService extends Service {
     };
     @SuppressWarnings("unchecked")
     private Notification notification() {
+        Context localized = AppPreferencesPlugin.localizedContext(this);
+        prepareChannel(localized);
         SyncTransferRuntime sync = SyncTransferRuntime.peek();
         Map<String, Object> state = sync != null && sync.busy() ? sync.notice() : runtime == null ? null : runtime.notice();
         String id = state == null ? null : (String) state.get("transferId");
         boolean upload = state != null && Boolean.TRUE.equals(state.get("upload"));
         boolean active = state == null || Boolean.TRUE.equals(state.get("running"));
         String stage = state == null ? "preparing" : (String) state.get("stage");
-        String text;
+        int textResource;
         switch (stage) {
-            case "transferring": text = "正在传输"; break;
-            case "verifying": text = "正在校验接收内容"; break;
-            case "publishing": text = "正在保存并回读校验"; break;
-            case "backing-up": text = "正在保护覆盖前的存档"; break;
-            case "writing": text = "正在保存并回读校验"; break;
-            case "cleaning": text = "正在清理本次资源"; break;
-            case "sent": text = "已发送，正在确认电脑接收结果"; break;
-            default: text = "正在准备传输";
+            case "transferring": textResource = R.string.transfer_stage_transferring; break;
+            case "verifying": textResource = R.string.transfer_stage_verifying; break;
+            case "publishing":
+            case "writing": textResource = R.string.transfer_stage_writing; break;
+            case "backing-up": textResource = R.string.transfer_stage_backing_up; break;
+            case "cleaning": textResource = R.string.transfer_stage_cleaning; break;
+            case "sent": textResource = R.string.transfer_stage_sent; break;
+            default: textResource = R.string.transfer_stage_preparing;
         }
-        if (!active) text = "本次资源尚未完成清理";
+        if (!active) textResource = R.string.transfer_cleanup_pending;
         Intent open = new Intent(this, MainActivity.class).setAction(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
-        Notification.Builder builder = new Notification.Builder(this, CHANNEL).setSmallIcon(android.R.drawable.stat_notify_sync)
-            .setContentTitle(upload ? "存档同步：发送文件" : "存档同步：接收文件").setContentText(text)
+        Notification.Builder builder = new Notification.Builder(localized, CHANNEL).setSmallIcon(android.R.drawable.stat_notify_sync)
+            .setContentTitle(localized.getString(upload ? R.string.transfer_title_sending : R.string.transfer_title_receiving, localized.getString(R.string.app_name)))
+            .setContentText(localized.getString(textResource))
             .setOngoing(true).setOnlyAlertOnce(true).setCategory(Notification.CATEGORY_PROGRESS)
             .setContentIntent(PendingIntent.getActivity(this, 0, open, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE));
         if (id != null) {
             Intent action = new Intent(this, TransferService.class).setAction(active ? CANCEL : RETRY).putExtra("transferId", id)
                 .setData(Uri.parse("savedata-sync://transfer/" + id + (active ? "/cancel" : "/retry")));
-            builder.addAction(new Notification.Action.Builder(null, active ? "取消传输" : "重试清理",
+            builder.addAction(new Notification.Action.Builder(null, localized.getString(active ? R.string.transfer_cancel : R.string.transfer_retry_cleanup),
                 PendingIntent.getService(this, 0, action, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE)).build());
         }
         Map<String, Object> progress = state == null || !(state.get("progress") instanceof Map) ? null : (Map<String, Object>) state.get("progress");
@@ -133,7 +142,7 @@ public class TransferService extends Service {
         if (runtime != null && runtime.busy()) runtime.cancel(runtime.engine.activeId(), false);
         SyncTransferRuntime sync = SyncTransferRuntime.peek();
         if (sync != null && sync.busy()) sync.cancel(sync.engine.activeId(), false);
-        ready(new IllegalStateException("前台传输服务已结束")); super.onDestroy();
+        ready(new IllegalStateException("The foreground transfer service has ended.")); super.onDestroy();
     }
     @Override public IBinder onBind(Intent intent) { return null; }
 }

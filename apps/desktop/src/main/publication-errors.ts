@@ -15,7 +15,7 @@ export class PublicationError extends Error {
 /** 内部取消检查，不伪造错误码；成功发布与取消竞争时由实际回读结果决定。 */
 export class PublicationCancelledError extends Error {
   constructor() {
-    super('新文件发布已取消。')
+    super('New file publication was cancelled.')
     this.name = 'PublicationCancelledError'
   }
 }
@@ -36,23 +36,43 @@ export function toPublicationError(error: unknown): PublicationError {
   }
   const code = error && typeof error === 'object' && 'code' in error ? error.code : null
   if (code === 'EEXIST') {
-    return new PublicationError('name-conflict', '目标名称已存在，未覆盖已有条目。', error)
+    return new PublicationError(
+      'name-conflict',
+      'The target name already exists. The existing entry was not overwritten.',
+      error,
+    )
   }
   if (code === 'ENOSPC' || code === 'EDQUOT') {
-    return new PublicationError('insufficient-space', '目标卷空间不足。', error)
+    return new PublicationError(
+      'insufficient-space',
+      'The target volume has insufficient space.',
+      error,
+    )
   }
   if (code === 'EXDEV' || code === 'ENOTSUP' || code === 'EOPNOTSUPP' || code === 'ENOSYS') {
     return new PublicationError(
       'unsupported-operation',
-      '目标文件系统不支持安全的新文件发布。',
+      'The target file system does not support safe new file publication.',
       error,
     )
   }
   if (code === 'EACCES' || code === 'EPERM') {
-    return new PublicationError('permission-denied', '没有目标目录的操作权限。', error)
+    return new PublicationError(
+      'permission-denied',
+      'Permission to operate on the target directory is missing.',
+      error,
+    )
   }
   if (code === 'ENOENT' || code === 'ENOTDIR') {
-    return new PublicationError('not-found', '目标目录或条目已经不存在。', error)
+    return new PublicationError(
+      'not-found',
+      'The target directory or entry no longer exists.',
+      error,
+    )
   }
-  return new PublicationError('io-failure', '新文件读写失败，请核实当前目标。', error)
+  return new PublicationError(
+    'io-failure',
+    'New file I/O failed. Verify the current target.',
+    error,
+  )
 }

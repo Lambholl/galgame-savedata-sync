@@ -1,4 +1,5 @@
 import { Button } from 'antd-mobile'
+import { useT } from '@savedata-sync/shared/ui'
 import { Sheet } from './Sheet'
 import { ChoiceField } from './ChoiceField'
 import type { ChoiceOption } from './ChoiceField'
@@ -20,11 +21,18 @@ export function ImportGameDialog({
   readonly onCancel: () => void
   readonly onImport: () => void
 }): React.JSX.Element {
+  const t = useT()
   return (
-    <Sheet isOpen={isOpen} title="从设备导入游戏" layer={1100} isBusy={isBusy} onClose={onCancel}>
+    <Sheet
+      isOpen={isOpen}
+      title={t('game.importTitle')}
+      layer={1100}
+      isBusy={isBusy}
+      onClose={onCancel}
+    >
       <div className="page-stack">
         <ChoiceField
-          label="选择游戏"
+          label={t('game.pickGame')}
           value={importKey}
           options={options}
           isDisabled={isBusy}
@@ -37,10 +45,10 @@ export function ImportGameDialog({
           disabled={isBusy || !importKey}
           onClick={onImport}
         >
-          导入
+          {t('game.import')}
         </Button>
         <Button block disabled={isBusy} onClick={onCancel}>
-          取消
+          {t('common.cancel')}
         </Button>
       </div>
     </Sheet>

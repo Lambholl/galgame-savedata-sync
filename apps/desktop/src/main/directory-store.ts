@@ -62,7 +62,10 @@ function isRegistry(value: unknown): value is DirectoryRegistry {
 
 function assertConfigOutsideRoots(configPath: string, registry: DirectoryRegistry): void {
   if (registry.roots.some((root) => isWithinDirectory(root.path, configPath))) {
-    throw new DirectoryAccessError('invalid-request', '配置文件不能存放在所选同步目录中。')
+    throw new DirectoryAccessError(
+      'invalid-request',
+      'The configuration file cannot be stored in the selected sync directory.',
+    )
   }
 }
 
@@ -81,7 +84,10 @@ export async function loadDirectoryRegistry(configPath: string): Promise<Directo
     throw error
   }
   if (!stats.isFile() || stats.isSymbolicLink() || stats.size > 1024n * 1024n) {
-    throw new DirectoryAccessError('invalid-request', '目录配置文件类型或大小无效。')
+    throw new DirectoryAccessError(
+      'invalid-request',
+      'The directory configuration file type or size is invalid.',
+    )
   }
   const handle = await open(configPath, 'r')
   try {
@@ -91,11 +97,17 @@ export async function loadDirectoryRegistry(configPath: string): Promise<Directo
         ino: stats.ino.toString(),
       })
     ) {
-      throw new DirectoryAccessError('source-changed', '目录配置在读取时发生变化。')
+      throw new DirectoryAccessError(
+        'source-changed',
+        'The directory configuration changed while reading.',
+      )
     }
     const value: unknown = JSON.parse(await handle.readFile('utf8'))
     if (!isRegistry(value)) {
-      throw new DirectoryAccessError('invalid-request', '目录配置格式或版本无效。')
+      throw new DirectoryAccessError(
+        'invalid-request',
+        'The directory configuration format or version is invalid.',
+      )
     }
     assertConfigOutsideRoots(configPath, value)
     return value

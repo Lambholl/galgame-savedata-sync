@@ -102,17 +102,17 @@ export interface AndroidTransferApi {
 }
 const INVALID: OperationError = {
   code: 'invalid-request',
-  message: '传输参数或任务引用无效。',
+  message: 'Transfer parameters or the task reference are invalid.',
   canRetry: false,
 }
 const BRIDGE: OperationError = {
   code: 'io-failure',
-  message: '任务响应与本次操作不匹配。',
+  message: 'The task response does not match this operation.',
   canRetry: false,
 }
 const UNSUPPORTED: OperationError = {
   code: 'unsupported-operation',
-  message: '请在 Android 应用中操作传输。',
+  message: 'Perform transfers in the Android app.',
   canRetry: false,
 }
 function failure(error: OperationError): {

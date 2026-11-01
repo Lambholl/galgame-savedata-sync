@@ -1,6 +1,11 @@
 import { useEffect, useRef } from 'react'
-import { syncPlanFromPreview } from '@savedata-sync/shared'
-import type { OperationError, RemoteSyncReport, TransferDirection } from '@savedata-sync/shared'
+import { syncPlanFromPreview, toShownError } from '@savedata-sync/shared'
+import type {
+  OperationError,
+  RemoteSyncReport,
+  ShownError,
+  TransferDirection,
+} from '@savedata-sync/shared'
 import type { AndroidControlApi } from '../../platform/control-channel'
 import type { MobileSyncAdapter } from '../../platform/sync-adapter'
 import { transferOutcome } from './transfer-feedback'
@@ -36,7 +41,7 @@ export function useRemoteSync(
   handlers: {
     readonly onScan: (projectId: string) => void
     readonly onStarted: (jobId: string) => void
-    readonly onFailure: (message: string) => void
+    readonly onFailure: (error: ShownError) => void
   },
 ): void {
   const busy = useRef(isBusy)
@@ -54,11 +59,16 @@ export function useRemoteSync(
         control.emit(item.deviceId, 'sync.report', value).catch(() => undefined)
       }
     }
-    function fail(item: ActiveRequest, message: string): void {
+    /** 回报扫描失败；保留原错误码，没有错误码时按读写失败回报。 */
+    function fail(item: ActiveRequest, error: ShownError): void {
+      const code = error.code ?? 'io-failure'
       report(item, {
         requestId: item.requestId,
         status: 'failed',
-        error: { code: 'io-failure', message, canRetry: true },
+        error:
+          code === 'result-unknown' || code === 'session-mismatch'
+            ? { code, message: error.message, canRetry: false }
+            : { code, message: error.message, canRetry: true },
       })
     }
     async function release(item: ActiveRequest): Promise<void> {
@@ -96,7 +106,7 @@ export function useRemoteSync(
         item.isReady = true
         report(item, { requestId: item.requestId, status: 'ready', plan })
       } else {
-        fail(item, state.error?.message ?? '手机扫描失败，请重新扫描。')
+        fail(item, state.error ?? { code: 'io-failure', message: 'The phone scan failed.' })
         await release(item)
       }
     }
@@ -125,16 +135,16 @@ export function useRemoteSync(
     const removers = [
       control.onRequest('sync.prepare', async (from, body) => {
         if (from !== peerId) {
-          return failure('session-mismatch', '设备连接已变化。')
+          return failure('session-mismatch', 'The device connection changed.')
         }
         if (active?.jobId) {
-          return failure('busy', '手机还在执行上一次传输。')
+          return failure('busy', 'The phone is still running the previous transfer.')
         }
         if (active) {
           await release(active)
         }
         if (busy.current) {
-          return failure('busy', '手机正在传输或恢复，请稍后重试。')
+          return failure('busy', 'The phone is transferring or restoring. Retry later.')
         }
         const item: ActiveRequest = {
           requestId: body.requestId,
@@ -147,7 +157,7 @@ export function useRemoteSync(
         active = item
         events.current.onScan(body.projectId)
         prepare(item, body.projectId, body.direction).catch(async (cause: unknown) => {
-          fail(item, cause instanceof Error ? cause.message : '手机扫描失败，请重新扫描。')
+          fail(item, toShownError(cause))
           await release(item)
         })
         return { status: 'success', value: null }
@@ -155,11 +165,11 @@ export function useRemoteSync(
       control.onRequest('sync.confirm', async (from, body) => {
         const item = active
         if (from !== peerId || item?.requestId !== body.requestId || !item.isReady) {
-          return failure('not-found', '手机没有这次扫描的结果，请重新扫描。')
+          return failure('not-found', 'The phone has no result for this scan. Scan again.')
         }
         const id = item.preparationId
         if (!id || item.jobId) {
-          return failure('busy', '手机已经开始这次传输。')
+          return failure('busy', 'The phone has already started this transfer.')
         }
         try {
           const state = await sync.execute(id)
@@ -168,10 +178,10 @@ export function useRemoteSync(
           watch(item, state.jobId).catch(() => undefined)
           return { status: 'success', value: { jobId: state.jobId } }
         } catch (cause) {
-          const message = cause instanceof Error ? cause.message : '手机开始传输失败。'
-          events.current.onFailure(message)
+          const error = toShownError(cause)
+          events.current.onFailure(error)
           await release(item)
-          return failure('io-failure', message)
+          return failure(error.code ?? 'io-failure', error.message)
         }
       }),
       control.onRequest('sync.cancel', async (from, body) => {

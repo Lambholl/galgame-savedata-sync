@@ -5,7 +5,7 @@ import antdJaJP from 'antd/locale/ja_JP'
 import antdZhCN from 'antd/locale/zh_CN'
 import antdZhTW from 'antd/locale/zh_TW'
 import type { Locale } from 'antd/es/locale'
-import { resolveLocale, themeTokens } from '@savedata-sync/shared'
+import { createTranslator, resolveLocale, themeTokens } from '@savedata-sync/shared'
 import type { AppLocale, ResolvedTheme } from '@savedata-sync/shared'
 import { I18nProvider } from '@savedata-sync/shared/ui'
 import { MobileApp } from './app/MobileApp'
@@ -43,6 +43,7 @@ export function App(): React.JSX.Element {
   }, [])
   useEffect(() => {
     document.documentElement.lang = locale
+    document.title = createTranslator(locale)('app.name')
   }, [locale])
   return (
     <I18nProvider locale={locale}>

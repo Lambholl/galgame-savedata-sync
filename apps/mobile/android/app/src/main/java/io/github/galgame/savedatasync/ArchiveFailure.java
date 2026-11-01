@@ -23,8 +23,8 @@ final class ArchiveFailure extends IOException {
     static ArchiveFailure from(Exception cause) {
         if (cause instanceof ArchiveFailure) return (ArchiveFailure) cause;
         if (cause instanceof SafFailure) {
-            return new ArchiveFailure(((SafFailure) cause).code, "无法读取已授权的源文件", false, cause);
+            return new ArchiveFailure(((SafFailure) cause).code, "Cannot read the authorized source file.", false, cause);
         }
-        return new ArchiveFailure("io-failure", "归档本地读写失败", false, cause);
+        return new ArchiveFailure("io-failure", "Local archive I/O failed.", false, cause);
     }
 }

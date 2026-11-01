@@ -4,8 +4,10 @@ import { ActionSheet, Button } from 'antd-mobile'
 import { MoreOutlined } from '@ant-design/icons'
 import { EmptyState } from '../components/EmptyState'
 import {
+  OperationFailure,
   emptyLibrary,
   taskIsActive,
+  toShownError,
   withGameLink,
   withoutGameLink,
   createImportedGame,
@@ -15,6 +17,7 @@ import type {
   DirectoryReference,
   LibraryGame,
   LibraryPeer,
+  ShownError,
 } from '@savedata-sync/shared'
 import type { MobileLibraryAdapter, MobileSnapshot } from '../platform/library-types'
 import { ConfirmationDialog } from '../components/ConfirmationDialog.tsx'
@@ -24,7 +27,7 @@ import { GameMenu } from '../features/games/GameActionSheet'
 import { ImportGameDialog } from '../components/ImportGameDialog.tsx'
 import { LibraryShell } from '../components/LibraryShell.tsx'
 import { PAGE_TITLE_KEYS } from './navigation-types'
-import { useT } from '@savedata-sync/shared/ui'
+import { ErrorText, useT } from '@savedata-sync/shared/ui'
 import type { BackButtonController, Confirmation, Page } from './navigation-types'
 import { BackupPage } from '../features/backup/BackupPage'
 import { DevicesPage } from '../features/devices/DevicesPage'
@@ -62,7 +65,7 @@ export function MobileApp({
   const syncTasks = useSyncTasks(sync)
   const [page, setPage] = useState<Page>('games')
   const [snapshot, setSnapshot] = useState<MobileSnapshot | null>(null)
-  const [error, setError] = useState('')
+  const [error, setError] = useState<ShownError | null>(null)
   const [isBusy, setIsBusy] = useState(false)
   const [gameId, setGameId] = useState('')
   const [peerId, setPeerId] = useState('')
@@ -88,8 +91,12 @@ export function MobileApp({
   const backHandler = useRef<() => boolean>(() => false)
   const transferNotices = useRef(new Map<string, string>())
   const showSyncFailure = useCallback(
-    (content: string) => {
-      void messageApi.error({ content, duration: 3.5, key: 'sync-action-failed' })
+    (failure: ShownError) => {
+      void messageApi.error({
+        content: <ErrorText error={failure} context={null} />,
+        duration: 3.5,
+        key: 'sync-action-failed',
+      })
     },
     [messageApi],
   )
@@ -103,7 +110,7 @@ export function MobileApp({
       return
     }
     const feedback = transferFeedback(state)
-    const signature = feedback ? `${feedback.type}/${feedback.content}` : 'running'
+    const signature = feedback ? `${feedback.type}/${feedback.text}` : 'running'
     const previous = transferNotices.current.get(state.jobId)
     if (previous === signature) {
       return
@@ -117,9 +124,18 @@ export function MobileApp({
     transferNotices.current.set(state.jobId, signature)
     // 首次取回旧终态只展示详情；本次发起预先登记 running，快速完成也能提示一次。
     if (previous !== undefined && feedback) {
-      void messageApi.open({ ...feedback, key: `sync-transfer-${state.jobId}`, duration: 3.5 })
+      void messageApi.open({
+        type: feedback.type,
+        content: feedback.error ? (
+          <ErrorText error={feedback.error} context={t(feedback.text)} />
+        ) : (
+          t(feedback.text)
+        ),
+        key: `sync-transfer-${state.jobId}`,
+        duration: 3.5,
+      })
     }
-  }, [syncTasks.copy, messageApi])
+  }, [syncTasks.copy, messageApi, t])
   const invalidate = useCallback(() => {
     generation.current++
   }, [])
@@ -136,7 +152,7 @@ export function MobileApp({
             !value.peers.some((next) => next.device.id === peer.device.id && next.isConnected),
         )
       ) {
-        void messageApi.info({ content: '连接已断开', key: 'connection-disconnected' })
+        void messageApi.info({ content: t('app.disconnected'), key: 'connection-disconnected' })
       }
       const connected = value.peers.find(
         (peer) =>
@@ -148,17 +164,17 @@ export function MobileApp({
       )
       if (connected) {
         void messageApi.success({
-          content: `已连接到 ${connected.device.name}`,
+          content: t('app.connectedTo', { name: connected.device.name }),
           key: 'connection-connected',
         })
       }
       snapshotRef.current = value
       setSnapshot(value)
       if (value.warning) {
-        setError(value.warning)
+        setError({ code: null, message: value.warning })
       }
     }
-  }, [adapter, messageApi])
+  }, [adapter, messageApi, t])
   useEffect(() => {
     let isCurrent = true
     let timer: ReturnType<typeof setTimeout>
@@ -171,17 +187,17 @@ export function MobileApp({
           await refresh()
         } catch (cause) {
           if (isCurrent) {
-            setError(cause instanceof Error ? cause.message : '读取应用状态失败。')
+            setError(toShownError(cause))
           }
         }
       }
       if (isCurrent) {
         timer = setTimeout(() => {
-          poll().catch(() => setError('刷新失败，请重试。'))
+          poll().catch((cause: unknown) => setError(toShownError(cause)))
         }, 1800)
       }
     }
-    poll().catch(() => setError('读取应用失败。'))
+    poll().catch((cause: unknown) => setError(toShownError(cause)))
     return () => {
       isCurrent = false
       invalidate()
@@ -189,23 +205,23 @@ export function MobileApp({
     }
   }, [refresh, invalidate])
   useEffect(() => backButton?.subscribe(() => backHandler.current()), [backButton])
-  function run(work: () => Promise<void>, onError?: (message: string) => void): void {
+  function run(work: () => Promise<void>, onError?: (failure: ShownError) => void): void {
     if (operating.current) {
       return
     }
     operating.current = true
     generation.current++
     setIsBusy(true)
-    setError('')
+    setError(null)
     work()
       .then(refresh)
       .catch((cause: unknown) => {
-        const message = cause instanceof Error ? cause.message : '操作失败，请重试。'
+        const failure = toShownError(cause)
         if (onError) {
-          onError(message)
+          onError(failure)
         } else {
-          setError(message)
-          showSyncFailure(message)
+          setError(failure)
+          showSyncFailure(failure)
         }
       })
       .finally(() => {
@@ -230,15 +246,18 @@ export function MobileApp({
         }
       }
       transferNotices.current.set(jobId, 'running')
-      void messageApi.info({ content: '开始传输', key: `sync-transfer-${jobId}` })
+      void messageApi.info({ content: t('transfer.started'), key: `sync-transfer-${jobId}` })
       reloadTasks()
     },
-    [messageApi, reloadTasks],
+    [messageApi, reloadTasks, t],
   )
   useRemoteSync(sync, androidControl, online?.device.id ?? null, isActive, {
     onScan: (projectId) => {
-      const name = config.games.find((item) => item.id === projectId)?.name ?? '存档'
-      void messageApi.info({ content: `电脑请求扫描${name}`, key: 'remote-sync-scan' })
+      const name = config.games.find((item) => item.id === projectId)?.name ?? t('common.unknown')
+      void messageApi.info({
+        content: t('transfer.remoteScanRequest', { name }),
+        key: 'remote-sync-scan',
+      })
     },
     onStarted: announceStart,
     onFailure: showSyncFailure,
@@ -265,7 +284,7 @@ export function MobileApp({
   async function saveGame(item: LibraryGame): Promise<void> {
     const current = snapshotRef.current?.config
     if (!current) {
-      throw new Error('配置还没有读取完成。')
+      throw new Error(t('app.notLoaded'))
     }
     await adapter.saveGames(current.games.map((value) => (value.id === item.id ? item : value)))
   }
@@ -275,7 +294,7 @@ export function MobileApp({
     }
     const name = value.trim()
     if (!name) {
-      setError('游戏名称不能为空。')
+      setError({ code: null, message: t('game.nameRequired') })
       return
     }
     if (name !== game.name) {
@@ -289,7 +308,7 @@ export function MobileApp({
     run(async () => {
       const result = await adapter.chooseDirectory()
       if (result.status === 'error') {
-        throw new Error(result.error.message)
+        throw new OperationFailure(result.error.code, result.error.message)
       }
       if (result.status === 'selected') {
         await saveGame({ ...game, rootId: result.directory.rootId })
@@ -300,7 +319,7 @@ export function MobileApp({
     setNewDirectory(null)
     setNewGameName('')
     setImportedGame(null)
-    setError('')
+    setError(null)
     setIsAddGameOpen(true)
   }
   function closeAddGame(): void {
@@ -311,13 +330,13 @@ export function MobileApp({
     setNewDirectory(null)
     setNewGameName('')
     setImportedGame(null)
-    setError('')
+    setError(null)
   }
   function chooseNewDirectory(): void {
     run(async () => {
       const result = await adapter.chooseDirectory()
       if (result.status === 'error') {
-        throw new Error(result.error.message)
+        throw new OperationFailure(result.error.code, result.error.message)
       }
       if (result.status === 'selected') {
         setNewDirectory(result.directory)
@@ -337,7 +356,7 @@ export function MobileApp({
     run(async () => {
       const current = snapshotRef.current?.config
       if (!current) {
-        throw new Error('配置还没有读取完成。')
+        throw new Error(t('app.notLoaded'))
       }
       const item: LibraryGame = imported
         ? {
@@ -387,8 +406,8 @@ export function MobileApp({
     }
     const deviceId = editingDeviceId
     setConfirmation({
-      title: '移除设备',
-      text: '移除设备和相关游戏关联，保留存档文件。',
+      title: t('device.removeTitle'),
+      text: t('device.removeText'),
       okType: 'danger',
       work: async () => {
         await adapter.device(deviceId, 'forget')
@@ -409,9 +428,9 @@ export function MobileApp({
       peer.isConnected ? undefined : showConnectionFailure,
     )
   }
-  function showConnectionFailure(message: string): void {
+  function showConnectionFailure(failure: ShownError): void {
     void messageApi.error({
-      content: `连接失败：${message}`,
+      content: <ErrorText error={failure} context={t('device.connectFailed')} />,
       duration: 3.5,
       key: 'connection-failed',
     })
@@ -459,10 +478,10 @@ export function MobileApp({
           setPeerId(deviceId)
           resolve()
         },
-        (message) => {
-          setError(message)
-          showSyncFailure(message)
-          reject(new Error(message))
+        (failure) => {
+          setError(failure)
+          showSyncFailure(failure)
+          reject(new Error(failure.message))
         },
       )
     })
@@ -475,15 +494,15 @@ export function MobileApp({
     setImportedGame({ deviceId: choice.peer.device.id, game: choice.item })
     setNewDirectory(null)
     setNewGameName('')
-    setError('')
+    setError(null)
     setIsImportOpen(false)
     setIsAddGameOpen(true)
   }
   function removeGame(): void {
     setIsGameMenuOpen(false)
     setConfirmation({
-      title: '移除游戏',
-      text: '移除游戏配置和设备关联，保留存档文件。',
+      title: t('game.removeTitle'),
+      text: t('game.removeText'),
       work: async () => {
         await adapter.saveGames(config.games.filter((item) => item.id !== gameId))
         setConfirmation(null)
@@ -657,13 +676,13 @@ export function MobileApp({
         onChange={(next) => {
           setAppPreferences(next).catch((failure: unknown) => {
             console.error('Failed to save app preferences', failure)
-            setError('无法保存设置，请重试。')
+            setError({ code: null, message: t('settings.saveFailed') })
           })
         }}
       />
     )
   } else {
-    body = <EmptyState description="请选择游戏" />
+    body = <EmptyState description={t('game.pickOne')} />
   }
   const dialogs = (
     <>
@@ -769,7 +788,7 @@ export function MobileApp({
       dialogs={dialogs}
       onBack={goBack}
       onNavigate={go}
-      onCloseError={() => setError('')}
+      onCloseError={() => setError(null)}
       onRetry={() => run(async () => {})}
     >
       {body}

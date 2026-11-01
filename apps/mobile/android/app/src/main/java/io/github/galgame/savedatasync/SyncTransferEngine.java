@@ -140,20 +140,20 @@ final class SyncTransferEngine implements AutoCloseable {
             Object advertised;
             try { advertised = connection.http.json("GET", "/v1/sync/capabilities", connection.session, null, 200, preparation.control); }
             catch (ArchiveFailure failure) {
-                if (failure.code.equals("not-found") || failure.code.equals("unsupported-operation")) throw new ArchiveFailure("unsupported-operation", "请更新两端应用后再同步", false, failure);
+                if (failure.code.equals("not-found") || failure.code.equals("unsupported-operation")) throw new ArchiveFailure("unsupported-operation", "Update both apps before syncing.", false, failure);
                 throw failure;
             }
             Map<String, Object> capabilities = shape(advertised,
                 "schemaVersion", "deviceId", "canScan", "canCopy", "canBackup", "canRestore", "limits");
-            if (number(capabilities.get("schemaVersion"), 0, 9007199254740991L) != 1) throw new ArchiveFailure("protocol-mismatch", "请更新两端应用后再同步");
+            if (number(capabilities.get("schemaVersion"), 0, 9007199254740991L) != 1) throw new ArchiveFailure("protocol-mismatch", "Update both apps before syncing.");
             require(connection.deviceId.equals(capabilities.get("deviceId")));
             for (String key : new String[] {"canScan", "canCopy", "canBackup", "canRestore"}) one(capabilities.get(key), "supported", "unsupported", "unknown");
             if (!capabilities.get("canScan").equals("supported") || !capabilities.get("canCopy").equals("supported") || !capabilities.get("canBackup").equals("supported")) {
-                throw new ArchiveFailure("unsupported-operation", "对端尚未提供本次同步能力，请更新两端应用");
+                throw new ArchiveFailure("unsupported-operation", "The peer does not provide this sync capability yet. Update both apps.");
             }
             Map<String, Object> limits = object("maxEntries", 10000, "maxDepth", 64, "maxPathLength", 4096, "maxNameLength", 255,
                 "maxRetainedScans", 32, "backupRetention", 3, "snapshotLifetimeMs", 600000, "scanTimeoutMs", 1800000);
-            if (!SyncPlanModel.same(limits, capabilities.get("limits"))) throw new ArchiveFailure("protocol-mismatch", "两端同步预算不同，请更新两端应用");
+            if (!SyncPlanModel.same(limits, capabilities.get("limits"))) throw new ArchiveFailure("protocol-mismatch", "Sync budgets differ between devices. Update both apps.");
             String targetRoot = string(binding.get("remoteRootId")), sourceRoot = string(binding.get("localRootId"));
             Map<String, Object> remote = SyncJobModel.scan(connection.http.json("POST", "/v1/sync/scans", connection.session, object("schemaVersion", 1, "rootId", targetRoot), 202, preparation.control), connection.deviceId, targetRoot, null);
             synchronized (this) { preparation.scanId = id(remote.get("scanId")); }
@@ -165,8 +165,8 @@ final class SyncTransferEngine implements AutoCloseable {
             }
             hasRemoteScan = false;
             if (!remote.get("status").equals("succeeded")) {
-                if (remote.get("error") != null) throw new ArchiveFailure(string(map(remote.get("error")).get("code")), "电脑目录扫描未完成");
-                throw new ArchiveFailure("io-failure", "电脑目录扫描已取消");
+                if (remote.get("error") != null) throw new ArchiveFailure(string(map(remote.get("error")).get("code")), "The PC directory scan is incomplete.");
+                throw new ArchiveFailure("io-failure", "The PC directory scan was cancelled.");
             }
             boolean remoteBackup = SyncJobModel.backup(connection.http.json("GET", "/v1/sync/projects/" + binding.get("remoteProjectId"), connection.session, null, 200, preparation.control), binding);
             boolean shouldBackup = preparation.upload() ? remoteBackup : local.backup(string(binding.get("projectId")), sourceRoot);
@@ -184,7 +184,7 @@ final class SyncTransferEngine implements AutoCloseable {
                 else {
                     preparation.status = !preparation.timedOut && (problem.cancelled || preparation.cancelRequested) ? "cancelled" : "failed";
                     preparation.error = preparation.status.equals("cancelled") ? null : object("code", preparation.timedOut ? "timeout" : problem.code,
-                        "message", preparation.timedOut ? "同步准备已超时，请重新扫描" : problem.getMessage(), "canRetry", false);
+                        "message", preparation.timedOut ? "Sync preparation timed out. Scan again." : problem.getMessage(), "canRetry", false);
                 }
                 preparation.settled = System.nanoTime(); if (preparing == preparation) preparing = null;
             }
@@ -246,7 +246,7 @@ final class SyncTransferEngine implements AutoCloseable {
         if (counter != null) {
             Map<String, Object> counters = map(job.state.get("progress"));
             long maximum = number(counters.get(counter.equals("sourceBytesRead") ? "totalFileBytes" : "totalArchiveBytes"), 0, 1140850688);
-            if (value < number(counters.get(counter), 0, maximum) || value > maximum) throw new ArchiveFailure("source-changed", "源文件已超出确认计划");
+            if (value < number(counters.get(counter), 0, maximum) || value > maximum) throw new ArchiveFailure("source-changed", "The source file exceeds the confirmed plan.");
             counters.put(counter, value);
         }
         job.state.put("stage", stage); job.state.put("updatedAt", System.currentTimeMillis());
@@ -256,7 +256,7 @@ final class SyncTransferEngine implements AutoCloseable {
             job.control.check(); transport.refreshSync(job.preparation.connection, job.preparation.binding, job.control);
             boolean remoteBackup = SyncJobModel.backup(job.preparation.connection.http.json("GET", "/v1/sync/projects/" + job.preparation.binding.get("remoteProjectId"), job.preparation.connection.session, null, 200, job.control), job.preparation.binding);
             boolean shouldBackup = job.preparation.upload() ? remoteBackup : local.backup(job.plan.project, job.plan.target.root);
-            if (shouldBackup != job.plan.backup) throw new ArchiveFailure("source-changed", (job.preparation.upload() ? "电脑" : "手机") + "备份设置已变化，请重新确认");
+            if (shouldBackup != job.plan.backup) throw new ArchiveFailure("source-changed", (job.preparation.upload() ? "PC" : "Phone") + "Backup settings changed. Confirm again.");
             job.remoteAttempted = true;
             try { accept(job, job.preparation.connection.http.json("POST", "/v1/sync/jobs", job.preparation.connection.session, SyncJobModel.request(job.plan, job.preparation.binding), 201, job.control)); }
             catch (Exception lost) { refresh(job, job.control); }
@@ -300,7 +300,7 @@ final class SyncTransferEngine implements AutoCloseable {
                 (stage, value, total) -> { if (stage.equals("preparing")) progress(job, "preparing", "sourceBytesRead", value); });
         } finally { job.preparingArchive = false; stopHeartbeat(job); }
         try { SyncJobModel.manifest(job.artifact.manifest, job.plan); }
-        catch (Exception changed) { throw new ArchiveFailure("source-changed", "源文件与确认时的内容或属性不同", false, changed); }
+        catch (Exception changed) { throw new ArchiveFailure("source-changed", "Source file content or attributes differ from confirmation.", false, changed); }
         synchronized (this) { job.manifest = job.artifact.manifest; map(job.state.get("progress")).put("totalArchiveBytes", job.manifest.archive.sizeBytes); }
         transport.verifySync(job.preparation.connection, job.preparation.binding);
         try { accept(job, job.preparation.connection.http.json("PUT", job.path() + "/manifest", job.preparation.connection.session, manifestJson(job.manifest), 200, job.control)); }
@@ -337,7 +337,7 @@ final class SyncTransferEngine implements AutoCloseable {
             require(job.remote != null && job.remote.get("status").equals("sent"));
         } else {
             if (!isRemoteRunning(job) || !remoteStage(job).equals("ready")) {
-                if (job.remote != null && job.remote.get("error") != null) throw new ArchiveFailure(string(map(job.remote.get("error")).get("code")), "电脑未能准备本次归档");
+                if (job.remote != null && job.remote.get("error") != null) throw new ArchiveFailure(string(map(job.remote.get("error")).get("code")), "The PC could not prepare this archive.");
                 throw fail("task-conflict");
             }
             if (job.manifest == null) refresh(job, job.control);
@@ -397,7 +397,7 @@ final class SyncTransferEngine implements AutoCloseable {
         Job job = active;
         if (job == null || !job.running || job.preparation.upload() || !job.plan.project.equals(project) || !job.plan.target.root.equals(root) || !TargetOperation.owns(job)) throw fail("permission-denied");
         transport.verifySync(job.preparation.connection, job.preparation.binding);
-        if (local.backup(project, root) != job.plan.backup) throw new ArchiveFailure("source-changed", "手机备份设置已变化，请重新确认");
+        if (local.backup(project, root) != job.plan.backup) throw new ArchiveFailure("source-changed", "Phone backup settings changed. Confirm again.");
     }
     private void receiverFailed(Job job, ArchiveFailure cause) {
         try {
@@ -410,7 +410,7 @@ final class SyncTransferEngine implements AutoCloseable {
             }
             receiverResult(job, object("schemaVersion", 1, "planId", job.plan.id, "backupId", null, "outcomes", outcomes, "error", failure, "cleanupError", cause.cleanupFailure == null ? null : error("cleanup-failed")));
             if (cancelled) { job.state.put("cancelRequested", true); job.state.put("status", "cancelled"); }
-        } catch (Exception invalid) { throw new IllegalStateException("原生失败结果与确认计划不符", invalid); }
+        } catch (Exception invalid) { throw new IllegalStateException("The native failure result does not match the confirmed plan.", invalid); }
     }
     private void receiverResult(Job job, Map<String, Object> result) throws Exception {
         long[] actual = SyncJobModel.result(result, job.plan); boolean complete = true, cancelled = false;

@@ -32,11 +32,11 @@ public class SyncScansPlugin extends Plugin {
                     String code = cause instanceof ArchiveFailure ? ((ArchiveFailure) cause).code :
                         cause instanceof SafFailure ? ((SafFailure) cause).code : "io-failure";
                     try { call.resolve(new JSObject(new String(bytes(object("status", "error", "error", SyncScanner.scanError(code))), StandardCharsets.UTF_8))); }
-                    catch (Exception invalid) { call.resolve(new SafFailure("io-failure", "扫描服务响应失败", invalid).result()); }
+                    catch (Exception invalid) { call.resolve(new SafFailure("io-failure", "The scan service response failed.", invalid).result()); }
                 }
             });
         } catch (java.util.concurrent.RejectedExecutionException cause) {
-            call.resolve(new SafFailure("unsupported-operation", "扫描桥已关闭", cause).result());
+            call.resolve(new SafFailure("unsupported-operation", "The scan bridge is closed.", cause).result());
         }
     }
     @PluginMethod public void capabilities(PluginCall call) { submit(call, () -> {

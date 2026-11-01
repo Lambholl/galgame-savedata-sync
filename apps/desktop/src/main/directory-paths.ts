@@ -31,7 +31,7 @@ export function isWithinDirectory(rootPath: string, targetPath: string): boolean
  */
 export async function inspectLocalPath(path: string): Promise<BigIntStats> {
   if (!isAbsolute(path)) {
-    throw new DirectoryAccessError('invalid-request', '目录必须是绝对路径。')
+    throw new DirectoryAccessError('invalid-request', 'The directory path must be absolute.')
   }
   const absolutePath = resolve(path)
   let currentPath = parse(absolutePath).root
@@ -40,12 +40,18 @@ export async function inspectLocalPath(path: string): Promise<BigIntStats> {
     currentPath = resolve(currentPath, segment)
     stats = await lstat(currentPath, { bigint: true })
     if (stats.isSymbolicLink()) {
-      throw new DirectoryAccessError('path-outside-root', '不支持通过符号链接或目录联接访问文件。')
+      throw new DirectoryAccessError(
+        'path-outside-root',
+        'Access through symbolic links or directory junctions is not supported.',
+      )
     }
   }
   const canonicalPath = await realpath(absolutePath)
   if (relative(absolutePath, canonicalPath) !== '') {
-    throw new DirectoryAccessError('path-outside-root', '目录实际位置与登记路径不一致。')
+    throw new DirectoryAccessError(
+      'path-outside-root',
+      'The actual directory location does not match the registered path.',
+    )
   }
   return stats
 }

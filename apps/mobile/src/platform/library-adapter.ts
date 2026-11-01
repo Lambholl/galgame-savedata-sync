@@ -6,6 +6,7 @@ import {
   mergeCatalogLinks,
   matchesSyncProjectBinding,
   normalizeHttpAddress,
+  OperationFailure,
   resolveSyncProjectBinding,
   PROTOCOL_VERSION,
 } from '@savedata-sync/shared'
@@ -78,14 +79,17 @@ export function createMobileLibraryAdapter(
     const raw = storage.getItem(CONFIG_KEY)
     const value: unknown = raw === null ? emptyLibrary() : JSON.parse(raw)
     if (!isLibraryConfig(value)) {
-      throw new Error('游戏配置损坏，请保留应用数据后检查。')
+      throw new OperationFailure(
+        'io-failure',
+        'The game configuration is damaged. Preserve app data and inspect it.',
+      )
     }
     config = value
     return value
   }
   function save(value: LibraryConfig): void {
     if (!isLibraryConfig(value)) {
-      throw new Error('游戏或设备配置无效。')
+      throw new OperationFailure('invalid-request', 'The game or device configuration is invalid.')
     }
     if (JSON.stringify(load()) === JSON.stringify(value)) {
       return
@@ -111,13 +115,21 @@ export function createMobileLibraryAdapter(
     if (!descriptors.some((item) => item.device.deviceId === id)) {
       return {
         status: 'error',
-        error: { code: 'session-mismatch', message: '设备连接已变化。', canRetry: false },
+        error: {
+          code: 'session-mismatch',
+          message: 'The device connection changed.',
+          canRetry: false,
+        },
       }
     }
     if (!load().games.some((item) => item.rootId === query.rootId)) {
       return {
         status: 'error',
-        error: { code: 'permission-denied', message: '这个目录未配置到游戏。', canRetry: false },
+        error: {
+          code: 'permission-denied',
+          message: 'This directory is not configured for a game.',
+          canRetry: false,
+        },
       }
     }
     return androidDirectories.listDirectory(query.rootId, query.parentId)
@@ -143,7 +155,7 @@ export function createMobileLibraryAdapter(
   async function select(id: string): Promise<BatchDeviceDescriptor> {
     const descriptor = descriptors.find((item) => item.device.deviceId === id)
     if (!descriptor) {
-      throw new Error('请先连接这台电脑。')
+      throw new OperationFailure('session-mismatch', 'Connect to this PC first.')
     }
     if (selectedId !== id) {
       unwrap(await androidTransfers.selectDevice(id))
@@ -198,7 +210,10 @@ export function createMobileLibraryAdapter(
   async function assertCanEditGames(): Promise<void> {
     await refreshTask()
     if (await hasWork()) {
-      throw new Error('结束当前传输后再修改游戏目录或关联。')
+      throw new OperationFailure(
+        'busy',
+        'Finish the current transfer before changing game directories or links.',
+      )
     }
   }
   async function binding(
@@ -211,7 +226,10 @@ export function createMobileLibraryAdapter(
     }
     const device = load().devices.find((item) => item.id === transfer.deviceId)
     if (!device) {
-      throw new Error('项目关联的设备已移除，请重新选择。')
+      throw new OperationFailure(
+        'not-found',
+        'The device linked to the project was removed. Select it again.',
+      )
     }
     const value = unwrap(
       resolveSyncProjectBinding(
@@ -228,7 +246,10 @@ export function createMobileLibraryAdapter(
     const sourceRootId = transfer.upload ? value.localRootId : value.remoteRootId
     const targetRootId = transfer.upload ? value.remoteRootId : value.localRootId
     if (sourceRootId !== transfer.sourceRootId || targetRootId !== transfer.targetRootId) {
-      throw new Error('项目目录已变化，请重新打开预览。')
+      throw new OperationFailure(
+        'task-conflict',
+        'The project directory changed. Reopen the preview.',
+      )
     }
     return value
   }
@@ -291,7 +312,10 @@ export function createMobileLibraryAdapter(
     async saveGames(games): Promise<void> {
       await assertCanEditGames()
       if (!isLibraryConfig({ ...load(), games })) {
-        throw new Error('游戏或设备配置无效。')
+        throw new OperationFailure(
+          'invalid-request',
+          'The game or device configuration is invalid.',
+        )
       }
       const roots = unwrap(await androidDirectories.listRoots())
       if (
@@ -299,7 +323,10 @@ export function createMobileLibraryAdapter(
           (game) => game.rootId !== null && !roots.some((root) => root.rootId === game.rootId),
         )
       ) {
-        throw new Error('请选择已授权的本机存档目录。')
+        throw new OperationFailure(
+          'authorization-expired',
+          'Select an authorized local save directory.',
+        )
       }
       save({ ...load(), games })
     },
@@ -385,7 +412,10 @@ export function createMobileLibraryAdapter(
         descriptors.some((item) => item.device.deviceId === id) &&
         load().devices.find((item) => item.id === id)?.address !== normalizeHttpAddress(address)
       ) {
-        throw new Error('请先断开设备，再修改地址。')
+        throw new OperationFailure(
+          'unsupported-operation',
+          'Disconnect the device before changing its address.',
+        )
       }
       save({
         ...load(),
@@ -412,11 +442,14 @@ export function createMobileLibraryAdapter(
       const expected = await binding(transfer, false)
       const descriptor = await select(transfer.deviceId)
       if (!unwrap(await androidTransfers.requestNotifications())) {
-        throw new Error('请允许传输通知后重试。')
+        throw new OperationFailure('permission-denied', 'Allow transfer notifications and retry.')
       }
       const actual = await binding(transfer, true)
       if (!matchesSyncProjectBinding(expected, actual)) {
-        throw new Error('项目或设备关联已变化，请重新打开预览。')
+        throw new OperationFailure(
+          'task-conflict',
+          'The project or device link changed. Reopen the preview.',
+        )
       }
       const options: TransferStartOptions = {
         request: {
@@ -461,7 +494,7 @@ export function createMobileLibraryAdapter(
     },
     async cleanup(): Promise<void> {
       if (!unwrap(await androidTransfers.retryCleanup())) {
-        throw new Error('仍有临时文件未清理。')
+        throw new OperationFailure('cleanup-failed', 'Temporary files still need cleanup.')
       }
     },
   }

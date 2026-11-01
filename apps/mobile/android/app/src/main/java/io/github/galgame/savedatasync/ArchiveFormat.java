@@ -52,12 +52,12 @@ final class ArchiveFormat {
         while (offset < length) {
             control.check();
             int n = in.read(buffer, offset, length - offset);
-            if (n <= 0) throw invalid("归档内容截断或读取无进展");
+            if (n <= 0) throw invalid("Archive content is truncated or reading made no progress.");
             offset += n;
         }
     }
     static void zeros(byte[] bytes, int length) throws ArchiveFailure {
-        for (int i = 0; i < length; i++) if (bytes[i] != 0) throw invalid("tar 填充或结束块非法");
+        for (int i = 0; i < length; i++) if (bytes[i] != 0) throw invalid("Tar padding or end blocks are invalid.");
     }
     static ArchiveFailure invalid(String message) { return new ArchiveFailure("invalid-archive", message); }
 
@@ -92,7 +92,7 @@ final class ArchiveFormat {
                 exact(input, h, h.length, control);
                 if ((h[0] & 255) != 31 || (h[1] & 255) != 139 || h[2] != 8 ||
                     h[3] != 0 || h[4] != 0 || h[5] != 0 || h[6] != 0 || h[7] != 0) {
-                    throw invalid("gzip 头不符合单 member 协议");
+                    throw invalid("The gzip header does not match the single-member protocol.");
                 }
             } catch (IOException | RuntimeException failure) { inflater.end(); throw failure; }
         }
@@ -112,7 +112,7 @@ final class ArchiveFormat {
                     if (inflater.finished()) { finishMember(); return -1; }
                     if (inflater.needsInput()) {
                         lastInput = input.read(compressed);
-                        if (lastInput <= 0) throw invalid("DEFLATE 内容被截断");
+                        if (lastInput <= 0) throw invalid("The DEFLATE content is truncated.");
                         inflater.setInput(compressed, 0, lastInput);
                     }
                     int n = inflater.inflate(buffer, offset, Math.min(length, ArchiveModel.BUFFER));
@@ -122,11 +122,11 @@ final class ArchiveFormat {
                         return n;
                     }
                     if (inflater.needsDictionary() || (!inflater.needsInput() && !inflater.finished())) {
-                        throw invalid("DEFLATE 无法继续解码");
+                        throw invalid("DEFLATE decoding cannot continue.");
                     }
                 }
             } catch (DataFormatException cause) {
-                throw new ArchiveFailure("invalid-archive", "DEFLATE 数据非法", false, cause);
+                throw new ArchiveFailure("invalid-archive", "The DEFLATE data is invalid.", false, cause);
             }
         }
         private void finishMember() throws IOException {
@@ -135,10 +135,10 @@ final class ArchiveFormat {
             byte[] footer = new byte[8];
             exact(input, footer, 8, control);
             if (little(footer, 0) != crc.getValue() || little(footer, 4) != (count & 0xffffffffL)) {
-                throw invalid("gzip CRC32 或 ISIZE 校验失败");
+                throw invalid("Gzip CRC32 or ISIZE verification failed.");
             }
             control.check();
-            if (input.read() != -1) throw invalid("gzip 结束后有拼接 member 或尾随内容");
+            if (input.read() != -1) throw invalid("Concatenated members or trailing content follow the end of gzip.");
             ended = true;
         }
         private long little(byte[] bytes, int offset) {

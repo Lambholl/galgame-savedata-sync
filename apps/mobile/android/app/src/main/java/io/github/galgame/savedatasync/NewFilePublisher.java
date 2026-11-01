@@ -57,12 +57,12 @@ final class NewFilePublisher {
     void grant(String rootId) throws Exception {
         final long version;
         synchronized (this) {
-            if (stopped || !SafValues.isId(rootId)) throw new ArchiveFailure("invalid-request", "发布器不可用或根引用无效");
+            if (stopped || !SafValues.isId(rootId)) throw new ArchiveFailure("invalid-request", "The publisher is unavailable or the root reference is invalid.");
             version = authorizationVersion;
         }
         backend.locate(rootId, null, new ArchiveControl());
         synchronized (this) {
-            if (stopped || version != authorizationVersion) throw new ArchiveFailure("authorization-expired", "授权期间已收到撤权或停止请求");
+            if (stopped || version != authorizationVersion) throw new ArchiveFailure("authorization-expired", "Authorization was revoked or stopping was requested during authorization.");
             grants.add(rootId);
         }
     }
@@ -82,15 +82,15 @@ final class NewFilePublisher {
     void preflight(Request request, long requiredBytes, ArchiveControl control) throws Exception {
         request.validate();
         if (requiredBytes < request.sizeBytes || requiredBytes > new ArchiveModel.Limits().total) {
-            throw new ArchiveFailure("invalid-request", "目标空间预检字节数无效");
+            throw new ArchiveFailure("invalid-request", "The target space preflight byte count is invalid.");
         }
         synchronized (this) {
-            if (stopped || !grants.contains(request.rootId)) throw new ArchiveFailure("permission-denied", "未显式授权该目标目录写入");
+            if (stopped || !grants.contains(request.rootId)) throw new ArchiveFailure("permission-denied", "Writing to this target directory was not explicitly authorized.");
         }
         control.check();
         Directory directory = backend.locate(request.rootId, request.parentId, control);
         Long available = backend.availableBytes(directory, control);
-        if (available != null && available < requiredBytes) throw new ArchiveFailure("insufficient-space", "目标存储空间不足，无法接收本批文件");
+        if (available != null && available < requiredBytes) throw new ArchiveFailure("insufficient-space", "Target storage has insufficient space to receive this file batch.");
         requireName(backend.children(directory, control), request.name, null);
         control.check();
     }
@@ -99,8 +99,8 @@ final class NewFilePublisher {
         request.validate();
         Job job = new Job(request, control);
         synchronized (this) {
-            if (stopped || !grants.contains(request.rootId)) throw new ArchiveFailure("permission-denied", "未显式授权该目标目录写入");
-            if (!PROCESS_OWNER.compareAndSet(null, this)) throw new ArchiveFailure("busy", "另一发布或残留清理尚未完成");
+            if (stopped || !grants.contains(request.rootId)) throw new ArchiveFailure("permission-denied", "Writing to this target directory was not explicitly authorized.");
+            if (!PROCESS_OWNER.compareAndSet(null, this)) throw new ArchiveFailure("busy", "Another publication or leftover cleanup is incomplete.");
             active = job;
         }
         String status = "failed", error = null;
@@ -122,13 +122,13 @@ final class NewFilePublisher {
             Document created = null;
             for (Document d : after) if (d.id.equals(id)) created = d;
             if (id == null || ids.contains(id) || created == null) {
-                throw new ArchiveFailure("result-unknown", "提供者未返回可确认的新条目");
+                throw new ArchiveFailure("result-unknown", "The provider did not return a verifiable new entry.");
             }
             job.owned = backend.claim(directory, created);
             job.residual = job.owned.entry(inspection);
             createResolved = true;
-            if (created.directory || created.virtual) throw new ArchiveFailure("unsupported-operation", "新条目不是普通原始文件");
-            if (!created.name.equals(request.name)) throw new ArchiveFailure("name-conflict", "提供者改变了新文件名称");
+            if (created.directory || created.virtual) throw new ArchiveFailure("unsupported-operation", "The new entry is not a regular raw file.");
+            if (!created.name.equals(request.name)) throw new ArchiveFailure("name-conflict", "The provider changed the new file name.");
             requireName(after, request.name, id);
             control.check();
             job.owned.verify(control);
@@ -144,7 +144,7 @@ final class NewFilePublisher {
             if (!request.name.equals(success.name) || (success.size != null && success.size != request.sizeBytes) ||
                 !readBaseline.entryId.equals(success.entryId) || !java.util.Objects.equals(readBaseline.size, success.size) ||
                 !java.util.Objects.equals(readBaseline.modified, success.modified)) {
-                throw new ArchiveFailure("result-unknown", "写后元数据与请求不一致");
+                throw new ArchiveFailure("result-unknown", "Metadata after writing does not match the request.");
             }
             control.check();
             // 此处为已确认发布点；之后的取消和资源关闭错误均不能删除成功文件。
@@ -204,11 +204,11 @@ final class NewFilePublisher {
         synchronized (this) { if (active == job) { active = null; PROCESS_OWNER.compareAndSet(this, null); } }
     }
     private static Set<String> ids(List<Document> documents) throws ArchiveFailure {
-        if (documents.size() > MAX_DIRECTORY_ENTRIES) throw new ArchiveFailure("resource-limit", "目标当前层条目过多");
+        if (documents.size() > MAX_DIRECTORY_ENTRIES) throw new ArchiveFailure("resource-limit", "The current target directory level has too many entries.");
         Set<String> result = new HashSet<>();
         for (Document d : documents) {
             if (d == null || d.id == null || d.id.isEmpty() || !ArchiveModel.text(d.name) || !result.add(d.id)) {
-                throw new ArchiveFailure("result-unknown", "提供者返回不一致的目录条目");
+                throw new ArchiveFailure("result-unknown", "The provider returned inconsistent directory entries.");
             }
         }
         return result;
@@ -216,7 +216,7 @@ final class NewFilePublisher {
     private static void requireName(List<Document> documents, String name, String ownId) throws ArchiveFailure {
         ids(documents);
         for (Document d : documents) if (!d.id.equals(ownId) && nameKey(d.name).equals(nameKey(name))) {
-            throw new ArchiveFailure("name-conflict", "目标已有同名或等价名称的条目");
+            throw new ArchiveFailure("name-conflict", "The target already contains an entry with the same or an equivalent name.");
         }
     }
     private static void copy(Job job, Source source, Owned owned, Request request, ArchiveModel.Progress progress,
@@ -260,15 +260,15 @@ final class NewFilePublisher {
             control.check();
             int read = input.read(buffer, 0, (int) Math.min(buffer.length, request.sizeBytes - count + 1));
             if (read < 0) break;
-            if (read == 0) throw new ArchiveFailure("io-failure", "流未取得进展");
-            if (count + read > request.sizeBytes) throw new ArchiveFailure("checksum-mismatch", "文件实际长度超出请求");
+            if (read == 0) throw new ArchiveFailure("io-failure", "The stream made no progress.");
+            if (count + read > request.sizeBytes) throw new ArchiveFailure("checksum-mismatch", "The actual file length exceeds the request.");
             if (output != null) output.write(buffer, 0, read);
             digest.update(buffer, 0, read); count += read;
             if (progress != null) progress.update(stage, count, request.sizeBytes);
         }
         control.check();
         if (count != request.sizeBytes || !hex(digest.digest()).equals(request.sha256)) {
-            throw new ArchiveFailure("checksum-mismatch", "文件实际长度或 SHA-256 不匹配");
+            throw new ArchiveFailure("checksum-mismatch", "The actual file length or SHA-256 does not match.");
         }
     }
     static String hex(byte[] bytes) {
@@ -277,8 +277,8 @@ final class NewFilePublisher {
         return result.toString();
     }
     static ArchiveFailure failure(Exception cause) {
-        if (cause instanceof SafFailure) return new ArchiveFailure(((SafFailure) cause).code, "SAF 发布访问失败", false, cause);
-        if (cause instanceof SecurityException) return new ArchiveFailure("authorization-expired", "目录写授权不可用", false, cause);
+        if (cause instanceof SafFailure) return new ArchiveFailure(((SafFailure) cause).code, "SAF publication access failed.", false, cause);
+        if (cause instanceof SecurityException) return new ArchiveFailure("authorization-expired", "Directory write authorization is unavailable.", false, cause);
         return ArchiveFailure.from(cause);
     }
 }

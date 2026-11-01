@@ -4,6 +4,7 @@ import {
   isControlRequestBody,
   isOpaqueId,
   isOperationResult,
+  OperationFailure,
 } from '@savedata-sync/shared'
 import type {
   ControlEventBodies,
@@ -63,10 +64,10 @@ export function createControlChannel(
   async function send(deviceId: string, message: ControlMessage): Promise<void> {
     const result = await plugin.sendControl({ deviceId, message: JSON.stringify(message) })
     if (!isOperationResult(result, (value): value is null => value === null)) {
-      throw new Error('控制消息发送结果无效。')
+      throw new OperationFailure('io-failure', 'The control message send result is invalid.')
     }
     if (result.status === 'error') {
-      throw new Error(result.error.message)
+      throw new OperationFailure(result.error.code, result.error.message)
     }
   }
   async function receive(deviceId: string, text: string): Promise<void> {
@@ -82,17 +83,20 @@ export function createControlChannel(
     if (message.type === 'request') {
       const handler = requests.get(message.method)
       const result = !isControlRequestBody(message.method, message.body)
-        ? failure('invalid-request', '请求格式无效。')
+        ? failure('invalid-request', 'The request format is invalid.')
         : handler
           ? await handler(deviceId, message.body).catch((cause: unknown) => ({
               status: 'error' as const,
               error: {
                 code: 'io-failure' as const,
-                message: cause instanceof Error ? cause.message : '手机处理请求失败。',
+                message:
+                  cause instanceof Error
+                    ? cause.message
+                    : 'The phone failed to process the request.',
                 canRetry: false,
               },
             }))
-          : failure('unsupported-operation', '手机不处理这个请求。')
+          : failure('unsupported-operation', 'The phone does not handle this request.')
       await send(deviceId, { v: 1, type: 'response', id: message.id, result })
     } else if (message.type === 'event' && isControlEventBody(message.method, message.body)) {
       for (const handler of events.get(message.method) ?? []) {
@@ -189,6 +193,11 @@ export function createControlChannel(
     emit: (deviceId, method, body) =>
       isAndroid()
         ? send(deviceId, { v: 1, type: 'event', method, body })
-        : Promise.reject(new Error('请在 Android 应用中操作。')),
+        : Promise.reject(
+            new OperationFailure(
+              'unsupported-operation',
+              'Perform this operation in the Android app.',
+            ),
+          ),
   }
 }

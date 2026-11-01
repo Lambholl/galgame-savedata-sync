@@ -6,12 +6,15 @@ import {
   withGameLink,
   withoutGameLink,
   createImportedGame,
+  OperationFailure,
+  toShownError,
 } from '@savedata-sync/shared'
 import type {
   CatalogGame,
   DirectoryReference,
   LibraryGame,
   LibraryPeer,
+  ShownError,
 } from '@savedata-sync/shared'
 import type { DesktopSnapshot } from '../platform/library-types.ts'
 import { createDesktopLibraryAdapter } from '../platform/library-adapter.ts'
@@ -49,7 +52,7 @@ export function DesktopApp({
   const [messageApi, messageContextHolder] = message.useMessage()
   const [page, setPage] = useState<Page>('games')
   const [snapshot, setSnapshot] = useState<DesktopSnapshot | null>(null)
-  const [error, setError] = useState('')
+  const [error, setError] = useState<ShownError | null>(null)
   const [isBusy, setIsBusy] = useState(false)
   const [gameId, setGameId] = useState('')
   const [backupRootId, setBackupRootId] = useState<string | null>(null)
@@ -80,7 +83,7 @@ export function DesktopApp({
   snapshotRef.current = snapshot
   const refresh = useCallback(async (): Promise<void> => {
     const version = ++generation.current
-    const value = await adapter.read()
+    const value = await adapter.read(t)
     if (version === generation.current) {
       if (
         snapshotRef.current?.peers.some(
@@ -89,15 +92,15 @@ export function DesktopApp({
             !value.peers.some((next) => next.device.id === peer.device.id && next.isConnected),
         )
       ) {
-        void messageApi.info({ content: '连接已断开', key: 'connection-disconnected' })
+        void messageApi.info({ content: t('app.disconnected'), key: 'connection-disconnected' })
       }
       snapshotRef.current = value
       setSnapshot(value)
       if (value.warning) {
-        setError(value.warning)
+        setError({ code: null, message: value.warning })
       }
     }
-  }, [adapter, messageApi])
+  }, [adapter, messageApi, t])
   useEffect(() => {
     let isCurrent = true
     let timer: ReturnType<typeof setTimeout>
@@ -110,17 +113,17 @@ export function DesktopApp({
           await refresh()
         } catch (cause) {
           if (isCurrent) {
-            setError(cause instanceof Error ? cause.message : '读取应用状态失败。')
+            setError(toShownError(cause))
           }
         }
       }
       if (isCurrent) {
         timer = setTimeout(() => {
-          poll().catch(() => setError('刷新失败，请重试。'))
+          poll().catch((cause: unknown) => setError(toShownError(cause)))
         }, 1800)
       }
     }
-    poll().catch(() => setError('读取应用失败。'))
+    poll().catch((cause: unknown) => setError(toShownError(cause)))
     return () => {
       isCurrent = false
       invalidate()
@@ -134,12 +137,10 @@ export function DesktopApp({
     operating.current = true
     generation.current++
     setIsBusy(true)
-    setError('')
+    setError(null)
     work()
       .then(refresh)
-      .catch((cause: unknown) =>
-        setError(cause instanceof Error ? cause.message : '操作失败，请重试。'),
-      )
+      .catch((cause: unknown) => setError(toShownError(cause)))
       .finally(() => {
         operating.current = false
         setIsBusy(false)
@@ -189,7 +190,7 @@ export function DesktopApp({
   async function saveGame(item: LibraryGame): Promise<void> {
     const current = snapshotRef.current?.config
     if (!current) {
-      throw new Error('配置还没有读取完成。')
+      throw new Error(t('app.notLoaded'))
     }
     await adapter.saveGames(current.games.map((value) => (value.id === item.id ? item : value)))
   }
@@ -199,7 +200,7 @@ export function DesktopApp({
     }
     const name = value.trim()
     if (!name) {
-      setError('游戏名称不能为空。')
+      setError({ code: null, message: t('game.nameRequired') })
       return
     }
     if (name !== game.name) {
@@ -213,7 +214,7 @@ export function DesktopApp({
     run(async () => {
       const result = await adapter.chooseDirectory()
       if (result.status === 'error') {
-        throw new Error(result.error.message)
+        throw new OperationFailure(result.error.code, result.error.message)
       }
       if (result.status === 'selected') {
         await saveGame({ ...game, rootId: result.directory.rootId })
@@ -224,7 +225,7 @@ export function DesktopApp({
     setNewDirectory(null)
     setNewGameName('')
     setImportedGame(null)
-    setError('')
+    setError(null)
     setIsAddGameOpen(true)
   }
   function closeAddGame(): void {
@@ -235,13 +236,13 @@ export function DesktopApp({
     setNewDirectory(null)
     setNewGameName('')
     setImportedGame(null)
-    setError('')
+    setError(null)
   }
   function chooseNewDirectory(): void {
     run(async () => {
       const result = await adapter.chooseDirectory()
       if (result.status === 'error') {
-        throw new Error(result.error.message)
+        throw new OperationFailure(result.error.code, result.error.message)
       }
       if (result.status === 'selected') {
         setNewDirectory(result.directory)
@@ -261,7 +262,7 @@ export function DesktopApp({
     run(async () => {
       const current = snapshotRef.current?.config
       if (!current) {
-        throw new Error('配置还没有读取完成。')
+        throw new Error(t('app.notLoaded'))
       }
       const item: LibraryGame = imported
         ? {
@@ -306,8 +307,8 @@ export function DesktopApp({
     }
     const deviceId = editingDeviceId
     setConfirmation({
-      title: '移除设备',
-      text: '移除设备和相关游戏关联，保留存档文件。',
+      title: t('device.removeTitle'),
+      text: t('device.removeText'),
       okType: 'danger',
       work: async () => {
         await adapter.device(deviceId, 'forget')
@@ -329,8 +330,8 @@ export function DesktopApp({
     }
     if (service.isRunning && hasRunningNetworkWork) {
       setConfirmation({
-        title: '停止服务',
-        text: '将断开设备，并取消当前传输。',
+        title: t('service.stopTitle'),
+        text: t('service.stopText'),
         work: async () => {
           await adapter.service(false, port ?? service.port)
           setConfirmation(null)
@@ -358,9 +359,7 @@ export function DesktopApp({
     setPage('backup')
   }
   function tasksChanged(): void {
-    void refresh().catch((cause: unknown) =>
-      setError(cause instanceof Error ? cause.message : '刷新任务失败。'),
-    )
+    void refresh().catch((cause: unknown) => setError(toShownError(cause)))
   }
   function changePeer(id: string): void {
     setPeerId(id)
@@ -407,15 +406,15 @@ export function DesktopApp({
     setImportedGame({ deviceId: choice.peer.device.id, game: choice.item })
     setNewDirectory(null)
     setNewGameName('')
-    setError('')
+    setError(null)
     setIsImportOpen(false)
     setIsAddGameOpen(true)
   }
   function removeGame(): void {
     setIsGameActionDialogOpen(false)
     setConfirmation({
-      title: '移除游戏',
-      text: '移除游戏配置和设备关联，保留存档文件。',
+      title: t('game.removeTitle'),
+      text: t('game.removeText'),
       work: async () => {
         await adapter.saveGames(config.games.filter((item) => item.id !== gameId))
         setConfirmation(null)
@@ -555,12 +554,15 @@ export function DesktopApp({
                 setError(failure)
               }
             })
-            .catch((failure: unknown) => setError(String(failure)))
+            .catch((failure: unknown) => {
+              console.error('Failed to save app preferences', failure)
+              setError({ code: null, message: t('settings.saveFailed') })
+            })
         }}
       />
     )
   } else {
-    body = <Empty description="请选择游戏" />
+    body = <Empty description={t('game.pickOne')} />
   }
   const dialogs = (
     <>
@@ -662,7 +664,7 @@ export function DesktopApp({
       dialogs={dialogs}
       onBack={() => setPage('games')}
       onNavigate={go}
-      onCloseError={() => setError('')}
+      onCloseError={() => setError(null)}
       onRetry={() => run(async () => {})}
     >
       {body}

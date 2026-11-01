@@ -1,27 +1,29 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { ActionSheet } from 'antd-mobile'
 import { CaretRightOutlined, RightOutlined } from '@ant-design/icons'
-import { compareSnapshots, resolveBackupPolicy, syncPlanFromPreview } from '@savedata-sync/shared'
+import {
+  compareSnapshots,
+  resolveBackupPolicy,
+  syncPlanFromPreview,
+  toShownError,
+} from '@savedata-sync/shared'
 import type {
   DirectoryReference,
   LibraryGame,
   LibraryPeer,
+  ShownError,
   SyncBackupSettings,
   SyncPreparationPreview,
   SyncPreparationState,
   TransferDirection,
 } from '@savedata-sync/shared'
-import { SyncPlanSummary, TransferComparison, useT } from '@savedata-sync/shared/ui'
+import { ErrorText, SyncPlanSummary, TransferComparison, useT } from '@savedata-sync/shared/ui'
 import type { ComparisonStatus, PlanEndpoint } from '@savedata-sync/shared/ui'
 import type { MobileSyncAdapter } from '../../platform/sync-adapter'
 import type { Confirmation } from '../../app/navigation-types'
 import { BottomAction } from '../../components/BottomAction'
 
 const POLL_INTERVAL_MS = 700
-
-function messageOf(cause: unknown, fallback: string): string {
-  return cause instanceof Error && cause.message ? cause.message : fallback
-}
 
 /**
  * 传输存档与传输计划共用一次准备：进入页面、翻转方向、切换设备或刷新时自动扫描两端，
@@ -55,14 +57,14 @@ export function SyncCopyPage({
   readonly onConfirm: (confirmation: Confirmation) => void
   readonly onStarted: (jobId: string) => void
   readonly onPreview: () => void
-  readonly onFailure: (message: string) => void
+  readonly onFailure: (error: ShownError) => void
 }): React.JSX.Element {
   const t = useT()
   const [direction, setDirection] = useState<TransferDirection>('windows-to-android')
   const [preparation, setPreparation] = useState<SyncPreparationState | null>(null)
   const [preview, setPreview] = useState<SyncPreparationPreview | null>(null)
-  /** 扫描失败的原因；空字符串表示失败但没有可显示的原因。 */
-  const [scanError, setScanError] = useState<string | null>(null)
+  /** 扫描失败的原因；null 表示没有失败。 */
+  const [scanError, setScanError] = useState<ShownError | null>(null)
   const [scanVersion, setScanVersion] = useState(0)
   const [isPeerSheetOpen, setIsPeerSheetOpen] = useState(false)
   const [isStarting, setIsStarting] = useState(false)
@@ -125,7 +127,7 @@ export function SyncCopyPage({
     }
     function fail(cause: unknown): void {
       if (isCurrent) {
-        setScanError(messageOf(cause, ''))
+        setScanError(toShownError(cause))
       }
     }
     sync
@@ -171,9 +173,14 @@ export function SyncCopyPage({
   } else if (remoteRootId === null) {
     status = { kind: 'unavailable', message: t('transfer.noRemoteRoot') }
   } else if (scanError !== null || preparation?.status === 'failed') {
+    const reason = scanError ?? preparation?.error ?? null
     status = {
       kind: 'unavailable',
-      message: scanError || preparation?.error?.message || t('transfer.compareFailed'),
+      message: reason ? (
+        <ErrorText error={reason} context={t('transfer.compareFailed')} />
+      ) : (
+        t('transfer.compareFailed')
+      ),
     }
   } else if (preparation?.status === 'cancelled') {
     status = { kind: 'unavailable', message: t('transfer.compareCancelled') }
@@ -214,7 +221,7 @@ export function SyncCopyPage({
     }
     setIsStarting(true)
     work()
-      .catch((cause: unknown) => onFailure(messageOf(cause, t('transfer.compareFailed'))))
+      .catch((cause: unknown) => onFailure(toShownError(cause)))
       .finally(() => setIsStarting(false))
   }
   const remoteName = peer?.device.name ?? t('common.unknown')

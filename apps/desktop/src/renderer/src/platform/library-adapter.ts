@@ -1,4 +1,5 @@
-import { unwrap } from '@savedata-sync/shared'
+import { OperationFailure, unwrap } from '@savedata-sync/shared'
+import type { Translate } from '@savedata-sync/shared'
 import type { DesktopLibraryAdapter, DesktopSnapshot } from './library-types.ts'
 import { desktopSync } from './sync-adapter.ts'
 
@@ -9,12 +10,12 @@ export function createDesktopLibraryAdapter(): DesktopLibraryAdapter {
       service = window.desktopService,
       directories = window.desktopDirectories
     if (!library || !service || !directories) {
-      throw new Error('请在桌面应用中打开此界面。')
+      throw new OperationFailure('unsupported-operation', 'Open this page in the desktop app.')
     }
     return { library, service, directories }
   }
   return {
-    async read(): Promise<DesktopSnapshot> {
+    async read(t: Translate): Promise<DesktopSnapshot> {
       const api = apis()
       const sync = desktopSync()
       const [library, service, roots, copies, restores, activity] = await Promise.all([
@@ -42,7 +43,7 @@ export function createDesktopLibraryAdapter(): DesktopLibraryAdapter {
         },
         tasks: status.tasks.map((local) => ({
           id: local.transferId,
-          title: local.direction === 'android-to-windows' ? '手机 → 电脑' : '电脑 → 手机',
+          title: t(local.direction === 'android-to-windows' ? 'task.phoneToPc' : 'task.pcToPhone'),
           local,
           remote: null,
           upload: local.direction === 'android-to-windows',

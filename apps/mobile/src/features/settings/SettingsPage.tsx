@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 import { Button, List } from 'antd-mobile'
-import { APP_LOCALES, APP_VERSION, LOCALE_NAMES } from '@savedata-sync/shared'
+import { APP_LOCALES, APP_VERSION, LOCALE_NAMES, toShownError } from '@savedata-sync/shared'
 import type {
   AppPreferences,
   LocalePreference,
+  ShownError,
   SyncBackupPolicy,
   ThemePreference,
 } from '@savedata-sync/shared'
-import { useT } from '@savedata-sync/shared/ui'
+import { ErrorText, useT } from '@savedata-sync/shared/ui'
 import type { MobileSyncAdapter } from '../../platform/sync-adapter'
 import { BackupPolicyFields } from '../../components/BackupPolicyFields'
 import { ChoiceItem } from '../../components/ChoiceItem'
@@ -27,7 +28,11 @@ export function SettingsPage({
   const t = useT()
   /** 全局备份设置；读取中或读取失败为 null。 */
   const [policy, setPolicy] = useState<SyncBackupPolicy | null>(null)
-  const [backupError, setBackupError] = useState('')
+  /** 读取或保存备份设置的失败，连同出错的操作。 */
+  const [backupError, setBackupError] = useState<{
+    readonly context: string
+    readonly error: ShownError
+  } | null>(null)
   const [version, setVersion] = useState(0)
   /** 保存依次进行，连续点击时后一次等前一次写完。 */
   const saving = useRef(Promise.resolve())
@@ -43,11 +48,7 @@ export function SettingsPage({
       .catch((cause: unknown) => {
         if (isCurrent) {
           setPolicy(null)
-          setBackupError(
-            t('backup.readFailed', {
-              message: cause instanceof Error ? cause.message : t('common.unknown'),
-            }),
-          )
+          setBackupError({ context: t('backup.readFailed'), error: toShownError(cause) })
         }
       })
     return () => {
@@ -56,15 +57,11 @@ export function SettingsPage({
   }, [sync, version, t])
   function changePolicy(next: SyncBackupPolicy): void {
     setPolicy(next)
-    setBackupError('')
+    setBackupError(null)
     saving.current = saving.current
       .then(() => sync.setBackupDefaults(next))
       .catch((cause: unknown) => {
-        setBackupError(
-          t('backup.saveFailed', {
-            message: cause instanceof Error ? cause.message : t('common.unknown'),
-          }),
-        )
+        setBackupError({ context: t('backup.saveFailed'), error: toShownError(cause) })
         setVersion((value) => value + 1)
       })
   }
@@ -89,7 +86,7 @@ export function SettingsPage({
       </List>
       {backupError && (
         <div className="notice notice-error" role="alert">
-          <p>{backupError}</p>
+          <ErrorText error={backupError.error} context={backupError.context} />
           {!policy && (
             <div className="action-row">
               <Button size="small" onClick={() => setVersion((value) => value + 1)}>

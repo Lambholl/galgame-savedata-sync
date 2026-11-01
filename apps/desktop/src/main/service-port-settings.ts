@@ -19,7 +19,7 @@ export class ServicePortSettings {
         value.port < 1 ||
         value.port > 65535
       ) {
-        throw new Error('本机服务端口配置无效。')
+        throw new Error('The local service port configuration is invalid.')
       }
       this.port = value.port
     } catch (error) {
@@ -36,7 +36,7 @@ export class ServicePortSettings {
 
   async save(port: number): Promise<void> {
     if (!Number.isInteger(port) || port < 1 || port > 65535) {
-      throw new Error('端口应为 1 到 65535 的整数。')
+      throw new Error('The port must be an integer from 1 to 65535.')
     }
     const temporary = `${this.file}.${randomUUID()}.tmp`
     try {

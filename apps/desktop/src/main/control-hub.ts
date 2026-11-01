@@ -87,13 +87,20 @@ export class ControlHub {
   ): Promise<ControlResponseValues[M]> {
     const peer = this.peers.get(peerId)
     if (!peer) {
-      return Promise.reject(new HttpOperationError('network-failure', '设备未连接。'))
+      return Promise.reject(
+        new HttpOperationError('network-failure', 'The device is not connected.'),
+      )
     }
     const id = randomUUID()
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         peer.pending.delete(id)
-        reject(new HttpOperationError('timeout', '对方没有响应，请确认应用仍然打开。'))
+        reject(
+          new HttpOperationError(
+            'timeout',
+            'The peer did not respond. Make sure the app is still open.',
+          ),
+        )
       }, CONTROL_LIMITS.requestTimeoutMs)
       peer.pending.set(id, {
         method,
@@ -157,7 +164,7 @@ export class ControlHub {
     socket.on('close', () => {
       for (const pending of peer.pending.values()) {
         clearTimeout(pending.timer)
-        pending.reject(new HttpOperationError('network-failure', '设备已断开。'))
+        pending.reject(new HttpOperationError('network-failure', 'The device disconnected.'))
       }
       peer.pending.clear()
       if (this.peers.get(peerId) === peer) {
@@ -202,7 +209,9 @@ export class ControlHub {
       } else if (isControlResponseValue(pending.method, message.result.value)) {
         pending.resolve(message.result.value)
       } else {
-        pending.reject(new HttpOperationError('invalid-request', '对方的应答格式无效。'))
+        pending.reject(
+          new HttpOperationError('invalid-request', 'The peer response format is invalid.'),
+        )
       }
       return
     }
@@ -215,8 +224,16 @@ export class ControlHub {
         result: {
           status: 'error',
           error: isValid
-            ? { code: 'unsupported-operation', message: '电脑不处理这个请求。', canRetry: false }
-            : { code: 'invalid-request', message: '请求格式无效。', canRetry: false },
+            ? {
+                code: 'unsupported-operation',
+                message: 'The PC does not handle this request.',
+                canRetry: false,
+              }
+            : {
+                code: 'invalid-request',
+                message: 'The request format is invalid.',
+                canRetry: false,
+              },
         },
       })
       return
@@ -233,7 +250,7 @@ export class ControlHub {
   private send(peer: Peer, message: ControlMessage): void {
     const text = JSON.stringify(message)
     if (Buffer.byteLength(text) > CONTROL_LIMITS.maxMessageBytes) {
-      throw new HttpOperationError('resource-limit', '控制消息超过限制。')
+      throw new HttpOperationError('resource-limit', 'The control message exceeds the limit.')
     }
     peer.socket.send(text)
   }

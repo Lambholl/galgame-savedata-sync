@@ -64,7 +64,7 @@ function freezeManifest(manifest: BatchManifest): BatchManifest {
 async function* binaryChunks(source: AsyncIterable<unknown>): AsyncGenerator<Buffer> {
   for await (const chunk of source) {
     if (!Buffer.isBuffer(chunk)) {
-      throw new ArchiveError('io-failure', '原生流必须提供二进制数据。')
+      throw new ArchiveError('io-failure', 'Native streams must provide binary data.')
     }
     for (let offset = 0; offset < chunk.length; offset += BATCH_RESOURCES.maxBufferBytes) {
       yield chunk.subarray(offset, offset + BATCH_RESOURCES.maxBufferBytes)
@@ -86,7 +86,9 @@ function createCounter(
     transform(chunk: Buffer, encoding, callback) {
       void encoding
       if (!Buffer.isBuffer(chunk) || sizeBytes + chunk.length > maximum) {
-        callback(new ArchiveError('resource-limit', '归档字节数超过本机资源预算。'))
+        callback(
+          new ArchiveError('resource-limit', 'Archive bytes exceed the local resource budget.'),
+        )
         return
       }
       const reserve = shouldStore ? job.reserve(chunk.length) : Promise.resolve()
@@ -164,7 +166,7 @@ async function* tarChunks(
       source.destroy()
     }
     if (actual !== file.sizeBytes || hash.digest('hex') !== file.sha256) {
-      throw new ArchiveError('checksum-mismatch', '私有源快照校验失败。')
+      throw new ArchiveError('checksum-mismatch', 'Private source snapshot verification failed.')
     }
     const padding = (512 - (file.sizeBytes % 512)) % 512
     if (padding) {
@@ -182,7 +184,7 @@ async function readSmall(job: ArchiveCacheJob, start: number, size: number): Pro
   }
   const result = Buffer.concat(parts)
   if (result.length !== size) {
-    throw new ArchiveError('invalid-archive', 'gzip 固定头或尾部被截断。')
+    throw new ArchiveError('invalid-archive', 'The fixed gzip header or trailer is truncated.')
   }
   return result
 }
@@ -202,12 +204,15 @@ export class WindowsArchiveAdapter {
     manifest: BatchManifest,
   ): Promise<{ device: string; requiredBytes: number }> {
     if (!isBatchManifest(manifest)) {
-      throw new ArchiveError('invalid-request', '接收清单无效。')
+      throw new ArchiveError('invalid-request', 'The receive manifest is invalid.')
     }
     await this.cache.inspect()
     const required = manifest.archive.sizeBytes + manifest.totalFileBytes
     if ((await this.cache.io.availableBytes(this.cache.path)) < BigInt(required)) {
-      throw new ArchiveError('insufficient-space', '私有缓存空间不足，无法接收本批归档。')
+      throw new ArchiveError(
+        'insufficient-space',
+        'Private cache space is insufficient to receive this archive batch.',
+      )
     }
     return {
       device: (await inspectLocalPath(this.cache.path)).dev.toString(),
@@ -218,7 +223,7 @@ export class WindowsArchiveAdapter {
   /** 生成独立源快照与 gzip1 归档；失败/取消清理本次缓存，成功将释放责任交给句柄。 */
   async prepare(request: unknown, options: ArchiveOperationOptions = {}): Promise<WindowsArchive> {
     if (!isDownloadBatchRequest(request)) {
-      throw new ArchiveError('invalid-request', '批量下载请求无效。')
+      throw new ArchiveError('invalid-request', 'The batch download request is invalid.')
     }
     return this.run(async (job, counters) => {
       const files = await this.snapshot(request, job, counters, options)
@@ -227,7 +232,10 @@ export class WindowsArchiveAdapter {
         1024,
       )
       if (tarSizeBytes > this.cache.quota.maxTarBytes) {
-        throw new ArchiveError('resource-limit', 'tar 原文超过资源预算。')
+        throw new ArchiveError(
+          'resource-limit',
+          'Uncompressed tar data exceeds the resource budget.',
+        )
       }
       const counter = createCounter(
         job,
@@ -264,7 +272,10 @@ export class WindowsArchiveAdapter {
         archive: { format: BATCH_ARCHIVE.format, compressionLevel: 1, ...archive, tarSizeBytes },
       }
       if (!isBatchManifest(manifest)) {
-        throw new ArchiveError('invalid-request', '生成的批量清单超出协议范围。')
+        throw new ArchiveError(
+          'invalid-request',
+          'The generated batch manifest exceeds protocol limits.',
+        )
       }
       return this.artifact(job, freezeManifest(manifest), 'raw')
     }, options)
@@ -283,7 +294,7 @@ export class WindowsArchiveAdapter {
     input.on('error', rememberError)
     try {
       if (!isBatchManifest(manifest)) {
-        throw new ArchiveError('invalid-request', '接收清单无效。')
+        throw new ArchiveError('invalid-request', 'The receive manifest is invalid.')
       }
       const snapshot = freezeManifest(manifest)
       await this.checkReceiveSpace(snapshot)
@@ -293,7 +304,10 @@ export class WindowsArchiveAdapter {
         snapshot.archive.tarSizeBytes > this.cache.quota.maxTarBytes ||
         snapshot.files.some((file) => file.sizeBytes > this.cache.quota.maxFileBytes)
       ) {
-        throw new ArchiveError('resource-limit', '接收清单超过本机资源预算。')
+        throw new ArchiveError(
+          'resource-limit',
+          'The receive manifest exceeds the local resource budget.',
+        )
       }
       return await this.run(async (job, counters) => {
         if (earlyError.value) {
@@ -307,7 +321,10 @@ export class WindowsArchiveAdapter {
           (chunk) => {
             counters.archiveBytesStored += chunk.length
             if (counters.archiveBytesStored > snapshot.archive.sizeBytes) {
-              throw new ArchiveError('checksum-mismatch', '压缩体长度超过清单。')
+              throw new ArchiveError(
+                'checksum-mismatch',
+                'Compressed content exceeds the manifest length.',
+              )
             }
             options.onProgress?.({ ...counters })
           },
@@ -318,7 +335,10 @@ export class WindowsArchiveAdapter {
           actual.sizeBytes !== snapshot.archive.sizeBytes ||
           actual.sha256 !== snapshot.archive.sha256
         ) {
-          throw new ArchiveError('checksum-mismatch', '压缩体长度或哈希与清单不符。')
+          throw new ArchiveError(
+            'checksum-mismatch',
+            'The compressed content length or hash does not match the manifest.',
+          )
         }
         checkArchiveAbort(options.signal)
         options.onArchiveStored?.()
@@ -362,7 +382,7 @@ export class WindowsArchiveAdapter {
         } catch (cleanup) {
           failure.cleanupError = {
             code: 'cleanup-failed',
-            message: '私有缓存清理失败，请重试清理。',
+            message: 'Private cache cleanup failed. Retry cleanup.',
             canRetry: false,
           }
           failure.cause = { operation: failure.cause, cleanup }
@@ -400,7 +420,7 @@ export class WindowsArchiveAdapter {
           metadata.rootId !== request.sourceRootId ||
           metadata.entryId !== selection.entryId
         ) {
-          throw new ArchiveError('invalid-request', '源文件元数据不匹配。')
+          throw new ArchiveError('invalid-request', 'Source file metadata does not match.')
         }
         const counter = createCounter(
           job,
@@ -410,7 +430,10 @@ export class WindowsArchiveAdapter {
           (chunk) => {
             counters.sourceBytesRead += chunk.length
             if (counters.sourceBytesRead > this.cache.quota.maxTotalFileBytes) {
-              throw new ArchiveError('resource-limit', '原文总量超过资源预算。')
+              throw new ArchiveError(
+                'resource-limit',
+                'Total uncompressed data exceeds the resource budget.',
+              )
             }
             options.onProgress?.({
               sourceBytesRead: counters.sourceBytesRead,
@@ -430,7 +453,7 @@ export class WindowsArchiveAdapter {
         await source.verifyUnchanged()
         const actual = counter.result()
         if (metadata.sizeBytes !== null && actual.sizeBytes !== metadata.sizeBytes) {
-          throw new ArchiveError('source-changed', '源文件长度在读取期间变化。')
+          throw new ArchiveError('source-changed', 'The source file length changed while reading.')
         }
         files.push({
           fileId: selection.fileId,
@@ -455,12 +478,15 @@ export class WindowsArchiveAdapter {
   ): Promise<void> {
     const size = manifest.archive.sizeBytes
     if (size < 20) {
-      throw new ArchiveError('invalid-archive', 'gzip 内容过短。')
+      throw new ArchiveError('invalid-archive', 'The gzip content is too short.')
     }
     const header = await readSmall(job, 0, 10)
     const trailer = await readSmall(job, size - 8, 8)
     if (!header.subarray(0, 8).equals(Buffer.from([31, 139, 8, 0, 0, 0, 0, 0]))) {
-      throw new ArchiveError('invalid-archive', 'gzip 头不符合单成员受限格式。')
+      throw new ArchiveError(
+        'invalid-archive',
+        'The gzip header does not match the restricted single-member format.',
+      )
     }
     const crc = new ArchiveCrc32()
     const tarCounter = createCounter(job, this.cache.quota.maxTarBytes, false, options, (chunk) =>
@@ -478,7 +504,10 @@ export class WindowsArchiveAdapter {
         const reader = new ArchiveReader(source, options.signal)
         for (const file of manifest.files) {
           if (!(await reader.read(512)).equals(createArchiveHeader(file))) {
-            throw new ArchiveError('invalid-archive', 'tar 成员、顺序、类型或规范化头无效。')
+            throw new ArchiveError(
+              'invalid-archive',
+              'A tar member, order, type, or normalized header is invalid.',
+            )
           }
           const counter = createCounter(
             job,
@@ -488,7 +517,10 @@ export class WindowsArchiveAdapter {
             (chunk) => {
               counters.verifiedFileBytes += chunk.length
               if (counters.verifiedFileBytes > this.cache.quota.maxTotalFileBytes) {
-                throw new ArchiveError('resource-limit', '解包原文超过资源预算。')
+                throw new ArchiveError(
+                  'resource-limit',
+                  'Extracted data exceeds the resource budget.',
+                )
               }
               options.onProgress?.({ ...counters })
             },
@@ -512,17 +544,23 @@ export class WindowsArchiveAdapter {
           )
           const actual = counter.result()
           if (actual.sizeBytes !== file.sizeBytes || actual.sha256 !== file.sha256) {
-            throw new ArchiveError('checksum-mismatch', '解包文件内容与清单不符。')
+            throw new ArchiveError(
+              'checksum-mismatch',
+              'The extracted file content does not match the manifest.',
+            )
           }
           const padding = await reader.read((512 - (file.sizeBytes % 512)) % 512)
           if (padding.some((byte) => byte !== 0)) {
-            throw new ArchiveError('invalid-archive', 'tar 填充包含非零数据。')
+            throw new ArchiveError('invalid-archive', 'Tar padding contains nonzero data.')
           }
           counters.verifiedFiles++
           options.onProgress?.({ ...counters })
         }
         if ((await reader.read(1024)).some((byte) => byte !== 0)) {
-          throw new ArchiveError('invalid-archive', 'tar 缺少两个规范结束块。')
+          throw new ArchiveError(
+            'invalid-archive',
+            'The tar archive is missing two standard end blocks.',
+          )
         }
         await reader.expectEnd()
       },
@@ -530,10 +568,13 @@ export class WindowsArchiveAdapter {
     )
     const tar = tarCounter.result()
     if (inflater.bytesWritten !== size - 18 || tar.sizeBytes !== manifest.archive.tarSizeBytes) {
-      throw new ArchiveError('invalid-archive', 'gzip 包含拼接成员、尾随内容或长度歧义。')
+      throw new ArchiveError(
+        'invalid-archive',
+        'The gzip archive contains concatenated members, trailing content, or ambiguous lengths.',
+      )
     }
     if (trailer.readUInt32LE(0) !== crc.value || trailer.readUInt32LE(4) !== tar.sizeBytes) {
-      throw new ArchiveError('invalid-archive', 'gzip CRC32 或 ISIZE 校验失败。')
+      throw new ArchiveError('invalid-archive', 'Gzip CRC32 or ISIZE verification failed.')
     }
   }
 
@@ -554,7 +595,12 @@ export class WindowsArchiveAdapter {
       openArchive: () => open('archive.tar.gz'),
       openFile: (fileId: string) => {
         if (!manifest.files.some((file) => file.fileId === fileId)) {
-          return Promise.reject(new ArchiveError('invalid-request', '缓存文件不属于本次清单。'))
+          return Promise.reject(
+            new ArchiveError(
+              'invalid-request',
+              'The cached file does not belong to this manifest.',
+            ),
+          )
         }
         return open(`${prefix}-${fileId}`)
       },

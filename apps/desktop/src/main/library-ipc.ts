@@ -17,17 +17,20 @@ export function registerLibraryIpc(
     ipc.handle(channel, async (event, ...args: unknown[]) => {
       try {
         if (!isTrusted(event)) {
-          throw new HttpOperationError('permission-denied', '此页面无法访问游戏配置。')
+          throw new HttpOperationError(
+            'permission-denied',
+            'This page cannot access game configuration.',
+          )
         }
         if (action === 'read') {
           if (args.length !== 0) {
-            throw new HttpOperationError('invalid-request', '参数无效。')
+            throw new HttpOperationError('invalid-request', 'The parameters are invalid.')
           }
           return { status: 'success', value: library.snapshot() }
         }
         const value = args[0]
         if (args.length !== 1 || typeof value !== 'object' || value === null) {
-          throw new HttpOperationError('invalid-request', '参数无效。')
+          throw new HttpOperationError('invalid-request', 'The parameters are invalid.')
         }
         if (action === 'saveGames') {
           if (
@@ -35,11 +38,14 @@ export function registerLibraryIpc(
             !Array.isArray(value.games) ||
             Object.keys(value).length !== 1
           ) {
-            throw new HttpOperationError('invalid-request', '游戏配置无效。')
+            throw new HttpOperationError('invalid-request', 'The game configuration is invalid.')
           }
           // store 在落盘前用完整 LibraryConfig 守卫校验每一项。
           if (service.hasWork()) {
-            throw new HttpOperationError('busy', '结束当前传输后再修改游戏目录或关联。')
+            throw new HttpOperationError(
+              'busy',
+              'Finish the current transfer before changing game directories or links.',
+            )
           }
           await library.saveGames(value.games as readonly LibraryGame[])
         } else if (action === 'device') {
@@ -50,17 +56,20 @@ export function registerLibraryIpc(
             !['disconnect', 'rename', 'forget'].includes(String(value.action)) ||
             Object.keys(value).some((key) => !['id', 'action', 'name'].includes(key))
           ) {
-            throw new HttpOperationError('invalid-request', '设备操作无效。')
+            throw new HttpOperationError('invalid-request', 'The device operation is invalid.')
           }
           if (service.hasWork()) {
-            throw new HttpOperationError('busy', '结束当前传输后再修改设备。')
+            throw new HttpOperationError(
+              'busy',
+              'Finish the current transfer before changing devices.',
+            )
           }
           const name = 'name' in value ? value.name : undefined
           if (
             name !== undefined &&
             (typeof name !== 'string' || !name.trim() || name.length > 128)
           ) {
-            throw new HttpOperationError('invalid-request', '设备名称无效。')
+            throw new HttpOperationError('invalid-request', 'The device name is invalid.')
           }
           await library.device(value.id, value.action as 'disconnect' | 'rename' | 'forget', name)
         } else {
@@ -73,7 +82,7 @@ export function registerLibraryIpc(
             (value.parentId !== null && !isOpaqueId(value.parentId)) ||
             Object.keys(value).length !== 3
           ) {
-            throw new HttpOperationError('invalid-request', '目录请求无效。')
+            throw new HttpOperationError('invalid-request', 'The directory request is invalid.')
           }
           return {
             status: 'success',

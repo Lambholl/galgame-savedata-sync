@@ -77,14 +77,14 @@ interface SyncTask {
 function cleanupFailure(): KnownOperationError {
   return {
     code: 'cleanup-failed',
-    message: '本次归档或写入候选仍待清理，请重试清理。',
+    message: 'This archive or write candidate still needs cleanup. Retry cleanup.',
     canRetry: false,
   }
 }
 function known(cause: unknown): KnownOperationError {
   const error = toHttpError(cause).operationError
   return error.code === 'result-unknown'
-    ? { code: 'io-failure', message: '接收准备失败。', canRetry: false }
+    ? { code: 'io-failure', message: 'Receive preparation failed.', canRetry: false }
     : error
 }
 function emptyResult(
@@ -136,7 +136,10 @@ export class WindowsSyncRegistry {
         this.timeouts[key] < 1 ||
         this.timeouts[key] > BATCH_TIMEOUTS_MS[key]
       ) {
-        throw new HttpOperationError('invalid-request', '同步任务期限配置无效。')
+        throw new HttpOperationError(
+          'invalid-request',
+          'The sync task deadline configuration is invalid.',
+        )
       }
     }
     this.timer = setInterval(() => this.sweep(), Math.min(1000, ...Object.values(this.timeouts)))
@@ -182,7 +185,7 @@ export class WindowsSyncRegistry {
   async localCleanup(id: string): Promise<void> {
     const task = this.localTask(id)
     if (task.state.status === 'running' || (this.active !== null && this.active !== task)) {
-      throw new HttpOperationError('busy', '同步任务尚未结束。')
+      throw new HttpOperationError('busy', 'The sync task has not finished.')
     }
     const token = task.hasLease ? null : Symbol('sync-cleanup')
     if (token) {
@@ -193,7 +196,10 @@ export class WindowsSyncRegistry {
         const project = task.request.targetProjectId,
           root = task.request.plan.target.rootId
         if ((await this.options.backups.list(project, root)).incomplete.length > 0) {
-          throw new HttpOperationError('cleanup-failed', '请先在备份页检查并清理未完成的备份。')
+          throw new HttpOperationError(
+            'cleanup-failed',
+            'Inspect and clean up incomplete backups on the backup page first.',
+          )
         }
         await this.options.backups.rotate(project, root)
       }
@@ -214,7 +220,10 @@ export class WindowsSyncRegistry {
     this.sweep()
     const task = this.tasks.get(id)
     if (!task) {
-      throw new HttpOperationError('not-found', '本次同步任务已结束或过期，请重新读取目录。')
+      throw new HttpOperationError(
+        'not-found',
+        'This sync task ended or expired. Read the directory again.',
+      )
     }
     return task
   }
@@ -236,7 +245,10 @@ export class WindowsSyncRegistry {
       .find((item) => item.device.id === peerId)
       ?.games.find((item) => item.id === link?.gameId)?.root
     if (!game?.rootId || !link || !remoteRoot) {
-      throw new HttpOperationError('not-found', '项目目录或设备关联不存在。')
+      throw new HttpOperationError(
+        'not-found',
+        'The project directory or device link does not exist.',
+      )
     }
     this.options.library.verifyProjectPeer(
       projectId,
@@ -276,7 +288,10 @@ export class WindowsSyncRegistry {
       plan.target.rootId,
     )
     if (shouldBackup !== plan.shouldBackup) {
-      throw new HttpOperationError('source-changed', '目标备份设置已变化，请重新确认。')
+      throw new HttpOperationError(
+        'source-changed',
+        'Target backup settings changed. Confirm again.',
+      )
     }
     checkArchiveAbort(task.controller.signal)
   }
@@ -291,17 +306,23 @@ export class WindowsSyncRegistry {
         : value.plan.source.deviceId !== this.options.deviceId ||
           value.plan.target.deviceId !== peerId)
     ) {
-      throw new HttpOperationError('invalid-request', '复制请求或设备方向无效。')
+      throw new HttpOperationError(
+        'invalid-request',
+        'The copy request or device direction is invalid.',
+      )
     }
     this.sweep()
     if (this.isStopped || this.active) {
-      throw new HttpOperationError('busy', '已有同步任务或资源等待清理。')
+      throw new HttpOperationError('busy', 'A sync task or resources are awaiting cleanup.')
     }
     if (this.usedIds.has(value.jobId)) {
-      throw new HttpOperationError('task-conflict', '本次确认已经使用，请查询原任务。')
+      throw new HttpOperationError(
+        'task-conflict',
+        'This confirmation was already used. Query the original task.',
+      )
     }
     if (this.usedIds.size >= BATCH_LIMITS.maxTransfersPerSession) {
-      throw new HttpOperationError('resource-limit', '会话任务容量已满。')
+      throw new HttpOperationError('resource-limit', 'The session task capacity is full.')
     }
     const now = Date.now()
     const localSnapshot = isUpload ? value.plan.target : value.plan.source
@@ -309,7 +330,7 @@ export class WindowsSyncRegistry {
       localSnapshot.observedAt > now ||
       now - localSnapshot.observedAt > SYNC_LIMITS.snapshotLifetimeMs
     ) {
-      throw new HttpOperationError('not-found', '确认扫描已过期，请重新扫描。')
+      throw new HttpOperationError('not-found', 'The confirmed scan expired. Scan again.')
     }
     const cached = this.options.scanner.get(localSnapshot.scanId)
     if (
@@ -325,7 +346,10 @@ export class WindowsSyncRegistry {
         target: isUpload ? cached.snapshot : value.plan.target,
       })
     ) {
-      throw new HttpOperationError('invalid-request', '目标扫描与当前会话保存的结果不同。')
+      throw new HttpOperationError(
+        'invalid-request',
+        'The target scan differs from the result stored in the current session.',
+      )
     }
     const token = Symbol('sync-job')
     acquireTargetOperation(token)
@@ -404,7 +428,7 @@ export class WindowsSyncRegistry {
       if (state.status !== 'succeeded' || !state.snapshot) {
         throw new HttpOperationError(
           state.error?.code ?? 'io-failure',
-          state.error?.message ?? '源目录复核未完成。',
+          state.error?.message ?? 'Source directory verification is incomplete.',
         )
       }
       const entries = (snapshot: SyncSnapshot): string =>
@@ -420,7 +444,10 @@ export class WindowsSyncRegistry {
           })),
         )
       if (entries(state.snapshot) !== entries(task.request.plan.source)) {
-        throw new HttpOperationError('source-changed', '源目录与确认时不同，请重新扫描。')
+        throw new HttpOperationError(
+          'source-changed',
+          'The source directory differs from confirmation. Scan again.',
+        )
       }
       if (task.request.plan.transferFileCount === 0) {
         await this.finishSender(task, 'sent', null)
@@ -443,14 +470,20 @@ export class WindowsSyncRegistry {
           signal: task.controller.signal,
           onProgress: (progress) => {
             if (progress.sourceBytesRead > (task.request.plan.totalFileBytes ?? 0)) {
-              throw new HttpOperationError('source-changed', '源文件已超出确认长度。')
+              throw new HttpOperationError(
+                'source-changed',
+                'The source file exceeds the confirmed length.',
+              )
             }
             this.update(task, 'preparing', { sourceBytesRead: progress.sourceBytesRead })
           },
         },
       )
       if (!matchesSyncJobManifest(task.artifact.manifest, task.request)) {
-        throw new HttpOperationError('source-changed', '源归档与确认引用、属性或内容不同。')
+        throw new HttpOperationError(
+          'source-changed',
+          'The source archive differs from the confirmed reference, attributes, or content.',
+        )
       }
       await this.verify(task)
       task.manifest = task.artifact.manifest
@@ -500,7 +533,10 @@ export class WindowsSyncRegistry {
     this.sweep()
     const task = this.tasks.get(id)
     if (!task || task.peerId !== peerId) {
-      throw new HttpOperationError('not-found', '本会话没有此同步任务。')
+      throw new HttpOperationError(
+        'not-found',
+        'This sync task does not exist in the current session.',
+      )
     }
     return task
   }
@@ -522,11 +558,14 @@ export class WindowsSyncRegistry {
       task.isManifestClaimed ||
       task.request.plan.transferFileCount === 0
     ) {
-      throw new HttpOperationError('task-conflict', '此任务不再接收清单。')
+      throw new HttpOperationError('task-conflict', 'This task no longer accepts a manifest.')
     }
     task.isManifestClaimed = true
     if (!matchesSyncJobManifest(value, task.request) || value === null) {
-      const error = new HttpOperationError('invalid-request', '归档清单与确认计划不同。')
+      const error = new HttpOperationError(
+        'invalid-request',
+        'The archive manifest differs from the confirmed plan.',
+      )
       await this.work(task, () => Promise.reject(error))
       throw error
     }
@@ -561,14 +600,20 @@ export class WindowsSyncRegistry {
       task.isContentClaimed ||
       !manifest
     ) {
-      throw new HttpOperationError('task-conflict', '本次内容已经领取或任务不再等待内容。')
+      throw new HttpOperationError(
+        'task-conflict',
+        'This content was already claimed or the task is no longer awaiting content.',
+      )
     }
     if (
       input.headers['content-type'] !== BATCH_ARCHIVE.contentType ||
       input.headers['content-length'] !== String(manifest.archive.sizeBytes) ||
       input.headers[HTTP_HEADERS.archiveSha256] !== manifest.archive.sha256
     ) {
-      throw new HttpOperationError('invalid-request', '压缩体类型、长度或哈希头与清单不同。')
+      throw new HttpOperationError(
+        'invalid-request',
+        'Compressed content type, length, or hash headers differ from the manifest.',
+      )
     }
     task.isContentClaimed = true
     this.update(task, 'transferring')
@@ -594,7 +639,10 @@ export class WindowsSyncRegistry {
       !task.artifact ||
       !task.manifest
     ) {
-      throw new HttpOperationError('task-conflict', '本次源内容尚未准备好或已经领取。')
+      throw new HttpOperationError(
+        'task-conflict',
+        'This source content is not ready or was already claimed.',
+      )
     }
     task.isContentClaimed = true
     this.update(task, 'transferring')
@@ -604,7 +652,7 @@ export class WindowsSyncRegistry {
       if (task.state.status !== 'sent') {
         throw new HttpOperationError(
           task.state.error?.code ?? 'network-failure',
-          task.state.error?.message ?? '本次发送已中止，请查询实际状态。',
+          task.state.error?.message ?? 'This send operation was aborted. Query the actual status.',
         )
       }
     })
@@ -613,13 +661,13 @@ export class WindowsSyncRegistry {
     const artifact = task.artifact,
       manifest = task.manifest
     if (!artifact || !manifest) {
-      throw new HttpOperationError('task-conflict', '源归档已失效。')
+      throw new HttpOperationError('task-conflict', 'The source archive expired.')
     }
     const disconnected = (): void => {
       if (!response.writableFinished) {
         this.abort(task, {
           code: 'network-failure',
-          message: '发送连接在结束前中断。',
+          message: 'The sending connection was interrupted before completion.',
           canRetry: false,
         })
       }
@@ -636,7 +684,12 @@ export class WindowsSyncRegistry {
           void encoding
           try {
             if (!Buffer.isBuffer(chunk) || bytes + chunk.length > manifest.archive.sizeBytes) {
-              callback(new HttpOperationError('checksum-mismatch', '源归档超过清单长度。'))
+              callback(
+                new HttpOperationError(
+                  'checksum-mismatch',
+                  'The source archive exceeds the manifest length.',
+                ),
+              )
               return
             }
             bytes += chunk.length
@@ -653,7 +706,10 @@ export class WindowsSyncRegistry {
           callback(
             bytes === manifest.archive.sizeBytes && hash.digest('hex') === manifest.archive.sha256
               ? null
-              : new HttpOperationError('checksum-mismatch', '源归档长度或哈希与清单不同。'),
+              : new HttpOperationError(
+                  'checksum-mismatch',
+                  'The source archive length or hash differs from the manifest.',
+                ),
           ),
       })
       response.writeHead(200, {
@@ -709,7 +765,7 @@ export class WindowsSyncRegistry {
   ): Promise<void> {
     const manifest = task.manifest
     if (!manifest) {
-      reject(new HttpOperationError('invalid-request', '归档清单缺失。'))
+      reject(new HttpOperationError('invalid-request', 'The archive manifest is missing.'))
       return
     }
     const body = openUploadBody(input, response, {
@@ -729,7 +785,7 @@ export class WindowsSyncRegistry {
         signal: task.controller.signal,
         onArchiveStored: () => {
           if (!body.isComplete()) {
-            throw new HttpOperationError('checksum-mismatch', '上传消息尚未完整结束。')
+            throw new HttpOperationError('checksum-mismatch', 'The upload message is incomplete.')
           }
           this.update(task, 'verifying')
           hasAccepted = true
@@ -745,7 +801,10 @@ export class WindowsSyncRegistry {
         },
       })
       if (!hasAccepted) {
-        throw new HttpOperationError('invalid-archive', '接收器未确认压缩体。')
+        throw new HttpOperationError(
+          'invalid-archive',
+          'The receiver did not confirm the compressed content.',
+        )
       }
       await this.apply(task)
     } catch (cause) {
@@ -787,7 +846,10 @@ export class WindowsSyncRegistry {
           openFile: async (entryId) => {
             const file = artifact.manifest.files.find((entry) => entry.sourceEntryId === entryId)
             if (!file) {
-              throw new HttpOperationError('invalid-request', '归档缺少本次源文件。')
+              throw new HttpOperationError(
+                'invalid-request',
+                'The archive is missing a source file for this operation.',
+              )
             }
             return {
               stream: await artifact.openFile(file.fileId),
@@ -896,7 +958,8 @@ export class WindowsSyncRegistry {
           status: 'unknown',
           error: {
             code: 'result-unknown',
-            message: '目标结果无法对应本次确认，请重读目标。',
+            message:
+              'The target result cannot be matched to this confirmation. Read the target again.',
             canRetry: false,
           },
         }
@@ -951,7 +1014,7 @@ export class WindowsSyncRegistry {
         ) {
           this.abort(task, {
             code: 'timeout',
-            message: '同步任务已超过期限，请查询本次结果。',
+            message: 'The sync task exceeded its deadline. Query its result.',
             canRetry: false,
           })
         }
@@ -980,7 +1043,7 @@ export class WindowsSyncRegistry {
       return
     }
     if (task.state.status === 'running') {
-      throw new HttpOperationError('busy', '同步任务尚未结束。')
+      throw new HttpOperationError('busy', 'The sync task has not finished.')
     }
     await this.clean(task)
     task.state = {

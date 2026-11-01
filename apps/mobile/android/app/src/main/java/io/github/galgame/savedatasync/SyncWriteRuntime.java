@@ -38,7 +38,7 @@ final class SyncWriteRuntime implements AutoCloseable {
         this.store = store;
         writer = new SyncWriter(new SafSyncBackend(context, store, (project, root) -> {
             synchronized (SyncWriteRuntime.this) {
-                if (!root.equals(projects.get(project))) throw new ArchiveFailure("permission-denied", "目标目录与本次本机项目绑定不符");
+                if (!root.equals(projects.get(project))) throw new ArchiveFailure("permission-denied", "The target directory does not match this local project binding.");
             }
         }), backups);
         expiry.scheduleAtFixedRate(() -> worker.execute(() -> { synchronized (SyncWriteRuntime.this) { purge(); } }), 1, 1, TimeUnit.MINUTES);
@@ -47,14 +47,14 @@ final class SyncWriteRuntime implements AutoCloseable {
     synchronized void bindProject(String project, String root) throws Exception {
         available();
         id(project); id(root);
-        if (active != null || TargetOperation.hasWork()) throw new ArchiveFailure("busy", "活动任务期间不能修改项目绑定");
+        if (active != null || TargetOperation.hasWork()) throw new ArchiveFailure("busy", "Project bindings cannot be changed while a task is active.");
         store.publicationDirectory(root, null, new CancellationSignal(), false);
-        if (!projects.containsKey(project) && projects.size() >= 128) throw new ArchiveFailure("resource-limit", "本机项目绑定数量超过限制");
+        if (!projects.containsKey(project) && projects.size() >= 128) throw new ArchiveFailure("resource-limit", "The number of local project bindings exceeds the limit.");
         projects.put(project, root);
     }
     private synchronized Job find(String restoreId) throws Exception {
         available(); id(restoreId); purge(); Job job = jobs.get(restoreId);
-        if (job == null) throw new ArchiveFailure("not-found", "恢复任务不存在或已过期"); return job;
+        if (job == null) throw new ArchiveFailure("not-found", "The restore task does not exist or expired."); return job;
     }
     private void purge() {
         long now = System.nanoTime();
@@ -67,8 +67,8 @@ final class SyncWriteRuntime implements AutoCloseable {
     }
     synchronized Map<String, Object> prepare(String project, String root, String backup) throws Exception {
         available(); id(project); id(root); id(backup); purge();
-        if (!root.equals(projects.get(project))) throw new ArchiveFailure("permission-denied", "请先核实保存的本机项目与目录绑定");
-        if (active != null || jobs.size() >= 32) throw new ArchiveFailure("busy", "已有恢复任务或结果数量已达限制");
+        if (!root.equals(projects.get(project))) throw new ArchiveFailure("permission-denied", "Verify the saved local project and directory binding first.");
+        if (active != null || jobs.size() >= 32) throw new ArchiveFailure("busy", "A restore task already exists or the result limit has been reached.");
         Job job = new Job(project, root, backup); jobs.put(job.id, job); active = job;
         worker.execute(() -> {
             try {
@@ -88,15 +88,15 @@ final class SyncWriteRuntime implements AutoCloseable {
         return latest;
     }
     synchronized Map<String, Object> preview(String restoreId) throws Exception {
-        Job job = find(restoreId); if (job.preview == null) throw new ArchiveFailure("task-conflict", "恢复预览尚未准备完成");
+        Job job = find(restoreId); if (job.preview == null) throw new ArchiveFailure("task-conflict", "The restore preview is not ready yet.");
         Map<String, Object> result = map(copy(job.preview)); result.put("restoreId", job.id); return result;
     }
     synchronized Map<String, Object> execute(String restoreId, Object raw) throws Exception {
         Job job = find(restoreId);
-        if (!job.status.equals("ready") || job.restore == null || active != null) throw new ArchiveFailure("task-conflict", "恢复预览已使用或尚未准备完成");
+        if (!job.status.equals("ready") || job.restore == null || active != null) throw new ArchiveFailure("task-conflict", "The restore preview was used or is not ready yet.");
         SyncPlanModel.Plan plan = new SyncPlanModel.Plan(raw);
         if (!plan.id.equals(job.restore.planId) || !plan.project.equals(job.project) || !plan.reason.equals("restore") ||
-            !SyncPlanModel.same(plan.source.value, job.restore.source) || !SyncPlanModel.same(plan.target.value, job.restore.target)) throw new ArchiveFailure("invalid-request", "确认计划与本次恢复预览不同");
+            !SyncPlanModel.same(plan.source.value, job.restore.source) || !SyncPlanModel.same(plan.target.value, job.restore.target)) throw new ArchiveFailure("invalid-request", "The confirmed plan differs from this restore preview.");
         job.control = new ArchiveControl(); job.status = "running"; job.running = true; active = job;
         worker.execute(() -> {
             try {
@@ -119,7 +119,7 @@ final class SyncWriteRuntime implements AutoCloseable {
         ArchiveFailure failure = ArchiveFailure.from(cause);
         if (job.restore != null) {
             try { job.restore.close(); job.restore = null; }
-            catch (Exception cleanup) { if (failure.cancelled) failure = new ArchiveFailure("cleanup-failed", "取消后恢复材料尚未完整释放", false, cleanup); }
+            catch (Exception cleanup) { if (failure.cancelled) failure = new ArchiveFailure("cleanup-failed", "Restore material was not fully released after cancellation.", false, cleanup); }
         }
         job.status = failure.cancelled ? "cancelled" : "failed";
         job.error = failure.cancelled ? null : object("code", failure.code, "message", failure.getMessage(), "canRetry", false);
@@ -138,9 +138,9 @@ final class SyncWriteRuntime implements AutoCloseable {
         }
     }
     synchronized void release(String restoreId) throws Exception {
-        Job job = find(restoreId); if (job.running) throw new ArchiveFailure("busy", "恢复仍在运行");
+        Job job = find(restoreId); if (job.running) throw new ArchiveFailure("busy", "The restore is still running.");
         if (job.restore != null) { job.restore.close(); job.restore = null; }
-        if (!writer.retryCleanup()) throw new ArchiveFailure("cleanup-failed", "目标资源尚未完整释放");
+        if (!writer.retryCleanup()) throw new ArchiveFailure("cleanup-failed", "Target resources have not been fully released.");
         jobs.remove(job.id);
     }
     synchronized boolean retryCleanup() {
@@ -155,12 +155,12 @@ final class SyncWriteRuntime implements AutoCloseable {
         }
         return true;
     }
-    private void available() throws ArchiveFailure { if (closed) throw new ArchiveFailure("unsupported-operation", "恢复任务所有者已关闭"); }
+    private void available() throws ArchiveFailure { if (closed) throw new ArchiveFailure("unsupported-operation", "The restore task owner is closed."); }
     /** 仅由原生所有者退出时调用，Activity 插件销毁不关闭应用级恢复任务。 */
     @Override public void close() throws Exception {
         Job job; synchronized (this) { closed = true; job = active; }
         expiry.shutdownNow(); if (job != null) job.control.cancel();
-        worker.shutdown(); if (!worker.awaitTermination(30, TimeUnit.SECONDS)) throw new ArchiveFailure("timeout", "恢复任务尚未释放");
+        worker.shutdown(); if (!worker.awaitTermination(30, TimeUnit.SECONDS)) throw new ArchiveFailure("timeout", "The restore task has not been released.");
         writer.close(); synchronized (this) { jobs.clear(); projects.clear(); }
     }
 }

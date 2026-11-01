@@ -1,6 +1,8 @@
 import type { ReactElement } from 'react'
 import { LoadingOutlined } from '@ant-design/icons'
+import type { ShownError } from '../../result.ts'
 import type { SyncApplyResult } from '../../sync/sync-contracts.ts'
+import { ErrorText } from '../errors/ErrorText.tsx'
 import { useT } from '../i18n/i18n-context.ts'
 import { OutcomeList } from './OutcomeList.tsx'
 import { unsettledOutcomes } from './outcomes.ts'
@@ -20,9 +22,9 @@ export interface RestoreSummaryProps {
   /** 本机回读得到的写入结果；还没有结果时为 null。 */
   readonly result: SyncApplyResult | null
   /** 任务失败的原因；没有失败时为 null。 */
-  readonly error: string | null
+  readonly error: ShownError | null
   /** 清理临时文件失败的原因；没有失败时为 null。 */
-  readonly cleanupError: string | null
+  readonly cleanupError: ShownError | null
   /** 重试清理临时文件；不能重试时为 null。 */
   readonly onRetryCleanup: (() => void) | null
 }
@@ -83,11 +85,12 @@ export function RestoreSummary({
       <Verdict tone="warn" title={t('backup.restoreUnknown')} detail={t('task.unknownDetail')} />
     )
   } else {
+    const reason = result?.error ?? error
     hero = (
       <Verdict
         tone="bad"
         title={t('backup.restoreFailed')}
-        detail={result?.error?.message ?? error}
+        detail={reason && <ErrorText error={reason} context={null} />}
       />
     )
   }
@@ -96,7 +99,7 @@ export function RestoreSummary({
       <div className="ss-task-hero">{hero}</div>
       <OutcomeList
         outcomes={outcomes}
-        cleanupError={result?.cleanupError?.message ?? cleanupError}
+        cleanupError={result?.cleanupError ?? cleanupError}
         remoteError={null}
         onRetryCleanup={onRetryCleanup}
       />

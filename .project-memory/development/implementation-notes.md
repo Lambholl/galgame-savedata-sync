@@ -3,7 +3,7 @@ doc_type: implementation-notes
 status: active
 priority: medium
 owner: development
-updated: 2026-10-31
+updated: 2026-11-01
 tags: [实现细节]
 related_files: []
 ---
@@ -19,6 +19,8 @@ related_files: []
 
 | 主题 | 结论 | 相关文件 |
 | --- | --- | --- |
+| 四语言界面与错误显示 | 双端界面、窗口及系统目录选择器按 zh-CN/zh-TW/ja-JP/en-US 取共用文案。后端自有错误说明默认英文；unwrap 和平台异常保留错误码，ErrorText 按码显示当前语言的主提示，英文原文和错误码折叠在详情；无错误码时显示原文。APP_NAME 已移除，名称取 app.name；共用组件参数命名导出并注释，不透传样式 | shared i18n/result/ui、双端 app/features/platform、desktop main/index.ts |
+| Android 原生语言 | 应用名称、通知渠道、传输阶段、标题、取消和重试按钮使用默认中文、zh-rTW、en、ja 字符串资源。TransferService 与 AppPreferencesPlugin 共用 app-preferences 的 locale；每次通知更新读取偏好并用 createConfigurationContext 取资源，system 或未设置时取系统语言，渠道名随语言更新。Activity 与应用统一引用 app_name | AppPreferencesPlugin.java、TransferService.java、AndroidManifest.xml、res/values*/strings.xml |
 | 移动计划页与浮动操作 | 子页面覆盖底部导航。传输页右下角箭头扫描后进入独立同步计划页，返回保留双列浏览状态；计划隐藏 skip 展示，计划及结果用连续列表，执行仍提交完整原生计划。“开始”浮动按钮与扫描箭头使用独立 portal，距边缘 24px 加系统安全区，内容底部预留 104px 加安全区。开始、实际目标成功/失败及新连接使用 antd Message，按任务状态变化提示并限制记录数量 | LibraryShell、FloatingPageAction、MobileApp、SyncCopy/PlanView、transfer-feedback、mobile.css |
 | 移动页面切换动画 | LibraryShell 在 page 变化时使用 Web Animations API 对内容区做 300ms 淡入与 12px 水平位移；主导航依据左右顺序、详情返回反向。首次挂载和普通状态刷新不触发，快速切换时取消旧动画；保留原组件状态，跟随系统减少动态效果偏好 | LibraryShell.tsx、mobile.css |
 | 移动双列文件浏览 | “传输存档”恢复两端当前层预览，各列独立进入文件夹、返回上级、刷新和滚动；按新取得的父目录逐层解析子引用，失败和离线与空目录分开。文件名下用小字同排展示短日期/时间和紧凑大小，文件夹只显示时间；点击文件整行高亮，选中仅供浏览，不限定整目录传输范围 | DirectoryPane、SyncCopyPage、display.ts、mobile.css |

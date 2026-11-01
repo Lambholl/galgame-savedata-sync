@@ -1,7 +1,19 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
     <string name="app_name">存档同步</string>
-    <string name="title_activity_main">存档同步</string>
-    <string name="package_name">io.github.galgame.savedatasync</string>
-    <string name="custom_url_scheme">io.github.galgame.savedatasync</string>
+    <string name="package_name" translatable="false">io.github.galgame.savedatasync</string>
+    <string name="custom_url_scheme" translatable="false">io.github.galgame.savedatasync</string>
+    <string name="transfer_channel">文件传输</string>
+    <string name="transfer_stage_preparing">正在准备传输</string>
+    <string name="transfer_stage_transferring">正在传输</string>
+    <string name="transfer_stage_verifying">正在校验接收内容</string>
+    <string name="transfer_stage_writing">正在保存并回读校验</string>
+    <string name="transfer_stage_backing_up">正在保护覆盖前的存档</string>
+    <string name="transfer_stage_cleaning">正在清理本次资源</string>
+    <string name="transfer_stage_sent">已发送，正在确认电脑接收结果</string>
+    <string name="transfer_cleanup_pending">本次资源尚未完成清理</string>
+    <string name="transfer_title_sending">%1$s：发送文件</string>
+    <string name="transfer_title_receiving">%1$s：接收文件</string>
+    <string name="transfer_cancel">取消传输</string>
+    <string name="transfer_retry_cleanup">重试清理</string>
 </resources>

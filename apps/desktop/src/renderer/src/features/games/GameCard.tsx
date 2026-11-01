@@ -1,5 +1,6 @@
 import { FolderOutlined, RightOutlined } from '@ant-design/icons'
 import type { LibraryGame } from '@savedata-sync/shared'
+import { useT } from '@savedata-sync/shared/ui'
 
 /** 沿用手机卡片的封面与信息区；鼠标两键及键盘均打开本机游戏菜单。 */
 export function GameCard({
@@ -11,6 +12,7 @@ export function GameCard({
   readonly coverIndex: number
   readonly onOpenGame: (game: LibraryGame) => void
 }): React.JSX.Element {
+  const t = useT()
   return (
     <button
       className="library-game-card"
@@ -28,7 +30,7 @@ export function GameCard({
       </span>
       <span className="library-game-card-info">
         <strong>{game.name}</strong>
-        <span>已关联 {game.links.length} 台设备</span>
+        <span>{t('game.linkCount', { count: game.links.length })}</span>
         <RightOutlined aria-hidden="true" />
       </span>
     </button>

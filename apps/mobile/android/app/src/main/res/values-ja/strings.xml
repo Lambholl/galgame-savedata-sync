@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">セーブデータ同期</string>
+    <string name="transfer_channel">ファイル転送</string>
+    <string name="transfer_stage_preparing">転送を準備中</string>
+    <string name="transfer_stage_transferring">転送中</string>
+    <string name="transfer_stage_verifying">受け取った内容を検証中</string>
+    <string name="transfer_stage_writing">保存して読み直し、内容を検証中</string>
+    <string name="transfer_stage_backing_up">上書き前のセーブデータを保護中</string>
+    <string name="transfer_stage_cleaning">今回使った一時ファイルを削除中</string>
+    <string name="transfer_stage_sent">送信済み。相手の端末での受け取り結果を確認中</string>
+    <string name="transfer_cleanup_pending">一時ファイルがまだ残っています</string>
+    <string name="transfer_title_sending">%1$s：ファイルを送信中</string>
+    <string name="transfer_title_receiving">%1$s：ファイルを受信中</string>
+    <string name="transfer_cancel">転送を中止</string>
+    <string name="transfer_retry_cleanup">一時ファイルの削除を再試行</string>
+</resources>

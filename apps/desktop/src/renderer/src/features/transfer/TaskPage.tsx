@@ -5,9 +5,9 @@ import type { DesktopCopySummary, DesktopRestoreSummary } from '../../../../brid
 import { TaskView } from './TaskView.tsx'
 import { SyncCopyDetails } from './SyncCopyDetails.tsx'
 import { RestoreDetails } from '../backup/RestoreDetails.tsx'
-import { useT } from '@savedata-sync/shared/ui'
+import { useLocale, useT } from '@savedata-sync/shared/ui'
 import { restoreStateTitle, syncStateTitle } from './sync-display.ts'
-import { displayTime } from '../../components/display.ts'
+import { formatShortDateTime } from '@savedata-sync/shared'
 
 export function TaskPage({
   tasks,
@@ -37,6 +37,8 @@ export function TaskPage({
   readonly onRescan: (projectId: string, peerId: string) => void
 }): React.JSX.Element {
   const t = useT()
+  const locale = useLocale()
+  const now = Date.now()
   const [copyId, setCopyId] = useState<string | null>(null),
     [restoreId, setRestoreId] = useState<string | null>(null)
   // 默认显示最近一次传输；点历史记录切换。
@@ -77,10 +79,10 @@ export function TaskPage({
                   {item.direction === 'android-to-windows'
                     ? `${peers.find((peer) => peer.device.id === item.peerId)?.device.name ?? t('common.unknown')} → ${t('transfer.local')}`
                     : `${t('transfer.local')} → ${peers.find((peer) => peer.device.id === item.peerId)?.device.name ?? t('common.unknown')}`}{' '}
-                  · {displayTime(item.updatedAt)}
+                  · {formatShortDateTime(item.updatedAt, locale, now)}
                 </small>
               </span>
-              <Tag>{syncStateTitle(item)}</Tag>
+              <Tag>{syncStateTitle(t, item)}</Tag>
             </button>
           ))}
         </section>
@@ -88,13 +90,13 @@ export function TaskPage({
       {[...restores].reverse().map((item) => (
         <Card
           key={item.restoreId}
-          title={`${games.find((game) => game.id === item.projectId)?.name ?? '已记录的游戏'} · 本机恢复`}
-          extra={<Tag>{restoreStateTitle(item)}</Tag>}
+          title={`${games.find((game) => game.id === item.projectId)?.name ?? t('common.unknown')} · ${t('backup.restoreTask')}`}
+          extra={<Tag>{restoreStateTitle(t, item)}</Tag>}
         >
           <Space orientation="vertical" className="library-full">
-            <span>{displayTime(item.updatedAt)}</span>
-            {item.hasCleanupError && <span>有资源待清理</span>}
-            <Button onClick={() => setRestoreId(item.restoreId)}>查看恢复详情</Button>
+            <span>{formatShortDateTime(item.updatedAt, locale, now)}</span>
+            {item.hasCleanupError && <span>{t('task.cleanupFailed')}</span>}
+            <Button onClick={() => setRestoreId(item.restoreId)}>{t('backup.openRestore')}</Button>
           </Space>
         </Card>
       ))}
@@ -103,7 +105,7 @@ export function TaskPage({
       )}
       <Modal
         open={restoreId !== null}
-        title="本机恢复详情"
+        title={t('backup.restoreTask')}
         footer={null}
         width={1000}
         destroyOnHidden

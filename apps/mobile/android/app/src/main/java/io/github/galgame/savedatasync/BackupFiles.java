@@ -120,17 +120,17 @@ final class BackupFiles {
     static ArchiveFailure failure(String code) {
         String message;
         switch (code) {
-            case "source-changed": message = "备份或被覆盖的文件已变化，请重新扫描"; break;
-            case "checksum-mismatch": message = "备份内容校验失败"; break;
-            case "insufficient-space": message = "覆盖前备份空间不足"; break;
-            case "cleanup-failed": message = "备份轮换或残留清理失败"; break;
-            case "busy": message = "备份正在使用或存储已关闭"; break;
-            case "not-found": message = "备份或文件引用不存在"; break;
-            case "permission-denied": message = "备份归属或目录权限无效"; break;
-            case "unsupported-operation": message = "存储不支持所需的备份操作"; break;
-            case "resource-limit": message = "备份超过条目、路径或容量限制"; break;
-            case "path-outside-root": message = "备份文件身份、类型或链接无效"; break;
-            default: message = "备份数据或本地读写失败";
+            case "source-changed": message = "The backup or a file to be overwritten changed. Scan again."; break;
+            case "checksum-mismatch": message = "Backup content verification failed."; break;
+            case "insufficient-space": message = "Space is insufficient for a backup before overwriting."; break;
+            case "cleanup-failed": message = "Backup rotation or leftover cleanup failed."; break;
+            case "busy": message = "The backup is in use or the store is closed."; break;
+            case "not-found": message = "The backup or file reference does not exist."; break;
+            case "permission-denied": message = "Backup ownership or directory permission is invalid."; break;
+            case "unsupported-operation": message = "Storage does not support the required backup operations."; break;
+            case "resource-limit": message = "The backup exceeds entry, path, or capacity limits."; break;
+            case "path-outside-root": message = "A backup file identity, type, or link is invalid."; break;
+            default: message = "Backup data or local I/O failed.";
         }
         return new ArchiveFailure(code, message);
     }

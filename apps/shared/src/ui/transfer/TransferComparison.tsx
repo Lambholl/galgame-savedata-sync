@@ -1,4 +1,4 @@
-import { useState, type ReactElement } from 'react'
+import { useState, type ReactElement, type ReactNode } from 'react'
 import {
   ArrowRightOutlined,
   DesktopOutlined,
@@ -29,11 +29,11 @@ export interface TransferEndpoint {
   readonly rootName: string
 }
 
-/** 两端比较的进度：比较中、已完成，或无法比较（附原因）。 */
+/** 两端比较的进度：比较中、已完成，或无法比较（附原因，可以是文字或 ErrorText）。 */
 export type ComparisonStatus =
   | { readonly kind: 'comparing' }
   | { readonly kind: 'ready'; readonly comparison: SnapshotComparison }
-  | { readonly kind: 'unavailable'; readonly message: string }
+  | { readonly kind: 'unavailable'; readonly message: ReactNode }
 
 /** compact：手机双列，每行两行文字；wide：电脑双列表格（名称/大小/修改时间）。 */
 export type TransferLayout = 'compact' | 'wide'
@@ -166,9 +166,9 @@ function ComparePane({
         </div>
       )}
       {status.kind !== 'ready' ? (
-        <p className="ss-pane-placeholder">
+        <div className="ss-pane-placeholder">
           {status.kind === 'comparing' ? <LoadingOutlined /> : status.message}
-        </p>
+        </div>
       ) : (
         <>
           {path.length > 0 && (

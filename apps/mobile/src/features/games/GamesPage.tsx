@@ -1,6 +1,7 @@
 import { Button } from 'antd-mobile'
 import { DownloadOutlined, PlusOutlined, SwapOutlined } from '@ant-design/icons'
 import type { LibraryGame, LibraryPeer } from '@savedata-sync/shared'
+import { useT } from '@savedata-sync/shared/ui'
 import { EmptyState } from '../../components/EmptyState'
 import { GameCard } from './GameCard'
 
@@ -27,23 +28,24 @@ export function GamesPage({
   readonly onAddGame: () => void
   readonly onOpenTasks: () => void
 }): React.JSX.Element {
+  const t = useT()
   return (
     <>
       <div className="connection-status">
         <span className={`status-dot ${online ? 'online' : ''}`} />
-        {online ? `${online.device.name} · 已连接` : '未连接设备'}
+        {online ? t('app.connectedTo', { name: online.device.name }) : t('device.noneConnected')}
       </div>
       <div className="action-row equal">
         <Button disabled={isDisabled || !hasImportableGames} onClick={onOpenImport}>
-          <DownloadOutlined /> 导入游戏
+          <DownloadOutlined /> {t('game.importGame')}
         </Button>
         <Button color="primary" disabled={isDisabled} onClick={onAddGame}>
-          <PlusOutlined /> 添加游戏
+          <PlusOutlined /> {t('game.add')}
         </Button>
       </div>
       {hasTasks && (
         <Button block className="task-shortcut" onClick={onOpenTasks}>
-          <SwapOutlined /> {isActive ? '传输进行中' : '查看传输结果'}
+          <SwapOutlined /> {t(isActive ? 'game.transferRunning' : 'game.viewTransferResult')}
         </Button>
       )}
       {games.length ? (
@@ -53,7 +55,7 @@ export function GamesPage({
           ))}
         </div>
       ) : (
-        <EmptyState description="添加游戏并选择本机存档目录" />
+        <EmptyState description={t('game.empty')} />
       )}
     </>
   )

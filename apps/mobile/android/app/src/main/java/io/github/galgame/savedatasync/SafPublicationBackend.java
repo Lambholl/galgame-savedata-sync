@@ -48,7 +48,7 @@ final class SafPublicationBackend implements NewFilePublisher.Backend {
         SafDirectoryStore.PublicationDirectory directory = (SafDirectoryStore.PublicationDirectory) reference;
         SafDirectoryStore.PublicationDirectory current = (SafDirectoryStore.PublicationDirectory) locate(directory.rootId, directory.parentId, control);
         if (!directory.tree.equals(current.tree) || !directory.documentId.equals(current.documentId) || !directory.name.equals(current.name)) {
-            throw new ArchiveFailure("path-outside-root", "目标目录引用已变化");
+            throw new ArchiveFailure("path-outside-root", "The target directory reference changed.");
         }
         return directory;
     }
@@ -86,8 +86,8 @@ final class SafPublicationBackend implements NewFilePublisher.Backend {
             if (cursor == null) throw new java.io.IOException("Missing provider cursor");
             while (cursor.moveToNext()) {
                 control.check(); SafDirectoryStore.Snapshot s = SafDirectoryStore.decode(cursor);
-                if (result.size() == MAX_DIRECTORY_ENTRIES) throw new ArchiveFailure("resource-limit", "目标当前层条目过多");
-                if (s.documentId.equals(directory.documentId)) throw new ArchiveFailure("result-unknown", "提供者返回了父目录自身");
+                if (result.size() == MAX_DIRECTORY_ENTRIES) throw new ArchiveFailure("resource-limit", "The current target directory level has too many entries.");
+                if (s.documentId.equals(directory.documentId)) throw new ArchiveFailure("result-unknown", "The provider returned the parent directory itself.");
                 result.add(new PublicationModel.Document(s.documentId, s.name, s.isDirectory, s.isVirtual, s.size, s.modified));
             }
             return result;
@@ -98,7 +98,7 @@ final class SafPublicationBackend implements NewFilePublisher.Backend {
         Uri uri = DocumentsContract.createDocument(resolver, directory.uri, "application/octet-stream", name);
         if (uri == null || !"content".equals(uri.getScheme()) || !directory.tree.getAuthority().equals(uri.getAuthority()) ||
             !DocumentsContract.isTreeUri(uri) || !DocumentsContract.getTreeDocumentId(directory.tree).equals(DocumentsContract.getTreeDocumentId(uri))) {
-            throw new ArchiveFailure("result-unknown", "提供者返回了未知创建引用");
+            throw new ArchiveFailure("result-unknown", "The provider returned an unknown creation reference.");
         }
         return DocumentsContract.getDocumentId(uri);
     }
@@ -124,13 +124,13 @@ final class SafPublicationBackend implements NewFilePublisher.Backend {
                 if (cursor == null) throw new java.io.IOException("Missing provider cursor");
                 if (!cursor.moveToFirst()) throw new java.io.FileNotFoundException("Created document missing");
                 SafDirectoryStore.Snapshot s = SafDirectoryStore.decode(cursor);
-                if (!id.equals(s.documentId) || !name.equals(s.name)) throw new ArchiveFailure("result-unknown", "新条目的身份或名称已变化");
+                if (!id.equals(s.documentId) || !name.equals(s.name)) throw new ArchiveFailure("result-unknown", "The new entry identity or name changed.");
                 boolean found = false;
                 for (PublicationModel.Document child : children(directory, control)) if (child.id.equals(id)) {
-                    if (!name.equals(child.name)) throw new ArchiveFailure("result-unknown", "新条目的目录名称不一致");
+                    if (!name.equals(child.name)) throw new ArchiveFailure("result-unknown", "The new entry directory name does not match.");
                     found = true;
                 }
-                if (!found) throw new ArchiveFailure("result-unknown", "新条目已不在授权父目录");
+                if (!found) throw new ArchiveFailure("result-unknown", "The new entry is no longer in the authorized parent directory.");
                 return s;
             } finally { control.untrack(signal); }
         }
@@ -141,9 +141,9 @@ final class SafPublicationBackend implements NewFilePublisher.Backend {
                 descriptor = resolver.openFileDescriptor(uri, mode, signal.value);
                 if (descriptor == null) throw new java.io.IOException("Missing provider descriptor");
                 StructStat stat = Os.fstat(descriptor.getFileDescriptor());
-                if (!OsConstants.S_ISREG(stat.st_mode)) throw new ArchiveFailure("unsupported-operation", "提供者未返回可核实身份的常规文件");
+                if (!OsConstants.S_ISREG(stat.st_mode)) throw new ArchiveFailure("unsupported-operation", "The provider did not return a regular file with a verifiable identity.");
                 if (baseline != null && (baseline.st_dev != stat.st_dev || baseline.st_ino != stat.st_ino)) {
-                    throw new ArchiveFailure("result-unknown", "文件描述符身份已变化");
+                    throw new ArchiveFailure("result-unknown", "The file descriptor identity changed.");
                 }
                 control.check();
                 return descriptor;
@@ -157,13 +157,13 @@ final class SafPublicationBackend implements NewFilePublisher.Backend {
             SafDirectoryStore.Snapshot s = snapshot(control);
             if (s.isDirectory || s.isVirtual || (s.flags & Document.FLAG_SUPPORTS_WRITE) == 0 ||
                 (s.flags & Document.FLAG_SUPPORTS_DELETE) == 0) {
-                throw new ArchiveFailure("unsupported-operation", "提供者不能安全写入及清理新条目");
+                throw new ArchiveFailure("unsupported-operation", "The provider cannot safely write and clean up new entries.");
             }
             ParcelFileDescriptor candidate = descriptor("r", control);
             try {
                 StructStat stat = Os.fstat(candidate.getFileDescriptor());
                 if (stat.st_size != 0 || (s.size != null && s.size != 0)) {
-                    throw new ArchiveFailure("result-unknown", "新条目在写入前已有内容");
+                    throw new ArchiveFailure("result-unknown", "The new entry already contained data before writing.");
                 }
                 baseline = stat; identity = candidate;
             } finally { if (identity != candidate) candidate.close(); }
@@ -171,7 +171,7 @@ final class SafPublicationBackend implements NewFilePublisher.Backend {
         @Override public void verify(ArchiveControl control) throws Exception {
             establish(control);
             SafDirectoryStore.Snapshot s = snapshot(control);
-            if (s.isDirectory || s.isVirtual) throw new ArchiveFailure("result-unknown", "文件类型发生变化");
+            if (s.isDirectory || s.isVirtual) throw new ArchiveFailure("result-unknown", "The file type changed.");
             try (ParcelFileDescriptor current = descriptor("r", control)) {
                 // 打开时已核实身份；不读取或改变现有内容。
             }
@@ -181,10 +181,10 @@ final class SafPublicationBackend implements NewFilePublisher.Backend {
             ParcelFileDescriptor fd = descriptor("rw", control);
             try {
                 StructStat stat = Os.fstat(fd.getFileDescriptor());
-                if (stat.st_size != 0) throw new ArchiveFailure("result-unknown", "写入前新条目已被其他写入者改变");
+                if (stat.st_size != 0) throw new ArchiveFailure("result-unknown", "Another writer changed the new entry before writing.");
                 StructStatVfs space = Os.fstatvfs(fd.getFileDescriptor());
                 if (space.f_bavail >= 0 && space.f_frsize > 0 && (double) space.f_bavail * space.f_frsize < size) {
-                    throw new ArchiveFailure("insufficient-space", "目标目录空间不足");
+                    throw new ArchiveFailure("insufficient-space", "The target directory has insufficient space.");
                 }
                 return new ParcelFileDescriptor.AutoCloseOutputStream(fd) {
                     private volatile boolean closed;
@@ -215,7 +215,7 @@ final class SafPublicationBackend implements NewFilePublisher.Backend {
             }
             if (!DocumentsContract.deleteDocument(resolver, uri)) throw new java.io.IOException("Provider refused cleanup");
             for (PublicationModel.Document d : children(directory, new ArchiveControl())) if (d.id.equals(id)) {
-                throw new ArchiveFailure("result-unknown", "删除后的条目仍存在");
+                throw new ArchiveFailure("result-unknown", "The entry still exists after deletion.");
             }
             deleted = true;
         }
@@ -225,7 +225,7 @@ final class SafPublicationBackend implements NewFilePublisher.Backend {
         for (Throwable item = cause; item != null; item = item.getCause()) {
             if (item instanceof ErrnoException && (((ErrnoException) item).errno == OsConstants.ENOSPC ||
                 ((ErrnoException) item).errno == OsConstants.EDQUOT)) {
-                return new ArchiveFailure("insufficient-space", "目标文件系统空间不足", false, cause);
+                return new ArchiveFailure("insufficient-space", "The target file system has insufficient space.", false, cause);
             }
         }
         return cause;

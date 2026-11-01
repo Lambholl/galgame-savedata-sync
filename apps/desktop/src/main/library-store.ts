@@ -47,7 +47,7 @@ export class DesktopLibrary {
     try {
       const value: unknown = JSON.parse(await readFile(this.file, 'utf8'))
       if (!isLibraryConfig(value)) {
-        throw new Error('游戏与设备配置格式无效。')
+        throw new Error('The game and device configuration format is invalid.')
       }
       this.config = value
     } catch (error) {
@@ -60,7 +60,10 @@ export class DesktopLibrary {
     const next = this.saving.then(async () => {
       const config = work(this.config)
       if (!isLibraryConfig(config)) {
-        throw new HttpOperationError('invalid-request', '游戏或设备配置无效。')
+        throw new HttpOperationError(
+          'invalid-request',
+          'The game or device configuration is invalid.',
+        )
       }
       if (JSON.stringify(config) === JSON.stringify(this.config)) {
         return
@@ -111,10 +114,16 @@ export class DesktopLibrary {
     const saved = this.config.devices.find((item) => item.id === deviceId)
     const current = this.runtime.get(deviceId)
     if (!saved || saved.blocked || !current || this.disconnected.has(deviceId)) {
-      throw new HttpOperationError('session-mismatch', '设备连接已变化，请重新连接。')
+      throw new HttpOperationError(
+        'session-mismatch',
+        'The device connection changed. Reconnect the device.',
+      )
     }
     if (this.hasOtherPeer(deviceId)) {
-      throw new HttpOperationError('busy', '电脑已连接另一台手机，请先断开。')
+      throw new HttpOperationError(
+        'busy',
+        'The PC is already connected to another phone. Disconnect it first.',
+      )
     }
     this.runtime.set(deviceId, { ...current, seenAt: Date.now() })
   }
@@ -145,12 +154,18 @@ export class DesktopLibrary {
       remote.root.deviceId !== peerId ||
       remote.root.authorization !== 'granted'
     ) {
-      throw new HttpOperationError('session-mismatch', '项目关联或设备目录已变化，请重新确认。')
+      throw new HttpOperationError(
+        'session-mismatch',
+        'The project link or device directory changed. Confirm again.',
+      )
     }
   }
   async saveGames(games: readonly LibraryGame[]): Promise<void> {
     if (!isLibraryConfig({ ...this.config, games })) {
-      throw new HttpOperationError('invalid-request', '游戏或设备配置无效。')
+      throw new HttpOperationError(
+        'invalid-request',
+        'The game or device configuration is invalid.',
+      )
     }
     const roots = await this.adapter.listRoots()
     if (roots.status === 'error') {
@@ -161,7 +176,7 @@ export class DesktopLibrary {
         (game) => game.rootId !== null && !roots.value.some((root) => root.rootId === game.rootId),
       )
     ) {
-      throw new HttpOperationError('not-found', '请选择已登记的本机存档目录。')
+      throw new HttpOperationError('not-found', 'Select a registered local save directory.')
     }
     await this.update((current) => ({ ...current, games }))
     this.control?.broadcast('catalog.changed', {})
@@ -216,12 +231,12 @@ export class DesktopLibrary {
       return { games: [], links: [] }
     }
     if (!isCatalogHello(value)) {
-      throw new HttpOperationError('invalid-request', '设备目录元数据无效。')
+      throw new HttpOperationError('invalid-request', 'Device directory metadata is invalid.')
     }
     const hello = structuredClone(value)
     const saved = this.config.devices.find((item) => item.id === hello.deviceId)
     if (saved?.blocked) {
-      throw new HttpOperationError('permission-denied', '此设备已停用。')
+      throw new HttpOperationError('permission-denied', 'This device is disabled.')
     }
     if (isNewConnection) {
       this.disconnected.delete(hello.deviceId)
@@ -234,10 +249,13 @@ export class DesktopLibrary {
         (id) => id !== hello.deviceId && ((isTransferring && id === latest) || this.isOpen(id)),
       )
     ) {
-      throw new HttpOperationError('busy', '电脑已连接另一台手机，请先断开。')
+      throw new HttpOperationError(
+        'busy',
+        'The PC is already connected to another phone. Disconnect it first.',
+      )
     }
     if (!saved && this.config.devices.length >= 32) {
-      throw new HttpOperationError('resource-limit', '最多保存 32 台设备。')
+      throw new HttpOperationError('resource-limit', 'At most 32 devices can be saved.')
     }
     const previous = this.runtime.get(hello.deviceId)
     this.runtime.set(hello.deviceId, {
@@ -274,10 +292,17 @@ export class DesktopLibrary {
     const peer = this.snapshot().peers.find((item) => item.device.id === deviceId)
     const runtime = this.runtime.get(deviceId)
     if (!peer?.isConnected || !peer.games.some((item) => item.root?.rootId === rootId)) {
-      return Promise.reject(new HttpOperationError('not-found', '手机未在线或目录已失效。'))
+      return Promise.reject(
+        new HttpOperationError(
+          'not-found',
+          'The phone is offline or the directory reference expired.',
+        ),
+      )
     }
     if (parentId !== null && !runtime?.entries.has(`${rootId}\n${parentId}`)) {
-      return Promise.reject(new HttpOperationError('invalid-request', '请从游戏根目录重新浏览。'))
+      return Promise.reject(
+        new HttpOperationError('invalid-request', "Browse again from the game's root directory."),
+      )
     }
     const key = `${deviceId}
 ${rootId}
@@ -289,13 +314,18 @@ ${parentId ?? ''}`
     }
     const control = this.control
     if (!control) {
-      return Promise.reject(new HttpOperationError('not-found', '本机服务未启动。'))
+      return Promise.reject(
+        new HttpOperationError('not-found', 'The local service has not started.'),
+      )
     }
     const reading = control
       .request(deviceId, 'directory.list', { rootId, parentId })
       .then((value) => {
         if (value.rootId !== rootId || value.parentId !== parentId) {
-          throw new HttpOperationError('invalid-request', '手机目录应答与请求不匹配。')
+          throw new HttpOperationError(
+            'invalid-request',
+            "The phone's directory response does not match the request.",
+          )
         }
         const entries = this.runtime.get(deviceId)?.entries
         for (const item of value.entries) {

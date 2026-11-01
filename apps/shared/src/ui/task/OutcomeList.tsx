@@ -6,8 +6,10 @@ import {
   DownOutlined,
   ExclamationOutlined,
 } from '@ant-design/icons'
+import type { ShownError } from '../../result.ts'
 import type { SyncWriteOutcome } from '../../sync/sync-contracts.ts'
 import { formatBytes } from '../../i18n/format.ts'
+import { ErrorText } from '../errors/ErrorText.tsx'
 import { useLocale, useT } from '../i18n/i18n-context.ts'
 import { unsettledOutcomes } from './outcomes.ts'
 import './sync-task-summary.css'
@@ -16,18 +18,25 @@ function fileName(outcome: SyncWriteOutcome): string {
   return outcome.path[outcome.path.length - 1] ?? ''
 }
 
+/** OutcomeList 的参数。 */
+export interface OutcomeListProps {
+  /** 逐项写入结果。 */
+  readonly outcomes: readonly SyncWriteOutcome[]
+  /** 清理临时文件失败的原因；没有失败时为 null。 */
+  readonly cleanupError: ShownError | null
+  /** 读取对端状态失败的原因；没有失败时为 null。 */
+  readonly remoteError: ShownError | null
+  /** 重试清理临时文件；不能重试时为 null。 */
+  readonly onRetryCleanup: (() => void) | null
+}
+
 /** 传输与恢复共用的结果列表：先列需要处理的文件和清理问题，再折叠列出已写入的文件。 */
 export function OutcomeList({
   outcomes,
   cleanupError,
   remoteError,
   onRetryCleanup,
-}: {
-  readonly outcomes: readonly SyncWriteOutcome[]
-  readonly cleanupError: string | null
-  readonly remoteError: string | null
-  readonly onRetryCleanup: (() => void) | null
-}): ReactElement {
+}: OutcomeListProps): ReactElement {
   const t = useT()
   const locale = useLocale()
   const [isWrittenOpen, setIsWrittenOpen] = useState(false)
@@ -48,7 +57,11 @@ export function OutcomeList({
                 <span className="ss-task-body">
                   <span>{fileName(item)}</span>
                   <small className="is-bad">
-                    {item.error?.message ?? t(`task.outcome.${item.status}`)}
+                    {item.error ? (
+                      <ErrorText error={item.error} context={null} />
+                    ) : (
+                      t(`task.outcome.${item.status}`)
+                    )}
                   </small>
                 </span>
               </div>
@@ -60,7 +73,9 @@ export function OutcomeList({
                 </span>
                 <span className="ss-task-body">
                   <span>{t('task.cleanupFailed')}</span>
-                  <small>{cleanupError}</small>
+                  <small>
+                    <ErrorText error={cleanupError} context={null} />
+                  </small>
                 </span>
                 {onRetryCleanup && (
                   <button type="button" className="ss-task-link" onClick={onRetryCleanup}>
@@ -75,7 +90,9 @@ export function OutcomeList({
                   <ExclamationOutlined />
                 </span>
                 <span className="ss-task-body">
-                  <small>{t('task.remoteError', { message: remoteError })}</small>
+                  <small>
+                    <ErrorText error={remoteError} context={t('task.remoteError')} />
+                  </small>
                 </span>
               </div>
             )}

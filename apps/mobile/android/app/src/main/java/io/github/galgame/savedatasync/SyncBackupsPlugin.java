@@ -21,7 +21,7 @@ public class SyncBackupsPlugin extends Plugin {
     /** 本机设置和显式维护与实际传输/恢复争用同一个名额，避免确认后修改保护设置。 */
     private Object mutate(BackupStore store, Work work) throws Exception {
         Object owner = new Object();
-        if (!TargetOperation.acquire(owner)) throw new ArchiveFailure("busy", "请在当前任务清理完成后修改备份设置或维护备份");
+        if (!TargetOperation.acquire(owner)) throw new ArchiveFailure("busy", "Wait for current task cleanup to finish before changing backup settings or maintaining backups.");
         try { return work.run(store); } finally { TargetOperation.release(owner); }
     }
     private Map<String, Object> arguments(PluginCall call, String... fields) throws Exception {
@@ -38,11 +38,11 @@ public class SyncBackupsPlugin extends Plugin {
                     String code = cause instanceof ArchiveFailure ? ((ArchiveFailure) cause).code :
                         cause instanceof SafFailure ? ((SafFailure) cause).code : "io-failure";
                     try { call.resolve(new JSObject(new String(bytes(object("status", "error", "error", BackupStore.error(BackupFiles.failure(code)))), StandardCharsets.UTF_8))); }
-                    catch (Exception invalid) { call.resolve(new SafFailure("io-failure", "备份查询响应失败", invalid).result()); }
+                    catch (Exception invalid) { call.resolve(new SafFailure("io-failure", "The backup query response failed.", invalid).result()); }
                 }
             });
         } catch (java.util.concurrent.RejectedExecutionException cause) {
-            call.resolve(new SafFailure("unsupported-operation", "备份桥已关闭", cause).result());
+            call.resolve(new SafFailure("unsupported-operation", "The backup bridge is closed.", cause).result());
         }
     }
     @PluginMethod public void read(PluginCall call) { submit(call, store -> { arguments(call); return store.info(); }); }

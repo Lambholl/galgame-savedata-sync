@@ -114,7 +114,7 @@ final class SyncScanner implements AutoCloseable {
         if (timed != null) timed.control.cancel();
     }
     private void check(Job job) throws Exception {
-        if (job.timedOut) throw new ArchiveFailure("timeout", "当前扫描超时");
+        if (job.timedOut) throw new ArchiveFailure("timeout", "The current scan timed out.");
         job.control.check();
     }
     private Map<String, Object> snapshot(Job job, Object error) {
@@ -200,7 +200,7 @@ final class SyncScanner implements AutoCloseable {
             }
         }
         String after = listingKey(source.list(job.rootId, parentId, job.control)); check(job);
-        if (!key.equals(after)) throw new ArchiveFailure("source-changed", "目录在扫描期间变化");
+        if (!key.equals(after)) throw new ArchiveFailure("source-changed", "The directory changed during the scan.");
     }
     private synchronized void progress(Job job) {
         job.state = object("schemaVersion", 1, "scanId", job.id, "rootId", job.rootId, "status", "running",
@@ -228,14 +228,14 @@ final class SyncScanner implements AutoCloseable {
     static Map<String, Object> scanError(String code) {
         String message;
         switch (code) {
-            case "source-changed": message = "目录或文件在扫描期间变化，请重新扫描"; break;
-            case "permission-denied": case "authorization-expired": message = "目录权限已失效，请重新选择目录"; break;
-            case "resource-limit": message = "扫描条目、路径或结果超过限制"; break;
-            case "not-found": message = "扫描或目录引用不存在，请重新读取"; break;
-            case "timeout": message = "当前扫描超时，请重新扫描"; break;
-            case "name-conflict": message = "目录包含重复或无法使用的名称"; break;
-            case "busy": message = "已有扫描正在进行或扫描器已停止"; break;
-            default: message = "当前目录扫描失败，请重新读取";
+            case "source-changed": message = "The directory or file changed during the scan. Scan again."; break;
+            case "permission-denied": case "authorization-expired": message = "Directory permission expired. Select the directory again."; break;
+            case "resource-limit": message = "Scan entries, paths, or results exceed the limit."; break;
+            case "not-found": message = "The scan or directory reference does not exist. Read it again."; break;
+            case "timeout": message = "The current scan timed out. Scan again."; break;
+            case "name-conflict": message = "The directory contains duplicate or unusable names."; break;
+            case "busy": message = "Another scan is running or the scanner stopped."; break;
+            default: message = "The current directory scan failed. Read it again.";
         }
         return object("code", code, "message", message, "canRetry", false);
     }
@@ -244,7 +244,7 @@ final class SyncScanner implements AutoCloseable {
         Job job; synchronized (this) { closed = true; job = active; if (job != null) job.cancelled = true; }
         if (job != null) job.control.cancel();
         worker.shutdown();
-        if (!worker.awaitTermination(30, TimeUnit.SECONDS)) throw new ArchiveFailure("timeout", "扫描读取尚未结束");
+        if (!worker.awaitTermination(30, TimeUnit.SECONDS)) throw new ArchiveFailure("timeout", "Scan reading has not finished.");
         watcher.shutdownNow(); synchronized (this) { jobs.clear(); }
     }
 }

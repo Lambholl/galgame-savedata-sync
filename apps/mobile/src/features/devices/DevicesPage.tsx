@@ -1,6 +1,7 @@
 import { Button } from 'antd-mobile'
 import { DesktopOutlined, PlusOutlined, CopyOutlined } from '@ant-design/icons'
 import type { LibraryPeer } from '@savedata-sync/shared'
+import { useT } from '@savedata-sync/shared/ui'
 import { EmptyState } from '../../components/EmptyState'
 import { Panel } from '../../components/Panel'
 
@@ -26,12 +27,13 @@ export function DevicesPage({
   readonly onDeviceAction: (peer: LibraryPeer) => void
   readonly onManageDevice: (id: string) => void
 }): React.JSX.Element {
+  const t = useT()
   return (
     <>
       <div className="section-heading">
-        <h2>已保存的设备</h2>
+        <h2>{t('device.saved')}</h2>
         <Button disabled={isDisabled || isActive} onClick={onAddDevice}>
-          <PlusOutlined /> 添加电脑
+          <PlusOutlined /> {t('device.addPc')}
         </Button>
       </div>
       {peers.length ? (
@@ -44,7 +46,7 @@ export function DevicesPage({
               <div>
                 <h2>{peer.device.name}</h2>
                 <span className={`device-status ${peer.isConnected ? 'connected' : ''}`}>
-                  {peer.isConnected ? '已连接' : '未连接'}
+                  {t(peer.isConnected ? 'transfer.connected' : 'transfer.disconnected')}
                 </span>
               </div>
             </div>
@@ -53,11 +55,11 @@ export function DevicesPage({
                 <span>{peer.device.address}</span>
                 <Button
                   fill="none"
-                  aria-label="复制电脑地址"
+                  aria-label={t('device.copyAddress')}
                   onClick={() => onCopyAddress(peer.device.address ?? '')}
                 >
                   <CopyOutlined />
-                  {copied === peer.device.address ? ' 已复制' : ''}
+                  {copied === peer.device.address ? ` ${t('device.copied')}` : ''}
                 </Button>
               </div>
             )}
@@ -67,16 +69,16 @@ export function DevicesPage({
                 disabled={isDisabled || isActive || (!peer.isConnected && Boolean(online))}
                 onClick={() => onDeviceAction(peer)}
               >
-                {peer.isConnected ? '断开' : '连接'}
+                {t(peer.isConnected ? 'device.disconnect' : 'device.connect')}
               </Button>
               <Button disabled={isDisabled} onClick={() => onManageDevice(peer.device.id)}>
-                管理
+                {t('device.manage')}
               </Button>
             </div>
           </Panel>
         ))
       ) : (
-        <EmptyState description="添加电脑地址后连接" />
+        <EmptyState description={t('device.emptyPhone')} />
       )}
     </>
   )

@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { Popup, Button } from 'antd-mobile'
 import { CloseOutlined } from '@ant-design/icons'
+import { useT } from '@savedata-sync/shared/ui'
 
 /** 受控底部弹层，返回键由应用按层级协调。 */
 export function Sheet({
@@ -18,6 +19,7 @@ export function Sheet({
   readonly onClose: () => void
   readonly children: ReactNode
 }): React.JSX.Element {
+  const t = useT()
   return (
     <Popup
       visible={isOpen}
@@ -32,7 +34,7 @@ export function Sheet({
         <div className="sheet-handle" />
         <header className="sheet-heading">
           <h2>{title}</h2>
-          <Button fill="none" aria-label="关闭" disabled={isBusy} onClick={onClose}>
+          <Button fill="none" aria-label={t('common.close')} disabled={isBusy} onClick={onClose}>
             <CloseOutlined />
           </Button>
         </header>

@@ -110,19 +110,25 @@ export class WindowsHttpService {
     this.archive = archive
     this.options = options
     if (options.scanSource && options.scanSource.deviceId !== source.deviceId) {
-      throw new HttpOperationError('invalid-request', '扫描设备与服务设备不一致。')
+      throw new HttpOperationError(
+        'invalid-request',
+        'The scan device does not match the service device.',
+      )
     }
   }
 
   /** 启动完成才返回实际端口；同时启动或未完成清理时拒绝，端口冲突不会静默换端口。 */
   start(options: HttpListenOptions = {}): Promise<HttpListenerAddress> {
     if (this.server || this.registry || this.starting || this.stopping) {
-      throw new HttpOperationError('busy', '本地服务已启动或正在清理。')
+      throw new HttpOperationError(
+        'busy',
+        'The local service is already running or is cleaning up.',
+      )
     }
     const host = options.host ?? '127.0.0.1'
     const port = options.port ?? 0
     if (!isIP(host) || !Number.isInteger(port) || port < 0 || port > 65535) {
-      throw new HttpOperationError('invalid-request', '监听地址或端口无效。')
+      throw new HttpOperationError('invalid-request', 'The listening address or port is invalid.')
     }
     this.starting = this.listen(host, port).finally(() => {
       this.starting = null
@@ -170,7 +176,10 @@ export class WindowsHttpService {
   }
   private requireRemote(): WindowsRemoteSyncRequests {
     if (!this.remoteRequests) {
-      throw new HttpOperationError('unsupported-operation', '请先在“设备”页启动本机服务。')
+      throw new HttpOperationError(
+        'unsupported-operation',
+        'Start the local service on the Devices page first.',
+      )
     }
     return this.remoteRequests
   }
@@ -195,7 +204,10 @@ export class WindowsHttpService {
   }
   private localSync(): WindowsSyncRegistry {
     if (!this.syncRegistry) {
-      throw new HttpOperationError('not-found', '本地同步会话已关闭，请重新读取目录。')
+      throw new HttpOperationError(
+        'not-found',
+        'The local sync session closed. Read the directory again.',
+      )
     }
     return this.syncRegistry
   }
@@ -224,7 +236,10 @@ export class WindowsHttpService {
 
   private requireScanner(): WindowsSyncScanner {
     if (!this.scanner || !this.address) {
-      throw new HttpOperationError('unsupported-operation', '此会话未开放当前扫描。')
+      throw new HttpOperationError(
+        'unsupported-operation',
+        'This scan is not available in the current session.',
+      )
     }
     return this.scanner
   }
@@ -232,7 +247,7 @@ export class WindowsHttpService {
   /** 本机显式取消；不存在的任务抛脱敏错误，已发布文件保留。 */
   cancel(transferId: string): BatchState {
     if (!this.registry) {
-      throw new HttpOperationError('not-found', '服务尚未启动。')
+      throw new HttpOperationError('not-found', 'The service has not started.')
     }
     return this.registry.cancel(transferId)
   }
@@ -346,11 +361,17 @@ export class WindowsHttpService {
     })
     server.on('checkContinue', (request, response) => {
       void request
-      sendHttpFailure(response, new HttpOperationError('invalid-request', '不支持 Expect 请求。'))
+      sendHttpFailure(
+        response,
+        new HttpOperationError('invalid-request', 'Expect requests are not supported.'),
+      )
     })
     server.on('checkExpectation', (request, response) => {
       void request
-      sendHttpFailure(response, new HttpOperationError('invalid-request', '不支持 Expect 请求。'))
+      sendHttpFailure(
+        response,
+        new HttpOperationError('invalid-request', 'Expect requests are not supported.'),
+      )
     })
     try {
       await new Promise<void>((resolve, reject) => {
@@ -376,12 +397,16 @@ export class WindowsHttpService {
       await this.scanner?.stop()
       this.scanner = null
       this.registry = null
-      throw new HttpOperationError('io-failure', '无法监听指定地址和端口，请检查端口占用。', error)
+      throw new HttpOperationError(
+        'io-failure',
+        'Cannot listen on the specified address and port. Check whether the port is in use.',
+        error,
+      )
     }
     server.on('error', (error) => {
       this.runtimeError = {
         code: 'network-failure',
-        message: '本地 HTTP 服务发生网络错误，请停止后重启。',
+        message: 'The local HTTP service encountered a network error. Stop and restart it.',
         canRetry: false,
       }
       for (const socket of this.sockets) {
@@ -390,7 +415,7 @@ export class WindowsHttpService {
     })
     const address = server.address()
     if (!address || typeof address === 'string') {
-      throw new HttpOperationError('io-failure', '本地监听地址不可用。')
+      throw new HttpOperationError('io-failure', 'The local listening address is unavailable.')
     }
     this.address = { host: address.address, port: address.port, sessionId }
     return { ...this.address }
@@ -468,7 +493,10 @@ export class WindowsHttpService {
   ): Promise<void> {
     const route = inspectHttpRequest(request)
     if (route.kind !== 'device' && request.headers[HTTP_HEADERS.sessionId] !== sessionId) {
-      throw new HttpOperationError('session-mismatch', '服务会话已变化，请重新读取设备信息。')
+      throw new HttpOperationError(
+        'session-mismatch',
+        'The service session changed. Read device information again.',
+      )
     }
     const isSyncPeerRequired = [
       'sync-project',
@@ -481,12 +509,12 @@ export class WindowsHttpService {
     if (isSyncPeerRequired && (!isOpaqueId(peerId) || !this.syncRegistry)) {
       throw new HttpOperationError(
         this.syncRegistry ? 'invalid-request' : 'unsupported-operation',
-        '同步设备标识无效或服务未开放复制。',
+        'The sync device ID is invalid or copying is not enabled on the service.',
       )
     }
     if (route.kind.startsWith('sync-') && peerId !== undefined) {
       if (!isOpaqueId(peerId) || !this.options.library) {
-        throw new HttpOperationError('invalid-request', '同步设备标识无效。')
+        throw new HttpOperationError('invalid-request', 'The sync device ID is invalid.')
       }
       this.options.library.touchPeer(peerId)
     }
@@ -585,7 +613,7 @@ export class WindowsHttpService {
     if (route.kind === 'sync-scans') {
       const value = await readHttpJson(request)
       if (!isSyncScanRequest(value)) {
-        throw new HttpOperationError('invalid-request', '当前扫描请求无效。')
+        throw new HttpOperationError('invalid-request', 'The current scan request is invalid.')
       }
       if (!request.complete || response.destroyed) {
         return
@@ -608,7 +636,10 @@ export class WindowsHttpService {
     }
     if (route.kind === 'catalog') {
       if (!this.options.library) {
-        throw new HttpOperationError('unsupported-operation', '此版本未开放游戏目录表。')
+        throw new HttpOperationError(
+          'unsupported-operation',
+          'This version does not provide a game catalog.',
+        )
       }
       const value = await readHttpJson(request)
       if (!request.complete || response.destroyed) {
@@ -640,7 +671,7 @@ export class WindowsHttpService {
       }
       if (this.options.authorizeTarget) {
         if (!isReceiveBatchRequest(value)) {
-          throw new HttpOperationError('invalid-request', '接收请求无效。')
+          throw new HttpOperationError('invalid-request', 'The receive request is invalid.')
         }
         await this.options.authorizeTarget(value.targetRootId)
       }
@@ -651,7 +682,7 @@ export class WindowsHttpService {
       return
     }
     if (!route.id) {
-      throw new HttpOperationError('invalid-request', '任务标识无效。')
+      throw new HttpOperationError('invalid-request', 'The task ID is invalid.')
     }
     if (route.kind === 'manifest') {
       sendHttpJson(response, 200, { status: 'success', value: registry.getManifest(route.id) })

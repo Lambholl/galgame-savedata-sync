@@ -1,17 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Button, Drawer, Modal } from 'antd'
 import { CaretRightOutlined, LoadingOutlined, RightOutlined } from '@ant-design/icons'
-import { compareSnapshots, resolveBackupPolicy, unwrap } from '@savedata-sync/shared'
+import { compareSnapshots, resolveBackupPolicy, toShownError, unwrap } from '@savedata-sync/shared'
 import type {
   CatalogGame,
   DirectoryReference,
   LibraryGame,
   LibraryPeer,
+  ShownError,
   SyncBackupSettings,
   SyncPlan,
   TransferDirection,
 } from '@savedata-sync/shared'
-import { SyncPlanSummary, TransferComparison, useT } from '@savedata-sync/shared/ui'
+import { ErrorText, SyncPlanSummary, TransferComparison, useT } from '@savedata-sync/shared/ui'
 import type { ComparisonStatus, PlanEndpoint } from '@savedata-sync/shared/ui'
 import type { DesktopRemoteRequest } from '../../../../bridge/sync-bridge.ts'
 import type { Confirmation } from '../../app/navigation.ts'
@@ -20,10 +21,6 @@ import { desktopBackups, desktopSync } from '../../platform/sync-adapter.ts'
 const POLL_INTERVAL_MS = 400
 const SCANNING: readonly DesktopRemoteRequest['status'][] = ['waiting', 'preparing']
 const UNCONFIRMED: readonly DesktopRemoteRequest['status'][] = ['waiting', 'preparing', 'ready']
-
-function messageOf(cause: unknown): string {
-  return cause instanceof Error ? cause.message : ''
-}
 
 /**
  * 电脑传输页：进入即请求手机扫描两端，比较结果与计划来自手机返回的同一份计划；
@@ -66,7 +63,7 @@ export function TransferPage({
   const [plan, setPlan] = useState<{ readonly requestId: string; readonly value: SyncPlan } | null>(
     null,
   )
-  const [scanError, setScanError] = useState<string | null>(null)
+  const [scanError, setScanError] = useState<ShownError | null>(null)
   const [scanVersion, setScanVersion] = useState(0)
   const [isPeerPickerOpen, setIsPeerPickerOpen] = useState(false)
   const [isPlanOpen, setIsPlanOpen] = useState(false)
@@ -148,7 +145,7 @@ export function TransferPage({
       })
       .catch((cause: unknown) => {
         if (isCurrent) {
-          setScanError(messageOf(cause))
+          setScanError(toShownError(cause))
         }
       })
     return () => {
@@ -177,7 +174,7 @@ export function TransferPage({
       })
       .catch((cause: unknown) => {
         if (isCurrent) {
-          setScanError(messageOf(cause))
+          setScanError(toShownError(cause))
         }
       })
     return () => {
@@ -208,9 +205,14 @@ export function TransferPage({
   } else if (remoteRootId === null) {
     status = { kind: 'unavailable', message: t('transfer.noRemoteRoot') }
   } else if (scanError !== null || shown?.status === 'failed') {
+    const reason = scanError ?? shown?.error ?? null
     status = {
       kind: 'unavailable',
-      message: scanError || shown?.error?.message || t('transfer.compareFailed'),
+      message: reason ? (
+        <ErrorText error={reason} context={t('transfer.compareFailed')} />
+      ) : (
+        t('transfer.compareFailed')
+      ),
     }
   } else if (shown?.status === 'cancelled') {
     status = { kind: 'unavailable', message: t('transfer.compareCancelled') }
@@ -251,7 +253,7 @@ export function TransferPage({
     }
     setIsStarting(true)
     work()
-      .catch((cause: unknown) => setScanError(messageOf(cause)))
+      .catch((cause: unknown) => setScanError(toShownError(cause)))
       .finally(() => setIsStarting(false))
   }
   const isScanning = shown !== null && SCANNING.includes(shown.status)
@@ -301,7 +303,7 @@ export function TransferPage({
               desktopSync()
                 .cancelRemote(shown.requestId)
                 .then((result) => setRequest(unwrap(result)))
-                .catch((cause: unknown) => setScanError(messageOf(cause)))
+                .catch((cause: unknown) => setScanError(toShownError(cause)))
             }}
           >
             {t('common.cancel')}

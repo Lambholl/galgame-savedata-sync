@@ -23,7 +23,8 @@
   margin-top: 4px;
   font-size: 20px;
 }
-.ss-task-hero p {
+.ss-task-hero p,
+.ss-verdict-detail {
   color: var(--ss-muted);
   font-size: 13px;
   font-variant-numeric: tabular-nums;

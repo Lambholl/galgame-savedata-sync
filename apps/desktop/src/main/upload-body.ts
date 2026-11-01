@@ -37,7 +37,7 @@ export function openUploadBody(
     if (!hasMessage && !(input.complete && bytes === host.length)) {
       host.abort({
         code: 'network-failure',
-        message: '上传连接在收齐数据前中断。',
+        message: 'The upload connection was interrupted before all data was received.',
         canRetry: false,
       })
     }
@@ -66,21 +66,31 @@ export function openUploadBody(
       const error = toHttpError(cause).operationError
       host.abort(
         error.code === 'result-unknown'
-          ? { code: 'network-failure', message: '上传消息读取失败。', canRetry: false }
+          ? {
+              code: 'network-failure',
+              message: 'Reading the upload message failed.',
+              canRetry: false,
+            }
           : error,
       )
     }
-    stream.destroy(cause instanceof Error ? cause : new Error('上传消息读取失败。'))
+    stream.destroy(cause instanceof Error ? cause : new Error('Reading the upload message failed.'))
     // 所有错误先转成值；归档消费者负责判定根错误，feed 不产生独立未处理拒绝。
     resolveFeed(cause)
   }
-  const aborted = (): void => failed(new HttpOperationError('task-conflict', '任务已中断。'))
+  const aborted = (): void =>
+    failed(new HttpOperationError('task-conflict', 'The task has been interrupted.'))
   const finish = (): void => {
     if (isSettled) {
       return
     }
     if (!input.complete || input.rawTrailers.length > 0 || bytes !== host.length) {
-      failed(new HttpOperationError('checksum-mismatch', '上传消息未正常完整结束。'))
+      failed(
+        new HttpOperationError(
+          'checksum-mismatch',
+          'The upload message did not end normally and completely.',
+        ),
+      )
       return
     }
     isSettled = true
@@ -91,16 +101,19 @@ export function openUploadBody(
   }
   const push = async (chunk: unknown): Promise<void> => {
     if (!Buffer.isBuffer(chunk)) {
-      throw new HttpOperationError('invalid-request', '上传必须使用二进制流。')
+      throw new HttpOperationError('invalid-request', 'Uploads must use a binary stream.')
     }
     for (let offset = 0; offset < chunk.length; offset += BATCH_RESOURCES.maxBufferBytes) {
       if (host.signal.aborted) {
-        throw new HttpOperationError('task-conflict', '任务已中断。')
+        throw new HttpOperationError('task-conflict', 'The task has been interrupted.')
       }
       const part = chunk.subarray(offset, offset + BATCH_RESOURCES.maxBufferBytes)
       bytes += part.length
       if (bytes > host.length) {
-        throw new HttpOperationError('checksum-mismatch', '上传体超过清单长度。')
+        throw new HttpOperationError(
+          'checksum-mismatch',
+          'The upload body exceeds the manifest length.',
+        )
       }
       host.progress(bytes)
       if (!stream.write(part)) {
@@ -123,7 +136,9 @@ export function openUploadBody(
     if (input.complete && bytes === host.length) {
       ended()
     } else {
-      failed(new HttpOperationError('network-failure', '上传消息在结束前关闭。'))
+      failed(
+        new HttpOperationError('network-failure', 'The upload message closed before completion.'),
+      )
     }
   }
   input.on('data', data)
@@ -142,7 +157,7 @@ export function openUploadBody(
     isComplete: () => hasMessage,
     close: () => {
       if (!isSettled) {
-        failed(new HttpOperationError('network-failure', '上传接收已结束。'))
+        failed(new HttpOperationError('network-failure', 'Upload receiving has ended.'))
       }
       response.off('close', disconnected)
       input.off('aborted', disconnected)

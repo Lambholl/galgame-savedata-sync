@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useState } from 'react'
-import { DEFAULT_APP_PREFERENCES, resolveLocale } from '@savedata-sync/shared'
-import type { AppLocale, AppPreferences, ResolvedTheme } from '@savedata-sync/shared'
+import {
+  DEFAULT_APP_PREFERENCES,
+  OperationFailure,
+  resolveLocale,
+  toShownError,
+  unwrap,
+} from '@savedata-sync/shared'
+import type { AppLocale, AppPreferences, ResolvedTheme, ShownError } from '@savedata-sync/shared'
 
 const DARK_QUERY = '(prefers-color-scheme: dark)'
 
@@ -10,7 +16,7 @@ export interface AppPreferencesState {
   readonly theme: ResolvedTheme
   readonly locale: AppLocale
   /** 保存新偏好；失败时恢复原值并返回错误消息。 */
-  readonly save: (next: AppPreferences) => Promise<string | null>
+  readonly save: (next: AppPreferences) => Promise<ShownError | null>
 }
 
 /**
@@ -45,15 +51,22 @@ export function useAppPreferences(): AppPreferencesState {
     document.documentElement.dataset.theme = theme
   }, [theme])
   const save = useCallback(
-    async (next: AppPreferences): Promise<string | null> => {
+    async (next: AppPreferences): Promise<ShownError | null> => {
       const previous = preferences
       setPreferences(next)
-      const result = await window.desktopPreferences?.save(next)
-      if (result?.status === 'error') {
+      try {
+        if (!window.desktopPreferences) {
+          throw new OperationFailure(
+            'unsupported-operation',
+            'Appearance preferences require the desktop app.',
+          )
+        }
+        unwrap(await window.desktopPreferences.save(next))
+        return null
+      } catch (cause) {
         setPreferences(previous)
-        return result.error.message
+        return toShownError(cause)
       }
-      return null
     },
     [preferences],
   )

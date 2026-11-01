@@ -15,10 +15,16 @@ export function registerPreferencesIpc(
   ipc.handle(PREFERENCES_CHANNELS.read, (event, ...args: unknown[]) => {
     try {
       if (!isTrusted(event)) {
-        throw new HttpOperationError('permission-denied', '此页面无法读取界面偏好。')
+        throw new HttpOperationError(
+          'permission-denied',
+          'This page cannot read appearance preferences.',
+        )
       }
       if (args.length) {
-        throw new HttpOperationError('invalid-request', '界面偏好参数无效。')
+        throw new HttpOperationError(
+          'invalid-request',
+          'Appearance preference parameters are invalid.',
+        )
       }
       return { status: 'success', value: store.get() }
     } catch (error) {
@@ -28,11 +34,17 @@ export function registerPreferencesIpc(
   ipc.handle(PREFERENCES_CHANNELS.save, async (event, ...args: unknown[]) => {
     try {
       if (!isTrusted(event)) {
-        throw new HttpOperationError('permission-denied', '此页面无法修改界面偏好。')
+        throw new HttpOperationError(
+          'permission-denied',
+          'This page cannot change appearance preferences.',
+        )
       }
       const input = args[0]
       if (args.length !== 1 || !isAppPreferences(input)) {
-        throw new HttpOperationError('invalid-request', '界面偏好参数无效。')
+        throw new HttpOperationError(
+          'invalid-request',
+          'Appearance preference parameters are invalid.',
+        )
       }
       const preferences: AppPreferences = { theme: input.theme, locale: input.locale }
       await store.save(preferences)

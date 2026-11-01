@@ -21,7 +21,7 @@ final class SafSyncSource implements SyncScanner.Source {
                 parse(store.listDirectory(rootId, parentId, signal).toString().getBytes(StandardCharsets.UTF_8)), rootId, parentId);
             return TransferJson.list(listing.get("entries"));
         } catch (SafFailure failure) {
-            throw new ArchiveFailure(failure.code, "无法读取已授权目录", false, failure);
+            throw new ArchiveFailure(failure.code, "Cannot read the authorized directory.", false, failure);
         } finally { control.untrack(cancellation); }
     }
     @Override public ArchiveModel.Source file(String rootId, String entryId) throws Exception {
@@ -30,11 +30,11 @@ final class SafSyncSource implements SyncScanner.Source {
             @Override public void validateRoot(String root) throws ArchiveFailure { delegate.validateRoot(root); }
             @Override public ArchiveModel.Observation observe(ArchiveControl control) throws Exception {
                 try { return delegate.observe(control); }
-                catch (SafFailure failure) { throw new ArchiveFailure(failure.code, "无法读取已授权文件属性", false, failure); }
+                catch (SafFailure failure) { throw new ArchiveFailure(failure.code, "Cannot read authorized file attributes.", false, failure); }
             }
             @Override public java.io.InputStream open(ArchiveControl control) throws Exception {
                 try { return delegate.open(control); }
-                catch (SafFailure failure) { throw new ArchiveFailure(failure.code, "无法打开已授权文件", false, failure); }
+                catch (SafFailure failure) { throw new ArchiveFailure(failure.code, "Cannot open the authorized file.", false, failure); }
             }
         };
     }

@@ -96,7 +96,10 @@ interface WriteJob {
 }
 function required<T>(value: T | null | undefined): T {
   if (value === null || value === undefined) {
-    throw new ArchiveError('invalid-request', '确认计划缺少本次引用。')
+    throw new ArchiveError(
+      'invalid-request',
+      'The confirmed plan is missing the reference for this operation.',
+    )
   }
   return value
 }
@@ -108,7 +111,7 @@ function fileEntry(plan: SyncPlan, operation: SyncPlanEntry, side: 'source' | 't
     ),
   )
   if (entry.kind !== 'file' || entry.sizeBytes === null || entry.sha256 === null) {
-    throw new ArchiveError('invalid-request', '文件缺少完整内容指纹。')
+    throw new ArchiveError('invalid-request', 'The file lacks a complete content fingerprint.')
   }
   return entry
 }
@@ -127,7 +130,8 @@ function failure(error: unknown, signal?: AbortSignal): ArchiveError | ArchiveCa
 function cleanupError(): KnownOperationError {
   return {
     code: 'cleanup-failed',
-    message: '本次文件候选或恢复材料未完整释放，请核实后重试清理。',
+    message:
+      'File candidates or restore material were not fully released. Verify them and retry cleanup.',
     canRetry: false,
   }
 }
@@ -142,7 +146,7 @@ function outcome(
     operation.action !== 'create-file' &&
     operation.action !== 'replace-file'
   ) {
-    throw new ArchiveError('invalid-request', '当前计划项没有写入动作。')
+    throw new ArchiveError('invalid-request', 'The current plan item has no write action.')
   }
   return {
     path: operation.path,
@@ -178,7 +182,7 @@ export class WindowsSyncWriter {
       this.timeoutMs < 1 ||
       this.timeoutMs > SYNC_LIMITS.scanTimeoutMs
     ) {
-      throw new ArchiveError('invalid-request', '目标写入期限无效。')
+      throw new ArchiveError('invalid-request', 'The target write deadline is invalid.')
     }
   }
   /** 非法/过期/重复确认及 busy 拒绝；已接纳任务的失败/取消返回完整逐项结果。 */
@@ -204,16 +208,22 @@ export class WindowsSyncWriter {
         })) ||
       (value.transferFileCount > 0 && !material)
     ) {
-      throw new ArchiveError('invalid-request', '目标或原生材料与完整确认计划不符。')
+      throw new ArchiveError(
+        'invalid-request',
+        'The target or native material does not match the complete confirmed plan.',
+      )
     }
     if (this.isStopped || this.job) {
-      throw new ArchiveError('busy', '写入器已停止或资源仍待清理。')
+      throw new ArchiveError('busy', 'The writer stopped or resources are still awaiting cleanup.')
     }
     if (this.usedIds.has(value.planId)) {
-      throw new ArchiveError('task-conflict', '本次确认已经使用，请重新扫描。')
+      throw new ArchiveError('task-conflict', 'This confirmation was already used. Scan again.')
     }
     if (this.usedIds.size >= 4096) {
-      throw new ArchiveError('resource-limit', '本进程确认标识容量已满。')
+      throw new ArchiveError(
+        'resource-limit',
+        'The confirmation ID capacity for this process is full.',
+      )
     }
     const now = Date.now(),
       acceptedAt = options.lease?.acceptedAt ?? now
@@ -223,7 +233,10 @@ export class WindowsSyncWriter {
       now - acceptedAt > BATCH_TIMEOUTS_MS.total ||
       (options.lease && !ownsTargetOperation(options.lease.token))
     ) {
-      throw new ArchiveError('task-conflict', '已接纳任务的名额或期限已失效。')
+      throw new ArchiveError(
+        'task-conflict',
+        "The accepted task's operation slot or deadline expired.",
+      )
     }
     if (
       (value.operation === 'restore' ? [value.source, value.target] : [value.target]).some(
@@ -232,7 +245,7 @@ export class WindowsSyncWriter {
           acceptedAt - snapshot.observedAt > SYNC_LIMITS.snapshotLifetimeMs,
       )
     ) {
-      throw new ArchiveError('not-found', '本机扫描或恢复预览已过期，请重新扫描。')
+      throw new ArchiveError('not-found', 'The local scan or restore preview expired. Scan again.')
     }
     const token = options.lease?.token ?? Symbol('sync-write')
     if (!options.lease) {
@@ -302,7 +315,7 @@ export class WindowsSyncWriter {
           state.error?.code === 'result-unknown'
             ? 'io-failure'
             : (state.error?.code ?? 'io-failure'),
-          state.error?.message ?? '目标复核扫描未完成。',
+          state.error?.message ?? 'The target verification scan is incomplete.',
         )
       }
       const entries = (snapshot: SyncSnapshot): string =>
@@ -318,7 +331,10 @@ export class WindowsSyncWriter {
           })),
         )
       if (entries(state.snapshot) !== entries(job.plan.target)) {
-        throw new ArchiveError('source-changed', '目标内容与确认时不同，请重新扫描。')
+        throw new ArchiveError(
+          'source-changed',
+          'The target content differs from confirmation. Scan again.',
+        )
       }
       for (const entry of state.snapshot.entries) {
         if (entry.kind === 'directory') {
@@ -341,7 +357,10 @@ export class WindowsSyncWriter {
           const actual = await hashBackupStream(input.stream, entry.sizeBytes ?? -1, job.signal)
           await input.verifyUnchanged()
           if (actual.sizeBytes !== entry.sizeBytes || actual.sha256 !== entry.sha256) {
-            throw new ArchiveError('checksum-mismatch', '完整输入与确认计划不同。')
+            throw new ArchiveError(
+              'checksum-mismatch',
+              'The complete input differs from the confirmed plan.',
+            )
           }
         } finally {
           input.stream.destroy()
@@ -364,7 +383,7 @@ export class WindowsSyncWriter {
       (privateSpace &&
         (!Number.isSafeInteger(privateSpace.requiredBytes) || privateSpace.requiredBytes < 0))
     ) {
-      throw new ArchiveError('invalid-request', '目标容量计划无效。')
+      throw new ArchiveError('invalid-request', 'The target capacity plan is invalid.')
     }
     await this.options.authorize(structuredClone(plan))
     const root = await this.source.locateNativeDirectory(plan.target.rootId)
@@ -381,7 +400,10 @@ export class WindowsSyncWriter {
       (privateSpace?.device === targetDevice.toString() ? privateSpace.requiredBytes : 0)
     const available = await this.io.availableBytes(root.path)
     if (available !== null && available < BigInt(targetRequired)) {
-      throw new ArchiveError('insufficient-space', '目标卷无法同时保存新内容和完整备份。')
+      throw new ArchiveError(
+        'insufficient-space',
+        'The target volume cannot hold both the new content and a complete backup.',
+      )
     }
     if (backupBytes) {
       await this.backups.capacity(
@@ -423,7 +445,7 @@ export class WindowsSyncWriter {
         entry.entryId,
       )
       if (location.identity.dev !== identity.dev || location.identity.ino !== identity.ino) {
-        throw new ArchiveError('source-changed', '新目录身份已变化。')
+        throw new ArchiveError('source-changed', 'The new directory identity changed.')
       }
       job.locations.set(syncPathKey(operation.path), location)
       return outcome(operation, 'succeeded')
@@ -437,7 +459,8 @@ export class WindowsSyncWriter {
       if (hasCreated) {
         return outcome(operation, 'unknown', {
           code: 'result-unknown',
-          message: '目录已创建，但结果未能完整核实，请重读目标。',
+          message:
+            'The directory was created but the result could not be fully verified. Read the target again.',
           canRetry: false,
         })
       }
@@ -529,7 +552,8 @@ export class WindowsSyncWriter {
       if (isUncertain) {
         return outcome(operation, 'unknown', {
           code: 'result-unknown',
-          message: '文件发布已开始但结果未能完整核实，请重读目标。',
+          message:
+            'File publication started but the result could not be fully verified. Read the target again.',
           canRetry: false,
         })
       }
@@ -561,7 +585,7 @@ export class WindowsSyncWriter {
         operations.some((entry) => entry.action === 'replace-file') &&
         !backup.manifest
       ) {
-        throw new ArchiveError('io-failure', '完整保护备份尚未提交。')
+        throw new ArchiveError('io-failure', 'A complete protective backup has not been committed.')
       }
       for (const [position, operation] of operations.entries()) {
         index = position
@@ -645,7 +669,7 @@ export class WindowsSyncWriter {
       return
     }
     if (job.isRunning) {
-      throw new ArchiveError('busy', '写入尚未结束。')
+      throw new ArchiveError('busy', 'Writing has not finished.')
     }
     await this.clean(job)
     this.release(job)
@@ -658,7 +682,7 @@ export class WindowsSyncWriter {
     target: SyncSnapshot,
   ): Promise<WindowsRestorePreparation> {
     if (this.isStopped || target.rootId !== rootId || target.deviceId !== this.source.deviceId) {
-      throw new ArchiveError('invalid-request', '恢复目标无效。')
+      throw new ArchiveError('invalid-request', 'The restore target is invalid.')
     }
     const handle = await this.backups.acquire(projectId, rootId, backupId)
     let plan: SyncPlan
@@ -674,7 +698,7 @@ export class WindowsSyncWriter {
       })
       await this.options.authorize(plan)
       if (this.isStopped) {
-        throw new ArchiveError('busy', '写入器已停止。')
+        throw new ArchiveError('busy', 'The writer has stopped.')
       }
     } catch (error) {
       await handle.close()
@@ -685,7 +709,7 @@ export class WindowsSyncWriter {
       isRunning = false
     const close = async (): Promise<void> => {
       if (isRunning) {
-        throw new ArchiveError('busy', '恢复尚未结束。')
+        throw new ArchiveError('busy', 'The restore has not finished.')
       }
       hasConsumed = true
       const error = await handle.release()
@@ -701,7 +725,7 @@ export class WindowsSyncWriter {
       close,
       apply: async (options) => {
         if (hasConsumed) {
-          throw new ArchiveError('task-conflict', '本次恢复预览已释放或使用。')
+          throw new ArchiveError('task-conflict', 'This restore preview was released or used.')
         }
         hasConsumed = true
         isRunning = true

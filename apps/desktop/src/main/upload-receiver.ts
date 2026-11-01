@@ -49,7 +49,7 @@ export interface ReceiverHost {
 function known(error: unknown): KnownOperationError {
   const value = toHttpError(error).operationError
   return value.code === 'result-unknown'
-    ? { code: 'io-failure', message: '本地接收失败。', canRetry: false }
+    ? { code: 'io-failure', message: 'Local receiving failed.', canRetry: false }
     : value
 }
 
@@ -60,7 +60,7 @@ export function publicationRequests(
   return request.manifest.files.map((file) => {
     const target = request.targets.find((item) => item.fileId === file.fileId)
     if (!target) {
-      throw new HttpOperationError('invalid-request', '目标映射缺失。')
+      throw new HttpOperationError('invalid-request', 'The target mapping is missing.')
     }
     return {
       fileId: file.fileId,
@@ -153,7 +153,7 @@ export class WindowsUploadReceiver {
       ) {
         this.host.abort({
           code: 'network-failure',
-          message: '上传连接在收齐数据前中断。',
+          message: 'The upload connection was interrupted before all data was received.',
           canRetry: false,
         })
       }
@@ -186,18 +186,22 @@ export class WindowsUploadReceiver {
             this.host.abort(
               error instanceof HttpOperationError
                 ? known(error)
-                : { code: 'network-failure', message: '上传消息读取失败。', canRetry: false },
+                : {
+                    code: 'network-failure',
+                    message: 'Reading the upload message failed.',
+                    canRetry: false,
+                  },
             )
           }
-          bridge.destroy(error instanceof Error ? error : new Error('上传消息失败。'))
+          bridge.destroy(error instanceof Error ? error : new Error('The upload message failed.'))
           rejectFeed(
             error instanceof Error
               ? error
-              : new HttpOperationError('io-failure', '上传消息读取失败。', error),
+              : new HttpOperationError('io-failure', 'Reading the upload message failed.', error),
           )
         }
         const aborted = (): void =>
-          failed(new HttpOperationError('task-conflict', '任务已经中断。'))
+          failed(new HttpOperationError('task-conflict', 'The task has already been interrupted.'))
         const finish = (): void => {
           if (isSettled) {
             return
@@ -208,7 +212,10 @@ export class WindowsUploadReceiver {
               input.rawTrailers.length > 0 ||
               this.progress.archiveBytesTransferred !== this.request.manifest.archive.sizeBytes
             ) {
-              throw new HttpOperationError('checksum-mismatch', '上传消息未正常完整结束。')
+              throw new HttpOperationError(
+                'checksum-mismatch',
+                'The upload message did not end normally and completely.',
+              )
             }
             isSettled = true
             hasMessage = true
@@ -221,16 +228,22 @@ export class WindowsUploadReceiver {
         }
         const push = async (chunk: unknown): Promise<void> => {
           if (!Buffer.isBuffer(chunk)) {
-            throw new HttpOperationError('invalid-request', '上传必须使用二进制流。')
+            throw new HttpOperationError('invalid-request', 'Uploads must use a binary stream.')
           }
           for (let offset = 0; offset < chunk.length; offset += BATCH_RESOURCES.maxBufferBytes) {
             if (this.host.signal.aborted) {
-              throw new HttpOperationError('task-conflict', '任务已经中断。')
+              throw new HttpOperationError(
+                'task-conflict',
+                'The task has already been interrupted.',
+              )
             }
             const bytes = chunk.subarray(offset, offset + BATCH_RESOURCES.maxBufferBytes)
             this.progress.archiveBytesTransferred += bytes.length
             if (this.progress.archiveBytesTransferred > this.request.manifest.archive.sizeBytes) {
-              throw new HttpOperationError('checksum-mismatch', '上传体超过清单长度。')
+              throw new HttpOperationError(
+                'checksum-mismatch',
+                'The upload body exceeds the manifest length.',
+              )
             }
             this.host.networkProgress()
             this.notify('transferring')
@@ -257,7 +270,12 @@ export class WindowsUploadReceiver {
           ) {
             ended()
           } else {
-            failed(new HttpOperationError('network-failure', '上传消息在结束前关闭。'))
+            failed(
+              new HttpOperationError(
+                'network-failure',
+                'The upload message closed before completion.',
+              ),
+            )
           }
         }
         input.on('data', data)
@@ -281,7 +299,7 @@ export class WindowsUploadReceiver {
         signal: this.host.signal,
         onArchiveStored: () => {
           if (!hasMessage) {
-            throw new HttpOperationError('checksum-mismatch', '上传消息尚未完整结束。')
+            throw new HttpOperationError('checksum-mismatch', 'The upload message is incomplete.')
           }
           stage = 'verifying'
           this.notify(stage)
@@ -298,14 +316,17 @@ export class WindowsUploadReceiver {
       })
       this.host.ownArchive(artifact)
       if (!hasAccepted) {
-        throw new HttpOperationError('invalid-archive', '接收适配器未确认压缩体。')
+        throw new HttpOperationError(
+          'invalid-archive',
+          'The receive adapter did not confirm the compressed content.',
+        )
       }
       await this.publish(artifact)
     } catch (error) {
       if (error && typeof error === 'object' && 'cleanupError' in error && error.cleanupError) {
         this.cleanupError = {
           code: 'cleanup-failed',
-          message: '私有归档未完整清理。',
+          message: 'Private archive cleanup is incomplete.',
           canRetry: false,
         }
       }
@@ -317,7 +338,7 @@ export class WindowsUploadReceiver {
         reject(
           new HttpOperationError(
             wasCancelled ? 'task-conflict' : failure.code,
-            wasCancelled ? '任务已取消，请查询实际结果。' : failure.message,
+            wasCancelled ? 'The task was cancelled. Query the actual result.' : failure.message,
             error,
           ),
         )
@@ -371,10 +392,13 @@ export class WindowsUploadReceiver {
       let outcome: FileOutcome
       try {
         if (this.host.signal.aborted) {
-          throw new HttpOperationError('timeout', '批次已超过期限。')
+          throw new HttpOperationError('timeout', 'The batch exceeded its deadline.')
         }
         if (this.cleanupError) {
-          throw new HttpOperationError('cleanup-failed', '前项候选仍待清理，无法继续发布。')
+          throw new HttpOperationError(
+            'cleanup-failed',
+            'The previous candidate is awaiting cleanup. Publication cannot continue.',
+          )
         }
         const result = await this.dependencies.publisher.publish(
           file,
@@ -385,12 +409,15 @@ export class WindowsUploadReceiver {
         if (result.cleanupStatus === 'incomplete' || result.cleanupStatus === 'unknown') {
           this.cleanupError = {
             code: 'cleanup-failed',
-            message: '发布候选未完整清理，请重试。',
+            message: 'Publication candidate cleanup is incomplete. Retry.',
             canRetry: false,
           }
         }
         if (!isFileOutcome(outcome) || outcome.fileId !== file.fileId) {
-          throw new HttpOperationError('result-unknown', '发布结果无法对应当前文件。')
+          throw new HttpOperationError(
+            'result-unknown',
+            'The publication result cannot be matched to the current file.',
+          )
         }
         const temporary = this.results.concat(outcome)
         const state = this.host.state()
@@ -415,7 +442,10 @@ export class WindowsUploadReceiver {
             this.request,
           )
         ) {
-          throw new HttpOperationError('result-unknown', '发布结果与清单或目标映射不符。')
+          throw new HttpOperationError(
+            'result-unknown',
+            'The publication result does not match the manifest or target mapping.',
+          )
         }
       } catch (error) {
         const failure = toHttpError(error).operationError

@@ -39,7 +39,7 @@ interface RestoreOptions {
 function cleanupError(): OperationError {
   return {
     code: 'cleanup-failed',
-    message: '本次恢复仍有资源或备份待清理，请重试清理。',
+    message: 'This restore still has resources or backups awaiting cleanup. Retry cleanup.',
     canRetry: false,
   }
 }
@@ -72,14 +72,17 @@ export class WindowsRestoreRegistry {
     ) {
       throw new HttpOperationError(
         'permission-denied',
-        '游戏目录已更改，请重新读取备份和当前目录。',
+        'The game directory changed. Read the backup and current directory again.',
       )
     }
   }
   private find(id: string): RestoreJob {
     const job = this.jobs.get(id)
     if (!isOpaqueId(id) || !job) {
-      throw new HttpOperationError('not-found', '本次恢复已释放或过期，请重新读取备份。')
+      throw new HttpOperationError(
+        'not-found',
+        'This restore was released or expired. Read the backup again.',
+      )
     }
     return job
   }
@@ -92,7 +95,9 @@ export class WindowsRestoreRegistry {
     }
     job.timeout = setTimeout(() => {
       job.hasTimedOut = true
-      job.controller.abort(new HttpOperationError('timeout', '本次恢复操作已超时，请重新扫描。'))
+      job.controller.abort(
+        new HttpOperationError('timeout', 'This restore operation timed out. Scan again.'),
+      )
     }, BATCH_TIMEOUTS_MS.total)
     job.timeout.unref()
   }
@@ -116,17 +121,17 @@ export class WindowsRestoreRegistry {
   preview(id: string): SyncPlan {
     const job = this.find(id)
     if (!job.plan) {
-      throw new HttpOperationError('task-conflict', '当前恢复预览尚未准备好。')
+      throw new HttpOperationError('task-conflict', 'The current restore preview is not ready yet.')
     }
     return structuredClone(job.plan)
   }
   /** 先返回普通准备任务；目标扫描及备份材料验证均由原生执行，服务未启动也可恢复。 */
   prepare(projectId: string, rootId: string, backupId: string): DesktopRestoreState {
     if (![projectId, rootId, backupId].every(isOpaqueId)) {
-      throw new HttpOperationError('invalid-request', '恢复引用无效。')
+      throw new HttpOperationError('invalid-request', 'The restore reference is invalid.')
     }
     if (this.isStopped || [...this.jobs.values()].some((job) => job.isWorking)) {
-      throw new HttpOperationError('busy', '上一项恢复操作尚未结束。')
+      throw new HttpOperationError('busy', 'The previous restore operation has not finished.')
     }
     if (this.jobs.size >= 32) {
       const previous = [...this.jobs.values()].find(
@@ -137,7 +142,10 @@ export class WindowsRestoreRegistry {
       }
     }
     if (this.jobs.size >= 32) {
-      throw new HttpOperationError('resource-limit', '恢复预览数量已达上限，请先释放不用的预览。')
+      throw new HttpOperationError(
+        'resource-limit',
+        'The restore preview limit has been reached. Release unused previews first.',
+      )
     }
     const id = randomUUID(),
       job: RestoreJob = {
@@ -206,7 +214,7 @@ export class WindowsRestoreRegistry {
       if (!current.snapshot) {
         throw new HttpOperationError(
           current.error?.code ?? 'io-failure',
-          current.error?.message ?? '当前目录扫描未完成。',
+          current.error?.message ?? 'The current directory scan is incomplete.',
         )
       }
       job.preparation = await this.options.writer.prepareRestore(
@@ -256,10 +264,13 @@ export class WindowsRestoreRegistry {
       !job.preparation ||
       !job.plan
     ) {
-      throw new HttpOperationError('task-conflict', '恢复预览已使用、资源待清理或尚未准备好。')
+      throw new HttpOperationError(
+        'task-conflict',
+        'The restore preview was used, has resources awaiting cleanup, or is not ready yet.',
+      )
     }
     if (performance.now() - job.settledAt >= SYNC_LIMITS.snapshotLifetimeMs) {
-      throw new HttpOperationError('not-found', '恢复预览已过期，请重新扫描。')
+      throw new HttpOperationError('not-found', 'The restore preview expired. Scan again.')
     }
     if (
       !job.plan.canExecute ||
@@ -273,10 +284,16 @@ export class WindowsRestoreRegistry {
         target: job.plan.target,
       })
     ) {
-      throw new HttpOperationError('invalid-request', '确认计划与原生预览不同或存在冲突。')
+      throw new HttpOperationError(
+        'invalid-request',
+        'The confirmed plan differs from the native preview or contains conflicts.',
+      )
     }
     if (this.confirmed >= BATCH_LIMITS_PER_PROCESS) {
-      throw new HttpOperationError('resource-limit', '本进程恢复确认数量已达上限。')
+      throw new HttpOperationError(
+        'resource-limit',
+        'The restore confirmation limit for this process has been reached.',
+      )
     }
     this.verify(job)
     acquireTargetOperation(job.token)
@@ -296,7 +313,7 @@ export class WindowsRestoreRegistry {
     try {
       const preparation = job.preparation
       if (!preparation) {
-        throw new HttpOperationError('task-conflict', '本次恢复材料已释放。')
+        throw new HttpOperationError('task-conflict', 'This restore material was released.')
       }
       const result = await preparation.apply({
         signal: job.controller.signal,
@@ -333,7 +350,7 @@ export class WindowsRestoreRegistry {
     let result = value
     if (job.hasTimedOut && result.outcomes.some((item) => item.status === 'cancelled')) {
       const error = toHttpError(
-        new HttpOperationError('timeout', '本次恢复已超时。'),
+        new HttpOperationError('timeout', 'This restore timed out.'),
       ).operationError
       result = {
         ...result,
@@ -384,7 +401,7 @@ export class WindowsRestoreRegistry {
         ? null
         : toHttpError(
             job.hasTimedOut
-              ? new HttpOperationError('timeout', '本次恢复操作已超时，请重新扫描。')
+              ? new HttpOperationError('timeout', 'This restore operation timed out. Scan again.')
               : cause,
           ).operationError,
     }
@@ -423,7 +440,10 @@ export class WindowsRestoreRegistry {
       if (job.hasBackupCleanup) {
         const listing = await this.options.backups.list(job.projectId, job.rootId)
         if (listing.incomplete.length > 0) {
-          throw new HttpOperationError('cleanup-failed', '请先在备份页检查并清理未完成的备份。')
+          throw new HttpOperationError(
+            'cleanup-failed',
+            'Inspect and clean up incomplete backups on the backup page first.',
+          )
         }
         await this.options.backups.rotate(job.projectId, job.rootId)
         job.hasBackupCleanup = false
@@ -467,7 +487,7 @@ export class WindowsRestoreRegistry {
   async retryCleanup(id: string): Promise<DesktopRestoreState> {
     const job = this.find(id)
     if (job.isWorking) {
-      throw new HttpOperationError('busy', '恢复操作尚未结束。')
+      throw new HttpOperationError('busy', 'The restore operation has not finished.')
     }
     await this.clean(job)
     this.touch(job)
@@ -476,10 +496,13 @@ export class WindowsRestoreRegistry {
   async release(id: string): Promise<void> {
     const job = this.find(id)
     if (job.isWorking) {
-      throw new HttpOperationError('busy', '恢复操作尚未结束。')
+      throw new HttpOperationError('busy', 'The restore operation has not finished.')
     }
     if (!(await this.clean(job))) {
-      throw new HttpOperationError('cleanup-failed', '恢复材料尚未释放，请重试清理。')
+      throw new HttpOperationError(
+        'cleanup-failed',
+        'Restore material has not been released. Retry cleanup.',
+      )
     }
     this.jobs.delete(id)
   }
@@ -521,7 +544,10 @@ export class WindowsRestoreRegistry {
     await this.expiration
     for (const job of this.jobs.values()) {
       if (!(await this.clean(job))) {
-        throw new HttpOperationError('cleanup-failed', '恢复资源尚未完整释放。')
+        throw new HttpOperationError(
+          'cleanup-failed',
+          'Restore resources have not been fully released.',
+        )
       }
     }
     this.jobs.clear()

@@ -1,5 +1,6 @@
 import { Button, Space } from 'antd'
 import { SwapOutlined } from '@ant-design/icons'
+import { useT } from '@savedata-sync/shared/ui'
 
 export function GameActions({
   isActive,
@@ -16,22 +17,23 @@ export function GameActions({
   readonly onTasks: () => void
   readonly onRemove: () => void
 }): React.JSX.Element {
+  const t = useT()
   return (
     <Space orientation="vertical" className="library-full">
       <Button block type="primary" icon={<SwapOutlined />} onClick={onTransfer}>
-        传输存档
+        {t('page.transfer')}
       </Button>
       <Button block onClick={onSettings}>
-        目录设置
+        {t('page.gameSettings')}
       </Button>
       <Button block onClick={onBackup}>
-        备份与恢复
+        {t('page.backup')}
       </Button>
       <Button block onClick={onTasks}>
-        任务与结果
+        {t('game.viewTasks')}
       </Button>
       <Button block danger disabled={isActive} onClick={onRemove}>
-        移除游戏
+        {t('game.removeTitle')}
       </Button>
     </Space>
   )

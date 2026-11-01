@@ -57,28 +57,34 @@ export function resolveSyncProjectBinding(
     !isLibraryPeer(peer) ||
     !isOpaqueId(projectId)
   ) {
-    return fail('invalid-request', '项目或设备目录数据无效。')
+    return fail('invalid-request', 'Project or device directory data is invalid.')
   }
   const game = config.games.find((item) => item.id === projectId)
   const device = config.devices.find((item) => item.id === peer.device.id)
   const link = game?.links.find((item) => item.deviceId === peer.device.id)
   if (!game || !device || !link) {
-    return fail('not-found', '项目尚未关联这台设备，请重新选择项目和设备。')
+    return fail(
+      'not-found',
+      'The project is not linked to this device. Select the project and device again.',
+    )
   }
   if (!peer.isConnected || device.blocked) {
-    return fail('network-failure', '请先连接项目关联的设备。')
+    return fail('network-failure', 'Connect to the device linked to the project first.')
   }
   const localRoot = roots.find((item) => item.rootId === game.rootId)
   const remoteGame = peer.games.find((item) => item.id === link.gameId)
   const remoteRoot = remoteGame?.root
   if (!localRoot || !remoteRoot) {
-    return fail('not-found', '项目目录已变化，请重新打开目录设置。')
+    return fail('not-found', 'The project directory changed. Reopen Game settings.')
   }
   if (localRoot.authorization !== 'granted' || remoteRoot.authorization !== 'granted') {
-    return fail('authorization-expired', '存档目录权限已失效，请重新选择目录。')
+    return fail(
+      'authorization-expired',
+      'Save directory permission expired. Select the directory again.',
+    )
   }
   if (remoteRoot.deviceId !== peer.device.id || localRoot.deviceId === peer.device.id) {
-    return fail('session-mismatch', '目录属于另一台设备，请重新关联。')
+    return fail('session-mismatch', 'The directory belongs to another device. Link it again.')
   }
   return {
     status: 'success',

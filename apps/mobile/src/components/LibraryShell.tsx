@@ -5,8 +5,8 @@ import admEnUS from 'antd-mobile/es/locales/en-US'
 import admJaJP from 'antd-mobile/es/locales/ja-JP'
 import admZhCN from 'antd-mobile/es/locales/zh-CN'
 import admZhTW from 'antd-mobile/es/locales/zh-TW'
-import type { AppLocale } from '@savedata-sync/shared'
-import { useLocale, useT } from '@savedata-sync/shared/ui'
+import type { AppLocale, ShownError } from '@savedata-sync/shared'
+import { ErrorText, useLocale, useT } from '@savedata-sync/shared/ui'
 import {
   AppstoreOutlined,
   ArrowLeftOutlined,
@@ -48,7 +48,7 @@ export function LibraryShell({
   readonly page: Page
   readonly title: string
   readonly gameName: string | null
-  readonly error: string
+  readonly error: ShownError | null
   readonly isBusy: boolean
   readonly footer: ReactNode
   /** 标题栏右侧的页面操作（如“更多”菜单按钮）。 */
@@ -119,7 +119,7 @@ export function LibraryShell({
         >
           {error && (
             <div className="notice notice-error" role="alert">
-              <p>{error}</p>
+              <ErrorText error={error} context={null} />
               <div className="action-row">
                 <Button disabled={isBusy} onClick={onRetry}>
                   {t('common.retry')}

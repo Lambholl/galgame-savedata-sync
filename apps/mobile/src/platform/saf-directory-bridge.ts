@@ -32,12 +32,12 @@ export interface AndroidDirectoryApi {
 
 const BRIDGE_ERROR: OperationError = {
   code: 'io-failure',
-  message: '目录服务响应无效或连接失败。',
+  message: 'The directory service response is invalid or the connection failed.',
   canRetry: false,
 }
 const UNSUPPORTED: OperationError = {
   code: 'unsupported-operation',
-  message: '请在 Android 应用中使用系统目录选择器。',
+  message: 'Use the system directory picker in the Android app.',
   canRetry: false,
 }
 
@@ -87,7 +87,11 @@ export function createSafDirectoryBridge(
       if (!isOpaqueId(rootId) || (parentId !== null && !isOpaqueId(parentId))) {
         return {
           status: 'error',
-          error: { code: 'invalid-request', message: '目录引用格式无效。', canRetry: false },
+          error: {
+            code: 'invalid-request',
+            message: 'The directory reference format is invalid.',
+            canRetry: false,
+          },
         }
       }
       if (!isAndroid()) {

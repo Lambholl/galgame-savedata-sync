@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { unwrap } from '@savedata-sync/shared'
-import type { SyncJobRequest, SyncJobState, SyncPlan } from '@savedata-sync/shared'
+import { toShownError, unwrap } from '@savedata-sync/shared'
+import type { ShownError, SyncJobRequest, SyncJobState, SyncPlan } from '@savedata-sync/shared'
 import type { DesktopRestoreState } from '../../../../bridge/sync-bridge.ts'
 import { desktopSync } from '../../platform/sync-adapter.ts'
 
@@ -14,7 +14,7 @@ interface RestoreDetails {
 }
 interface Resource<T> {
   readonly data: T | null
-  readonly error: string
+  readonly error: ShownError | null
   readonly isLoading: boolean
   readonly reload: () => void
 }
@@ -51,7 +51,7 @@ function useResource<T>(
   shouldPoll: (value: T) => boolean,
 ): Resource<T> {
   const [data, setData] = useState<T | null>(null),
-    [error, setError] = useState(''),
+    [error, setError] = useState<ShownError | null>(null),
     [isLoading, setIsLoading] = useState(true),
     [version, setVersion] = useState(0)
   const saved = useRef<{ id: string; value: T } | null>(null)
@@ -61,7 +61,7 @@ function useResource<T>(
       timer: ReturnType<typeof setTimeout> | null = null
     let previous = saved.current?.id === id ? saved.current.value : null
     setData(previous)
-    setError('')
+    setError(null)
     setIsLoading(previous === null)
     async function poll(): Promise<void> {
       try {
@@ -72,13 +72,13 @@ function useResource<T>(
         previous = value
         saved.current = { id, value }
         setData(value)
-        setError('')
+        setError(null)
         setIsLoading(false)
         if (shouldPoll(value)) {
           timer = setTimeout(() => {
             void poll().catch((cause: unknown) => {
               if (isCurrent) {
-                setError(cause instanceof Error ? cause.message : '读取任务失败。')
+                setError(toShownError(cause))
                 setIsLoading(false)
               }
             })
@@ -86,14 +86,14 @@ function useResource<T>(
         }
       } catch (cause) {
         if (isCurrent) {
-          setError(cause instanceof Error ? cause.message : '读取任务失败。')
+          setError(toShownError(cause))
           setIsLoading(false)
         }
       }
     }
     void poll().catch((cause: unknown) => {
       if (isCurrent) {
-        setError(cause instanceof Error ? cause.message : '读取任务失败。')
+        setError(toShownError(cause))
         setIsLoading(false)
       }
     })

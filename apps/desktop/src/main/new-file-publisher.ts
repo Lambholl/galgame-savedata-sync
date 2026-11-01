@@ -88,7 +88,7 @@ let activePublication: symbol | null = null
 
 function validateRequest(value: unknown): asserts value is NewFilePublicationRequest {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
-    throw new PublicationError('invalid-request', '新文件请求无效。')
+    throw new PublicationError('invalid-request', 'The new file request is invalid.')
   }
   const record = value as Record<string, unknown>
   const keys = ['fileId', 'rootId', 'parentId', 'name', 'sizeBytes', 'sha256']
@@ -105,7 +105,10 @@ function validateRequest(value: unknown): asserts value is NewFilePublicationReq
     record.sizeBytes > BATCH_LIMITS.maxFileBytes ||
     !isSha256(record.sha256)
   ) {
-    throw new PublicationError('invalid-request', '新文件请求字段无效或超过协议限制。')
+    throw new PublicationError(
+      'invalid-request',
+      'New file request fields are invalid or exceed protocol limits.',
+    )
   }
 }
 
@@ -115,7 +118,7 @@ function checkAbort(job: PublicationJob): void {
   }
   const reason: unknown = job.controller.signal.reason
   if (reason instanceof Error && reason.name === 'TimeoutError') {
-    throw new PublicationError('timeout', '新文件发布超时。', reason)
+    throw new PublicationError('timeout', 'New file publication timed out.', reason)
   }
   throw new PublicationCancelledError()
 }
@@ -148,14 +151,14 @@ export class WindowsNewFilePublisher {
       this.maxFileBytes < 0 ||
       this.maxFileBytes > BATCH_LIMITS.maxFileBytes
     ) {
-      throw new PublicationError('invalid-request', '原生文件预算无效。')
+      throw new PublicationError('invalid-request', 'The native file budget is invalid.')
     }
   }
 
   /** 核实已选择目录的身份与写权限；游戏配置在接收前恢复此进程内授权。 */
   async grant(rootId: string): Promise<void> {
     if (this.isStopped) {
-      throw new PublicationError('busy', '发布适配器已停止。')
+      throw new PublicationError('busy', 'The publication adapter has stopped.')
     }
     const location = await this.source.locateNativeDirectory(rootId).catch((error: unknown) => {
       throw toPublicationError(error)
@@ -164,7 +167,7 @@ export class WindowsNewFilePublisher {
       throw toPublicationError(error)
     })
     if (this.isStopped) {
-      throw new PublicationError('busy', '发布适配器已停止。')
+      throw new PublicationError('busy', 'The publication adapter has stopped.')
     }
     const existing = this.grants.get(rootId)
     if (
@@ -208,33 +211,42 @@ export class WindowsNewFilePublisher {
         bytes < request.sizeBytes ||
         bytes > BATCH_LIMITS.maxTotalFileBytes
       ) {
-        throw new PublicationError('invalid-request', '目标空间预检字节数无效。')
+        throw new PublicationError(
+          'invalid-request',
+          'The target space preflight byte count is invalid.',
+        )
       }
       if (this.isStopped) {
-        throw new PublicationError('busy', '发布适配器已停止。')
+        throw new PublicationError('busy', 'The publication adapter has stopped.')
       }
       const grant = this.grants.get(request.rootId)
       if (!grant) {
-        throw new PublicationError('permission-denied', '目标根没有本进程写授权。')
+        throw new PublicationError(
+          'permission-denied',
+          'The target root has no write authorization in this process.',
+        )
       }
       if (request.sizeBytes > this.maxFileBytes) {
-        throw new PublicationError('resource-limit', '文件超过本机预算。')
+        throw new PublicationError('resource-limit', 'The file exceeds the local budget.')
       }
       await grant.verify()
       const location = await this.source.locateNativeDirectory(request.rootId, request.parentId)
       const peakBytes =
         bytes + (privateSpace?.device === location.identity.dev ? privateSpace.requiredBytes : 0)
       if ((await (this.io.availableBytes ?? availableBytes)(location.path)) < BigInt(peakBytes)) {
-        throw new PublicationError('insufficient-space', '目标卷空间不足，无法接收本批文件。')
+        throw new PublicationError(
+          'insufficient-space',
+          'The target volume has insufficient space to receive this file batch.',
+        )
       }
       const names = await readdir(location.path)
       if (names.some((name) => name.toLowerCase() === request.name.toLowerCase())) {
-        throw new PublicationError('name-conflict', '目标名称已存在。')
+        throw new PublicationError('name-conflict', 'The target name already exists.')
       }
       await location.verify()
       await grant.verify()
       if (this.grants.get(request.rootId) !== grant || this.isStopped) {
-        throw new PublicationError('permission-denied', '本次写授权已经失效。')
+        throw new PublicationError('permission-denied', 'This write authorization expired.')
       }
       return `${location.identity.dev}:${location.identity.ino}\0${request.name.toLowerCase()}`
     } catch (error) {
@@ -275,7 +287,7 @@ export class WindowsNewFilePublisher {
             status: 'failed',
             error: new PublicationError(
               unavailable ?? 'permission-denied',
-              '未获得写授权、预算不足或已有候选等待清理。',
+              'Write authorization is missing, the budget is insufficient, or a candidate is awaiting cleanup.',
             ).operationError,
             residualEntries: [],
           },
@@ -334,13 +346,13 @@ export class WindowsNewFilePublisher {
       return
     }
     if (job.isRunning) {
-      throw new PublicationError('busy', '新文件操作尚未结束。')
+      throw new PublicationError('busy', 'The new file operation has not finished.')
     }
     const cleanup = await this.clean(job)
     if (cleanup.cleanupStatus === 'incomplete') {
       throw new PublicationError(
         'cleanup-failed',
-        '候选清理失败，请核实权限和目录身份。',
+        'Candidate cleanup failed. Check permissions and directory identity.',
         job.cleanupFailure,
       )
     }
@@ -368,7 +380,7 @@ export class WindowsNewFilePublisher {
   private async verifyGrant(job: PublicationJob): Promise<void> {
     checkAbort(job)
     if (this.grants.get(job.request.rootId) !== job.grant) {
-      throw new PublicationError('permission-denied', '本次写授权已经失效。')
+      throw new PublicationError('permission-denied', 'This write authorization expired.')
     }
     await job.grant.verify()
     await job.location?.verify()
@@ -417,7 +429,7 @@ export class WindowsNewFilePublisher {
       // link 成功后不因取消回滚新文件，完成有界回读以报告实际结果。
       await this.readBack(job, target)
       if (!job.identity) {
-        throw new PublicationError('source-changed', '候选身份不可用。')
+        throw new PublicationError('source-changed', 'The candidate identity is unavailable.')
       }
       const entry = await job.location.describeFile(job.request.name, job.identity)
       this.emit(job, 'verifying', job.request.sizeBytes)
@@ -444,7 +456,8 @@ export class WindowsNewFilePublisher {
           status: 'unknown',
           error: {
             code: 'result-unknown',
-            message: '发布已经开始但结果未能完整核实，请重新读取目标。',
+            message:
+              'Publication started but the result could not be fully verified. Read the target again.',
             canRetry: false,
           },
           residualEntries,
@@ -484,17 +497,20 @@ export class WindowsNewFilePublisher {
 
   private async assertNameFree(job: PublicationJob): Promise<void> {
     if (!job.location) {
-      throw new PublicationError('invalid-request', '目标父目录不可用。')
+      throw new PublicationError('invalid-request', 'The target parent directory is unavailable.')
     }
     const names = await readdir(job.location.path)
     if (names.some((name) => name.toLowerCase() === job.request.name.toLowerCase())) {
-      throw new PublicationError('name-conflict', '目标名称已存在，未覆盖已有条目。')
+      throw new PublicationError(
+        'name-conflict',
+        'The target name already exists. The existing entry was not overwritten.',
+      )
     }
   }
 
   private async assertCandidate(job: PublicationJob): Promise<void> {
     if (!job.location || !job.identity) {
-      throw new PublicationError('source-changed', '候选身份不可用。')
+      throw new PublicationError('source-changed', 'The candidate identity is unavailable.')
     }
     await job.location.verify()
     const stats = await inspectLocalPath(join(job.location.path, job.candidateName))
@@ -504,27 +520,30 @@ export class WindowsNewFilePublisher {
       stats.nlink !== 1n ||
       stats.size !== BigInt(job.request.sizeBytes)
     ) {
-      throw new PublicationError('source-changed', '候选文件已经变化。')
+      throw new PublicationError('source-changed', 'The candidate file changed.')
     }
   }
 
   private async stage(job: PublicationJob): Promise<void> {
     if (!job.location) {
-      throw new PublicationError('invalid-request', '目标父目录不可用。')
+      throw new PublicationError('invalid-request', 'The target parent directory is unavailable.')
     }
     const handle = await open(join(job.location.path, job.candidateName), 'wx', 0o600)
     job.handles.add(handle)
     job.hasCandidate = true
     const stats = await handle.stat({ bigint: true })
     if (!stats.isFile() || stats.nlink !== 1n) {
-      throw new PublicationError('source-changed', '候选创建身份无效。')
+      throw new PublicationError('source-changed', 'The candidate creation identity is invalid.')
     }
     job.identity = getFileIdentity(stats)
     const hash = createHash('sha256')
     this.emit(job, 'staging')
     for await (const chunk of job.input) {
       if (!Buffer.isBuffer(chunk)) {
-        throw new PublicationError('invalid-request', '原文流必须提供二进制数据。')
+        throw new PublicationError(
+          'invalid-request',
+          'The uncompressed content stream must provide binary data.',
+        )
       }
       for (let offset = 0; offset < chunk.length; offset += BATCH_RESOURCES.maxBufferBytes) {
         const bytes = chunk.subarray(offset, offset + BATCH_RESOURCES.maxBufferBytes)
@@ -533,17 +552,23 @@ export class WindowsNewFilePublisher {
           job.stagedBytes + bytes.length > job.request.sizeBytes ||
           job.stagedBytes + bytes.length > this.maxFileBytes
         ) {
-          throw new PublicationError('checksum-mismatch', '实际原文长度超过本次声明。')
+          throw new PublicationError(
+            'checksum-mismatch',
+            'Actual uncompressed content exceeds the declared length.',
+          )
         }
         const available = await (this.io.availableBytes ?? availableBytes)(job.location.path)
         if (available < BigInt(bytes.length)) {
-          throw new PublicationError('insufficient-space', '目标卷可用空间不足。')
+          throw new PublicationError(
+            'insufficient-space',
+            'The target volume has insufficient free space.',
+          )
         }
         for (let written = 0; written < bytes.length;) {
           checkAbort(job)
           const result = await handle.write(bytes, written, bytes.length - written)
           if (result.bytesWritten <= 0) {
-            throw new PublicationError('io-failure', '候选写入未取得进展。')
+            throw new PublicationError('io-failure', 'The candidate write made no progress.')
           }
           written += result.bytesWritten
         }
@@ -554,7 +579,10 @@ export class WindowsNewFilePublisher {
     }
     checkAbort(job)
     if (job.stagedBytes !== job.request.sizeBytes || hash.digest('hex') !== job.request.sha256) {
-      throw new PublicationError('checksum-mismatch', '原文长度或 SHA-256 不符。')
+      throw new PublicationError(
+        'checksum-mismatch',
+        'The uncompressed content length or SHA-256 does not match.',
+      )
     }
     await (this.io.sync ?? ((file) => file.sync()))(handle)
     await handle.close()
@@ -567,7 +595,7 @@ export class WindowsNewFilePublisher {
     try {
       const before = await handle.stat({ bigint: true })
       if (!job.identity || !before.isFile() || !hasSameIdentity(before, job.identity)) {
-        throw new PublicationError('source-changed', '最终文件身份不符。')
+        throw new PublicationError('source-changed', 'The final file identity does not match.')
       }
       const hash = createHash('sha256')
       const buffer = Buffer.alloc(BATCH_RESOURCES.maxBufferBytes)
@@ -578,7 +606,10 @@ export class WindowsNewFilePublisher {
         }
         job.readBackBytes += bytesRead
         if (job.readBackBytes > job.request.sizeBytes) {
-          throw new PublicationError('checksum-mismatch', '最终文件长度超过预期。')
+          throw new PublicationError(
+            'checksum-mismatch',
+            'The final file exceeds the expected length.',
+          )
         }
         hash.update(buffer.subarray(0, bytesRead))
         this.emit(job, 'verifying')
@@ -592,7 +623,10 @@ export class WindowsNewFilePublisher {
         job.readBackBytes !== job.request.sizeBytes ||
         hash.digest('hex') !== job.request.sha256
       ) {
-        throw new PublicationError('checksum-mismatch', '最终文件内容或读取期间属性不符。')
+        throw new PublicationError(
+          'checksum-mismatch',
+          'The final file content or attributes observed while reading do not match.',
+        )
       }
     } finally {
       await handle.close()
@@ -629,7 +663,7 @@ export class WindowsNewFilePublisher {
       }
       if (job.hasCandidate) {
         if (!job.location) {
-          throw new PublicationError('cleanup-failed', '候选所有权未能核实。')
+          throw new PublicationError('cleanup-failed', 'Candidate ownership could not be verified.')
         }
         await job.location.verify()
         const path = join(job.location.path, job.candidateName)
@@ -646,7 +680,10 @@ export class WindowsNewFilePublisher {
             stats.isSymbolicLink() ||
             !hasSameIdentity(stats, job.identity)
           ) {
-            throw new PublicationError('cleanup-failed', '候选已被替换，未删除未知条目。')
+            throw new PublicationError(
+              'cleanup-failed',
+              'The candidate was replaced. The unknown entry was not deleted.',
+            )
           }
           await (this.io.unlink ?? unlink)(path)
         }
@@ -659,7 +696,8 @@ export class WindowsNewFilePublisher {
         cleanupStatus: 'incomplete',
         cleanupError: {
           code: 'cleanup-failed',
-          message: '本次候选未完整清理，请核实目录身份和权限后重试。',
+          message:
+            'Candidate cleanup is incomplete. Check directory identity and permissions, then retry.',
           canRetry: false,
         },
       }

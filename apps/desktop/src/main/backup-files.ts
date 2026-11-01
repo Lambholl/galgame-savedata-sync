@@ -25,7 +25,7 @@ export const BACKUP_DISK_IO: BackupDiskIO = {
 export async function inspectBackupFile(path: string, maxBytes: number): Promise<FileIdentity> {
   const value = await inspectLocalPath(path)
   if (!value.isFile() || value.nlink !== 1n || value.size > BigInt(maxBytes)) {
-    throw new ArchiveError('path-outside-root', '备份文件类型、链接或大小无效。')
+    throw new ArchiveError('path-outside-root', 'A backup file has an invalid type, link, or size.')
   }
   return getFileIdentity(value)
 }
@@ -38,13 +38,13 @@ export async function openBackupFile(
 ): Promise<{ stream: Readable; verify: () => Promise<void> }> {
   const identity = await inspectBackupFile(path, maxBytes)
   if (expected && (identity.dev !== expected.dev || identity.ino !== expected.ino)) {
-    throw new ArchiveError('source-changed', '备份文件身份已变化。')
+    throw new ArchiveError('source-changed', 'The backup file identity changed.')
   }
   const handle = await open(path, 'r')
   try {
     const before = await handle.stat({ bigint: true })
     if (!hasSameIdentity(before, identity) || !before.isFile() || before.nlink !== 1n) {
-      throw new ArchiveError('source-changed', '备份文件在打开时变化。')
+      throw new ArchiveError('source-changed', 'The backup file changed while opening.')
     }
     return {
       stream: handle.createReadStream({ autoClose: true, highWaterMark: 65536 }),
@@ -58,7 +58,7 @@ export async function openBackupFile(
           after.mtimeNs !== before.mtimeNs ||
           after.ctimeNs !== before.ctimeNs
         ) {
-          throw new ArchiveError('source-changed', '备份文件在读取期间变化。')
+          throw new ArchiveError('source-changed', 'The backup file changed while reading.')
         }
       },
     }
@@ -76,7 +76,7 @@ export async function hashBackupStream(
   write?: (chunk: Buffer) => Promise<void>,
 ): Promise<{ sizeBytes: number; sha256: string }> {
   const abort = (): void => {
-    input.destroy(new Error('备份读取已中止。'))
+    input.destroy(new Error('Backup reading was aborted.'))
   }
   signal?.addEventListener('abort', abort, { once: true })
   try {
@@ -86,7 +86,7 @@ export async function hashBackupStream(
     for await (const chunk of input) {
       checkArchiveAbort(signal)
       if (!Buffer.isBuffer(chunk) || chunk.length > 65536 || sizeBytes + chunk.length > maxBytes) {
-        throw new ArchiveError('resource-limit', '备份文件超过资源预算。')
+        throw new ArchiveError('resource-limit', 'The backup file exceeds the resource budget.')
       }
       sizeBytes += chunk.length
       hash.update(chunk)
@@ -111,7 +111,7 @@ export async function readBackupJson(path: string): Promise<unknown> {
   try {
     for await (const chunk of file.stream) {
       if (!Buffer.isBuffer(chunk) || (size += chunk.length) > BATCH_LIMITS.maxJsonBytes) {
-        throw new ArchiveError('resource-limit', '备份元数据超过限制。')
+        throw new ArchiveError('resource-limit', 'Backup metadata exceeds the limit.')
       }
       chunks.push(chunk)
     }
@@ -135,7 +135,7 @@ export async function writeBackupJson(
 ): Promise<void> {
   const text = JSON.stringify(value)
   if (Buffer.byteLength(text) > BATCH_LIMITS.maxJsonBytes) {
-    throw new ArchiveError('resource-limit', '备份元数据超过限制。')
+    throw new ArchiveError('resource-limit', 'Backup metadata exceeds the limit.')
   }
   const handle = await open(path, 'wx', 0o600)
   try {

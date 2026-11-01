@@ -23,5 +23,5 @@ export function toHttpError(error: unknown): HttpOperationError {
       return new HttpOperationError(value.code, value.message, error)
     }
   }
-  return new HttpOperationError('io-failure', '本地服务操作失败。', error)
+  return new HttpOperationError('io-failure', 'The local service operation failed.', error)
 }

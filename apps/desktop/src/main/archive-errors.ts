@@ -18,7 +18,7 @@ export class ArchiveCancelledError extends Error {
   cleanupError: KnownOperationError | null = null
 
   constructor(cause?: unknown) {
-    super('归档操作已取消。', { cause })
+    super('The archive operation was cancelled.', { cause })
     this.name = 'ArchiveCancelledError'
   }
 }
@@ -30,7 +30,7 @@ export function checkArchiveAbort(signal?: AbortSignal): void {
   }
   const reason: unknown = signal.reason
   if (reason instanceof Error && reason.name === 'TimeoutError') {
-    throw new ArchiveError('timeout', '归档操作超时。', reason)
+    throw new ArchiveError('timeout', 'The archive operation timed out.', reason)
   }
   throw new ArchiveCancelledError(reason)
 }
@@ -54,13 +54,13 @@ export function toArchiveError(
   }
   const code = error && typeof error === 'object' && 'code' in error ? error.code : null
   if (code === 'ENOSPC' || code === 'EDQUOT') {
-    return new ArchiveError('insufficient-space', '归档暂存空间不足。', error)
+    return new ArchiveError('insufficient-space', 'Archive staging space is insufficient.', error)
   }
   if (code === 'EACCES' || code === 'EPERM') {
-    return new ArchiveError('permission-denied', '无法访问归档暂存文件。', error)
+    return new ArchiveError('permission-denied', 'Cannot access archive staging files.', error)
   }
   if (code === 'Z_DATA_ERROR' || code === 'Z_BUF_ERROR' || code === 'ERR_STREAM_PREMATURE_CLOSE') {
-    return new ArchiveError('invalid-archive', '归档损坏或未完整结束。', error)
+    return new ArchiveError('invalid-archive', 'The archive is damaged or incomplete.', error)
   }
   if (error && typeof error === 'object' && 'operationError' in error) {
     const value = error.operationError
@@ -68,5 +68,9 @@ export function toArchiveError(
       return new ArchiveError(value.code, value.message, error)
     }
   }
-  return new ArchiveError('io-failure', '归档读写失败，请检查权限与存储状态。', error)
+  return new ArchiveError(
+    'io-failure',
+    'Archive I/O failed. Check permissions and storage status.',
+    error,
+  )
 }

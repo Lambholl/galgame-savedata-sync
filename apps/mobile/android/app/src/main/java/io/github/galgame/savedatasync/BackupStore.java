@@ -100,7 +100,7 @@ final class BackupStore implements AutoCloseable {
         return result;
     }
     private void check(Active current) throws ArchiveFailure {
-        if (current.timedOut) throw new ArchiveFailure("timeout", "当前备份操作超时");
+        if (current.timedOut) throw new ArchiveFailure("timeout", "The current backup operation timed out.");
         current.control.check();
     }
     private void alive() throws Exception {
@@ -363,11 +363,11 @@ final class BackupStore implements AutoCloseable {
         catch (Exception failure) { verifyRound(round, false); files.writeJson(round.path.resolve("round.json"), round.marker); throw failure; }
     }
     private ArchiveFailure stopped(Exception cause, Active work) {
-        if (work.timedOut) return new ArchiveFailure("timeout", "当前备份操作超时", false, cause);
+        if (work.timedOut) return new ArchiveFailure("timeout", "The current backup operation timed out.", false, cause);
         try { work.control.check(); } catch (ArchiveFailure stopped) { return new ArchiveFailure(stopped.code, stopped.getMessage(), stopped.cancelled, cause); }
         return ArchiveFailure.from(cause);
     }
-    private static ArchiveFailure cleanupFailure(Exception cause) { return new ArchiveFailure("cleanup-failed", "备份轮换或残留清理失败", false, cause); }
+    private static ArchiveFailure cleanupFailure(Exception cause) { return new ArchiveFailure("cleanup-failed", "Backup rotation or leftover cleanup failed.", false, cause); }
     static Map<String, Object> error(ArchiveFailure failure) { return object("code", failure.code, "message", failure.getMessage(), "canRetry", false); }
 
     /** 校验完整材料后取得引用；使用期间保留该轮，文件流只交给原生恢复编排。 */

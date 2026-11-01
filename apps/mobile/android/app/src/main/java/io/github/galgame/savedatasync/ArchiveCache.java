@@ -39,7 +39,7 @@ final class ArchiveCache {
     ArchiveCache(Path privateDirectory) throws IOException { this(privateDirectory, new Io() {}); }
     ArchiveCache(Path privateDirectory, Io io) throws IOException {
         synchronized (ArchiveCache.class) {
-            if (active != null) throw new ArchiveFailure("busy", "已有归档任务或待清理缓存");
+            if (active != null) throw new ArchiveFailure("busy", "An archive task or cache awaiting cleanup already exists.");
             Path parent = privateDirectory.toAbsolutePath().normalize();
             verifyChain(parent);
             if (!Files.isDirectory(parent, LinkOption.NOFOLLOW_LINKS)) throw new IOException("Private root missing");
@@ -76,13 +76,13 @@ final class ArchiveCache {
     /** 接收内容前检查本批缓存峰值，不创建任务目录或预留空间。 */
     void checkSpace(long required) throws IOException {
         verifyRoot();
-        if (required < 0) throw new ArchiveFailure("invalid-request", "空间预检字节数无效");
-        if (io.usable(root) < required) throw new ArchiveFailure("insufficient-space", "私有存储可用空间不足");
+        if (required < 0) throw new ArchiveFailure("invalid-request", "The space preflight byte count is invalid.");
+        if (io.usable(root) < required) throw new ArchiveFailure("insufficient-space", "Private storage has insufficient free space.");
     }
 
     Job begin(long maximum) throws IOException {
         synchronized (ArchiveCache.class) {
-            if (active != null) throw new ArchiveFailure("busy", "已有归档任务或待清理缓存");
+            if (active != null) throw new ArchiveFailure("busy", "An archive task or cache awaiting cleanup already exists.");
             verifyRoot();
             String token = UUID.randomUUID().toString();
             Path path = root.resolve("job-" + token);
@@ -131,7 +131,7 @@ final class ArchiveCache {
         if (!Objects.equals(rootKey, directoryKey(root)) || !owner.equals(marker(root.resolve("owner")))) throw cleanup(null);
     }
     static ArchiveFailure cleanup(Throwable cause) {
-        return new ArchiveFailure("cleanup-failed", "私有缓存归属无法确认或清理失败", false, cause);
+        return new ArchiveFailure("cleanup-failed", "Private cache ownership cannot be confirmed or cleanup failed.", false, cause);
     }
 
     /** 句柄只允许通过归档 API 访问；调用者必须关闭读流再 dispose，可重复/重试清理。 */
@@ -149,14 +149,14 @@ final class ArchiveCache {
             this.path = path; this.token = token; this.key = key; this.maximum = maximum;
         }
         private void alive() throws IOException {
-            if (disposed || active != this) throw new ArchiveFailure("task-conflict", "归档句柄已关闭或不属于当前任务");
+            if (disposed || active != this) throw new ArchiveFailure("task-conflict", "The archive handle is closed or does not belong to the current task.");
             verifyRoot();
             if (!Objects.equals(key, directoryKey(path))) throw cleanup(null);
             if (!markerRemoved && !(owner + ":" + token).equals(marker(path.resolve("owner")))) throw cleanup(null);
         }
         private Path file(String name) throws ArchiveFailure {
             if (!name.equals("archive.gz") && !name.matches("f00[0-9]{4}")) {
-                throw new ArchiveFailure("invalid-request", "缓存文件引用无效");
+                throw new ArchiveFailure("invalid-request", "The cache file reference is invalid.");
             }
             return path.resolve(name);
         }
@@ -180,7 +180,7 @@ final class ArchiveCache {
         void space(long required) throws IOException {
             alive();
             ArchiveModel.limit(required <= maximum - bytes);
-            if (io.usable(path) < required) throw new ArchiveFailure("insufficient-space", "私有存储可用空间不足");
+            if (io.usable(path) < required) throw new ArchiveFailure("insufficient-space", "Private storage has insufficient free space.");
         }
         OutputStream create(String name, long limit, ArchiveControl control) throws IOException {
             alive();

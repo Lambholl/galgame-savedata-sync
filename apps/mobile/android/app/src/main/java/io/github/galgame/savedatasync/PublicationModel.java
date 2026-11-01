@@ -22,9 +22,9 @@ final class PublicationModel {
                 Integer.parseInt(fileId.substring(1)) > 1024 || !SafValues.isId(rootId) ||
                 (parentId != null && !SafValues.isId(parentId)) || !portableName(name) ||
                 sizeBytes < 0 || !ArchiveModel.hash(sha256)) {
-                throw new ArchiveFailure("invalid-request", "新文件发布字段不合法");
+                throw new ArchiveFailure("invalid-request", "New file publication fields are invalid.");
             }
-            if (sizeBytes > 268435456L) throw new ArchiveFailure("resource-limit", "单文件超过发布预算");
+            if (sizeBytes > 268435456L) throw new ArchiveFailure("resource-limit", "The file exceeds the publication budget.");
         }
     }
 

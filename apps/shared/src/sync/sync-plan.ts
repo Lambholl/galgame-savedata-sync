@@ -1,4 +1,5 @@
 import { BATCH_LIMITS } from '../protocol/batch-limits.ts'
+import { OperationFailure } from '../result.ts'
 import { isPortableFileName } from '../protocol/protocol.ts'
 import { SYNC_SCHEMA_VERSION } from './sync-contracts.ts'
 import type {
@@ -116,7 +117,7 @@ function jsonByteLength(value: unknown): number {
  */
 export function createSyncPlan(input: SyncPlanInput): SyncPlan {
   if (!isSyncPlanInput(input)) {
-    throw new Error('当前扫描或复制计划输入无效。')
+    throw new OperationFailure('invalid-request', 'The current scan or copy plan input is invalid.')
   }
   const source = copySnapshot(input.source)
   const target = copySnapshot(input.target)

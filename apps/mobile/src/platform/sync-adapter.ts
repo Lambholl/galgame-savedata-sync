@@ -1,5 +1,6 @@
 import {
   matchesSyncProjectBinding,
+  OperationFailure,
   resolveSyncProjectBinding,
   syncPlanFromPreview,
   unwrap,
@@ -115,7 +116,10 @@ export function createMobileSyncAdapter(
     const game = snapshot.config.games.find((item) => item.id === projectId)
     const root = snapshot.roots.find((item) => item.rootId === game?.rootId)
     if (!root || root.authorization !== 'granted') {
-      throw new Error('存档目录权限已失效，请到目录设置重新选择。')
+      throw new OperationFailure(
+        'authorization-expired',
+        'Save directory permission expired. Select the directory again in Game settings.',
+      )
     }
     return root
   }
@@ -123,7 +127,7 @@ export function createMobileSyncAdapter(
     const snapshot = await library.read()
     const peer = snapshot.peers.find((item) => item.device.id === deviceId)
     if (!peer) {
-      throw new Error('请连接这个游戏关联的设备。')
+      throw new OperationFailure('session-mismatch', 'Connect to the device linked to this game.')
     }
     return unwrap(resolveSyncProjectBinding(snapshot.config, snapshot.roots, peer, projectId))
   }
@@ -150,7 +154,7 @@ export function createMobileSyncAdapter(
         ? await dependencies.requestNotifications()
         : unwrap(await androidTransfers.requestNotifications())
       if (!isPermitted) {
-        throw new Error('请允许传输通知后重试。')
+        throw new OperationFailure('permission-denied', 'Allow transfer notifications and retry.')
       }
       if (
         !matchesSyncProjectBinding(
@@ -158,7 +162,10 @@ export function createMobileSyncAdapter(
           await binding(expected.projectId, expected.remoteDeviceId),
         )
       ) {
-        throw new Error('项目或目录关联已变化，请重新扫描并确认。')
+        throw new OperationFailure(
+          'task-conflict',
+          'The project or directory link changed. Scan and confirm again.',
+        )
       }
       return unwrap(await copies.execute(id, syncPlanFromPreview(preview)))
     },
@@ -233,7 +240,10 @@ export function createMobileSyncAdapter(
       const state = unwrap(await writes.query(id))
       const root = await local(state.projectId)
       if (root.rootId !== state.rootId) {
-        throw new Error('项目目录已变化，请重新预览备份。')
+        throw new OperationFailure(
+          'task-conflict',
+          'The project directory changed. Preview the backup again.',
+        )
       }
       return unwrap(await writes.execute(id, unwrap(await writes.preview(id))))
     },

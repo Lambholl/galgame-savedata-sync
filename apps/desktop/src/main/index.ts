@@ -2,6 +2,8 @@ import { app, BrowserWindow, dialog, ipcMain, nativeTheme } from 'electron'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { mkdir, realpath } from 'node:fs/promises'
+import { createTranslator, resolveLocale } from '@savedata-sync/shared'
+import type { Translate } from '@savedata-sync/shared'
 import { createDirectoryAdapter } from './directory-adapter.ts'
 import { isTrustedDirectorySender, registerDirectoryIpc } from './directory-ipc.ts'
 import { toDirectoryError } from './directory-errors.ts'
@@ -26,6 +28,14 @@ const trustedWindows = new Set<number>()
 const rendererUrl = process.env.ELECTRON_RENDERER_URL
 const rendererFileUrl = new URL('../renderer/index.html', import.meta.url)
 const expectedRendererUrl = rendererUrl ? new URL(rendererUrl).href : rendererFileUrl.href
+let preferencesStore: AppPreferencesStore | null = null
+
+/** 原生窗口与系统弹窗每次按已保存偏好取文案；配置未读到时跟随系统。 */
+function getT(): Translate {
+  return createTranslator(
+    resolveLocale(preferencesStore?.get().locale ?? 'system', app.getPreferredSystemLanguages()),
+  )
+}
 
 function createWindow(): void {
   const getBackgroundColor = (): string => (nativeTheme.shouldUseDarkColors ? '#000000' : '#f5f5f5')
@@ -34,7 +44,7 @@ function createWindow(): void {
     height: 760,
     minWidth: 720,
     minHeight: 520,
-    title: '存档同步',
+    title: getT()('app.name'),
     icon: appIcon,
     backgroundColor: getBackgroundColor(),
     webPreferences: {
@@ -58,7 +68,8 @@ function createWindow(): void {
     : window.loadFile(fileURLToPath(new URL('../renderer/index.html', import.meta.url)))
   loading.catch((error: unknown) => {
     console.error('Failed to load desktop renderer', error)
-    dialog.showErrorBox('启动失败', '无法加载应用界面，请检查构建结果。')
+    const t = getT()
+    dialog.showErrorBox(t('app.loadUiFailedTitle'), t('app.loadUiFailed'))
   })
 }
 
@@ -91,12 +102,16 @@ if (hasInstanceLock) {
                 (game) => game.id === plan.projectId && game.rootId === plan.target.rootId,
               )
           ) {
-            throw new HttpOperationError('permission-denied', '目标目录与本机项目配置不符。')
+            throw new HttpOperationError(
+              'permission-denied',
+              'The target directory does not match the local project configuration.',
+            )
           }
         },
       })
       const preferences = new AppPreferencesStore(join(privateDirectory, 'app-preferences.json'))
       await preferences.load()
+      preferencesStore = preferences
       // themeSource 同时决定原生窗口背景和渲染页的 prefers-color-scheme。
       nativeTheme.themeSource = preferences.get().theme
       app.once(
@@ -119,7 +134,10 @@ if (hasInstanceLock) {
         sync: { writer: syncWriter, backups, archive },
         authorizeTarget: async (rootId) => {
           if (!library.snapshot().config.games.some((game) => game.rootId === rootId)) {
-            throw new HttpOperationError('permission-denied', '接收目录未配置到游戏。')
+            throw new HttpOperationError(
+              'permission-denied',
+              'The receive directory is not configured for a game.',
+            )
           }
           await publisher.grant(rootId)
         },
@@ -181,12 +199,14 @@ if (hasInstanceLock) {
           .catch((error: unknown) => {
             isClosing = false
             console.error('Failed to release desktop resources', toHttpError(error).operationError)
-            dialog.showErrorBox('退出清理失败', '无法释放缓存或候选文件，请检查权限后重试退出。')
+            const t = getT()
+            dialog.showErrorBox(t('app.cleanupFailedTitle'), t('app.cleanupFailed'))
           })
       })
       const disposeDirectoryIpc = registerDirectoryIpc(ipcMain, adapter, {
         choosePath: async () => {
           const result = await dialog.showOpenDialog({
+            title: getT()('game.chooseFolder'),
             properties: ['openDirectory', 'dontAddToRecent'],
           })
           return result.canceled ? null : (result.filePaths[0] ?? null)
@@ -201,7 +221,7 @@ if (hasInstanceLock) {
           isTrustedDirectorySender(event, trustedWindows, expectedRendererUrl),
         chooseTargetPath: async () => {
           const result = await dialog.showOpenDialog({
-            title: '选择存档目录',
+            title: getT()('game.chooseFolder'),
             properties: ['openDirectory', 'dontAddToRecent'],
           })
           const path = result.canceled ? null : (result.filePaths[0] ?? null)
@@ -224,7 +244,8 @@ if (hasInstanceLock) {
         'Failed to initialize desktop application',
         toDirectoryError(error).operationError,
       )
-      dialog.showErrorBox('初始化失败', '无法读取目录配置，请检查应用数据与权限。')
+      const t = getT()
+      dialog.showErrorBox(t('app.initializeFailedTitle'), t('app.initializeFailed'))
       app.exit(1)
     })
 }
