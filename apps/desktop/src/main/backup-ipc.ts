@@ -46,12 +46,34 @@ export function registerBackupIpc(
             )
           }
           value = await store.setDefaults((input as { policy: SyncBackupPolicy }).policy)
+        } else if (action === 'deleteGameBackups') {
+          const input = args[0]
+          if (
+            args.length !== 1 ||
+            typeof input !== 'object' ||
+            input === null ||
+            Array.isArray(input) ||
+            Object.keys(input).length !== 1 ||
+            !isOpaqueId((input as Record<string, unknown>).projectId)
+          ) {
+            throw new HttpOperationError('invalid-request', 'The game reference is invalid.')
+          }
+          if (hasRunningWork()) {
+            throw new HttpOperationError(
+              'busy',
+              'Wait for the current file operation to finish before removing a game.',
+            )
+          }
+          await store.deleteGameBackups((input as { projectId: string }).projectId)
+          value = null
         } else {
           const input = args[0]
           const fields = [
             'projectId',
             'rootId',
-            ...(action === 'manifest' || action === 'cleanupIncomplete' ? ['backupId'] : []),
+            ...(action === 'manifest' || action === 'cleanupIncomplete' || action === 'deleteBackup'
+              ? ['backupId']
+              : []),
             ...(action === 'setPreference' ? ['policy'] : []),
           ]
           if (
@@ -74,7 +96,8 @@ export function registerBackupIpc(
           }
           if (
             (action === 'setPreference' && hasTargetOperation()) ||
-            ((action === 'rotate' || action === 'cleanupIncomplete') && hasRunningWork())
+            ((action === 'rotate' || action === 'cleanupIncomplete' || action === 'deleteBackup') &&
+              hasRunningWork())
           ) {
             throw new HttpOperationError(
               'busy',
@@ -103,6 +126,9 @@ export function registerBackupIpc(
             value = null
           } else if (action === 'cleanupIncomplete') {
             await store.cleanupIncomplete(data.projectId, data.rootId, data.backupId as string)
+            value = null
+          } else if (action === 'deleteBackup') {
+            await store.deleteBackup(data.projectId, data.rootId, data.backupId as string)
             value = null
           } else {
             const listing = await store.list(data.projectId, data.rootId)

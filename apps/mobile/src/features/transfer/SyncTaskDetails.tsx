@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Button } from 'antd-mobile'
 import { ReloadOutlined, StopOutlined } from '@ant-design/icons'
-import { toShownError } from '@savedata-sync/shared'
+import { observeSyncJob, toShownError } from '@savedata-sync/shared'
 import type { LibraryGame, LibraryPeer, ShownError } from '@savedata-sync/shared'
 import { SyncTaskSummary, useT } from '@savedata-sync/shared/ui'
 import { useFailureMessage } from '../../app/failure-message'
@@ -32,6 +32,7 @@ export function SyncTaskDetails({
   projectId,
   sync,
   copy,
+  isLoading,
   restore,
   games,
   peers,
@@ -43,6 +44,8 @@ export function SyncTaskDetails({
   readonly projectId: string | null
   readonly sync: MobileSyncAdapter
   readonly copy: MobileCopyDetails | null
+  /** 这款游戏的记录还没读到，此时不能说它没有记录。 */
+  readonly isLoading: boolean
   readonly restore: MobileRestoreDetails | null
   readonly games: readonly LibraryGame[]
   readonly peers: readonly LibraryPeer[]
@@ -72,7 +75,9 @@ export function SyncTaskDetails({
   const binding = copy?.preview.binding
   const game = games.find((item) => item.id === binding?.projectId)
   const peer = peers.find((item) => item.device.id === binding?.remoteDeviceId)
-  const isRunning = state?.local.status === 'running' || state?.remote?.status === 'running'
+  const isRunning =
+    state &&
+    observeSyncJob(state.local, state.remote, state.remoteError !== null).phase === 'running'
   const phoneEnd: PlanEndpoint = { name: t('transfer.local'), kind: 'phone' }
   const pcEnd: PlanEndpoint = { name: peer?.device.name ?? t('common.unknown'), kind: 'pc' }
   const isUpload = copy?.preview.direction === 'android-to-windows'
@@ -88,12 +93,18 @@ export function SyncTaskDetails({
       {!copy && !restore && failure && (
         <div className="empty-state">
           <p>{t('task.readFailed')}</p>
-          <Button size="small" disabled={isBusy} onClick={() => act(() => sync.currentCopy(true))}>
+          <Button
+            size="small"
+            disabled={isBusy}
+            onClick={() =>
+              act(() => (projectId ? sync.latestCopy(projectId, true) : sync.currentCopy(true)))
+            }
+          >
             {t('common.retry')}
           </Button>
         </div>
       )}
-      {!copy && !restore && !failure && (
+      {!copy && !restore && !failure && !isLoading && (
         <p className="notice">
           {projectId
             ? `${games.find((item) => item.id === projectId)?.name ?? t('common.unknown')} · ${t('game.noTask')}`

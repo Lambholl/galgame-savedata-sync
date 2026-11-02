@@ -15,6 +15,8 @@ import type { DesktopCopySummary, DesktopRestoreSummary } from '../../../bridge/
 export interface DesktopSnapshot {
   readonly warning: string | null
   readonly config: LibraryConfig
+  /** 本机系统名称；读取失败时为 null，界面留空。 */
+  readonly deviceName: string | null
   readonly peers: readonly LibraryPeer[]
   readonly roots: readonly DirectoryReference[]
   readonly service: {

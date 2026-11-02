@@ -5,7 +5,7 @@ import antdJaJP from 'antd/locale/ja_JP'
 import antdZhCN from 'antd/locale/zh_CN'
 import antdZhTW from 'antd/locale/zh_TW'
 import type { Locale } from 'antd/es/locale'
-import { designTheme, useLocale, useT } from '@savedata-sync/shared/ui'
+import { DESIGN_BUTTON, designTheme, useLocale, useT } from '@savedata-sync/shared/ui'
 import { APP_VERSION } from '@savedata-sync/shared'
 import type { AppLocale } from '@savedata-sync/shared'
 import {
@@ -60,7 +60,11 @@ export function DesktopShell({
   const t = useT()
   const locale = useLocale()
   return (
-    <ConfigProvider locale={ANTD_LOCALES[locale]} theme={designTheme(resolvedTheme, 'desktop')}>
+    <ConfigProvider
+      locale={ANTD_LOCALES[locale]}
+      theme={designTheme(resolvedTheme, 'desktop')}
+      button={DESIGN_BUTTON}
+    >
       <div className={`library-app library-desktop ${isDark ? 'library-dark' : ''}`}>
         <aside className="library-sidebar">
           <div className="library-brand">

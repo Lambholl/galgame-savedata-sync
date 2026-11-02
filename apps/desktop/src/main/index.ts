@@ -19,6 +19,7 @@ import { createWindowsBackupStore } from './backup-store.ts'
 import { registerBackupIpc } from './backup-ipc.ts'
 import { WindowsSyncWriter } from './sync-writer.ts'
 import { WindowsRestoreRegistry } from './restore-registry.ts'
+import { InterruptedWriteStore } from './interrupted-writes.ts'
 import { registerSyncIpc } from './sync-ipc.ts'
 import { AppPreferencesStore } from './preferences-store.ts'
 import { registerPreferencesIpc } from './preferences-ipc.ts'
@@ -112,7 +113,9 @@ if (hasInstanceLock) {
       initializationStage = 'backups'
       const backups = await createWindowsBackupStore(adapter, privateDirectory)
       initializationStage = 'sync-writer'
+      const interruptedWrites = new InterruptedWriteStore(privateDirectory)
       const syncWriter = new WindowsSyncWriter(adapter, backups, {
+        interruptedWrites,
         authorize: (plan) => {
           if (
             !library
@@ -172,7 +175,7 @@ if (hasInstanceLock) {
       })
       app.once(
         'will-quit',
-        registerSyncIpc(ipcMain, httpService, restores, (event) =>
+        registerSyncIpc(ipcMain, httpService, restores, interruptedWrites, (event) =>
           isTrustedDirectorySender(event, trustedWindows, expectedRendererUrl),
         ),
       )

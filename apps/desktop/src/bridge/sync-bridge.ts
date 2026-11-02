@@ -1,36 +1,47 @@
 import {
   BATCH_LIMITS,
+  isBackupKeepCount,
+  isInterruptedWriteList,
   isOpaqueId,
   isOperationError,
   isOperationResult,
   isSyncApplyResult,
   isSyncJobRequest,
-  isSyncJobState,
   isSyncPlan,
+  isSyncTransferState,
   matchesSyncApplyResult,
+  matchesSyncJobDigest,
   matchesSyncJobManifest,
   matchesSyncJobState,
   matchesSyncPlan,
 } from '@savedata-sync/shared'
 import type {
   BatchManifest,
+  InterruptedWrite,
   OperationError,
   OperationResult,
   SyncApplyResult,
+  SyncJobObservation,
   SyncJobRequest,
   SyncJobState,
   SyncPlan,
+  SyncTransferState,
 } from '@savedata-sync/shared'
 
-/** 列表仅含有界摘要；计划、清单及逐项结果分别读取，避免轮询合并大响应。 */
+/**
+ * 列表仅含有界摘要；计划、清单及逐项结果分别读取，避免轮询合并大响应。
+ * phase 到 percent 是主进程合成两个角色的结果，详情、横条、历史和完成提示读同一份。
+ */
 export interface DesktopCopySummary {
   readonly jobId: string
   readonly projectId: string
   readonly peerId: string
   readonly direction: SyncJobState['direction']
   readonly role: SyncJobState['role']
-  readonly status: SyncJobState['status']
-  readonly stage: SyncJobState['stage']
+  readonly phase: SyncJobObservation['phase']
+  readonly stage: SyncJobObservation['stage']
+  readonly step: SyncJobObservation['step']
+  readonly percent: SyncJobObservation['percent']
   readonly updatedAt: number
   readonly hasCleanupError: boolean
 }
@@ -79,6 +90,8 @@ export interface DesktopRemoteRequest {
     | 'cancelled'
   readonly jobId: string | null
   readonly error: OperationError | null
+  /** 手机回报的计划里，被写入一端的保留份数；还没回报时为 null。 */
+  readonly backupKeepCount: number | null
   readonly updatedAt: number
 }
 /** 本机查看/取消既有复制及手工恢复，并向已连接手机发起复制；不提供路径、文件字节或通用 IPC。 */
@@ -86,8 +99,9 @@ export interface DesktopSyncApi {
   activity(): Promise<OperationResult<boolean>>
   copies(): Promise<OperationResult<readonly DesktopCopySummary[]>>
   copyPlan(jobId: string): Promise<OperationResult<SyncJobRequest>>
-  copyState(jobId: string): Promise<OperationResult<SyncJobState>>
-  cancelCopy(jobId: string): Promise<OperationResult<SyncJobState>>
+  /** 本机和对端两个角色的状态；对端结果还没确认时 remote 为进行中或 remoteError 非空。 */
+  copyState(jobId: string): Promise<OperationResult<SyncTransferState>>
+  cancelCopy(jobId: string): Promise<OperationResult<SyncTransferState>>
   cleanupCopy(jobId: string): Promise<OperationResult<null>>
   restores(): Promise<OperationResult<readonly DesktopRestoreSummary[]>>
   prepareRestore(
@@ -113,6 +127,9 @@ export interface DesktopSyncApi {
   remotePlan(requestId: string): Promise<OperationResult<SyncPlan>>
   confirmRemote(requestId: string): Promise<OperationResult<DesktopRemoteRequest>>
   cancelRemote(requestId: string): Promise<OperationResult<DesktopRemoteRequest>>
+  /** 上个进程没写完就结束时留下的写入标记，不含正在进行的写入。 */
+  interruptedWrites(): Promise<OperationResult<readonly InterruptedWrite[]>>
+  dismissInterruptedWrite(id: string): Promise<OperationResult<null>>
 }
 export const SYNC_CHANNELS = {
   activity: 'sync:activity',
@@ -135,6 +152,8 @@ export const SYNC_CHANNELS = {
   remotePlan: 'sync:remote-plan',
   confirmRemote: 'sync:remote-confirm',
   cancelRemote: 'sync:remote-cancel',
+  interruptedWrites: 'sync:interrupted-writes',
+  dismissInterruptedWrite: 'sync:interrupted-write-dismiss',
 } as const
 
 function shape(value: unknown, fields: readonly string[]): value is Record<string, unknown> {
@@ -161,8 +180,10 @@ const COPY_FIELDS = [
   'peerId',
   'direction',
   'role',
-  'status',
+  'phase',
   'stage',
+  'step',
+  'percent',
   'updatedAt',
   'hasCleanupError',
 ]
@@ -195,13 +216,13 @@ export function isDesktopCopySummary(value: unknown): value is DesktopCopySummar
     [value.jobId, value.projectId, value.peerId].every(isOpaqueId) &&
     member(value.direction, ['android-to-windows', 'windows-to-android']) &&
     value.role === (value.direction === 'android-to-windows' ? 'receiver' : 'sender') &&
-    member(value.status, ['running', 'sent', 'succeeded', 'failed', 'cancelled', 'unknown']) &&
+    member(value.phase, ['running', 'done', 'partial', 'failed', 'cancelled', 'unknown']) &&
     member(value.stage, COPY_STAGES) &&
+    (value.step === null || count(value.step, 5)) &&
+    (value.percent === null || count(value.percent, 100)) &&
     time(value.updatedAt) &&
     typeof value.hasCleanupError === 'boolean' &&
-    (value.status === 'running' ? value.stage !== 'done' : value.stage === 'done') &&
-    (value.status !== 'sent' || value.role === 'sender') &&
-    (value.status !== 'succeeded' || value.role === 'receiver')
+    (value.phase === 'running' ? value.stage !== 'done' : value.stage === 'done')
   )
 }
 function restoreSummary(value: Record<string, unknown>): boolean {
@@ -247,8 +268,10 @@ export function isDesktopRemoteRequest(value: unknown): value is DesktopRemoteRe
       'status',
       'jobId',
       'error',
+      'backupKeepCount',
       'updatedAt',
     ]) &&
+    (value.backupKeepCount === null || isBackupKeepCount(value.backupKeepCount)) &&
     [value.requestId, value.projectId, value.peerId].every(isOpaqueId) &&
     member(value.direction, ['android-to-windows', 'windows-to-android']) &&
     member(value.status, [
@@ -395,14 +418,19 @@ export function createSyncBridge(
   async function copyState(
     action: 'copyState' | 'cancelCopy',
     jobId: string,
-  ): Promise<OperationResult<SyncJobState>> {
+  ): Promise<OperationResult<SyncTransferState>> {
     if (!isOpaqueId(jobId)) {
       return failure()
     }
-    const result = await call(action, [{ jobId }], isSyncJobState)
+    const result = await call(
+      action,
+      [{ jobId }],
+      (value): value is SyncTransferState => isSyncTransferState(value) && value.jobId === jobId,
+    )
     if (result.status === 'error') {
       return result
     }
+    const { local, remote } = result.value
     const cached = plans.get(jobId)
     const context = cached ? { status: 'success' as const, value: cached } : await copyPlan(jobId)
     if (context.status === 'error') {
@@ -412,7 +440,7 @@ export function createSyncBridge(
     let manifest = manifests.get(jobId) ?? null
     if (
       request.plan.transferFileCount > 0 &&
-      result.value.progress.totalArchiveBytes !== null &&
+      local.progress.totalArchiveBytes !== null &&
       !manifest
     ) {
       const declaration = await call(
@@ -426,13 +454,17 @@ export function createSyncBridge(
       manifest = declaration.value
       remember(manifests, jobId, manifest)
     }
-    return result.value.role ===
+    // 对端的清单主进程已核对过；这里只核对它属于本次任务，手机可能比本机更早知道压缩体大小。
+    return local.role ===
       (request.plan.direction === 'android-to-windows' ? 'receiver' : 'sender') &&
       matchesSyncJobState(
-        result.value,
+        local,
         request,
-        result.value.progress.totalArchiveBytes === null ? null : manifest,
-      )
+        local.progress.totalArchiveBytes === null ? null : manifest,
+      ) &&
+      (remote === null ||
+        (matchesSyncJobDigest(remote, request, local.role) &&
+          (remote.result === null || matchesSyncApplyResult(remote.result, request.plan))))
       ? result
       : failure()
   }
@@ -539,7 +571,8 @@ export function createSyncBridge(
         [],
         (value): value is readonly DesktopCopySummary[] =>
           Array.isArray(value) &&
-          value.length <= 32 &&
+          // 32 个已登记任务，加一个已确认、手机还没登记的任务。
+          value.length <= 33 &&
           value.every(isDesktopCopySummary) &&
           new Set(value.map((item) => item.jobId)).size === value.length,
       ),
@@ -626,5 +659,10 @@ export function createSyncBridge(
         : Promise.resolve(failure()),
     confirmRemote: (requestId: string) => remoteAction('confirmRemote', requestId),
     cancelRemote: (requestId: string) => remoteAction('cancelRemote', requestId),
+    interruptedWrites: () => call('interruptedWrites', [], isInterruptedWriteList),
+    dismissInterruptedWrite: (id: string) =>
+      isOpaqueId(id)
+        ? call('dismissInterruptedWrite', [{ id }], (value): value is null => value === null)
+        : Promise.resolve(failure()),
   })
 }

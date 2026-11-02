@@ -10,9 +10,9 @@ import { useLocale, useT } from '../i18n/i18n-context.ts'
 import { OutcomeList } from './OutcomeList.tsx'
 import { unsettledOutcomes } from './outcomes.ts'
 import { ProgressRing, Verdict, type VerdictTone } from './TaskHero.tsx'
-import { presentSyncTask } from './task-presentation.ts'
+import { observeSyncJob } from '../../sync/sync-job-observation.ts'
+import type { SyncTaskPhase } from '../../sync/sync-job-observation.ts'
 import { TaskSteps } from './TaskSteps.tsx'
-import type { SyncTaskPhase } from './task-presentation.ts'
 import './sync-task-summary.css'
 
 /** SyncTaskSummary 的参数。 */
@@ -36,8 +36,6 @@ export interface SyncTaskSummaryProps {
    * 传输结束后显示为技术详情上方可点的一行，进行中不显示。
    */
   readonly onViewBackup: (() => void) | null
-  /** 任务观察接口提供的失败阶段；没有记录时仍显示步骤条，但不标出具体出错位置。 */
-  readonly failureStage?: SyncJobState['stage'] | null
   /** 由平台包装的技术详情卡片，负责复制、长按和展开状态。 */
   readonly renderTechnicalDetails: (text: string) => ReactNode
 }
@@ -55,7 +53,6 @@ export function SyncTaskSummary({
   remoteError,
   onRetryCleanup,
   onViewBackup,
-  failureStage = null,
   renderTechnicalDetails,
 }: SyncTaskSummaryProps): ReactElement {
   const t = useT()
@@ -66,25 +63,13 @@ export function SyncTaskSummary({
   const outcomes = result?.outcomes ?? []
   const succeeded = outcomes.filter((item) => item.status === 'succeeded')
   const unsettled = unsettledOutcomes(outcomes)
-  const { phase, leading, step, percent } = presentSyncTask(local, remote, failureStage)
+  const { phase, stage, step, percent, counters } = observeSyncJob(
+    local,
+    remote,
+    remoteError !== null,
+  )
   const error = result?.error ?? states.find((item) => item.error)?.error ?? null
-  const cleanupError = result?.cleanupError ?? local.cleanupError
-  const files = leading.progress
-  const isVerifying = leading.stage === 'verifying'
-  const isNetwork =
-    leading.stage === 'transferring' ||
-    leading.stage === 'awaiting-content' ||
-    leading.stage === 'ready'
-  const hasFileCounter = isVerifying || leading.stage === 'writing'
-  const completedFiles = isVerifying ? files.verifiedFiles : files.publishedFiles
-  const completedBytes = isVerifying
-    ? files.fileBytesVerified
-    : isNetwork
-      ? files.archiveBytesTransferred
-      : leading.stage === 'preparing'
-        ? files.sourceBytesRead
-        : files.fileBytesPublished
-  const totalBytes = isNetwork ? files.totalArchiveBytes : files.totalFileBytes
+  const cleanupError = result?.cleanupError ?? local.cleanupError ?? remote?.cleanupError ?? null
   const technicalText = [
     `${t('task.techTask')} ${local.jobId}`,
     `${t('task.techLocal')} ${local.role}/${local.status}/${local.stage}`,
@@ -102,13 +87,17 @@ export function SyncTaskSummary({
   if (phase === 'running') {
     hero = (
       <>
-        <ProgressRing percent={percent} label={t(`task.stage.${leading.stage}`)} />
-        {percent !== null && files.totalFiles > 0 && (
+        <ProgressRing percent={percent} label={t(`task.stage.${stage}`)} />
+        {percent !== null && counters.totalFiles > 0 && (
           <p>
-            {hasFileCounter && (
-              <>{t('task.files', { done: completedFiles, total: files.totalFiles })} · </>
+            {counters.completedFiles !== null && (
+              <>
+                {t('task.files', { done: counters.completedFiles, total: counters.totalFiles })}{' '}
+                ·{' '}
+              </>
             )}
-            {formatBytes(completedBytes)} / {totalBytes === null ? '—' : formatBytes(totalBytes)}
+            {formatBytes(counters.completedBytes)} /{' '}
+            {counters.totalBytes === null ? '—' : formatBytes(counters.totalBytes)}
           </p>
         )}
       </>
@@ -127,7 +116,12 @@ export function SyncTaskSummary({
     let detail: ReactNode = null
     if (phase === 'done') {
       const written = t('task.doneDetail', { count: succeeded.length })
-      detail = result?.backupId ? `${written} · ${t('task.backedUp')}` : written
+      // 数量读不到时仍说已备份，这是确知的。
+      const backedUp =
+        typeof result?.backupFileCount === 'number'
+          ? t('task.backedUpCount', { count: result.backupFileCount })
+          : t('task.backedUp')
+      detail = result?.backupId ? `${written} · ${backedUp}` : written
     } else if (phase === 'partial') {
       detail = t('task.partialDetail', { ok: succeeded.length, failed: unsettled.length })
     } else if (phase === 'failed') {

@@ -2,6 +2,7 @@ import type { IpcMain, IpcMainInvokeEvent } from 'electron'
 import { BATCH_LIMITS, isOpaqueId } from '@savedata-sync/shared'
 import { SYNC_CHANNELS } from '../bridge/sync-bridge.ts'
 import type { WindowsHttpService } from './http-service.ts'
+import type { InterruptedWriteStore } from './interrupted-writes.ts'
 import type { WindowsRestoreRegistry } from './restore-registry.ts'
 import { HttpOperationError, toHttpError } from './http-errors.ts'
 
@@ -36,6 +37,7 @@ export function registerSyncIpc(
   ipc: Pick<IpcMain, 'handle' | 'removeHandler'>,
   service: WindowsHttpService,
   restores: WindowsRestoreRegistry,
+  interruptedWrites: InterruptedWriteStore,
   isTrusted: (event: IpcMainInvokeEvent) => boolean,
 ): () => void {
   let isMutating = false
@@ -83,6 +85,14 @@ export function registerSyncIpc(
                 : action === 'remoteRequest'
                   ? service.remoteSyncRequest()
                   : service.hasWork()
+        } else if (action === 'interruptedWrites') {
+          if (args.length) {
+            throw new HttpOperationError('invalid-request', 'Task list parameters are invalid.')
+          }
+          value = await interruptedWrites.list()
+        } else if (action === 'dismissInterruptedWrite') {
+          await interruptedWrites.dismiss(input(args, ['id']).id as string)
+          value = null
         } else if (action === 'startRemote') {
           const data = input(args, ['projectId', 'peerId', 'direction'])
           value = service.startRemoteSync(
@@ -140,7 +150,7 @@ export function registerSyncIpc(
           } else if (action === 'copyManifest') {
             value = service.syncCopyManifest(id)
           } else if (action === 'cancelCopy') {
-            value = service.cancelSyncCopy(id)
+            value = await service.cancelSyncCopy(id)
           } else {
             await service.cleanupSyncCopy(id)
             value = null

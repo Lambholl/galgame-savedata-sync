@@ -19,13 +19,13 @@ related_files: []
 
 ## 1. 当前模块
 
-M-001 已完成：工程基础设施、共享模型、双端目录/归档/发布/HTTP、通知保持和独立界面均已可用，目标真机组合与满额 1 GiB 双向资源验收通过。M-002 的覆盖复制、备份与恢复模块和双端界面已完成，还差 WP-029 总体验收；后续顺序见[路线图](../project/roadmap.md)与[工作包](work-packages.md)。
+M-001 已完成：工程基础设施、共享模型、双端目录/归档/发布/HTTP、通知保持和独立界面均已可用，目标真机组合与满额 1 GiB 双向资源验收通过。M-002 的覆盖复制、备份与恢复模块和双端界面已完成，WP-029 总体验收等用户确认结论；后续顺序见[路线图](../project/roadmap.md)与[工作包](work-packages.md)。
 
 | 模块 | 状态 | 负责人 | 相关文件 | 风险 | 下一步 |
 | --- | --- | --- | --- | --- | --- |
 | 四语言界面、错误与原生通知 | done | 开发 | shared i18n/result/ui、双端 app/features/platform、desktop main、Android Java/res | Android 通知语言切换尚未真机复核；本轮按要求未连接 adb | pnpm check、共享 25/桌面 33/移动 7 项、60 个桌面文件 antd lint、Android 构建/27 项单元测试/lint/测试 APK 通过；双端四语言浏览器预览和 APK 四语言资源已核对 |
-| Android 确认执行、结果与本机恢复界面 | done | 开发 | mobile sync-adapter、SyncCopy/Plan/Task/Backup 页面、useSyncTasks、SyncWrites/BackupsPlugin | 双向执行仍由原生持有；发送完成与目标成功分开；真实存档开放仍待总体验收 | 平台绑定/通知变化等 6 组和实际 API 33 界面 11 组通过，含双向覆盖、恢复/关闭设置、重载恢复、失败/取消、64 MiB 通知保持与切出返回完整哈希；既有套件、工程和 Android 检查通过；合成数据已清理，移动尺寸调整已随 7ef20c6 提交 |
-| Windows 计划、结果与本机恢复界面 | done | 开发 | restore-registry、sync-ipc/bridge、preload、备份/任务页、platform/sync-adapter | 电脑发起复制（CR-012、CR-013）已真机验证；进程重启不恢复任务，备份/配置保留；真实存档开放仍待总体验收 | 原生实际恢复、有限 IPC、新桥/刷新恢复、清理失败/部分/未知结果、实际 Electron 的备份关闭/恢复确认/扫描失败/重扫/取消和明暗主题检查通过；电脑端发起已实现并迁到 WebSocket 控制通道（CR-013），pnpm check、android:build 和 2026-10-31 真机验证通过 |
+| Android 确认执行、结果与本机恢复界面 | done | 开发 | mobile sync-adapter、SyncCopy/Plan/Task/Backup 页面、useSyncTasks、SyncWrites/BackupsPlugin | 双向执行仍由原生持有；发送完成与目标成功分开；真实存档开放等用户确认总体验收结论 | 平台绑定/通知变化等 6 组和实际 API 33 界面 11 组通过，含双向覆盖、恢复/关闭设置、重载恢复、失败/取消、64 MiB 通知保持与切出返回完整哈希；既有套件、工程和 Android 检查通过；合成数据已清理，移动尺寸调整已随 7ef20c6 提交 |
+| Windows 计划、结果与本机恢复界面 | done | 开发 | restore-registry、sync-ipc/bridge、preload、备份/任务页、platform/sync-adapter | 电脑发起复制（CR-012、CR-013）已真机验证；进程重启不恢复任务，备份/配置保留；真实存档开放等用户确认总体验收结论 | 原生实际恢复、有限 IPC、新桥/刷新恢复、清理失败/部分/未知结果、实际 Electron 的备份关闭/恢复确认/扫描失败/重扫/取消和明暗主题检查通过；电脑端发起已实现并迁到 WebSocket 控制通道（CR-013），pnpm check、android:build 和 2026-10-31 真机验证通过 |
 | Windows 分发包 | done | 开发 | apps/desktop/electron-builder.json、scripts/package-windows.mjs、双层 package.json、pnpm-lock.yaml | 当前未配置代码签名；使用已编译资源与隔离的最小应用清单 | 桌面资源编译及 electron-builder x64 安装版/免安装版打包成功，产物位于 apps/desktop/release；新增依赖 npm 审计通过；安装运行由用户验收 |
 | 正式设备/游戏/设置界面 | done | 开发 | apps/mobile/src、apps/desktop/src/renderer/src、apps/shared、桌面 bridge 与 library-ipc/store | 一个游戏关联多台设备，首期仅一个连接；覆盖复制、写入前全量备份和本机恢复已接入；镜像删除仍留 M-004 | 双端独立界面、目录选择、复制/计划/详情及备份恢复页面已接入，跨端真机验收通过；旧 v1 批量接口仅新建文件 |
 | Android HTTP 与持续通知 | done | 开发 | TransferJson/Schema/Http/Engine、HttpTransfersPlugin、TransferRuntime/Service、SafRuntime、TS 桥及最小检查 | 全校验前不发布，sender sent 与 receiver 成功分开；应用级任务持有，Activity 暂停/销毁时任务继续，通知提供显式取消；任务只由用户发起，不调度或重放旧任务 | Java/TS 桥、lint/双 APK/互通及 TC-011 的正式 LAN、后台、重连、取消和外部内容属性核对通过；供 WP-007 界面复用 |
@@ -35,8 +35,8 @@ M-001 已完成：工程基础设施、共享模型、双端目录/归档/发布
 | 本地设备/目录共享模型 | done | 开发 | apps/shared/src/protocol/contracts.ts、validation.ts、protocol.ts | 纯 DTO 只描述数据；平台权限和实际 IO 由适配器处理 | 本地 DTO 与有限桥继续复用，传输使用独立批量模型 |
 | 共享批量模型 | done | 开发 | apps/shared/src/protocol/batch-*.ts、data-validation.ts、test、README.md | 处理数据与上下文；归档/JSON 解析、网络、发布和计时由其他模块负责 | v1 批量模型与稳定数据关系测试通过；供 HTTP、Java 归档和原生发布复用 |
 | 当前扫描与覆盖计划共享模型 | done | 开发 | apps/shared/src/sync、src/index.ts、README.md | 纯数据与确定比较；实际扫描/备份/写入、权限、会话及期限由平台包处理 | 快照/树关系、复制和本机恢复计划、备份格式/设置及实际结果守卫已实现；针对性运行、既有共享套件及工程检查通过；供 WP-018 至 WP-028 复用 |
-| Android → Windows 复制编排 | done | 开发 | shared sync jobs、Windows sync-registry/upload-body、Android SyncJobModel/SyncTransferEngine/Runtime/Plugin/Service、TS bridge | 原生、有限 API 和双端界面已接入；真实存档开放仍需 M-002 总体验收 | API 33 实际 SAF/LAN、完整备份/覆盖/跳过/保留、回执丢失/短暂查询恢复/关闭备份/目标变化/实际取消、源及手机保存配置不变已通过；回环/JVM 故障、原生心跳和新桥上下文核对通过；供 WP-027/WP-028 复用 |
-| Windows → Android 复制编排 | done | 开发 | Windows sync-registry/HTTP/source 归档、Android SyncTransferEngine/Runtime/Model、SyncWriter/BackupStore、TS bridge | 原生双向 API 和界面已接入；手机独立报告目标结果，总体验收留 WP-029 | API 33 实际 SAF/LAN 覆盖/备份关闭/跳过/保留、无文件和仅目录、回执丢失、损坏归档、取消、目标/设置变化、容量拒绝、清理保留及重试通过；正式插件/通知/实际传输切后台/Activity 重建及新桥查询、原文和配置恢复核对通过；Windows 单次发送/超时/源变化/清理与备份失败重试针对性验证通过 |
+| Android → Windows 复制编排 | done | 开发 | shared sync jobs、Windows sync-registry/upload-body、Android SyncJobModel/SyncTransferEngine/Runtime/Plugin/Service、TS bridge | 原生、有限 API 和双端界面已接入；真实存档开放等用户确认 M-002 总体验收结论 | API 33 实际 SAF/LAN、完整备份/覆盖/跳过/保留、回执丢失/短暂查询恢复/关闭备份/目标变化/实际取消、源及手机保存配置不变已通过；回环/JVM 故障、原生心跳和新桥上下文核对通过；供 WP-027/WP-028 复用 |
+| Windows → Android 复制编排 | done | 开发 | Windows sync-registry/HTTP/source 归档、Android SyncTransferEngine/Runtime/Model、SyncWriter/BackupStore、TS bridge | 原生双向 API 和界面已接入；手机独立报告目标结果，总体验收等用户确认 | API 33 实际 SAF/LAN 覆盖/备份关闭/跳过/保留、无文件和仅目录、回执丢失、损坏归档、取消、目标/设置变化、容量拒绝、清理保留及重试通过；正式插件/通知/实际传输切后台/Activity 重建及新桥查询、原文和配置恢复核对通过；Windows 单次发送/超时/源变化/清理与备份失败重试针对性验证通过 |
 | 固定项目映射与传输前复核 | done | 开发 | apps/shared/src/library/project-binding.ts、双端 library store/adapter/IPC | 配置/设备/目录 ID 固定到任务；实际扫描和写入仍由平台包处理 | 目录登记、通知后映射变化、改址/重启持久化及异设备拒绝场景通过；旧 HTTP 与持久配置格式保持，TransferRequest 调用方需提供 projectId |
 | Windows 独立备份与轮换 | done | 开发 | backup-store/files/ipc、backup-bridge、启动/preload、directory-adapter | 原生写入/恢复、Android 上传接收及桌面页面已复用材料 | 独立原文回读、最近 3 次及引用保护、新进程重启/设置、源变化/校验/写入失败/取消/超时关流/容量、残留和链接保护及有限 IPC 验证通过 |
 | Windows 受保护写入与恢复 | done | 开发 | sync-writer、sync-target-files、target-operation、directory-adapter、transfer-registry、restore-registry、启动 | 原生 API、HTTP 及本机恢复页面已接入；其他卷/名称和崩溃残留缺口沿用登记项 | 合成目录创建/覆盖/恢复、保护当前内容及目标独有条目、输入/目标变化、实际占用文件、权限/文件系统故障、取消/超时/部分/未知结果、容量和清理归属/互斥验证通过；有限桥与实际 Electron 恢复检查通过 |

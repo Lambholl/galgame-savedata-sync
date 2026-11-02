@@ -146,7 +146,7 @@ final class BackupStore implements AutoCloseable {
         ids(projectId, rootId); List<Round> rounds = rounds(); sort(rounds);
         List<Object> backups = new ArrayList<>(), incomplete = new ArrayList<>();
         for (Round round : rounds) if (group(round, projectId, rootId)) {
-            if (round.manifest == null) incomplete.add(round.id());
+            if (round.manifest == null) incomplete.add(object("backupId", round.id(), "occupiedBytes", occupied(round)));
             else {
                 long total = 0; List<Object> values = TransferJson.list(round.manifest.get("files"));
                 for (Object value : values) total += number(map(value).get("sizeBytes"), 0, BackupModel.MAX_FILE);
@@ -155,6 +155,14 @@ final class BackupStore implements AutoCloseable {
             }
         }
         return object("backups", backups, "incomplete", incomplete);
+    }
+    /** 一轮私有目录占用的字节数；读取失败时未知，由界面单独显示。 */
+    private Long occupied(Round round) {
+        try {
+            long total = 0;
+            for (Path path : names(round.path)) total += Files.readAttributes(path, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS).size();
+            return total;
+        } catch (Exception unknown) { return null; }
     }
     private static void sort(List<Round> rounds) {
         rounds.sort((a, b) -> Long.compare(b.manifest == null ? Long.MIN_VALUE : ((Number) b.manifest.get("createdAt")).longValue(),
@@ -339,6 +347,25 @@ final class BackupStore implements AutoCloseable {
         if (round.manifest != null) throw BackupFiles.failure("permission-denied");
         remove(round, true);
         if (pendingCleanup != null && pendingCleanup.path.equals(round.path) && Objects.equals(pendingCleanup.key, round.key)) pendingCleanup = null;
+    }
+    /** 用户明确删除一份已提交备份；正在用于恢复的备份由 remove 拒绝。删到一半失败时变成残留，可再清理。 */
+    synchronized void deleteBackup(String projectId, String rootId, String backupId) throws Exception {
+        Round round = find(projectId, rootId, backupId);
+        if (round.manifest == null) throw BackupFiles.failure("not-found");
+        remove(round, true);
+    }
+    /** 移除游戏时删除它在所有目录下的备份、残留和单独设置；中途失败时游戏保留，可以重试。 */
+    synchronized void deleteGameBackups(String projectId) throws Exception {
+        id(projectId);
+        for (Round round : rounds()) if (round.marker.get("projectId").equals(projectId)) {
+            remove(round, true);
+            if (pendingCleanup != null && pendingCleanup.path.equals(round.path) && Objects.equals(pendingCleanup.key, round.key)) pendingCleanup = null;
+        }
+        if (projectId.equals(pendingRotationProject)) { pendingRotationProject = null; pendingRotationRoot = null; }
+        Map<String, Object> settings = settings();
+        List<Object> values = new ArrayList<>(TransferJson.list(settings.get("projects")));
+        values.removeIf(value -> mapUnchecked(value).get("projectId").equals(projectId));
+        writeSettings(BackupModel.settings(object("schemaVersion", 2, "defaults", settings.get("defaults"), "projects", values)));
     }
     private void remove(Round round, boolean hasMarker) throws Exception {
         verifyRound(round, hasMarker); if (handles.containsValue(round.id())) throw BackupFiles.failure("busy");

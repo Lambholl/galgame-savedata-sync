@@ -1,5 +1,6 @@
 import {
   matchesSyncProjectBinding,
+  observeSyncJob,
   OperationFailure,
   resolveSyncProjectBinding,
   syncPlanFromPreview,
@@ -7,6 +8,7 @@ import {
 } from '@savedata-sync/shared'
 import type {
   DirectoryReference,
+  InterruptedWrite,
   SyncBackupPolicy,
   SyncBackupSettings,
   SyncPlan,
@@ -52,6 +54,8 @@ export interface MobileSyncAdapter {
   releasePreparation(id: string): Promise<void>
   execute(id: string): Promise<SyncTransferState>
   currentCopy(shouldRefresh?: boolean): Promise<MobileCopyDetails | null>
+  /** 这款游戏最近一次任务；进程内没有记录时返回 null。 */
+  latestCopy(projectId: string, shouldRefresh?: boolean): Promise<MobileCopyDetails | null>
   cancelCopy(id: string): Promise<void>
   cleanupCopy(): Promise<void>
   backups(projectId: string): Promise<MobileBackupDetails>
@@ -63,12 +67,18 @@ export interface MobileSyncAdapter {
   setBackupDefaults(policy: SyncBackupPolicy): Promise<void>
   rotateBackups(projectId: string): Promise<void>
   cleanupBackup(projectId: string, backupId: string): Promise<void>
+  deleteBackup(projectId: string, backupId: string): Promise<void>
+  /** 移除游戏时删除它的全部备份和单独设置，不需要游戏目录。 */
+  deleteGameBackups(projectId: string): Promise<void>
   prepareRestore(projectId: string, backupId: string): Promise<AndroidRestoreState>
   currentRestore(): Promise<MobileRestoreDetails | null>
   executeRestore(id: string): Promise<AndroidRestoreState>
   cancelRestore(id: string): Promise<void>
   releaseRestore(id: string): Promise<void>
   cleanupRestore(): Promise<void>
+  /** 上个进程没写完就结束时留下的写入标记。 */
+  interruptedWrites(): Promise<readonly InterruptedWrite[]>
+  dismissInterruptedWrite(id: string): Promise<void>
 }
 /** 默认使用真实原生桥；替换依赖只用于本包的临时集成验证。 */
 export interface MobileSyncDependencies {
@@ -80,8 +90,7 @@ export interface MobileSyncDependencies {
 
 function copyHasWork(state: SyncTransferState): boolean {
   return (
-    state.local.status === 'running' ||
-    state.remote?.status === 'running' ||
+    observeSyncJob(state.local, state.remote, state.remoteError !== null).phase === 'running' ||
     state.local.cleanupError !== null
   )
 }
@@ -111,6 +120,26 @@ export function createMobileSyncAdapter(
   const copies = dependencies?.copies ?? androidSyncTransfers
   const writes = dependencies?.writes ?? androidSyncWrites
   const backups = dependencies?.backups ?? androidBackups
+  async function copyDetails(
+    id: string | null,
+    shouldRefresh: boolean,
+  ): Promise<MobileCopyDetails | null> {
+    if (!id) {
+      return null
+    }
+    let state = unwrap(await copies.query(id, shouldRefresh))
+    // sender 的 sent 只表示发送完毕；目标仍在处理时继续只读查询同一个任务。
+    if (
+      !shouldRefresh &&
+      state.local.status !== 'running' &&
+      (state.remote?.status === 'running' ||
+        (state.local.status === 'sent' && state.remote === null))
+    ) {
+      state = unwrap(await copies.query(id, true))
+    }
+    const preview = unwrap(await copies.preview(id))
+    return { state, preview, plan: syncPlanFromPreview(preview) }
+  }
   async function local(projectId: string): Promise<DirectoryReference> {
     const snapshot = await library.read()
     const game = snapshot.config.games.find((item) => item.id === projectId)
@@ -170,22 +199,10 @@ export function createMobileSyncAdapter(
       return unwrap(await copies.execute(id, syncPlanFromPreview(preview)))
     },
     async currentCopy(shouldRefresh = false) {
-      const id = unwrap(await copies.current())
-      if (!id) {
-        return null
-      }
-      let state = unwrap(await copies.query(id, shouldRefresh))
-      // sender 的 sent 只表示发送完毕；目标仍在处理时继续只读查询同一个任务。
-      if (
-        !shouldRefresh &&
-        state.local.status !== 'running' &&
-        (state.remote?.status === 'running' ||
-          (state.local.status === 'sent' && state.remote === null))
-      ) {
-        state = unwrap(await copies.query(id, true))
-      }
-      const preview = unwrap(await copies.preview(id))
-      return { state, preview, plan: syncPlanFromPreview(preview) }
+      return copyDetails(unwrap(await copies.current()), shouldRefresh)
+    },
+    async latestCopy(projectId, shouldRefresh = false) {
+      return copyDetails(unwrap(await copies.latest(projectId)), shouldRefresh)
     },
     async cancelCopy(id) {
       unwrap(await copies.cancel(id))
@@ -218,6 +235,13 @@ export function createMobileSyncAdapter(
     async cleanupBackup(projectId, backupId) {
       const root = await local(projectId)
       unwrap(await backups.cleanupIncomplete(projectId, root.rootId, backupId))
+    },
+    async deleteBackup(projectId, backupId) {
+      const root = await local(projectId)
+      unwrap(await backups.deleteBackup(projectId, root.rootId, backupId))
+    },
+    async deleteGameBackups(projectId) {
+      unwrap(await backups.deleteGameBackups(projectId))
     },
     async prepareRestore(projectId, backupId) {
       const root = await local(projectId)
@@ -255,6 +279,12 @@ export function createMobileSyncAdapter(
     },
     async cleanupRestore() {
       unwrap(await writes.retryCleanup())
+    },
+    async interruptedWrites() {
+      return unwrap(await writes.interruptedWrites())
+    },
+    async dismissInterruptedWrite(id) {
+      unwrap(await writes.dismissInterruptedWrite(id))
     },
   }
 }

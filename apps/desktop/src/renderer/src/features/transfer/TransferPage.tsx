@@ -1,14 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Button, Modal } from 'antd'
 import { CaretRightOutlined, RightOutlined } from '@ant-design/icons'
-import { compareSnapshots, resolveBackupPolicy, toShownError, unwrap } from '@savedata-sync/shared'
+import { compareSnapshots, toShownError, unwrap } from '@savedata-sync/shared'
 import type {
   CatalogGame,
   DirectoryReference,
   LibraryGame,
   LibraryPeer,
   ShownError,
-  SyncBackupSettings,
   SyncPlan,
   TransferDirection,
 } from '@savedata-sync/shared'
@@ -16,7 +15,7 @@ import { SyncPlanSummary, TransferComparison, useT } from '@savedata-sync/shared
 import type { ComparisonStatus, PlanEndpoint } from '@savedata-sync/shared/ui'
 import type { DesktopRemoteRequest } from '../../../../bridge/sync-bridge.ts'
 import type { Confirmation } from '../../app/navigation.ts'
-import { desktopBackups, desktopSync } from '../../platform/sync-adapter.ts'
+import { desktopSync } from '../../platform/sync-adapter.ts'
 import { PlanDrawer } from './PlanDrawer.tsx'
 
 const POLL_INTERVAL_MS = 400
@@ -33,6 +32,7 @@ export function TransferPage({
   selectedPeer,
   remoteGame,
   localRoot,
+  deviceName,
   peerId,
   upload,
   isDisabled,
@@ -47,6 +47,7 @@ export function TransferPage({
   readonly selectedPeer: LibraryPeer | null
   readonly remoteGame: CatalogGame | undefined
   readonly localRoot: DirectoryReference | null
+  readonly deviceName: string | null
   readonly peerId: string
   readonly upload: boolean
   readonly isDisabled: boolean
@@ -74,28 +75,6 @@ export function TransferPage({
   const localRootId = localRoot?.rootId ?? null
   const remoteRootId = remoteGame?.root?.rootId ?? null
   const isConnected = Boolean(selectedPeer?.isConnected)
-  const [backupSettings, setBackupSettings] = useState<SyncBackupSettings | null>(null)
-  useEffect(() => {
-    let isCurrent = true
-    desktopBackups()
-      .read()
-      .then((result) => {
-        if (isCurrent) {
-          setBackupSettings(unwrap(result).settings)
-        }
-      })
-      .catch(() => {
-        // 读不到时计划只说明会备份，不显示份数。
-      })
-    return () => {
-      isCurrent = false
-    }
-  }, [])
-  /** 本机被写入时显示本机保留的份数；手机的份数在这里读不到。 */
-  const backupKeepCount =
-    upload && backupSettings && localRootId !== null
-      ? resolveBackupPolicy(backupSettings, game.id, localRootId).keepCount
-      : null
   const canScan = isConnected && localRootId !== null && remoteRootId !== null && !isActive
   useEffect(() => {
     let isCurrent = true
@@ -195,7 +174,10 @@ export function TransferPage({
     request !== null && request.requestId !== requestId && request.status === 'starting'
   let status: ComparisonStatus
   if (!selectedPeer) {
-    status = { kind: 'unavailable', reason: t('transfer.noPeer') }
+    status = {
+      kind: 'unavailable',
+      reason: t(game.links.length > 0 ? 'transfer.pickPeerTitle' : 'transfer.noPeer'),
+    }
   } else if (!isConnected) {
     status = {
       kind: 'unavailable',
@@ -224,7 +206,9 @@ export function TransferPage({
       ['create-file', 'replace-file', 'create-directory'].includes(item.action),
     ) ?? false
   const canStart = shown?.status === 'ready' && Boolean(current?.canExecute) && hasChanges
-  const peerName = selectedPeer?.device.name ?? t('common.unknown')
+  const peerName =
+    selectedPeer?.device.name ??
+    t(game.links.length > 0 ? 'transfer.pickPeerTitle' : 'common.unknown')
   const localName = t('transfer.local')
   const pcEnd: PlanEndpoint = { name: localName, kind: 'pc' }
   const phoneEnd: PlanEndpoint = { name: peerName, kind: 'phone' }
@@ -259,7 +243,7 @@ export function TransferPage({
         key={peerId}
         pc={{
           name: localName,
-          caption: '',
+          caption: deviceName ?? '',
           isOnline: null,
           rootName: localRoot?.displayName ?? '—',
         }}
@@ -318,7 +302,7 @@ export function TransferPage({
             plan={current}
             source={upload ? phoneEnd : pcEnd}
             target={upload ? pcEnd : phoneEnd}
-            backupKeepCount={backupKeepCount}
+            backupKeepCount={shown?.backupKeepCount ?? null}
           />
         )}
       </PlanDrawer>

@@ -10,18 +10,21 @@ import {
   OperationFailure,
   toShownError,
   taskIsActive,
+  unwrap,
 } from '@savedata-sync/shared'
 import type {
   CatalogGame,
   DirectoryReference,
+  InterruptedWrite,
   LibraryGame,
   LibraryPeer,
 } from '@savedata-sync/shared'
 import type { DesktopSnapshot } from '../platform/library-types.ts'
 import { createDesktopLibraryAdapter } from '../platform/library-adapter.ts'
+import { desktopBackups, desktopSync } from '../platform/sync-adapter.ts'
 import { ConfirmationDialog } from '../components/ConfirmationDialog.tsx'
+import { InterruptedWriteDialog } from '../components/InterruptedWriteDialog.tsx'
 import { DeviceEditorDialog } from '../features/devices/DeviceEditorDialog.tsx'
-import { useCopyPreview } from '../features/games/use-game-preview.ts'
 import { GameActionDialog } from '../features/games/GameActionDialog.tsx'
 import { ImportGameDialog } from '../features/games/ImportGameDialog.tsx'
 import { DesktopShell } from './DesktopShell.tsx'
@@ -30,7 +33,6 @@ import {
   GameActions,
   legacyTaskPreview,
   restoreTaskPreview,
-  syncSummaryPreview,
   syncTaskPreview,
   useT,
 } from '@savedata-sync/shared/ui'
@@ -44,7 +46,6 @@ import { GamesPage } from '../features/games/GamesPage.tsx'
 import { GameSettingsPage } from '../features/games/GameSettingsPage.tsx'
 import { SettingsPage } from '../features/settings/SettingsPage.tsx'
 import { TaskPage } from '../features/transfer/TaskPage.tsx'
-import { syncStateTitle } from '../features/transfer/sync-display.ts'
 import { TransferPage } from '../features/transfer/TransferPage.tsx'
 
 import { AddGameDialog } from '../features/games/AddGameDialog'
@@ -54,8 +55,8 @@ const ADAPTER = createDesktopLibraryAdapter()
 
 /** 桌面页面、弹窗与轮询由本端持有；原生任务切页后继续运行。 */
 const COPY_MESSAGE_TYPES = {
-  sent: 'info',
-  succeeded: 'success',
+  done: 'success',
+  partial: 'warning',
   failed: 'error',
   cancelled: 'info',
   unknown: 'warning',
@@ -96,6 +97,7 @@ export function DesktopApp({
   const [portDraft, setPort] = useState<number | null | undefined>(undefined)
   const [copied, setCopied] = useState('')
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null)
+  const [interruptedWrites, setInterruptedWrites] = useState<readonly InterruptedWrite[]>([])
 
   const operating = useRef(false)
   const generation = useRef(0)
@@ -160,24 +162,50 @@ export function DesktopApp({
       return
     }
     const previous = copyStatuses.current
-    copyStatuses.current = new Map(snapshot.copies.map((item) => [item.jobId, item.status]))
+    copyStatuses.current = new Map(snapshot.copies.map((item) => [item.jobId, item.phase]))
     if (!previous) {
       return
     }
     for (const item of snapshot.copies) {
       const before = previous.get(item.jobId)
-      if (item.status === 'running' || (before !== undefined && before !== 'running')) {
+      if (item.phase === 'running' || (before !== undefined && before !== 'running')) {
         continue
       }
       const name = snapshot.config.games.find((game) => game.id === item.projectId)?.name
       void messageApi.open({
-        type: COPY_MESSAGE_TYPES[item.status],
-        content: `${name ?? t('common.unknown')} · ${syncStateTitle(t, item)}`,
+        type: COPY_MESSAGE_TYPES[item.phase],
+        content: `${name ?? t('common.unknown')} · ${syncTaskPreview(item, t).status}`,
         key: `sync-transfer-${item.jobId}`,
         duration: 3.5,
       })
     }
   }, [snapshot, messageApi, t])
+  // 游戏名要等配置读到才有；已移除的游戏没有可提示的目录，标记直接清除。
+  const hasLoaded = snapshot !== null
+  useEffect(() => {
+    if (!hasLoaded) {
+      return
+    }
+    let isCurrent = true
+    desktopSync()
+      .interruptedWrites()
+      .then(async (result) => {
+        const writes = unwrap(result)
+        const games = snapshotRef.current?.config.games ?? []
+        const isKnown = (item: InterruptedWrite): boolean =>
+          games.some((value) => value.id === item.projectId)
+        for (const item of writes.filter((value) => !isKnown(value))) {
+          unwrap(await desktopSync().dismissInterruptedWrite(item.id))
+        }
+        if (isCurrent) {
+          setInterruptedWrites(writes.filter(isKnown))
+        }
+      })
+      .catch((cause: unknown) => showError(toShownError(cause)))
+    return () => {
+      isCurrent = false
+    }
+  }, [hasLoaded, showError])
   function run(work: () => Promise<void>): void {
     if (operating.current) {
       return
@@ -197,6 +225,7 @@ export function DesktopApp({
   const config = snapshot?.config ?? EMPTY
   const port = portDraft === undefined ? (snapshot?.service?.port ?? null) : portDraft
   const game = config.games.find((item) => item.id === gameId) ?? null
+  const interruptedWrite = interruptedWrites[0] ?? null
   const peers = snapshot?.peers ?? []
   const online = peers.find((item) => item.isConnected) ?? null
   const selectedPeer =
@@ -210,33 +239,22 @@ export function DesktopApp({
   const isActive = snapshot?.hasActiveOperation ?? false
   const hasRunningNetworkWork = Boolean(
     snapshot?.tasks.some((task) => task.local?.status === 'running') ||
-    snapshot?.copies.some((task) => task.status === 'running'),
+    snapshot?.copies.some((task) => task.phase === 'running'),
   )
   const hasRunningWork =
     hasRunningNetworkWork || Boolean(snapshot?.restores.some((task) => task.isWorking))
   const isDisabled = isBusy || !snapshot
   const copiesByRecent = [...(snapshot?.copies ?? [])].sort((a, b) => b.updatedAt - a.updatedAt)
-  const copy = copiesByRecent.find((item) => item.status === 'running') ?? copiesByRecent[0] ?? null
+  const copy = copiesByRecent.find((item) => item.phase === 'running') ?? copiesByRecent[0] ?? null
   const gameCopy = copiesByRecent.find((item) => item.projectId === game?.id) ?? null
   const restoresByRecent = [...(snapshot?.restores ?? [])].sort((a, b) => b.updatedAt - a.updatedAt)
   const restore = restoresByRecent.find((item) => item.isWorking) ?? restoresByRecent[0] ?? null
-  const previewTask = page === 'games' ? copy : null
-  const preview = useCopyPreview(previewTask)
-  const copyPreview = copy
-    ? preview.state?.jobId === copy.jobId
-      ? syncTaskPreview(preview.state, null, t)
-      : {
-          ...syncSummaryPreview(copy, copy.hasCleanupError, t),
-          ...(previewTask?.jobId === copy.jobId && preview.error
-            ? { status: t('task.readFailed') }
-            : {}),
-        }
-    : null
+  const copyPreview = copy ? syncTaskPreview(copy, t) : null
   const legacy = snapshot?.tasks.find(taskIsActive) ?? snapshot?.tasks.at(-1) ?? null
   const shouldShowLegacy = legacy && (taskIsActive(legacy) || (!copy && !restore))
   const shouldShowCopy =
     copy &&
-    (copy.status === 'running' ||
+    (copy.phase === 'running' ||
       !restore ||
       (!restore.isWorking && copy.updatedAt >= restore.updatedAt))
   const stripProjectId = shouldShowLegacy
@@ -277,7 +295,11 @@ export function DesktopApp({
   function openGame(item: LibraryGame): void {
     setGameId(item.id)
     setBackupRootId(null)
-    setPeerId(item.links.length === 1 ? (item.links[0]?.deviceId ?? '') : '')
+    // 优先选已连接的设备；都没连接时，只有一台才能替用户定下来。
+    const connected = item.links.find((link) =>
+      peers.some((peer) => peer.isConnected && peer.device.id === link.deviceId),
+    )
+    setPeerId((connected ?? (item.links.length === 1 ? item.links[0] : undefined))?.deviceId ?? '')
     setIsGameActionDialogOpen(true)
   }
   async function saveGame(item: LibraryGame): Promise<void> {
@@ -462,6 +484,16 @@ export function DesktopApp({
     setBackupRootId(rootId)
     setPage('backup')
   }
+  function dismissInterruptedWrite(): void {
+    if (!interruptedWrite) {
+      return
+    }
+    setInterruptedWrites((items) => items.filter((item) => item.id !== interruptedWrite.id))
+    desktopSync()
+      .dismissInterruptedWrite(interruptedWrite.id)
+      .then(unwrap)
+      .catch((cause: unknown) => showError(toShownError(cause)))
+  }
   function tasksChanged(): void {
     void refresh().catch((cause: unknown) => showError(toShownError(cause)))
   }
@@ -520,6 +552,8 @@ export function DesktopApp({
       title: t('game.removeTitle'),
       text: t('game.removeText'),
       work: async () => {
+        // 先删备份：删除失败时游戏还在，可以重试，不会留下没有入口的备份。
+        unwrap(await desktopBackups().deleteGameBackups(gameId))
         await adapter.saveGames(config.games.filter((item) => item.id !== gameId))
         setConfirmation(null)
         setPage('games')
@@ -596,6 +630,7 @@ export function DesktopApp({
         selectedPeer={selectedPeer}
         remoteGame={remoteGame}
         localRoot={localRoot}
+        deviceName={snapshot?.deviceName ?? null}
         peerId={peerId}
         upload={upload}
         isDisabled={isDisabled}
@@ -748,6 +783,21 @@ export function DesktopApp({
             run(confirmation.work)
           }
         }}
+      />
+      <InterruptedWriteDialog
+        gameName={
+          interruptedWrite
+            ? (config.games.find((item) => item.id === interruptedWrite.projectId)?.name ?? null)
+            : null
+        }
+        hasBackup={Boolean(interruptedWrite?.backupId)}
+        onViewBackup={() => {
+          if (interruptedWrite) {
+            openBackup(interruptedWrite.projectId, interruptedWrite.rootId)
+            dismissInterruptedWrite()
+          }
+        }}
+        onClose={dismissInterruptedWrite}
       />
     </>
   )

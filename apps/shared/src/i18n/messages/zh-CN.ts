@@ -11,12 +11,10 @@ export const zhCN = {
   'app.cleanupFailedTitle': '退出清理失败',
   'app.cleanupFailed': '无法释放缓存或候选文件，请检查权限后重试退出。',
   'app.initializeFailedTitle': '初始化失败',
-  'app.initializeFailed': '无法读取目录配置，请检查应用数据与权限。',
 
   'nav.devices': '设备',
   'nav.games': '游戏',
   'nav.settings': '设置',
-  'nav.back': '返回',
   'nav.main': '主导航',
   'nav.backToGames': '返回游戏',
   'nav.backToTransfer': '返回传输存档',
@@ -45,8 +43,8 @@ export const zhCN = {
   'common.cancel': '取消',
   'common.close': '关闭',
   'common.confirm': '确认',
+  'common.gotIt': '知道了',
   'common.save': '保存',
-  'common.closeError': '关闭错误提示',
   'common.more': '更多',
 
   'transfer.local': '本机',
@@ -85,7 +83,6 @@ export const zhCN = {
   'compare.summary': ({ directories, files }: { directories: number; files: number }): string =>
     `${directories} 个文件夹 · ${files} 个文件`,
   'compare.up': '上一级',
-  'compare.name': '名称',
   'compare.size': '大小',
   'compare.modified': '修改时间',
 
@@ -136,6 +133,7 @@ export const zhCN = {
   'task.done': '传输完成',
   'task.doneDetail': ({ count }: { count: number }): string => `${count} 个文件已写入`,
   'task.backedUp': '旧文件已备份',
+  'task.backedUpCount': ({ count }: { count: number }): string => `已备份 ${count} 个文件`,
   'task.partial': '部分完成',
   'task.partialDetail': ({ ok, failed }: { ok: number; failed: number }): string =>
     `${ok} 个成功 · ${failed} 个失败`,
@@ -158,6 +156,11 @@ export const zhCN = {
   'task.none': '当前没有进行中的传输或恢复。',
   'task.cancel': '取消传输',
   'task.viewBackup': '查看备份',
+  'write.interruptedTitle': '上次写入被中断',
+  'write.interruptedNoBackup': ({ name }: { name: string }): string =>
+    `“${name}”写入时应用被关闭，文件可能不完整。`,
+  'write.interruptedWithBackup': ({ name }: { name: string }): string =>
+    `“${name}”写入时应用被关闭，文件可能不完整。可以从备份恢复。`,
   'task.rescan': '重新扫描',
   'task.readFailed': '读取传输状态失败',
   'task.history': '历史传输',
@@ -187,7 +190,6 @@ export const zhCN = {
   'game.deviceRemoved': '设备已移除',
   'game.deviceMenu': '设备菜单',
   'game.transfer': '传输',
-  'game.transferWith': '与这台设备传输',
   'game.relink': '改为对应其他游戏',
   'game.unlink': '解除关联',
   'game.unlinkHint': '设备和两端存档都保留',
@@ -214,16 +216,18 @@ export const zhCN = {
   'backup.files': ({ count, size }: { count: number; size: string }): string =>
     `${count} 个文件 · ${size}`,
   'backup.restore': '恢复',
-  'backup.restoreThis': '恢复此备份',
   'backup.none': '还没有备份。开启写入前备份后，写入文件时会保存目标目录的当前内容。',
   'backup.incomplete': ({ count }: { count: number }): string => `有 ${count} 份备份没有完成`,
   'backup.cleanup': '清理',
+  'backup.occupied': ({ size }: { size: string }): string => `占用 ${size}`,
+  'backup.occupiedUnknown': '占用大小未知',
+  'backup.delete': '删除',
+  'backup.deleteTitle': '删除备份',
+  'backup.deleteText': ({ time }: { time: string }): string =>
+    `删除 ${time} 的备份？删除后不能再用它恢复。`,
   'backup.privateNote': '备份保存在本应用的私有目录，卸载应用或清除数据会一并删除。',
   'backup.switch': '写入前备份',
-  'backup.restoreTitle': ({ time }: { time: string }): string => `恢复 ${time} 的备份`,
   'backup.confirmRestore': '确认恢复',
-  'backup.back': '返回',
-  'backup.done': '完成',
   'backup.preparing': '正在核对备份并读取当前文件…',
   'backup.restoring': ({ done, total }: { done: number; total: number }): string =>
     `正在恢复 ${done} / ${total}`,
@@ -233,8 +237,6 @@ export const zhCN = {
   'backup.restoreCancelled': '恢复已取消',
   'backup.restoreUnknown': '恢复结果待确认',
   'backup.oldFolder': '这是之前目录的备份。恢复前请在游戏设置中切回这个目录。',
-  'backup.file': '文件',
-  'backup.originalModified': '原修改时间',
   'backup.noGame': '请从游戏进入备份与恢复。',
   'backup.noFolder': '请先在游戏设置中选择本机存档目录。',
   'backup.readFailed': '读取备份失败',
@@ -254,8 +256,6 @@ export const zhCN = {
 
   'app.disconnected': '连接已断开',
   'app.connectedTo': ({ name }: { name: string }): string => `已连接到 ${name}`,
-  'app.readFailed': '读取应用状态失败',
-  'app.refreshFailed': '刷新失败',
   'app.actionFailed': '操作失败',
   'app.notLoaded': '应用数据还没有读取完成，请稍候再试。',
   'common.noOptions': '暂无可选项',
@@ -276,7 +276,6 @@ export const zhCN = {
   'device.address': 'IP 地址与端口',
   'device.addressPlaceholder': 'IP:Port',
   'device.copyAddress': '复制地址',
-  'device.copied': '已复制',
   'device.connect': '连接',
   'device.disconnect': '断开',
   'device.waitingPhone': '等待手机连接',
@@ -299,11 +298,8 @@ export const zhCN = {
   'game.actions': '游戏操作',
   'game.linkCount': ({ count }: { count: number }): string => `已关联 ${count} 台设备`,
   'game.removeTitle': '移除游戏',
-  'game.removeText': '移除游戏配置和设备关联，保留存档文件。',
-  'game.viewTaskProgress': '查看任务进度',
-  'game.viewTasks': '任务与结果',
+  'game.removeText': '移除游戏配置、设备关联和这个游戏的备份，保留存档文件。',
   'game.transferRunning': '传输进行中',
-  'game.viewTransferResult': '查看传输结果',
 
   'transfer.started': '已开始传输',
   'transfer.remoteScanRequest': ({ name }: { name: string }): string => `电脑请求扫描 ${name}`,
@@ -314,7 +310,6 @@ export const zhCN = {
   'task.archiveProgress': ({ done, total }: { done: string; total: string }): string =>
     `已传输 ${done} / ${total}`,
   'task.retryCleanup': '重试清理',
-  'task.refreshFailed': '刷新任务失败',
   'task.cleanupPending': '文件已传输，临时文件还没有清理完，请查看传输详情。',
   'backup.status.preparing': '准备中',
   'backup.status.ready': '等待确认',

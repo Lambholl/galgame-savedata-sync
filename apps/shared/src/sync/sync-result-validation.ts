@@ -46,10 +46,23 @@ export function isSyncWriteOutcome(value: unknown): value is SyncWriteOutcome {
 /** 校验独立结果 DTO，不把清理成功或 HTTP 200 当成写入成功。 */
 export function isSyncApplyResult(value: unknown): value is SyncApplyResult {
   return (
-    hasShape(value, ['schemaVersion', 'planId', 'backupId', 'outcomes', 'error', 'cleanupError']) &&
+    hasShape(value, [
+      'schemaVersion',
+      'planId',
+      'backupId',
+      'backupFileCount',
+      'outcomes',
+      'error',
+      'cleanupError',
+    ]) &&
     value.schemaVersion === SYNC_SCHEMA_VERSION &&
     isOpaqueId(value.planId) &&
     isNullable(value.backupId, isOpaqueId) &&
+    (value.backupFileCount === null ||
+      (value.backupId !== null &&
+        Number.isSafeInteger(value.backupFileCount) &&
+        (value.backupFileCount as number) >= 0 &&
+        (value.backupFileCount as number) <= SYNC_LIMITS.maxEntries)) &&
     Array.isArray(value.outcomes) &&
     value.outcomes.length <= SYNC_LIMITS.maxEntries &&
     isArrayOf(value.outcomes, isSyncWriteOutcome) &&

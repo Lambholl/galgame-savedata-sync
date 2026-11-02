@@ -1,5 +1,6 @@
 package io.github.galgame.savedatasync;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -25,18 +26,21 @@ final class SyncTransferEngine implements AutoCloseable {
         Map<String, Object> snapshot(String rootId, ArchiveControl control) throws Exception;
         List<ArchiveModel.Source> sources(SyncPlanModel.Plan plan) throws Exception;
         default boolean backup(String projectId, String rootId) throws Exception { throw fail("unsupported-operation"); }
+        default long backupKeep(String projectId, String rootId) throws Exception { throw fail("unsupported-operation"); }
         default long checkReceiveSpace(SyncPlanModel.Plan plan, java.nio.file.Path cacheRoot, long cacheBytes, ArchiveControl control, SyncWriter.Execution execution) throws Exception { throw fail("unsupported-operation"); }
         default Map<String, Object> apply(SyncPlanModel.Plan plan, SyncWriter.Material material, ArchiveControl control, SyncWriter.Execution execution) throws Exception { throw fail("unsupported-operation"); }
         default boolean retryCleanup() throws Exception { return true; }
         default void close() throws Exception {}
     }
-    private static final long RETENTION = TimeUnit.MINUTES.toNanos(10);
+    private static final long RETENTION = TimeUnit.MINUTES.toNanos(10), REPORT_INTERVAL = TimeUnit.SECONDS.toNanos(1);
     private final TransferEngine transport;
     private final ArchiveAdapter archives;
     private final Local local;
     private final ExecutorService preparer = Executors.newSingleThreadExecutor(), worker = Executors.newSingleThreadExecutor();
     private final ScheduledExecutorService watcher = Executors.newSingleThreadScheduledExecutor();
     private final ScheduledExecutorService heartbeats = Executors.newSingleThreadScheduledExecutor();
+    /** 向电脑推送任务摘要、应答读取和取消；放在原生，页面被回收或任务由手机发起时同样工作。 */
+    private final ScheduledExecutorService reports = Executors.newSingleThreadScheduledExecutor();
     private final Map<String, Preparation> preparations = new LinkedHashMap<>();
     private final Map<String, Job> jobs = new LinkedHashMap<>();
     private final Set<String> used = new HashSet<>();
@@ -72,6 +76,9 @@ final class SyncTransferEngine implements AutoCloseable {
         boolean started, remoteAttempted, cancelSent, uploadComplete, hasLease = true;
         long ended;
         volatile boolean timedOut, preparingArchive;
+        /** 只由 reports 线程读写；只在发送成功后更新，断开期间的变化重连后补发。 */
+        String reported;
+        long reportedAt;
         Job(Preparation preparation, SyncPlanModel.Plan plan) { this.preparation = preparation; this.plan = plan; }
         String path() { return "/v1/sync/jobs/" + plan.id; }
     }
@@ -79,6 +86,48 @@ final class SyncTransferEngine implements AutoCloseable {
         this.transport = transport; this.archives = transport.syncArchive(); this.local = local;
         watcher.scheduleAtFixedRate(this::tick, 100, 100, TimeUnit.MILLISECONDS);
         heartbeats.scheduleAtFixedRate(this::heartbeat, 3, 3, TimeUnit.SECONDS);
+        reports.scheduleAtFixedRate(this::report, 500, 500, TimeUnit.MILLISECONDS);
+        transport.controlInterceptor(this::controlRequest);
+    }
+    /** 有变化就发；进行中没有变化也每秒发一次，电脑靠它判断手机还在。结束后不再重复。 */
+    private void report() {
+        Map<Job, String> pending = new LinkedHashMap<>();
+        long now = System.nanoTime();
+        synchronized (this) {
+            if (closed) return;
+            for (Job job : jobs.values()) try {
+                Map<String, Object> digest = new LinkedHashMap<>(job.state); digest.remove("result");
+                String text = new String(bytes(object("v", 1, "type", "event", "method", "sync.job", "body", digest)), StandardCharsets.UTF_8);
+                if (!text.equals(job.reported) || (job.state.get("status").equals("running") && now - job.reportedAt >= REPORT_INTERVAL)) pending.put(job, text);
+            } catch (Exception invalid) { /* 单个任务序列化失败不影响其他任务，下一轮再试。 */ }
+        }
+        for (Map.Entry<Job, String> item : pending.entrySet()) try {
+            transport.sendControl(item.getKey().preparation.connection.deviceId, item.getValue());
+            item.getKey().reported = item.getValue(); item.getKey().reportedAt = now;
+        } catch (Exception offline) { /* 控制通道没开时保留变化，重连后补发。 */ }
+    }
+    private boolean controlRequest(String deviceId, String text) {
+        Map<String, Object> message;
+        try { message = map(parse(text.getBytes(StandardCharsets.UTF_8))); } catch (Exception invalid) { return false; }
+        Object method = message.get("method");
+        if (!"request".equals(message.get("type")) || !("sync.job.read".equals(method) || "sync.job.cancel".equals(method))) return false;
+        try { reports.execute(() -> answer(deviceId, message)); }
+        catch (java.util.concurrent.RejectedExecutionException stopped) { /* 引擎已关闭，电脑按超时处理。 */ }
+        return true;
+    }
+    /** 只应答发起这次任务的电脑；已结束任务的取消没有效果，结果以读取为准。 */
+    private void answer(String deviceId, Map<String, Object> message) {
+        Map<String, Object> result;
+        try {
+            String jobId = id(map(message.get("body")).get("jobId")); Object value = null;
+            Job job; synchronized (this) { job = jobs.get(jobId); }
+            if (job == null || !job.preparation.connection.deviceId.equals(deviceId)) throw fail("not-found");
+            if ("sync.job.read".equals(message.get("method"))) { synchronized (this) { value = copy(job.state); } }
+            else if (job.running) cancel(jobId, false);
+            result = object("status", "success", "value", value);
+        } catch (Exception cause) { result = object("status", "error", "error", error(ArchiveFailure.from(cause).code)); }
+        try { transport.sendControl(deviceId, new String(bytes(object("v", 1, "type", "response", "id", message.get("id"), "result", result)), StandardCharsets.UTF_8)); }
+        catch (Exception offline) { /* 电脑收不到应答时按超时处理，稍后重新读取。 */ }
     }
     private void available() throws ArchiveFailure { if (closed) throw fail("unsupported-operation"); }
     private void purge() {
@@ -145,7 +194,7 @@ final class SyncTransferEngine implements AutoCloseable {
             }
             Map<String, Object> capabilities = shape(advertised,
                 "schemaVersion", "deviceId", "canScan", "canCopy", "canBackup", "canRestore", "limits");
-            if (number(capabilities.get("schemaVersion"), 0, 9007199254740991L) != 1) throw new ArchiveFailure("protocol-mismatch", "Update both apps before syncing.");
+            if (number(capabilities.get("schemaVersion"), 0, 9007199254740991L) != SyncJobModel.CAPABILITIES_VERSION) throw new ArchiveFailure("protocol-mismatch", "Update both apps before syncing.");
             require(connection.deviceId.equals(capabilities.get("deviceId")));
             for (String key : new String[] {"canScan", "canCopy", "canBackup", "canRestore"}) one(capabilities.get(key), "supported", "unsupported", "unknown");
             if (!capabilities.get("canScan").equals("supported") || !capabilities.get("canCopy").equals("supported") || !capabilities.get("canBackup").equals("supported")) {
@@ -168,11 +217,13 @@ final class SyncTransferEngine implements AutoCloseable {
                 if (remote.get("error") != null) throw new ArchiveFailure(string(map(remote.get("error")).get("code")), "The PC directory scan is incomplete.");
                 throw new ArchiveFailure("io-failure", "The PC directory scan was cancelled.");
             }
-            boolean remoteBackup = SyncJobModel.backup(connection.http.json("GET", "/v1/sync/projects/" + binding.get("remoteProjectId"), connection.session, null, 200, preparation.control), binding);
+            Object descriptor = connection.http.json("GET", "/v1/sync/projects/" + binding.get("remoteProjectId"), connection.session, null, 200, preparation.control);
+            boolean remoteBackup = SyncJobModel.backup(descriptor, binding);
             boolean shouldBackup = preparation.upload() ? remoteBackup : local.backup(string(binding.get("projectId")), sourceRoot);
+            long backupKeepCount = preparation.upload() ? SyncJobModel.backupKeepCount(descriptor) : local.backupKeep(string(binding.get("projectId")), sourceRoot);
             transport.verifySync(connection, binding); preparation.control.check();
             Map<String, Object> preview = object("schemaVersion", 1, "preparationId", preparation.id, "direction", preparation.direction, "binding", binding,
-                "source", preparation.upload() ? source : remote.get("snapshot"), "target", preparation.upload() ? remote.get("snapshot") : source, "shouldBackup", shouldBackup); bytes(preview);
+                "source", preparation.upload() ? source : remote.get("snapshot"), "target", preparation.upload() ? remote.get("snapshot") : source, "shouldBackup", shouldBackup, "backupKeepCount", backupKeepCount); bytes(preview);
             prepared = preview;
         } catch (Exception cause) {
             problem = ArchiveFailure.from(cause);
@@ -224,8 +275,8 @@ final class SyncTransferEngine implements AutoCloseable {
         trim(preparation); if (used.size() >= 4096 || jobs.size() >= 32 || active != null) throw fail("busy");
         Job job = new Job(preparation, plan); if (!TargetOperation.acquire(job)) throw fail("busy");
         long count = number(plan.value.get("transferFileCount"), 0, 1024);
-        job.state = object("schemaVersion", 1, "jobId", id, "direction", preparation.direction, "role", preparation.upload() ? "sender" : "receiver", "status", "running", "stage", "preparing",
-            "updatedAt", now, "cancelRequested", false, "result", null, "error", null, "cleanupError", null,
+        job.state = object("schemaVersion", SyncJobModel.JOB_SCHEMA_VERSION, "jobId", id, "direction", preparation.direction, "role", preparation.upload() ? "sender" : "receiver", "status", "running", "stage", "preparing",
+            "updatedAt", now, "cancelRequested", false, "failureStage", null, "result", null, "error", null, "cleanupError", null,
             "progress", object("sourceBytesRead", 0L, "archiveBytesTransferred", 0L, "fileBytesVerified", 0L, "fileBytesPublished", 0L,
                 "totalFileBytes", plan.value.get("totalFileBytes"), "totalArchiveBytes", count == 0 ? 0L : null, "totalFiles", count, "verifiedFiles", 0L, "publishedFiles", 0L));
         preparation.consumed = true; used.add(id); jobs.put(id, job); active = job; return transfer(job);
@@ -408,7 +459,7 @@ final class SyncTransferEngine implements AutoCloseable {
                 Map<String, Object> operation = job.plan.writes.get(i);
                 outcomes.add(object("path", operation.get("path"), "action", operation.get("action"), "status", i == 0 ? cancelled ? "cancelled" : "failed" : "not-attempted", "sizeBytes", null, "sha256", null, "error", i == 0 ? failure : null));
             }
-            receiverResult(job, object("schemaVersion", 1, "planId", job.plan.id, "backupId", null, "outcomes", outcomes, "error", failure, "cleanupError", cause.cleanupFailure == null ? null : error("cleanup-failed")));
+            receiverResult(job, object("schemaVersion", 1, "planId", job.plan.id, "backupId", null, "backupFileCount", null, "outcomes", outcomes, "error", failure, "cleanupError", cause.cleanupFailure == null ? null : error("cleanup-failed")));
             if (cancelled) { job.state.put("cancelRequested", true); job.state.put("status", "cancelled"); }
         } catch (Exception invalid) { throw new IllegalStateException("The native failure result does not match the confirmed plan.", invalid); }
     }
@@ -421,6 +472,7 @@ final class SyncTransferEngine implements AutoCloseable {
         Object failure = result.get("error");
         String status = failure != null && map(failure).get("code").equals("result-unknown") ? "unknown" : complete && failure == null ? "succeeded" : cancelled ? "cancelled" : "failed";
         job.state.put("result", result); job.state.put("error", failure); job.state.put("cleanupError", result.get("cleanupError"));
+        job.state.put("failureStage", status.equals("succeeded") ? null : stoppedAt(job));
         job.state.put("status", status); job.state.put("stage", "done"); job.state.put("updatedAt", System.currentTimeMillis());
         if (cancelled) job.state.put("cancelRequested", true);
     }
@@ -483,7 +535,15 @@ final class SyncTransferEngine implements AutoCloseable {
         } catch (Exception cause) { synchronized (this) { job.remoteError = error("result-unknown"); } }
         finally { control.cancel(); }
     } }
-    private synchronized void terminal(Job job, String status, String code) {
+    /** 清理和结束会改写阶段，要在这之前记下任务停在哪里。 */
+    private static Object stoppedAt(Job job) {
+        Object stage = job.state.get("stage");
+        return stage.equals("cleaning") || stage.equals("done") ? null : stage;
+    }
+    private synchronized void terminal(Job job, String requested, String code) {
+        // 结果待确认不算失败，两端的校验都要求这两种状态分开。
+        String status = requested.equals("failed") && "result-unknown".equals(code) ? "unknown" : requested;
+        job.state.put("failureStage", status.equals("sent") ? null : stoppedAt(job));
         job.state.put("status", status); job.state.put("stage", "done"); job.state.put("error", code == null ? null : error(code));
         if (status.equals("cancelled")) job.state.put("cancelRequested", true); job.state.put("updatedAt", System.currentTimeMillis());
     }
@@ -507,6 +567,12 @@ final class SyncTransferEngine implements AutoCloseable {
     }
     synchronized Object manifest(String id) throws Exception { Job job = job(id); return job.manifest == null ? null : copy(manifestJson(job.manifest)); }
     synchronized Object current() throws Exception { available(); purge(); Job last = active; if (last == null) for (Job job : jobs.values()) last = job; return last == null ? null : last.plan.id; }
+    /** 这个游戏（手机端 projectId）最近一次任务；jobs 有容量上限，遍历是有界的。 */
+    synchronized Object latest(String projectId) throws Exception {
+        available(); id(projectId); purge(); Job last = null;
+        for (Job job : jobs.values()) if (projectId.equals(job.preparation.binding.get("projectId"))) last = job;
+        return last == null ? null : last.plan.id;
+    }
     Map<String, Object> cancel(String id, boolean timeout) throws Exception {
         Job job; synchronized (this) { job = job(id); if (timeout) job.timedOut = true; job.state.put("cancelRequested", !timeout); }
         job.control.cancel(); if (!job.running && job.remoteAttempted) worker.execute(() -> cancelRemote(job));
@@ -538,7 +604,8 @@ final class SyncTransferEngine implements AutoCloseable {
     /** 仅由原生所有者退出/验证调用；插件销毁不取消任务。 */
     @Override public void close() throws Exception {
         synchronized (this) { closed = true; if (preparing != null) preparing.control.cancel(); if (active != null) active.control.cancel(); if (heartbeatControl != null) heartbeatControl.cancel(); }
-        watcher.shutdownNow(); heartbeats.shutdownNow(); preparer.shutdown(); worker.shutdown();
+        transport.controlInterceptor(null);
+        watcher.shutdownNow(); heartbeats.shutdownNow(); reports.shutdownNow(); preparer.shutdown(); worker.shutdown();
         if (!preparer.awaitTermination(30, TimeUnit.SECONDS) || !worker.awaitTermination(30, TimeUnit.SECONDS) || !heartbeats.awaitTermination(10, TimeUnit.SECONDS)) throw fail("timeout");
         synchronized (this) { if (active != null && !cleanup(active)) throw fail("cleanup-failed"); if (active != null) release(active); preparations.clear(); jobs.clear(); }
         local.close();

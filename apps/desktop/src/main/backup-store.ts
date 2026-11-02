@@ -20,6 +20,7 @@ import {
   syncPathKey,
   withBackupDefaults,
   withBackupPreference,
+  withoutGameBackups,
 } from '@savedata-sync/shared'
 import type {
   KnownOperationError,
@@ -27,6 +28,7 @@ import type {
   SyncBackupManifest,
   SyncBackupPolicy,
   SyncBackupSettings,
+  SyncIncompleteBackup,
   SyncEntry,
   SyncPlan,
   SyncSnapshot,
@@ -61,10 +63,10 @@ interface BackupRound {
   readonly identity: FileIdentity
   readonly manifest: SyncBackupManifest | null
 }
-/** 公开查询只提供当前项目的清单和需显式清理的轮次 ID，不暴露私有文件路径。 */
+/** 公开查询只提供当前项目的清单和需显式清理的轮次，不暴露私有文件路径。 */
 export interface WindowsBackupListing {
   readonly backups: readonly SyncBackupManifest[]
-  readonly incomplete: readonly string[]
+  readonly incomplete: readonly SyncIncompleteBackup[]
 }
 /** 清单提交成功后轮换错误单独报告；调用方仍可使用该有效备份保护写入。 */
 export interface WindowsBackupCommit {
@@ -409,13 +411,35 @@ export class WindowsBackupStore {
       const rounds = (await this.rounds()).filter(
         (round) => round.marker.projectId === projectId && round.marker.rootId === rootId,
       )
+      const incomplete: SyncIncompleteBackup[] = []
+      for (const round of rounds) {
+        if (!round.manifest) {
+          incomplete.push({
+            backupId: round.marker.backupId,
+            occupiedBytes: await this.occupiedBytes(round),
+          })
+        }
+      }
       return {
         backups: rounds
           .flatMap((round) => (round.manifest ? [round.manifest] : []))
           .sort((a, b) => b.createdAt - a.createdAt),
-        incomplete: rounds.filter((round) => !round.manifest).map((round) => round.marker.backupId),
+        incomplete,
       }
     })
+  }
+  /** 一轮私有目录占用的字节数；读取失败时未知，由界面单独显示。 */
+  private async occupiedBytes(round: BackupRound): Promise<number | null> {
+    try {
+      const path = join(this.path, round.marker.backupId)
+      let total = 0
+      for (const name of await readdir(path)) {
+        total += Number((await inspectLocalPath(join(path, name))).size)
+      }
+      return total
+    } catch {
+      return null
+    }
   }
   /** 缺少文件时用默认全局设置；坏设置不会被默认值覆盖。 */
   settings(): Promise<SyncBackupSettings> {
@@ -875,6 +899,36 @@ export class WindowsBackupStore {
         )
       }
       await this.remove(round)
+    })
+  }
+  /** 用户明确删除一份已提交备份；正在用于恢复的备份由 remove 拒绝。删到一半失败时变成残留，可再清理。 */
+  deleteBackup(projectId: string, rootId: string, backupId: string): Promise<void> {
+    group(projectId, rootId)
+    return this.exclusive(async () => {
+      const round = (await this.rounds()).find(
+        (item) =>
+          item.marker.backupId === backupId &&
+          item.marker.projectId === projectId &&
+          item.marker.rootId === rootId,
+      )
+      if (!round?.manifest) {
+        throw new ArchiveError('not-found', 'The backup does not exist.')
+      }
+      await this.remove(round)
+    })
+  }
+  /** 移除游戏时删除它在所有目录下的备份、残留和单独设置；中途失败时游戏保留，可以重试。 */
+  deleteGameBackups(projectId: string): Promise<void> {
+    if (!isOpaqueId(projectId)) {
+      throw new ArchiveError('invalid-request', 'The game reference is invalid.')
+    }
+    return this.exclusive(async () => {
+      for (const round of await this.rounds()) {
+        if (round.marker.projectId === projectId) {
+          await this.remove(round)
+        }
+      }
+      await this.writeSettings(withoutGameBackups(await this.readSettings(), projectId))
     })
   }
   /** 应用退出取消创建并关闭恢复流；备份目录和已提交轮次保留供下次启动查询。 */

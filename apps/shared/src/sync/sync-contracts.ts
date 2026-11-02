@@ -2,6 +2,11 @@ import type { CapabilityState, OperationError, TransferDirection } from '../prot
 
 /** 新复制能力独立版本，不改变旧批量 v1 的非覆盖语义。 */
 export const SYNC_SCHEMA_VERSION = 1
+/**
+ * 能力声明的版本，也是两端能否互传的唯一门槛。2 表示支持 sync.job 任务观察与
+ * SyncJobState 的 failureStage；版本不同时发起方在扫描前就提示更新，不会走到任务阶段。
+ */
+export const SYNC_CAPABILITIES_VERSION = 2
 
 /** 只限制本次扫描；文件传输与备份另受 BATCH_LIMITS 约束。 */
 export const SYNC_LIMITS = Object.freeze({
@@ -27,7 +32,7 @@ export const SYNC_HTTP_ROUTES = {
 } as const
 
 export interface SyncCapabilities {
-  readonly schemaVersion: typeof SYNC_SCHEMA_VERSION
+  readonly schemaVersion: typeof SYNC_CAPABILITIES_VERSION
   readonly deviceId: string
   readonly canScan: CapabilityState
   readonly canCopy: CapabilityState
@@ -143,6 +148,12 @@ export interface SyncBackupManifest {
   readonly files: readonly SyncBackupFile[]
 }
 
+/** 没有提交清单的残留轮次；occupiedBytes 只统计应用私有文件，读不到时为 null，不算作 0。 */
+export interface SyncIncompleteBackup {
+  readonly backupId: string
+  readonly occupiedBytes: number | null
+}
+
 /** 写入前备份策略：是否备份，以及每个游戏、每个目录保留的完整备份份数。 */
 export interface SyncBackupPolicy {
   readonly shouldBackup: boolean
@@ -179,6 +190,8 @@ export interface SyncApplyResult {
   readonly schemaVersion: typeof SYNC_SCHEMA_VERSION
   readonly planId: string
   readonly backupId: string | null
+  /** 实际提交的备份清单里的文件数；不是计划里的覆盖数。没有备份或不知道时为 null。 */
+  readonly backupFileCount: number | null
   readonly outcomes: readonly SyncWriteOutcome[]
   readonly error: OperationError | null
   readonly cleanupError: OperationError | null

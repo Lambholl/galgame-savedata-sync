@@ -8,10 +8,11 @@ import {
   isNullable,
   isTimestamp,
 } from '../validation/data-validation.ts'
-import { SYNC_LIMITS, SYNC_SCHEMA_VERSION } from './sync-contracts.ts'
+import { SYNC_CAPABILITIES_VERSION, SYNC_LIMITS, SYNC_SCHEMA_VERSION } from './sync-contracts.ts'
 import type {
   SyncBackupFile,
   SyncBackupManifest,
+  SyncIncompleteBackup,
   SyncCapabilities,
   SyncEntry,
   SyncPlanInput,
@@ -187,7 +188,7 @@ export function isSyncCapabilities(value: unknown): value is SyncCapabilities {
   }
   const limits = value.limits
   return (
-    value.schemaVersion === SYNC_SCHEMA_VERSION &&
+    value.schemaVersion === SYNC_CAPABILITIES_VERSION &&
     isOpaqueId(value.deviceId) &&
     [value.canScan, value.canCopy, value.canBackup, value.canRestore].every(
       (item) => item === 'supported' || item === 'unsupported' || item === 'unknown',
@@ -216,6 +217,15 @@ function isBackupFile(value: unknown): value is SyncBackupFile {
     value.sizeBytes <= BATCH_LIMITS.maxFileBytes &&
     isSha256(value.sha256) &&
     isNullable(value.modifiedAt, isTimestamp)
+  )
+}
+
+export function isSyncIncompleteBackup(value: unknown): value is SyncIncompleteBackup {
+  return (
+    hasShape(value, ['backupId', 'occupiedBytes']) &&
+    isOpaqueId(value.backupId) &&
+    (value.occupiedBytes === null ||
+      (Number.isSafeInteger(value.occupiedBytes) && (value.occupiedBytes as number) >= 0))
   )
 }
 

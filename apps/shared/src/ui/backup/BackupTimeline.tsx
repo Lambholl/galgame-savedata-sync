@@ -1,4 +1,5 @@
 import type { ReactElement } from 'react'
+import { Button } from 'antd'
 import { formatBytes } from '../../i18n/format.ts'
 import { useLocale, useT } from '../i18n/i18n-context.ts'
 import '../devices/devices.css'
@@ -20,7 +21,7 @@ export interface BackupItem {
 
 /**
  * 行的交互方式。select：整行可选（电脑，右侧显示所选备份）；
- * restore：每行一个“恢复”按钮（手机，点后打开恢复弹层）。
+ * restore：每行“恢复”“删除”两个按钮（手机）。
  */
 export type BackupTimelineAction =
   | {
@@ -34,6 +35,7 @@ export type BackupTimelineAction =
       /** 正在传输或恢复时禁用。 */
       readonly isDisabled: boolean
       readonly onRestore: (id: string) => void
+      readonly onDelete: (id: string) => void
     }
 
 /** BackupTimeline 的参数。 */
@@ -91,14 +93,14 @@ export function BackupTimeline({ backups, action }: BackupTimelineProps): ReactE
         return (
           <div className="ss-list-row" key={item.id}>
             {content}
-            <button
-              type="button"
-              className="ss-tl-restore"
-              disabled={action.isDisabled}
-              onClick={() => action.onRestore(item.id)}
-            >
-              {t('backup.restore')}
-            </button>
+            <div className="ss-tl-actions">
+              <Button disabled={action.isDisabled} onClick={() => action.onRestore(item.id)}>
+                {t('backup.restore')}
+              </Button>
+              <Button danger disabled={action.isDisabled} onClick={() => action.onDelete(item.id)}>
+                {t('backup.delete')}
+              </Button>
+            </div>
           </div>
         )
       })}

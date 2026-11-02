@@ -18,6 +18,8 @@ import type {
 
 /** 服务快照只含公开元数据；地址用于手机手动连接，写授权仅在本进程有效。 */
 export interface DesktopServiceSnapshot {
+  /** 本机系统名称；读取失败时为 null，界面留空。 */
+  readonly deviceName: string | null
   readonly configuredPort: number
   readonly listener: {
     readonly host: string
@@ -62,6 +64,7 @@ function isSnapshot(value: unknown): value is DesktopServiceSnapshot {
   if (
     typeof value !== 'object' ||
     value === null ||
+    !('deviceName' in value) ||
     !('configuredPort' in value) ||
     !('listener' in value) ||
     !('error' in value) ||
@@ -72,6 +75,8 @@ function isSnapshot(value: unknown): value is DesktopServiceSnapshot {
   }
   const listener = value.listener
   return (
+    (value.deviceName === null ||
+      (typeof value.deviceName === 'string' && value.deviceName.length > 0)) &&
     typeof value.configuredPort === 'number' &&
     Number.isInteger(value.configuredPort) &&
     value.configuredPort >= 1 &&

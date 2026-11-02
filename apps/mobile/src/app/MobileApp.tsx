@@ -7,6 +7,7 @@ import {
   OperationFailure,
   emptyLibrary,
   formatConnectionAddress,
+  observeSyncJob,
   taskIsActive,
   toShownError,
   withGameLink,
@@ -16,12 +17,14 @@ import {
 import type {
   CatalogGame,
   DirectoryReference,
+  InterruptedWrite,
   LibraryGame,
   LibraryPeer,
   ShownError,
 } from '@savedata-sync/shared'
 import type { MobileLibraryAdapter, MobileSnapshot } from '../platform/library-types'
 import { ConfirmationDialog } from '../components/ConfirmationDialog.tsx'
+import { InterruptedWriteDialog } from '../components/InterruptedWriteDialog.tsx'
 import { DeviceEditorDialog } from '../components/DeviceEditorDialog.tsx'
 import { GameMenu } from '../features/games/GameActionSheet'
 import { ImportGameDialog } from '../components/ImportGameDialog.tsx'
@@ -72,9 +75,9 @@ export function MobileApp({
   const appPreferences = useAppPreferences()
   const t = useT()
   const [messageApi, messageContextHolder] = message.useMessage()
-  const syncTasks = useSyncTasks(sync)
   const [page, setPage] = useState<Page>('games')
   const [taskProjectId, setTaskProjectId] = useState<string | null>(null)
+  const syncTasks = useSyncTasks(sync, page === 'task' ? taskProjectId : null)
   const [snapshot, setSnapshot] = useState<MobileSnapshot | null>(null)
   // 失败用 Message 提示一次，不在页面里放横幅。
   const [showError, failureHolder] = useFailureMessage()
@@ -103,10 +106,12 @@ export function MobileApp({
   } | null>(null)
   const [copied, setCopied] = useState('')
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null)
+  const [interruptedWrites, setInterruptedWrites] = useState<readonly InterruptedWrite[]>([])
   const operating = useRef(false)
   const generation = useRef(0)
   const backHandler = useRef<() => boolean>(() => false)
   const transferNotices = useRef(new Map<string, string>())
+  const scanNotice = useRef<string | null>(null)
   const showSyncFailure = useCallback(
     (failure: ShownError) => {
       void messageApi.error({
@@ -141,6 +146,8 @@ export function MobileApp({
     transferNotices.current.set(state.jobId, signature)
     // 首次取回旧终态只展示详情；本次发起预先登记 running，快速完成也能提示一次。
     if (previous !== undefined && feedback) {
+      // 开始和结果不共用 key：提示退场时用同一 key 再次打开，计时不会重启，提示就一直不消失。
+      messageApi.destroy(`sync-started-${state.jobId}`)
       void messageApi.open({
         type: feedback.type,
         content: feedback.error ? (
@@ -222,6 +229,31 @@ export function MobileApp({
     }
   }, [refresh, invalidate, showError])
   useEffect(() => backButton?.subscribe(() => backHandler.current()), [backButton])
+  // 游戏名要等配置读到才有；已移除的游戏没有可提示的目录，标记直接清除。
+  const hasLoaded = snapshot !== null
+  useEffect(() => {
+    if (!hasLoaded) {
+      return
+    }
+    let isCurrent = true
+    sync
+      .interruptedWrites()
+      .then(async (writes) => {
+        const games = snapshotRef.current?.config.games ?? []
+        const isKnown = (item: InterruptedWrite): boolean =>
+          games.some((value) => value.id === item.projectId)
+        for (const item of writes.filter((value) => !isKnown(value))) {
+          await sync.dismissInterruptedWrite(item.id)
+        }
+        if (isCurrent) {
+          setInterruptedWrites(writes.filter(isKnown))
+        }
+      })
+      .catch((cause: unknown) => showError(toShownError(cause)))
+    return () => {
+      isCurrent = false
+    }
+  }, [hasLoaded, sync, showError])
   function run(work: () => Promise<void>, onError?: (failure: ShownError) => void): void {
     if (operating.current) {
       return
@@ -248,6 +280,16 @@ export function MobileApp({
   }
   const config = snapshot?.config ?? EMPTY
   const game = config.games.find((item) => item.id === gameId) ?? null
+  const interruptedWrite = interruptedWrites[0] ?? null
+  function dismissInterruptedWrite(): void {
+    if (!interruptedWrite) {
+      return
+    }
+    setInterruptedWrites((items) => items.filter((item) => item.id !== interruptedWrite.id))
+    sync
+      .dismissInterruptedWrite(interruptedWrite.id)
+      .catch((cause: unknown) => showError(toShownError(cause)))
+  }
   const peers = snapshot?.peers ?? []
   const online = peers.find((item) => item.isConnected) ?? null
   const localRoot = snapshot?.roots.find((item) => item.rootId === game?.rootId) ?? null
@@ -255,7 +297,14 @@ export function MobileApp({
   const isDisabled = isBusy || !snapshot
   const copyProjectId = syncTasks.copy?.preview.binding.projectId ?? null
   const copyPreview = syncTasks.copy
-    ? syncTaskPreview(syncTasks.copy.state.local, syncTasks.copy.state.remote, t)
+    ? syncTaskPreview(
+        observeSyncJob(
+          syncTasks.copy.state.local,
+          syncTasks.copy.state.remote,
+          syncTasks.copy.state.remoteError !== null,
+        ),
+        t,
+      )
     : null
   const openRestore =
     syncTasks.restore?.state.restoreId === restoreTarget?.restoreId ? syncTasks.restore : null
@@ -300,17 +349,22 @@ export function MobileApp({
         }
       }
       transferNotices.current.set(jobId, 'running')
-      void messageApi.info({ content: t('transfer.started'), key: `sync-transfer-${jobId}` })
+      void messageApi.info({ content: t('transfer.started'), key: `sync-started-${jobId}` })
       reloadTasks()
     },
     [messageApi, reloadTasks, t],
   )
   useRemoteSync(sync, androidControl, online?.device.id ?? null, isActive, {
-    onScan: (projectId) => {
+    onScan: (requestId, projectId) => {
       const name = config.games.find((item) => item.id === projectId)?.name ?? t('common.unknown')
+      // 每次请求一个 key，并收起上一条；原因同上。
+      if (scanNotice.current) {
+        messageApi.destroy(scanNotice.current)
+      }
+      scanNotice.current = `remote-sync-scan-${requestId}`
       void messageApi.info({
         content: t('transfer.remoteScanRequest', { name }),
-        key: 'remote-sync-scan',
+        key: scanNotice.current,
       })
     },
     onStarted: announceStart,
@@ -332,7 +386,11 @@ export function MobileApp({
     )
   function openGame(item: LibraryGame): void {
     setGameId(item.id)
-    setPeerId(item.links.length === 1 ? (item.links[0]?.deviceId ?? '') : '')
+    // 优先选已连接的设备；都没连接时，只有一台才能替用户定下来。
+    const connected = item.links.find((link) =>
+      peers.some((peer) => peer.isConnected && peer.device.id === link.deviceId),
+    )
+    setPeerId((connected ?? (item.links.length === 1 ? item.links[0] : undefined))?.deviceId ?? '')
     setIsGameMenuOpen(true)
   }
   async function saveGame(item: LibraryGame): Promise<void> {
@@ -580,6 +638,8 @@ export function MobileApp({
       title: t('game.removeTitle'),
       text: t('game.removeText'),
       work: async () => {
+        // 先删备份：删除失败时游戏还在，可以重试，不会留下没有入口的备份。
+        await sync.deleteGameBackups(gameId)
         await adapter.saveGames(config.games.filter((item) => item.id !== gameId))
         setConfirmation(null)
         setPage('games')
@@ -587,6 +647,10 @@ export function MobileApp({
     })
   }
   backHandler.current = () => {
+    if (interruptedWrite) {
+      dismissInterruptedWrite()
+      return true
+    }
     if (confirmation) {
       if (!isBusy) {
         setConfirmation(null)
@@ -682,6 +746,7 @@ export function MobileApp({
         game={game}
         peers={peers}
         localRoot={localRoot}
+        deviceName={snapshot?.deviceName ?? null}
         peerId={peerId}
         isPlan={page === 'sync-plan'}
         isDisabled={isDisabled || isActive}
@@ -702,7 +767,8 @@ export function MobileApp({
         <SyncTaskDetails
           projectId={taskProjectId}
           sync={sync}
-          copy={taskProjectId === null || copyProjectId === taskProjectId ? syncTasks.copy : null}
+          copy={taskProjectId === null ? syncTasks.copy : syncTasks.projectCopy}
+          isLoading={syncTasks.isProjectCopyLoading}
           restore={
             taskProjectId === null || syncTasks.restore?.state.projectId === taskProjectId
               ? syncTasks.restore
@@ -860,6 +926,21 @@ export function MobileApp({
             run(confirmation.work)
           }
         }}
+      />
+      <InterruptedWriteDialog
+        gameName={
+          interruptedWrite
+            ? (config.games.find((item) => item.id === interruptedWrite.projectId)?.name ?? null)
+            : null
+        }
+        hasBackup={Boolean(interruptedWrite?.backupId)}
+        onViewBackup={() => {
+          if (interruptedWrite) {
+            openBackup(interruptedWrite.projectId)
+            dismissInterruptedWrite()
+          }
+        }}
+        onClose={dismissInterruptedWrite}
       />
     </>
   )

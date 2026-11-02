@@ -1,10 +1,18 @@
 import { useEffect, useRef, useState } from 'react'
 import { Button, List } from 'antd-mobile'
-import { ExclamationCircleOutlined } from '@ant-design/icons'
 import { formatShortDateTime, resolveBackupPolicy, toShownError } from '@savedata-sync/shared'
 import type { LibraryGame, ShownError, SyncBackupPolicy } from '@savedata-sync/shared'
-import { BackupPolicyBlock, BackupTimeline, PathText, useT } from '@savedata-sync/shared/ui'
+import {
+  BackupLeftoverNotice,
+  BackupPolicyBlock,
+  BackupTimeline,
+  cleanupIncompleteBackups,
+  PathText,
+  useT,
+} from '@savedata-sync/shared/ui'
 import { useFailureMessage } from '../../app/failure-message'
+import { ConfirmationDialog } from '../../components/ConfirmationDialog'
+import { EmptyState } from '../../components/EmptyState'
 import type {
   MobileBackupDetails,
   MobileRestoreDetails,
@@ -56,6 +64,7 @@ export function BackupPage({
   const [isPolicyOpen, setIsPolicyOpen] = useState(false)
   const [mode, setMode] = useState<PolicyMode>('follow')
   const [draft, setDraft] = useState<SyncBackupPolicy | null>(null)
+  const [deleting, setDeleting] = useState<string | null>(null)
   const current = restore?.state.projectId === game.id ? restore : null
   const operating = useRef(false)
   const saving = useRef(Promise.resolve())
@@ -65,6 +74,9 @@ export function BackupPage({
     showFailure(error?.error ?? null, error?.context ?? null)
   }, [error, showFailure])
   useEffect(() => {
+    if (!game.rootId) {
+      return
+    }
     let isCurrent = true
     sync
       .backups(game.id)
@@ -85,12 +97,15 @@ export function BackupPage({
     }
   }, [sync, game.id, game.rootId, version, current?.state.status, t])
   useEffect(() => {
-    if (!isPolicyOpen) {
+    if (!isPolicyOpen && !deleting) {
       return
     }
-    onOverlayChange(() => setIsPolicyOpen(false))
+    onOverlayChange(() => {
+      setIsPolicyOpen(false)
+      setDeleting(null)
+    })
     return () => onOverlayChange(null)
-  }, [isPolicyOpen, onOverlayChange])
+  }, [isPolicyOpen, deleting, onOverlayChange])
   const settings = details?.info.settings
   const policy = details && resolveBackupPolicy(details.info.settings, game.id, details.root.rootId)
   const isLocked = isDisabled || isBusy
@@ -109,6 +124,8 @@ export function BackupPage({
       .then(reload)
       .catch((cause: unknown) => {
         setError({ context: t('app.actionFailed'), error: toShownError(cause) })
+        // 批量清理可能只成功了一部分，列表要反映实际结果。
+        setVersion((value) => value + 1)
         onChanged()
       })
       .finally(() => {
@@ -154,6 +171,15 @@ export function BackupPage({
     })
   }
   const incomplete = details?.listing.incomplete ?? []
+  if (!game.rootId) {
+    return (
+      <EmptyState description={t('backup.noFolder')}>
+        <Button size="small" onClick={onSettings}>
+          {t('page.gameSettings')}
+        </Button>
+      </EmptyState>
+    )
+  }
   return (
     <div className="page-stack">
       {failureHolder}
@@ -164,11 +190,6 @@ export function BackupPage({
             <Button size="small" disabled={isBusy} onClick={reload}>
               {t('common.retry')}
             </Button>
-            {!game.rootId && (
-              <Button size="small" onClick={onSettings}>
-                {t('page.gameSettings')}
-              </Button>
-            )}
           </div>
         </div>
       )}
@@ -179,6 +200,15 @@ export function BackupPage({
           isCustom={policy.isCustom}
           location={null}
           onEdit={isLocked ? null : openPolicy}
+        />
+      )}
+      {incomplete.length > 0 && (
+        <BackupLeftoverNotice
+          items={incomplete}
+          isDisabled={isLocked}
+          onCleanup={() =>
+            run(() => cleanupIncompleteBackups(incomplete, (id) => sync.cleanupBackup(game.id, id)))
+          }
         />
       )}
       {details && policy && (
@@ -197,29 +227,14 @@ export function BackupPage({
               fileCount: item.fileCount,
               totalBytes: item.totalFileBytes,
             }))}
-            action={{ kind: 'restore', isDisabled: isLocked, onRestore: prepare }}
+            action={{
+              kind: 'restore',
+              isDisabled: isLocked,
+              onRestore: prepare,
+              onDelete: setDeleting,
+            }}
           />
         </section>
-      )}
-      {incomplete.length > 0 && (
-        <div className="notice notice-warning">
-          <p>
-            <ExclamationCircleOutlined /> {t('backup.incomplete', { count: incomplete.length })}
-          </p>
-          <Button
-            size="small"
-            disabled={isLocked}
-            onClick={() =>
-              run(async () => {
-                for (const id of incomplete) {
-                  await sync.cleanupBackup(game.id, id)
-                }
-              })
-            }
-          >
-            {t('backup.cleanup')}
-          </Button>
-        </div>
       )}
       {current && (
         <Button
@@ -235,6 +250,26 @@ export function BackupPage({
           {t('backup.location')} <PathText path={details.info.displayPath} />
         </p>
       )}
+      <ConfirmationDialog
+        confirmation={
+          deleting
+            ? {
+                title: t('backup.deleteTitle'),
+                text: t('backup.deleteText', { time: sourceName(deleting) }),
+                okType: 'danger',
+                work: () => sync.deleteBackup(game.id, deleting),
+              }
+            : null
+        }
+        isBusy={isBusy}
+        onCancel={() => setDeleting(null)}
+        onConfirm={() => {
+          if (deleting) {
+            setDeleting(null)
+            run(() => sync.deleteBackup(game.id, deleting))
+          }
+        }}
+      />
       <Sheet
         isOpen={isPolicyOpen}
         title={t('backup.policyTitle', { name: game.name })}

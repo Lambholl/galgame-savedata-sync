@@ -140,11 +140,6 @@ summary,
   white-space: nowrap;
   --border-radius: var(--ss-r-pill);
 }
-/* 按钮文字按大写字母高度到基线裁去上下空白再居中；不裁时比图标低约半像素（字体上方留白较多） */
-.adm-button:not(.adm-stepper > *) > span,
-.floating-action > span > span {
-  text-box: trim-both cap alphabetic;
-}
 .adm-button-block {
   display: flex;
   width: 100%;

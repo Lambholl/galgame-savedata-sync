@@ -1,5 +1,5 @@
 import type { IpcMain, IpcMainInvokeEvent } from 'electron'
-import { networkInterfaces } from 'node:os'
+import { hostname, networkInterfaces } from 'node:os'
 import { isOpaqueId } from '@savedata-sync/shared'
 import type { DirectoryReference, OperationResult } from '@savedata-sync/shared'
 import { SERVICE_CHANNELS } from '../bridge/service-bridge.ts'
@@ -15,6 +15,15 @@ interface ServiceIpcOptions {
   readonly portSettings: ServicePortSettings
   readonly isTrustedSender: (event: IpcMainInvokeEvent) => boolean
   readonly chooseTargetPath: () => Promise<string | null>
+}
+
+/** 与发给手机的设备名同一取值；系统读不到时留空，不改用其他名称。 */
+function localDeviceName(): string | null {
+  try {
+    return hostname() || null
+  } catch {
+    return null
+  }
 }
 
 /** 注册固定控制通道，校验窗口/主 frame/参数；授权只来自本机系统选择器。退出时移除。 */
@@ -43,6 +52,7 @@ export function registerServiceIpc(
     return {
       status: 'success',
       value: {
+        deviceName: localDeviceName(),
         configuredPort: options.portSettings.getPort(),
         listener: address ? { host: address.host, port: address.port, addresses } : null,
         error: service.getError(),

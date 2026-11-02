@@ -31,6 +31,7 @@ export function createDesktopLibraryAdapter(): DesktopLibraryAdapter {
       return {
         warning: null,
         config: config.config,
+        deviceName: status.deviceName,
         peers: config.peers.map((item) => ({
           ...item,
           isConnected: item.isConnected && Boolean(status.listener),

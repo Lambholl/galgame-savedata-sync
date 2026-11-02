@@ -208,7 +208,7 @@ export function GameSettingsPage({
         actions={[
           {
             key: 'transfer',
-            text: t('game.transferWith'),
+            text: t('game.transfer'),
             disabled: isActive || !menuItem?.isConnected || !localRoot,
           },
           {

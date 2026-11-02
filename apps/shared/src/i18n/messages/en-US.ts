@@ -9,14 +9,11 @@ export const enUS: Messages = {
   'app.cleanupFailed':
     'Could not release cached or candidate files. Check permissions and try exiting again.',
   'app.initializeFailedTitle': 'Initialization failed',
-  'app.initializeFailed':
-    'Could not read the folder configuration. Check app data and permissions.',
   'app.startFailed': 'Could not read app settings. Restart the app and try again.',
 
   'nav.devices': 'Devices',
   'nav.games': 'Games',
   'nav.settings': 'Settings',
-  'nav.back': 'Back',
   'nav.main': 'Main navigation',
   'nav.backToGames': 'Back to games',
   'nav.backToTransfer': 'Back to transfer',
@@ -45,8 +42,8 @@ export const enUS: Messages = {
   'common.cancel': 'Cancel',
   'common.close': 'Close',
   'common.confirm': 'Confirm',
+  'common.gotIt': 'Got it',
   'common.save': 'Save',
-  'common.closeError': 'Dismiss error',
   'common.more': 'More',
 
   'transfer.local': 'This device',
@@ -86,7 +83,6 @@ export const enUS: Messages = {
   'compare.summary': ({ directories, files }) =>
     `${directories} ${directories === 1 ? 'folder' : 'folders'} · ${files} ${files === 1 ? 'file' : 'files'}`,
   'compare.up': 'Up one level',
-  'compare.name': 'Name',
   'compare.size': 'Size',
   'compare.modified': 'Modified',
 
@@ -139,6 +135,8 @@ export const enUS: Messages = {
   'task.done': 'Transfer complete',
   'task.doneDetail': ({ count }) => (count === 1 ? '1 file written' : `${count} files written`),
   'task.backedUp': 'old files backed up',
+  'task.backedUpCount': ({ count }) =>
+    count === 1 ? '1 file backed up' : `${count} files backed up`,
   'task.partial': 'Partly complete',
   'task.partialDetail': ({ ok, failed }) => `${ok} succeeded · ${failed} failed`,
   'task.failed': 'Transfer failed',
@@ -160,6 +158,11 @@ export const enUS: Messages = {
   'task.none': 'No transfer or restore in progress.',
   'task.cancel': 'Cancel transfer',
   'task.viewBackup': 'View backups',
+  'write.interruptedTitle': 'Last write was interrupted',
+  'write.interruptedNoBackup': ({ name }) =>
+    `The app closed while writing "${name}". Files may be incomplete.`,
+  'write.interruptedWithBackup': ({ name }) =>
+    `The app closed while writing "${name}". Files may be incomplete. You can restore them from a backup.`,
   'task.rescan': 'Scan again',
   'task.readFailed': 'Could not read the transfer status',
   'task.history': 'Earlier transfers',
@@ -189,7 +192,6 @@ export const enUS: Messages = {
   'game.deviceRemoved': 'Device removed',
   'game.deviceMenu': 'Device menu',
   'game.transfer': 'Transfer',
-  'game.transferWith': 'Transfer with this device',
   'game.relink': 'Match a different game',
   'game.unlink': 'Unlink',
   'game.unlinkHint': 'The device and the saves on both sides are kept',
@@ -215,19 +217,21 @@ export const enUS: Messages = {
   'backup.reason.restore': 'Before restore',
   'backup.files': ({ count, size }) => `${count} ${count === 1 ? 'file' : 'files'} · ${size}`,
   'backup.restore': 'Restore',
-  'backup.restoreThis': 'Restore this backup',
   'backup.none':
     'No backups yet. When backup before writing is on, a transfer that writes files preserves the current target folder.',
   'backup.incomplete': ({ count }) =>
     count === 1 ? '1 backup did not finish' : `${count} backups did not finish`,
   'backup.cleanup': 'Clean up',
+  'backup.occupied': ({ size }) => `using ${size}`,
+  'backup.occupiedUnknown': 'size unknown',
+  'backup.delete': 'Delete',
+  'backup.deleteTitle': 'Delete backup',
+  'backup.deleteText': ({ time }) =>
+    `Delete the backup from ${time}? You won't be able to restore from it afterwards.`,
   'backup.privateNote':
     "Backups are stored in the app's private folder. Uninstalling the app or clearing its data deletes them.",
   'backup.switch': 'Backup before writing',
-  'backup.restoreTitle': ({ time }) => `Restore the backup from ${time}`,
   'backup.confirmRestore': 'Restore',
-  'backup.back': 'Back',
-  'backup.done': 'Done',
   'backup.preparing': 'Checking the backup and reading current files…',
   'backup.restoring': ({ done, total }) => `Restoring ${done} / ${total}`,
   'backup.restored': 'Restore complete',
@@ -238,8 +242,6 @@ export const enUS: Messages = {
   'backup.restoreUnknown': 'Restore result not confirmed',
   'backup.oldFolder':
     'This backup is from a previous folder. Switch back to that folder in game settings before restoring.',
-  'backup.file': 'File',
-  'backup.originalModified': 'Original modified',
   'backup.noGame': 'Open Backup & restore from a game.',
   'backup.noFolder': 'Choose a save folder on this device in game settings first.',
   'backup.readFailed': 'Could not read backups',
@@ -258,8 +260,6 @@ export const enUS: Messages = {
 
   'app.disconnected': 'Disconnected',
   'app.connectedTo': ({ name }) => `Connected to ${name}`,
-  'app.readFailed': 'Could not read the app status',
-  'app.refreshFailed': 'Could not refresh',
   'app.actionFailed': 'The action failed',
   'app.notLoaded': 'The app is still loading its data. Try again in a moment.',
   'common.noOptions': 'Nothing to choose from',
@@ -280,7 +280,6 @@ export const enUS: Messages = {
   'device.address': 'IP address and port',
   'device.addressPlaceholder': 'IP:Port',
   'device.copyAddress': 'Copy address',
-  'device.copied': 'Copied',
   'device.connect': 'Connect',
   'device.disconnect': 'Disconnect',
   'device.waitingPhone': 'Waiting for the phone',
@@ -304,11 +303,9 @@ export const enUS: Messages = {
   'game.linkCount': ({ count }) =>
     count === 1 ? 'Linked to 1 device' : `Linked to ${count} devices`,
   'game.removeTitle': 'Remove game',
-  'game.removeText': 'Removes the game settings and device links. Save files are kept.',
-  'game.viewTaskProgress': 'View progress',
-  'game.viewTasks': 'Transfers and results',
+  'game.removeText':
+    "Removes the game settings, device links, and this game's backups. Save files are kept.",
   'game.transferRunning': 'Transfer in progress',
-  'game.viewTransferResult': 'View transfer result',
 
   'transfer.started': 'Transfer started',
   'transfer.remoteScanRequest': ({ name }) => `The PC asked to scan ${name}`,
@@ -318,7 +315,6 @@ export const enUS: Messages = {
   'task.sent': 'Sent',
   'task.archiveProgress': ({ done, total }) => `Transferred ${done} / ${total}`,
   'task.retryCleanup': 'Retry cleanup',
-  'task.refreshFailed': 'Could not refresh the transfer',
   'task.cleanupPending':
     'Files transferred, but temporary files are not cleaned up yet. Check the transfer details.',
   'backup.status.preparing': 'Preparing',

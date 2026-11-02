@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { toShownError, unwrap } from '@savedata-sync/shared'
-import type { ShownError, SyncJobRequest, SyncJobState, SyncPlan } from '@savedata-sync/shared'
+import { observeSyncJob, toShownError, unwrap } from '@savedata-sync/shared'
+import type { ShownError, SyncJobRequest, SyncPlan, SyncTransferState } from '@savedata-sync/shared'
 import type { DesktopRestoreState } from '../../../../bridge/sync-bridge.ts'
 import { desktopSync } from '../../platform/sync-adapter.ts'
 
 interface CopyDetails {
   readonly request: SyncJobRequest
-  readonly state: SyncJobState
+  readonly state: SyncTransferState
 }
 interface RestoreDetails {
   readonly plan: SyncPlan | null
@@ -37,8 +37,12 @@ async function readRestore(id: string, previous: RestoreDetails | null): Promise
   }
   return { state, plan }
 }
-function copyContinues(value: CopyDetails): boolean {
-  return value.state.status === 'running'
+/** 结果待确认时继续读取：手机重连后还可能拿到结果。 */
+function copyContinues({ state }: CopyDetails): boolean {
+  return (
+    state.remoteError !== null ||
+    observeSyncJob(state.local, state.remote, false).phase === 'running'
+  )
 }
 function restoreContinues(value: RestoreDetails): boolean {
   return value.state.isWorking

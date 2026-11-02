@@ -53,9 +53,33 @@ Windows 新增 `/v1/sync/capabilities`、`POST /v1/sync/scans` 和 `GET/DELETE /
 
 双向新复制协议已接入。Windows 提供只读项目设置、任务登记、单次清单/内容上传及源准备/单次内容 GET、查询/取消；Android → Windows 完整校验后由电脑保护并写入，Windows → Android 则由手机独立完成接收、校验、备份与写入。任务固定当前会话扫描、双向项目关联、设备/根及目标备份设置；实际同步通信更新既有设备在线时间。Windows 源准备异步返回 preparing，扫描资源释放后发布 ready，发送完成只报告 sent。Android 下载前合计缓存/备份/已知同卷增量，原生写入器借用确认时的名额和时间并重新扫描目标；完整 receiver 结果与发送状态分开。全任务保持进程互斥至清理结束，回执丢失只查询，内容不重放，零文件没有归档。SyncTransfers 有限桥分开普通扫描准备、同次确认、状态/清单及取消/释放，只有确认执行启动传输通知；新页面可取回原生预览核对结果。实际 SAF/LAN、回执丢失、关闭备份、目标变化及取消已验证；双端界面已接入。本机恢复经本地桥提供，远端恢复入口保持关闭。完整字段与期限统一见 `docs/plans/m002-sync-copy.md` 第 3.6/3.7 节。
 
-设备间控制走 WebSocket `/v1/control`（CR-013），文件内容仍走 HTTP 路由。拨号方先完成 `POST /v1/catalog` 交换，再带 `x-sync-session-id` 和 `x-sync-device-id` 升级；监听方核对会话、设备已交换目录表、未停用、未被断开且没有另一台设备在线，不满足返回 403。消息格式对称，双方都能发请求、回应答、推事件：`{v:1, type:request|response|event, id?, method, body|result}`，单条最多 8 MiB，只收文本帧，JSON 严格解析（重复键、非法 UTF-8 关闭 1007，格式不符关闭 1008）。请求方法有 `directory.list`、`sync.prepare`、`sync.confirm`、`sync.cancel`，事件有 `catalog.changed` 和 `sync.report`；请求 8 秒无应答即失败。监听方每 15 秒 ping，一个周期无 pong 就断开。关闭码 4001 表示监听方断开了这台设备，拨号方不再重连；4002 表示同一设备的新连接取代旧连接；其他关闭时拨号方 2 秒后重连。格式和守卫在 `apps/shared/src/control`，电脑 `control-hub.ts`（ws）监听，手机 `ControlClient.java`（Java-WebSocket）拨号，网页经 `platform/control-channel.ts` 收发。两端须同版，不保留轮询回退；目录轮询转向和 `/v1/sync/requests` 已删除。目前只有电脑监听、手机拨号，任意两台设备互传见 REQ-022。
+设备间控制走 WebSocket `/v1/control`（CR-013），文件内容仍走 HTTP 路由。拨号方先完成 `POST /v1/catalog` 交换，再带 `x-sync-session-id` 和 `x-sync-device-id` 升级；监听方核对会话、设备已交换目录表、未停用、未被断开且没有另一台设备在线，不满足返回 403。消息格式对称，双方都能发请求、回应答、推事件：`{v:1, type:request|response|event, id?, method, body|result}`，单条最多 8 MiB，只收文本帧，JSON 严格解析（重复键、非法 UTF-8 关闭 1007，格式不符关闭 1008）。请求方法有 `directory.list`、`sync.prepare`、`sync.confirm`、`sync.cancel`、`sync.job.read`、`sync.job.cancel`，事件有 `catalog.changed`、`sync.report` 和 `sync.job`；请求 8 秒无应答即失败。监听方每 15 秒 ping，一个周期无 pong 就断开。关闭码 4001 表示监听方断开了这台设备，拨号方不再重连；4002 表示同一设备的新连接取代旧连接；其他关闭时拨号方 2 秒后重连。格式和守卫在 `apps/shared/src/control`，电脑 `control-hub.ts`（ws）监听，手机 `ControlClient.java`（Java-WebSocket）拨号，网页经 `platform/control-channel.ts` 收发。两端须同版，不保留轮询回退；目录轮询转向和 `/v1/sync/requests` 已删除。目前只有电脑监听、手机拨号，任意两台设备互传见 REQ-022。
 
-电脑发起复制（CR-012）复用手机的扫描与执行，经控制通道传递。电脑 `remote-sync-requests.ts` 同时只保留一个请求：发起时发 `sync.prepare {requestId, projectId, direction}`，手机立即应答后开始扫描，用 `sync.report` 回报 preparing、ready（附计划）或 failed；ready 计划须是对应项目、方向、设备和根的覆盖复制。电脑确认后发 `sync.confirm`，手机执行并应答 `{jobId}`，jobId 等于 planId 时记为 running；手机每秒查询一次当前复制，结束后回报 finished（succeeded、failed、cancelled 或 unknown），电脑显示“传输完成。”或失败原因。电脑取消发 `sync.cancel`，手机取消并释放本机扫描；控制连接断开时未开始的请求记为失败，已开始的传输提示到任务列表查看结果。有限 desktopSync 桥提供 remoteRequest/startRemote/remotePlan/confirmRemote/cancelRemote。
+电脑发起复制（CR-012）复用手机的扫描与执行，经控制通道传递。电脑 `remote-sync-requests.ts` 同时只保留一个请求：发起时发 `sync.prepare {requestId, projectId, direction}`，手机立即应答后开始扫描，用 `sync.report` 回报 preparing、ready（附计划）或 failed；ready 计划须是对应项目、方向、设备和根的覆盖复制。电脑确认后发 `sync.confirm`，手机执行并应答 `{jobId}`，jobId 等于 planId 时记为 running；之后的进度和结果来自下面的任务观察。电脑取消发 `sync.cancel`，手机取消并释放本机扫描；控制连接断开时未确认的请求记为失败，已确认的请求记为结果待确认，手机重连后由摘要更新。有限 desktopSync 桥提供 remoteRequest/startRemote/remotePlan/confirmRemote/cancelRemote。
+
+任务观察（CR-014）对两种发起方式、两个方向相同。版本：`/v1/sync/capabilities.schemaVersion` 升为 2，是唯一的版本门槛，旧对端在创建任务前得到“请更新两端”；控制消息 `v` 保持 1。`SyncJobState.schemaVersion` 升为 2，新增 `failureStage`（失败、取消或待确认时停在哪个阶段，取值为 cleaning、done 以外的阶段；成功、已发送或没有记录时为 null，清理和终态更新不改写它）。`SyncTransferState` 仍是 1。
+
+| 消息 | 方向 | 内容 | 失败含义 |
+| --- | --- | --- | --- |
+| 事件 `sync.job` | 手机原生 → 电脑 | `SyncJobDigest`：`SyncJobState` 去掉逐项 result。有变化时发，进行中每秒至少一次，检查周期 500ms；只在发送成功后记为已发，断开期间的变化重连后补发 | 未知任务或别的设备的摘要被忽略；角色、方向、总量与计划不符时记 result-unknown |
+| 请求 `sync.job.read {jobId}` | 电脑 → 手机原生 | 完整 `SyncJobState`。只在接收端结束后读一次，取得逐项结果 | 任务不存在或属于别的设备返回 not-found；失败时每 5 秒重试，其间显示结果待确认 |
+| 请求 `sync.job.cancel {jobId}` | 电脑 → 手机原生 | null。手机记录为用户取消，而不是网络失败；已结束的任务不受影响 | 手机还没建立任务时返回 not-found，电脑报告操作失败 |
+
+这三项由 `SyncTransferEngine` 处理，不经页面，页面被回收或任务由手机发起时同样工作。角色状态互相独立，成功只看接收端的读回结果：`observeSyncJob(local, remote, hasRemoteError)` 合成阶段、当前段百分比、失败阶段和计数，发送端结束而接收端未结束时仍是进行中。对端状态不可信（控制通道断开、60 秒没有摘要、结果读取失败）时 `remoteError` 为 result-unknown，本机也结束后显示待确认，新的摘要或结果会清除它。
+
+电脑侧 `copyState`、`cancelCopy` 返回 `SyncTransferState`，`DesktopCopySummary` 用 phase、stage、step、percent 取代 status，由主进程计算，详情、游戏进度条、历史和完成提示读同一份，高频更新不携带逐项结果。已确认但手机还没登记任务时，`remote-sync-requests.ts` 用同一个 jobId 提供占位的摘要、计划和状态，详情显示准备中；登记后改由 `WindowsSyncRegistry` 提供。对端未结束的任务不会被留存清理，也算作有运行中的工作。
+
+备份展示字段（CR-014 B2、B3）由同一能力版本 2 覆盖，两端同版，封闭 DTO 不放宽校验。
+
+| 字段 | 位置 | 含义 | 失败或未知 |
+| --- | --- | --- | --- |
+| `backupKeepCount`（1–10） | `GET /v1/sync/projects/{id}` 的 `SyncProjectDescriptor`、`SyncPreparationPreview`、`sync.report` 的 ready | 被写入端这个游戏目录实际生效的保留份数。手机发送时取电脑项目描述，电脑发送时取手机设置；电脑发起时由手机随 ready 回报 | 必填，越界即校验失败；电脑请求在 ready 之前为 null，计划不显示份数 |
+| `backupFileCount` | `SyncApplyResult` | 本次已提交备份清单里的文件数，来自实际清单，不用计划数估算 | 没有备份时 null；有 backupId 而为 null 时只说“已备份” |
+| `incomplete: {backupId, occupiedBytes}[]` | 双端备份列表（Windows 与 Android 桥） | 未完成轮次及其私有目录占用字节数 | 读不到为 null，界面显示大小未知，与 0 字节分开 |
+
+删除备份只走本机受限桥，不经网络：电脑 `desktopBackups.deleteBackup(projectId, rootId, backupId)`，手机 `SyncBackups.deleteBackup` 同参数。只删校验通过的轮次；不存在返回 not-found；被恢复引用或有传输、恢复运行时返回 busy；中途失败时轮次变成未完成残留，可用清理入口重试。移除游戏时先调 `deleteGameBackups(projectId)`（两端同名），删掉这个游戏在所有目录下的轮次、残留和单独设置，成功后才保存游戏配置；失败时游戏保留，可以重试。存档文件不动。
+
+按游戏查询（B4）：手机 `SyncTransfers.latest({projectId})` 只查进程内任务登记表，返回该本机项目最近的 jobId 或 null，之后沿用 query/preview；留存期与容量不变，进程重启后没有记录。全局活动判断仍用 `current()`。本机设备名（B5）：手机 `HttpTransfers.deviceName()`，电脑 `DesktopServiceSnapshot.deviceName`，取值规则与发给对端的相同；读取失败为空，界面留空，不用对端保存的名称。
 
 共享包导出以下 v1 路由常量和 DTO。Windows 读取/sender、uploads/PUT receiver 及通用查询/取消端点现已可用；完整字段、状态码和例外以仓库根目录的 `docs/plans/m001-tar-gzip-protocol.md` 为准。WP-012/WP-013 分别负责双端归档，网络包只编排这些能力。
 
@@ -82,8 +106,8 @@ transferId 只属于当前会话，不是历史同步基线。服务以每次启
 
 | 边界 | 可传递的内容 | 限制 |
 | --- | --- | --- |
-| Android 复制与恢复界面适配器 | createMobileSyncAdapter 从保存配置固定设备/项目/根，提供准备、固定预览、确认执行、当前任务、取消、备份设置和恢复入口；useSyncTasks 只轮询原生所有者 | 通知授权后重查映射，方向或目录变化后重新扫描确认；sender sent 后目标仍运行时继续只读查询同一 ID；页面卸载不取消任务，重建只查询，不重放执行；失败、部分、未知与清理结果分开显示，详细参数和示例见移动 README |
-| Windows 同步与恢复界面桥 | desktopSync 提供复制摘要/计划/状态/取消/清理，以及本机恢复准备/预览/确认/状态/取消/清理/释放；DesktopRestoreState 含固定项目/目录/输入备份、阶段、isWorking、实际文件进度及结果/独立清理错误 | 固定 sync:* 通道、受信任窗口/主 frame/URL、封闭 ID 参数、同次原生计划和 8 MiB 响应校验；摘要最多 32 份，准备不占目标名额，确认后持有到清理成功；刷新可查询本进程任务，重启只保留配置/备份；未提供跨端发起或远端恢复，接口及错误见桌面 README 第 14 节 |
+| Android 复制与恢复界面适配器 | createMobileSyncAdapter 从保存配置固定设备/项目/根，提供准备、固定预览、确认执行、当前任务、取消、备份设置和恢复入口；useSyncTasks 只轮询原生所有者 | 通知授权后重查映射，方向或目录变化后重新扫描确认；sender sent 后目标仍运行时继续只读查询同一 ID；页面卸载不取消任务，重建只查询，不重放执行；`interruptedWrites`/`dismissInterruptedWrite` 读取并一次性清除上个进程留下的写入标记；失败、部分、未知与清理结果分开显示，详细参数和示例见移动 README |
+| Windows 同步与恢复界面桥 | desktopSync 提供复制摘要/计划/状态/取消/清理，以及本机恢复准备/预览/确认/状态/取消/清理/释放；DesktopRestoreState 含固定项目/目录/输入备份、阶段、isWorking、实际文件进度及结果/独立清理错误 | 固定 sync:* 通道、受信任窗口/主 frame/URL、封闭 ID 参数、同次原生计划和 8 MiB 响应校验；摘要最多 33 份（32 份已登记任务加一份待手机登记的任务），准备不占目标名额，确认后持有到清理成功；刷新可查询本进程任务，重启只保留配置/备份和写入标记；`interruptedWrites`/`dismissInterruptedWrite` 读取并一次性清除上个进程留下的标记；未提供跨端发起或远端恢复，接口及错误见桌面 README 第 13、14 节 |
 | Electron preload | chooseDirectory、listRoots、listDirectory；只接受 ID，返回公开 DTO；系统选择器在主进程执行 | 无 fs/shell/Node、绝对路径、内容或写入接口；校验登记窗口、主 frame 与精确 URL；退出移除 handler |
 | Electron 服务桥 | desktopService 的 status/start/randomizePort/stop/chooseTarget/revokeTarget/cancel/retryCleanup；状态含 configuredPort、实际端口/IPv4 地址、错误、已授权接收根和会话任务 | 窗口/主 frame/精确 URL 与参数/DTO 校验；start 端口为 1..65535，显式监听 0.0.0.0；首次生成并保存 49152..65535 随机端口，后续读取既有值；randomizePort 排除当前值并保存，运行时拒绝修改；选择目录后 grant；卸载停止轮询，退出移除 handler |
 | Electron 主进程原生读取 | registerDirectory 登记系统选中路径，listDirectory 返回当前层，openFile 返回本进程只读流 | 配置独立存放，没有历史清单；调用者消费或 destroy 流；逐段拒绝 symlink/junction，重查根/条目/句柄身份；恶意并发命名空间不在原子隔离范围内 |
@@ -94,7 +118,7 @@ transferId 只属于当前会话，不是历史同步基线。服务以每次启
 | Windows 私有归档 | createWindowsArchiveAdapter、prepare/receive、不可变清单、openArchive/openFile/dispose/retryCleanup；onArchiveStored 只确认压缩体检查点；source 仍只读；目录流提供 verifyUnchanged 与缓存隔离检查 | 不返回可供 Renderer 使用的路径/句柄；完整 gzip/原文校验后返回私有缓存；HTTP 和目标发布交给上层；调用者关闭流并 dispose，异常用 operationError，清理失败另报 cleanupError |
 | Capacitor Java SAF 插件（API 33/35 读取验证通过） | chooseDirectory/listRoots/listDirectory；READ 持久授权、当前层元数据和本地 ID | URI/documentId 留在原生层，不接收任意路径；写入能力均不支持；原生只读流由同包调用者消费并关闭，不将内容或 Base64 交给 JS |
 | Android 当前扫描 | SyncScansPlugin 的 capabilities/start/query/cancel；start 接收 schemaVersion=1/rootId，query/cancel 接收 scanId，返回 OperationResult 包络及共享 SyncScanState | 本次递归 SAF 读取及原生 SHA-256；未知长度按流实测，源变化/权限/预算/取消分别报告；结果限时存内存，不加保活或前后台处理；调用见移动 README |
-| Android 独立备份 | BackupStore/Model/Files、AndroidBackupIo 提供私有备份创建、校验、三轮保留、设置/容量及恢复材料引用；SyncBackupsPlugin 提供 read/list/manifest/setPreference/rotate/cleanupIncomplete | 创建只由原生确认计划编排调用；设置及显式维护争用与传输/恢复相同的目标名额，实际任务清理前拒绝变更。SAF 读取后校验，私有 files/backups 落盘/回读/提交，查询仅公开 ID/摘要/清单，displayPath 仅供展示；不跨桥传内容/句柄，不新增备份目录选择；错误与资源责任见移动 README |
+| Android 独立备份 | BackupStore/Model/Files、AndroidBackupIo 提供私有备份创建、校验、三轮保留、设置/容量及恢复材料引用；SyncBackupsPlugin 提供 read/list/manifest/setPreference/rotate/cleanupIncomplete/deleteBackup | 创建只由原生确认计划编排调用；设置及显式维护争用与传输/恢复相同的目标名额，实际任务清理前拒绝变更。SAF 读取后校验，私有 files/backups 落盘/回读/提交，查询仅公开 ID/摘要/清单，displayPath 仅供展示；不跨桥传内容/句柄，不新增备份目录选择；错误与资源责任见移动 README |
 | Android 受保护写入与本机恢复 | SyncPlanModel 重算可执行计划，SyncWriter.apply 与 SafSyncBackend 执行原生目标写入；SyncWrites/TS bridge 提供 bindProject/prepareRestore/preview/execute/query/current/cancel/release/retryCleanup | 平台从保存配置绑定项目/根，原生检查持久写权限和固定预览；完整输入/目标复核、容量和有效备份后创建/覆盖/回读，rw 不预截断；本机恢复强制保护当前内容。current 返回活动或最近恢复 ID，页面据此找回预览和结果；清理失败记录继续保留，明确重试后更新清理状态。输入引用/取消/清理与实际结果分开，仅公开 DTO/ID，不公开 URI/路径/流；详见移动 README |
 | Java 私有归档 | ArchiveAdapter.prepare/receive、不可变 ArchiveModel、Artifact.openArchive/openFile/close；SafArchiveSource 从本次 SAF 引用原生读取并前后复核；控制器取消关闭读流/查询，资源、期限与清理错误分别检查 | 固定 v1 原生模型，完整校验后才返回句柄；私有真实缓存路径/所有权与进程独占，清理失败保留名额可重试；无 URI/内容跨桥；JSON 解码/网络、目标发布与前台调度分别留对应包；用法见移动说明 |
 | Java SAF 新文件发布 | NewFilePublisher 的 grant/revoke、preflight/publish、cancel/retryCleanup/stop；SafPublicationBackend 仅定位已有根/父目录，PublicationJson 对齐单文件结果和独立清理 | 系统 WRITE 与本次显式授权分开；创建前后核实 ID/父/名，常规 FD 身份及非截断 rw，关闭后 EOF/SHA-256/元数据回读；仅清理身份匹配的新条目，未知不重放，清理失败保留进程名额；无内容/URI 跨桥，原生流可来自已验证归档 |

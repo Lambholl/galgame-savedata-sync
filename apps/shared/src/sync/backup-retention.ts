@@ -109,6 +109,18 @@ export function withBackupPreference(
   }
 }
 
+/** 移除一个游戏时清掉它所有目录的单独设置。 */
+export function withoutGameBackups(
+  settings: SyncBackupSettings,
+  projectId: string,
+): SyncBackupSettings {
+  return {
+    schemaVersion: 2,
+    defaults: settings.defaults,
+    projects: settings.projects.filter((item) => item.projectId !== projectId),
+  }
+}
+
 /** 修改全局设置；单独设置的游戏目录不受影响。 */
 export function withBackupDefaults(
   settings: SyncBackupSettings,

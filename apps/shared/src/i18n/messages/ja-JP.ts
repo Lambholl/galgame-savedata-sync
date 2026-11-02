@@ -13,15 +13,12 @@ export const jaJP: Messages = {
   'app.cleanupFailed':
     '一時保存したファイルや書き込み候補を解放できません。権限を確認して、もう一度終了してください。',
   'app.initializeFailedTitle': '初期化に失敗しました',
-  'app.initializeFailed':
-    '保存先の設定を読み込めません。アプリの保存内容と権限を確認してください。',
   'app.startFailed':
     'アプリの設定を読み込めませんでした。アプリを再起動してからもう一度お試しください。',
 
   'nav.devices': '端末',
   'nav.games': 'ゲーム',
   'nav.settings': '設定',
-  'nav.back': '戻る',
   'nav.main': '主な画面',
   'nav.backToGames': 'ゲーム一覧に戻る',
   'nav.backToTransfer': '転送画面に戻る',
@@ -50,8 +47,8 @@ export const jaJP: Messages = {
   'common.cancel': '取り消し',
   'common.close': '閉じる',
   'common.confirm': '確認',
+  'common.gotIt': 'わかりました',
   'common.save': '保存',
-  'common.closeError': '通知を閉じる',
   'common.more': 'その他',
 
   'transfer.local': 'この端末',
@@ -90,7 +87,6 @@ export const jaJP: Messages = {
   'compare.emptyFolder': '空のフォルダー',
   'compare.summary': ({ directories, files }) => `フォルダー ${directories} · ファイル ${files}`,
   'compare.up': '上の階層へ',
-  'compare.name': '名前',
   'compare.size': 'サイズ',
   'compare.modified': '更新日時',
 
@@ -139,6 +135,7 @@ export const jaJP: Messages = {
   'task.done': '転送完了',
   'task.doneDetail': ({ count }) => `${count} 件を書き込みました`,
   'task.backedUp': '古いファイルの控えを作成済み',
+  'task.backedUpCount': ({ count }) => `${count} 個のファイルの控えを作成済み`,
   'task.partial': '一部完了',
   'task.partialDetail': ({ ok, failed }) => `成功 ${ok} 件 · 失敗 ${failed} 件`,
   'task.failed': '転送失敗',
@@ -160,6 +157,11 @@ export const jaJP: Messages = {
   'task.none': '進行中の転送や復元はありません。',
   'task.cancel': '転送を取り消す',
   'task.viewBackup': '控えを見る',
+  'write.interruptedTitle': '前回の書き込みは中断されました',
+  'write.interruptedNoBackup': ({ name }) =>
+    `「${name}」の書き込み中にアプリが閉じられたため、ファイルが不完全な可能性があります。`,
+  'write.interruptedWithBackup': ({ name }) =>
+    `「${name}」の書き込み中にアプリが閉じられたため、ファイルが不完全な可能性があります。控えから復元できます。`,
   'task.rescan': 'もう一度読み取る',
   'task.readFailed': '転送の状態を読み取れません',
   'task.history': '過去の転送',
@@ -189,7 +191,6 @@ export const jaJP: Messages = {
   'game.deviceRemoved': '削除された端末',
   'game.deviceMenu': '端末の操作',
   'game.transfer': '転送',
-  'game.transferWith': 'この端末と転送',
   'game.relink': '別のゲームに対応させる',
   'game.unlink': '関連付けを解除',
   'game.unlinkHint': '端末と両方のセーブデータはそのまま残ります',
@@ -215,18 +216,19 @@ export const jaJP: Messages = {
   'backup.reason.restore': '復元前',
   'backup.files': ({ count, size }) => `${count} 件 · ${size}`,
   'backup.restore': '復元',
-  'backup.restoreThis': 'この控えを復元',
   'backup.none':
     '控えはまだありません。書き込み前の控えが有効な場合、ファイルを書き込む転送で転送先フォルダーの現在の内容を控えに保存します。',
   'backup.incomplete': ({ count }) => `完了していない控えが ${count} 件あります`,
   'backup.cleanup': '片付ける',
+  'backup.occupied': ({ size }) => `使用量 ${size}`,
+  'backup.occupiedUnknown': '使用量は不明',
+  'backup.delete': '削除',
+  'backup.deleteTitle': '控えの削除',
+  'backup.deleteText': ({ time }) => `${time} の控えを削除しますか？削除すると復元に使えません。`,
   'backup.privateNote':
     '控えはこのアプリ専用の保存場所にあります。アプリを削除したりデータを消去したりすると一緒に消えます。',
   'backup.switch': '書き込み前の控え',
-  'backup.restoreTitle': ({ time }) => `${time} の控えを復元`,
   'backup.confirmRestore': '復元する',
-  'backup.back': '戻る',
-  'backup.done': '完了',
   'backup.preparing': '控えを確認し、現在のファイルを読み取っています…',
   'backup.restoring': ({ done, total }) => `復元中 ${done} / ${total}`,
   'backup.restored': '復元完了',
@@ -236,8 +238,6 @@ export const jaJP: Messages = {
   'backup.restoreUnknown': '復元の結果は未確認',
   'backup.oldFolder':
     '以前の保存先の控えです。復元する前に、ゲーム設定でこの保存先に戻してください。',
-  'backup.file': 'ファイル',
-  'backup.originalModified': '元の更新日時',
   'backup.noGame': 'ゲームから「控えと復元」を開いてください。',
   'backup.noFolder': '先にゲーム設定でこの端末の保存先を選んでください。',
   'backup.readFailed': '控えを読み取れません',
@@ -257,8 +257,6 @@ export const jaJP: Messages = {
 
   'app.disconnected': '接続が切れました',
   'app.connectedTo': ({ name }) => `${name} に接続しました`,
-  'app.readFailed': 'アプリの状態を読み取れません',
-  'app.refreshFailed': '更新できません',
   'app.actionFailed': '操作できません',
   'app.notLoaded': 'アプリのデータをまだ読み込み中です。少し待ってからお試しください。',
   'common.noOptions': '選べる項目がありません',
@@ -279,7 +277,6 @@ export const jaJP: Messages = {
   'device.address': 'IP と接続番号',
   'device.addressPlaceholder': 'IP:Port',
   'device.copyAddress': '宛先を写す',
-  'device.copied': '写しました',
   'device.connect': '接続',
   'device.disconnect': '切断',
   'device.waitingPhone': '携帯端末の接続待ち',
@@ -302,11 +299,9 @@ export const jaJP: Messages = {
   'game.actions': 'ゲームの操作',
   'game.linkCount': ({ count }) => `${count} 台の端末と関連付け済み`,
   'game.removeTitle': 'ゲームを外す',
-  'game.removeText': 'ゲームの設定と端末の関連付けを外します。セーブデータは残ります。',
-  'game.viewTaskProgress': '進み具合を見る',
-  'game.viewTasks': '転送と結果',
+  'game.removeText':
+    'ゲームの設定、端末の関連付け、このゲームの控えを削除します。セーブデータは残ります。',
   'game.transferRunning': '転送中',
-  'game.viewTransferResult': '転送の結果を見る',
 
   'transfer.started': '転送を開始しました',
   'transfer.remoteScanRequest': ({ name }) => `PC から ${name} の読み取りを求められました`,
@@ -316,7 +311,6 @@ export const jaJP: Messages = {
   'task.sent': '送信済み',
   'task.archiveProgress': ({ done, total }) => `転送済み ${done} / ${total}`,
   'task.retryCleanup': 'もう一度片付ける',
-  'task.refreshFailed': '転送の状態を更新できません',
   'task.cleanupPending':
     'ファイルは転送しましたが、一時ファイルが残っています。転送の詳細を確認してください。',
   'backup.status.preparing': '準備中',

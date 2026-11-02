@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react'
 import { Steps } from 'antd'
-import type { SyncTaskPhase } from './task-presentation.ts'
+import type { SyncTaskPhase } from '../../sync/sync-job-observation.ts'
 import { SYNC_TASK_STEPS } from './task-presentation.ts'
 import { useT } from '../i18n/i18n-context.ts'
 import './sync-task-summary.css'

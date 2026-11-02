@@ -49,6 +49,7 @@ export interface TransferSubscription {
 /** Capacitor 内部绑定；未知响应必须先经过守卫和本次上下文匹配。 */
 export interface HttpTransferNativePlugin {
   connections(): Promise<unknown>
+  deviceName(): Promise<unknown>
   selectDevice(options: { deviceId: string }): Promise<unknown>
   disconnectDevice(options: { deviceId: string }): Promise<unknown>
   exchangeCatalog(options: { deviceId: string; catalog: CatalogPush }): Promise<unknown>
@@ -76,6 +77,8 @@ export interface HttpTransferNativePlugin {
 /** 所有 Promise resolve 脱敏结果；任务 ID 单次使用，取消及查询均不自动重放网络请求。 */
 export interface AndroidTransferApi {
   connections(): Promise<OperationResult<readonly BatchDeviceDescriptor[]>>
+  /** 本机系统名称，取值规则与发给电脑的相同；只读。 */
+  deviceName(): Promise<OperationResult<string>>
   selectDevice(deviceId: string): Promise<OperationResult<BatchDeviceDescriptor>>
   disconnectDevice(deviceId: string): Promise<OperationResult<null>>
   exchangeCatalog(deviceId: string, catalog: CatalogPush): Promise<OperationResult<CatalogReply>>
@@ -346,6 +349,12 @@ export function createHttpTransferBridge(
     return response
   }
   return Object.freeze({
+    deviceName: (): Promise<OperationResult<string>> =>
+      invoke(
+        () => plugin.deviceName(),
+        (value): value is string =>
+          typeof value === 'string' && value.length > 0 && value.length <= 128,
+      ),
     connections: (): Promise<OperationResult<readonly BatchDeviceDescriptor[]>> =>
       invoke(
         () => plugin.connections(),

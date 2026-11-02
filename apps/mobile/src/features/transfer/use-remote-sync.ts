@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { syncPlanFromPreview, toShownError } from '@savedata-sync/shared'
+import { observeSyncJob, syncPlanFromPreview, toShownError } from '@savedata-sync/shared'
 import type {
   OperationError,
   RemoteSyncReport,
@@ -8,7 +8,6 @@ import type {
 } from '@savedata-sync/shared'
 import type { AndroidControlApi } from '../../platform/control-channel'
 import type { MobileSyncAdapter } from '../../platform/sync-adapter'
-import { transferOutcome } from './transfer-feedback'
 
 interface ActiveRequest {
   readonly requestId: string
@@ -30,8 +29,8 @@ function wait(ms: number): Promise<void> {
 }
 
 /**
- * 电脑发起的复制：经控制通道收到请求后在手机扫描并回报计划，电脑确认后由手机执行，
- * 结束时回报最终结果。电脑取消或断开时释放本机扫描；已开始的传输交给任务页。
+ * 电脑发起的复制：经控制通道收到请求后在手机扫描并回报计划，电脑确认后由手机执行。
+ * 执行进度和结果由原生推送给电脑。电脑取消或断开时释放本机扫描；已开始的传输交给任务页。
  */
 export function useRemoteSync(
   sync: MobileSyncAdapter,
@@ -39,7 +38,7 @@ export function useRemoteSync(
   deviceId: string | null,
   isBusy: boolean,
   handlers: {
-    readonly onScan: (projectId: string) => void
+    readonly onScan: (requestId: string, projectId: string) => void
     readonly onStarted: (jobId: string) => void
     readonly onFailure: (error: ShownError) => void
   },
@@ -102,15 +101,21 @@ export function useRemoteSync(
         return
       }
       if (state.status === 'ready') {
-        const plan = syncPlanFromPreview(await sync.preview(state.preparationId))
+        const preview = await sync.preview(state.preparationId)
+        const plan = syncPlanFromPreview(preview)
         item.isReady = true
-        report(item, { requestId: item.requestId, status: 'ready', plan })
+        report(item, {
+          requestId: item.requestId,
+          status: 'ready',
+          plan,
+          backupKeepCount: preview.backupKeepCount,
+        })
       } else {
         fail(item, state.error ?? { code: 'io-failure', message: 'The phone scan failed.' })
         await release(item)
       }
     }
-    /** 每秒读取一次当前复制，结束后回报结果；页面卸载即停止，不影响原生任务。 */
+    /** 每秒读取一次当前复制，结束后才接受下一次请求；页面卸载即停止，不影响原生任务。 */
     async function watch(item: ActiveRequest, jobId: string): Promise<void> {
       for (;;) {
         await wait(JOB_MS)
@@ -121,9 +126,8 @@ export function useRemoteSync(
         if (copy?.state.jobId !== jobId) {
           continue
         }
-        const result = transferOutcome(copy.state)
-        if (result) {
-          report(item, { requestId: item.requestId, status: 'finished', jobId, ...result })
+        const { local, remote, remoteError } = copy.state
+        if (observeSyncJob(local, remote, remoteError !== null).phase !== 'running') {
           item.isClosed = true
           if (active === item) {
             active = null
@@ -155,7 +159,7 @@ export function useRemoteSync(
           isClosed: false,
         }
         active = item
-        events.current.onScan(body.projectId)
+        events.current.onScan(body.requestId, body.projectId)
         prepare(item, body.projectId, body.direction).catch(async (cause: unknown) => {
           fail(item, toShownError(cause))
           await release(item)

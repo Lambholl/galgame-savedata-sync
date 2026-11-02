@@ -5,6 +5,7 @@ import {
   isSyncBackupManifest,
   isSyncBackupPolicy,
   isSyncBackupSettings,
+  isSyncIncompleteBackup,
   resolveBackupPolicy,
 } from '@savedata-sync/shared'
 import type {
@@ -12,6 +13,7 @@ import type {
   SyncBackupManifest,
   SyncBackupPolicy,
   SyncBackupSettings,
+  SyncIncompleteBackup,
 } from '@savedata-sync/shared'
 
 /** 本机列表只传轮次摘要，完整清单按单轮读取。 */
@@ -26,7 +28,7 @@ export interface AndroidBackupSummary {
 }
 export interface AndroidBackupList {
   readonly backups: readonly AndroidBackupSummary[]
-  readonly incomplete: readonly string[]
+  readonly incomplete: readonly SyncIncompleteBackup[]
 }
 export interface AndroidBackupInfo {
   readonly displayPath: string
@@ -48,6 +50,8 @@ export interface BackupNativePlugin {
     rootId: string
     backupId: string
   }): Promise<unknown>
+  deleteBackup(options: { projectId: string; rootId: string; backupId: string }): Promise<unknown>
+  deleteGameBackups(options: { projectId: string }): Promise<unknown>
 }
 /** 公开参数只有 ID 与开关；创建及恢复文件流不经过网页。 */
 export interface AndroidBackupApi {
@@ -72,6 +76,10 @@ export interface AndroidBackupApi {
     rootId: string,
     backupId: string,
   ): Promise<OperationResult<null>>
+  /** 删除一份已提交的备份。 */
+  deleteBackup(projectId: string, rootId: string, backupId: string): Promise<OperationResult<null>>
+  /** 移除游戏时删除它的全部备份和单独设置。 */
+  deleteGameBackups(projectId: string): Promise<OperationResult<null>>
 }
 function shape(value: unknown, fields: readonly string[]): value is Record<string, unknown> {
   return (
@@ -114,8 +122,11 @@ function isListing(value: unknown): value is AndroidBackupList {
     Array.isArray(value.backups) &&
     value.backups.every(isSummary) &&
     Array.isArray(value.incomplete) &&
-    value.incomplete.every(isOpaqueId) &&
-    new Set([...value.backups.map((item) => item.backupId), ...value.incomplete]).size ===
+    value.incomplete.every(isSyncIncompleteBackup) &&
+    new Set([
+      ...value.backups.map((item) => item.backupId),
+      ...value.incomplete.map((item) => item.backupId),
+    ]).size ===
       value.backups.length + value.incomplete.length
   )
 }
@@ -224,6 +235,20 @@ export function createBackupBridge(
         ? Promise.resolve(failure('invalid-request'))
         : invoke(
             () => plugin.cleanupIncomplete({ projectId, rootId, backupId }),
+            (value): value is null => value === null,
+          ),
+    deleteBackup: (projectId: string, rootId: string, backupId: string) =>
+      ![projectId, rootId, backupId].every(isOpaqueId)
+        ? Promise.resolve(failure('invalid-request'))
+        : invoke(
+            () => plugin.deleteBackup({ projectId, rootId, backupId }),
+            (value): value is null => value === null,
+          ),
+    deleteGameBackups: (projectId: string) =>
+      !isOpaqueId(projectId)
+        ? Promise.resolve(failure('invalid-request'))
+        : invoke(
+            () => plugin.deleteGameBackups({ projectId }),
             (value): value is null => value === null,
           ),
   })

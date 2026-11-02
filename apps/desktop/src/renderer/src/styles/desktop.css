@@ -12,13 +12,6 @@ body {
   background: var(--ss-page-bg);
   font-family: var(--ss-font);
 }
-/*
- * 按钮文字按大写字母高度到基线裁去行框上下的空白再居中：界面字体的上方留白比下方多，
- * 不裁时文字会比图标低约 1px；中文字形的中心恰好落在这段范围的中心。
- */
-.ant-btn > span:not(.anticon) {
-  text-box: trim-both cap alphabetic;
-}
 .library-dark {
   color: var(--ss-fg);
   background: var(--ss-page-bg);
@@ -106,10 +99,13 @@ body {
 .library-main > .ant-alert {
   margin-bottom: 16px;
 }
-.library-app .ant-alert {
+/* 纯文字提示可能折行，图标贴首行；带操作按钮的提示条保持 antd 默认的整行居中。 */
+.library-app .ant-alert:not(:has(> .ant-alert-actions)) {
   align-items: flex-start;
 }
-.library-app .ant-alert:not(.ant-alert-with-description) > .ant-alert-icon {
+.library-app
+  .ant-alert:not(.ant-alert-with-description, :has(> .ant-alert-actions))
+  > .ant-alert-icon {
   margin-top: 4px;
 }
 .library-stack {
@@ -487,7 +483,8 @@ body {
   align-items: start;
   gap: 20px;
 }
-@media (max-width: 760px) {
+/* 左栏定宽，窗口变窄时全由右栏让出宽度；放不下详情头部就改成上下排列。 */
+@media (max-width: 920px) {
   .backup-columns {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -498,18 +495,25 @@ body {
   gap: 12px;
   min-width: 0;
 }
+/* 第一行时间在左、操作在右，第二行说明占满整行。 */
 .backup-detail-head {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 12px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 2px 12px;
 }
 .backup-detail-head h2 {
   margin: 0;
   font-size: 18px;
+  white-space: nowrap;
+}
+.backup-detail-actions {
+  display: flex;
+  gap: 8px;
 }
 .backup-detail-head p {
-  margin: 2px 0 0;
+  grid-column: 1 / -1;
+  margin: 0;
   color: var(--ss-muted);
   font-size: 12.5px;
 }

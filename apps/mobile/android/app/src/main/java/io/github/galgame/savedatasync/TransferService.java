@@ -95,12 +95,15 @@ public class TransferService extends Service {
         String stage = state == null ? "preparing" : (String) state.get("stage");
         int textResource;
         switch (stage) {
+            case "ready": textResource = R.string.transfer_stage_ready; break;
+            case "awaiting-content": textResource = R.string.transfer_stage_awaiting_content; break;
             case "transferring": textResource = R.string.transfer_stage_transferring; break;
             case "verifying": textResource = R.string.transfer_stage_verifying; break;
             case "publishing":
             case "writing": textResource = R.string.transfer_stage_writing; break;
             case "backing-up": textResource = R.string.transfer_stage_backing_up; break;
             case "cleaning": textResource = R.string.transfer_stage_cleaning; break;
+            case "done": textResource = R.string.transfer_stage_done; break;
             case "sent": textResource = R.string.transfer_stage_sent; break;
             default: textResource = R.string.transfer_stage_preparing;
         }

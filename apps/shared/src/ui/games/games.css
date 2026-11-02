@@ -150,6 +150,10 @@
   inset: 0;
   content: '';
 }
+/* 两段文字按基线对齐，游戏名还要省略：保留完整行框，否则会裁掉字形下缘。 */
+.ss-task-strip .ss-task-strip-link > :not(.anticon) {
+  text-box: normal;
+}
 .ss-task-strip-link b {
   flex: 0 1 auto;
   min-width: 0;

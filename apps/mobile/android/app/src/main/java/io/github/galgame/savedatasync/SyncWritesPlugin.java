@@ -53,5 +53,7 @@ public class SyncWritesPlugin extends Plugin {
     @PluginMethod public void retryCleanup(PluginCall call) { submit(call, runtime -> {
         arguments(call); if (!runtime.retryCleanup()) throw new ArchiveFailure("cleanup-failed", "Restore resources have not been fully released."); return null;
     }); }
+    @PluginMethod public void interrupted(PluginCall call) { submit(call, runtime -> { arguments(call); return new InterruptedWrites(getContext()).list(); }); }
+    @PluginMethod public void dismissInterrupted(PluginCall call) { submit(call, runtime -> { new InterruptedWrites(getContext()).dismiss(id(arguments(call, "id").get("id"))); return null; }); }
     @Override protected void handleOnDestroy() { destroyed = true; controls.shutdownNow(); }
 }

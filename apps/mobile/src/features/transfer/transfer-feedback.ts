@@ -37,29 +37,3 @@ export function transferFeedback(state: SyncTransferState): TransferFeedback | n
   }
   return null
 }
-
-/** 已结束任务的最终结果；仍在进行时返回 null。判定与 transferFeedback 一致。 */
-export function transferOutcome(state: SyncTransferState): {
-  readonly outcome: 'succeeded' | 'failed' | 'cancelled' | 'unknown'
-  readonly error: OperationError | null
-} | null {
-  const receiver = state.local.role === 'receiver' ? state.local : state.remote
-  if (receiver?.status === 'succeeded') {
-    return { outcome: 'succeeded', error: null }
-  }
-  const failed =
-    receiver?.status === 'failed' ? receiver : state.local.status === 'failed' ? state.local : null
-  if (failed) {
-    return { outcome: 'failed', error: failed.error }
-  }
-  if (receiver?.status === 'unknown' || state.local.status === 'unknown') {
-    return { outcome: 'unknown', error: null }
-  }
-  if (receiver?.status === 'cancelled' || state.local.status === 'cancelled') {
-    return { outcome: 'cancelled', error: null }
-  }
-  if (state.local.status === 'sent' && state.remoteError) {
-    return { outcome: 'unknown', error: state.remoteError }
-  }
-  return null
-}

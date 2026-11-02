@@ -8,11 +8,14 @@ import {
   BATCH_RESOURCES,
   BATCH_TIMEOUTS_MS,
   HTTP_HEADERS,
+  SYNC_JOB_SCHEMA_VERSION,
   SYNC_LIMITS,
   isSyncJobRequest,
+  matchesSyncJobDigest,
   matchesSyncJobManifest,
   matchesSyncJobState,
   matchesSyncPlan,
+  observeSyncJob,
   resolveBackupPolicy,
 } from '@savedata-sync/shared'
 import type {
@@ -20,15 +23,19 @@ import type {
   KnownOperationError,
   OperationError,
   SyncApplyResult,
+  SyncFailureStage,
+  SyncJobDigest,
   SyncJobProgress,
   SyncJobRequest,
   SyncJobState,
   SyncProjectDescriptor,
   SyncSnapshot,
+  SyncTransferState,
   SyncWriteOutcome,
 } from '@savedata-sync/shared'
 import type { WindowsArchive, WindowsArchiveAdapter } from './archive-adapter.ts'
 import type { WindowsBackupStore } from './backup-store.ts'
+import type { ControlHub } from './control-hub.ts'
 import type { DesktopLibrary } from './library-store.ts'
 import { WindowsSyncScanner } from './sync-scanner.ts'
 import type { WindowsScanSource } from './sync-scanner.ts'
@@ -51,8 +58,12 @@ export interface WindowsSyncRegistryOptions {
   readonly scanner: WindowsSyncScanner
   readonly source: WindowsScanSource
   readonly deviceId: string
+  /** 读取对端结果、转发取消；对端的进度摘要由 observe 送入。 */
+  readonly control: Pick<ControlHub, 'isOpen' | 'request'>
   readonly timeouts?: Partial<{ readonly [Key in keyof typeof BATCH_TIMEOUTS_MS]: number }>
 }
+/** 读取对端结果失败后，隔多久再试一次。 */
+const REMOTE_READ_RETRY_MS = 5000
 interface SyncTask {
   readonly request: SyncJobRequest
   readonly peerId: string
@@ -73,6 +84,28 @@ interface SyncTask {
   isContentClaimed: boolean
   hasLease: boolean
   isWorking: boolean
+  /** 对端角色最新的状态；接收端已结束但结果没读到时，保持 running/cleaning。 */
+  remote: SyncJobState | null
+  /** 读到的 remote 已不可信（断开或读取失败）；新的摘要或结果到达后清除。 */
+  remoteError: OperationError | null
+  /** 接收端已结束，还需要读取逐项结果。 */
+  shouldReadRemote: boolean
+  isReadingRemote: boolean
+  remoteReadAt: number
+  /** 最后一次收到摘要的时间；手机进行中每秒至少推送一次，久未收到就是结果待确认。 */
+  remoteSeenAt: number
+}
+function failureStageOf(stage: SyncJobState['stage']): SyncFailureStage | null {
+  return stage === 'cleaning' || stage === 'done' ? null : stage
+}
+/** 对端还没有最终结论：等它的摘要或结果。接收端自己已结束时，不用等发送端的状态。 */
+function isRemoteUnsettled(task: SyncTask): boolean {
+  return task.remote
+    ? task.remote.status === 'running'
+    : task.state.status === 'running' || task.state.status === 'sent'
+}
+function isRemoteLive(task: SyncTask): boolean {
+  return task.remoteError === null && isRemoteUnsettled(task)
 }
 function cleanupFailure(): KnownOperationError {
   return {
@@ -87,7 +120,8 @@ function known(cause: unknown): KnownOperationError {
     ? { code: 'io-failure', message: 'Receive preparation failed.', canRetry: false }
     : error
 }
-function emptyResult(
+/** 还没写入就结束时的完整结果：第一项记录原因，其余为未尝试。 */
+export function emptyResult(
   request: SyncJobRequest,
   error: OperationError | null,
   wasCancelled: boolean,
@@ -102,6 +136,7 @@ function emptyResult(
     schemaVersion: 1,
     planId: request.jobId,
     backupId: null,
+    backupFileCount: null,
     error,
     cleanupError: null,
     outcomes: operations.map((entry, index): SyncWriteOutcome => ({
@@ -153,34 +188,158 @@ export class WindowsSyncRegistry {
   /** 可信本机窗口只轮询摘要；大计划、清单与完整结果按任务分别查询。 */
   summaries(): readonly DesktopCopySummary[] {
     this.sweep()
-    return [...this.tasks.values()].map((task) => ({
-      jobId: task.request.jobId,
-      projectId:
-        task.state.role === 'receiver'
-          ? task.request.targetProjectId
-          : task.request.sourceProjectId,
-      peerId: task.peerId,
-      direction: task.state.direction,
-      role: task.state.role,
-      status: task.state.status,
-      stage: task.state.stage,
-      updatedAt: task.state.updatedAt,
-      hasCleanupError: task.state.cleanupError !== null,
-    }))
+    return [...this.tasks.values()].map((task) => {
+      const { phase, stage, step, percent, hasCleanupError } = observeSyncJob(
+        task.state,
+        task.remote,
+        task.remoteError !== null,
+      )
+      return {
+        jobId: task.request.jobId,
+        projectId:
+          task.state.role === 'receiver'
+            ? task.request.targetProjectId
+            : task.request.sourceProjectId,
+        peerId: task.peerId,
+        direction: task.state.direction,
+        role: task.state.role,
+        phase,
+        stage,
+        step,
+        percent,
+        updatedAt: Math.max(task.state.updatedAt, task.remote?.updatedAt ?? task.state.updatedAt),
+        hasCleanupError,
+      }
+    })
   }
   /** 本机权限由固定 IPC 验证；此入口不接受对端身份或重新登记任务。 */
   localRequest(id: string): SyncJobRequest {
     return structuredClone(this.localTask(id).request)
   }
-  localState(id: string): SyncJobState {
-    return structuredClone(this.localTask(id).state)
+  /** 两个角色的状态都从这里读；页面重新进入时直接取到当前快照。 */
+  localState(id: string): SyncTransferState {
+    return this.transferState(this.localTask(id))
   }
   localManifest(id: string): BatchManifest | null {
     return structuredClone(this.localTask(id).manifest)
   }
-  localCancel(id: string): SyncJobState {
+  /** 当前会话是否有这个任务；还没登记的电脑发起任务由 WindowsRemoteSyncRequests 提供。 */
+  has(id: string): boolean {
+    return this.tasks.has(id)
+  }
+  /**
+   * 取消一次传输。先让对端知道是用户取消，再断开本机，否则对端会把断流记成网络失败。
+   * 本机已结束时对端是唯一还在跑的一方，通知失败就把错误抛给调用者；本机还在跑时照常取消。
+   */
+  async localCancel(id: string): Promise<SyncTransferState> {
     const task = this.localTask(id)
-    return this.cancel(id, task.peerId)
+    const isLocalRunning = task.state.status === 'running'
+    if (isRemoteUnsettled(task) && this.options.control.isOpen(task.peerId)) {
+      try {
+        await this.options.control.request(task.peerId, 'sync.job.cancel', { jobId: id })
+      } catch (cause) {
+        if (!isLocalRunning) {
+          throw cause
+        }
+      }
+    }
+    this.abort(task)
+    return this.transferState(task)
+  }
+  /**
+   * 收到对端推送的摘要。不属于当前任务的摘要直接忽略：手机发起时可能先于登记到达，
+   * 进行中的下一条会补上。接收端结束后才读取一次逐项结果，高频摘要不携带它们。
+   */
+  observe(peerId: string, digest: SyncJobDigest): void {
+    const task = this.tasks.get(digest.jobId)
+    if (task?.peerId !== peerId) {
+      return
+    }
+    task.remoteSeenAt = performance.now()
+    if (!matchesSyncJobDigest(digest, task.request, task.state.role)) {
+      task.remoteError = {
+        code: 'result-unknown',
+        message: 'The peer reported a state that does not match this task.',
+        canRetry: false,
+      }
+      return
+    }
+    task.remoteError = null
+    const previous = task.remote
+    if (digest.role !== 'receiver' || digest.status === 'running') {
+      task.remote = { ...digest, result: null }
+      this.remoteChanged(task, previous)
+    } else if (previous?.result) {
+      task.remote = {
+        ...previous,
+        updatedAt: digest.updatedAt,
+        cleanupError: digest.cleanupError,
+        result: { ...previous.result, cleanupError: digest.cleanupError },
+      }
+    } else {
+      task.remote = {
+        ...digest,
+        status: 'running',
+        stage: 'cleaning',
+        failureStage: null,
+        error: null,
+        result: null,
+      }
+      task.shouldReadRemote = true
+      this.readRemoteResult(task)
+    }
+  }
+  private transferState(task: SyncTask): SyncTransferState {
+    return structuredClone({
+      schemaVersion: 1,
+      jobId: task.request.jobId,
+      local: task.state,
+      remote: task.remote,
+      remoteError: task.remoteError,
+    })
+  }
+  /** 对端刚结束时重新计算留存期，发送先结束、对端写入很久的任务不会被提前清掉。 */
+  private remoteChanged(task: SyncTask, previous: SyncJobState | null): void {
+    if (previous?.status === 'running' && task.remote?.status !== 'running' && task.terminalAt) {
+      task.terminalAt = performance.now()
+    }
+  }
+  private readRemoteResult(task: SyncTask): void {
+    if (task.isReadingRemote) {
+      return
+    }
+    task.isReadingRemote = true
+    task.remoteReadAt = performance.now()
+    this.options.control
+      .request(task.peerId, 'sync.job.read', { jobId: task.request.jobId })
+      .then((state) => {
+        if (
+          state.status === 'running' ||
+          state.role === task.state.role ||
+          !matchesSyncJobState(
+            state,
+            task.request,
+            state.progress.totalArchiveBytes === null ? null : task.manifest,
+          )
+        ) {
+          throw new HttpOperationError('invalid-request', 'The peer result is invalid.')
+        }
+        const previous = task.remote
+        task.remote = state
+        task.remoteError = null
+        task.shouldReadRemote = false
+        this.remoteChanged(task, previous)
+      })
+      .catch(() => {
+        task.remoteError = {
+          code: 'result-unknown',
+          message: 'The result from the phone could not be read. It will be read again.',
+          canRetry: false,
+        }
+      })
+      .finally(() => {
+        task.isReadingRemote = false
+      })
   }
   async localCleanup(id: string): Promise<void> {
     const task = this.localTask(id)
@@ -233,7 +392,7 @@ export class WindowsSyncRegistry {
   }
   hasRunningWork(): boolean {
     return [...this.tasks.values()].some(
-      (task) => task.isWorking || task.state.status === 'running',
+      (task) => task.isWorking || task.state.status === 'running' || isRemoteLive(task),
     )
   }
   /** 只读目标端设置；先前目录表须有同一项目的双向关联。 */
@@ -258,12 +417,14 @@ export class WindowsSyncRegistry {
       remoteRoot.rootId,
     )
     const settings = await this.options.backups.settings()
+    const policy = resolveBackupPolicy(settings, projectId, game.rootId)
     return {
       schemaVersion: 1,
       projectId,
       deviceId: this.options.deviceId,
       rootId: game.rootId,
-      shouldBackup: resolveBackupPolicy(settings, projectId, game.rootId).shouldBackup,
+      shouldBackup: policy.shouldBackup,
+      backupKeepCount: policy.keepCount,
     }
   }
   private async verify(task: SyncTask): Promise<void> {
@@ -373,8 +534,14 @@ export class WindowsSyncRegistry {
       isContentClaimed: false,
       hasLease: true,
       isWorking: false,
+      remote: null,
+      remoteError: null,
+      shouldReadRemote: false,
+      isReadingRemote: false,
+      remoteReadAt: 0,
+      remoteSeenAt: performance.now(),
       state: {
-        schemaVersion: 1,
+        schemaVersion: SYNC_JOB_SCHEMA_VERSION,
         jobId: request.jobId,
         direction: isUpload ? 'android-to-windows' : 'windows-to-android',
         role: isUpload ? 'receiver' : 'sender',
@@ -382,6 +549,7 @@ export class WindowsSyncRegistry {
         stage: 'preparing',
         updatedAt: now,
         cancelRequested: false,
+        failureStage: null,
         result: null,
         error: null,
         cleanupError: null,
@@ -733,6 +901,8 @@ export class WindowsSyncRegistry {
       return task.finishing
     }
     task.finishing = (async (): Promise<void> => {
+      // 清理会改写当前阶段，要在这之前记下任务停在哪里。
+      const failureStage = status === 'sent' ? null : failureStageOf(task.state.stage)
       this.update(task, 'cleaning')
       let cleanupError: OperationError | null = null
       try {
@@ -744,6 +914,7 @@ export class WindowsSyncRegistry {
         ...task.state,
         status,
         stage: 'done',
+        failureStage,
         updatedAt: Date.now(),
         result: null,
         error,
@@ -925,6 +1096,7 @@ export class WindowsSyncRegistry {
       return task.finishing
     }
     task.finishing = (async (): Promise<void> => {
+      const stoppedAt = failureStageOf(task.state.stage)
       this.update(task, 'cleaning')
       let cleanupError = result.cleanupError
       try {
@@ -945,6 +1117,7 @@ export class WindowsSyncRegistry {
                 ? 'cancelled'
                 : 'succeeded',
         stage: 'done',
+        failureStage: hasAllSucceeded ? null : stoppedAt,
         updatedAt: Date.now(),
         result: { ...result, cleanupError },
         error: result.error,
@@ -1004,6 +1177,26 @@ export class WindowsSyncRegistry {
   private sweep(): void {
     const now = performance.now()
     for (const [id, task] of this.tasks) {
+      // 控制通道断开或长时间没有摘要时，对端的进度已不可信；手机重连后摘要会清掉这个错误。
+      if (
+        isRemoteUnsettled(task) &&
+        task.remoteError === null &&
+        (!this.options.control.isOpen(task.peerId) ||
+          now - task.remoteSeenAt >= this.timeouts.networkIdle)
+      ) {
+        task.remoteError = {
+          code: 'result-unknown',
+          message: 'The connection to the phone was lost. The result is unconfirmed.',
+          canRetry: false,
+        }
+      }
+      if (
+        task.shouldReadRemote &&
+        now - task.remoteReadAt >= REMOTE_READ_RETRY_MS &&
+        this.options.control.isOpen(task.peerId)
+      ) {
+        this.readRemoteResult(task)
+      }
       if (task.state.status === 'running') {
         if (
           now - task.startedAt >= this.timeouts.total ||
@@ -1020,6 +1213,7 @@ export class WindowsSyncRegistry {
         }
       } else if (
         !task.hasLease &&
+        !isRemoteLive(task) &&
         task.terminalAt !== null &&
         now - task.terminalAt >= this.timeouts.terminalRetention
       ) {

@@ -3,6 +3,9 @@ import type { ThemeConfig } from 'antd'
 import type { ResolvedTheme } from '../../preferences/app-preferences.ts'
 import { FONTS, PALETTES, RADII, designCssText } from '../../preferences/design-tokens.ts'
 
+/** 传给两端 ConfigProvider 的 button：不在两个汉字的按钮文字中间加空格。 */
+export const DESIGN_BUTTON = { autoInsertSpace: false } as const
+
 /** 两端 antd 的组件密度不同，其余主题取值相同。 */
 const COMPONENTS = {
   desktop: { Card: { bodyPadding: 20 } },

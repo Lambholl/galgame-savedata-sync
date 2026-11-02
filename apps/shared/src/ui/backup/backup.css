@@ -72,18 +72,26 @@
   color: var(--ss-fg);
   font-size: 14px;
 }
-.ss-tl-restore {
+.ss-tl-actions {
+  display: flex;
   flex: none;
-  padding: 5px 14px;
-  border: 1px solid var(--ss-line);
-  border-radius: var(--ss-r-pill);
-  background: var(--ss-group);
-  color: var(--ss-fg);
-  font: inherit;
-  font-size: 13px;
-  cursor: pointer;
+  gap: 8px;
 }
-.ss-tl-restore:disabled {
-  color: var(--ss-faint);
-  cursor: not-allowed;
+
+/* 残留提示条里的清理用琥珀实底，和浅色提示条区分开，一眼能看出是按钮。 */
+.ss-leftover .ant-btn {
+  min-width: 0;
+  height: 28px;
+  min-height: 0;
+  padding-inline: 12px;
+  font-weight: 600;
+}
+.ss-leftover .ant-btn:not(:disabled):not(.ant-btn-disabled),
+.ss-leftover .ant-btn:not(:disabled):not(.ant-btn-disabled):hover,
+.ss-leftover .ant-btn:not(:disabled):not(.ant-btn-disabled):active {
+  background: var(--ss-warn);
+  color: var(--ss-warn-soft);
+}
+.ss-leftover .ant-btn:not(:disabled):not(.ant-btn-disabled):hover {
+  filter: brightness(1.08);
 }

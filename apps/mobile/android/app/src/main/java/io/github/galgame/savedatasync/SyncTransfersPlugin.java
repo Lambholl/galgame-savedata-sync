@@ -50,6 +50,7 @@ public class SyncTransfersPlugin extends Plugin {
     }); }
     @PluginMethod public void manifest(PluginCall call) { submit(call, runtime -> runtime.engine.manifest(id(arguments(call, "jobId").get("jobId")))); }
     @PluginMethod public void current(PluginCall call) { submit(call, runtime -> { arguments(call); return runtime.engine.current(); }); }
+    @PluginMethod public void latest(PluginCall call) { submit(call, runtime -> runtime.engine.latest(id(arguments(call, "projectId").get("projectId")))); }
     @PluginMethod public void cancel(PluginCall call) { submit(call, runtime -> runtime.engine.cancel(id(arguments(call, "jobId").get("jobId")), false)); }
     @PluginMethod public void release(PluginCall call) { submit(call, runtime -> { runtime.engine.release(id(arguments(call, "preparationId").get("preparationId"))); return null; }); }
     @PluginMethod public void retryCleanup(PluginCall call) { submit(call, runtime -> { arguments(call); runtime.engine.retryCleanup(); return null; }); }

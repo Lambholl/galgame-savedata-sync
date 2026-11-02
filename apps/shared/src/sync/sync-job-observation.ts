@@ -1,0 +1,181 @@
+import type { SyncFailureStage, SyncJobState } from './sync-job-contracts.ts'
+
+/** 一次传输的总体状态；成功依据接收端实际结果。 */
+export type SyncTaskPhase = 'running' | 'done' | 'partial' | 'failed' | 'cancelled' | 'unknown'
+
+/** 当前阶段的计数；不适用或还不知道的项为 null。 */
+export interface SyncJobCounters {
+  /** 校验和写入阶段已完成的文件数，其他阶段为 null。 */
+  readonly completedFiles: number | null
+  readonly totalFiles: number
+  readonly completedBytes: number
+  /** 传输阶段是压缩体总量；清单出来之前为 null。 */
+  readonly totalBytes: number | null
+}
+
+/**
+ * 把两个角色的状态合成一份结论：详情、进度横条、历史摘要和完成提示都读它，
+ * 电脑主进程和两端页面算出的结果一致。
+ */
+export interface SyncJobObservation {
+  readonly phase: SyncTaskPhase
+  /** 进行中是走在最前面的阶段，结束后是 done。 */
+  readonly stage: SyncJobState['stage']
+  /** 五段流程的零起点索引，5 表示全部完成；null 表示没有记录到具体位置。 */
+  readonly step: number | null
+  /** 当前段的完成百分比，不是总进度；缺少计数时为 null。 */
+  readonly percent: number | null
+  /** 任务中断时所处的阶段；没有记录时为 null。 */
+  readonly failureStage: SyncFailureStage | null
+  readonly counters: SyncJobCounters
+  readonly hasCleanupError: boolean
+}
+
+const STEP_OF: Readonly<Record<SyncJobState['stage'], number>> = {
+  preparing: 0,
+  ready: 1,
+  'awaiting-content': 1,
+  transferring: 1,
+  verifying: 2,
+  'backing-up': 3,
+  writing: 4,
+  cleaning: 5,
+  done: 5,
+}
+
+function ratio(done: number, total: number | null): number | null {
+  return total ? Math.min(1, Math.max(0, done / total)) : null
+}
+
+/** 两端都在跑时取走得更远的一端；发送端在收尾时以接收端为准。 */
+function runningStage(
+  sender: SyncJobState | null,
+  receiver: SyncJobState | null,
+): SyncJobState['stage'] {
+  const isSenderRunning = sender?.status === 'running'
+  if (receiver?.status === 'running') {
+    return isSenderRunning &&
+      sender.stage !== 'cleaning' &&
+      STEP_OF[sender.stage] > STEP_OF[receiver.stage]
+      ? sender.stage
+      : receiver.stage
+  }
+  // 发送端已结束、还没收到接收端状态时，下一步就是接收端校验。
+  return isSenderRunning ? sender.stage : 'verifying'
+}
+
+function terminalPhase(
+  local: SyncJobState,
+  remote: SyncJobState | null,
+  sender: SyncJobState | null,
+  receiver: SyncJobState | null,
+): SyncTaskPhase {
+  const states = remote ? [local, remote] : [local]
+  const outcomes = receiver?.result?.outcomes ?? []
+  if (receiver?.status === 'succeeded') {
+    return 'done'
+  }
+  if (outcomes.some((item) => item.status === 'succeeded')) {
+    return 'partial'
+  }
+  if (states.some((item) => item.status === 'unknown')) {
+    return 'unknown'
+  }
+  if (receiver?.status === 'failed' || sender?.status === 'failed') {
+    return 'failed'
+  }
+  return states.some((item) => item.status === 'cancelled') ? 'cancelled' : 'unknown'
+}
+
+/**
+ * 合成两个角色的状态。hasRemoteError 为 true 时读到的 remote 已不可信，
+ * 本机也结束后按待确认处理，不会一直显示进行中。
+ */
+export function observeSyncJob(
+  local: SyncJobState,
+  remote: SyncJobState | null,
+  hasRemoteError: boolean,
+): SyncJobObservation {
+  const sender = local.role === 'sender' ? local : remote
+  const receiver = local.role === 'receiver' ? local : remote
+  const isRunning =
+    local.status === 'running' ||
+    (!hasRemoteError && (remote?.status === 'running' || (local.status === 'sent' && !remote)))
+  const phase = isRunning ? 'running' : terminalPhase(local, remote, sender, receiver)
+  const stage = isRunning ? runningStage(sender, receiver) : 'done'
+  const failed = [receiver, sender].find((item) => item?.status === 'failed')
+  const failureStage =
+    failed?.failureStage ?? receiver?.failureStage ?? sender?.failureStage ?? null
+  let step: number | null = null
+  if (phase === 'done') {
+    step = 5
+  } else if (phase === 'running') {
+    step = STEP_OF[stage]
+  } else if (phase !== 'cancelled') {
+    // 内容已发完但结果没回来时，停在接收端的校验这一步。
+    step = failureStage
+      ? STEP_OF[failureStage]
+      : phase === 'unknown' && sender?.status === 'sent'
+        ? 2
+        : null
+  }
+  const totals = (receiver ?? local).progress
+  const archived = Math.max(
+    local.progress.archiveBytesTransferred,
+    remote?.progress.archiveBytesTransferred ?? 0,
+  )
+  const archiveTotal =
+    local.progress.totalArchiveBytes ?? remote?.progress.totalArchiveBytes ?? null
+  const counters: SyncJobCounters =
+    step === 0
+      ? {
+          completedFiles: null,
+          totalFiles: totals.totalFiles,
+          completedBytes: sender?.progress.sourceBytesRead ?? 0,
+          totalBytes: totals.totalFileBytes,
+        }
+      : step === 1
+        ? {
+            completedFiles: null,
+            totalFiles: totals.totalFiles,
+            completedBytes: archived,
+            totalBytes: archiveTotal,
+          }
+        : step === 2
+          ? {
+              completedFiles: totals.verifiedFiles,
+              totalFiles: totals.totalFiles,
+              completedBytes: totals.fileBytesVerified,
+              totalBytes: totals.totalFileBytes,
+            }
+          : {
+              completedFiles: step === 4 ? totals.publishedFiles : null,
+              totalFiles: totals.totalFiles,
+              completedBytes: totals.fileBytesPublished,
+              totalBytes: totals.totalFileBytes,
+            }
+  // 打包进度只有发送端知道；还没收到时显示未知，不显示 0%。
+  const fraction =
+    step === 0 && !sender
+      ? null
+      : step === 0 || step === 1
+        ? ratio(counters.completedBytes, counters.totalBytes)
+        : step === 2
+          ? (ratio(counters.completedBytes, counters.totalBytes) ??
+            ratio(totals.verifiedFiles, totals.totalFiles))
+          : step === 4
+            ? (ratio(counters.completedBytes, counters.totalBytes) ??
+              ratio(totals.publishedFiles, totals.totalFiles))
+            : null
+  return {
+    phase,
+    stage,
+    step,
+    percent: phase === 'done' ? 100 : fraction === null ? null : Math.round(fraction * 100),
+    failureStage,
+    counters,
+    hasCleanupError: Boolean(
+      local.cleanupError || remote?.cleanupError || receiver?.result?.cleanupError,
+    ),
+  }
+}

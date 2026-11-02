@@ -1,5 +1,7 @@
 import { isOpaqueId } from '../protocol/protocol.ts'
 import { isDirectoryListing, isOperationError, isOperationResult } from '../protocol/validation.ts'
+import { isBackupKeepCount } from '../sync/backup-retention.ts'
+import { isSyncJobDigest, isSyncJobState } from '../sync/sync-job-validation.ts'
 import { isSyncPlan } from '../sync/sync-plan-validation.ts'
 import { hasShape, isOneOf, isRecord } from '../validation/data-validation.ts'
 import type {
@@ -17,8 +19,10 @@ const REQUESTS: readonly ControlRequestMethod[] = [
   'sync.prepare',
   'sync.confirm',
   'sync.cancel',
+  'sync.job.read',
+  'sync.job.cancel',
 ]
-const EVENTS: readonly ControlEventMethod[] = ['catalog.changed', 'sync.report']
+const EVENTS: readonly ControlEventMethod[] = ['catalog.changed', 'sync.report', 'sync.job']
 
 /** 只核对外层格式；请求体、应答值和事件体按方法另行校验。 */
 export function isControlMessage(value: unknown): value is ControlMessage {
@@ -64,6 +68,9 @@ export function isControlRequestBody<M extends ControlRequestMethod>(
       isOneOf(value.direction, ['android-to-windows', 'windows-to-android'])
     )
   }
+  if (method === 'sync.job.read' || method === 'sync.job.cancel') {
+    return hasShape(value, ['jobId']) && isOpaqueId(value.jobId)
+  }
   return hasShape(value, ['requestId']) && isOpaqueId(value.requestId)
 }
 export function isControlResponseValue<M extends ControlRequestMethod>(
@@ -76,6 +83,9 @@ export function isControlResponseValue<M extends ControlRequestMethod>(
   if (method === 'sync.confirm') {
     return hasShape(value, ['jobId']) && isOpaqueId(value.jobId)
   }
+  if (method === 'sync.job.read') {
+    return isSyncJobState(value)
+  }
   return value === null
 }
 /** 每种状态只允许对应字段；计划与项目的匹配由发起方另行核对。 */
@@ -87,22 +97,24 @@ export function isRemoteSyncReport(value: unknown): value is RemoteSyncReport {
     return hasShape(value, ['requestId', 'status'])
   }
   if (value.status === 'ready') {
-    return hasShape(value, ['requestId', 'status', 'plan']) && isSyncPlan(value.plan)
-  }
-  if (value.status === 'failed') {
-    return hasShape(value, ['requestId', 'status', 'error']) && isOperationError(value.error)
+    return (
+      hasShape(value, ['requestId', 'status', 'plan', 'backupKeepCount']) &&
+      isSyncPlan(value.plan) &&
+      isBackupKeepCount(value.backupKeepCount)
+    )
   }
   return (
-    value.status === 'finished' &&
-    hasShape(value, ['requestId', 'status', 'jobId', 'outcome', 'error']) &&
-    isOpaqueId(value.jobId) &&
-    isOneOf(value.outcome, ['succeeded', 'failed', 'cancelled', 'unknown']) &&
-    (value.error === null || isOperationError(value.error))
+    value.status === 'failed' &&
+    hasShape(value, ['requestId', 'status', 'error']) &&
+    isOperationError(value.error)
   )
 }
 export function isControlEventBody<M extends ControlEventMethod>(
   method: M,
   value: unknown,
 ): value is ControlEventBodies[M] {
+  if (method === 'sync.job') {
+    return isSyncJobDigest(value)
+  }
   return method === 'catalog.changed' ? hasShape(value, []) : isRemoteSyncReport(value)
 }

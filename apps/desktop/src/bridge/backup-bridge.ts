@@ -5,6 +5,7 @@ import {
   isSyncBackupManifest,
   isSyncBackupPolicy,
   isSyncBackupSettings,
+  isSyncIncompleteBackup,
   resolveBackupPolicy,
 } from '@savedata-sync/shared'
 import type {
@@ -12,6 +13,7 @@ import type {
   SyncBackupManifest,
   SyncBackupPolicy,
   SyncBackupSettings,
+  SyncIncompleteBackup,
 } from '@savedata-sync/shared'
 
 /** 列表只有轮次摘要，避免多个大清单挤占控制 JSON；详情按单轮读取。 */
@@ -26,7 +28,7 @@ export interface DesktopBackupSummary {
 }
 export interface DesktopBackupList {
   readonly backups: readonly DesktopBackupSummary[]
-  readonly incomplete: readonly string[]
+  readonly incomplete: readonly SyncIncompleteBackup[]
 }
 export interface DesktopBackupInfo {
   readonly displayPath: string
@@ -55,6 +57,10 @@ export interface DesktopBackupApi {
     rootId: string,
     backupId: string,
   ): Promise<OperationResult<null>>
+  /** 删除一份已提交的备份。 */
+  deleteBackup(projectId: string, rootId: string, backupId: string): Promise<OperationResult<null>>
+  /** 移除游戏时删除它的全部备份和单独设置。 */
+  deleteGameBackups(projectId: string): Promise<OperationResult<null>>
 }
 export const BACKUP_CHANNELS = {
   read: 'backup:read',
@@ -64,6 +70,8 @@ export const BACKUP_CHANNELS = {
   setDefaults: 'backup:defaults',
   rotate: 'backup:rotate',
   cleanupIncomplete: 'backup:cleanup-incomplete',
+  deleteBackup: 'backup:delete',
+  deleteGameBackups: 'backup:delete-game',
 } as const
 function shape(value: unknown, keys: readonly string[]): value is Record<string, unknown> {
   return (
@@ -107,8 +115,11 @@ function isListing(value: unknown): value is DesktopBackupList {
     value.backups.every(isSummary) &&
     new Set(value.backups.map((item) => item.backupId)).size === value.backups.length &&
     Array.isArray(value.incomplete) &&
-    value.incomplete.every(isOpaqueId) &&
-    new Set([...value.incomplete, ...value.backups.map((item) => item.backupId)]).size ===
+    value.incomplete.every(isSyncIncompleteBackup) &&
+    new Set([
+      ...value.incomplete.map((item) => item.backupId),
+      ...value.backups.map((item) => item.backupId),
+    ]).size ===
       value.incomplete.length + value.backups.length
   )
 }
@@ -213,5 +224,17 @@ export function createBackupBridge(
             [{ projectId, rootId, backupId }],
             (value): value is null => value === null,
           ),
+    deleteBackup: (projectId: string, rootId: string, backupId: string) =>
+      ![projectId, rootId, backupId].every(isOpaqueId)
+        ? Promise.resolve(invalid())
+        : call(
+            'deleteBackup',
+            [{ projectId, rootId, backupId }],
+            (value): value is null => value === null,
+          ),
+    deleteGameBackups: (projectId: string) =>
+      !isOpaqueId(projectId)
+        ? Promise.resolve(invalid())
+        : call('deleteGameBackups', [{ projectId }], (value): value is null => value === null),
   })
 }

@@ -1,15 +1,21 @@
 import { randomUUID } from 'node:crypto'
+import { SYNC_JOB_SCHEMA_VERSION, observeSyncJob } from '@savedata-sync/shared'
 import type {
   OperationError,
   RemoteSyncReport,
+  SyncJobDigest,
+  SyncJobRequest,
+  SyncJobState,
   SyncPlan,
   SyncSnapshot,
+  SyncTransferState,
   TransferDirection,
 } from '@savedata-sync/shared'
-import type { DesktopRemoteRequest } from '../bridge/sync-bridge.ts'
+import type { DesktopCopySummary, DesktopRemoteRequest } from '../bridge/sync-bridge.ts'
 import type { ControlHub } from './control-hub.ts'
 import type { DesktopLibrary } from './library-store.ts'
 import { HttpOperationError, toHttpError } from './http-errors.ts'
+import { emptyResult } from './sync-registry.ts'
 
 type ActiveStatus = 'waiting' | 'preparing' | 'ready' | 'starting'
 
@@ -19,6 +25,10 @@ interface RemoteEntry {
   readonly localRootId: string
   readonly remoteRootId: string
   plan: SyncPlan | null
+  /** 已确认、手机还没在电脑上登记任务；登记后任务由 WindowsSyncRegistry 负责。 */
+  isAwaitingJob: boolean
+  /** 手机最新的任务摘要。 */
+  digest: SyncJobDigest | null
 }
 
 export interface RemoteSyncRequestOptions {
@@ -28,6 +38,8 @@ export interface RemoteSyncRequestOptions {
   readonly deviceId: string
   /** 已有网络传输时拒绝新的发起和确认。 */
   readonly isBusy: () => boolean
+  /** 手机是否已在电脑上登记了这个任务。 */
+  readonly hasJob: (jobId: string) => boolean
   readonly now?: () => number
 }
 
@@ -36,6 +48,51 @@ function isActive(status: DesktopRemoteRequest['status']): status is ActiveStatu
 }
 function matchesSide(snapshot: SyncSnapshot, deviceId: string, rootId: string): boolean {
   return snapshot.deviceId === deviceId && snapshot.rootId === rootId
+}
+/** 手机还没登记任务时本机角色的占位状态；等待中是准备阶段，结束后沿用手机报告的结论。 */
+function pendingLocalState(entry: RemoteEntry, request: SyncJobRequest): SyncJobState {
+  const { status, direction, error, updatedAt } = entry.value
+  const plan = request.plan
+  const isReceiver = direction === 'android-to-windows'
+  const base: SyncJobState = {
+    schemaVersion: SYNC_JOB_SCHEMA_VERSION,
+    jobId: request.jobId,
+    direction,
+    role: isReceiver ? 'receiver' : 'sender',
+    status: 'running',
+    stage: 'preparing',
+    updatedAt,
+    cancelRequested: false,
+    failureStage: null,
+    result: null,
+    error: null,
+    cleanupError: null,
+    progress: {
+      sourceBytesRead: 0,
+      archiveBytesTransferred: 0,
+      fileBytesVerified: 0,
+      fileBytesPublished: 0,
+      totalFileBytes: plan.totalFileBytes ?? 0,
+      totalArchiveBytes: plan.transferFileCount === 0 ? 0 : null,
+      totalFiles: plan.transferFileCount,
+      verifiedFiles: 0,
+      publishedFiles: 0,
+    },
+  }
+  if (status !== 'failed' && status !== 'cancelled') {
+    return base
+  }
+  const wasCancelled = status === 'cancelled'
+  const reason = wasCancelled ? null : error
+  return {
+    ...base,
+    status: wasCancelled ? 'cancelled' : reason?.code === 'result-unknown' ? 'unknown' : 'failed',
+    stage: 'done',
+    cancelRequested: wasCancelled,
+    failureStage: entry.digest?.failureStage ?? null,
+    error: reason,
+    result: isReceiver ? emptyResult(request, reason, wasCancelled) : null,
+  }
 }
 
 /**
@@ -124,12 +181,15 @@ export class WindowsRemoteSyncRequests {
         status: 'waiting',
         jobId: null,
         error: null,
+        backupKeepCount: null,
         updatedAt: this.now(),
       },
       remoteProjectId: remote.id,
       localRootId: game.rootId,
       remoteRootId: remote.root.rootId,
       plan: null,
+      isAwaitingJob: false,
+      digest: null,
     }
     const previous = this.current
     if (previous && isActive(previous.value.status)) {
@@ -173,6 +233,7 @@ export class WindowsRemoteSyncRequests {
       entry.localRootId,
       entry.remoteRootId,
     )
+    entry.isAwaitingJob = true
     this.update(entry, { status: 'starting' })
     this.options.control
       .request(entry.value.peerId, 'sync.confirm', { requestId })
@@ -228,7 +289,7 @@ export class WindowsRemoteSyncRequests {
     } else if (report.status === 'ready' && (status === 'waiting' || status === 'preparing')) {
       if (this.matchesPlan(entry, report.plan)) {
         entry.plan = report.plan
-        this.update(entry, { status: 'ready' })
+        this.update(entry, { status: 'ready', backupKeepCount: report.backupKeepCount })
       } else {
         this.fail(entry, {
           code: 'invalid-request',
@@ -238,30 +299,102 @@ export class WindowsRemoteSyncRequests {
       }
     } else if (report.status === 'failed' && isActive(status)) {
       this.fail(entry, report.error)
-    } else if (
-      report.status === 'finished' &&
-      (status === 'starting' || status === 'running') &&
-      report.jobId === entry.plan?.planId
-    ) {
-      if (report.outcome === 'succeeded') {
-        this.update(entry, { status: 'succeeded', jobId: report.jobId })
-      } else if (report.outcome === 'cancelled') {
-        this.update(entry, { status: 'cancelled', jobId: report.jobId })
-      } else {
-        this.update(entry, {
-          status: 'failed',
-          jobId: report.jobId,
-          error: report.error ?? {
-            code: 'result-unknown',
-            message: 'The transfer result is unconfirmed. Check the task list.',
-            canRetry: false,
-          },
-        })
-      }
     }
   }
 
-  /** 控制通道断开：未开始的请求失败；已开始的传输仍在进行，结果到任务列表查看。 */
+  /**
+   * 手机的任务摘要。确认后请求的状态跟随它；之前因断开或应答超时记成失败的请求，
+   * 收到摘要说明手机确实在执行，也会回到进行中。
+   */
+  observe(peerId: string, digest: SyncJobDigest): void {
+    const entry = this.current
+    if (
+      entry?.value.peerId !== peerId ||
+      entry.plan?.planId !== digest.jobId ||
+      !['starting', 'running', 'failed'].includes(entry.value.status)
+    ) {
+      return
+    }
+    entry.digest = digest
+    const jobId = digest.jobId
+    if (digest.status === 'running') {
+      this.update(entry, { status: 'running', jobId, error: null })
+    } else if (digest.status === 'cancelled') {
+      this.update(entry, { status: 'cancelled', jobId, error: null })
+    } else if (digest.error) {
+      this.update(entry, { status: 'failed', jobId, error: digest.error })
+    } else {
+      this.update(entry, { status: 'succeeded', jobId, error: null })
+    }
+  }
+
+  /**
+   * 已确认但手机还没在电脑上登记的任务：详情和列表用它显示等待状态，或开始前的失败。
+   * 手机登记后返回 null，任务改由 WindowsSyncRegistry 提供。
+   */
+  pending(): {
+    readonly request: SyncJobRequest
+    readonly state: SyncTransferState
+    readonly summary: DesktopCopySummary
+  } | null {
+    const entry = this.current
+    const plan = entry?.plan
+    if (!entry?.isAwaitingJob || !plan) {
+      return null
+    }
+    if (this.options.hasJob(plan.planId)) {
+      entry.isAwaitingJob = false
+      return null
+    }
+    const status = entry.value.status
+    if (status === 'succeeded') {
+      return null
+    }
+    const isUpload = entry.value.direction === 'android-to-windows'
+    const request: SyncJobRequest = {
+      schemaVersion: 1,
+      jobId: plan.planId,
+      sourceProjectId: isUpload ? entry.remoteProjectId : entry.value.projectId,
+      targetProjectId: isUpload ? entry.value.projectId : entry.remoteProjectId,
+      plan,
+    }
+    const local = pendingLocalState(entry, request)
+    const digest = entry.digest
+    // 接收端的终态必须带逐项结果；手机还没开始就结束，没有结果可读，结论看 local。
+    const remote =
+      digest && (digest.role === 'sender' || digest.status === 'running')
+        ? { ...digest, result: null }
+        : null
+    const { phase, stage, step, percent, hasCleanupError } = observeSyncJob(local, remote, false)
+    return {
+      request,
+      state: { schemaVersion: 1, jobId: plan.planId, local, remote, remoteError: null },
+      summary: {
+        jobId: plan.planId,
+        projectId: entry.value.projectId,
+        peerId: entry.value.peerId,
+        direction: entry.value.direction,
+        role: local.role,
+        phase,
+        stage,
+        step,
+        percent,
+        updatedAt: entry.value.updatedAt,
+        hasCleanupError,
+      },
+    }
+  }
+
+  /** 取消手机正在开始的任务；手机还没建立任务时以 not-found 拒绝。 */
+  async cancelPending(jobId: string): Promise<void> {
+    const entry = this.current
+    if (entry?.plan?.planId !== jobId) {
+      throw new HttpOperationError('not-found', 'This sync task ended or expired.')
+    }
+    await this.options.control.request(entry.value.peerId, 'sync.job.cancel', { jobId })
+  }
+
+  /** 控制通道断开：未确认的请求失败；已开始的传输可能仍在进行，结果待确认，重连后由摘要更新。 */
   closed(peerId: string): void {
     const entry = this.current
     if (entry?.value.peerId !== peerId) {
@@ -275,9 +408,8 @@ export class WindowsRemoteSyncRequests {
       })
     } else if (entry.value.status === 'running') {
       this.fail(entry, {
-        code: 'network-failure',
-        message:
-          'The connection to the phone was lost. Check the task list for the transfer result.',
+        code: 'result-unknown',
+        message: 'The connection to the phone was lost. The transfer result is unconfirmed.',
         canRetry: false,
       })
     }

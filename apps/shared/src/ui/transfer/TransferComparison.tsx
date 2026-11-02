@@ -321,7 +321,7 @@ export function TransferComparison({
         <span className="ss-diffbar-space" />
         {isScanning && onCancel && (
           <button type="button" className="ss-chip" onClick={onCancel}>
-            {t('common.cancel')}
+            <span>{t('common.cancel')}</span>
           </button>
         )}
         {comparison !== null && (
@@ -332,7 +332,7 @@ export function TransferComparison({
             onClick={() => setIsFilterOn(!isFilterOn)}
           >
             <DiffOutlined />
-            {t('compare.filter')}
+            <span>{t('compare.filter')}</span>
           </button>
         )}
         <button

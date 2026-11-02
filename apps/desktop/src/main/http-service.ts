@@ -13,8 +13,8 @@ import {
   HTTP_HEADERS,
   isReceiveBatchRequest,
   PROTOCOL_VERSION,
+  SYNC_CAPABILITIES_VERSION,
   SYNC_LIMITS,
-  SYNC_SCHEMA_VERSION,
   isSyncScanRequest,
   SYNC_DEVICE_HEADER,
   isOpaqueId,
@@ -24,8 +24,10 @@ import type {
   DeviceDescriptor,
   OperationError,
   OperationResult,
+  SyncJobDigest,
   SyncScanState,
   SyncJobState,
+  SyncTransferState,
 } from '@savedata-sync/shared'
 import type { WindowsArchiveAdapter } from './archive-adapter.ts'
 import type { WindowsDirectoryAdapter } from './directory-adapter.ts'
@@ -185,18 +187,29 @@ export class WindowsHttpService {
   }
   /** 受信任本机桥分开读取摘要、计划、清单和结果。 */
   syncCopies(): ReturnType<WindowsSyncRegistry['summaries']> {
-    return this.syncRegistry?.summaries() ?? []
+    const pending = this.remoteRequests?.pending()
+    return [...(this.syncRegistry?.summaries() ?? []), ...(pending ? [pending.summary] : [])]
+  }
+  /** 还没登记的电脑发起任务由发起请求提供，详情页同样能读到计划和状态。 */
+  private pendingCopy(id: string): ReturnType<WindowsRemoteSyncRequests['pending']> {
+    const pending = this.remoteRequests?.pending()
+    return pending?.request.jobId === id ? pending : null
   }
   syncCopyRequest(id: string): ReturnType<WindowsSyncRegistry['localRequest']> {
-    return this.localSync().localRequest(id)
+    return this.pendingCopy(id)?.request ?? this.localSync().localRequest(id)
   }
-  syncCopyState(id: string): SyncJobState {
-    return this.localSync().localState(id)
+  syncCopyState(id: string): SyncTransferState {
+    return this.pendingCopy(id)?.state ?? this.localSync().localState(id)
   }
   syncCopyManifest(id: string): ReturnType<WindowsSyncRegistry['localManifest']> {
     return this.localSync().localManifest(id)
   }
-  cancelSyncCopy(id: string): SyncJobState {
+  async cancelSyncCopy(id: string): Promise<SyncTransferState> {
+    const pending = this.pendingCopy(id)
+    if (pending) {
+      await this.requireRemote().cancelPending(id)
+      return pending.state
+    }
     return this.localSync().localCancel(id)
   }
   cleanupSyncCopy(id: string): Promise<void> {
@@ -292,32 +305,37 @@ export class WindowsHttpService {
         : {}),
     })
     this.registry = registry
-    if (this.options.sync && this.options.library && this.scanner && this.options.scanSource) {
-      this.syncRegistry = new WindowsSyncRegistry({
-        ...this.options.sync,
-        library: this.options.library,
-        scanner: this.scanner,
-        source: this.options.scanSource,
-        deviceId: this.source.deviceId,
-        ...(this.options.timeouts ? { timeouts: this.options.timeouts } : {}),
-      })
-    }
     if (this.options.library) {
       const control = new ControlHub()
       this.control = control
       this.options.library.attachControl(control)
-      if (this.syncRegistry) {
+      if (this.options.sync && this.scanner && this.options.scanSource) {
+        const jobs = new WindowsSyncRegistry({
+          ...this.options.sync,
+          library: this.options.library,
+          scanner: this.scanner,
+          source: this.options.scanSource,
+          deviceId: this.source.deviceId,
+          control,
+          ...(this.options.timeouts ? { timeouts: this.options.timeouts } : {}),
+        })
+        this.syncRegistry = jobs
         const remote = new WindowsRemoteSyncRequests({
           library: this.options.library,
           control,
           deviceId: this.source.deviceId,
           isBusy: () => this.hasRunningNetworkWork(),
+          hasJob: (jobId) => jobs.has(jobId),
         })
         this.remoteRequests = remote
         control.subscribe({
           event: (peerId, method, body) => {
             if (method === 'sync.report') {
               remote.report(peerId, body as Parameters<typeof remote.report>[1])
+            } else if (method === 'sync.job') {
+              const digest = body as SyncJobDigest
+              remote.observe(peerId, digest)
+              jobs.observe(peerId, digest)
             }
           },
           closed: (peerId) => remote.closed(peerId),
@@ -599,7 +617,7 @@ export class WindowsHttpService {
       sendHttpJson(response, 200, {
         status: 'success',
         value: {
-          schemaVersion: SYNC_SCHEMA_VERSION,
+          schemaVersion: SYNC_CAPABILITIES_VERSION,
           deviceId: this.source.deviceId,
           canScan: this.scanner ? 'supported' : 'unsupported',
           canCopy: this.syncRegistry ? 'supported' : 'unsupported',

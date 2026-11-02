@@ -41,6 +41,9 @@ final class SyncTransferRuntime {
             @Override public boolean backup(String projectId, String rootId) throws Exception {
                 return (Boolean) BackupModel.resolve(backups.settings(), projectId, rootId).get("shouldBackup");
             }
+            @Override public long backupKeep(String projectId, String rootId) throws Exception {
+                return ((Number) BackupModel.resolve(backups.settings(), projectId, rootId).get("keepCount")).longValue();
+            }
             @Override public long checkReceiveSpace(SyncPlanModel.Plan plan, java.nio.file.Path cacheRoot, long cacheBytes, ArchiveControl control, SyncWriter.Execution execution) throws Exception {
                 return writer.checkReceiveSpace(plan, cacheRoot, cacheBytes, control, execution);
             }

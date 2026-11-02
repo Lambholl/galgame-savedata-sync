@@ -2,6 +2,7 @@ import {
   createSyncPlan,
   isOpaqueId,
   isOperationError,
+  isInterruptedWriteList,
   isOperationResult,
   isSyncApplyResult,
   isSyncPlan,
@@ -9,6 +10,7 @@ import {
   matchesSyncApplyResult,
 } from '@savedata-sync/shared'
 import type {
+  InterruptedWrite,
   OperationError,
   OperationResult,
   SyncApplyResult,
@@ -35,6 +37,8 @@ export interface SyncWriteNativePlugin {
   cancel(options: { restoreId: string }): Promise<unknown>
   release(options: { restoreId: string }): Promise<unknown>
   retryCleanup(): Promise<unknown>
+  interrupted(): Promise<unknown>
+  dismissInterrupted(options: { id: string }): Promise<unknown>
 }
 /** 平台层先核对保存的游戏配置，再 bindProject；执行固定预览，文件内容和句柄始终由原生持有。 */
 export interface AndroidSyncWriteApi {
@@ -51,6 +55,9 @@ export interface AndroidSyncWriteApi {
   cancel(restoreId: string): Promise<OperationResult<AndroidRestoreState>>
   release(restoreId: string): Promise<OperationResult<null>>
   retryCleanup(): Promise<OperationResult<null>>
+  /** 上个进程没写完就结束时留下的写入标记，不含正在进行的写入。 */
+  interruptedWrites(): Promise<OperationResult<readonly InterruptedWrite[]>>
+  dismissInterruptedWrite(id: string): Promise<OperationResult<null>>
 }
 function shape(value: unknown, fields: readonly string[]): value is Record<string, unknown> {
   return (
@@ -280,5 +287,13 @@ export function createSyncWriteBridge(
         () => plugin.retryCleanup(),
         (value): value is null => value === null,
       ),
+    interruptedWrites: () => invoke(() => plugin.interrupted(), isInterruptedWriteList),
+    dismissInterruptedWrite: (id: string) =>
+      !isOpaqueId(id)
+        ? Promise.resolve(invalid('invalid-request'))
+        : invoke(
+            () => plugin.dismissInterrupted({ id }),
+            (value): value is null => value === null,
+          ),
   })
 }

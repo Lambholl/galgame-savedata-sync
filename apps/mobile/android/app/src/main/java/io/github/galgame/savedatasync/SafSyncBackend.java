@@ -35,12 +35,16 @@ final class SafSyncBackend implements SyncWriter.Backend {
     private final SafPublicationBackend publication;
     private final NewFilePublisher publisher;
     private final Authorization authorization;
+    private final InterruptedWrites interrupted;
     SafSyncBackend(Context context, SafDirectoryStore store, Authorization authorization) {
         resolver = context.getApplicationContext().getContentResolver(); this.store = store; this.authorization = authorization;
+        interrupted = new InterruptedWrites(context);
         source = new SafSyncSource(store); publication = new SafPublicationBackend(context, store); publisher = new NewFilePublisher(publication);
     }
     @Override public SyncScanner.Source source() { return source; }
     @Override public NewFilePublisher publisher() { return publisher; }
+    @Override public void writeStarted(SyncPlanModel.Plan plan, Object backupId) throws Exception { interrupted.begin(plan.id, plan.project, plan.target.root, backupId); }
+    @Override public void writeEnded(SyncPlanModel.Plan plan) { interrupted.end(plan.id); }
     @Override public Boolean sharesPrivateVolume(Path left, Path right) throws Exception {
         StructStat first = Os.lstat(left.toString()), second = Os.lstat(right.toString());
         if (!OsConstants.S_ISDIR(first.st_mode) || !OsConstants.S_ISDIR(second.st_mode)) throw new ArchiveFailure("source-changed", "The private storage directory type changed.");

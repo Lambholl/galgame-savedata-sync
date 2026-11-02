@@ -60,7 +60,7 @@ export function DevicesPage({
                   onClick={() => onCopyAddress(peer.device.address ?? '')}
                 >
                   <CopyOutlined />
-                  {copied === peer.device.address ? ` ${t('device.copied')}` : ''}
+                  {copied === peer.device.address ? ` ${t('common.copied')}` : ''}
                 </Button>
               </div>
             )}

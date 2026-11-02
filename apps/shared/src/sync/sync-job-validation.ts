@@ -11,6 +11,7 @@ import {
   isTimestamp,
 } from '../validation/data-validation.ts'
 import { isSyncProjectBinding } from '../library/project-binding.ts'
+import { isBackupKeepCount } from './backup-retention.ts'
 import { isSyncPlan } from './sync-plan-validation.ts'
 import { isSyncApplyResult, matchesSyncApplyResult } from './sync-result-validation.ts'
 import { isSyncSnapshot } from './sync-validation.ts'
@@ -18,7 +19,10 @@ import { createSyncPlan } from './sync-plan.ts'
 import { syncPathKey } from './sync-paths.ts'
 import type { SyncPlan } from './sync-contracts.ts'
 import type { BatchManifest } from '../protocol/batch-contracts.ts'
+import { SYNC_JOB_SCHEMA_VERSION } from './sync-job-contracts.ts'
 import type {
+  SyncFailureStage,
+  SyncJobDigest,
   SyncJobProgress,
   SyncJobRequest,
   SyncJobState,
@@ -47,10 +51,18 @@ function hasJsonBudget(value: unknown): boolean {
 }
 export function isSyncProjectDescriptor(value: unknown): value is SyncProjectDescriptor {
   return (
-    hasShape(value, ['schemaVersion', 'projectId', 'deviceId', 'rootId', 'shouldBackup']) &&
+    hasShape(value, [
+      'schemaVersion',
+      'projectId',
+      'deviceId',
+      'rootId',
+      'shouldBackup',
+      'backupKeepCount',
+    ]) &&
     value.schemaVersion === 1 &&
     [value.projectId, value.deviceId, value.rootId].every(isOpaqueId) &&
-    typeof value.shouldBackup === 'boolean'
+    typeof value.shouldBackup === 'boolean' &&
+    isBackupKeepCount(value.backupKeepCount)
   )
 }
 /** 从完整计划重算守卫，不接收被过滤的动作或本机恢复请求。 */
@@ -154,82 +166,71 @@ export function isSyncJobProgress(value: unknown): value is SyncJobProgress {
     (value.publishedFiles !== 0 || value.fileBytesPublished === 0)
   )
 }
-/** 校验本端状态，不把 HTTP 成功、sender sent 或清理状态冒充 receiver 成功。 */
-export function isSyncJobState(value: unknown): value is SyncJobState {
+const DIGEST_FIELDS = [
+  'schemaVersion',
+  'jobId',
+  'direction',
+  'role',
+  'status',
+  'stage',
+  'updatedAt',
+  'cancelRequested',
+  'progress',
+  'failureStage',
+  'error',
+  'cleanupError',
+] as const
+const FAILURE_STAGES = [
+  'preparing',
+  'ready',
+  'awaiting-content',
+  'transferring',
+  'verifying',
+  'backing-up',
+  'writing',
+] as const
+
+/** 摘要的字段和状态关系；逐项结果相关的关系由 isSyncJobState 另外校验。 */
+function hasDigestRelations(
+  value: Record<string, unknown>,
+): value is Record<string, unknown> & SyncJobDigest {
   if (
-    !hasShape(value, [
-      'schemaVersion',
-      'jobId',
-      'direction',
-      'role',
-      'status',
-      'stage',
-      'updatedAt',
-      'cancelRequested',
-      'progress',
-      'result',
-      'error',
-      'cleanupError',
-    ]) ||
-    value.schemaVersion !== 1 ||
+    value.schemaVersion !== SYNC_JOB_SCHEMA_VERSION ||
     !isOpaqueId(value.jobId) ||
     !direction(value.direction) ||
     !isOneOf(value.role, ['sender', 'receiver']) ||
     !isTimestamp(value.updatedAt) ||
     typeof value.cancelRequested !== 'boolean' ||
     !isSyncJobProgress(value.progress) ||
-    !isNullable(value.result, isSyncApplyResult) ||
+    !isNullable(value.failureStage, (item): item is SyncFailureStage =>
+      isOneOf(item, FAILURE_STAGES),
+    ) ||
     !isNullable(value.error, isOperationError) ||
     !isNullable(
       value.cleanupError,
-      (item): item is NonNullable<SyncJobState['cleanupError']> =>
+      (item): item is NonNullable<SyncJobDigest['cleanupError']> =>
         isOperationError(item) && item.code === 'cleanup-failed',
-    )
-  ) {
-    return false
-  }
-  if (
-    !isOneOf(value.stage, [
-      'preparing',
-      'ready',
-      'awaiting-content',
-      'transferring',
-      'verifying',
-      'backing-up',
-      'writing',
-      'cleaning',
-      'done',
-    ])
+    ) ||
+    !isOneOf(value.stage, [...FAILURE_STAGES, 'cleaning', 'done'])
   ) {
     return false
   }
   if (
     value.role === 'sender' &&
-    (value.result !== null ||
-      value.progress.fileBytesPublished !== 0 ||
-      value.progress.publishedFiles !== 0)
+    (value.progress.fileBytesPublished !== 0 || value.progress.publishedFiles !== 0)
   ) {
     return false
   }
   if (value.role === 'receiver' && value.progress.sourceBytesRead !== 0) {
     return false
   }
-  if (
-    value.result !== null &&
-    (value.result.planId !== value.jobId ||
-      value.result.error?.code !== value.error?.code ||
-      value.result.error?.message !== value.error?.message ||
-      value.result.error?.canRetry !== value.error?.canRetry)
-  ) {
+  if (value.failureStage !== null && !isOneOf(value.status, ['failed', 'unknown', 'cancelled'])) {
     return false
   }
   if (value.status === 'running') {
-    return value.stage !== 'done' && value.error === null && value.result === null
+    return value.stage !== 'done' && value.error === null
   }
   if (value.stage !== 'done') {
-    return false
-  }
-  if (value.role === 'receiver' && value.result === null) {
     return false
   }
   if (value.status === 'sent') {
@@ -245,8 +246,6 @@ export function isSyncJobState(value: unknown): value is SyncJobState {
     return (
       value.role === 'receiver' &&
       value.error === null &&
-      value.result !== null &&
-      value.result.outcomes.every((item) => item.status === 'succeeded') &&
       value.progress.verifiedFiles === value.progress.totalFiles &&
       value.progress.publishedFiles === value.progress.totalFiles
     )
@@ -258,6 +257,46 @@ export function isSyncJobState(value: unknown): value is SyncJobState {
     return value.error?.code === 'result-unknown'
   }
   return value.status === 'failed' && value.error !== null && value.error.code !== 'result-unknown'
+}
+export function isSyncJobDigest(value: unknown): value is SyncJobDigest {
+  return hasShape(value, DIGEST_FIELDS) && hasDigestRelations(value)
+}
+/** 校验本端状态，不把 HTTP 成功、sender sent 或清理状态冒充 receiver 成功。 */
+export function isSyncJobState(value: unknown): value is SyncJobState {
+  if (
+    !hasShape(value, [...DIGEST_FIELDS, 'result']) ||
+    !hasDigestRelations(value) ||
+    !isNullable(value.result, isSyncApplyResult)
+  ) {
+    return false
+  }
+  const result = value.result
+  if (result === null) {
+    return value.role === 'sender' || value.status === 'running'
+  }
+  return (
+    value.role === 'receiver' &&
+    value.status !== 'running' &&
+    result.planId === value.jobId &&
+    result.error?.code === value.error?.code &&
+    result.error?.message === value.error?.message &&
+    result.error?.canRetry === value.error?.canRetry &&
+    (value.status !== 'succeeded' || result.outcomes.every((item) => item.status === 'succeeded'))
+  )
+}
+/** 对端推送的摘要须属于本次任务：相反角色、同一方向、与计划一致的总量。 */
+export function matchesSyncJobDigest(
+  value: SyncJobDigest,
+  request: SyncJobRequest,
+  localRole: SyncJobDigest['role'],
+): boolean {
+  return (
+    value.jobId === request.jobId &&
+    value.direction === request.plan.direction &&
+    value.role !== localRole &&
+    value.progress.totalFileBytes === request.plan.totalFileBytes &&
+    value.progress.totalFiles === request.plan.transferFileCount
+  )
 }
 /** 绑定本次计划/清单、角色和完整逐项结果；清单未准备时归档总量保持 null。 */
 export function matchesSyncJobState(
@@ -325,6 +364,7 @@ export function isSyncPreparationPreview(value: unknown): value is SyncPreparati
       'source',
       'target',
       'shouldBackup',
+      'backupKeepCount',
     ]) ||
     value.schemaVersion !== 1 ||
     !isOpaqueId(value.preparationId) ||
@@ -332,7 +372,8 @@ export function isSyncPreparationPreview(value: unknown): value is SyncPreparati
     !isSyncProjectBinding(value.binding) ||
     !isSyncSnapshot(value.source) ||
     !isSyncSnapshot(value.target) ||
-    typeof value.shouldBackup !== 'boolean'
+    typeof value.shouldBackup !== 'boolean' ||
+    !isBackupKeepCount(value.backupKeepCount)
   ) {
     return false
   }

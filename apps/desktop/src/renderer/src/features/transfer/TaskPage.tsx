@@ -5,8 +5,8 @@ import type { DesktopCopySummary, DesktopRestoreSummary } from '../../../../brid
 import { TaskView } from './TaskView.tsx'
 import { SyncCopyDetails } from './SyncCopyDetails.tsx'
 import { RestoreDetails } from '../backup/RestoreDetails.tsx'
-import { useT } from '@savedata-sync/shared/ui'
-import { restoreStateTitle, syncStateTitle } from './sync-display.ts'
+import { syncTaskPreview, useT } from '@savedata-sync/shared/ui'
+import { restoreStateTitle } from './sync-display.ts'
 import { formatShortDateTime } from '@savedata-sync/shared'
 
 export function TaskPage({
@@ -93,7 +93,7 @@ export function TaskPage({
                   · {formatShortDateTime(item.updatedAt)}
                 </small>
               </span>
-              <Tag>{syncStateTitle(t, item)}</Tag>
+              <Tag>{syncTaskPreview(item, t).status}</Tag>
             </button>
           ))}
         </section>

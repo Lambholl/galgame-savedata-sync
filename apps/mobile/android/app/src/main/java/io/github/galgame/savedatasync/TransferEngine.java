@@ -33,6 +33,10 @@ final class TransferEngine {
         void message(String deviceId, String text);
         void state(String deviceId, boolean isOpen, int code);
     }
+    /** 原生直接处理的控制消息；返回 true 表示已接管，不再转给页面。 */
+    interface ControlInterceptor {
+        boolean intercept(String deviceId, String text);
+    }
     private static final AtomicReference<TransferEngine> PROCESS = new AtomicReference<>();
     private final ArchiveAdapter archives;
     private final NewFilePublisher publisher;
@@ -58,6 +62,7 @@ final class TransferEngine {
     }
     private final Map<String, Connection> connections = new LinkedHashMap<>();
     private volatile ControlListener controlListener;
+    private volatile ControlInterceptor controlInterceptor;
     private Job active;
     private boolean closed, connecting;
     private static final class Job {
@@ -178,6 +183,7 @@ final class TransferEngine {
         return reply;
     }
     void controlListener(ControlListener listener) { controlListener = listener; }
+    void controlInterceptor(ControlInterceptor interceptor) { controlInterceptor = interceptor; }
     /** Activity 重建时新的订阅可能先到，只清除自己的订阅。 */
     synchronized void releaseControlListener(ControlListener listener) { if (controlListener == listener) controlListener = null; }
     /** 首次交换目录表后连上控制通道；意外断开 2 秒后重连，直到本机断开这台设备。 */
@@ -188,9 +194,10 @@ final class TransferEngine {
             ControlClient client = new ControlClient(origin, string(value.descriptor.get("sessionId")), local.deviceId(), new ControlClient.Events() {
                 @Override public void opened(ControlClient source) { controlChanged(id, source, true, 0); }
                 @Override public void message(ControlClient source, String text) {
-                    ControlListener listener = controlListener;
+                    ControlListener listener = controlListener; ControlInterceptor interceptor = controlInterceptor;
                     boolean isCurrent; synchronized (TransferEngine.this) { isCurrent = value.control == source && connections.get(id) == value; }
-                    if (isCurrent && listener != null) listener.message(id, text);
+                    if (!isCurrent || (interceptor != null && interceptor.intercept(id, text))) return;
+                    if (listener != null) listener.message(id, text);
                 }
                 @Override public void closed(ControlClient source, int code) {
                     controlChanged(id, source, false, code);

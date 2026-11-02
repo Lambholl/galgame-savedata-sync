@@ -46,6 +46,10 @@ final class SyncWriter implements AutoCloseable {
         /** 可选的只读卷识别句柄；null 表示提供者不能识别卷，调用者继续按未知处理。 */
         default Replacement volumeFile(String rootId, String parentId, Map<String, Object> expected, ArchiveControl control) throws Exception { return replacement(rootId, parentId, expected, control); }
         default Boolean sharesPrivateVolume(Path left, Path right) throws Exception { return null; }
+        /** 开始写目标前留下写入标记；抛出时不写目标。 */
+        default void writeStarted(SyncPlanModel.Plan plan, Object backupId) throws Exception {}
+        /** 写入走到结束后删除标记，不得抛出。 */
+        default void writeEnded(SyncPlanModel.Plan plan) {}
     }
     interface Observer {
         default void stage(String stage) throws Exception {}
@@ -279,7 +283,7 @@ final class SyncWriter implements AutoCloseable {
             used.add(plan.id); active = job;
         }
         List<Object> outcomes = new ArrayList<>(); for (Map<String, Object> operation : plan.writes) outcomes.add(outcome(operation, "not-attempted", null, null));
-        Object error = null, cleanup = null, backupId = null; int index = 0, fileIndex = 0;
+        Object error = null, cleanup = null, backupId = null, backupFileCount = null; int index = 0, fileIndex = 0;
         try {
             if (job.observer != null) job.observer.stage("verifying");
             preflight(job, material);
@@ -287,10 +291,11 @@ final class SyncWriter implements AutoCloseable {
             Map<String, Object> backup = backups.create(plan.project, plan.target.root, plan.reason, plan.backup, plan.backupFiles, control);
             cleanup = backup.get("cleanupError");
             if (!plan.backupFiles.isEmpty() && backup.get("manifest") == null) throw new ArchiveFailure("io-failure", "A complete protective backup has not been committed.");
-            if (backup.get("manifest") != null) backupId = map(backup.get("manifest")).get("backupId");
+            if (backup.get("manifest") != null) { backupId = map(backup.get("manifest")).get("backupId"); backupFileCount = (long) list(map(backup.get("manifest")).get("files")).size(); }
             // SAF 与私有目录可能使用不同的逻辑设备 ID；备份落盘后再查实际余量，覆盖共享物理卷。
             Long remaining = backend.available(plan.target.root, null, control);
             if (remaining != null && remaining < targetGrowth(plan)) throw new ArchiveFailure("insufficient-space", "Free target space after backup is insufficient for the file size increase in this operation.");
+            if (!plan.writes.isEmpty()) backend.writeStarted(plan, backupId);
             if (job.observer != null) job.observer.stage("writing");
             for (int i = 0; i < plan.writes.size(); i++) {
                 index = i; Map<String, Object> operation = plan.writes.get(i), result = write(job, operation, material, fileIndex);
@@ -313,11 +318,12 @@ final class SyncWriter implements AutoCloseable {
                 outcomes.set(index, outcome(plan.writes.get(index), status, failure.cancelled ? null : error, null));
             }
         } finally {
+            backend.writeEnded(plan);
             boolean clean = clean(job); if (!clean) cleanup = cleanupError();
             if (cleanup == null && job.cleanupError != null) cleanup = job.cleanupError;
             synchronized (this) { job.running = false; if (clean) { active = null; if (job.ownToken) TargetOperation.release(job.token); } notifyAll(); }
         }
-        return object("schemaVersion", 1, "planId", plan.id, "backupId", backupId, "outcomes", outcomes, "error", error, "cleanupError", cleanup);
+        return object("schemaVersion", 1, "planId", plan.id, "backupId", backupId, "backupFileCount", backupFileCount, "outcomes", outcomes, "error", error, "cleanupError", cleanup);
     }
     private boolean clean(Job job) {
         boolean clean = true;

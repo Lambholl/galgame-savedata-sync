@@ -76,6 +76,9 @@ button.ss-end:disabled {
   font-size: 12px;
 }
 .ss-end-detail {
+  /* 长名称在自己这一行内省略，不把来源、目标标签挤走。 */
+  min-width: 0;
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

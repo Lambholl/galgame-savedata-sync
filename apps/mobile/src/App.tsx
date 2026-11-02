@@ -7,7 +7,7 @@ import antdZhTW from 'antd/locale/zh_TW'
 import type { Locale } from 'antd/es/locale'
 import { createTranslator, resolveLocale } from '@savedata-sync/shared'
 import type { AppLocale, ResolvedTheme } from '@savedata-sync/shared'
-import { I18nProvider, designTheme } from '@savedata-sync/shared/ui'
+import { DESIGN_BUTTON, I18nProvider, designTheme } from '@savedata-sync/shared/ui'
 import { MobileApp } from './app/MobileApp'
 import { useAppPreferences } from './app/app-preferences'
 import { androidBackButton } from './app/back-button'
@@ -47,7 +47,11 @@ export function App(): React.JSX.Element {
   }, [locale])
   return (
     <I18nProvider locale={locale}>
-      <ConfigProvider locale={ANTD_LOCALES[locale]} theme={designTheme(resolvedTheme, 'mobile')}>
+      <ConfigProvider
+        locale={ANTD_LOCALES[locale]}
+        theme={designTheme(resolvedTheme, 'mobile')}
+        button={DESIGN_BUTTON}
+      >
         <MobileApp adapter={ADAPTER} sync={SYNC} backButton={androidBackButton} />
       </ConfigProvider>
     </I18nProvider>

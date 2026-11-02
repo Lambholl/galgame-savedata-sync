@@ -117,6 +117,7 @@ public class HttpTransfersPlugin extends Plugin {
         Map<String, Object> a = arguments(call, "deviceId", "catalog");
         return engine().exchangeCatalog(id(a.get("deviceId")), a.get("catalog"), DeviceNames.current(getContext()), c);
     }); }
+    @PluginMethod public void deviceName(PluginCall call) { submit(call, c -> { arguments(call); return DeviceNames.current(getContext()); }); }
     @PluginMethod public void controlStates(PluginCall call) { submit(call, c -> { arguments(call); return engine().controlStates(); }); }
     @PluginMethod public void sendControl(PluginCall call) { submit(call, c -> {
         Map<String, Object> a = arguments(call, "deviceId", "message");

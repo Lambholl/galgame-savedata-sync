@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Alert, Button, Empty, Form, Modal, Switch } from 'antd'
-import { HistoryOutlined } from '@ant-design/icons'
+import { DeleteOutlined, HistoryOutlined } from '@ant-design/icons'
 import {
   formatBytes,
   formatShortDateTime,
@@ -16,7 +16,14 @@ import type {
   SyncBackupPolicy,
 } from '@savedata-sync/shared'
 import type { DesktopBackupInfo, DesktopBackupList } from '../../../../bridge/backup-bridge.ts'
-import { BackupFiles, BackupPolicyBlock, BackupTimeline, useT } from '@savedata-sync/shared/ui'
+import {
+  BackupFiles,
+  BackupLeftoverNotice,
+  BackupPolicyBlock,
+  BackupTimeline,
+  cleanupIncompleteBackups,
+  useT,
+} from '@savedata-sync/shared/ui'
 import { useFailureMessage } from '../../app/failure-message.ts'
 import { desktopBackups, desktopSync } from '../../platform/sync-adapter.ts'
 import { SETTING_FORM } from '../settings/setting-form.ts'
@@ -68,6 +75,7 @@ export function BackupPage({
   const [isPolicyOpen, setIsPolicyOpen] = useState(false)
   const [mode, setMode] = useState<PolicyMode>('follow')
   const [draft, setDraft] = useState<SyncBackupPolicy | null>(null)
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false)
   const isCurrent = useRef(true)
   const saving = useRef(Promise.resolve())
   const manifestVersion = useRef(0)
@@ -235,6 +243,17 @@ export function BackupPage({
       }
     })
   }
+  function deleteSelected(): void {
+    setIsDeleteOpen(false)
+    if (!selected) {
+      return
+    }
+    const item = selected
+    setSelectedId(null)
+    run(async () => {
+      unwrap(await desktopBackups().deleteBackup(item.projectId, item.rootId, item.backupId))
+    })
+  }
   const incomplete = listing?.incomplete ?? []
   const when = (value: number): string => formatShortDateTime(value)
   const root = roots.find((item) => item.rootId === rootId)
@@ -243,25 +262,33 @@ export function BackupPage({
     detail = (
       <>
         <div className="backup-detail-head">
-          <div>
-            <h2>{when(selected.createdAt)}</h2>
-            <p>
-              {t(`backup.reason.${selected.reason}`)} ·{' '}
-              {t('backup.files', {
-                count: selected.fileCount,
-                size: formatBytes(selected.totalFileBytes),
-              })}
-            </p>
+          <h2>{when(selected.createdAt)}</h2>
+          <div className="backup-detail-actions">
+            <Button
+              danger
+              icon={<DeleteOutlined />}
+              disabled={isBusy || isActive || hasRunningWork}
+              onClick={() => setIsDeleteOpen(true)}
+            >
+              {t('backup.delete')}
+            </Button>
+            <Button
+              type="primary"
+              icon={<HistoryOutlined />}
+              loading={isBusy}
+              disabled={!isCurrentRoot || isActive || hasRunningWork}
+              onClick={prepare}
+            >
+              {t('backup.restore')}
+            </Button>
           </div>
-          <Button
-            type="primary"
-            icon={<HistoryOutlined />}
-            loading={isBusy}
-            disabled={!isCurrentRoot || isActive || hasRunningWork}
-            onClick={prepare}
-          >
-            {t('backup.restoreThis')}
-          </Button>
+          <p>
+            {t(`backup.reason.${selected.reason}`)} ·{' '}
+            {t('backup.files', {
+              count: selected.fileCount,
+              size: formatBytes(selected.totalFileBytes),
+            })}
+          </p>
         </div>
         <BackupFiles
           key={selected.backupId}
@@ -321,24 +348,15 @@ export function BackupPage({
         </Empty>
       )}
       {incomplete.length > 0 && (
-        <Alert
-          showIcon
-          type="warning"
-          title={t('backup.incomplete', { count: incomplete.length })}
-          action={
-            <Button
-              size="small"
-              disabled={isBusy || hasRunningWork}
-              onClick={() =>
-                run(async () => {
-                  for (const id of incomplete) {
-                    unwrap(await desktopBackups().cleanupIncomplete(game.id, rootId, id))
-                  }
-                })
-              }
-            >
-              {t('backup.cleanup')}
-            </Button>
+        <BackupLeftoverNotice
+          items={incomplete}
+          isDisabled={isBusy || hasRunningWork}
+          onCleanup={() =>
+            run(() =>
+              cleanupIncompleteBackups(incomplete, async (id) => {
+                unwrap(await desktopBackups().cleanupIncomplete(game.id, rootId, id))
+              }),
+            )
           }
         />
       )}
@@ -375,6 +393,17 @@ export function BackupPage({
           <section className="backup-detail">{detail}</section>
         </div>
       )}
+      <Modal
+        open={isDeleteOpen}
+        title={t('backup.deleteTitle')}
+        okText={t('backup.delete')}
+        okButtonProps={{ danger: true }}
+        cancelText={t('common.cancel')}
+        onOk={deleteSelected}
+        onCancel={() => setIsDeleteOpen(false)}
+      >
+        {selected && t('backup.deleteText', { time: when(selected.createdAt) })}
+      </Modal>
       <Modal
         open={isPolicyOpen}
         title={t('backup.policyTitle', { name: game.name })}

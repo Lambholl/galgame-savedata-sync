@@ -1,18 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { ActionSheet } from 'antd-mobile'
 import { RightOutlined } from '@ant-design/icons'
-import {
-  compareSnapshots,
-  resolveBackupPolicy,
-  syncPlanFromPreview,
-  toShownError,
-} from '@savedata-sync/shared'
+import { compareSnapshots, syncPlanFromPreview, toShownError } from '@savedata-sync/shared'
 import type {
   DirectoryReference,
   LibraryGame,
   LibraryPeer,
   ShownError,
-  SyncBackupSettings,
   SyncPreparationPreview,
   SyncPreparationState,
   TransferDirection,
@@ -35,6 +29,7 @@ export function SyncCopyPage({
   game,
   peers,
   localRoot,
+  deviceName,
   peerId,
   isPlan,
   isDisabled,
@@ -49,6 +44,7 @@ export function SyncCopyPage({
   readonly game: LibraryGame
   readonly peers: readonly LibraryPeer[]
   readonly localRoot: DirectoryReference | null
+  readonly deviceName: string | null
   readonly peerId: string
   readonly isPlan: boolean
   readonly isDisabled: boolean
@@ -78,28 +74,6 @@ export function SyncCopyPage({
   const localRootId = localRoot?.rootId ?? null
   const isConnected = Boolean(peer?.isConnected)
   const canScan = isConnected && localRootId !== null && remoteRootId !== null && !isTransferActive
-  const [backupSettings, setBackupSettings] = useState<SyncBackupSettings | null>(null)
-  useEffect(() => {
-    let isCurrent = true
-    sync
-      .backupSettings()
-      .then((value) => {
-        if (isCurrent) {
-          setBackupSettings(value)
-        }
-      })
-      .catch(() => {
-        // 读不到时计划只说明会备份，不显示份数。
-      })
-    return () => {
-      isCurrent = false
-    }
-  }, [sync])
-  /** 本机被写入时显示本机保留的份数；电脑的份数在这里读不到。 */
-  const backupKeepCount =
-    direction === 'windows-to-android' && backupSettings && localRootId !== null
-      ? resolveBackupPolicy(backupSettings, game.id, localRootId).keepCount
-      : null
   useEffect(() => {
     if (!canScan) {
       return
@@ -166,7 +140,10 @@ export function SyncCopyPage({
       preview.binding.remoteProjectId !== remote?.id)
   let status: ComparisonStatus
   if (!peer) {
-    status = { kind: 'unavailable', reason: t('transfer.noPeer') }
+    status = {
+      kind: 'unavailable',
+      reason: t(game.links.length > 0 ? 'transfer.pickPeerTitle' : 'transfer.noPeer'),
+    }
   } else if (!isConnected) {
     status = { kind: 'unavailable', reason: t('transfer.peerOffline', { name: peer.device.name }) }
   } else if (localRootId === null) {
@@ -233,7 +210,8 @@ export function SyncCopyPage({
       .catch((cause: unknown) => onFailure(toShownError(cause)))
       .finally(() => setIsStarting(false))
   }
-  const remoteName = peer?.device.name ?? t('common.unknown')
+  const remoteName =
+    peer?.device.name ?? t(game.links.length > 0 ? 'transfer.pickPeerTitle' : 'common.unknown')
   const localEnd: PlanEndpoint = { name: t('transfer.local'), kind: 'phone' }
   const remoteEnd: PlanEndpoint = { name: remoteName, kind: 'pc' }
   return (
@@ -250,7 +228,7 @@ export function SyncCopyPage({
           }}
           phone={{
             name: t('transfer.local'),
-            caption: '',
+            caption: deviceName ?? '',
             isOnline: null,
             rootName: localRoot?.displayName ?? '—',
           }}
@@ -273,7 +251,7 @@ export function SyncCopyPage({
           plan={plan}
           source={direction === 'android-to-windows' ? localEnd : remoteEnd}
           target={direction === 'android-to-windows' ? remoteEnd : localEnd}
-          backupKeepCount={backupKeepCount}
+          backupKeepCount={preview?.backupKeepCount ?? null}
           notice={hasChanged && <p className="notice notice-error">{t('transfer.planStale')}</p>}
           action={{
             label: t('transfer.start'),

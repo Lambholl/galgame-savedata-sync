@@ -2,6 +2,7 @@
 // 主入口 `@savedata-sync/shared` 不得导入本目录。
 import './text-selection.css'
 import './pressable.css'
+import './button-label.css'
 
 export * from './theme/design-theme.ts'
 export * from './path-text/PathText.tsx'
@@ -21,6 +22,8 @@ export * from './devices/link-items.ts'
 export * from './backup/BackupPolicyBlock.tsx'
 export * from './backup/BackupTimeline.tsx'
 export * from './backup/BackupFiles.tsx'
+export * from './backup/backup-leftover.ts'
+export * from './backup/BackupLeftoverNotice.tsx'
 export * from './settings/ChoiceLabel.tsx'
 export * from './games/GameActions.tsx'
 export * from './games/GameCard.tsx'

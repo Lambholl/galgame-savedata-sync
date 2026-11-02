@@ -1,0 +1,12 @@
+/*
+ * 两端所有按钮的文字都按这一条规则垂直居中，新按钮不用再单独修正：
+ * 按大写字母高度到基线裁去行框上下的空白再居中。界面字体的上方留白比下方多，
+ * 不裁时文字会比图标和按钮中线低约 1px；中文字形的中心恰好落在这段范围的中心。
+ * 新的文字按钮请用 antd 或 antd-mobile 的 Button，不要用原生 button 自己画。
+ */
+.ant-btn > :not(.anticon),
+.adm-button > span,
+.adm-button > span > span:not(.anticon),
+.ss-chip > span {
+  text-box: trim-both cap alphabetic;
+}

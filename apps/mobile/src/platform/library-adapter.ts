@@ -61,6 +61,7 @@ export function createMobileLibraryAdapter(
   const control = dependencies?.control ?? defaultControl
   const storage = dependencies?.storage ?? appStorage
   let config: LibraryConfig | undefined
+  let deviceName: string | null = null
   const catalogs = new Map<string, readonly CatalogGame[]>()
   /** 每台设备上次交换成功的本机目录表，变化时才重新交换。 */
   const pushed = new Map<string, string>()
@@ -297,9 +298,15 @@ export function createMobileLibraryAdapter(
           await disconnect(id)
         }
       }
+      // 只在读到后缓存；一次失败不影响连接和任务，下次再读。
+      if (deviceName === null) {
+        const name = await androidTransfers.deviceName()
+        deviceName = name.status === 'success' ? name.value : null
+      }
       return {
         warning: null,
         config: load(),
+        deviceName,
         roots,
         peers: load().devices.map((device) => ({
           device,

@@ -71,5 +71,13 @@ public class SyncBackupsPlugin extends Plugin {
         Map<String, Object> value = arguments(call, "projectId", "rootId", "backupId");
         return mutate(store, target -> { target.cleanupIncomplete(id(value.get("projectId")), id(value.get("rootId")), id(value.get("backupId"))); return null; });
     }); }
+    @PluginMethod public void deleteBackup(PluginCall call) { submit(call, store -> {
+        Map<String, Object> value = arguments(call, "projectId", "rootId", "backupId");
+        return mutate(store, target -> { target.deleteBackup(id(value.get("projectId")), id(value.get("rootId")), id(value.get("backupId"))); return null; });
+    }); }
+    @PluginMethod public void deleteGameBackups(PluginCall call) { submit(call, store -> {
+        Map<String, Object> value = arguments(call, "projectId");
+        return mutate(store, target -> { target.deleteGameBackups(id(value.get("projectId"))); return null; });
+    }); }
     @Override protected void handleOnDestroy() { destroyed = true; controls.shutdownNow(); }
 }

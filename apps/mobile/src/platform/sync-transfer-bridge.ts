@@ -33,6 +33,7 @@ export interface SyncTransferNativePlugin {
   query(options: { jobId: string; refresh: boolean }): Promise<unknown>
   manifest(options: { jobId: string }): Promise<unknown>
   current(): Promise<unknown>
+  latest(options: { projectId: string }): Promise<unknown>
   cancel(options: { jobId: string }): Promise<unknown>
   release(options: { preparationId: string }): Promise<unknown>
   retryCleanup(): Promise<unknown>
@@ -50,6 +51,8 @@ export interface AndroidSyncTransferApi {
   query(jobId: string, shouldRefresh?: boolean): Promise<OperationResult<SyncTransferState>>
   manifest(jobId: string): Promise<OperationResult<BatchManifest | null>>
   current(): Promise<OperationResult<string | null>>
+  /** 这个本机项目最近一次任务的 ID；只查进程内登记表，不跨项目。 */
+  latest(projectId: string): Promise<OperationResult<string | null>>
   cancel(jobId: string): Promise<OperationResult<SyncTransferState>>
   release(preparationId: string): Promise<OperationResult<null>>
   retryCleanup(): Promise<OperationResult<null>>
@@ -281,6 +284,15 @@ export function createSyncTransferBridge(
         () => plugin.current(),
         (value): value is string | null => value === null || isOpaqueId(value),
       ),
+    async latest(projectId) {
+      if (!isOpaqueId(projectId)) {
+        return failure('invalid-request')
+      }
+      return invoke(
+        () => plugin.latest({ projectId }),
+        (value): value is string | null => value === null || isOpaqueId(value),
+      )
+    },
     async cancel(jobId) {
       if (!isOpaqueId(jobId)) {
         return failure('invalid-request')

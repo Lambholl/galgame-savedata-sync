@@ -14,6 +14,8 @@ import type {
 export interface MobileSnapshot {
   readonly warning: string | null
   readonly config: LibraryConfig
+  /** 本机系统名称；读取失败时为 null，界面留空。 */
+  readonly deviceName: string | null
   readonly peers: readonly LibraryPeer[]
   readonly roots: readonly DirectoryReference[]
   readonly tasks: readonly TransferTask[]

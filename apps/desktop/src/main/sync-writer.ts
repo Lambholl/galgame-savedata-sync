@@ -33,6 +33,7 @@ import {
   toArchiveError,
 } from './archive-errors.ts'
 import { hashBackupStream } from './backup-files.ts'
+import type { InterruptedWriteStore } from './interrupted-writes.ts'
 import { toPublicationError } from './publication-errors.ts'
 import { WindowsSyncScanner } from './sync-scanner.ts'
 import {
@@ -60,6 +61,8 @@ export interface WindowsSyncMaterial {
 /** authorize 每次核实本机项目/根授权；调用方应固定会话及对端配置，不接受路径参数。 */
 export interface WindowsSyncWriterOptions {
   readonly authorize: (plan: SyncPlan) => void | Promise<void>
+  /** 留写入标记；不传时不记录，只用于不走真实应用的集成验证。 */
+  readonly interruptedWrites?: Pick<InterruptedWriteStore, 'begin' | 'end'>
   readonly io?: Partial<SyncTargetIO>
   readonly timeoutMs?: number
 }
@@ -573,6 +576,7 @@ export class WindowsSyncWriter {
     let error: OperationError | null = null,
       cleanup: OperationError | null = null,
       backupId: string | null = null,
+      backupFileCount: number | null = null,
       index = 0
     try {
       this.emit(options, 'checking')
@@ -580,9 +584,13 @@ export class WindowsSyncWriter {
       this.emit(options, 'backing-up')
       const backup = await this.backups.create(job.plan, { signal: job.signal })
       backupId = backup.manifest?.backupId ?? null
+      backupFileCount = backup.manifest?.files.length ?? null
       cleanup = backup.cleanupError
       if (selectSyncBackupFiles(job.plan).length > 0 && !backup.manifest) {
         throw new ArchiveError('io-failure', 'A complete protective backup has not been committed.')
+      }
+      if (operations.length > 0) {
+        await this.options.interruptedWrites?.begin(job.plan, backupId)
       }
       for (const [position, operation] of operations.entries()) {
         index = position
@@ -625,6 +633,7 @@ export class WindowsSyncWriter {
         cleanup = stopped.cleanupError
       }
     } finally {
+      await this.options.interruptedWrites?.end(job.plan.planId)
       try {
         await this.clean(job)
       } catch {
@@ -640,6 +649,7 @@ export class WindowsSyncWriter {
       schemaVersion: 1,
       planId: job.plan.planId,
       backupId,
+      backupFileCount,
       outcomes,
       error,
       cleanupError: cleanup,

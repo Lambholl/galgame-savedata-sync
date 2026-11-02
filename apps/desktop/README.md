@@ -295,6 +295,8 @@ receiver 的 sourceBytesRead 始终为 0，接收/原文校验/最终发布字�
 | `list(projectId, rootId)` | 返回该项目/根的已提交清单和未完成轮次 ID；清单列出不代表文件刚刚重新校验，恢复必须 acquire |
 | `acquire(projectId, rootId, backupId, options?)` | 完整核对每个原文文件后返回原生句柄；`manifest` 是清单副本，`snapshot()` 为本次恢复建立临时树，`openFile(fileId)` 返回只读 stream 与 verifyUnchanged；消费者关闭读流后 release |
 | `rotate(projectId, rootId)` / `cleanupIncomplete(projectId, rootId, backupId)` | 显式重试轮换或清理已核实归属的未提交/已淘汰轮次；有效备份和正在被恢复引用的轮次不通过残留入口删除 |
+| `deleteBackup(projectId, rootId, backupId)` | 用户确认后删除一份有效备份；先撤下清单，中途失败时变成可清理的残留；正在被恢复引用时拒绝 |
+| `deleteGameBackups(projectId)` | 移除游戏时删除它在所有目录下的备份、残留和单独设置；失败时游戏保留，可以重试 |
 | `stop()` | 应用退出时取消正在创建/校验的备份并等待资源释放，关闭持有的恢复流；持久备份留到下次启动 |
 
 创建只写固定私有 fileId，每个文件执行源属性检查、流式大小/SHA-256、落盘和独立回读，再原子提交 `manifest.json`。所有权用 `owner.json` / `round.json` 保存；提交前失败或取消不产生有效轮次。失败抛 `ArchiveError` 或独立 `ArchiveCancelledError`，原始 cause 留在主进程，未清理成功的轮次另附 cleanupError。默认期限 30 分钟，原生 options 可通过 signal 取消或收紧 timeoutMs，读取使用 64 KiB 缓冲。预算、清单和恢复规则见 [M-002 文档](../../docs/plans/m002-sync-copy.md) 第 3 节。
@@ -314,7 +316,7 @@ try {
 }
 ```
 
-有限 `window.desktopBackups` 只提供 read/list/manifest/setPreference/rotate/cleanupIncomplete，输入仅为项目、目录、轮次 ID 和布尔开关。read 的 displayPath 仅供位置展示；列表使用摘要，单轮详情才返回完整清单，控制响应仍限 8 MiB。IPC 核对受信任主窗口/主 frame/URL、封闭参数和返回上下文；不暴露原生句柄、文件内容或私有文件路径参数。备份创建与目标写回由原生 `WindowsSyncWriter` 调用；HTTP 编排及恢复页面已接入，页面流程见第 14 节。
+有限 `window.desktopBackups` 只提供 read/list/manifest/setPreference/rotate/cleanupIncomplete/deleteBackup/deleteGameBackups，输入仅为项目、目录、轮次 ID 和布尔开关。read 的 displayPath 仅供位置展示；列表使用摘要，单轮详情才返回完整清单，控制响应仍限 8 MiB。IPC 核对受信任主窗口/主 frame/URL、封闭参数和返回上下文；不暴露原生句柄、文件内容或私有文件路径参数。备份创建与目标写回由原生 `WindowsSyncWriter` 调用；HTTP 编排及恢复页面已接入，页面流程见第 14 节。
 
 ## 13. 受保护目标写入与本机恢复
 
@@ -345,6 +347,8 @@ const restored = await preview.apply({ signal })
 // 放弃预览时改为 await preview.close()，释放被引用的备份材料。
 ```
 
+第一次写目标前，`InterruptedWriteStore` 在 `userData/interrupted-writes/<planId>.json` 落盘标记（写不了就报错，目标不变），结束时删除。不在本进程活动集合里的标记说明上个进程写到一半被结束：`desktopSync.interruptedWrites()` 读取，`dismissInterruptedWrite(id)` 一次性清除，界面据此提示一次，已移除游戏的标记直接清掉。
+
 ## 14. 同步结果与本机恢复界面
 
 游戏操作菜单的“任务与结果”展示本进程内的复制和恢复任务，计划、来源/目标、备份状态、阶段和逐项实际结果分别显示。电脑发送完成时提示“文件已发送。请在手机查看写入结果。”；电脑接收才显示本机写入结果。重扫读取本机当前目录，原确认计划保持不变；扫描未完成、属性未知、不存在和类型冲突分别呈现，文件夹不汇总大小。
@@ -359,8 +363,8 @@ const restored = await preview.apply({ signal })
 | --- | --- |
 | `activity()` | 无参数；返回进程内目标操作或清理占用状态，用于配置编辑保护 |
 | `copies()` | 无参数；返回最多 32 份 `DesktopCopySummary`，含本机项目、对端、方向、角色、状态、阶段、更新时间和清理标记 |
-| `copyPlan(jobId)` / `copyState(jobId)` | 同次任务 ID；分别返回 `SyncJobRequest` 和 `SyncJobState`，桥按原生计划/清单核对上下文与实际结果 |
-| `cancelCopy(jobId)` / `cleanupCopy(jobId)` | 显式取消返回当前状态，显式清理成功返回 null；均不重新登记或重放内容 |
+| `copyPlan(jobId)` / `copyState(jobId)` | 同次任务 ID；分别返回 `SyncJobRequest` 和含本机、对端两个角色的 `SyncTransferState`，桥按原生计划/清单核对上下文与实际结果；已确认但手机还没登记的任务返回占位状态 |
+| `cancelCopy(jobId)` / `cleanupCopy(jobId)` | 显式取消先通知手机再停止本机，返回当前 `SyncTransferState`；显式清理成功返回 null；均不重新登记或重放内容 |
 | `restores()` | 无参数；返回最多 32 份 `DesktopRestoreSummary`，固定项目/目录/输入备份，含状态、阶段、清理标记和 `isWorking` |
 | `prepareRestore(projectId, rootId, backupId)` | 仅 ID；返回 preparing 状态，后台普通准备结束后为 ready、failed 或 cancelled |
 | `restorePlan(restoreId)` / `restoreState(restoreId)` | 分别返回固定 `SyncPlan` 和 `DesktopRestoreState`；状态包含实际文件进度、可空结果/主错误/独立清理错误 |

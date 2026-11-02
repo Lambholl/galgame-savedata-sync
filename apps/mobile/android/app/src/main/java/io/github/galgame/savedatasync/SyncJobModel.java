@@ -12,6 +12,8 @@ import static io.github.galgame.savedatasync.TransferSchema.*;
 
 /** 新同步的原生数据边界；网络输入须在原生通过，不能依赖页面中的共享守卫。 */
 final class SyncJobModel {
+    /** 与 shared 的 SYNC_CAPABILITIES_VERSION、SYNC_JOB_SCHEMA_VERSION 保持一致。 */
+    static final int CAPABILITIES_VERSION = 2, JOB_SCHEMA_VERSION = 2;
     private SyncJobModel() {}
     static Map<String, Object> binding(Object raw) throws Exception {
         Map<String, Object> value = shape(copy(raw), "projectId", "remoteProjectId", "localDeviceId", "remoteDeviceId", "localRootId", "remoteRootId");
@@ -98,10 +100,13 @@ final class SyncJobModel {
         return state;
     }
     static boolean backup(Object raw, Map<String, Object> binding) throws Exception {
-        Map<String, Object> value = shape(raw, "schemaVersion", "projectId", "deviceId", "rootId", "shouldBackup"); number(value.get("schemaVersion"), 1, 1);
+        Map<String, Object> value = shape(raw, "schemaVersion", "projectId", "deviceId", "rootId", "shouldBackup", "backupKeepCount"); number(value.get("schemaVersion"), 1, 1);
         require(binding.get("remoteProjectId").equals(value.get("projectId")) && binding.get("remoteDeviceId").equals(value.get("deviceId")) &&
-            binding.get("remoteRootId").equals(value.get("rootId")) && value.get("shouldBackup") instanceof Boolean); return (Boolean) value.get("shouldBackup");
+            binding.get("remoteRootId").equals(value.get("rootId")) && value.get("shouldBackup") instanceof Boolean);
+        number(value.get("backupKeepCount"), BackupModel.KEEP_MIN, BackupModel.KEEP_MAX); return (Boolean) value.get("shouldBackup");
     }
+    /** 已由 backup 校验过的项目描述里的保留份数。 */
+    static long backupKeepCount(Object raw) throws Exception { return number(map(raw).get("backupKeepCount"), BackupModel.KEEP_MIN, BackupModel.KEEP_MAX); }
     static void manifest(ArchiveModel.Manifest manifest, SyncPlanModel.Plan plan) throws Exception {
         manifest.validate(new ArchiveModel.Limits()); require(manifest.transferId.equals(plan.id) && manifest.sourceDeviceId.equals(plan.source.device) && manifest.sourceRootId.equals(plan.source.root));
         require(manifest.files.size() == number(plan.value.get("transferFileCount"), 0, 1024) && manifest.totalFileBytes == number(plan.value.get("totalFileBytes"), 0, BackupModel.MAX_TOTAL));
@@ -121,8 +126,9 @@ final class SyncJobModel {
     private static void cleanup(Object raw) throws Exception { if (raw != null) require(error(raw).get("code").equals("cleanup-failed")); }
     /** 核对本次完整结果顺序、实际成功指纹及保护备份；返回已确认成功的文件数量和字节数。 */
     static long[] result(Object raw, SyncPlanModel.Plan plan) throws Exception {
-        Map<String, Object> result = shape(raw, "schemaVersion", "planId", "backupId", "outcomes", "error", "cleanupError"); number(result.get("schemaVersion"), 1, 1);
+        Map<String, Object> result = shape(raw, "schemaVersion", "planId", "backupId", "backupFileCount", "outcomes", "error", "cleanupError"); number(result.get("schemaVersion"), 1, 1);
         require(plan.id.equals(result.get("planId"))); parent(result.get("backupId")); cleanup(result.get("cleanupError"));
+        if (result.get("backupFileCount") != null) { require(result.get("backupId") != null); number(result.get("backupFileCount"), 0, SyncScanner.MAX_ENTRIES); }
         if (result.get("error") != null) error(result.get("error"));
         List<Object> outcomes = list(result.get("outcomes")); require(outcomes.size() == plan.writes.size());
         boolean stopped = false, cancelled = false; long files = 0, bytes = 0;
@@ -157,9 +163,9 @@ final class SyncJobModel {
         return state(raw, plan, manifest, plan.value.get("direction").equals("android-to-windows") ? "receiver" : "sender");
     }
     static Map<String, Object> state(Object raw, SyncPlanModel.Plan plan, ArchiveModel.Manifest manifest, String role) throws Exception {
-        Map<String, Object> state = shape(copy(raw), "schemaVersion", "jobId", "direction", "role", "status", "stage", "updatedAt", "cancelRequested", "progress", "result", "error", "cleanupError");
+        Map<String, Object> state = shape(copy(raw), "schemaVersion", "jobId", "direction", "role", "status", "stage", "updatedAt", "cancelRequested", "progress", "failureStage", "result", "error", "cleanupError");
         boolean sender = role.equals("sender");
-        number(state.get("schemaVersion"), 1, 1); require(plan.id.equals(state.get("jobId")) && plan.value.get("direction").equals(state.get("direction")) && state.get("role").equals(role));
+        number(state.get("schemaVersion"), JOB_SCHEMA_VERSION, JOB_SCHEMA_VERSION); require(plan.id.equals(state.get("jobId")) && plan.value.get("direction").equals(state.get("direction")) && state.get("role").equals(role));
         number(state.get("updatedAt"), -BackupModel.MAX_DATE, BackupModel.MAX_DATE); require(state.get("cancelRequested") instanceof Boolean);
         if (state.get("error") != null) error(state.get("error")); cleanup(state.get("cleanupError"));
         Map<String, Object> progress = shape(state.get("progress"), "sourceBytesRead", "archiveBytesTransferred", "fileBytesVerified", "fileBytesPublished", "totalFileBytes", "totalArchiveBytes", "totalFiles", "verifiedFiles", "publishedFiles");
@@ -175,6 +181,10 @@ final class SyncJobModel {
         if (manifest != null && packed != null) require(packed == manifest.archive.sizeBytes);
         String status = string(state.get("status")); one(status, "running", "sent", "succeeded", "failed", "cancelled", "unknown");
         one(state.get("stage"), "preparing", "ready", "awaiting-content", "transferring", "verifying", "backing-up", "writing", "cleaning", "done");
+        if (state.get("failureStage") != null) {
+            one(state.get("failureStage"), "preparing", "ready", "awaiting-content", "transferring", "verifying", "backing-up", "writing");
+            one(status, "failed", "cancelled", "unknown");
+        }
         if (status.equals("running")) require(!state.get("stage").equals("done") && state.get("error") == null && state.get("result") == null);
         else {
             require(state.get("stage").equals("done"));
