@@ -66,7 +66,7 @@
 
 主题使用共用色板与组件库语义色，目录与传输接口不受影响。
 
-当前递归扫描由 `WindowsSyncScanner` 提供：构造时传入本机目录适配器，`start(rootId)` 返回扫描句柄，`get(scanId)` 查询，`cancel(scanId)` 显式取消，退出时 `await stop()` 等待关流。原生验证可收紧 maxEntries/timeoutMs/retentionMs，不能放宽固定预算；失败使用脱敏 OperationError，结果只存当前会话。
+当前递归扫描由 `WindowsSyncScanner` 提供：构造时传入本机目录适配器，`start(rootId)` 返回扫描句柄（最多保留 32 份结果，满时丢掉最旧的），`get(scanId)` 查询，`cancel(scanId)` 显式取消，退出时 `await stop()` 等待关流。原生验证可收紧 maxEntries/timeoutMs/retentionMs，不能放宽固定预算；失败使用脱敏 OperationError，结果只存当前会话。
 
 HTTP 服务注入 `scanSource: adapter` 后开放 `/v1/sync/capabilities`、`POST /v1/sync/scans` 和 `GET/DELETE /v1/sync/scans/{scanId}`。请求遵守会话头及严格 JSON，登记只接收 `{ schemaVersion: 1, rootId }`，202 后查询实际结果；旧批量接口保持非覆盖。注入 `sync` 编排后声明复制/备份为 supported；远端恢复为 unsupported，本机恢复通过独立本地桥执行。
 

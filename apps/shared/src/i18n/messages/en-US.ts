@@ -333,6 +333,7 @@ export const enUS: Messages = {
     'The two apps are on incompatible versions. Update both to the same version.',
   'error.code.session-mismatch': 'The device connection changed. Reconnect and try again.',
   'error.code.task-conflict': 'The transfer state changed. Refresh and try again.',
+  'error.code.plan-expired': 'Comparison expired. Comparing again.',
   'error.code.invalid-archive': 'The received data is incomplete or damaged. Transfer again.',
   'error.code.resource-limit': 'This exceeds the file count or size limit for one transfer.',
   'error.code.busy': 'Another task is running. Try again later.',

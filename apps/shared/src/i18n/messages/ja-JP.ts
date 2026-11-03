@@ -329,6 +329,7 @@ export const jaJP: Messages = {
     '両端末のアプリのバージョンに互換性がありません。同じバージョンに更新してください。',
   'error.code.session-mismatch': '端末との接続が変わりました。接続し直してからお試しください。',
   'error.code.task-conflict': '転送の状態が変わりました。更新してからお試しください。',
+  'error.code.plan-expired': '比較結果が期限切れのため、再比較しています',
   'error.code.invalid-archive':
     '受け取ったデータが不完全か壊れています。もう一度転送してください。',
   'error.code.resource-limit': '1 回の転送で扱える件数またはサイズを超えています。',

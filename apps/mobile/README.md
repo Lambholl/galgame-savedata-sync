@@ -186,7 +186,7 @@ SAF 没有通用排他创建或比较后删除原语；这些复核能发现可�
 
 Android 行为依据见 [dataSync 前台服务](https://developer.android.com/develop/background-work/services/fgs/service-types)、[通知权限](https://developer.android.com/develop/ui/compose/notifications/notification-permission)及 [HttpURLConnection](https://developer.android.com/reference/java/net/HttpURLConnection)。
 
-`SyncScanner` 提供当前 SAF 递归扫描、原生 SHA-256、空目录及失败部分结果，复用 `SafArchiveSource` 的权限/身份/属性前后复核。扫描按普通本地操作执行，不加保活或前后台处理。`SyncScansPlugin` 只提供 capabilities/start/query/cancel，参数为 schemaVersion/rootId 或 scanId；没有 URI、平台路径、文件内容及可调预算。结果与 Windows 使用同一 SyncScanState，期限、条目/深度/JSON 限制和 32 份结果保留沿用 [M-002 文档](../../docs/plans/m002-sync-copy.md) 第 3 节。
+`SyncScanner` 提供当前 SAF 递归扫描、原生 SHA-256、空目录及失败部分结果，复用 `SafArchiveSource` 的权限/身份/属性前后复核。扫描按普通本地操作执行，不加保活或前后台处理。`SyncScansPlugin` 只提供 capabilities/start/query/cancel，参数为 schemaVersion/rootId 或 scanId；没有 URI、平台路径、文件内容及可调预算。结果与 Windows 使用同一 SyncScanState，期限、条目/深度/JSON 限制和 32 份结果保留沿用 [M-002 文档](../../docs/plans/m002-sync-copy.md) 第 3 节；名额满时丢掉最旧的结果。
 
 `src/platform/sync-scan-bridge.ts` 核对有限参数、完整结果及 rootId/scanId 上下文；`androidSyncScans` 为平台接入。所有调用返回 OperationResult；query 的成功包络只代表查到任务，扫描是否成功取决于内部 status。显式取消会关闭原生读流和 SAF 查询；未知长度按流实测，源变化和授权失效返回具体错误。扫描、备份和受保护写入已提供原生入口；双向复制编排见下节，界面继续按工作包接入。
 
@@ -255,10 +255,10 @@ const running = unwrap(await androidSyncWrites.execute(task.restoreId, plan))
 
 | `SyncTransfers` / `androidSyncTransfers` 方法 | 输入、输出与资源责任 |
 | --- | --- |
-| `prepare(binding, direction)`、`queryPreparation(id)`、`preview(id)`、`cancelPreparation(id)` | 方向为 android-to-windows 或 windows-to-android；固定已保存配置发布的项目/设备/根，普通扫描生成异步准备状态，预览分别返回两份快照及目标备份开关。预览可展示冲突，准备阶段不占传输名额或启动保活 |
+| `prepare(binding, direction)`、`queryPreparation(id)`、`preview(id)`、`cancelPreparation(id)` | 方向为 android-to-windows 或 windows-to-android；固定已保存配置发布的项目/设备/根，普通扫描生成异步准备状态，预览分别返回两份快照及目标备份开关。新准备取代还没结束的旧准备，旧准备转为 cancelled，新准备等它收尾后开始。预览可展示冲突，准备阶段不占传输名额或启动保活 |
 | `execute(preparationId, plan)` | 原生核对同次预览与完整可执行计划，消费一次确认并取得进程名额；系统接受传输通知后才登记远端任务并上传或下载归档。启动失败保留可查询的失败结果，重复执行拒绝 |
 | `query(jobId, shouldRefresh?)`、`manifest(jobId)`、`current()`、`latest(projectId)` | 分别读取两个角色的状态、仅公开元数据的清单、全局最近任务 ID、这个项目最近任务 ID；页面重建可按 ID 取回预览重新校验。refresh 只查询原远端任务，不续期、不重放；运行期间由原生 worker 查询实际进展 |
-| `cancel(jobId)`、`release(preparationId)`、`retryCleanup()` | 显式取消并读取 receiver 实际结果，释放已结束的预览/任务，或重试本进程仍持有的缓存清理。清理失败保留名额和通知，重试只释放资源，不重复写入 |
+| `cancel(jobId)`、`release(preparationId)`、`retryCleanup()` | 显式取消并读取 receiver 实际结果，释放预览/已结束的任务（还在进行的准备先取消），或重试本进程仍持有的缓存清理。清理失败保留名额和通知，重试只释放资源，不重复写入 |
 
 确认后先登记目标任务，再从实际 SAF 流准备源归档，逐文件核对引用、原名、父目录、修改时间、大小和 SHA-256；清单及内容各提交一次。源读取和归档期间每 3 秒查询原任务作为通信心跳，持续通信中的设备保持在线。登记、清单或内容回执丢失时查询同一 ID，查询失败记为待确认。sender sent 只表示已发送，最终是否成功以 receiver 的实际 `SyncApplyResult` 为准；重新查到电脑仍在写入时继续等待同一任务。无文件的计划不生成空归档。
 

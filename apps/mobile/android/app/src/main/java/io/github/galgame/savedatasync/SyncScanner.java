@@ -71,7 +71,8 @@ final class SyncScanner implements AutoCloseable {
     synchronized Map<String, Object> start(String rootId) throws Exception {
         id(rootId);
         if (closed || active != null) throw fail("busy");
-        purge(); if (jobs.size() >= MAX_RESULTS) throw fail("resource-limit");
+        // 名额满时丢掉最旧的结果：active 为空，最旧的一定已结束，只有最新一次比较的结果才可能被确认。
+        purge(); if (jobs.size() >= MAX_RESULTS) jobs.remove(jobs.keySet().iterator().next());
         Job job = new Job(rootId, timeoutMillis); jobs.put(job.id, job); active = job;
         try { worker.execute(() -> run(job)); }
         catch (java.util.concurrent.RejectedExecutionException cause) { jobs.remove(job.id); active = null; throw fail("busy"); }

@@ -754,6 +754,15 @@ export function MobileApp({
         onPeerChange={setPeerId}
         onConfirm={confirmSync}
         onPreview={() => setPage('sync-plan')}
+        onPlanExpired={() => {
+          appMessage.show({
+            type: 'warning',
+            content: t('error.code.plan-expired'),
+            duration: 3.5,
+            slot: 'sync-action-failed',
+          })
+          setPage('sync')
+        }}
         onFailure={showSyncFailure}
         onStarted={(jobId) => {
           announceStart(jobId)

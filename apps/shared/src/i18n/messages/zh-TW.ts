@@ -314,6 +314,7 @@ export const zhTW: Messages = {
   'error.code.protocol-mismatch': '兩端應用程式版本不相容，請更新到同一版本。',
   'error.code.session-mismatch': '裝置連線已變更，請重新連線後再試。',
   'error.code.task-conflict': '任務狀態已變更，請重新整理後再試。',
+  'error.code.plan-expired': '比較結果已過期，正在重新比較',
   'error.code.invalid-archive': '收到的資料不完整或已損壞，請重新傳輸。',
   'error.code.resource-limit': '超出單次傳輸的數量或大小限制。',
   'error.code.busy': '正在執行其他任務，請稍後再試。',

@@ -9,6 +9,7 @@ import {
 import type {
   DirectoryReference,
   InterruptedWrite,
+  OperationResult,
   SyncBackupPolicy,
   SyncBackupSettings,
   SyncPlan,
@@ -152,6 +153,13 @@ export function createMobileSyncAdapter(
     }
     return root
   }
+  /** 准备过了保留时间后原生层就查不到了（比如通知权限弹窗停留太久），这份计划要重新比较。 */
+  function unlessExpired<T>(result: OperationResult<T>): T {
+    if (result.status === 'error' && result.error.code === 'not-found') {
+      throw new OperationFailure('plan-expired', 'The comparison expired. Scan again.')
+    }
+    return unwrap(result)
+  }
   async function binding(projectId: string, deviceId: string) {
     const snapshot = await library.read()
     const peer = snapshot.peers.find((item) => item.device.id === deviceId)
@@ -160,9 +168,15 @@ export function createMobileSyncAdapter(
     }
     return unwrap(resolveSyncProjectBinding(snapshot.config, snapshot.roots, peer, projectId))
   }
+  // 连发时后发的调用可能先到原生层（核对绑定是异步的，插件还用线程池），而原生层让后到的取代先到的，这里保证按发起顺序到达。
+  let lastPrepare: Promise<unknown> = Promise.resolve()
   return {
     async prepare(projectId, deviceId, direction) {
-      return unwrap(await copies.prepare(await binding(projectId, deviceId), direction))
+      const start = async (): Promise<SyncPreparationState> =>
+        unwrap(await copies.prepare(await binding(projectId, deviceId), direction))
+      const result = lastPrepare.then(start, start)
+      lastPrepare = result
+      return result
     },
     async preparation(id) {
       return unwrap(await copies.queryPreparation(id))
@@ -177,7 +191,7 @@ export function createMobileSyncAdapter(
       unwrap(await copies.release(id))
     },
     async execute(id) {
-      const preview = unwrap(await copies.preview(id))
+      const preview = unlessExpired(await copies.preview(id))
       const expected = preview.binding
       const isPermitted = dependencies?.requestNotifications
         ? await dependencies.requestNotifications()
@@ -196,7 +210,7 @@ export function createMobileSyncAdapter(
           'The project or directory link changed. Scan and confirm again.',
         )
       }
-      return unwrap(await copies.execute(id, syncPlanFromPreview(preview)))
+      return unlessExpired(await copies.execute(id, syncPlanFromPreview(preview)))
     },
     async currentCopy(shouldRefresh = false) {
       return copyDetails(unwrap(await copies.current()), shouldRefresh)

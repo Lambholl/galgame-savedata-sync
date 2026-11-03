@@ -51,7 +51,7 @@ Android 每份备份是 `<游戏名>/<UTC 时间>/` 文件夹，内含 `backup.j
 
 扫描只存在于当前进程/会话，完成后保留最多 10 分钟，进程结束即失效。每次扫描生成新 `scanId`。
 
-`SyncScanState` 表示 running/succeeded/failed/cancelled，包含 rootId/scanId、已读条目和字节进度；成功携带完整快照，失败可带部分条目及根级错误，取消没有成功快照。最多保留 32 个结果，到期清除；查询不延长期限。
+`SyncScanState` 表示 running/succeeded/failed/cancelled，包含 rootId/scanId、已读条目和字节进度；成功携带完整快照，失败可带部分条目及根级错误，取消没有成功快照。最多保留 32 个结果，满时丢掉最旧的，到期清除；查询不延长期限。
 
 - `SyncSnapshot`：`schemaVersion=1`、`scanId`、`deviceId`、`rootId`、`observedAt`、`entries`、`error`。
 - 条目：`entryId`、相对路径段数组 `path`、`kind`、`sizeBytes`、`modifiedAt`、`sha256`、`error`。根本身不放进条目数组。

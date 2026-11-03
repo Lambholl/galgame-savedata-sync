@@ -41,6 +41,7 @@ export function TransferPage({
   onUploadChange,
   onConfirm,
   onStarted,
+  onPlanExpired,
 }: {
   readonly game: LibraryGame
   readonly peers: readonly LibraryPeer[]
@@ -55,8 +56,10 @@ export function TransferPage({
   readonly onPeerChange: (id: string) => void
   readonly onUploadChange: (isUpload: boolean) => void
   readonly onConfirm: (confirmation: Confirmation) => void
-  /** 手机已接受计划，转到传输详情。 */
+  /** 手机已应答计划，转到传输详情；开始前的失败也在那里显示。 */
   readonly onStarted: () => void
+  /** 计划已过期，提示一次；页面自己重新比较。 */
+  readonly onPlanExpired: () => void
 }): React.JSX.Element {
   const t = useT()
   const direction: TransferDirection = upload ? 'android-to-windows' : 'windows-to-android'
@@ -69,7 +72,10 @@ export function TransferPage({
   const [scanVersion, setScanVersion] = useState(0)
   const [isPeerPickerOpen, setIsPeerPickerOpen] = useState(false)
   const [isPlanOpen, setIsPlanOpen] = useState(false)
-  const [isStarting, setIsStarting] = useState(false)
+  const [isConfirming, setIsConfirming] = useState(false)
+  /** 已确认、等手机应答的请求；应答前留在本页，计划过期时才能直接重新比较。 */
+  const [confirmedId, setConfirmedId] = useState<string | null>(null)
+  const isStarting = isConfirming || confirmedId !== null
   const latest = useRef<DesktopRemoteRequest | null>(null)
   latest.current = request
   const localRootId = localRoot?.rootId ?? null
@@ -148,6 +154,20 @@ export function TransferPage({
   }, [canScan, game.id, peerId, direction, localRootId, remoteRootId, scanVersion])
   const shown = request !== null && request.requestId === requestId ? request : null
   const hasPlan = shown?.status === 'ready'
+  const confirmed = request?.requestId === confirmedId ? request : null
+  useEffect(() => {
+    // 轮询可能先带回确认前的 ready，也要继续等。
+    if (confirmedId === null || confirmed?.status === 'ready' || confirmed?.status === 'starting') {
+      return
+    }
+    setConfirmedId(null)
+    if (confirmed?.error?.code === 'plan-expired') {
+      onPlanExpired()
+      setScanVersion((value) => value + 1)
+    } else {
+      onStarted()
+    }
+  }, [confirmedId, confirmed?.status, confirmed?.error?.code, onPlanExpired, onStarted])
   useEffect(() => {
     if (!requestId || !hasPlan || plan?.requestId === requestId) {
       return
@@ -234,7 +254,7 @@ export function TransferPage({
     const id = shown.requestId
     async function work(): Promise<void> {
       setRequest(unwrap(await desktopSync().confirmRemote(id)))
-      onStarted()
+      setConfirmedId(id)
     }
     // 开启备份时直接开始；关闭备份时才确认一次。
     if (!current.shouldBackup) {
@@ -246,10 +266,10 @@ export function TransferPage({
       })
       return
     }
-    setIsStarting(true)
+    setIsConfirming(true)
     work()
       .catch((cause: unknown) => setScanError(toShownError(cause)))
-      .finally(() => setIsStarting(false))
+      .finally(() => setIsConfirming(false))
   }
   const isScanning = shown !== null && SCANNING.includes(shown.status)
   return (

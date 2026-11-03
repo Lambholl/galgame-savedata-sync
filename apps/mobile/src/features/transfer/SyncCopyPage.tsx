@@ -38,6 +38,7 @@ export function SyncCopyPage({
   onConfirm,
   onStarted,
   onPreview,
+  onPlanExpired,
   onFailure,
 }: {
   readonly sync: MobileSyncAdapter
@@ -54,6 +55,8 @@ export function SyncCopyPage({
   readonly onConfirm: (confirmation: Confirmation) => void
   readonly onStarted: (jobId: string) => void
   readonly onPreview: () => void
+  /** 计划已过期，提示一次并从计划页回到比较页。 */
+  readonly onPlanExpired: () => void
   readonly onFailure: (error: ShownError) => void
 }): React.JSX.Element {
   const t = useT()
@@ -116,6 +119,10 @@ export function SyncCopyPage({
     sync
       .prepare(game.id, peerId, direction)
       .then((state) => {
+        // 原生层返回前已离开或开始了新扫描，清理时还不知道 ID。
+        if (!isCurrent) {
+          return sync.releasePreparation(state.preparationId).catch(() => undefined)
+        }
         id = state.preparationId
         return accept(state)
       })
@@ -207,7 +214,12 @@ export function SyncCopyPage({
         onStarted(state.jobId)
       } catch (cause) {
         executed.current = null
-        throw cause
+        // 旧计划不能再用：回到比较页重新扫描，由用户确认新结果后再开始，不自动执行。
+        if (toShownError(cause).code !== 'plan-expired') {
+          throw cause
+        }
+        onPlanExpired()
+        setScanVersion((value) => value + 1)
       }
     }
     // 开启备份时直接开始；关闭备份时才确认一次。

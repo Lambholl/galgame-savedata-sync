@@ -20,6 +20,7 @@ interface ActiveRequest {
 
 const PREPARATION_MS = 500
 const JOB_MS = 1000
+const SETTLE_MS = 2000
 
 function failure(code: OperationError['code'], message: string) {
   return { status: 'error', error: { code, message, canRetry: false } } as const
@@ -53,6 +54,7 @@ export function useRemoteSync(
     }
     const peerId = deviceId
     let active: ActiveRequest | null = null
+    let latestRequestId: string | null = null
     function report(item: ActiveRequest, value: RemoteSyncReport): void {
       if (!item.isClosed) {
         control.emit(item.deviceId, 'sync.report', value).catch(() => undefined)
@@ -93,6 +95,11 @@ export function useRemoteSync(
     ): Promise<void> {
       let state = await sync.prepare(projectId, peerId, direction)
       item.preparationId = state.preparationId
+      // 原生层返回前电脑已取消，当时 release 还不知道 ID。
+      if (item.isClosed) {
+        await release(item)
+        return
+      }
       report(item, { requestId: item.requestId, status: 'preparing' })
       while (state.status === 'preparing' && !item.isClosed) {
         await wait(PREPARATION_MS)
@@ -142,11 +149,21 @@ export function useRemoteSync(
         if (from !== peerId) {
           return failure('session-mismatch', 'The device connection changed.')
         }
+        latestRequestId = body.requestId
+        // 传输刚结束时两处轮询（每秒、每 1.5 秒）还没跟上，等一下再判断，不让已结束的任务挡住新扫描。
+        const deadline = Date.now() + SETTLE_MS
+        while ((active?.jobId || busy.current) && Date.now() < deadline) {
+          await wait(100)
+        }
         if (active?.jobId) {
           return failure('busy', 'The phone is still running the previous transfer.')
         }
         if (active) {
           await release(active)
+        }
+        // 等待期间电脑已取消，或发来了更新的请求。
+        if (latestRequestId !== body.requestId) {
+          return { status: 'success', value: null }
         }
         if (busy.current) {
           return failure('busy', 'The phone is transferring or restoring. Retry later.')
@@ -184,12 +201,18 @@ export function useRemoteSync(
           return { status: 'success', value: { jobId: state.jobId } }
         } catch (cause) {
           const error = toShownError(cause)
-          events.current.onFailure(error)
+          // 过期由发起确认的电脑提示并重新比较，手机这边没有要处理的事。
+          if (error.code !== 'plan-expired') {
+            events.current.onFailure(error)
+          }
           await release(item)
           return failure(error.code ?? 'io-failure', error.message)
         }
       }),
       control.onRequest('sync.cancel', async (from, body) => {
+        if (from === peerId && latestRequestId === body.requestId) {
+          latestRequestId = null
+        }
         if (from === peerId && active?.requestId === body.requestId && !active.jobId) {
           await release(active)
         }

@@ -253,7 +253,12 @@ export class WindowsRemoteSyncRequests {
       })
       .catch((error: unknown) => {
         if (this.current === entry && entry.value.status === 'starting') {
-          this.fail(entry, toHttpError(error).operationError)
+          const failure = toHttpError(error).operationError
+          // 计划过期时任务还没开始，不留传输记录，页面重新比较。
+          if (failure.code === 'plan-expired') {
+            entry.isAwaitingJob = false
+          }
+          this.fail(entry, failure)
         }
       })
     return { ...entry.value }

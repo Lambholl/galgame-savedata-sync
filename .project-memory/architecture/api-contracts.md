@@ -49,13 +49,13 @@ related_files: []
 
 `apps/shared/src/sync` 提供独立 schema 1 的当前扫描、复制/本机恢复计划、备份清单/设置和逐项结果。`createSyncPlan` 只处理本次快照；`isSyncPlan` 重新推导动作与计数，执行方以 `matchesSyncPlan` 对照持有的当前输入，以 `matchesSyncApplyResult` 核对完整结果和实际指纹。规则统一见仓库根目录的 `docs/plans/m002-sync-copy.md` 第 3 节。
 
-Windows 提供 `/v1/sync/capabilities`、`POST /v1/sync/scans` 和 `GET/DELETE /v1/sync/scans/{scanId}`，使用会话头和严格 JSON；登记仅接收 schemaVersion/rootId，202 后查询 SyncScanState。有限 desktopService 桥提供 startScan/queryScan/cancelScan，校验本机来源、参数和返回引用。扫描只读，完整指纹、空目录和失败的部分结果分开；取消时关流，结果会到期，停止或重启后更换会话。
+Windows 提供 `/v1/sync/capabilities`、`POST /v1/sync/scans` 和 `GET/DELETE /v1/sync/scans/{scanId}`，使用会话头和严格 JSON；登记仅接收 schemaVersion/rootId，202 后查询 SyncScanState。有限 desktopService 桥提供 startScan/queryScan/cancelScan，校验本机来源、参数和返回引用。扫描只读，完整指纹、空目录和失败的部分结果分开；取消时关流，结果会到期，每端最多保留 32 份，满时丢掉最旧的，停止或重启后更换会话。电脑同时只跑一个扫描，手机发起时遇到 busy 会重试最多 5 秒。
 
 双向复制协议：Windows 提供只读项目设置、任务登记、单次清单/内容上传及源准备/单次内容 GET、查询/取消；Android → Windows 完整校验后由电脑保护并写入，Windows → Android 则由手机独立完成接收、校验、备份与写入。任务固定当前会话扫描、双向项目关联、设备/根及目标备份设置；实际同步通信更新既有设备在线时间。Windows 源准备异步返回 preparing，扫描资源释放后发布 ready，发送完成只报告 sent。Android 下载前合计缓存/备份/已知同卷增量，原生写入器借用确认时的名额和时间并重新扫描目标；完整 receiver 结果与发送状态分开。全任务保持进程互斥至清理结束，回执丢失只查询，内容不重放，零文件没有归档。SyncTransfers 有限桥分开普通扫描准备、同次确认、状态/清单及取消/释放，只有确认执行启动传输通知；页面重建后可取回原生预览核对结果。本机恢复经本地桥提供，没有远端恢复入口。完整字段与期限统一见 `docs/plans/m002-sync-copy.md` 第 3.6/3.7 节。
 
 设备间控制走 WebSocket `/v1/control`，文件内容走 HTTP 路由。拨号方先完成 `POST /v1/catalog` 交换，再带 `x-sync-session-id` 和 `x-sync-device-id` 升级；监听方核对会话、设备已交换目录表、未停用、未被断开且没有另一台设备在线，不满足返回 403。消息格式对称，双方都能发请求、回应答、推事件：`{v:1, type:request|response|event, id?, method, body|result}`，单条最多 8 MiB，只收文本帧，JSON 严格解析（重复键、非法 UTF-8 关闭 1007，格式不符关闭 1008）。请求方法有 `directory.list`、`sync.prepare`、`sync.confirm`、`sync.cancel`、`sync.job.read`、`sync.job.cancel`，事件有 `catalog.changed`、`sync.report` 和 `sync.job`；请求 8 秒无应答即失败。监听方每 15 秒 ping，一个周期无 pong 就断开。关闭码 4001 表示监听方断开了这台设备，拨号方不再重连；4002 表示同一设备的新连接取代旧连接；其他关闭时拨号方 2 秒后重连。格式和守卫在 `apps/shared/src/control`，电脑 `control-hub.ts`（ws）监听，手机 `ControlClient.java`（Java-WebSocket）拨号，网页经 `platform/control-channel.ts` 收发。两端须同版，没有轮询回退。目前只有电脑监听、手机拨号，任意两台设备互传见 REQ-022。
 
-电脑发起复制复用手机的扫描与执行，经控制通道传递。电脑 `remote-sync-requests.ts` 同时只保留一个请求：发起时发 `sync.prepare {requestId, projectId, direction}`，手机立即应答后开始扫描，用 `sync.report` 回报 preparing、ready（附计划）或 failed；ready 计划须是对应项目、方向、设备和根的覆盖复制。电脑确认后发 `sync.confirm`，手机执行并应答 `{jobId}`，jobId 等于 planId 时记为 running；之后的进度和结果来自下面的任务观察。电脑取消发 `sync.cancel`，手机取消并释放本机扫描；控制连接断开时未确认的请求记为失败，已确认的请求记为结果待确认，手机重连后由摘要更新。有限 desktopSync 桥提供 remoteRequest/startRemote/remotePlan/confirmRemote/cancelRemote。
+电脑发起复制复用手机的扫描与执行，经控制通道传递。电脑 `remote-sync-requests.ts` 同时只保留一个请求：发起时发 `sync.prepare {requestId, projectId, direction}`，手机应答后开始扫描，用 `sync.report` 回报 preparing、ready（附计划）或 failed。手机有传输刚结束时最多等 2 秒再判断是否 busy；新扫描取代还没结束的旧扫描，等待期间被取消或被更新请求取代的 `sync.prepare` 只应答、不扫描；ready 计划须是对应项目、方向、设备和根的覆盖复制。电脑确认后发 `sync.confirm`，手机执行并应答 `{jobId}`，jobId 等于 planId 时记为 running；之后的进度和结果来自下面的任务观察。电脑取消发 `sync.cancel`，手机取消并释放本机扫描；控制连接断开时未确认的请求记为失败，已确认的请求记为结果待确认，手机重连后由摘要更新。有限 desktopSync 桥提供 remoteRequest/startRemote/remotePlan/confirmRemote/cancelRemote。
 
 任务观察对两种发起方式、两个方向相同。版本：`/v1/sync/capabilities.schemaVersion` 为 2，是唯一的版本门槛，版本不符的对端在创建任务前得到“请更新两端”；控制消息 `v` 为 1。`SyncJobState.schemaVersion` 为 2，含 `failureStage`（失败、取消或待确认时停在哪个阶段，取值为 cleaning、done 以外的阶段；成功、已发送或没有记录时为 null，清理和终态更新不改写它）。`SyncTransferState` 为 1。
 
@@ -137,7 +137,7 @@ transferId 只属于当前会话，不是历史同步基线。服务以每次启
 - 新文件名最长 255 个 UTF-16 码元，路径字符、控制字符、未配对代理项、Windows 保留名和尾部点/空格会被拒绝；改名和归一化不会发生。内容哈希固定 64 个小写十六进制字符，只用于当前任务。
 - JSON 使用 OperationResult 包络，重复键和非法 UTF-8 会被拒绝。查询 200 表示请求成功，任务是否成功要看 BatchState；POST uploads 的 201 表示任务已登记，POST downloads 和 PUT content 的 202 表示处理仍在进行。GET content 为原始 gzip，流开始后的失败通过接收校验和任务状态核实。
 - 目标 name/parentId 进入 JSON 清单映射；目录读取的可选 parentId 仍为查询参数，省略表示根层。content 的 Content-Length 和 x-archive-sha256 均必填且与 manifest.archive 一致；接口不设置 Content-Encoding，提供单次完整传输，Range、续传和自动重放没有对应入口。路由/查询解码一次，歧义参数/头及非法编码会被拒绝。
-- 错误映射包含 session-mismatch/task-conflict=409、invalid-archive=422、resource-limit=413、busy=429、timeout=408。network-failure 是本地错误，HTTP 状态为 null；完整定义见批量协议第 7 节。
+- 错误映射包含 session-mismatch/task-conflict/plan-expired=409、invalid-archive=422、resource-limit=413、busy=429、timeout=408。network-failure 是本地错误，HTTP 状态为 null；完整定义见批量协议第 7 节。
 - canRetry 用于核实当前状态后的用户新操作，自动重放不在范围内；unknown 表示远端状态待核实。取消与发布竞争时返回实际观察，已经发布的文件会保留。
 
 ## 6. 检查与验证边界

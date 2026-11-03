@@ -647,7 +647,20 @@ export function DesktopApp({
             },
           })
         }
-        onStarted={() => openTasks(game.id, null)}
+        onStarted={() => {
+          // 先读到新任务再进详情，否则详情页会先显示上一次的结果。
+          refresh()
+            .catch((cause: unknown) => showError(toShownError(cause)))
+            .finally(() => openTasks(game.id, null))
+        }}
+        onPlanExpired={() =>
+          appMessage.show({
+            type: 'warning',
+            content: t('error.code.plan-expired'),
+            duration: 3.5,
+            slot: 'plan-expired',
+          })
+        }
       />
     )
   } else if (page === 'task') {

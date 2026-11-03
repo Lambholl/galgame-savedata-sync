@@ -327,6 +327,7 @@ export const zhCN = {
   'error.code.protocol-mismatch': '两端应用版本不兼容，请更新到同一版本。',
   'error.code.session-mismatch': '设备连接已变化，请重新连接后再试。',
   'error.code.task-conflict': '任务状态已变化，请刷新后再试。',
+  'error.code.plan-expired': '比较结果已过期，正在重新比较',
   'error.code.invalid-archive': '收到的数据不完整或已损坏，请重新传输。',
   'error.code.resource-limit': '超出单次传输的数量或大小限制。',
   'error.code.busy': '正在执行其他任务，请稍后再试。',

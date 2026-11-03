@@ -136,7 +136,7 @@ final class SyncTransferEngine implements AutoCloseable {
     private void purge() {
         long now = System.nanoTime();
         jobs.values().removeIf(job -> !job.running && !job.hasLease && now - job.ended >= RETENTION);
-        preparations.values().removeIf(preparation -> preparation != preparing && !jobs.containsKey(preparation.id) && now - preparation.settled >= RETENTION);
+        preparations.values().removeIf(preparation -> preparation != preparing && preparation.settled != 0 && !jobs.containsKey(preparation.id) && now - preparation.settled >= RETENTION);
     }
     private void trim(Preparation retained) {
         purge();
@@ -172,15 +172,24 @@ final class SyncTransferEngine implements AutoCloseable {
         ArchiveControl control; synchronized (this) { control = heartbeatOwner == job ? heartbeatControl : null; }
         if (control != null) control.cancel();
     }
-    /** 普通只读准备，不占传输名额或启动前台服务；返回后按 preparationId 查询。 */
-    synchronized Map<String, Object> prepare(Object rawBinding, String direction) throws Exception {
-        available(); one(direction, "android-to-windows", "windows-to-android");
-        Map<String, Object> binding = SyncJobModel.binding(rawBinding);
-        require(local.deviceId().equals(binding.get("localDeviceId"))); trim(null);
-        if (preparing != null || preparations.size() >= 32) throw fail("busy");
-        Preparation preparation = new Preparation(binding, transport.syncConnection(binding), direction);
-        preparations.put(preparation.id, preparation); preparing = preparation;
-        preparer.execute(() -> prepareNow(preparation)); return preparation.state();
+    /**
+     * 普通只读准备，不占传输名额或启动前台服务；返回后按 preparationId 查询。
+     * 新准备取代还没结束的旧准备：旧结果已经过时，单线程 preparer 让新准备等旧准备收尾后才开始。
+     */
+    Map<String, Object> prepare(Object rawBinding, String direction) throws Exception {
+        Preparation preparation, superseded;
+        synchronized (this) {
+            available(); one(direction, "android-to-windows", "windows-to-android");
+            Map<String, Object> binding = SyncJobModel.binding(rawBinding);
+            require(local.deviceId().equals(binding.get("localDeviceId"))); trim(null);
+            if (preparations.size() >= 32) throw fail("busy");
+            preparation = new Preparation(binding, transport.syncConnection(binding), direction);
+            superseded = preparing; if (superseded != null) superseded.cancelRequested = true;
+            preparations.put(preparation.id, preparation); preparing = preparation;
+            preparer.execute(() -> prepareNow(preparation));
+        }
+        if (superseded != null) superseded.control.cancel();
+        synchronized (this) { return preparation.state(); }
     }
     private void prepareNow(Preparation preparation) {
         boolean hasRemoteScan = false;
@@ -210,7 +219,7 @@ final class SyncTransferEngine implements AutoCloseable {
             if (!SyncPlanModel.same(limits, capabilities.get("limits"))) throw new ArchiveFailure("protocol-mismatch", "Sync budgets differ between devices. Update both apps.");
             String targetRoot = string(binding.get("remoteRootId")), sourceRoot = string(binding.get("localRootId"));
             accessing = "pc";
-            Map<String, Object> remote = SyncJobModel.scan(connection.http.json("POST", "/v1/sync/scans", connection.session, object("schemaVersion", 1, "rootId", targetRoot), 202, preparation.control), connection.deviceId, targetRoot, null);
+            Map<String, Object> remote = SyncJobModel.scan(startRemoteScan(preparation, targetRoot), connection.deviceId, targetRoot, null);
             synchronized (this) { preparation.scanId = id(remote.get("scanId")); }
             hasRemoteScan = true;
             accessing = "phone";
@@ -250,6 +259,18 @@ final class SyncTransferEngine implements AutoCloseable {
                     if (preparation.error != null && device != null && DEVICE_ERRORS.contains(preparation.error.get("code"))) preparation.error.put("device", device);
                 }
                 preparation.settled = System.nanoTime(); if (preparing == preparation) preparing = null;
+            }
+        }
+    }
+    /** 电脑同一时间只跑一个扫描，刚取消的旧扫描可能还在收尾，等一小会儿再报 busy。 */
+    private Object startRemoteScan(Preparation preparation, String rootId) throws Exception {
+        TransferEngine.SyncConnection connection = preparation.connection;
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+        for (;;) {
+            try { return connection.http.json("POST", "/v1/sync/scans", connection.session, object("schemaVersion", 1, "rootId", rootId), 202, preparation.control); }
+            catch (ArchiveFailure failure) {
+                if (!failure.code.equals("busy") || System.nanoTime() >= deadline) throw failure;
+                preparation.control.check(); Thread.sleep(100);
             }
         }
     }
@@ -594,10 +615,16 @@ final class SyncTransferEngine implements AutoCloseable {
         if (active == null) return; if (active.running) throw fail("busy");
         if (!cleanup(active)) throw fail("cleanup-failed"); release(active);
     }
-    synchronized void release(String id) throws Exception {
-        available(); id(id); Job job = jobs.get(id); Preparation preparation = preparations.get(id);
-        if (job != null && (job.running || job.hasLease)) throw fail("busy"); if (preparation == preparing) throw fail("busy");
-        if (job == null && preparation == null) throw fail("not-found"); jobs.remove(id); preparations.remove(id);
+    /** 释放结束的任务或准备；还在进行的准备先取消，线程收尾后自行退出。 */
+    void release(String id) throws Exception {
+        Preparation running;
+        synchronized (this) {
+            available(); id(id); Job job = jobs.get(id); Preparation preparation = preparations.get(id);
+            if (job != null && (job.running || job.hasLease)) throw fail("busy");
+            if (job == null && preparation == null) throw fail("not-found"); jobs.remove(id); preparations.remove(id);
+            running = preparation == preparing ? preparation : null; if (running != null) running.cancelRequested = true;
+        }
+        if (running != null) running.control.cancel();
     }
     synchronized boolean busy() { return active != null; }
     synchronized String activeId() { return active == null ? null : active.plan.id; }

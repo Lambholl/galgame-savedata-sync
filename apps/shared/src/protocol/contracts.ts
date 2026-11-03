@@ -86,6 +86,7 @@ export type OperationErrorCode =
   | 'protocol-mismatch'
   | 'session-mismatch'
   | 'task-conflict'
+  | 'plan-expired'
   | 'invalid-archive'
   | 'resource-limit'
   | 'busy'

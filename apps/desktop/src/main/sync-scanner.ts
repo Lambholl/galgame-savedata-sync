@@ -93,10 +93,7 @@ export class WindowsSyncScanner {
       throw new HttpOperationError('busy', 'The scanner stopped or another scan is running.')
     }
     if (this.jobs.size >= SYNC_LIMITS.maxRetainedScans) {
-      throw new HttpOperationError(
-        'resource-limit',
-        'The scan result limit has been reached. Scan again later.',
-      )
+      this.evictOldest()
     }
     const scanId = randomUUID()
     const controller = new AbortController()
@@ -167,6 +164,15 @@ export class WindowsSyncScanner {
       }
     }
     this.jobs.clear()
+  }
+
+  /** 名额满时丢掉最旧的结果：调用时没有活动扫描，最旧的一定已结束，只有最新一次比较的结果才可能被确认。 */
+  private evictOldest(): void {
+    const [oldest] = this.jobs.values()
+    if (oldest) {
+      clearTimeout(oldest.expiry ?? undefined)
+      this.jobs.delete(oldest.scanId)
+    }
   }
 
   private find(scanId: string): ScanJob {

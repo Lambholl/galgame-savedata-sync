@@ -25,6 +25,7 @@ export const HTTP_ERROR_STATUS = {
   'protocol-mismatch': 409,
   'session-mismatch': 409,
   'task-conflict': 409,
+  'plan-expired': 409,
   'invalid-archive': 422,
   'resource-limit': 413,
   busy: 429,
