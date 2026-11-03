@@ -21,6 +21,8 @@ export function useSyncTasks(
   readonly errors: readonly ShownError[]
   readonly isActive: boolean
   readonly reload: () => void
+  /** 立刻读一次当前任务，读到后才完成；读取失败时拒绝，已有状态不变。 */
+  readonly refreshCopy: () => Promise<void>
 } {
   const [copy, setCopy] = useState<MobileCopyDetails | null>(null)
   const [projectResult, setProjectResult] = useState<{
@@ -95,5 +97,6 @@ export function useSyncTasks(
       restore?.state.status === 'running' ||
       Boolean(restore?.state.result?.cleanupError),
     reload: () => setVersion((value) => value + 1),
+    refreshCopy: async () => setCopy(await adapter.currentCopy()),
   }
 }

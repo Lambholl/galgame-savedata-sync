@@ -764,8 +764,10 @@ export function MobileApp({
           setPage('sync')
         }}
         onFailure={showSyncFailure}
-        onStarted={(jobId) => {
+        onStarted={async (jobId) => {
           announceStart(jobId)
+          // 先读到新任务再进详情，否则详情页会先显示上一次的结果。
+          await syncTasks.refreshCopy().catch(() => undefined)
           openTasks(game.id)
         }}
       />

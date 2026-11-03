@@ -53,7 +53,8 @@ export function SyncCopyPage({
   readonly isTransferActive: boolean
   readonly onPeerChange: (id: string) => void
   readonly onConfirm: (confirmation: Confirmation) => void
-  readonly onStarted: (jobId: string) => void
+  /** 任务已开始；完成前开始按钮保持转圈。 */
+  readonly onStarted: (jobId: string) => Promise<void>
   readonly onPreview: () => void
   /** 计划已过期，提示一次并从计划页回到比较页。 */
   readonly onPlanExpired: () => void
@@ -211,7 +212,7 @@ export function SyncCopyPage({
       executed.current = id
       try {
         const state = await sync.execute(id)
-        onStarted(state.jobId)
+        await onStarted(state.jobId)
       } catch (cause) {
         executed.current = null
         // 旧计划不能再用：回到比较页重新扫描，由用户确认新结果后再开始，不自动执行。
