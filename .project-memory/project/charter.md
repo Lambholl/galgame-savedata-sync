@@ -3,7 +3,7 @@ doc_type: project-charter
 status: active
 priority: high
 owner: project
-updated: 2026-11-03
+updated: 2026-11-04
 tags: [项目目标, 成功标准]
 related_files: []
 ---
@@ -21,9 +21,9 @@ related_files: []
 
 - 项目目标：在 Windows 电脑与 Android 设备之间，通过局域网手动选择方向同步文件夹，减少游玩 galgame 时手工复制存档的操作。
 - 目标用户：在电脑与 Android 设备之间切换、需要管理多个游戏或文件夹的使用者。
-- 当前阶段：M-002 总体验收（WP-029），支持范围和真实存档开放条件见仓库根目录的 `docs/plans/m002-sync-copy.md` 第 6 节。M-002 不做 Android 10 实测。实现见[实现细节](../development/implementation-notes.md)，1 GiB 传输基线见仓库根目录的 `docs/validation/m001-resources.md`。
+- 当前阶段：M-002 已收口，真实存档覆盖在支持范围内开放，范围见仓库根目录的 `docs/plans/m002-sync-copy.md` 第 6 节；正在设计传输页“保留减少的文件”开关（CR-015）。M-002 没有做 Android 10 实测。实现见[实现细节](../development/implementation-notes.md)，1 GiB 传输基线见仓库根目录的 `docs/validation/m001-resources.md`。
 - 成功标准：见[验收标准](../testing/acceptance.md)。
-- 当前约束：默认不新增或扩写自动化测试。验证写入限明确选定的独立合成目标，真实存档覆盖等用户确认 WP-029 结论后按支持范围开放。
+- 当前约束：默认不新增或扩写自动化测试。开发验证写入限明确选定的独立合成目标，真实存档不用于故障注入。
 
 ## 2. 项目目标
 
@@ -47,6 +47,6 @@ related_files: []
 | 非目标 | 原因 |
 | --- | --- |
 | 游戏引擎识别或存档格式转换 | 工具仅处理文件夹与文件，不解析存档语义 |
-| 从历史推断方向或新旧 | 用户明确要求手选方向、只依赖当前状态 |
-| TLS 和数据加密 | 当前产品假设运行于局域网，用户明确选用明文 HTTP |
+| 从历史推断方向或新旧 | 产品决定手选方向、只依赖当前状态 |
+| TLS 和数据加密 | 当前产品假设运行于局域网，选用明文 HTTP |
 | Android 后台自动同步与定时保活 | 已发起的活动传输通过持续通知/前台服务保持；没有自动调度、开机启动或旧任务重放 |

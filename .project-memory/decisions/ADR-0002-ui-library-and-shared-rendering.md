@@ -3,7 +3,7 @@ doc_type: adr
 status: accepted
 priority: high
 owner: architecture
-updated: 2026-11-03
+updated: 2026-11-04
 tags: [决策, 界面, 组件库, 共用组件]
 related_files: [eslint.config.mjs, apps/shared]
 ---
@@ -25,7 +25,7 @@ related_files: [eslint.config.mjs, apps/shared]
 
 ## 状态
 
-accepted。2026-11-01 用户确认：组件库维持 antd + antd-mobile；与两端交互差异无关的渲染（纯计算、展示组件，乃至整页主体）全部放进 apps/shared，可依赖部分 antd（如 Flex）与图标，两端差异只通过排版参数（方向、尺寸、边距）表达。
+accepted。2026-11-01 确定：组件库维持 antd + antd-mobile；与两端交互差异无关的渲染（纯计算、展示组件，乃至整页主体）全部放进 apps/shared，可依赖部分 antd（如 Flex）与图标，两端差异只通过排版参数（方向、尺寸、边距）表达。
 
 ## 替代关系
 
@@ -50,7 +50,7 @@ accepted。2026-11-01 用户确认：组件库维持 antd + antd-mobile；与两
 
 ## 原因
 
-- 用户提出的数字框与多语言需求，现有库都能满足：Stepper 中间默认可输入，InputNumber 支持 spinner 样式，两套库都带 en-US、ja-JP、zh-TW、zh-CN 语言包。
+- 数字框与多语言需求，现有库都能满足：Stepper 中间默认可输入，InputNumber 支持 spinner 样式，两套库都带 en-US、ja-JP、zh-TW、zh-CN 语言包。
 - 换无样式组件库要重做所有交互控件和手机专用交互（底部弹层、安全区、提示消息），新增依赖还要按 REQ-017 审计。
 - 新设计的版式本来就主要靠自定义布局，抽出不依赖组件库的渲染组件即可消除大部分重复。
 
@@ -73,7 +73,7 @@ accepted。2026-11-01 用户确认：组件库维持 antd + antd-mobile；与两
 | 改用 Base UI 等无样式组件库，两端共用页面 | 视觉完全自控，页面可一份代码 | 迁移成本高，手机交互要自建，新增依赖，推翻既有分端约定 | 不采用，必要时以单页试点再议 |
 | 统一用 antd，去掉 antd-mobile | 只有一套库 | 触控交互与手机组件不足 | 不采用 |
 | 维持现状，两端完全各写 | 无需调整边界 | 相同渲染写两份，容易再次不一致 | 不采用 |
-| 新建独立的 apps/shared-ui 包 | 与纯逻辑包物理隔离 | 多一个工作区包；用户希望统一放 shared | 不采用，改为 shared 内分入口 |
+| 新建独立的 apps/shared-ui 包 | 与纯逻辑包物理隔离 | 多一个工作区包，与统一放 shared 的方向不符 | 不采用，改为 shared 内分入口 |
 
 ## 相关文件
 

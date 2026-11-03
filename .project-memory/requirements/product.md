@@ -5,7 +5,7 @@ priority: high
 owner: product
 id_prefix: REQ
 id_high_water: 22
-updated: 2026-11-03
+updated: 2026-11-04
 tags: [产品需求]
 related_files: []
 ---
@@ -23,7 +23,7 @@ related_files: []
 - 核心问题：在 Windows 与 Android 设备之间手工往返复制游戏存档不便。
 - 目标用户：同一局域网内在电脑和 Android 设备之间切换的使用者。
 - 核心价值：将文件夹映射保存为项目，浏览两端当前文件，手动选择方向后同步。
-- 当前范围：以下 active 需求及方案选择已由用户确认。双向覆盖复制、写入前全量备份和本机恢复已实现，传输可从手机或电脑发起。镜像同步属于 M-004，自动发现属于 M-003。已解答问题保留在[开放问题](open-questions.md)，当前方案见[架构总览](../architecture/overview.md)。
+- 当前范围：以下 active 需求及方案选择已确定。双向覆盖复制、写入前全量备份和本机恢复已实现，传输可从手机或电脑发起。镜像同步属于 M-004，自动发现属于 M-003。已解答问题保留在[开放问题](open-questions.md)，当前方案见[架构总览](../architecture/overview.md)。
 
 ## 2. 需求清单
 

@@ -60,7 +60,7 @@ const roots = await androidDirectories.listRoots()
 
 TS 桥校验请求与响应，拒绝路径/URI、附加字段及跨根/跨层响应；原生插件也独立校验请求。未安装插件、畸形返回和连接异常转为脱敏错误。网页预览返回 unsupported-operation；系统目录与传输操作使用 Android 应用。
 
-界面只从 `@savedata-sync/shared` 引入协议、配置、任务类型和纯数据规则。Android 返回键和系统主题位于 `src/app`；SAF、HTTP 传输桥和配置持久化位于 `src/platform`。游戏操作采用底部卡片菜单；逐项计划连续展示变化项，每项同时显示两端属性。按用户提供的 QQ 截图收紧尺寸，Button 高度随后按要求增加四分之一：普通按钮 45 CSS px 起、整行主操作 50px；图标点击区 36px 起、选项行 44px，游戏主操作 56px、次级操作卡片 52px；长文字自动换行并增长高度。标题 18px、常用文字 14px、辅助文字 12px。
+界面只从 `@savedata-sync/shared` 引入协议、配置、任务类型和纯数据规则。Android 返回键和系统主题位于 `src/app`；SAF、HTTP 传输桥和配置持久化位于 `src/platform`。游戏操作采用底部卡片菜单；逐项计划连续展示变化项，每项同时显示两端属性。参照 QQ 截图收紧尺寸，Button 高度随后增加四分之一：普通按钮 45 CSS px 起、整行主操作 50px；图标点击区 36px 起、选项行 44px，游戏主操作 56px、次级操作卡片 52px；长文字自动换行并增长高度。标题 18px、常用文字 14px、辅助文字 12px。
 
 发起传输会检查当前项目的两端目录，确认通知权限后再刷新电脑目录表。目录或设备关联变化时需要重新打开预览；活动传输结束后再修改游戏目录或关联。手动改 IP 和重启保留原项目映射，连接地址属于另一设备时停止连接。
 
@@ -84,15 +84,15 @@ TS 桥校验请求与响应，拒绝路径/URI、附加字段及跨根/跨层响
 
 ## 系统明暗主题
 
-页面首次挂载前读取 `prefers-color-scheme`，通过 antd-mobile 的 `data-prefers-color-scheme` 属性切换完整主题，并监听运行时变化；热更新时释放旧监听。按用户要求，移动端暗色页面、启动及原生窗口背景统一为纯黑 `#000000`；文字和空状态说明使用组件库的明暗语义色，浏览器原生控件随主题切换。
+页面首次挂载前读取 `prefers-color-scheme`，通过 antd-mobile 的 `data-prefers-color-scheme` 属性切换完整主题，并监听运行时变化；热更新时释放旧监听。移动端暗色页面、启动及原生窗口背景统一为纯黑 `#000000`；文字和空状态说明使用组件库的明暗语义色，浏览器原生控件随主题切换。
 
 Android 使用日夜主题及 `values`/`values-night` 的窗口/启动背景，WebView 为透明底色；运行中以 MainActivity 的 `savedata:theme-change` 原生通知（仅含 `dark: boolean`）为准修正 WebView 缓存的媒体查询，并用 Capacitor 内置 `SystemBars` 显式同步系统栏图标颜色。媒体与原生事件监听均可清理。应用自行渲染暗色，关闭原生自动反色。设置页可选择跟随系统、浅色或深色，偏好保存到原生存储，重启后继续使用。
 
 ## 应用图标
 
-Android 的 `drawable-nodpi/app_logo.png` 与仓库根目录 `assets/app-logo.png` 使用同一份用户 PNG。Manifest 的 icon 和 roundIcon 直接引用该图片，保留原有透明背景，不额外留白或预裁圆形；具体显示形状由系统和启动器决定。系统启动画面改用 `drawable-nodpi/splash_open.webp`，随后由原生开屏动画接管，使用与动画帧一致的睁眼头像。
+Android 的 `drawable-nodpi/app_logo.png` 与仓库根目录 `assets/app-logo.png` 使用同一份 PNG。Manifest 的 icon 和 roundIcon 直接引用该图片，保留原有透明背景，不额外留白或预裁圆形；具体显示形状由系统和启动器决定。系统启动画面改用 `drawable-nodpi/splash_open.webp`，随后由原生开屏动画接管，使用与动画帧一致的睁眼头像。
 
-应用页面保留文字标识，按用户要求不在安卓页面增加 logo。
+应用页面保留文字标识，不在安卓页面增加 logo。
 
 ## 原生边界
 
@@ -292,4 +292,4 @@ const running = unwrap(await androidSyncTransfers.execute(preparing.preparationI
 
 WP-006 的 API 33 实测通过 ADB 开发者控制台操作正式原生桥，文件数据走真实 LAN HTTP，调试通道不承载传输体。双向各 3 文件（空/UTF-8/131073 字节）及 2 轮后台 1 MiB 接收，共 8 份输出与原文逐字节一致；6 份原生/远端状态及 10 份进度快照通过共享守卫匹配。返回桌面后持续通知/dataSync 服务仍在，Activity 重建后 current 可取回同一任务，后台完成后通知和服务结束；显式取消没有目标残留，私有缓存只留下根所有权。两端原文件的内容、大小、mtime 和身份保持不变，测试目录权限与临时服务均已回收。通知截图及原始回执只保留在忽略的本地报告中。
 
-上述 SAF 读取、归档和新文件发布测试使用独立合成目标；应用内的复制与恢复已有受保护写入和本机恢复验收，真实存档覆盖仍待 WP-029 总体验收开放。损坏配置和失效权限夹具使用独立的应用私有配置，不改真实根授权。Android 10 及较新系统、SAF、正式 LAN HTTP、通知保持传输和独立界面已通过真机验收；空文件/中文名双向内容、子目录刷新后传输、准备前取消、同名冲突、页面重载与 64 MiB 后台上传已核对 SHA-256。满额 1 GiB 双向往返、进程内存及每次传输容量预检见[规模验收](../../docs/validation/m001-resources.md)。
+上述 SAF 读取、归档和新文件发布测试使用独立合成目标；应用内的复制与恢复已有受保护写入和本机恢复验收，真实存档覆盖按 [M-002 第 6 节](../../docs/plans/m002-sync-copy.md)的范围开放。损坏配置和失效权限夹具使用独立的应用私有配置，不改真实根授权。Android 10 及较新系统、SAF、正式 LAN HTTP、通知保持传输和独立界面已通过真机验收；空文件/中文名双向内容、子目录刷新后传输、准备前取消、同名冲突、页面重载与 64 MiB 后台上传已核对 SHA-256。满额 1 GiB 双向往返、进程内存及每次传输容量预检见[规模验收](../../docs/validation/m001-resources.md)。

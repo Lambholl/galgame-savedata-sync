@@ -3,7 +3,7 @@ doc_type: module-status
 status: active
 priority: high
 owner: development
-updated: 2026-11-03
+updated: 2026-11-04
 tags: [模块状态, 开发进度]
 related_files: []
 ---
@@ -22,8 +22,8 @@ related_files: []
 | 模块 | 状态 | 负责人 | 相关文件 | 边界与风险 | 下一步 |
 | --- | --- | --- | --- | --- | --- |
 | 四语言界面、错误与原生通知 | done | 开发 | shared i18n/result/ui、双端 app/features/platform、desktop main、Android Java/res | Android 通知语言切换没有真机复核 | 真机复核通知语言 |
-| Android 确认执行、结果与本机恢复界面 | done | 开发 | mobile sync-adapter、SyncCopy/Plan/Task/Backup 页面、useSyncTasks、SyncWrites/BackupsPlugin | 双向执行由原生持有；发送完成与目标成功分开 | 真实存档开放等 WP-029 结论 |
-| Windows 计划、结果与本机恢复界面 | done | 开发 | restore-registry、sync-ipc/bridge、preload、备份/任务页、platform/sync-adapter | 进程重启不恢复任务，备份和配置保留 | 真实存档开放等 WP-029 结论 |
+| Android 确认执行、结果与本机恢复界面 | done | 开发 | mobile sync-adapter、SyncCopy/Plan/Task/Backup 页面、useSyncTasks、SyncWrites/BackupsPlugin | 双向执行由原生持有；发送完成与目标成功分开 | — |
+| Windows 计划、结果与本机恢复界面 | done | 开发 | restore-registry、sync-ipc/bridge、preload、备份/任务页、platform/sync-adapter | 进程重启不恢复任务，备份和配置保留 | — |
 | Windows 分发包 | done | 开发 | apps/desktop/electron-builder.json、scripts/package-windows.mjs、双层 package.json、pnpm-lock.yaml | 没有配置代码签名；使用已编译资源与隔离的最小应用清单；产物位于 apps/desktop/release | — |
 | 正式设备/游戏/设置界面 | done | 开发 | apps/mobile/src、apps/desktop/src/renderer/src、apps/shared、桌面 bridge 与 library-ipc/store | 一个游戏关联多台设备，同时只连一台；镜像删除还没有实现 | M-004 补镜像删除 |
 | Android HTTP 与持续通知 | done | 开发 | TransferJson/Schema/Http/Engine、HttpTransfersPlugin、TransferRuntime/Service、SafRuntime、TS 桥及最小检查 | 全部校验前不发布，sender sent 与 receiver 成功分开；应用级任务持有，Activity 暂停/销毁时任务继续，通知提供显式取消；任务只由用户发起，不调度或重放旧任务 | — |
@@ -33,10 +33,10 @@ related_files: []
 | 本地设备/目录共享模型 | done | 开发 | apps/shared/src/protocol/contracts.ts、validation.ts、protocol.ts | 纯 DTO 只描述数据；平台权限和实际 IO 由适配器处理 | — |
 | 共享批量模型 | done | 开发 | apps/shared/src/protocol/batch-*.ts、data-validation.ts、test、README.md | 处理数据与上下文；归档/JSON 解析、网络、发布和计时由其他模块负责 | — |
 | 当前扫描与覆盖计划共享模型 | done | 开发 | apps/shared/src/sync、src/index.ts、README.md | 纯数据与确定比较；实际扫描/备份/写入、权限、会话及期限由平台包处理 | — |
-| Android → Windows 复制编排 | done | 开发 | shared sync jobs、Windows sync-registry/upload-body、Android SyncJobModel/SyncTransferEngine/Runtime/Plugin/Service、TS bridge | 真实存档开放等 WP-029 结论 | — |
-| Windows → Android 复制编排 | done | 开发 | Windows sync-registry/HTTP/source 归档、Android SyncTransferEngine/Runtime/Model、SyncWriter/BackupStore、TS bridge | 手机独立报告目标结果；真实存档开放等 WP-029 结论 | — |
+| Android → Windows 复制编排 | done | 开发 | shared sync jobs、Windows sync-registry/upload-body、Android SyncJobModel/SyncTransferEngine/Runtime/Plugin/Service、TS bridge | 真实存档在支持范围内开放 | — |
+| Windows → Android 复制编排 | done | 开发 | Windows sync-registry/HTTP/source 归档、Android SyncTransferEngine/Runtime/Model、SyncWriter/BackupStore、TS bridge | 手机独立报告目标结果；真实存档在支持范围内开放 | — |
 | 固定项目映射与传输前复核 | done | 开发 | apps/shared/src/library/project-binding.ts、双端 library store/adapter/IPC | 配置/设备/目录 ID 固定到任务；实际扫描和写入由平台包处理；TransferRequest 调用方需提供 projectId | — |
-| Windows 独立备份与轮换 | done | 开发 | backup-store/files/ipc、backup-bridge、启动/preload、directory-adapter | 原生写入/恢复、Android 上传接收及桌面页面复用这些材料 | 待决定：电脑端是否也改成可手动管理 |
+| Windows 独立备份与轮换 | done | 开发 | backup-store/files/ipc、backup-bridge、启动/preload、directory-adapter | 原生写入/恢复、Android 上传接收及桌面页面复用这些材料 | 待维护者决定：电脑端是否也改成可手动管理 |
 | Windows 受保护写入与恢复 | done | 开发 | sync-writer、sync-target-files、target-operation、directory-adapter、transfer-registry、restore-registry、启动 | 其他卷、特殊名称和崩溃残留没有验收，见覆盖缺口 | — |
 | Android 独立备份与轮换 | active | 开发 | BackupStore/Model/Files、AndroidBackupIo、SyncBackupsPlugin、TS backup bridge | 备份移到 `Android/data` 后只在 JVM 上核对，真机未验证 | 手机连回后按回归记录验证 |
 | Android 受保护写入与本机恢复 | done | 开发 | SyncPlanModel/Writer、SafSyncBackend、SyncWriteRuntime/Plugin、TargetOperation、TS sync-write bridge | Android 覆盖是原地写入，中断会留下新旧混合的文件，只能靠写入前备份恢复 | — |

@@ -3,7 +3,7 @@ doc_type: architecture-overview
 status: active
 priority: high
 owner: architecture
-updated: 2026-11-03
+updated: 2026-11-04
 tags: [架构总览]
 related_files: []
 ---
@@ -94,7 +94,7 @@ related_files: []
 
 | 事项 | 当前结论 | 状态 |
 | --- | --- | --- |
-| 明文 HTTP、手选方向、无历史基线、目录不递归计算大小 | 用户已明确要求；具体约束见[产品需求](../requirements/product.md) | accepted |
+| 明文 HTTP、手选方向、无历史基线、目录不递归计算大小 | 产品决定；具体约束见[产品需求](../requirements/product.md) | accepted |
 | React 双端技术栈 | React + TypeScript + Vite，Windows Electron + antd，Android Capacitor + antd-mobile | accepted |
 | 稳定 ID、地址和目录映射解耦 | 手动改址保留目录配置；mDNS/DNS-SD 自动重发现属于 M-003 | accepted |
 | 首次连接入口 | 当前为手动 IP；发现列表和扫码还没有实现 | accepted |

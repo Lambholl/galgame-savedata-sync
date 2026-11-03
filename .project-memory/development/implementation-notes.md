@@ -3,7 +3,7 @@ doc_type: implementation-notes
 status: active
 priority: medium
 owner: development
-updated: 2026-11-03
+updated: 2026-11-04
 tags: [实现细节]
 related_files: []
 ---
@@ -42,7 +42,7 @@ related_files: []
 | tag 发布 | 只有 `vX.Y.Z` tag 触发发布工作流，普通分支 push/PR 不上传二进制。发布前核对根包、共享包、双端包及 Android `versionName`，随后运行工程检查和全量测试；只生成 Windows Portable 与固定密钥签名的 Android release APK，写入 SHA-256，上传 7 天 artifact，并用同一批文件创建草稿 Release。草稿说明由 GitHub 根据提交自动生成，已知问题在 Release 页面补充，不保存到仓库 | `.github/workflows/release.yml`、`scripts/check-release-version.mjs`、`apps/desktop/scripts/package-windows.mjs`、根与桌面 `package.json` |
 | Android 签名 | 每项先读 `SAVEDATA_SYNC_*` 环境变量，再读 `android/keystore.properties`。配置固定密钥后，debug 和 release 都用它签名，本机、其他机器和 CI 构建的包能互相覆盖安装；没配置时 debug 用本机调试密钥，release 拒绝构建，只配一部分时都拒绝构建。发布工作流从 Secrets 解码密钥，校验签名后发布 | `apps/mobile/android/app/build.gradle`、`.github/workflows/release.yml`、`docs/development.md` |
 | Android 复制与本机恢复界面 | 手机按方向扫描整目录并显示固定计划，确认后调用原生双向复制；目标端实际结果、取消、清理、失败后重扫和两端属性分别展示。备份默认开启，设置改动立即保存；关闭开关时不弹确认，备份已关闭时，传输开始前会确认；本机恢复的预览和确认始终保护当前内容。原生 current 发现恢复任务，页面重建后取回同一上下文；发送完成后，目标还在运行就继续查询；实际任务清理完成前，不能修改备份设置 | mobile sync-adapter、SyncCopy/Plan/Task/Backup 页面、useSyncTasks、SyncWrites/BackupsPlugin 与 SyncWriteRuntime |
-| 应用标识 | 使用用户提供的透明头像 PNG，原裁切保持；Windows 侧栏 64×64、网页图标及多尺寸 ICO 同源，窗口/EXE 图标资源随打包复制并解包，禁用签名但保留图标资源编辑。Android 的 icon/roundIcon 直接引用原 PNG；系统启动画面用眨眼素材的睁眼 WebP，详见“Android 眨眼开屏”；安卓页面保留文字标识 | assets/app-logo.png、desktop/resources/app-icon.ico、DesktopShell/main/打包配置；Android drawable-nodpi/app_logo.png、Manifest 和启动资源 |
+| 应用标识 | 使用透明头像 PNG，原裁切保持；Windows 侧栏 64×64、网页图标及多尺寸 ICO 同源，窗口/EXE 图标资源随打包复制并解包，禁用签名但保留图标资源编辑。Android 的 icon/roundIcon 直接引用原 PNG；系统启动画面用眨眼素材的睁眼 WebP，详见“Android 眨眼开屏”；安卓页面保留文字标识 | assets/app-logo.png、desktop/resources/app-icon.ico、DesktopShell/main/打包配置；Android drawable-nodpi/app_logo.png、Manifest 和启动资源 |
 | Windows 同步与本机恢复界面 | 固定 IPC 分别查询复制摘要、计划或清单和实际结果；本机恢复由进程负责普通准备、固定预览、确认、进度及清理。确认后借用全程名额；刷新页面时用原 ID 找回结果，部分成功、未知状态和清理错误都会保留。备份默认开启，设置改动立即保存；关闭开关时不弹确认，备份已关闭时，传输开始前会确认；本机恢复保护当前内容。目录冲突和失败扫描分别显示；桌面详情、游戏横条、历史和完成提示读取主进程合成的同一份任务观察，手机写入进度和最终逐项结果由手机原生经控制通道提供（见接口约定第 3 节）；发送结束而手机还在写入时显示进行中 | restore-registry、sync-ipc/bridge、备份/任务页面及 platform/sync-adapter |
 | 基础设施 | pnpm 工作区、双端 React 应用、共享入口、严格 TS / ESLint / Prettier、编码检查和 Windows CI | 根目录配置、apps/、apps/shared、scripts/、.github/workflows/ci.yml |
 | 双端明暗主题 | 设置页提供跟随系统、浅色、深色三档，偏好保存在本机并在重启后恢复。桌面主进程用 `nativeTheme.themeSource` 同步原生窗口，Renderer 按媒体查询切换 antd 算法；移动端在挂载前设置 antd-mobile 官方主题属性，运行时同步，热更新释放监听；移动端暗色页面/启动/原生背景统一 #000000，透明 WebView 配合；运行中接收原生 uiMode 通知修正 WebView 缓存的媒体查询，系统栏显式同步图标颜色；空状态说明使用语义文字色 | 双端 app/main/styles、桌面 preferences-store/ipc、移动 system-theme.ts/app-preferences.ts、Android 主题/颜色资源、MainActivity |
@@ -74,7 +74,7 @@ related_files: []
 | Windows 受保护写入与恢复 | 先重扫目标和核对全部输入，预检同卷峰值；备份开启且有写入时保存目标目录全部文件，再按计划创建目录和逐文件发布。同卷候选 fsync/回读，覆盖前再核对旧内容和身份，最终回读后才成功。本机恢复引用输入且强制保护当前文件；候选清理失败时继续占用互斥 | sync-writer、sync-target-files、target-operation、directory-adapter、transfer-registry、启动 |
 | Android → Windows 复制 | 确认后先登记完整计划，源归档期间以原生只读心跳确认通信，清单/内容各一次；Windows 绑定缓存扫描和双向项目关联，合计同卷缓存/备份/新文件余量，完整归档校验后备份并写入。sender sent 与实际 receiver 结果是两个状态；短暂查询恢复后继续等原任务，清理完成后才释放名额。普通扫描不保活，确认执行由应用级任务和通知持有，Native/TS 分别核对完整结果 | 复用原生归档与受保护写入 |
 | Windows → Android 复制 | Windows 接纳后复核整个源快照并准备不可变归档，扫描资源释放后进入 ready；手机核对清单并检查缓存/备份/已知同卷增量后单次 GET，完整校验后借用确认名额执行保护写入。目标备份设置来自手机本机项目，发送端末次查询与手机实际结果独立；本机 IO 期间使用原任务心跳，清理失败保留缓存和名额 | 备份创建清理及轮换失败只保留本实例的引用供显式重试；读写器借用名额时不释放外围所有者 |
-| Android 独立备份 | 复用 SAF 读取，备份放 `Android/data/<包名>/files/backups/<游戏名>/<UTC 时间>/`，内含 backup.json 和按原路径保存的 files/，不打包（实测理由见 M-002 文档第 3 节）；用户可随时删改，所以不做所有权校验，每次按实际目录读取，缺文件的备份显示为不完整，读不懂的内容忽略。备份开启且有写入时保存目标目录全部文件，全部落盘及回读后提交，按保留份数轮换并保护恢复引用，设置放内部目录，独立容量和明确清理。系统自动备份和设备间迁移已关闭，存档不上传云端。Native 插件仅设置/摘要/单轮清单，创建与文件流交原生编排 | BackupStore/Model/Files、AndroidBackupIo、SyncBackupsPlugin、TS backup bridge；新结构和手动删除场景只在 JVM 上核对，手机待复验 |
+| Android 独立备份 | 复用 SAF 读取，备份放 `Android/data/<包名>/files/backups/<游戏名>/<UTC 时间>/`，内含 backup.json 和按原路径保存的 files/，不打包（实测理由见 M-002 文档第 3 节）；用户可随时删改，所以不做所有权校验，每次按实际目录读取，缺文件的备份显示为不完整，读不懂的内容忽略。备份开启且有写入时保存目标目录全部文件，全部落盘及回读后提交，按保留份数轮换并保护恢复引用，设置放内部目录，独立容量和明确清理。系统自动备份和设备间迁移已关闭，存档不上传云端。Native 插件仅设置/摘要/单轮清单，创建与文件流交原生编排 | BackupStore/Model/Files、AndroidBackupIo、SyncBackupsPlugin、TS backup bridge；真机和只在 JVM 上核对的场景见回归状态 |
 | Android 受保护写入与恢复 | Java 从快照重算完整计划，重扫目标并核对本批原文；容量按文件增量和备份峰值预检，备份落盘后再核对实际目标余量。有效备份后创建目录或按文档/父目录及常规 FD 身份使用 rw 写入、设长度、fsync/回读；恢复保持输入引用并强制保护当前内容；应用 Context 持有任务，与旧传输共用互斥，清理失败不重放 | SyncPlanModel/Writer、SafSyncBackend、SyncWriteRuntime/Plugin、TargetOperation、TS sync-write bridge |
 
 ## 2. 维护说明

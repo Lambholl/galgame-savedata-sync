@@ -3,7 +3,7 @@ doc_type: architecture-modules
 status: draft
 priority: high
 owner: architecture
-updated: 2026-11-03
+updated: 2026-11-04
 tags: [模块]
 related_files: []
 ---
@@ -33,4 +33,4 @@ related_files: []
 | Android 控制与复制编排 | HTTP/WebSocket 客户端、双向复制、后台通知、电脑发起请求和结果回报 | 项目、设备、扫描/计划、确认和取消请求 | 原生任务状态、逐项结果、控制事件 | 控制消息格式对称；文件内容仍走 HTTP；页面重建查询原任务，不重放 | `ControlClient`、`SyncTransferEngine`、`SyncJobModel`、`platform/control-channel.ts` |
 | 双端界面与共用渲染 | 设备、游戏、设置、传输、计划、详情、备份与恢复页面 | 平台适配器提供的只读 DTO 与用户操作 | 受限桥调用、状态展示和交互 | 页面状态/Hook/平台弹层各端维护；与平台无关的展示和设计变量放 shared/ui；主题支持跟随系统、浅色、深色并持久化 | `apps/shared/src/ui`、`apps/desktop/src/renderer/src`、`apps/mobile/src` |
 
-真实存档覆盖等用户确认 WP-029 结论后，按 `docs/plans/m002-sync-copy.md` 第 6 节的范围开放；关闭备份、备份失败、目标变化、取消、部分成功和结果未知都有独立状态。镜像删除、自动发现及任意两台设备互传的安排见[路线图](../project/roadmap.md)。
+真实存档覆盖按 `docs/plans/m002-sync-copy.md` 第 6 节的范围开放；关闭备份、备份失败、目标变化、取消、部分成功和结果未知都有独立状态。镜像删除、自动发现及任意两台设备互传的安排见[路线图](../project/roadmap.md)。

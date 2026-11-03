@@ -74,7 +74,7 @@ HTTP 服务注入 `scanSource: adapter` 后开放 `/v1/sync/capabilities`、`POS
 
 ## 应用标识
 
-公共原图为仓库根目录的 `assets/app-logo.png`，沿用用户提供的透明 PNG。侧栏以 64×64 显示，HTML 图标和界面通过构建引用同一资源。
+公共原图为仓库根目录的 `assets/app-logo.png`，沿用透明 PNG。侧栏以 64×64 显示，HTML 图标和界面通过构建引用同一资源。
 
 `resources/app-icon.ico` 提供 Windows 多尺寸图标，`BrowserWindow` 通过 `?asset&asarUnpack` 引用。打包脚本将 ICO 复制到暂存项目，配置包含资源并解包该文件，窗口和 EXE 均使用它。`signExecutable: false` 保持不签名，同时保留写入图标及版本信息的资源编辑。默认仍只编译桌面资源，安装版/免安装版按既有显式打包入口生成。
 
@@ -143,7 +143,7 @@ Electron 构建显式内联 workspace 共享包，避免 sandbox preload 在运�
 
 Windows 短路径检查通过 PowerShell 调用 GetShortPathName，生成真实 8.3 别名，并在只影响子进程的 TEMP/TMP 环境中重跑目录与 IPC 用例。非 Windows 或卷未生成不同短名时会跳过这一项，常规用例继续执行。这里只调整测试夹具，业务代码的链接、根范围和身份检查保持不变。
 
-额外只读验证通过用户授权的真实 Windows 目录执行：读取前后文件内容哈希、条目和目录修改时间一致，原生读流一致，配置恢复成功；具体路径及文件哈希不进入仓库。Android、HTTP 传输、原生选择器人工点击和完整界面由对应专项验收。
+额外只读验证在维护者授权的真实 Windows 目录上执行：读取前后文件内容哈希、条目和目录修改时间一致，原生读流一致，配置恢复成功；具体路径及文件哈希不进入仓库。Android、HTTP 传输、原生选择器人工点击和完整界面由对应专项验收。
 
 参考：[Node 文件系统](https://nodejs.org/docs/latest-v22.x/api/fs.html)、[Electron IPC 来源校验](https://www.electronjs.org/docs/latest/tutorial/security#17-validate-the-sender-of-all-ipc-messages)、[系统目录选择器](https://www.electronjs.org/docs/latest/api/dialog)。
 

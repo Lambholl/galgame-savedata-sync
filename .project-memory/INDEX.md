@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 owner: project
-updated: 2026-11-03
+updated: 2026-11-04
 tags: [Agent导航, 项目记忆]
 related_files: []
 ---
@@ -23,18 +23,16 @@ related_files: []
 3. 任务范围变化时重新查看导航；规范、版本或路径不明确时先调查再写入。
 4. 只保存项目级需求、设计、实现和验证结论，不保存特定开发机器的环境信息。
 
-本文件提供导航、可恢复当前工作和当前文档清单，不复制项目正文。`archive/` 不进入本索引或默认搜索。完成工作由 Git 保存，INDEX 只保留用户尚未验收或需要接续的事项。
+本文件提供导航、可恢复当前工作和当前文档清单，不复制项目正文。`archive/` 不进入本索引或默认搜索。完成工作由 Git 保存，INDEX 只保留尚未验收或需要接续的事项。
 
 ## 2. 当前工作
 
 | 工作 | 状态 | 相关记忆文档 | 相关代码或配置 | 已完成 | 下一步 |
 | --- | --- | --- | --- | --- | --- |
-| M-002 总体验收（WP-029） | in-review | development/work-packages.md、testing/acceptance.md、testing/coverage-gaps.md、testing/regression-notes.md、project/roadmap.md；场景见 `docs/plans/m002-sync-copy.md` 第 6 节 | 双端同步、备份与恢复；写入只限合成目录和隔离的电脑配置 | 场景结果、支持范围、真实存档开放条件和交接已写入计划第 6 节。CR-014 B 阶段与本项合并验收 | 等用户确认结论后关闭。还待用户决定：待议文案是否现在改、真实 Activity 重建是否补测 |
-| 手机断开时死锁、传输计划过期、比较报“正在执行其他任务”、扫描名额用尽 | in-review | testing/regression-notes.md、architecture/api-contracts.md | Android TransferEngine、SyncTransferEngine、SyncScanner；mobile sync-adapter、use-remote-sync、SyncCopyPage、MobileApp；desktop sync-scanner、TransferPage、SyncCopyDetails、DesktopApp；shared 错误码 `plan-expired` 和四语言文案 | 死锁：引擎锁外才关闭控制通道，JVM 临时复现旧代码 40 次死锁 31 次、新代码 0 次，真机断开加重连 7 轮正常。过期：报 `plan-expired`，两端显示黄色短提示、回比较页重新扫描、不留传输记录，手机和电脑真机各等超过 10 分钟后验证通过，再次开始后哈希一致。比较报错和名额用尽：4 个问题已修，编译版连真机复测全部通过，结果见回归记录。检查和测试全部通过 | 等用户验收。一条透明残留提示已记入回归记录，还没查 |
-| 手机备份移到 Android/data 并可手动管理 | active | testing/regression-notes.md、testing/coverage-gaps.md、architecture/api-contracts.md、development/implementation-notes.md；方案见 `docs/plans/m002-sync-copy.md` 第 3 节 | Android BackupStore/Model/Files、SafRuntime、AppStoragePlugin、DirectoryDisplay；四语言文案、手机备份页；五处版本号 | 备份改放 Android/data，按“游戏名/UTC 时间”建文件夹，不打包（用 13 个游戏的真实存档只读实测后决定）；不写旧版兼容代码，默认卸载重装；关闭系统自动备份和设备间迁移；真机已验证创建、哈希、恢复、轮换、手动删除和清理，结果见回归记录 | 还要做：游戏设置页显示目录已失效（先出原型）；待用户决定：电脑端是否同样改 |
-| Android 应用冻结后无法恢复 | 暂缓，用户删除模块后复测 | testing/regression-notes.md、testing/coverage-gaps.md | 不改应用代码；真机调试脚本 `gss-adb.sh` | 内核追踪记录到写入 `/frozen` 的是第三方 Magisk 模块 freezeit，不是系统。只捕到一次，之前的周期性冻结是否都是它未确认 | 用户删除模块后用 `freezer-scan` 观察一两小时，确认不再有进程进入 `/frozen`；不再出现则关闭此项 |
+| 传输页“保留减少的文件”开关（CR-015） | active | requirements/change-requests.md、requirements/product.md、requirements/constraints.md、project/roadmap.md | 原型放 `docs/design/`（已忽略）并发布为 Artifact；维护者确认前不改应用代码 | 需求已登记 | 出原型给维护者确认，确认后写需求、拆包、实现 |
+| 游戏设置页提示目录已失效 | 未开始 | testing/regression-notes.md | 双端游戏设置页 | — | 先出原型。待维护者决定：电脑端备份是否也改成文件夹结构 |
 
-开始产品、代码或文档工作前登记范围、入口和下一步；检查点和阻塞时更新。做完并验证后先更新长期事实，再把状态改为“待验收”；用户验收后删除该行。
+开始产品、代码或文档工作前登记范围、入口和下一步；检查点和阻塞时更新。做完并验证后先更新长期事实，再把状态改为 `in-review`；有新修改时改回 `active`，维护者验收后才删除该行。
 
 ## 3. 按需路由
 
