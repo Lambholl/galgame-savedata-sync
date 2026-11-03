@@ -220,7 +220,7 @@ export const zhCN = {
     `${count} 个文件 · ${size}`,
   'backup.restore': '恢复',
   'backup.none': '还没有备份。开启写入前备份后，写入文件时会保存目标目录的当前内容。',
-  'backup.incomplete': ({ count }: { count: number }): string => `有 ${count} 份备份没有完成`,
+  'backup.incomplete': ({ count }: { count: number }): string => `有 ${count} 份备份不完整`,
   'backup.cleanup': '清理',
   'backup.occupied': ({ size }: { size: string }): string => `占用 ${size}`,
   'backup.occupiedUnknown': '占用大小未知',
@@ -228,7 +228,8 @@ export const zhCN = {
   'backup.deleteTitle': '删除备份',
   'backup.deleteText': ({ time }: { time: string }): string =>
     `删除 ${time} 的备份？删除后不能再用它恢复。`,
-  'backup.privateNote': '备份保存在本应用的私有目录，卸载应用或清除数据会一并删除。',
+  'backup.storageNote':
+    '每份备份是一个文件夹，按游戏名和时间命名，可以直接删除。卸载应用或清除数据会一并删除。',
   'backup.switch': '写入前备份',
   'backup.confirmRestore': '确认恢复',
   'backup.preparing': '正在核对备份并读取当前文件…',

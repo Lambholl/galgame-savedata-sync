@@ -51,8 +51,8 @@
 
 在 Windows 上从仓库根目录运行 `pnpm desktop:package`，先编译桌面资源，再用 electron-builder 生成 x64 分发包：
 
-- `release/SavedataSync-0.2.0-Setup-x64.exe`：安装版，可选择安装目录，安装结束后手动启动。
-- `release/SavedataSync-0.2.0-Portable-x64.exe`：免安装版。
+- `release/SavedataSync-0.3.0-Setup-x64.exe`：安装版，可选择安装目录，安装结束后手动启动。
+- `release/SavedataSync-0.3.0-Portable-x64.exe`：免安装版。
 
 `pnpm desktop:package:portable` 只生成免安装版；tag 发布流程使用这个入口，不构建安装版。
 

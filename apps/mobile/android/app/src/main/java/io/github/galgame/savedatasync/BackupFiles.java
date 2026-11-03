@@ -6,6 +6,7 @@ import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
@@ -13,7 +14,7 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Objects;
 import static io.github.galgame.savedatasync.TransferJson.*;
 
-/** 私有文件的身份、严格 JSON 和落盘操作；原文始终通过 64 KiB 原生流处理。 */
+/** 备份文件的身份、严格 JSON 和落盘操作；原文始终通过 64 KiB 原生流处理。 */
 final class BackupFiles {
     interface Io {
         default Object identity(Path path, BasicFileAttributes value) throws Exception {
@@ -48,7 +49,9 @@ final class BackupFiles {
         for (Path current = path; current != null; current = current.getParent()) {
             if (Files.isSymbolicLink(current)) throw failure("path-outside-root");
         }
-        BasicFileAttributes value = Files.readAttributes(path, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
+        BasicFileAttributes value;
+        try { value = Files.readAttributes(path, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS); }
+        catch (NoSuchFileException removed) { throw failure("not-found"); }
         Object identity = io.identity(path, value);
         if (identity == null || value.isSymbolicLink()) throw failure("unsupported-operation");
         return new Attributes(value, identity);

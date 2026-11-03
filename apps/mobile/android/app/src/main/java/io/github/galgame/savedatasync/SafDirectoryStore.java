@@ -168,6 +168,7 @@ final class SafDirectoryStore {
             resolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
             Snapshot snapshot = query(candidate, DocumentsContract.getTreeDocumentId(uri), signal);
             if (!snapshot.isDirectory) throw new SafFailure("not-readable", "The selected reference is not a directory.");
+            if (DirectoryDisplay.overlapsBackups(context, uri)) throw new SafFailure("unsupported-operation", "The selected directory overlaps the backup folder.");
             Root saved = new Root(candidate.id, uri, snapshot.name);
             if (!roots.contains(candidate)) {
                 roots.add(saved);

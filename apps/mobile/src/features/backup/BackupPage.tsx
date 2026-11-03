@@ -245,7 +245,7 @@ export function BackupPage({
       )}
       {details && (
         <p className="foot-note">
-          {t('backup.privateNote')}
+          {t('backup.storageNote')}
           <br />
           {t('backup.location')} <PathText path={details.info.displayPath} />
         </p>

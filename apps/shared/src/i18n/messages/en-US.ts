@@ -224,7 +224,7 @@ export const enUS: Messages = {
   'backup.none':
     'No backups yet. When backup before writing is on, a transfer that writes files preserves the current target folder.',
   'backup.incomplete': ({ count }) =>
-    count === 1 ? '1 backup did not finish' : `${count} backups did not finish`,
+    count === 1 ? '1 backup is incomplete' : `${count} backups are incomplete`,
   'backup.cleanup': 'Clean up',
   'backup.occupied': ({ size }) => `using ${size}`,
   'backup.occupiedUnknown': 'size unknown',
@@ -232,8 +232,8 @@ export const enUS: Messages = {
   'backup.deleteTitle': 'Delete backup',
   'backup.deleteText': ({ time }) =>
     `Delete the backup from ${time}? You won't be able to restore from it afterwards.`,
-  'backup.privateNote':
-    "Backups are stored in the app's private folder. Uninstalling the app or clearing its data deletes them.",
+  'backup.storageNote':
+    'Each backup is a folder named by game and time, and can be deleted directly. Uninstalling the app or clearing its data deletes them.',
   'backup.switch': 'Backup before writing',
   'backup.confirmRestore': 'Restore',
   'backup.preparing': 'Checking the backup and reading current files…',

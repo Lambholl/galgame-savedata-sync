@@ -1,6 +1,9 @@
 package io.github.galgame.savedatasync;
 
 import android.content.Context;
+import android.os.Environment;
+import java.io.File;
+import java.nio.file.Path;
 
 /** 同一原生进程共享当前引用映射；不持有 Activity，不将 entryId 另存为历史。 */
 final class SafRuntime {
@@ -18,10 +21,19 @@ final class SafRuntime {
         if (scanner == null) scanner = new SyncScanner(new SafSyncSource(store(context)));
         return scanner;
     }
-    /** 持久备份位于可信 Context 的私有 files 目录，不使用 SAF 选择备份位置。 */
+    /** 备份放应用专属外部目录，用户可以直接管理；设置留在内部目录。每次重新取得目录，用户删掉后系统才会重建。 */
     static synchronized BackupStore backups(Context context) throws Exception {
-        if (backups == null) backups = new BackupStore(context.getApplicationContext().getFilesDir().getCanonicalFile().toPath(),
-            new SafSyncSource(store(context)), new AndroidBackupIo());
+        if (backups == null) {
+            Context application = context.getApplicationContext();
+            backups = new BackupStore(application.getFilesDir().getCanonicalFile().toPath(), new BackupStore.Location() {
+                @Override public Path directory() throws Exception {
+                    File directory = application.getExternalFilesDir(null);
+                    if (directory == null || !Environment.MEDIA_MOUNTED.equals(Environment.getExternalStorageState(directory))) throw BackupFiles.failure("io-failure");
+                    return directory.getCanonicalFile().toPath();
+                }
+                @Override public String gameName(String projectId) { return AppStoragePlugin.gameName(application, projectId); }
+            }, new SafSyncSource(store(context)), new AndroidBackupIo());
+        }
         return backups;
     }
     /** 本机恢复由应用 Context 持有；Activity 重建后继续查询原任务。 */

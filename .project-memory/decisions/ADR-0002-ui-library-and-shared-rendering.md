@@ -3,7 +3,7 @@ doc_type: adr
 status: accepted
 priority: high
 owner: architecture
-updated: 2026-11-01
+updated: 2026-11-03
 tags: [决策, 界面, 组件库, 共用组件]
 related_files: [eslint.config.mjs, apps/shared]
 ---
@@ -25,7 +25,7 @@ related_files: [eslint.config.mjs, apps/shared]
 
 ## 状态
 
-accepted。2026-11-01 用户确认：组件库维持 antd + antd-mobile；与两端交互差异无关的渲染（纯计算、展示组件，乃至整页主体）全部放进 apps/shared，可依赖部分 antd（如 Flex）与图标，两端差异只通过排版参数（方向、尺寸、边距）表达。编码规范、约束、架构总览与 ESLint 边界在落地时一并修订。
+accepted。2026-11-01 用户确认：组件库维持 antd + antd-mobile；与两端交互差异无关的渲染（纯计算、展示组件，乃至整页主体）全部放进 apps/shared，可依赖部分 antd（如 Flex）与图标，两端差异只通过排版参数（方向、尺寸、边距）表达。
 
 ## 替代关系
 
@@ -46,7 +46,7 @@ accepted。2026-11-01 用户确认：组件库维持 antd + antd-mobile；与两
    - 主入口不得导入 ui 入口，ESLint 按目录分别限制；颜色、圆角与字体只在主入口 `preferences/design-tokens.ts` 取值；ui 入口的 `designTheme` 由它生成两端 ConfigProvider 主题，`installDesignTokens` 写出两端样式表共用的 `--ss-*` CSS 变量。
 3. 两端差异只通过排版参数传入（方向、尺寸、边距、紧凑程度）。操作入口与平台交互（底部弹层/抽屉/对话框、返回键、系统选择器、确认、提示消息）留在各端，由各端把回调和操作区传给共用主体。
 4. 抽取以“与两端交互差异无关”为标准，不为复用而强行统一两端交互。
-5. 共用组件的 Props 类型全部命名导出并写明每个参数的用途，不接受、不透传 style、className、styles、classNames 等样式参数；功能相近的一组参数可合并为导出的结构化类型（用户 2026-11-01 要求，细则见 standards/coding-style.md“共用界面组件参数”）。
+5. 共用组件的 Props 类型全部命名导出并写明每个参数的用途，不接受、不透传 style、className、styles、classNames 等样式参数；功能相近的一组参数可合并为导出的结构化类型（细则见 standards/coding-style.md“共用界面组件参数”）。
 
 ## 原因
 
@@ -63,7 +63,7 @@ accepted。2026-11-01 用户确认：组件库维持 antd + antd-mobile；与两
 
 ### 负面影响
 
-- apps/shared 需要增加 ui 子路径导出、JSX 编译配置和 React/antd/icons 的 peer 依赖，ESLint 改为按目录限制；修订编码规范、约束和架构总览中“两端各自维护界面”“shared 不引入 React 与组件库”的表述。
+- apps/shared 多了 ui 子路径导出、JSX 编译配置和 React/antd/icons 的 peer 依赖，ESLint 要按目录分别限制。
 - 共用组件运行在两套组件库之下，CSS 变量需与两端 ConfigProvider 保持同步；手机端使用 antd 组件时仍要满足触控尺寸。
 
 ## 替代方案

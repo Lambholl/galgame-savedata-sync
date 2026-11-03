@@ -36,17 +36,29 @@ final class DirectoryDisplay {
         return null;
     }
 
+    /** 系统存储提供者的目录对应的实际位置；其他提供者或未知卷返回 null。 */
+    private static File location(Context context, Uri tree) {
+        if (!"com.android.externalstorage.documents".equals(tree.getAuthority())) return null;
+        String[] parts = DocumentsContract.getTreeDocumentId(tree).split(":", 2);
+        File base = storageRoot(context, parts[0]);
+        if (base == null) return null;
+        return parts.length == 2 && !parts[1].isEmpty() ? new File(base, parts[1]) : base;
+    }
+
+    /** Android 10 还能选中存储根或 Android/data；同步根不能和备份目录互相包含。 */
+    static boolean overlapsBackups(Context context, Uri tree) {
+        File selected = location(context, tree), external = context.getExternalFilesDir(null);
+        if (selected == null || external == null) return false;
+        return selected.toPath().startsWith(external.toPath()) || external.toPath().startsWith(selected.toPath());
+    }
+
     static Info resolve(Context context, ContentResolver resolver, Uri tree, String name) {
         String id = DocumentsContract.getTreeDocumentId(tree);
-        if ("com.android.externalstorage.documents".equals(tree.getAuthority())) {
-            String[] parts = id.split(":", 2);
-            File base = storageRoot(context, parts[0]);
-            if (base != null) {
-                File directory = parts.length == 2 && !parts[1].isEmpty() ? new File(base, parts[1]) : base;
-                File parent = directory.getParentFile();
-                String parentName = parent == null || parent.getName().isEmpty() ? name : parent.getName();
-                return new Info(directory.getAbsolutePath(), parentName);
-            }
+        File directory = location(context, tree);
+        if (directory != null) {
+            File parent = directory.getParentFile();
+            String parentName = parent == null || parent.getName().isEmpty() ? name : parent.getName();
+            return new Info(directory.getAbsolutePath(), parentName);
         }
         try {
             Uri document = DocumentsContract.buildDocumentUriUsingTree(tree, id);

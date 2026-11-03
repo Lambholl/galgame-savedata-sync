@@ -96,6 +96,25 @@ final class BackupModel {
             "deviceId", id(value.get("deviceId")), "rootId", id(value.get("rootId")), "createdAt", number(value.get("createdAt"), -MAX_DATE, MAX_DATE),
             "reason", value.get("reason"), "files", validateFiles(value.get("files"), false));
     }
+    /** 游戏名对应的文件夹名：换掉不能用的字符，过长截断；结果仍不可用时退回游戏 ID。 */
+    static String folderName(String gameName, String projectId) {
+        if (gameName != null) {
+            StringBuilder name = new StringBuilder(); int count = 0;
+            for (int c : gameName.codePoints().toArray()) {
+                if (count++ >= 60) break;
+                name.appendCodePoint(c < 32 || c == 127 || "<>:\"/\\|?*".indexOf(c) >= 0 ? '_' : c);
+            }
+            String value = name.toString().trim().replaceAll("[. ]+$", "");
+            if (!value.isEmpty() && PublicationModel.portableName(value)) return value;
+        }
+        return projectId;
+    }
+    /** 一份备份的文件夹名：UTC 时间，与设备时区无关，按名字排序即按时间排序。 */
+    static String roundName(long createdAt) {
+        java.text.SimpleDateFormat format = new java.text.SimpleDateFormat("yyyy-MM-dd_HH-mm-ss'Z'", Locale.ROOT);
+        format.setTimeZone(java.util.TimeZone.getTimeZone("UTC"));
+        return format.format(new java.util.Date(createdAt));
+    }
     static final long KEEP_MIN = 1, KEEP_MAX = 10, KEEP_DEFAULT = 3;
     /** 没有设置文件时的设置：全局开启、保留 3 份，没有单独设置的游戏目录。 */
     static Map<String, Object> emptySettings() {

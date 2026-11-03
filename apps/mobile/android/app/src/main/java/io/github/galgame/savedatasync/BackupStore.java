@@ -5,13 +5,16 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.channels.FileChannel;
 import java.nio.file.DirectoryStream;
+import java.nio.file.FileAlreadyExistsException;
+import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.security.MessageDigest;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -26,58 +29,52 @@ import static io.github.galgame.savedatasync.TransferJson.*;
 import static io.github.galgame.savedatasync.TransferSchema.*;
 
 /**
- * 应用私有持久备份；变更串行，恢复材料按引用保留。只读 SAF 同步根。
- * 创建由原生确认计划编排调用，公开插件只有设置、摘要和明确的清理操作。
+ * 持久备份，放在用户能直接管理的应用专属外部目录：backups/游戏名/时间/，内含 backup.json 和按原路径保存的 files/。
+ * 用户可以随时删除或改名其中任何内容，所以每次都按实际目录重新读取，一份备份出问题不影响其他备份。
+ * 变更串行，恢复材料按引用保留；设置放内部目录，删掉备份文件夹不丢设置。只读 SAF 同步根。
  */
 final class BackupStore implements AutoCloseable {
+    /** 平台提供的位置和名称；目录被用户删除后由实现重新取得。 */
+    interface Location {
+        Path directory() throws Exception;
+        /** 游戏当前名称，只决定新备份的文件夹名；找不到时返回 null。 */
+        String gameName(String projectId);
+    }
     private static final Set<Path> OPEN = new HashSet<>();
-    private static final String ROUND_ID = "[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}";
-    final Path root;
+    private static final String COMMITTED = "backup.json", UNFINISHED = "in-progress.json", CONTENT = "files";
+    private final Path settingsDirectory, settingsFile;
+    private final Location location;
     private final SyncScanner.Source source;
     private final BackupFiles files;
-    private final Object rootKey;
-    private final Map<String, Object> owner;
     private final Map<Handle, String> handles = new LinkedHashMap<>();
     private final ScheduledExecutorService watcher = Executors.newSingleThreadScheduledExecutor();
     private volatile Active active;
     private volatile boolean closed;
     private boolean leaseReleased;
     private Round pendingCleanup;
-    private boolean pendingHasMarker;
     private String pendingRotationProject, pendingRotationRoot;
     private static final class Active {
         final ArchiveControl control;
         volatile boolean timedOut;
         Active(ArchiveControl control) { this.control = Objects.requireNonNull(control); }
     }
+    /** complete 表示已提交且文件齐全；其余情况按未完成显示，可以清理但不能恢复。 */
     private static final class Round {
         final Path path;
         final Object key;
-        final Map<String, Object> marker, manifest;
-        Round(Path path, Object key, Map<String, Object> marker, Map<String, Object> manifest) {
-            this.path = path; this.key = key; this.marker = marker; this.manifest = manifest;
+        final Map<String, Object> manifest;
+        final boolean complete;
+        Round(Path path, Object key, Map<String, Object> manifest, boolean complete) {
+            this.path = path; this.key = key; this.manifest = manifest; this.complete = complete;
         }
-        String id() { return (String) marker.get("backupId"); }
+        String id() { return (String) manifest.get("backupId"); }
+        long createdAt() { return ((Number) manifest.get("createdAt")).longValue(); }
     }
-    BackupStore(Path privateDirectory, SyncScanner.Source source, BackupFiles.Io io) throws Exception {
-        this.source = Objects.requireNonNull(source); id(source.deviceId()); files = new BackupFiles(io);
-        Path parent = privateDirectory.toAbsolutePath().normalize(); files.directory(parent);
-        root = parent.resolve("backups");
-        synchronized (OPEN) {
-            if (!OPEN.add(root)) throw BackupFiles.failure("busy");
-            try {
-                if (!exists(root)) Files.createDirectory(root);
-                rootKey = files.directory(root);
-                Path marker = root.resolve("owner.json");
-                if (!exists(marker)) {
-                    if (!names(root).isEmpty()) throw BackupFiles.failure("permission-denied");
-                    files.writeJson(marker, object("schemaVersion", 1, "storeId", UUID.randomUUID().toString(), "deviceId", source.deviceId()));
-                }
-                owner = shape(files.readJson(marker), "schemaVersion", "storeId", "deviceId");
-                number(owner.get("schemaVersion"), 1, 1); id(owner.get("storeId"));
-                if (!source.deviceId().equals(id(owner.get("deviceId")))) throw BackupFiles.failure("permission-denied");
-            } catch (Exception failure) { OPEN.remove(root); watcher.shutdownNow(); throw failure; }
-        }
+    BackupStore(Path privateDirectory, Location location, SyncScanner.Source source, BackupFiles.Io io) throws Exception {
+        this.location = Objects.requireNonNull(location); this.source = Objects.requireNonNull(source); id(source.deviceId()); files = new BackupFiles(io);
+        settingsDirectory = privateDirectory.toAbsolutePath().normalize(); files.directory(settingsDirectory);
+        settingsFile = settingsDirectory.resolve("backup-settings.json");
+        synchronized (OPEN) { if (!OPEN.add(settingsDirectory)) { watcher.shutdownNow(); throw BackupFiles.failure("busy"); } }
         watcher.scheduleAtFixedRate(() -> {
             Active current = active;
             if (current == null) return;
@@ -103,42 +100,59 @@ final class BackupStore implements AutoCloseable {
         if (current.timedOut) throw new ArchiveFailure("timeout", "The current backup operation timed out.");
         current.control.check();
     }
-    private void alive() throws Exception {
-        if (closed) throw BackupFiles.failure("busy");
-        verifyRoot();
+    private void alive() throws Exception { if (closed) throw BackupFiles.failure("busy"); }
+    /** 备份根目录；不存在就重新建立，所以用户可以把整个文件夹删掉。外部存储不可用时报错，写入随之被挡住。 */
+    synchronized Path root() throws Exception {
+        alive(); Path parent = location.directory().toAbsolutePath().normalize(); files.directory(parent);
+        Path root = parent.resolve("backups");
+        if (!exists(root)) Files.createDirectory(root);
+        files.directory(root);
+        return root;
     }
-    private void verifyRoot() throws Exception {
-        if (!Objects.equals(rootKey, files.directory(root)) ||
-            !Arrays.equals(bytes(owner), bytes(files.readJson(root.resolve("owner.json"))))) throw BackupFiles.failure("permission-denied");
-    }
-    private void verifyRound(Round round, boolean hasMarker) throws Exception {
-        verifyRoot();
-        if (!Objects.equals(round.key, files.directory(round.path)) || (hasMarker &&
-            !Arrays.equals(bytes(round.marker), bytes(files.readJson(round.path.resolve("round.json")))))) throw BackupFiles.failure("source-changed");
+    private void verifyRound(Round round) throws Exception {
+        if (!Objects.equals(round.key, files.directory(round.path))) throw BackupFiles.failure("source-changed");
     }
     private List<Round> rounds() throws Exception {
-        alive(); List<Round> result = new ArrayList<>();
-        for (Path path : names(root)) {
-            String name = path.getFileName().toString();
-            if (name.equals("owner.json") || name.equals("settings.json") || name.matches("settings-" + ROUND_ID + "\\.tmp")) continue;
-            if (!name.matches(ROUND_ID)) throw BackupFiles.failure("permission-denied");
-            Object key = files.directory(path);
-            Map<String, Object> marker = shape(files.readJson(path.resolve("round.json")), "schemaVersion", "storeId", "backupId", "projectId", "rootId");
-            number(marker.get("schemaVersion"), 1, 1); id(marker.get("projectId")); id(marker.get("rootId"));
-            if (!owner.get("storeId").equals(marker.get("storeId")) || !name.equals(marker.get("backupId"))) throw BackupFiles.failure("permission-denied");
-            Map<String, Object> manifest = null;
-            if (exists(path.resolve("manifest.json"))) {
-                manifest = BackupModel.manifest(files.readJson(path.resolve("manifest.json")));
-                if (!name.equals(manifest.get("backupId")) || !source.deviceId().equals(manifest.get("deviceId")) ||
-                    !marker.get("projectId").equals(manifest.get("projectId")) || !marker.get("rootId").equals(manifest.get("rootId")) ||
-                    exists(path.resolve("manifest.retired"))) throw BackupFiles.failure("permission-denied");
+        List<Round> result = new ArrayList<>(); Set<String> seen = new HashSet<>();
+        for (Path game : names(root())) {
+            if (!Files.isDirectory(game, LinkOption.NOFOLLOW_LINKS)) continue;
+            List<Path> paths;
+            try { paths = names(game); } catch (NoSuchFileException removed) { continue; }
+            for (Path path : paths) {
+                Round round = read(path);
+                if (round != null && seen.add(round.id())) result.add(round);
             }
-            result.add(new Round(path, key, marker, manifest));
         }
         return result;
     }
+    /** 读一个备份文件夹；不是本机备份或读不懂的返回 null，留给用户自己处理。 */
+    private Round read(Path path) {
+        try {
+            if (!Files.isDirectory(path, LinkOption.NOFOLLOW_LINKS)) return null;
+            boolean committed = exists(path.resolve(COMMITTED));
+            Path marker = path.resolve(committed ? COMMITTED : UNFINISHED);
+            if (!exists(marker)) return null;
+            Map<String, Object> manifest = BackupModel.manifest(files.readJson(marker));
+            if (!source.deviceId().equals(manifest.get("deviceId"))) return null;
+            return new Round(path, files.directory(path), manifest, committed && intact(path, manifest));
+        } catch (Exception unreadable) { return null; }
+    }
+    /** 只核对文件在不在、大小对不对，内容在恢复前完整校验。 */
+    private boolean intact(Path path, Map<String, Object> manifest) throws Exception {
+        for (Object raw : TransferJson.list(manifest.get("files"))) {
+            Map<String, Object> file = map(raw);
+            try { if (files.regular(content(path, file), BackupModel.MAX_FILE).size() != number(file.get("sizeBytes"), 0, BackupModel.MAX_FILE)) return false; }
+            catch (Exception missing) { return false; }
+        }
+        return true;
+    }
+    private static Path content(Path round, Map<String, Object> file) throws Exception {
+        Path path = round.resolve(CONTENT);
+        for (String name : BackupModel.path(file.get("path"))) path = path.resolve(name);
+        return path;
+    }
     private static boolean group(Round round, String project, String root) {
-        return round.marker.get("projectId").equals(project) && round.marker.get("rootId").equals(root);
+        return round.manifest.get("projectId").equals(project) && round.manifest.get("rootId").equals(root);
     }
     private static void ids(String project, String root) throws Exception { id(project); id(root); }
     /** 摘要不携带文件路径；详情按单轮读取，以保持 8 MiB 控制响应限制。 */
@@ -146,7 +160,7 @@ final class BackupStore implements AutoCloseable {
         ids(projectId, rootId); List<Round> rounds = rounds(); sort(rounds);
         List<Object> backups = new ArrayList<>(), incomplete = new ArrayList<>();
         for (Round round : rounds) if (group(round, projectId, rootId)) {
-            if (round.manifest == null) incomplete.add(object("backupId", round.id(), "occupiedBytes", occupied(round)));
+            if (!round.complete) incomplete.add(object("backupId", round.id(), "occupiedBytes", occupied(round)));
             else {
                 long total = 0; List<Object> values = TransferJson.list(round.manifest.get("files"));
                 for (Object value : values) total += number(map(value).get("sizeBytes"), 0, BackupModel.MAX_FILE);
@@ -156,32 +170,37 @@ final class BackupStore implements AutoCloseable {
         }
         return object("backups", backups, "incomplete", incomplete);
     }
-    /** 一轮私有目录占用的字节数；读取失败时未知，由界面单独显示。 */
+    /** 一轮文件夹占用的字节数；读取失败时未知，由界面单独显示。 */
     private Long occupied(Round round) {
-        try {
+        try (java.util.stream.Stream<Path> paths = Files.walk(round.path)) {
             long total = 0;
-            for (Path path : names(round.path)) total += Files.readAttributes(path, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS).size();
+            for (Path path : (Iterable<Path>) paths::iterator) {
+                BasicFileAttributes value = Files.readAttributes(path, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
+                if (value.isRegularFile()) total += value.size();
+            }
             return total;
         } catch (Exception unknown) { return null; }
     }
     private static void sort(List<Round> rounds) {
-        rounds.sort((a, b) -> Long.compare(b.manifest == null ? Long.MIN_VALUE : ((Number) b.manifest.get("createdAt")).longValue(),
-            a.manifest == null ? Long.MIN_VALUE : ((Number) a.manifest.get("createdAt")).longValue()));
+        rounds.sort((a, b) -> Long.compare(b.complete ? b.createdAt() : Long.MIN_VALUE, a.complete ? a.createdAt() : Long.MIN_VALUE));
     }
-    private Round find(String projectId, String rootId, String backupId) throws Exception {
+    private Round lookup(String projectId, String rootId, String backupId) throws Exception {
         ids(projectId, rootId); id(backupId);
         for (Round round : rounds()) if (group(round, projectId, rootId) && round.id().equals(backupId)) return round;
-        throw BackupFiles.failure("not-found");
+        return null;
+    }
+    private Round find(String projectId, String rootId, String backupId) throws Exception {
+        Round round = lookup(projectId, rootId, backupId);
+        if (round == null || !round.complete) throw BackupFiles.failure("not-found");
+        return round;
     }
     synchronized Map<String, Object> manifest(String projectId, String rootId, String backupId) throws Exception {
-        Round round = find(projectId, rootId, backupId);
-        if (round.manifest == null) throw BackupFiles.failure("not-found");
-        return map(copy(round.manifest));
+        return map(copy(find(projectId, rootId, backupId).manifest));
     }
     /** 缺少文件时使用默认全局设置，坏设置不被默认值覆盖；格式独立于游戏配置。 */
     synchronized Map<String, Object> settings() throws Exception {
-        alive(); Path path = root.resolve("settings.json");
-        return exists(path) ? BackupModel.settings(files.readJson(path)) : BackupModel.emptySettings();
+        alive();
+        return exists(settingsFile) ? BackupModel.settings(files.readJson(settingsFile)) : BackupModel.emptySettings();
     }
     /** 单独设置某个游戏目录；policy 为 null 时改回跟随全局。 */
     synchronized Map<String, Object> setPreference(String projectId, String rootId, Map<String, Object> policy) throws Exception {
@@ -197,11 +216,11 @@ final class BackupStore implements AutoCloseable {
         return writeSettings(BackupModel.settings(object("schemaVersion", 2, "defaults", policy, "projects", settings.get("projects"))));
     }
     private Map<String, Object> writeSettings(Map<String, Object> next) throws Exception {
-        Path temporary = root.resolve("settings-" + UUID.randomUUID() + ".tmp");
-        try { files.writeJson(temporary, next); verifyRoot(); files.move(temporary, root.resolve("settings.json"), true); }
+        Path temporary = settingsDirectory.resolve("backup-settings-" + UUID.randomUUID() + ".tmp");
+        try { files.writeJson(temporary, next); files.move(temporary, settingsFile, true); }
         catch (Exception cause) {
             ArchiveFailure failure = ArchiveFailure.from(cause);
-            try { if (exists(temporary)) { verifyRoot(); files.delete(temporary, TransferJson.MAX_BYTES); } }
+            try { if (exists(temporary)) files.delete(temporary, TransferJson.MAX_BYTES); }
             catch (Exception cleanup) { failure.cleanupFailure = cleanupFailure(cleanup); }
             throw failure;
         }
@@ -209,11 +228,21 @@ final class BackupStore implements AutoCloseable {
     }
     @SuppressWarnings("unchecked") private static Map<String, Object> mapUnchecked(Object value) { return (Map<String, Object>) value; }
     synchronized Map<String, Object> info() throws Exception {
-        return object("displayPath", root.toString(), "settings", settings());
+        return object("displayPath", root().toString(), "settings", settings());
     }
     synchronized Map<String, Object> capacity(long required) throws Exception {
-        alive(); Long available = files.space(root, required);
+        Long available = files.space(root(), required);
         return object("requiredBytes", required, "availableBytes", available == null ? null : Math.min(9007199254740991L, available));
+    }
+    /** 新备份的文件夹：游戏名/时间；同一秒已有同名文件夹时加序号。 */
+    private Path createRoundDirectory(String projectId, long createdAt) throws Exception {
+        Path game = root().resolve(BackupModel.folderName(location.gameName(projectId), projectId));
+        Files.createDirectories(game); String name = BackupModel.roundName(createdAt);
+        for (int i = 1; i <= 100; i++) {
+            Path path = game.resolve(i == 1 ? name : name + "_" + i);
+            try { Files.createDirectory(path); return path; } catch (FileAlreadyExistsException taken) { /* 试下一个序号。 */ }
+        }
+        throw BackupFiles.failure("io-failure");
     }
     /** 保存编排器选定的全部目标文件；关闭备份或集合为空时返回 null，并保持 SAF 目标不变。恢复时必须开启保护备份。 */
     synchronized Map<String, Object> create(String projectId, String rootId, String reason, boolean shouldBackup,
@@ -222,15 +251,12 @@ final class BackupStore implements AutoCloseable {
         List<BackupModel.SourceFile> sources = BackupModel.sources(entries); alive();
         if (pendingCleanup != null || pendingRotationProject != null) throw BackupFiles.failure("cleanup-failed");
         Active work = new Active(control); active = work;
-        Round round = null; boolean hasMarker = false, committed = false;
+        Round round = null; boolean committed = false;
         try {
             check(work);
             if (!shouldBackup || sources.isEmpty()) return object("manifest", null, "cleanupError", null);
-            List<Round> previous = rounds(); long created = System.currentTimeMillis();
-            for (Round value : previous) {
-                if (value.manifest == null) throw BackupFiles.failure("cleanup-failed");
-                created = Math.max(created, ((Number) value.manifest.get("createdAt")).longValue() + 1);
-            }
+            long created = System.currentTimeMillis();
+            for (Round value : rounds()) created = Math.max(created, value.createdAt() + 1);
             String backupId = UUID.randomUUID().toString(); List<Object> values = new ArrayList<>(); long total = 0;
             for (int i = 0; i < sources.size(); i++) {
                 BackupModel.SourceFile file = sources.get(i); total += file.size;
@@ -240,18 +266,18 @@ final class BackupStore implements AutoCloseable {
                 "projectId", projectId, "deviceId", source.deviceId(), "rootId", rootId, "createdAt", created, "reason", reason, "files", values));
             BackupModel.snapshot(manifest); byte[] metadata = bytes(manifest);
             capacity(total + metadata.length + 4096); check(work);
-            Path path = root.resolve(backupId); Files.createDirectory(path);
-            Map<String, Object> marker = object("schemaVersion", 1, "storeId", owner.get("storeId"), "backupId", backupId, "projectId", projectId, "rootId", rootId);
-            round = new Round(path, files.directory(path), marker, null);
-            files.writeJson(path.resolve("round.json"), marker); hasMarker = true;
+            Path path = createRoundDirectory(projectId, created);
+            round = new Round(path, files.directory(path), manifest, false);
+            files.writeJson(path.resolve(UNFINISHED), manifest);
             for (int i = 0; i < sources.size(); i++) {
-                verifyRound(round, true); check(work);
+                verifyRound(round); check(work);
                 BackupModel.SourceFile file = sources.get(i);
                 ArchiveModel.Source input = resolve(rootId, file, work); input.validateRoot(rootId);
                 ArchiveModel.Observation before = input.observe(control); before.validate();
                 if (!before.entryId.equals(file.entryId) || !before.name.equals(file.path.get(file.path.size() - 1)) ||
                     (before.size != null && before.size != file.size) || !Objects.equals(before.modified, file.modified)) throw BackupFiles.failure("source-changed");
-                Path destination = path.resolve(ArchiveModel.id(i));
+                Path destination = content(path, map(values.get(i)));
+                Files.createDirectories(destination.getParent());
                 InputStream reader = control.track(input.open(control));
                 FileChannel output = null;
                 try {
@@ -270,15 +296,15 @@ final class BackupStore implements AutoCloseable {
                 }
                 verifyFile(round, map(values.get(i)), work);
             }
-            verifyRound(round, true); check(work); files.writeJson(path.resolve("manifest.pending"), manifest); check(work);
-            files.move(path.resolve("manifest.pending"), path.resolve("manifest.json"), false); committed = true;
+            verifyRound(round); check(work);
+            files.move(path.resolve(UNFINISHED), path.resolve(COMMITTED), false); committed = true;
             Object cleanup = null;
-            try { prune(projectId, rootId, work); } catch (Exception failure) { pendingRotationProject = projectId; pendingRotationRoot = rootId; cleanup = error(cleanupFailure(failure)); }
+            try { prune(projectId, rootId); } catch (Exception failure) { pendingRotationProject = projectId; pendingRotationRoot = rootId; cleanup = error(cleanupFailure(failure)); }
             return object("manifest", copy(manifest), "cleanupError", cleanup);
         } catch (Exception cause) {
             ArchiveFailure failure = stopped(cause, work);
-            if (round != null && !committed) try { remove(round, hasMarker); }
-            catch (Exception cleanup) { pendingCleanup = round; pendingHasMarker = hasMarker; failure.cleanupFailure = cleanupFailure(cleanup); }
+            if (round != null && !committed) try { remove(round); }
+            catch (Exception cleanup) { pendingCleanup = round; failure.cleanupFailure = cleanupFailure(cleanup); }
             throw failure;
         } finally { active = null; }
     }
@@ -303,7 +329,7 @@ final class BackupStore implements AutoCloseable {
         return source.file(rootId, file.entryId);
     }
     private void verifyFile(Round round, Map<String, Object> file, Active work) throws Exception {
-        verifyRound(round, true); Path path = round.path.resolve(string(file.get("fileId")));
+        verifyRound(round); Path path = content(round.path, file);
         long expected = number(file.get("sizeBytes"), 0, BackupModel.MAX_FILE);
         BasicFileAttributes before = files.regular(path, BackupModel.MAX_FILE);
         MessageDigest hash = MessageDigest.getInstance("SHA-256"); long size = 0; byte[] buffer = new byte[65536];
@@ -317,77 +343,78 @@ final class BackupStore implements AutoCloseable {
         check(work); files.same(path, before, BackupModel.MAX_FILE);
         if (size != expected || !ArchiveFormat.hex(hash.digest()).equals(file.get("sha256"))) throw BackupFiles.failure("checksum-mismatch");
     }
-    private void prune(String projectId, String rootId, Active work) throws Exception {
-        List<Round> rounds = rounds(); rounds.removeIf(round -> round.manifest == null || !group(round, projectId, rootId)); sort(rounds);
+    /** 只按完整的备份计份：用户删掉或弄坏的不占名额，不会因此多删旧备份。 */
+    private void prune(String projectId, String rootId) throws Exception {
+        List<Round> rounds = rounds(); rounds.removeIf(round -> !round.complete || !group(round, projectId, rootId)); sort(rounds);
         int keep = (int) ((Number) BackupModel.resolve(settings(), projectId, rootId).get("keepCount")).longValue();
         if (rounds.size() <= keep) return;
-        for (Round round : rounds.subList(0, keep)) for (Object file : TransferJson.list(round.manifest.get("files"))) verifyFile(round, map(file), work);
         for (Round round : rounds.subList(keep, rounds.size())) if (!handles.containsValue(round.id())) {
-            try { remove(round, true); }
-            catch (Exception failure) { pendingCleanup = round; pendingHasMarker = true; throw failure; }
+            try { remove(round); }
+            catch (Exception failure) { pendingCleanup = round; throw failure; }
         }
     }
     synchronized void rotate(String projectId, String rootId) throws Exception {
         ids(projectId, rootId); alive(); if (pendingCleanup != null) throw BackupFiles.failure("cleanup-failed");
-        Active work = new Active(new ArchiveControl()); active = work;
-        try { prune(projectId, rootId, work); } catch (Exception failure) { throw stopped(failure, work); }
-        finally { active = null; }
+        prune(projectId, rootId);
     }
     /** 重试本实例本次创建留下的清理，不扫描或删除其他轮次的未完成数据。 */
     synchronized boolean retryCleanup() {
         if (active != null || closed) return false;
         try {
-            if (pendingCleanup != null) { remove(pendingCleanup, pendingHasMarker); pendingCleanup = null; }
+            if (pendingCleanup != null) { remove(pendingCleanup); pendingCleanup = null; }
             if (pendingRotationProject != null) { rotate(pendingRotationProject, pendingRotationRoot); pendingRotationProject = null; pendingRotationRoot = null; }
             return true;
         } catch (Exception failure) { return false; }
     }
-    synchronized void cleanupIncomplete(String projectId, String rootId, String backupId) throws Exception {
-        Round round = find(projectId, rootId, backupId);
-        if (round.manifest != null) throw BackupFiles.failure("permission-denied");
-        remove(round, true);
+    private void forgetPending(Round round) {
         if (pendingCleanup != null && pendingCleanup.path.equals(round.path) && Objects.equals(pendingCleanup.key, round.key)) pendingCleanup = null;
     }
-    /** 用户明确删除一份已提交备份；正在用于恢复的备份由 remove 拒绝。删到一半失败时变成残留，可再清理。 */
-    synchronized void deleteBackup(String projectId, String rootId, String backupId) throws Exception {
-        Round round = find(projectId, rootId, backupId);
-        if (round.manifest == null) throw BackupFiles.failure("not-found");
-        remove(round, true);
+    /** 清理未完成或文件已缺失的备份；已经不存在就算清理完成。 */
+    synchronized void cleanupIncomplete(String projectId, String rootId, String backupId) throws Exception {
+        Round round = lookup(projectId, rootId, backupId);
+        if (round == null) return;
+        if (round.complete) throw BackupFiles.failure("permission-denied");
+        remove(round); forgetPending(round);
     }
-    /** 移除游戏时删除它在所有目录下的备份、残留和单独设置；中途失败时游戏保留，可以重试。 */
+    /** 用户在应用里删除一份备份；正在用于恢复的由 remove 拒绝，已被手动删除的算删除成功。删到一半失败时变成未完成，可再清理。 */
+    synchronized void deleteBackup(String projectId, String rootId, String backupId) throws Exception {
+        Round round = lookup(projectId, rootId, backupId);
+        if (round != null) { remove(round); forgetPending(round); }
+    }
+    /** 移除游戏时删除它在所有目录下的备份和单独设置；中途失败时游戏保留，可以重试。 */
     synchronized void deleteGameBackups(String projectId) throws Exception {
         id(projectId);
-        for (Round round : rounds()) if (round.marker.get("projectId").equals(projectId)) {
-            remove(round, true);
-            if (pendingCleanup != null && pendingCleanup.path.equals(round.path) && Objects.equals(pendingCleanup.key, round.key)) pendingCleanup = null;
-        }
+        for (Round round : rounds()) if (round.manifest.get("projectId").equals(projectId)) { remove(round); forgetPending(round); }
         if (projectId.equals(pendingRotationProject)) { pendingRotationProject = null; pendingRotationRoot = null; }
         Map<String, Object> settings = settings();
         List<Object> values = new ArrayList<>(TransferJson.list(settings.get("projects")));
         values.removeIf(value -> mapUnchecked(value).get("projectId").equals(projectId));
         writeSettings(BackupModel.settings(object("schemaVersion", 2, "defaults", settings.get("defaults"), "projects", values)));
     }
-    private void remove(Round round, boolean hasMarker) throws Exception {
-        verifyRound(round, hasMarker); if (handles.containsValue(round.id())) throw BackupFiles.failure("busy");
-        Map<String, BasicFileAttributes> owned = new LinkedHashMap<>();
-        for (Path path : names(round.path)) {
-            String name = path.getFileName().toString(); boolean raw = name.matches("f[0-9]{6}") && Integer.parseInt(name.substring(1)) >= 1 && Integer.parseInt(name.substring(1)) <= 1024;
-            if (!raw && !Arrays.asList("round.json", "manifest.json", "manifest.pending", "manifest.retired").contains(name)) throw BackupFiles.failure("cleanup-failed");
-            owned.put(name, files.regular(path, raw ? BackupModel.MAX_FILE : TransferJson.MAX_BYTES));
+    /** 先把备份改回未完成状态再删文件，中途失败时它显示为可清理；标记最后删，游戏文件夹空了也一起删。 */
+    private void remove(Round round) throws Exception {
+        if (handles.containsValue(round.id())) throw BackupFiles.failure("busy");
+        Path marker = round.path.resolve(UNFINISHED);
+        if (exists(round.path.resolve(COMMITTED))) files.move(round.path.resolve(COMMITTED), marker, false);
+        if (exists(round.path)) {
+            Files.walkFileTree(round.path, new SimpleFileVisitor<Path>() {
+                @Override public FileVisitResult visitFile(Path file, BasicFileAttributes attributes) throws IOException {
+                    if (!file.equals(marker)) Files.deleteIfExists(file);
+                    return FileVisitResult.CONTINUE;
+                }
+                @Override public FileVisitResult visitFileFailed(Path file, IOException failure) throws IOException {
+                    if (failure instanceof NoSuchFileException) return FileVisitResult.CONTINUE;
+                    throw failure;
+                }
+                @Override public FileVisitResult postVisitDirectory(Path directory, IOException failure) throws IOException {
+                    if (failure != null) throw failure;
+                    if (!directory.equals(round.path)) Files.deleteIfExists(directory);
+                    return FileVisitResult.CONTINUE;
+                }
+            });
+            Files.deleteIfExists(marker); Files.deleteIfExists(round.path);
         }
-        if (owned.containsKey("manifest.json")) {
-            files.move(round.path.resolve("manifest.json"), round.path.resolve("manifest.retired"), false);
-            owned.put("manifest.retired", owned.remove("manifest.json"));
-        }
-        for (Map.Entry<String, BasicFileAttributes> file : owned.entrySet()) if (!file.getKey().equals("round.json")) {
-            verifyRound(round, hasMarker); Path path = round.path.resolve(file.getKey());
-            files.same(path, file.getValue(), file.getKey().startsWith("f") ? BackupModel.MAX_FILE : TransferJson.MAX_BYTES);
-            files.delete(path, file.getKey().startsWith("f") ? BackupModel.MAX_FILE : TransferJson.MAX_BYTES);
-        }
-        verifyRound(round, hasMarker);
-        if (owned.containsKey("round.json")) files.delete(round.path.resolve("round.json"), TransferJson.MAX_BYTES);
-        try { files.deleteDirectory(round.path); }
-        catch (Exception failure) { verifyRound(round, false); files.writeJson(round.path.resolve("round.json"), round.marker); throw failure; }
+        try { Files.deleteIfExists(round.path.getParent()); } catch (IOException stillUsed) { /* 游戏文件夹里还有其他备份。 */ }
     }
     private ArchiveFailure stopped(Exception cause, Active work) {
         if (work.timedOut) return new ArchiveFailure("timeout", "The current backup operation timed out.", false, cause);
@@ -400,7 +427,7 @@ final class BackupStore implements AutoCloseable {
     /** 校验完整材料后取得引用；使用期间保留该轮，文件流只交给原生恢复编排。 */
     synchronized Handle acquire(String projectId, String rootId, String backupId, ArchiveControl control) throws Exception {
         if (handles.size() >= 32) throw BackupFiles.failure("resource-limit");
-        Round round = find(projectId, rootId, backupId); if (round.manifest == null) throw BackupFiles.failure("not-found");
+        Round round = find(projectId, rootId, backupId);
         Active work = new Active(control); active = work; Handle handle = new Handle(round); handles.put(handle, round.id());
         try {
             BackupModel.snapshot(round.manifest);
@@ -420,7 +447,7 @@ final class BackupStore implements AutoCloseable {
             Map<String, Object> selected = null;
             for (Object raw : TransferJson.list(round.manifest.get("files"))) if (map(raw).get("fileId").equals(fileId)) selected = map(raw);
             if (selected == null) throw BackupFiles.failure("not-found");
-            final Map<String, Object> file = selected; final Path path = round.path.resolve(fileId);
+            final Map<String, Object> file = selected; final Path path = content(round.path, file);
             final List<String> names = BackupModel.path(file.get("path"));
             String parent = null;
             if (names.size() > 1) for (Object entry : TransferJson.list(snapshot().get("entries"))) {
@@ -432,7 +459,7 @@ final class BackupStore implements AutoCloseable {
                 @Override public void validateRoot(String rootId) throws ArchiveFailure { require(round.id().equals(rootId)); }
                 @Override public ArchiveModel.Observation observe(ArchiveControl control) throws Exception {
                     synchronized (Handle.this) { if (released || closed) throw BackupFiles.failure("not-found"); }
-                    control.check(); verifyRound(round, true); BasicFileAttributes current = files.regular(path, BackupModel.MAX_FILE);
+                    control.check(); verifyRound(round); BasicFileAttributes current = files.regular(path, BackupModel.MAX_FILE);
                     return new ArchiveModel.Observation(current.fileKey() + ":" + current.size() + ":" + current.lastModifiedTime(),
                         fileId, parentId, names.get(names.size() - 1), current.size(), nullable(file.get("modifiedAt"), -BackupModel.MAX_DATE, BackupModel.MAX_DATE));
                 }
@@ -458,7 +485,7 @@ final class BackupStore implements AutoCloseable {
             }
             synchronized (BackupStore.this) {
                 handles.remove(this); if (closed) return object("cleanupError", null);
-                try { rotate(string(round.marker.get("projectId")), string(round.marker.get("rootId"))); return object("cleanupError", null); }
+                try { rotate(string(round.manifest.get("projectId")), string(round.manifest.get("rootId"))); return object("cleanupError", null); }
                 catch (Exception failure) { return object("cleanupError", error(cleanupFailure(failure))); }
             }
         }
@@ -476,7 +503,7 @@ final class BackupStore implements AutoCloseable {
         synchronized (this) {
             if (leaseReleased) return;
             for (Handle handle : new ArrayList<>(handles.keySet())) handle.close();
-            watcher.shutdownNow(); synchronized (OPEN) { OPEN.remove(root); }
+            watcher.shutdownNow(); synchronized (OPEN) { OPEN.remove(settingsDirectory); }
             leaseReleased = true;
         }
     }

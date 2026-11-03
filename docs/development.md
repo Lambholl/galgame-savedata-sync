@@ -121,7 +121,7 @@ keytool -genkeypair -v -keystore savedata-sync-release.jks -alias savedata-sync 
 
 ### 卸载的影响
 
-卸载会清除手机上的游戏配置、目录授权，以及保存在应用私有目录的备份。从 0.1.0、0.1.1 这类旧签名版本升级到固定签名版本时，也需要先卸载一次。
+卸载会清除手机上的游戏配置、目录授权，以及 `Android/data` 里的备份。测试版不保留旧版本的升级兼容代码，存储格式变化时默认卸载重装；0.3.0 的手机备份位置和格式都已改变，从旧版本升级也按卸载重装处理。从 0.1.0、0.1.1 这类旧签名版本升级时同样要先卸载。
 
 ## 发布流程
 
@@ -138,8 +138,8 @@ keytool -genkeypair -v -keystore savedata-sync-release.jks -alias savedata-sync 
 草稿说明由 GitHub 根据提交自动生成。发布前在 Release 页面补充本版已知问题、安装限制和下载说明；发布说明不保存在仓库。
 
 ```sh
-git tag -a v0.2.0 -m "存档同步 0.2.0"
-git push origin v0.2.0
+git tag -a v0.3.0 -m "存档同步 0.3.0"
+git push origin v0.3.0
 ```
 
 创建草稿需要仓库 Actions 工作流权限允许 `contents: write`。Android APK 用固定密钥签名（见 [Android 签名](#android-签名)），Windows 免安装版未签名。

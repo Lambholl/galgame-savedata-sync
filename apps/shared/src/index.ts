@@ -1,5 +1,5 @@
 /** 界面显示的版本号；发布检查要求与各 package.json、Android versionName 一致。 */
-export const APP_VERSION = '0.2.0'
+export const APP_VERSION = '0.3.0'
 
 export * from './protocol/contracts.ts'
 export * from './protocol/protocol.ts'

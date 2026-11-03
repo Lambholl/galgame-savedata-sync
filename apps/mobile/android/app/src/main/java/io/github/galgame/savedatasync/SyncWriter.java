@@ -32,7 +32,7 @@ final class SyncWriter implements AutoCloseable {
         OutputStream output(ArchiveControl control) throws Exception;
         void finish(long size, ArchiveControl control) throws Exception;
         void verify(ArchiveControl control) throws Exception;
-        /** 未知为 null；识别同卷后将目标候选与私有备份峰值相加。 */
+        /** 未知为 null；识别同卷后将目标候选与备份峰值相加。 */
         Boolean sharesVolume(Path privateDirectory) throws Exception;
     }
     interface Backend {
@@ -169,11 +169,11 @@ final class SyncWriter implements AutoCloseable {
             Replacement replacement = backend.volumeFile(job.plan.target.root, parent(job, path), entry, job.control);
             if (replacement == null) break;
             track(job, replacement);
-            try { sameVolume = replacement.sharesVolume(backups.root); if (cacheRoot != null) sameCache = replacement.sharesVolume(cacheRoot); }
+            try { sameVolume = replacement.sharesVolume(backups.root()); if (cacheRoot != null) sameCache = replacement.sharesVolume(cacheRoot); }
             finally { close(job, replacement); }
             break;
         }
-        boolean samePrivate = cacheRoot != null && Boolean.TRUE.equals(backend.sharesPrivateVolume(cacheRoot, backups.root));
+        boolean samePrivate = cacheRoot != null && Boolean.TRUE.equals(backend.sharesPrivateVolume(cacheRoot, backups.root()));
         Long available = backend.available(job.plan.target.root, null, job.control);
         long targetPeak = growthBytes + (Boolean.TRUE.equals(sameVolume) ? oldBytes : 0) + (Boolean.TRUE.equals(sameCache) ? cacheBytes : 0);
         if (available != null && available < targetPeak) throw new ArchiveFailure("insufficient-space", "Target storage has insufficient space for this write and backup.");

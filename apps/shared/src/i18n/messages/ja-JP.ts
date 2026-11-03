@@ -221,15 +221,15 @@ export const jaJP: Messages = {
   'backup.restore': '復元',
   'backup.none':
     '控えはまだありません。書き込み前の控えが有効な場合、ファイルを書き込む転送で転送先フォルダーの現在の内容を控えに保存します。',
-  'backup.incomplete': ({ count }) => `完了していない控えが ${count} 件あります`,
+  'backup.incomplete': ({ count }) => `不完全な控えが ${count} 件あります`,
   'backup.cleanup': '片付ける',
   'backup.occupied': ({ size }) => `使用量 ${size}`,
   'backup.occupiedUnknown': '使用量は不明',
   'backup.delete': '削除',
   'backup.deleteTitle': '控えの削除',
   'backup.deleteText': ({ time }) => `${time} の控えを削除しますか？削除すると復元に使えません。`,
-  'backup.privateNote':
-    '控えはこのアプリ専用の保存場所にあります。アプリを削除したりデータを消去したりすると一緒に消えます。',
+  'backup.storageNote':
+    '控えは、ゲーム名と日時を名前にしたフォルダーに 1 件ずつ保存されます。フォルダーは直接削除できます。アプリを削除したりデータを消去したりすると一緒に消えます。',
   'backup.switch': '書き込み前の控え',
   'backup.confirmRestore': '復元する',
   'backup.preparing': '控えを確認し、現在のファイルを読み取っています…',

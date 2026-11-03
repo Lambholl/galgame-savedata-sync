@@ -30,6 +30,6 @@
 
 用户后续要求自行检查，已停止额外运行和界面核查，并中止当时的 Android 综合测试流程。随后按用户要求完成最新 `pnpm build` 与 `pnpm android:build`，并用 `adb install -r` 更新安装调试 APK，安装返回 `Success`。产物位于 `apps/desktop/out/` 和 `apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk`；最终交互验收由用户完成。
 
-Windows 分发包使用 `pnpm desktop:package` 构建，输出到 `apps/desktop/release/`：`SavedataSync-0.2.0-Setup-x64.exe` 为安装版，`SavedataSync-0.2.0-Portable-x64.exe` 为免安装版；文件名版本来自桌面包版本。打包使用隔离暂存目录中的编译资源，当前未配置代码签名。
+Windows 分发包使用 `pnpm desktop:package` 构建，输出到 `apps/desktop/release/`：`SavedataSync-0.3.0-Setup-x64.exe` 为安装版，`SavedataSync-0.3.0-Portable-x64.exe` 为免安装版；文件名版本来自桌面包版本。打包使用隔离暂存目录中的编译资源，当前未配置代码签名。
 
 本轮桌面资源编译、NSIS 安装版与 portable 免安装版打包均已成功，新增 electron-builder 依赖的 npm 审计通过。安装和运行由用户验收。
