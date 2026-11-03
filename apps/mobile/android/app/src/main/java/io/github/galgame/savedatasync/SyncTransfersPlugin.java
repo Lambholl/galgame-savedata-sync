@@ -30,7 +30,9 @@ public class SyncTransfersPlugin extends Plugin {
                     call.resolve(new JSObject(new String(bytes(object("status", "success", "value", value)), StandardCharsets.UTF_8)));
                 } catch (Exception cause) {
                     ArchiveFailure failure = ArchiveFailure.from(cause);
-                    try { call.resolve(new JSObject(new String(bytes(object("status", "error", "error", object("code", failure.code, "message", failure.getMessage(), "canRetry", false))), StandardCharsets.UTF_8))); }
+                    Map<String, Object> error = object("code", failure.code, "message", failure.getMessage(), "canRetry", false);
+                    if (failure.device != null) error.put("device", failure.device);
+                    try { call.resolve(new JSObject(new String(bytes(object("status", "error", "error", error)), StandardCharsets.UTF_8))); }
                     catch (Exception invalid) { call.resolve(new SafFailure("io-failure", "The copy response is invalid.", invalid).result()); }
                 }
             });

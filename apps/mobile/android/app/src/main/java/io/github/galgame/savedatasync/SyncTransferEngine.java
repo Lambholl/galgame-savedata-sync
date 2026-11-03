@@ -245,7 +245,9 @@ final class SyncTransferEngine implements AutoCloseable {
                     preparation.status = !preparation.timedOut && (problem.cancelled || preparation.cancelRequested) ? "cancelled" : "failed";
                     preparation.error = preparation.status.equals("cancelled") ? null : object("code", preparation.timedOut ? "timeout" : problem.code,
                         "message", preparation.timedOut ? "Sync preparation timed out. Scan again." : problem.getMessage(), "canRetry", false);
-                    if (preparation.error != null && accessing != null && DEVICE_ERRORS.contains(preparation.error.get("code"))) preparation.error.put("device", accessing);
+                    // 开始前核对两端时 accessing 还没设置，这时错误自己带着是哪一端。
+                    String device = problem.device != null ? problem.device : accessing;
+                    if (preparation.error != null && device != null && DEVICE_ERRORS.contains(preparation.error.get("code"))) preparation.error.put("device", device);
                 }
                 preparation.settled = System.nanoTime(); if (preparing == preparation) preparing = null;
             }

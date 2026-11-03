@@ -15,11 +15,14 @@ export interface ShownError {
 /** 带错误码的异常；unwrap 与平台适配层抛出它，界面据此显示本地化说明。 */
 export class OperationFailure extends Error {
   readonly code: OperationErrorCode
+  /** 出错的一端；能确定时才有。 */
+  readonly device: ErrorDevice | undefined
 
-  constructor(code: OperationErrorCode, message: string) {
+  constructor(code: OperationErrorCode, message: string, device?: ErrorDevice) {
     super(message)
     this.name = 'OperationFailure'
     this.code = code
+    this.device = device
   }
 }
 
@@ -33,7 +36,9 @@ function isErrorCode(value: unknown): value is OperationErrorCode {
  */
 export function toShownError(cause: unknown): ShownError {
   if (cause instanceof OperationFailure) {
-    return { code: cause.code, message: cause.message }
+    return cause.device === undefined
+      ? { code: cause.code, message: cause.message }
+      : { code: cause.code, message: cause.message, device: cause.device }
   }
   if (typeof cause === 'object' && cause !== null && 'code' in cause && isErrorCode(cause.code)) {
     const message = 'message' in cause && typeof cause.message === 'string' ? cause.message : ''
@@ -50,7 +55,7 @@ export function toShownError(cause: unknown): ShownError {
 /** 返回成功结果；失败时抛出带错误码的 OperationFailure，由调用端显示。 */
 export function unwrap<T>(result: OperationResult<T>): T {
   if (result.status === 'error') {
-    throw new OperationFailure(result.error.code, result.error.message)
+    throw new OperationFailure(result.error.code, result.error.message, result.error.device)
   }
   return result.value
 }

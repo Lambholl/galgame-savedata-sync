@@ -45,7 +45,9 @@ final class SyncJobModel {
             String device = string(binding.get(isLocal ? "localDeviceId" : "remoteDeviceId"));
             TransferSchema.roots(java.util.Collections.singletonList(root), device);
             if (!root.get("rootId").equals(binding.get(isLocal ? "localRootId" : "remoteRootId")) || !root.get("authorization").equals("granted")) {
-                throw new ArchiveFailure("authorization-expired", "Project directory authorization or binding changed.");
+                ArchiveFailure expired = new ArchiveFailure("authorization-expired", "Project directory authorization or binding changed.");
+                expired.device = isLocal ? "phone" : "pc";
+                throw expired;
             }
         }
         if (!linked(hello.get("links"), binding.get("projectId"), binding.get("remoteProjectId")) ||
