@@ -131,8 +131,12 @@ final class TransferEngine {
             return map(copy(descriptor));
         } finally { synchronized (this) { connecting = false; } }
     }
-    synchronized void disconnect() throws ArchiveFailure {
-        available(); if (active != null || TargetOperation.hasWork() || connecting) throw fail("busy"); closeControl(connections.remove(remoteDeviceId)); http = null; remoteDevice = null; session = null; remoteRoots.clear(); remoteEntries.clear();
+    void disconnect() throws ArchiveFailure {
+        ControlClient client;
+        synchronized (this) {
+            available(); if (active != null || TargetOperation.hasWork() || connecting) throw fail("busy"); client = detachControl(connections.remove(remoteDeviceId)); http = null; remoteDevice = null; session = null; remoteRoots.clear(); remoteEntries.clear();
+        }
+        if (client != null) client.close();
     }
     synchronized List<Object> connections() throws Exception {
         available(); List<Object> result = new ArrayList<>();
@@ -152,10 +156,12 @@ final class TransferEngine {
         if (value != null) try {
             value.http.json("POST", "/v1/catalog", string(value.descriptor.get("sessionId")), object("deviceId", local.deviceId(), "goodbye", true), 200, control);
         } catch (Exception ignored) { /* 本机仍断开；电脑收不到告别时由在线期限释放名额。 */ }
+        ControlClient client;
         synchronized (this) {
-            closeControl(connections.remove(id));
+            client = detachControl(connections.remove(id));
             if (id.equals(remoteDeviceId)) { http = null; remoteDevice = null; session = null; remoteRoots.clear(); remoteEntries.clear(); }
         }
+        if (client != null) client.close();
     }
     /** 每台电脑独立交换目录元数据；不会改变当前浏览连接或活动任务。 */
     Object exchangeCatalog(String id, Object payload, String name, ArchiveControl control) throws Exception {
@@ -223,9 +229,10 @@ final class TransferEngine {
         ControlListener listener = controlListener;
         if (listener != null) listener.state(id, isOpen, code);
     }
-    private static void closeControl(Connection value) {
-        if (value == null || value.control == null) return;
-        ControlClient client = value.control; value.control = null; value.controlOpen = false; client.close();
+    /** 只摘下控制通道，由调用者在引擎锁外关闭：读线程持有 WebSocket 的锁回调 onClose，再等引擎锁，持锁关闭会死锁。 */
+    private static ControlClient detachControl(Connection value) {
+        if (value == null || value.control == null) return null;
+        ControlClient client = value.control; value.control = null; value.controlOpen = false; return client;
     }
     synchronized List<Object> controlStates() throws Exception {
         available(); List<Object> result = new ArrayList<>();
@@ -602,10 +609,12 @@ final class TransferEngine {
     }
     /** 销毁只请求取消；工作线程在平台调用返回并清理后关闭，不在 UI 线程等待。 */
     void close() {
+        List<ControlClient> clients = new ArrayList<>();
         synchronized (this) {
             if (closed) return; closed = true; if (active != null) active.control.cancel();
-            for (Connection value : connections.values()) closeControl(value);
+            for (Connection value : connections.values()) { ControlClient client = detachControl(value); if (client != null) clients.add(client); }
         }
+        for (ControlClient client : clients) client.close();
         worker.execute(() -> { retryCleanup(); publisher.stop(); watch.shutdown(); }); worker.shutdown();
     }
 }
