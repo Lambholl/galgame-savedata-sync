@@ -10,7 +10,7 @@ import { useLocale, useT } from '../i18n/i18n-context.ts'
 import { OutcomeList } from './OutcomeList.tsx'
 import { unsettledOutcomes } from './outcomes.ts'
 import { ProgressRing, Verdict, type VerdictTone } from './TaskHero.tsx'
-import { observeSyncJob } from '../../sync/sync-job-observation.ts'
+import { locateSyncError, observeSyncJob } from '../../sync/sync-job-observation.ts'
 import type { SyncTaskPhase } from '../../sync/sync-job-observation.ts'
 import { TaskSteps } from './TaskSteps.tsx'
 import './sync-task-summary.css'
@@ -63,7 +63,7 @@ export function SyncTaskSummary({
   const outcomes = result?.outcomes ?? []
   const succeeded = outcomes.filter((item) => item.status === 'succeeded')
   const unsettled = unsettledOutcomes(outcomes)
-  const { phase, stage, step, percent, counters } = observeSyncJob(
+  const { phase, stage, step, percent, counters, failureStage } = observeSyncJob(
     local,
     remote,
     remoteError !== null,
@@ -125,7 +125,9 @@ export function SyncTaskSummary({
     } else if (phase === 'partial') {
       detail = t('task.partialDetail', { ok: succeeded.length, failed: unsettled.length })
     } else if (phase === 'failed') {
-      detail = error && <ErrorText error={error} context={null} />
+      detail = error && (
+        <ErrorText error={locateSyncError(error, local.direction, failureStage)} context={null} />
+      )
     } else if (phase === 'unknown') {
       detail = t('task.unknownDetail')
     }

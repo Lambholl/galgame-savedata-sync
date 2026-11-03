@@ -61,13 +61,14 @@ export function useRemoteSync(
     /** 回报扫描失败；保留原错误码，没有错误码时按读写失败回报。 */
     function fail(item: ActiveRequest, error: ShownError): void {
       const code = error.code ?? 'io-failure'
+      const device = error.device ? { device: error.device } : {}
       report(item, {
         requestId: item.requestId,
         status: 'failed',
         error:
           code === 'result-unknown' || code === 'session-mismatch'
-            ? { code, message: error.message, canRetry: false }
-            : { code, message: error.message, canRetry: true },
+            ? { code, message: error.message, canRetry: false, ...device }
+            : { code, message: error.message, canRetry: true, ...device },
       })
     }
     async function release(item: ActiveRequest): Promise<void> {

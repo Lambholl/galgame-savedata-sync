@@ -59,6 +59,8 @@ export const zhTW: Messages = {
   'transfer.peerOffline': ({ name }) => `${name} 未連線。`,
   'transfer.noLocalRoot': '本機尚未選擇存檔目錄。',
   'transfer.noRemoteRoot': '對端尚未選擇存檔目錄。',
+  'transfer.localRootLost': '本機的存檔目錄已失效，請在遊戲設定中重新選擇。',
+  'transfer.remoteRootLost': ({ name }) => `${name} 的存檔目錄已失效，請在那台裝置上重新選擇。`,
   'transfer.compareFailed': '比較失敗，請重新整理後再試。',
   'transfer.compareFailedContext': '比較失敗',
   'transfer.compareCancelled': '已取消比較。',
@@ -305,6 +307,8 @@ export const zhTW: Messages = {
   'backup.status.running': '還原中',
 
   'error.withContext': ({ context, text }) => `${context}：${text}`,
+  'error.onPhone': ({ text }) => `手機上${text}`,
+  'error.onPc': ({ text }) => `電腦上${text}`,
   'error.code.invalid-request': '請求內容無效，請重新整理後重試。',
   'error.code.protocol-mismatch': '兩端應用程式版本不相容，請更新到同一版本。',
   'error.code.session-mismatch': '裝置連線已變更，請重新連線後再試。',

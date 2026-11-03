@@ -61,6 +61,9 @@ export const zhCN = {
   'transfer.peerOffline': ({ name }: { name: string }): string => `${name} 未连接。`,
   'transfer.noLocalRoot': '本机还没有选择存档目录。',
   'transfer.noRemoteRoot': '对端还没有选择存档目录。',
+  'transfer.localRootLost': '本机的存档目录已失效，请在游戏设置中重新选择。',
+  'transfer.remoteRootLost': ({ name }: { name: string }): string =>
+    `${name} 的存档目录已失效，请在那台设备上重新选择。`,
   'transfer.compareFailed': '比较失败，请刷新重试。',
   'transfer.compareFailedContext': '比较失败',
   'transfer.compareCancelled': '比较已取消。',
@@ -317,6 +320,8 @@ export const zhCN = {
 
   'error.withContext': ({ context, text }: { context: string; text: string }): string =>
     `${context}：${text}`,
+  'error.onPhone': ({ text }: { text: string }): string => `手机上${text}`,
+  'error.onPc': ({ text }: { text: string }): string => `电脑上${text}`,
   'error.code.invalid-request': '请求内容无效，请刷新后重试。',
   'error.code.protocol-mismatch': '两端应用版本不兼容，请更新到同一版本。',
   'error.code.session-mismatch': '设备连接已变化，请重新连接后再试。',

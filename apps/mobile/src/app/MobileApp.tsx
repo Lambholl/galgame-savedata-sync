@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { message } from 'antd'
 import { ActionSheet, Button } from 'antd-mobile'
 import { DownloadOutlined, MoreOutlined, PlusOutlined } from '@ant-design/icons'
 import { EmptyState } from '../components/EmptyState'
@@ -38,6 +37,7 @@ import {
   syncTaskPreview,
   useT,
 } from '@savedata-sync/shared/ui'
+import { useAppMessage } from './app-message'
 import { useFailureMessage } from './failure-message'
 import type { TaskStripInfo } from '@savedata-sync/shared/ui'
 import type { BackButtonController, Confirmation, Page } from './navigation-types'
@@ -74,7 +74,7 @@ export function MobileApp({
 }): React.JSX.Element {
   const appPreferences = useAppPreferences()
   const t = useT()
-  const [messageApi, messageContextHolder] = message.useMessage()
+  const [appMessage, messageContextHolder] = useAppMessage()
   const [page, setPage] = useState<Page>('games')
   const [taskProjectId, setTaskProjectId] = useState<string | null>(null)
   const syncTasks = useSyncTasks(sync, page === 'task' ? taskProjectId : null)
@@ -111,16 +111,16 @@ export function MobileApp({
   const generation = useRef(0)
   const backHandler = useRef<() => boolean>(() => false)
   const transferNotices = useRef(new Map<string, string>())
-  const scanNotice = useRef<string | null>(null)
   const showSyncFailure = useCallback(
     (failure: ShownError) => {
-      void messageApi.error({
+      appMessage.show({
+        type: 'error',
         content: <ErrorText error={failure} context={null} />,
         duration: 3.5,
-        key: 'sync-action-failed',
+        slot: 'sync-action-failed',
       })
     },
-    [messageApi],
+    [appMessage],
   )
   const changePageOverlay = useCallback(
     (close: (() => void) | null) => setClosePageOverlay(() => close),
@@ -146,20 +146,18 @@ export function MobileApp({
     transferNotices.current.set(state.jobId, signature)
     // 首次取回旧终态只展示详情；本次发起预先登记 running，快速完成也能提示一次。
     if (previous !== undefined && feedback) {
-      // 开始和结果不共用 key：提示退场时用同一 key 再次打开，计时不会重启，提示就一直不消失。
-      messageApi.destroy(`sync-started-${state.jobId}`)
-      void messageApi.open({
+      appMessage.show({
         type: feedback.type,
         content: feedback.error ? (
           <ErrorText error={feedback.error} context={t(feedback.text)} />
         ) : (
           t(feedback.text)
         ),
-        key: `sync-transfer-${state.jobId}`,
+        slot: `sync-transfer-${state.jobId}`,
         duration: 3.5,
       })
     }
-  }, [syncTasks.copy, messageApi, t])
+  }, [syncTasks.copy, appMessage, t])
   const invalidate = useCallback(() => {
     generation.current++
   }, [])
@@ -176,7 +174,7 @@ export function MobileApp({
             !value.peers.some((next) => next.device.id === peer.device.id && next.isConnected),
         )
       ) {
-        void messageApi.info({ content: t('app.disconnected'), key: 'connection-disconnected' })
+        appMessage.show({ type: 'info', content: t('app.disconnected'), slot: 'connection' })
       }
       const connected = value.peers.find(
         (peer) =>
@@ -187,9 +185,10 @@ export function MobileApp({
           ),
       )
       if (connected) {
-        void messageApi.success({
+        appMessage.show({
+          type: 'success',
           content: t('app.connectedTo', { name: connected.device.name }),
-          key: 'connection-connected',
+          slot: 'connection',
         })
       }
       snapshotRef.current = value
@@ -198,7 +197,7 @@ export function MobileApp({
         showError({ code: null, message: value.warning })
       }
     }
-  }, [adapter, messageApi, showError, t])
+  }, [adapter, appMessage, showError, t])
   useEffect(() => {
     let isCurrent = true
     let timer: ReturnType<typeof setTimeout>
@@ -349,22 +348,22 @@ export function MobileApp({
         }
       }
       transferNotices.current.set(jobId, 'running')
-      void messageApi.info({ content: t('transfer.started'), key: `sync-started-${jobId}` })
+      appMessage.show({
+        type: 'info',
+        content: t('transfer.started'),
+        slot: `sync-transfer-${jobId}`,
+      })
       reloadTasks()
     },
-    [messageApi, reloadTasks, t],
+    [appMessage, reloadTasks, t],
   )
   useRemoteSync(sync, androidControl, online?.device.id ?? null, isActive, {
-    onScan: (requestId, projectId) => {
+    onScan: (_requestId, projectId) => {
       const name = config.games.find((item) => item.id === projectId)?.name ?? t('common.unknown')
-      // 每次请求一个 key，并收起上一条；原因同上。
-      if (scanNotice.current) {
-        messageApi.destroy(scanNotice.current)
-      }
-      scanNotice.current = `remote-sync-scan-${requestId}`
-      void messageApi.info({
+      appMessage.show({
+        type: 'info',
         content: t('transfer.remoteScanRequest', { name }),
-        key: scanNotice.current,
+        slot: 'remote-sync-scan',
       })
     },
     onStarted: announceStart,
@@ -541,10 +540,11 @@ export function MobileApp({
     )
   }
   function showConnectionFailure(failure: ShownError): void {
-    void messageApi.error({
+    appMessage.show({
+      type: 'error',
       content: <ErrorText error={failure} context={t('device.connectFailed')} />,
       duration: 3.5,
-      key: 'connection-failed',
+      slot: 'connection',
     })
   }
   function go(value: Page): void {

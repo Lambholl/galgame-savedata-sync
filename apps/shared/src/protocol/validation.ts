@@ -136,7 +136,9 @@ export function isDirectoryListing(value: unknown): value is DirectoryListing {
 /** 校验错误包络字段；结果未知禁止声明可直接重试，错误消息脱敏由生产者负责。 */
 export function isOperationError(value: unknown): value is OperationError {
   return (
-    hasShape(value, ['code', 'message', 'canRetry']) &&
+    (hasShape(value, ['code', 'message', 'canRetry']) ||
+      (hasShape(value, ['code', 'message', 'canRetry', 'device']) &&
+        (value.device === 'phone' || value.device === 'pc'))) &&
     typeof value.code === 'string' &&
     Object.hasOwn(HTTP_ERROR_STATUS, value.code) &&
     isText(value.message) &&

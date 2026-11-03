@@ -105,8 +105,14 @@ export type OperationErrorCode =
   | 'cleanup-failed'
   | 'result-unknown'
 
-/** 信息须脱敏；canRetry 只允许核实当前状态后由用户发起新操作，不授权自动重放。 */
-export type OperationError =
+/** 出错的一端。 */
+export type ErrorDevice = 'phone' | 'pc'
+
+/**
+ * 信息须脱敏；canRetry 只允许核实当前状态后由用户发起新操作，不授权自动重放。
+ * device 只在确定是哪一端访问文件或目录失败时才有。
+ */
+export type OperationError = (
   | {
       readonly code: Exclude<OperationErrorCode, 'result-unknown' | 'session-mismatch'>
       readonly message: string
@@ -122,6 +128,7 @@ export type OperationError =
       readonly message: string
       readonly canRetry: false
     }
+) & { readonly device?: ErrorDevice }
 
 /** 成功值和错误互斥；无副作用的读取/本地桥使用此包络，不能用空值掩盖失败。 */
 export type OperationResult<TValue> =

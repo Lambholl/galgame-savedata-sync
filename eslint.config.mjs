@@ -310,6 +310,21 @@ export default tseslint.config(
       ],
     },
   },
+  {
+    files: ['apps/mobile/src/**/*.{ts,tsx}', 'apps/desktop/src/renderer/**/*.{ts,tsx}'],
+    ignores: ['**/app/app-message.ts'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector:
+            "ImportDeclaration[source.value='antd'] > ImportSpecifier[imported.name='message']",
+          message:
+            '提示统一走 app/app-message.ts 的 useAppMessage，重开同 key 的提示会卡住不消失。',
+        },
+      ],
+    },
+  },
   // 排版由 .prettierrc.json 定义；关闭冲突规则后，再启用兼容的代码结构规则。
   {
     ...prettierConfig,

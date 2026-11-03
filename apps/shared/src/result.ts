@@ -1,4 +1,4 @@
-import type { OperationErrorCode, OperationResult } from './protocol/contracts.ts'
+import type { ErrorDevice, OperationErrorCode, OperationResult } from './protocol/contracts.ts'
 import { HTTP_ERROR_STATUS } from './protocol/protocol.ts'
 
 /**
@@ -8,6 +8,8 @@ import { HTTP_ERROR_STATUS } from './protocol/protocol.ts'
 export interface ShownError {
   readonly code: OperationErrorCode | null
   readonly message: string
+  /** 出错的一端；能确定时写在说明前。 */
+  readonly device?: ErrorDevice
 }
 
 /** 带错误码的异常；unwrap 与平台适配层抛出它，界面据此显示本地化说明。 */

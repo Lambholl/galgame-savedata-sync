@@ -65,6 +65,9 @@ export const jaJP: Messages = {
   'transfer.peerOffline': ({ name }) => `${name} は未接続です。`,
   'transfer.noLocalRoot': 'この端末の保存先が未選択です。',
   'transfer.noRemoteRoot': '相手の端末の保存先が未選択です。',
+  'transfer.localRootLost': 'この端末の保存先が無効です。ゲーム設定で選び直してください。',
+  'transfer.remoteRootLost': ({ name }) =>
+    `${name} の保存先が無効です。その端末で選び直してください。`,
   'transfer.compareFailed': '比較に失敗しました。更新して再試行してください。',
   'transfer.compareFailedContext': '比較に失敗しました',
   'transfer.compareCancelled': '比較を取り消しました。',
@@ -318,6 +321,8 @@ export const jaJP: Messages = {
   'backup.status.running': '復元中',
 
   'error.withContext': ({ context, text }) => `${context}：${text}`,
+  'error.onPhone': ({ text }) => `携帯端末：${text}`,
+  'error.onPc': ({ text }) => `PC：${text}`,
   'error.code.invalid-request':
     '要求の内容が正しくありません。更新してからもう一度お試しください。',
   'error.code.protocol-mismatch': '両方のアプリの版が合っていません。同じ版に更新してください。',

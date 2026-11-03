@@ -60,6 +60,10 @@ export const enUS: Messages = {
   'transfer.peerOffline': ({ name }) => `${name} is not connected.`,
   'transfer.noLocalRoot': 'No save folder chosen on this device yet.',
   'transfer.noRemoteRoot': 'The other device has no save folder chosen yet.',
+  'transfer.localRootLost':
+    'The save folder on this device is no longer valid. Choose it again in game settings.',
+  'transfer.remoteRootLost': ({ name }) =>
+    `The save folder on ${name} is no longer valid. Choose it again on that device.`,
   'transfer.compareFailed': 'Comparison failed. Refresh to try again.',
   'transfer.compareFailedContext': 'Comparison failed',
   'transfer.compareCancelled': 'Comparison cancelled.',
@@ -322,6 +326,8 @@ export const enUS: Messages = {
   'backup.status.running': 'Restoring',
 
   'error.withContext': ({ context, text }) => `${context}: ${text}`,
+  'error.onPhone': ({ text }) => `Phone: ${text}`,
+  'error.onPc': ({ text }) => `PC: ${text}`,
   'error.code.invalid-request': 'The request was not valid. Refresh and try again.',
   'error.code.protocol-mismatch':
     'The two apps are on incompatible versions. Update both to the same version.',

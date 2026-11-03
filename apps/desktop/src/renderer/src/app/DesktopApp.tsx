@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Button, Empty, Tooltip, message } from 'antd'
+import { Button, Empty, Tooltip } from 'antd'
 import { ControlOutlined, HistoryOutlined } from '@ant-design/icons'
 import {
   emptyLibrary,
@@ -36,6 +36,7 @@ import {
   syncTaskPreview,
   useT,
 } from '@savedata-sync/shared/ui'
+import { useAppMessage } from './app-message.ts'
 import { useFailureMessage } from './failure-message.ts'
 import type { TaskStripInfo } from '@savedata-sync/shared/ui'
 import { PAGE_TITLE_KEYS } from './navigation.ts'
@@ -69,7 +70,7 @@ export function DesktopApp({
 }): React.JSX.Element {
   const t = useT()
   const adapter = ADAPTER
-  const [messageApi, messageContextHolder] = message.useMessage()
+  const [appMessage, messageContextHolder] = useAppMessage()
   const [page, setPage] = useState<Page>('games')
   const [taskProjectId, setTaskProjectId] = useState<string | null>(null)
   const [taskCopyId, setTaskCopyId] = useState<string | null>(null)
@@ -117,7 +118,7 @@ export function DesktopApp({
             !value.peers.some((next) => next.device.id === peer.device.id && next.isConnected),
         )
       ) {
-        void messageApi.info({ content: t('app.disconnected'), key: 'connection-disconnected' })
+        appMessage.show({ type: 'info', content: t('app.disconnected'), slot: 'connection' })
       }
       snapshotRef.current = value
       setSnapshot(value)
@@ -125,7 +126,7 @@ export function DesktopApp({
         showError({ code: null, message: value.warning })
       }
     }
-  }, [adapter, messageApi, showError, t])
+  }, [adapter, appMessage, showError, t])
   useEffect(() => {
     let isCurrent = true
     let timer: ReturnType<typeof setTimeout>
@@ -172,14 +173,14 @@ export function DesktopApp({
         continue
       }
       const name = snapshot.config.games.find((game) => game.id === item.projectId)?.name
-      void messageApi.open({
+      appMessage.show({
         type: COPY_MESSAGE_TYPES[item.phase],
         content: `${name ?? t('common.unknown')} · ${syncTaskPreview(item, t).status}`,
-        key: `sync-transfer-${item.jobId}`,
+        slot: `sync-transfer-${item.jobId}`,
         duration: 3.5,
       })
     }
-  }, [snapshot, messageApi, t])
+  }, [snapshot, appMessage, t])
   // 游戏名要等配置读到才有；已移除的游戏没有可提示的目录，标记直接清除。
   const hasLoaded = snapshot !== null
   useEffect(() => {

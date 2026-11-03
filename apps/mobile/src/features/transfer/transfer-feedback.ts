@@ -1,4 +1,5 @@
-import type { OperationError, SyncTransferState } from '@savedata-sync/shared'
+import { locateSyncError } from '@savedata-sync/shared'
+import type { ShownError, SyncTransferState } from '@savedata-sync/shared'
 
 /** 传输结束提示：语气、文案键与失败原因（有原因时作为文案后的说明）。 */
 export interface TransferFeedback {
@@ -10,7 +11,7 @@ export interface TransferFeedback {
     | 'task.unknown'
     | 'task.cancelled'
     | 'task.unknownDetail'
-  readonly error: OperationError | null
+  readonly error: ShownError | null
 }
 
 /** 提示依据实际接收结果；已发送、待确认与完整成功分开，清理错误独立保留。 */
@@ -24,7 +25,11 @@ export function transferFeedback(state: SyncTransferState): TransferFeedback | n
   const failed =
     receiver?.status === 'failed' ? receiver : state.local.status === 'failed' ? state.local : null
   if (failed) {
-    return { type: 'error', text: 'task.failed', error: failed.error }
+    return {
+      type: 'error',
+      text: 'task.failed',
+      error: failed.error && locateSyncError(failed.error, failed.direction, failed.failureStage),
+    }
   }
   if (receiver?.status === 'unknown' || state.local.status === 'unknown') {
     return { type: 'warning', text: 'task.unknown', error: null }

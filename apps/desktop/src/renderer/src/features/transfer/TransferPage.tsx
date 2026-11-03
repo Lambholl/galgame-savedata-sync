@@ -75,7 +75,15 @@ export function TransferPage({
   const localRootId = localRoot?.rootId ?? null
   const remoteRootId = remoteGame?.root?.rootId ?? null
   const isConnected = Boolean(selectedPeer?.isConnected)
-  const canScan = isConnected && localRootId !== null && remoteRootId !== null && !isActive
+  const isLocalRootLost = localRoot !== null && localRoot.authorization !== 'granted'
+  const isRemoteRootLost = Boolean(remoteGame?.root && remoteGame.root.authorization !== 'granted')
+  const canScan =
+    isConnected &&
+    localRootId !== null &&
+    remoteRootId !== null &&
+    !isLocalRootLost &&
+    !isRemoteRootLost &&
+    !isActive
   useEffect(() => {
     let isCurrent = true
     let timer: ReturnType<typeof setTimeout> | undefined
@@ -187,6 +195,13 @@ export function TransferPage({
     status = { kind: 'unavailable', reason: t('transfer.noLocalRoot') }
   } else if (remoteRootId === null) {
     status = { kind: 'unavailable', reason: t('transfer.noRemoteRoot') }
+  } else if (isLocalRootLost) {
+    status = { kind: 'unavailable', reason: t('transfer.localRootLost') }
+  } else if (isRemoteRootLost) {
+    status = {
+      kind: 'unavailable',
+      reason: t('transfer.remoteRootLost', { name: selectedPeer.device.name }),
+    }
   } else if (scanError !== null || shown?.status === 'failed') {
     status = { kind: 'failed', error: scanError ?? shown?.error ?? null }
   } else if (shown?.status === 'cancelled') {

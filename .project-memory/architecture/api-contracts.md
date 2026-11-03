@@ -37,7 +37,7 @@ M-001 的文件操作范围是专用测试目录内的新文件往返。游戏�
 | EntryMetadata | rootId、entryId、parentId、name、kind、sizeBytes、modifiedAt、capabilities；file/directory 联合；根层 parentId=null，parentId 不指向自身；文件夹大小恒为 null，文件未知大小为 null，空文件为 0 |
 | DirectoryListing | rootId、parentId、observedAt、entries；成功空数组表示空目录；条目须属于同一根/层且 ID 不重复；错误用独立包络 |
 | EntryCapabilities / DeviceCapabilities | 条目能力 canRead/canList/canCreate/canRename/canDelete；设备能力 canListRoots/canReadFiles/canReceiveFiles/canQueryTransfers/canCancelTransfers；各值 supported/unsupported/unknown |
-| OperationError / OperationResult | code、message、canRetry；互斥 success/value 与 error/error 包络；result-unknown 的 canRetry 必须为 false；自有错误原文默认英文并由生产者脱敏。界面按 code 翻译，message 与 code 放在折叠详情；unwrap 抛带 code 的 OperationFailure，toShownError 转为 ShownError，缺少 code 时保留原文 |
+| OperationError / OperationResult | code、message、canRetry，以及确定是哪一端访问文件或目录失败时才有的 device（phone、pc，手机准备阶段产生并经 sync.report 转给电脑，HTTP 错误不带）；任务错误由 locateSyncError 按方向和中断阶段标出一端；互斥 success/value 与 error/error 包络；result-unknown 的 canRetry 必须为 false；自有错误原文默认英文并由生产者脱敏。界面按 code 翻译，message 与 code 放在折叠详情；unwrap 抛带 code 的 OperationFailure，toShownError 转为 ShownError，缺少 code 时保留原文 |
 | DirectorySelectionResult | selected 携带 directory，cancelled 不携带目录或错误，error 携带错误；取消不清空既有有效引用 |
 | BatchDeviceDescriptor | 共享模型：包装既有 device，加 sessionId 和固定 limits；本地目录桥返回值不变 |
 | BatchManifest / TargetSelection | 提供 DTO 和关系校验：源引用、连续 fileId、实测长度/哈希及精确 tar 求和；目标在已有父目录以单文件名一一映射，不展开归档路径 |

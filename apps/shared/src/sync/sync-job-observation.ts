@@ -1,4 +1,45 @@
+import type { OperationErrorCode, TransferDirection } from '../protocol/contracts.ts'
+import type { ShownError } from '../result.ts'
 import type { SyncFailureStage, SyncJobState } from './sync-job-contracts.ts'
+
+/**
+ * 能归到某一端的错误码，都是文件和目录访问失败；网络、版本和任务状态类错误与端无关。
+ * Android 的 SyncTransferEngine.DEVICE_ERRORS 是同一份清单。
+ */
+const DEVICE_ERRORS: ReadonlySet<OperationErrorCode> = new Set<OperationErrorCode>([
+  'authorization-expired',
+  'permission-denied',
+  'not-found',
+  'not-readable',
+  'unsupported-operation',
+  'name-conflict',
+  'path-outside-root',
+  'insufficient-space',
+  'io-failure',
+])
+
+/**
+ * 按任务中断的阶段标出错误所在的一端：打包只读来源，校验、备份和写入都在目标。
+ * 打包阶段的授权失效来自开始时对两端的核对，分不出是哪一端；其他阶段与具体一端无关。
+ */
+export function locateSyncError(
+  error: ShownError,
+  direction: TransferDirection,
+  failureStage: SyncFailureStage | null,
+): ShownError {
+  if (error.device !== undefined || error.code === null || !DEVICE_ERRORS.has(error.code)) {
+    return error
+  }
+  const [source, target] =
+    direction === 'windows-to-android' ? (['pc', 'phone'] as const) : (['phone', 'pc'] as const)
+  if (failureStage === 'preparing' && error.code !== 'authorization-expired') {
+    return { ...error, device: source }
+  }
+  if (failureStage === 'verifying' || failureStage === 'backing-up' || failureStage === 'writing') {
+    return { ...error, device: target }
+  }
+  return error
+}
 
 /** 一次传输的总体状态；成功依据接收端实际结果。 */
 export type SyncTaskPhase = 'running' | 'done' | 'partial' | 'failed' | 'cancelled' | 'unknown'

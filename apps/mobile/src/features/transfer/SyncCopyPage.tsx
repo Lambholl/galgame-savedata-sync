@@ -73,7 +73,15 @@ export function SyncCopyPage({
   const remoteRootId = remote?.root?.rootId ?? null
   const localRootId = localRoot?.rootId ?? null
   const isConnected = Boolean(peer?.isConnected)
-  const canScan = isConnected && localRootId !== null && remoteRootId !== null && !isTransferActive
+  const isLocalRootLost = localRoot !== null && localRoot.authorization !== 'granted'
+  const isRemoteRootLost = Boolean(remote?.root && remote.root.authorization !== 'granted')
+  const canScan =
+    isConnected &&
+    localRootId !== null &&
+    remoteRootId !== null &&
+    !isLocalRootLost &&
+    !isRemoteRootLost &&
+    !isTransferActive
   useEffect(() => {
     if (!canScan) {
       return
@@ -150,6 +158,13 @@ export function SyncCopyPage({
     status = { kind: 'unavailable', reason: t('transfer.noLocalRoot') }
   } else if (remoteRootId === null) {
     status = { kind: 'unavailable', reason: t('transfer.noRemoteRoot') }
+  } else if (isLocalRootLost) {
+    status = { kind: 'unavailable', reason: t('transfer.localRootLost') }
+  } else if (isRemoteRootLost) {
+    status = {
+      kind: 'unavailable',
+      reason: t('transfer.remoteRootLost', { name: peer.device.name }),
+    }
   } else if (scanError !== null || preparation?.status === 'failed') {
     status = { kind: 'failed', error: scanError ?? preparation?.error ?? null }
   } else if (preparation?.status === 'cancelled') {

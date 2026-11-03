@@ -9,6 +9,7 @@ import android.content.res.AssetFileDescriptor;
 import android.database.Cursor;
 import android.net.Uri;
 import android.os.CancellationSignal;
+import android.os.OperationCanceledException;
 import android.provider.DocumentsContract;
 import android.provider.DocumentsContract.Document;
 import com.getcapacitor.JSObject;
@@ -203,9 +204,12 @@ final class SafDirectoryStore {
                     try {
                         Snapshot snapshot = query(root, DocumentsContract.getTreeDocumentId(root.uri), signal);
                         authorization = snapshot.isDirectory ? "granted" : "unavailable";
+                    } catch (OperationCanceledException cause) {
+                        throw cause;
                     } catch (SecurityException cause) {
                         authorization = "expired";
-                    } catch (java.io.FileNotFoundException cause) {
+                    } catch (Exception cause) {
+                        // 一个目录读不了只标记它自己；整体失败会连累其他游戏，也存不了重新选择的目录。
                         authorization = "unavailable";
                     }
                 }
@@ -234,7 +238,7 @@ final class SafDirectoryStore {
             JSONArray values = new JSONArray();
             Set<String> seen = new HashSet<>();
             try (Cursor cursor = resolver.query(children, PROJECTION, null, null, null, signal)) {
-                if (cursor == null) throw new IOException("Provider returned no cursor");
+                if (cursor == null) throw new java.io.FileNotFoundException("Provider returned no cursor");
                 while (cursor.moveToNext()) {
                     signal.throwIfCanceled();
                     Snapshot snapshot = decode(cursor);
@@ -392,7 +396,8 @@ final class SafDirectoryStore {
 
     private Snapshot query(Root root, String documentId, CancellationSignal signal) throws Exception {
         try (Cursor cursor = resolver.query(documentUri(root, documentId), PROJECTION, null, null, null, signal)) {
-            if (cursor == null) throw new IOException("Provider returned no cursor");
+            // DocumentsProvider 查询不存在的文档时返回 null 而不是抛异常，例如目录被改名后。
+            if (cursor == null) throw new java.io.FileNotFoundException("Provider returned no cursor");
             if (!cursor.moveToFirst()) throw new java.io.FileNotFoundException("Document missing");
             Snapshot snapshot = decode(cursor);
             if (!documentId.equals(snapshot.documentId)) throw new IOException("Provider ID mismatch");

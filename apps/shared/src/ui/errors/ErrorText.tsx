@@ -12,12 +12,19 @@ export interface ErrorTextProps {
 }
 
 /**
- * 显示一个错误：有错误码时只显示该错误码的本地化说明，没有错误码时原样显示消息。
+ * 显示一个错误：有错误码时只显示该错误码的本地化说明，没有错误码时原样显示消息；
+ * 知道出错的一端时写在说明前。
  * 界面上不放“详情”开关：原始消息与错误码在电脑上悬停可见，任务详情里写进技术详情卡片。
  */
 export function ErrorText({ error, context }: ErrorTextProps): ReactElement {
   const t = useT()
-  const text = error.code ? t(`error.code.${error.code}`) : error.message
+  const description = error.code ? t(`error.code.${error.code}`) : error.message
+  const text =
+    error.device === 'phone'
+      ? t('error.onPhone', { text: description })
+      : error.device === 'pc'
+        ? t('error.onPc', { text: description })
+        : description
   return (
     <span className="ss-error" title={error.code ? errorDetail(error) : undefined}>
       {error.code && context ? t('error.withContext', { context, text }) : text}

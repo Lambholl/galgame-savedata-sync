@@ -33,6 +33,9 @@ final class SyncTransferEngine implements AutoCloseable {
         default void close() throws Exception {}
     }
     private static final long RETENTION = TimeUnit.MINUTES.toNanos(10), REPORT_INTERVAL = TimeUnit.SECONDS.toNanos(1);
+    /** 能归到某一端的错误码；shared 的 locateSyncError 是同一份清单。 */
+    private static final Set<String> DEVICE_ERRORS = new HashSet<>(java.util.Arrays.asList("authorization-expired", "permission-denied", "not-found",
+        "not-readable", "unsupported-operation", "name-conflict", "path-outside-root", "insufficient-space", "io-failure"));
     private final TransferEngine transport;
     private final ArchiveAdapter archives;
     private final Local local;
@@ -181,6 +184,8 @@ final class SyncTransferEngine implements AutoCloseable {
     }
     private void prepareNow(Preparation preparation) {
         boolean hasRemoteScan = false;
+        // 正在访问哪一端的目录；失败时写进错误，界面据此说明是哪一端的问题。
+        String accessing = null;
         Map<String, Object> prepared = null; ArchiveFailure problem = null;
         try {
             Map<String, Object> binding = preparation.binding; TransferEngine.SyncConnection connection = preparation.connection;
@@ -204,10 +209,13 @@ final class SyncTransferEngine implements AutoCloseable {
                 "maxRetainedScans", 32, "snapshotLifetimeMs", 600000, "scanTimeoutMs", 1800000);
             if (!SyncPlanModel.same(limits, capabilities.get("limits"))) throw new ArchiveFailure("protocol-mismatch", "Sync budgets differ between devices. Update both apps.");
             String targetRoot = string(binding.get("remoteRootId")), sourceRoot = string(binding.get("localRootId"));
+            accessing = "pc";
             Map<String, Object> remote = SyncJobModel.scan(connection.http.json("POST", "/v1/sync/scans", connection.session, object("schemaVersion", 1, "rootId", targetRoot), 202, preparation.control), connection.deviceId, targetRoot, null);
             synchronized (this) { preparation.scanId = id(remote.get("scanId")); }
             hasRemoteScan = true;
+            accessing = "phone";
             Map<String, Object> source = SyncJobModel.snapshot(local.snapshot(sourceRoot, preparation.control), local.deviceId(), sourceRoot);
+            accessing = "pc";
             while (remote.get("status").equals("running")) {
                 preparation.control.check(); Thread.sleep(100);
                 remote = SyncJobModel.scan(connection.http.json("GET", "/v1/sync/scans/" + preparation.scanId, connection.session, null, 200, preparation.control), connection.deviceId, targetRoot, preparation.scanId);
@@ -219,7 +227,8 @@ final class SyncTransferEngine implements AutoCloseable {
             }
             Object descriptor = connection.http.json("GET", "/v1/sync/projects/" + binding.get("remoteProjectId"), connection.session, null, 200, preparation.control);
             boolean remoteBackup = SyncJobModel.backup(descriptor, binding);
-            boolean shouldBackup = preparation.upload() ? remoteBackup : local.backup(string(binding.get("projectId")), sourceRoot);
+            accessing = null;
+            boolean shouldBackup =preparation.upload() ? remoteBackup : local.backup(string(binding.get("projectId")), sourceRoot);
             long backupKeepCount = preparation.upload() ? SyncJobModel.backupKeepCount(descriptor) : local.backupKeep(string(binding.get("projectId")), sourceRoot);
             transport.verifySync(connection, binding); preparation.control.check();
             Map<String, Object> preview = object("schemaVersion", 1, "preparationId", preparation.id, "direction", preparation.direction, "binding", binding,
@@ -236,6 +245,7 @@ final class SyncTransferEngine implements AutoCloseable {
                     preparation.status = !preparation.timedOut && (problem.cancelled || preparation.cancelRequested) ? "cancelled" : "failed";
                     preparation.error = preparation.status.equals("cancelled") ? null : object("code", preparation.timedOut ? "timeout" : problem.code,
                         "message", preparation.timedOut ? "Sync preparation timed out. Scan again." : problem.getMessage(), "canRetry", false);
+                    if (preparation.error != null && accessing != null && DEVICE_ERRORS.contains(preparation.error.get("code"))) preparation.error.put("device", accessing);
                 }
                 preparation.settled = System.nanoTime(); if (preparing == preparation) preparing = null;
             }

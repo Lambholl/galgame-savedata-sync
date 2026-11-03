@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import type { MouseEvent, PointerEvent } from 'react'
-import { message } from 'antd'
 import { toShownError } from '@savedata-sync/shared'
 import { ErrorText, TaskTechnicalDetails, useT } from '@savedata-sync/shared/ui'
+import { useAppMessage } from '../../app/app-message'
 
 /** 手机技术详情卡片的输入。 */
 export interface TechnicalDetailsProps {
@@ -14,7 +14,7 @@ export interface TechnicalDetailsProps {
 export function TechnicalDetails({ text }: TechnicalDetailsProps): React.JSX.Element {
   const t = useT()
   const [isExpanded, setIsExpanded] = useState(false)
-  const [messageApi, contextHolder] = message.useMessage()
+  const [appMessage, contextHolder] = useAppMessage()
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const origin = useRef<{ x: number; y: number } | null>(null)
   const didLongPress = useRef(false)
@@ -29,10 +29,11 @@ export function TechnicalDetails({ text }: TechnicalDetailsProps): React.JSX.Ele
   function copy(value: string): void {
     async function write(): Promise<void> {
       await navigator.clipboard.writeText(value)
-      void messageApi.success(t('common.copied'))
+      appMessage.show({ type: 'success', content: t('common.copied') })
     }
     write().catch((cause: unknown) => {
-      void messageApi.error({
+      appMessage.show({
+        type: 'error',
         content: <ErrorText error={toShownError(cause)} context={t('common.copyFailed')} />,
       })
     })
