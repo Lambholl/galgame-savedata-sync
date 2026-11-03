@@ -13,6 +13,7 @@ coverage/
 dev.local.json
 .idea/
 .vscode/
+.claude/
 .DS_Store
 Thumbs.db
 **/.gradle/
