@@ -127,7 +127,7 @@ withGameLink、withoutGameLink、createImportedGame 返回新的游戏配置，�
 
 `SyncScanRequest` 只含 schemaVersion/rootId，`isSyncScanState` 核对扫描句柄、状态、成功快照的实测字节数和完整指纹；失败可保留部分条目，取消与空目录成功分开。`isSyncCapabilities` 校验新增独立入口的能力声明与固定扫描限制。Windows 已接入新增 HTTP 复制接收与保护备份，Android 原生上传已接入；另一方向及界面按工作包继续推进。
 
-`createSyncPlan({ planId, projectId, operation, direction, shouldBackup, source, target })` 生成本次计划。`operation=copy` 使用明确的跨端方向；`operation=restore` 使用 `local-restore`、同一设备及开启的保护备份。源/目标是本次 `SyncSnapshot`，恢复源由本机已验证备份构造。非法输入抛 Error；读取错误、内容未知、类型/名称冲突和超限返回 `canExecute=false` 及问题列表。
+`createSyncPlan({ planId, projectId, operation, direction, shouldBackup, shouldDeleteExtras, source, target })` 生成本次计划。`operation=copy` 使用明确的跨端方向；`operation=restore` 使用 `local-restore`、同一设备、开启的保护备份和 `shouldDeleteExtras=false`。`shouldDeleteExtras=true` 时目标多出的条目变成 `delete-file`/`delete-directory`，排在所有写入之后，由深到浅；`withDeleteExtras(plan, value)` 用同一批快照重算，切换开关时不需要重新扫描。源/目标是本次 `SyncSnapshot`，恢复源由本机已验证备份构造。非法输入抛 Error；读取错误、内容未知、类型/名称冲突和超限返回 `canExecute=false` 及问题列表。
 
 计划器复制输入快照，按固定路径顺序给出操作，父目录先创建；不会修改输入、执行 IO、按时间选方向或查询历史。待传字节统计本次写入文件；备份开启且有写入时，备份字节统计目标目录的全部文件，包括未变化和仅存在于目标的文件，并校验文件数、单文件大小和总大小。`selectSyncBackupFiles(plan)` 返回这个集合；备份关闭、无写入或目标没有文件时返回空集合。未知或无法表示为安全整数的字节数为 null。`isSyncPlan` 重新推导完整计划；执行前用 `matchesSyncPlan(value, input)` 对照调用方保存的本次上下文，不能只校验 planId 或 canExecute。
 

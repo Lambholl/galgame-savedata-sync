@@ -42,6 +42,11 @@ final class SyncWriter implements AutoCloseable {
         default void authorize(SyncPlanModel.Plan plan, ArchiveControl control) throws Exception { authorizeProject(plan.project, plan.target.root, control); }
         Long available(String rootId, String parentId, ArchiveControl control) throws Exception;
         String createDirectory(String rootId, String parentId, String name, ArchiveControl control) throws Exception;
+        /**
+         * 删除快照里的一个条目；文件夹只删空的。身份或属性已变时抛 source-changed 且不删除；
+         * 已发出删除但结果没能确认时抛 result-unknown。
+         */
+        void delete(String rootId, String parentId, Map<String, Object> expected, ArchiveControl control) throws Exception;
         Replacement replacement(String rootId, String parentId, Map<String, Object> expected, ArchiveControl control) throws Exception;
         /** 可选的只读卷识别句柄；null 表示提供者不能识别卷，调用者继续按未知处理。 */
         default Replacement volumeFile(String rootId, String parentId, Map<String, Object> expected, ArchiveControl control) throws Exception { return replacement(rootId, parentId, expected, control); }
@@ -110,7 +115,7 @@ final class SyncWriter implements AutoCloseable {
     }
     private static Map<String, Object> error(String code, String message) { return object("code", code, "message", message, "canRetry", false); }
     private static Map<String, Object> outcome(Map<String, Object> operation, String status, Object error, Map<String, Object> source) {
-        boolean file = status.equals("succeeded") && !operation.get("action").equals("create-directory");
+        boolean file = status.equals("succeeded") && SyncPlanModel.isFileWrite(operation);
         return object("path", operation.get("path"), "action", operation.get("action"), "status", status,
             "sizeBytes", file ? source.get("sizeBytes") : null, "sha256", file ? source.get("sha256") : null, "error", error);
     }
@@ -147,7 +152,7 @@ final class SyncWriter implements AutoCloseable {
             job.directories.put(SyncPlanModel.key(entry.get("path")), string(entry.get("entryId")));
         }
         boolean hasNewFile = false;
-        for (Map<String, Object> operation : job.plan.writes) if (!operation.get("action").equals("create-directory")) {
+        for (Map<String, Object> operation : job.plan.writes) if (SyncPlanModel.isFileWrite(operation)) {
             check(job); Map<String, Object> entry = job.plan.source.entry(operation.get("sourceEntryId"));
             ArchiveModel.Source source = material.file(string(entry.get("entryId"))); ArchiveModel.Observation before = observe(job.plan, source, entry, job.control);
             InputStream input = track(job, source.open(job.control));
@@ -197,7 +202,7 @@ final class SyncWriter implements AutoCloseable {
     }
     private long targetGrowth(SyncPlanModel.Plan plan) throws Exception {
         long total = 0;
-        for (Map<String, Object> operation : plan.writes) if (!operation.get("action").equals("create-directory")) {
+        for (Map<String, Object> operation : plan.writes) if (SyncPlanModel.isFileWrite(operation)) {
             long size = number(plan.source.entry(operation.get("sourceEntryId")).get("sizeBytes"), 0, BackupModel.MAX_FILE);
             long previous = operation.get("action").equals("replace-file") ? number(plan.target.entry(operation.get("targetEntryId")).get("sizeBytes"), 0, 9007199254740991L) : 0;
             total += Math.max(0, size - previous);
@@ -214,6 +219,21 @@ final class SyncWriter implements AutoCloseable {
         if (operation.get("action").equals("create-directory")) {
             String id = backend.createDirectory(job.plan.target.root, parent, name, job.control);
             job.directories.put(SyncPlanModel.key(path), id); return outcome(operation, "succeeded", null, null);
+        }
+        if (SyncPlanModel.isDelete(operation)) {
+            Map<String, Object> old = job.plan.target.entry(operation.get("targetEntryId"));
+            if (operation.get("action").equals("delete-file")) {
+                // 删除前核对完整内容；与确认时不同就不删。
+                Replacement target = track(job, backend.replacement(job.plan.target.root, parent, old, job.control));
+                try {
+                    InputStream original = track(job, target.read(job.control));
+                    try { digest(original, old, job.control, () -> job.timedOut); } finally { close(job, original); }
+                    target.verify(job.control); check(job);
+                } finally { close(job, target); }
+            }
+            backend.delete(job.plan.target.root, parent, old, job.control);
+            job.directories.remove(SyncPlanModel.key(path));
+            return outcome(operation, "succeeded", null, null);
         }
         Map<String, Object> entry = job.plan.source.entry(operation.get("sourceEntryId"));
         ArchiveModel.Source source = material.file(string(entry.get("entryId"))); ArchiveModel.Observation baseline = observe(job.plan, source, entry, job.control);
@@ -299,7 +319,7 @@ final class SyncWriter implements AutoCloseable {
             if (job.observer != null) job.observer.stage("writing");
             for (int i = 0; i < plan.writes.size(); i++) {
                 index = i; Map<String, Object> operation = plan.writes.get(i), result = write(job, operation, material, fileIndex);
-                outcomes.set(i, result); if (!operation.get("action").equals("create-directory")) fileIndex++;
+                outcomes.set(i, result); if (SyncPlanModel.isFileWrite(operation)) fileIndex++;
                 if (job.observer != null) try { job.observer.outcome(result); } catch (Exception ignored) { /* 观察者失败不能改写已核实的实际结果。 */ }
                 if (!result.get("status").equals("succeeded")) { error = result.get("error"); break; }
                 if (!clean(job)) { cleanup = cleanupError(); error = i + 1 < plan.writes.size() ? cleanup : null; break; }

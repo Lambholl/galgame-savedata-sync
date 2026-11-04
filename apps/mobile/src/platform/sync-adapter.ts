@@ -53,7 +53,8 @@ export interface MobileSyncAdapter {
   preview(id: string): Promise<SyncPreparationPreview>
   cancelPreparation(id: string): Promise<SyncPreparationState>
   releasePreparation(id: string): Promise<void>
-  execute(id: string): Promise<SyncTransferState>
+  /** shouldDeleteExtras 是确认时的开关选择；按它和原预览重新生成计划后执行。 */
+  execute(id: string, shouldDeleteExtras: boolean): Promise<SyncTransferState>
   currentCopy(shouldRefresh?: boolean): Promise<MobileCopyDetails | null>
   /** 这款游戏最近一次任务；进程内没有记录时返回 null。 */
   latestCopy(projectId: string, shouldRefresh?: boolean): Promise<MobileCopyDetails | null>
@@ -190,7 +191,7 @@ export function createMobileSyncAdapter(
     async releasePreparation(id) {
       unwrap(await copies.release(id))
     },
-    async execute(id) {
+    async execute(id, shouldDeleteExtras) {
       const preview = unlessExpired(await copies.preview(id))
       const expected = preview.binding
       const isPermitted = dependencies?.requestNotifications
@@ -210,7 +211,9 @@ export function createMobileSyncAdapter(
           'The project or directory link changed. Scan and confirm again.',
         )
       }
-      return unlessExpired(await copies.execute(id, syncPlanFromPreview(preview)))
+      return unlessExpired(
+        await copies.execute(id, syncPlanFromPreview({ ...preview, shouldDeleteExtras })),
+      )
     },
     async currentCopy(shouldRefresh = false) {
       return copyDetails(unwrap(await copies.current()), shouldRefresh)

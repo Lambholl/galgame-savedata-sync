@@ -116,6 +116,40 @@ final class SafSyncBackend implements SyncWriter.Backend {
             throw cause;
         }
     }
+    @Override public void delete(String rootId, String parentId, Map<String, Object> expected, ArchiveControl control) throws Exception {
+        SafDirectoryStore.PublicationDirectory directory = locate(rootId, parentId, false, control);
+        List<String> path = BackupModel.path(expected.get("path")); String name = path.get(path.size() - 1);
+        boolean isDirectory = expected.get("kind").equals("directory");
+        SafDirectoryStore.Snapshot value = null;
+        for (SafDirectoryStore.Snapshot child : children(directory, control)) if (child.name.equals(name)) {
+            if (value != null) throw new ArchiveFailure("name-conflict", "The target contains duplicate names."); value = child;
+        }
+        if (value == null) throw new ArchiveFailure("source-changed", "The entry to be deleted no longer exists.");
+        named(directory, name, value.documentId, control);
+        // 文件夹里的子项刚被删过，它的修改时间已经变了，只核对身份和类型。
+        if (!store.publicationEntry(directory, value).entryId.equals(expected.get("entryId")) || value.isDirectory != isDirectory || value.isVirtual ||
+            (!isDirectory && (!Objects.equals(value.modified, nullable(expected.get("modifiedAt"), -BackupModel.MAX_DATE, BackupModel.MAX_DATE)) ||
+                (value.size != null && value.size.longValue() != number(expected.get("sizeBytes"), 0, 9007199254740991L))))) throw new ArchiveFailure("source-changed", "The target identity, type, or attributes changed.");
+        if ((value.flags & Document.FLAG_SUPPORTS_DELETE) == 0) throw new ArchiveFailure("unsupported-operation", "The provider does not allow deleting this entry.");
+        // SAF 的 deleteDocument 会递归删除，这里先确认文件夹是空的，只删计划列出的条目。
+        if (isDirectory && !children(locate(rootId, string(expected.get("entryId")), false, control), control).isEmpty()) throw new ArchiveFailure("source-changed", "The directory to delete is no longer empty.");
+        control.check();
+        Uri uri = DocumentsContract.buildDocumentUriUsingTree(directory.tree, value.documentId);
+        try {
+            if (!DocumentsContract.deleteDocument(resolver, uri)) throw new java.io.IOException("The provider did not delete the document");
+        } catch (Exception cause) {
+            if (Boolean.TRUE.equals(stillExists(directory, name, value.documentId))) throw new ArchiveFailure("io-failure", "The provider refused to delete this entry.", false, cause);
+            throw new ArchiveFailure("result-unknown", "Deletion started but the result could not be verified. Read the target again.", false, cause);
+        }
+        if (!Boolean.FALSE.equals(stillExists(directory, name, value.documentId))) throw new ArchiveFailure("result-unknown", "Deletion finished but the entry could not be confirmed gone. Read the target again.");
+    }
+    /** 已到提交点，用独立的控制回读，晚到的取消不影响结果；读不到时为 null，调用方报结果待确认。 */
+    private Boolean stillExists(SafDirectoryStore.PublicationDirectory directory, String name, String documentId) {
+        try {
+            for (SafDirectoryStore.Snapshot child : children(directory, new ArchiveControl())) if (child.name.equals(name) && child.documentId.equals(documentId)) return true;
+            return false;
+        } catch (Exception unreadable) { return null; }
+    }
     @Override public SyncWriter.Replacement replacement(String rootId, String parentId, Map<String, Object> expected, ArchiveControl control) throws Exception {
         return existing(rootId, parentId, expected, control, true);
     }

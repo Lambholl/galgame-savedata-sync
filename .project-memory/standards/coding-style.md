@@ -63,7 +63,7 @@ related_files: []
 | Android Java | 沿用 Java；通用基线无专属 Java 文件，适用通用编码规则、现有 Android 风格及官方 Java 约定。原生代码用 javac、Android lint、单元/仪器测试验证，不为本包引入 Kotlin 插件 |
 | 检查入口 | `pnpm check` 执行文本、格式、lint、类型检查和双端构建；`pnpm test:all` 单独运行全量测试；`security:check` / `security:android` 分别审计 Node 工具链及 Maven |
 | Windows 交付 | 默认只编译桌面运行资源，不重新生成安装版或免安装版；完整打包须有维护者新的明确要求。Android 按原入口生成 APK |
-| 版本控制边界 | 忽略清单以 `.gitignore` 为准，生成产物与临时报告不进入 Git；界面原型放本地 `docs/design/`（已忽略）并发布为 Artifact，记忆里引用 Artifact 链接 |
+| 版本控制边界 | 忽略清单以 `.gitignore` 为准，生成产物与临时报告不进入 Git；界面原型只留在本地（`docs/design/`、`.reports/`，都已忽略） |
 
 ## 5. 错误处理与日志
 

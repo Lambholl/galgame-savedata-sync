@@ -280,6 +280,7 @@ export class WindowsRestoreRegistry {
         operation: job.plan.operation,
         direction: job.plan.direction,
         shouldBackup: job.plan.shouldBackup,
+        shouldDeleteExtras: job.plan.shouldDeleteExtras,
         source: job.plan.source,
         target: job.plan.target,
       })

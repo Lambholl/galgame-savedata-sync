@@ -4,9 +4,10 @@ import type { CapabilityState, OperationError, TransferDirection } from '../prot
 export const SYNC_SCHEMA_VERSION = 1
 /**
  * 能力声明的版本，也是两端能否互传的唯一门槛。2 表示支持 sync.job 任务观察与
- * SyncJobState 的 failureStage；版本不同时发起方在扫描前就提示更新，不会走到任务阶段。
+ * SyncJobState 的 failureStage，3 表示计划可带 shouldDeleteExtras 与删除动作；
+ * 版本不同时发起方在扫描前就提示更新，不会走到任务阶段。
  */
-export const SYNC_CAPABILITIES_VERSION = 2
+export const SYNC_CAPABILITIES_VERSION = 3
 
 /** 只限制本次扫描；文件传输与备份另受 BATCH_LIMITS 约束。 */
 export const SYNC_LIMITS = Object.freeze({
@@ -81,8 +82,11 @@ export interface SyncScanState {
   readonly error: OperationError | null
 }
 
-export type SyncAction =
-  'create-directory' | 'create-file' | 'replace-file' | 'skip' | 'keep' | 'conflict'
+/** 计划里会改动目标的动作；执行顺序是新建文件夹、写文件，最后由深到浅删除。 */
+export type SyncWriteAction =
+  'create-directory' | 'create-file' | 'replace-file' | 'delete-file' | 'delete-directory'
+
+export type SyncAction = SyncWriteAction | 'skip' | 'keep' | 'conflict'
 
 /** 一项只对应同一原始路径；完整内容期望保留在当前计划的两端快照中。 */
 export interface SyncPlanEntry {
@@ -113,6 +117,8 @@ export interface SyncPlanInput {
   readonly operation: 'copy' | 'restore'
   readonly direction: TransferDirection | 'local-restore'
   readonly shouldBackup: boolean
+  /** 只在目标有的条目：false 保留，true 删除。恢复计划固定为 false。 */
+  readonly shouldDeleteExtras: boolean
   readonly source: SyncSnapshot
   readonly target: SyncSnapshot
 }
@@ -178,7 +184,7 @@ export interface SyncBackupSettings {
 /** 只列实际观察；unknown 必须保留 result-unknown，不能自动重放写入。 */
 export interface SyncWriteOutcome {
   readonly path: readonly string[]
-  readonly action: 'create-directory' | 'create-file' | 'replace-file'
+  readonly action: SyncWriteAction
   readonly status: 'succeeded' | 'failed' | 'cancelled' | 'not-attempted' | 'unknown'
   readonly sizeBytes: number | null
   readonly sha256: string | null

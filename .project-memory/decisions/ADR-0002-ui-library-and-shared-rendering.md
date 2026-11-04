@@ -35,7 +35,7 @@ accepted。2026-11-01 确定：组件库维持 antd + antd-mobile；与两端交
 
 ## 背景
 
-界面重设计原型 v2（[Artifact](https://claude.ai/artifact/94QdB3M9q6cuADZ9tPnWsT)，本地 docs/design/ui-redesign-v2/ 不进 Git）让两端同一页面采用相同的信息结构：方向条、差异着色的文件行、计划摘要、阶段条、备份时间线、路径显示等在两端只差尺寸与容器。现有约定要求两端界面各自维护，apps/shared 禁止引入 React、组件库与 DOM，因此这些渲染只能写两份。评估过改用 Base UI 等无样式组件库以便两端共用页面。
+界面重设计原型 v2（本地 docs/design/ui-redesign-v2/ 不进 Git）让两端同一页面采用相同的信息结构：方向条、差异着色的文件行、计划摘要、阶段条、备份时间线、路径显示等在两端只差尺寸与容器。现有约定要求两端界面各自维护，apps/shared 禁止引入 React、组件库与 DOM，因此这些渲染只能写两份。评估过改用 Base UI 等无样式组件库以便两端共用页面。
 
 ## 决策
 
@@ -77,6 +77,6 @@ accepted。2026-11-01 确定：组件库维持 antd + antd-mobile；与两端交
 
 ## 相关文件
 
-- 原型 v2：https://claude.ai/artifact/94QdB3M9q6cuADZ9tPnWsT
+- 原型 v2：本地 docs/design/ui-redesign-v2/（不进 Git）
 - eslint.config.mjs（apps/shared 与两端的 no-restricted-imports 规则）
 - standards/coding-style.md 平台边界、requirements/constraints.md 开发方式、architecture/overview.md 技术选型理由

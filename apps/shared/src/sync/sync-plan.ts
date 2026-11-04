@@ -58,9 +58,32 @@ function inspectSnapshot(
   return names
 }
 
-function chooseAction(source: SyncEntry | undefined, target: SyncEntry | undefined): SyncAction {
+/** 这一项是否会改动目标。 */
+export function isSyncWriteEntry(entry: SyncPlanEntry): boolean {
+  return (
+    entry.action === 'create-directory' ||
+    entry.action === 'create-file' ||
+    entry.action === 'replace-file' ||
+    entry.action === 'delete-file' ||
+    entry.action === 'delete-directory'
+  )
+}
+
+/** 这个动作是否写入文件内容；只有这些动作需要来源文件，也只有这些结果带指纹。 */
+export function isSyncFileWrite(action: SyncAction): boolean {
+  return action === 'create-file' || action === 'replace-file'
+}
+
+function chooseAction(
+  source: SyncEntry | undefined,
+  target: SyncEntry | undefined,
+  shouldDeleteExtras: boolean,
+): SyncAction {
   if (!source) {
-    return 'keep'
+    if (!shouldDeleteExtras) {
+      return 'keep'
+    }
+    return target?.kind === 'directory' ? 'delete-directory' : 'delete-file'
   }
   if (!target) {
     return source.kind === 'directory' ? 'create-directory' : 'create-file'
@@ -79,15 +102,24 @@ function chooseAction(source: SyncEntry | undefined, target: SyncEntry | undefin
     : 'replace-file'
 }
 
+function operationRank(entry: SyncPlanEntry): number {
+  if (entry.action === 'create-directory') {
+    return 0
+  }
+  return entry.action === 'delete-file' || entry.action === 'delete-directory' ? 2 : 1
+}
+
+/** 先建文件夹（由浅到深）再写文件；删除排在最后（由深到浅），写入失败时什么都还没删。 */
 function compareOperations(a: SyncPlanEntry, b: SyncPlanEntry): number {
-  if (a.action === 'create-directory' && b.action !== 'create-directory') {
-    return -1
+  const rank = operationRank(a) - operationRank(b)
+  if (rank !== 0) {
+    return rank
   }
-  if (a.action !== 'create-directory' && b.action === 'create-directory') {
-    return 1
-  }
-  if (a.action === 'create-directory' && b.action === 'create-directory') {
+  if (operationRank(a) === 0) {
     return a.path.length - b.path.length || compareSyncPaths(a.path, b.path)
+  }
+  if (operationRank(a) === 2) {
+    return b.path.length - a.path.length || compareSyncPaths(a.path, b.path)
   }
   return compareSyncPaths(a.path, b.path)
 }
@@ -117,12 +149,7 @@ function jsonByteLength(value: unknown): number {
 export function selectSyncBackupFiles(
   plan: Pick<SyncPlan, 'shouldBackup' | 'entries' | 'target'>,
 ): readonly SyncEntry[] {
-  if (
-    !plan.shouldBackup ||
-    !plan.entries.some((entry) =>
-      ['create-directory', 'create-file', 'replace-file'].includes(entry.action),
-    )
-  ) {
+  if (!plan.shouldBackup || !plan.entries.some(isSyncWriteEntry)) {
     return []
   }
   return plan.target.entries.filter((entry) => entry.kind === 'file')
@@ -167,7 +194,7 @@ export function createSyncPlan(input: SyncPlanInput): SyncPlan {
     const from = sourceEntries.get(key)
     const to = targetEntries.get(key)
     const path = from?.path ?? to?.path ?? []
-    const action = chooseAction(from, to)
+    const action = chooseAction(from, to, input.shouldDeleteExtras)
     if (action === 'conflict') {
       issues.push({ code: 'type-conflict', side: 'both', path })
     }
@@ -237,4 +264,18 @@ export function createSyncPlan(input: SyncPlanInput): SyncPlan {
     }
   }
   return result
+}
+
+/** 用同一份快照重新生成计划，只改变目标多出条目的处理方式；不读取文件，也不需要重新扫描。 */
+export function withDeleteExtras(plan: SyncPlan, shouldDeleteExtras: boolean): SyncPlan {
+  return createSyncPlan({
+    planId: plan.planId,
+    projectId: plan.projectId,
+    operation: plan.operation,
+    direction: plan.direction,
+    shouldBackup: plan.shouldBackup,
+    shouldDeleteExtras,
+    source: plan.source,
+    target: plan.target,
+  })
 }

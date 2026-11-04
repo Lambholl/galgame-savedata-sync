@@ -115,13 +115,20 @@ export function SyncTaskSummary({
     const verdict = verdicts[phase]
     let detail: ReactNode = null
     if (phase === 'done') {
-      const written = t('task.doneDetail', { count: succeeded.length })
+      const deleted = succeeded.filter(
+        (item) => item.action === 'delete-file' || item.action === 'delete-directory',
+      ).length
+      const written = succeeded.length - deleted
       // 数量读不到时仍说已备份，这是确知的。
       const backedUp =
         typeof result?.backupFileCount === 'number'
           ? t('task.backedUpCount', { count: result.backupFileCount })
           : t('task.backedUp')
-      detail = result?.backupId ? `${written} · ${backedUp}` : written
+      detail = [
+        ...(written > 0 || deleted === 0 ? [t('task.doneDetail', { count: written })] : []),
+        ...(deleted > 0 ? [t('task.deletedDetail', { count: deleted })] : []),
+        ...(result?.backupId ? [backedUp] : []),
+      ].join(' · ')
     } else if (phase === 'partial') {
       detail = t('task.partialDetail', { ok: succeeded.length, failed: unsettled.length })
     } else if (phase === 'failed') {

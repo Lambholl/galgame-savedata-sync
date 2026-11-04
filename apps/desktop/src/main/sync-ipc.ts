@@ -19,7 +19,15 @@ function input(args: readonly unknown[], fields: readonly string[]): Record<stri
     throw new HttpOperationError('invalid-request', 'Sync parameters are invalid.')
   }
   const data = value as Record<string, unknown>
-  if (fields.some((key) => key !== 'plan' && key !== 'direction' && !isOpaqueId(data[key]))) {
+  if (
+    fields.some(
+      (key) =>
+        key !== 'plan' &&
+        key !== 'direction' &&
+        key !== 'shouldDeleteExtras' &&
+        !isOpaqueId(data[key]),
+    )
+  ) {
     throw new HttpOperationError('invalid-request', 'The sync reference is invalid.')
   }
   if (
@@ -100,18 +108,16 @@ export function registerSyncIpc(
             data.peerId as string,
             data.direction as 'android-to-windows' | 'windows-to-android',
           )
-        } else if (
-          action === 'remotePlan' ||
-          action === 'confirmRemote' ||
-          action === 'cancelRemote'
-        ) {
+        } else if (action === 'confirmRemote') {
+          const data = input(args, ['requestId', 'shouldDeleteExtras'])
+          if (typeof data.shouldDeleteExtras !== 'boolean') {
+            throw new HttpOperationError('invalid-request', 'The confirmation format is invalid.')
+          }
+          value = service.confirmRemoteSync(data.requestId as string, data.shouldDeleteExtras)
+        } else if (action === 'remotePlan' || action === 'cancelRemote') {
           const id = input(args, ['requestId']).requestId as string
           value =
-            action === 'remotePlan'
-              ? service.remoteSyncPlan(id)
-              : action === 'confirmRemote'
-                ? service.confirmRemoteSync(id)
-                : service.cancelRemoteSync(id)
+            action === 'remotePlan' ? service.remoteSyncPlan(id) : service.cancelRemoteSync(id)
         } else if (action === 'prepareRestore') {
           const data = input(args, ['projectId', 'rootId', 'backupId'])
           value = restores.prepare(

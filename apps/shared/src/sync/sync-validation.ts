@@ -92,6 +92,7 @@ export function isSyncPlanInput(value: unknown): value is SyncPlanInput {
       'operation',
       'direction',
       'shouldBackup',
+      'shouldDeleteExtras',
       'source',
       'target',
     ]) &&
@@ -101,8 +102,10 @@ export function isSyncPlanInput(value: unknown): value is SyncPlanInput {
       (value.direction === 'windows-to-android' || value.direction === 'android-to-windows')) ||
       (value.operation === 'restore' &&
         value.direction === 'local-restore' &&
-        value.shouldBackup === true)) &&
+        value.shouldBackup === true &&
+        value.shouldDeleteExtras === false)) &&
     typeof value.shouldBackup === 'boolean' &&
+    typeof value.shouldDeleteExtras === 'boolean' &&
     isSyncSnapshot(value.source) &&
     isSyncSnapshot(value.target)
   )

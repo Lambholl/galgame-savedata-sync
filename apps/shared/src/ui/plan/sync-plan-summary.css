@@ -103,6 +103,9 @@
 .ss-stats .is-keep b {
   color: var(--ss-faint);
 }
+.ss-stats .is-delete b {
+  color: var(--ss-danger);
+}
 
 .ss-metaline {
   display: flex;
@@ -172,6 +175,9 @@
 .ss-sec.is-keep i {
   background: var(--ss-faint);
 }
+.ss-sec.is-delete i {
+  background: var(--ss-danger);
+}
 .ss-group {
   overflow: hidden;
   border-radius: var(--ss-r-md);
@@ -213,6 +219,12 @@ button.ss-prow {
 }
 .ss-prow-change .is-up {
   color: var(--ss-ok);
+}
+.ss-prow-change .is-down {
+  color: var(--ss-danger);
+}
+.ss-prow.is-delete .ss-prow-name {
+  text-decoration: line-through;
 }
 .ss-pdetail {
   display: grid;

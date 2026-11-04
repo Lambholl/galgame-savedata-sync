@@ -28,5 +28,5 @@ apps/mobile/android/app/src/main/assets/capacitor.plugins.json
 .eslintcache
 **/keystore.properties
 
-# 界面原型只留本地，发布为 Artifact，不进入 Git
+# 界面原型只留本地，不进入 Git
 docs/design/

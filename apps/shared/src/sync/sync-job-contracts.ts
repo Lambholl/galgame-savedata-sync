@@ -93,6 +93,8 @@ export interface SyncPreparationPreview {
   readonly source: SyncSnapshot
   readonly target: SyncSnapshot
   readonly shouldBackup: boolean
+  /** 开始前为 false，由页面按开关决定；开始后是这次任务确认的选择，读回时据此还原计划。 */
+  readonly shouldDeleteExtras: boolean
   /** 被写入一端的保留份数，不分传输方向。 */
   readonly backupKeepCount: number
 }

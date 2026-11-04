@@ -24,7 +24,7 @@ related_files: []
 
 本文记录当前接口。Windows 为 HTTP 服务端，Android 原生层为拨号方和控制客户端。平台说明见 `apps/desktop/README.md`、`apps/mobile/README.md`，共享字段与线格式见 `apps/shared/README.md`。
 
-已接入：游戏与设备配置、三页导航、并列目录视图、受保护覆盖、写入前全量备份、本机恢复和两端发起。还没有镜像删除与 mDNS 自动发现，安排见[路线图](../project/roadmap.md)。
+已接入：游戏与设备配置、三页导航、并列目录视图、受保护覆盖、可选的目标多余条目删除、写入前全量备份、本机恢复和两端发起。还没有 mDNS 自动发现，安排见[路线图](../project/roadmap.md)。
 
 文件传输双向统一采用 tar.gz（[Q-008](../requirements/open-questions.md)），完整设计见 `docs/plans/m001-tar-gzip-protocol.md`。Windows 提供 v1 读取、sender 和上传 receiver 端点；受保护复制接口见第 3 节。
 
@@ -55,9 +55,9 @@ Windows 提供 `/v1/sync/capabilities`、`POST /v1/sync/scans` 和 `GET/DELETE /
 
 设备间控制走 WebSocket `/v1/control`，文件内容走 HTTP 路由。拨号方先完成 `POST /v1/catalog` 交换，再带 `x-sync-session-id` 和 `x-sync-device-id` 升级；监听方核对会话、设备已交换目录表、未停用、未被断开且没有另一台设备在线，不满足返回 403。消息格式对称，双方都能发请求、回应答、推事件：`{v:1, type:request|response|event, id?, method, body|result}`，单条最多 8 MiB，只收文本帧，JSON 严格解析（重复键、非法 UTF-8 关闭 1007，格式不符关闭 1008）。请求方法有 `directory.list`、`sync.prepare`、`sync.confirm`、`sync.cancel`、`sync.job.read`、`sync.job.cancel`，事件有 `catalog.changed`、`sync.report` 和 `sync.job`；请求 8 秒无应答即失败。监听方每 15 秒 ping，一个周期无 pong 就断开。关闭码 4001 表示监听方断开了这台设备，拨号方不再重连；4002 表示同一设备的新连接取代旧连接；其他关闭时拨号方 2 秒后重连。格式和守卫在 `apps/shared/src/control`，电脑 `control-hub.ts`（ws）监听，手机 `ControlClient.java`（Java-WebSocket）拨号，网页经 `platform/control-channel.ts` 收发。两端须同版，没有轮询回退。目前只有电脑监听、手机拨号，任意两台设备互传见 REQ-022。
 
-电脑发起复制复用手机的扫描与执行，经控制通道传递。电脑 `remote-sync-requests.ts` 同时只保留一个请求：发起时发 `sync.prepare {requestId, projectId, direction}`，手机应答后开始扫描，用 `sync.report` 回报 preparing、ready（附计划）或 failed。手机有传输刚结束时最多等 2 秒再判断是否 busy；新扫描取代还没结束的旧扫描，等待期间被取消或被更新请求取代的 `sync.prepare` 只应答、不扫描；ready 计划须是对应项目、方向、设备和根的覆盖复制。电脑确认后发 `sync.confirm`，手机执行并应答 `{jobId}`，jobId 等于 planId 时记为 running；之后的进度和结果来自下面的任务观察。电脑取消发 `sync.cancel`，手机取消并释放本机扫描；控制连接断开时未确认的请求记为失败，已确认的请求记为结果待确认，手机重连后由摘要更新。有限 desktopSync 桥提供 remoteRequest/startRemote/remotePlan/confirmRemote/cancelRemote。
+电脑发起复制复用手机的扫描与执行，经控制通道传递。电脑 `remote-sync-requests.ts` 同时只保留一个请求：发起时发 `sync.prepare {requestId, projectId, direction}`，手机应答后开始扫描，用 `sync.report` 回报 preparing、ready（附计划）或 failed。手机有传输刚结束时最多等 2 秒再判断是否 busy；新扫描取代还没结束的旧扫描，等待期间被取消或被更新请求取代的 `sync.prepare` 只应答、不扫描；ready 计划须是对应项目、方向、设备和根的覆盖复制。`sync.report` 附的计划固定 `shouldDeleteExtras=false`，电脑确认后发 `sync.confirm {requestId, shouldDeleteExtras}`，两端用同一批快照各自算出选定的计划；手机执行并应答 `{jobId}`，jobId 等于 planId 时记为 running；之后的进度和结果来自下面的任务观察。电脑取消发 `sync.cancel`，手机取消并释放本机扫描；控制连接断开时未确认的请求记为失败，已确认的请求记为结果待确认，手机重连后由摘要更新。有限 desktopSync 桥提供 remoteRequest/startRemote/remotePlan/confirmRemote/cancelRemote。
 
-任务观察对两种发起方式、两个方向相同。版本：`/v1/sync/capabilities.schemaVersion` 为 2，是唯一的版本门槛，版本不符的对端在创建任务前得到“请更新两端”；控制消息 `v` 为 1。`SyncJobState.schemaVersion` 为 2，含 `failureStage`（失败、取消或待确认时停在哪个阶段，取值为 cleaning、done 以外的阶段；成功、已发送或没有记录时为 null，清理和终态更新不改写它）。`SyncTransferState` 为 1。
+任务观察对两种发起方式、两个方向相同。版本：`/v1/sync/capabilities.schemaVersion` 为 3，是唯一的版本门槛，版本不符的对端在创建任务前得到“请更新两端”；控制消息 `v` 为 1。`SyncJobState.schemaVersion` 为 2，含 `failureStage`（失败、取消或待确认时停在哪个阶段，取值为 cleaning、done 以外的阶段；成功、已发送或没有记录时为 null，清理和终态更新不改写它）。`SyncTransferState` 为 1。
 
 | 消息 | 方向 | 内容 | 失败含义 |
 | --- | --- | --- | --- |
@@ -69,7 +69,7 @@ Windows 提供 `/v1/sync/capabilities`、`POST /v1/sync/scans` 和 `GET/DELETE /
 
 电脑侧 `copyState`、`cancelCopy` 返回 `SyncTransferState`，`DesktopCopySummary` 用 phase、stage、step、percent 表示进度，由主进程计算，详情、游戏进度条、历史和完成提示读同一份，高频更新不携带逐项结果。已确认但手机还没登记任务时，`remote-sync-requests.ts` 用同一个 jobId 提供占位的摘要、计划和状态，详情显示准备中；登记后改由 `WindowsSyncRegistry` 提供。对端未结束的任务不会被留存清理，也算作有运行中的工作。
 
-备份展示字段由同一能力版本 2 覆盖，两端须同版，封闭 DTO 严格校验。
+备份展示字段和计划的 `shouldDeleteExtras`、`delete-file`、`delete-directory` 由同一能力版本 3 覆盖，两端须同版，封闭 DTO 严格校验。计划动作的执行顺序是新建文件夹（由浅到深）、写文件、删除（由深到浅，同深度按路径），两端必须算出相同顺序。恢复计划固定 `shouldDeleteExtras=false`。文件在删除前核对身份和完整内容；文件夹只删空的，Windows 用非递归 `rmdir`，Android 的 `deleteDocument` 会递归，所以先确认文件夹为空。系统已开始删除但结果没能确认时报 result-unknown。
 
 | 字段 | 位置 | 含义 | 失败或未知 |
 | --- | --- | --- | --- |
@@ -170,4 +170,4 @@ Android 桥提供 `connections`、`selectDevice`、`disconnectDevice`、`exchang
 
 主动握手后的首个 catalog 请求携带 `x-sync-connect: 1`，之后的交换不携带。桌面断开只修改进程内会话并以 4001 关闭控制连接，不写入 `blocked=true`；断开后的普通交换收到 `session-mismatch`，手机再次主动连接时清除标记。连接失败返回 HTTP 状态、协议码及原生 errno 或异常类型，不附加原因改写或重试建议。
 
-界面由 `apps/desktop/src/renderer/src` 和 `apps/mobile/src` 各自维护，平台接入位于各端 `platform/library-adapter.ts`。`apps/shared` 提供协议、配置、任务数据、传输预检与游戏关联规则，不依赖组件库或平台 API。双端都有复制计划/结果、备份设置/列表和本机恢复，也都能发起复制；镜像删除还没有实现（M-004）。v1 批量文件传输只新建文件，不覆盖已有文件。
+界面由 `apps/desktop/src/renderer/src` 和 `apps/mobile/src` 各自维护，平台接入位于各端 `platform/library-adapter.ts`。`apps/shared` 提供协议、配置、任务数据、传输预检与游戏关联规则，不依赖组件库或平台 API。双端都有复制计划/结果、备份设置/列表和本机恢复，也都能发起复制和选择删除目标多出的条目。v1 批量文件传输只新建文件，不覆盖已有文件。

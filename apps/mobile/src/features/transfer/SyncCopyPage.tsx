@@ -1,7 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { ActionSheet } from 'antd-mobile'
 import { RightOutlined } from '@ant-design/icons'
-import { compareSnapshots, syncPlanFromPreview, toShownError } from '@savedata-sync/shared'
+import {
+  compareSnapshots,
+  isSyncWriteEntry,
+  syncPlanFromPreview,
+  toShownError,
+} from '@savedata-sync/shared'
 import type {
   DirectoryReference,
   LibraryGame,
@@ -11,7 +16,7 @@ import type {
   SyncPreparationState,
   TransferDirection,
 } from '@savedata-sync/shared'
-import { TransferComparison, useT } from '@savedata-sync/shared/ui'
+import { TransferComparison, syncStartConfirmation, useT } from '@savedata-sync/shared/ui'
 import type { ComparisonStatus, PlanEndpoint } from '@savedata-sync/shared/ui'
 import type { MobileSyncAdapter } from '../../platform/sync-adapter'
 import type { Confirmation } from '../../app/navigation-types'
@@ -69,6 +74,8 @@ export function SyncCopyPage({
   const [scanVersion, setScanVersion] = useState(0)
   const [isPeerSheetOpen, setIsPeerSheetOpen] = useState(false)
   const [isStarting, setIsStarting] = useState(false)
+  /** 目标多出的条目是否保留；每次重新比较都回到保留，不记住上次的选择。 */
+  const [isKeepingExtras, setIsKeepingExtras] = useState(true)
   const executed = useRef<string | null>(null)
   const peer = peers.find((item) => item.device.id === peerId)
   const remote = peer?.games.find(
@@ -96,6 +103,7 @@ export function SyncCopyPage({
     setPreparation(null)
     setPreview(null)
     setScanError(null)
+    setIsKeepingExtras(true)
     async function accept(state: SyncPreparationState): Promise<void> {
       if (!isCurrent) {
         return
@@ -145,7 +153,18 @@ export function SyncCopyPage({
       ? compareSnapshots(preview.source, preview.target)
       : compareSnapshots(preview.target, preview.source)
   }, [preview])
-  const plan = useMemo(() => (preview ? syncPlanFromPreview(preview) : null), [preview])
+  const plan = useMemo(
+    () =>
+      preview ? syncPlanFromPreview({ ...preview, shouldDeleteExtras: !isKeepingExtras }) : null,
+    [preview, isKeepingExtras],
+  )
+  const hasExtras =
+    plan?.entries.some(
+      (item) =>
+        item.action === 'keep' ||
+        item.action === 'delete-file' ||
+        item.action === 'delete-directory',
+    ) ?? false
   const hasChanged =
     preview !== null &&
     (preview.direction !== direction ||
@@ -198,20 +217,18 @@ export function SyncCopyPage({
       )
       .catch((cause: unknown) => setScanError(toShownError(cause)))
   }
-  const hasChanges =
-    plan?.entries.some((item) =>
-      ['create-file', 'replace-file', 'create-directory'].includes(item.action),
-    ) ?? false
+  const hasChanges = plan?.entries.some(isSyncWriteEntry) ?? false
   const canStart = !hasChanged && Boolean(plan?.canExecute) && hasChanges
   function start(): void {
     if (!plan || !preparation || !canStart) {
       return
     }
     const id = preparation.preparationId
+    const shouldDeleteExtras = plan.shouldDeleteExtras
     async function work(): Promise<void> {
       executed.current = id
       try {
-        const state = await sync.execute(id)
+        const state = await sync.execute(id, shouldDeleteExtras)
         await onStarted(state.jobId)
       } catch (cause) {
         executed.current = null
@@ -223,14 +240,9 @@ export function SyncCopyPage({
         setScanVersion((value) => value + 1)
       }
     }
-    // 开启备份时直接开始；关闭备份时才确认一次。
-    if (!plan.shouldBackup) {
-      onConfirm({
-        title: t('transfer.noBackupTitle'),
-        text: t('transfer.noBackupText'),
-        okType: 'danger',
-        work,
-      })
+    const confirmation = syncStartConfirmation(plan, t)
+    if (confirmation) {
+      onConfirm({ ...confirmation, okType: 'danger', work })
       return
     }
     setIsStarting(true)
@@ -272,6 +284,8 @@ export function SyncCopyPage({
           onPickPeer={() => setIsPeerSheetOpen(true)}
           onRefresh={() => setScanVersion((value) => value + 1)}
           onCancel={cancellableId === null ? null : () => cancelScan(cancellableId)}
+          isKeepingExtras={isKeepingExtras}
+          onKeepExtrasChange={hasExtras ? setIsKeepingExtras : null}
         />
       </div>
       {isPlan && plan && (

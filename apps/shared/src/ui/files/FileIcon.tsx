@@ -5,9 +5,10 @@ import './file-icon.css'
 
 /**
  * 图标右上角的状态点：warn 为内容不同（或文件夹内有不一致），
- * new 为只在来源有（将在目标新建），only 为只在这一端有（目标独有，会保留）。
+ * new 为只在来源有（将在目标新建），only 为只在这一端有（目标独有，会保留），
+ * delete 为目标独有且这次会删除。
  */
-export type FileIconMarker = 'none' | 'warn' | 'new' | 'only'
+export type FileIconMarker = 'none' | 'warn' | 'new' | 'only' | 'delete'
 
 /** FileIcon 的参数。 */
 export interface FileIconProps {

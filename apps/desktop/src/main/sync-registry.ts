@@ -10,7 +10,9 @@ import {
   HTTP_HEADERS,
   SYNC_JOB_SCHEMA_VERSION,
   SYNC_LIMITS,
+  isSyncFileWrite,
   isSyncJobRequest,
+  isSyncWriteEntry,
   matchesSyncJobDigest,
   matchesSyncJobManifest,
   matchesSyncJobState,
@@ -126,12 +128,7 @@ export function emptyResult(
   error: OperationError | null,
   wasCancelled: boolean,
 ): SyncApplyResult {
-  const operations = request.plan.entries.filter(
-    (entry) =>
-      entry.action === 'create-directory' ||
-      entry.action === 'create-file' ||
-      entry.action === 'replace-file',
-  )
+  const operations = request.plan.entries.filter(isSyncWriteEntry)
   return {
     schemaVersion: 1,
     planId: request.jobId,
@@ -503,6 +500,7 @@ export class WindowsSyncRegistry {
         operation: value.plan.operation,
         direction: value.plan.direction,
         shouldBackup: value.plan.shouldBackup,
+        shouldDeleteExtras: value.plan.shouldDeleteExtras,
         source: isUpload ? value.plan.source : cached.snapshot,
         target: isUpload ? cached.snapshot : value.plan.target,
       })
@@ -622,7 +620,7 @@ export class WindowsSyncRegistry {
         return
       }
       const files = task.request.plan.entries
-        .filter((entry) => entry.action === 'create-file' || entry.action === 'replace-file')
+        .filter((entry) => isSyncFileWrite(entry.action))
         .map((entry, index) => ({
           fileId: `f${String(index + 1).padStart(6, '0')}`,
           entryId: entry.sourceEntryId,
@@ -1035,7 +1033,7 @@ export class WindowsSyncRegistry {
       verifyContext: () => this.verify(task),
       onStage: (stage) => this.update(task, stage === 'checking' ? 'verifying' : stage),
       onOutcome: (outcome) => {
-        if (outcome.status === 'succeeded' && outcome.action !== 'create-directory') {
+        if (outcome.status === 'succeeded' && isSyncFileWrite(outcome.action)) {
           this.update(task, 'writing', {
             publishedFiles: task.state.progress.publishedFiles + 1,
             fileBytesPublished: task.state.progress.fileBytesPublished + (outcome.sizeBytes ?? 0),

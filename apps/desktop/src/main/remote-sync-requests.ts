@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { SYNC_JOB_SCHEMA_VERSION, observeSyncJob } from '@savedata-sync/shared'
+import { SYNC_JOB_SCHEMA_VERSION, observeSyncJob, withDeleteExtras } from '@savedata-sync/shared'
 import type {
   OperationError,
   RemoteSyncReport,
@@ -213,10 +213,13 @@ export class WindowsRemoteSyncRequests {
     return { ...entry.value }
   }
 
-  /** 确认手机回报的计划；只接受可执行的 ready 计划，手机应答后即视为已开始。 */
-  confirm(requestId: string): DesktopRemoteRequest {
+  /**
+   * 确认手机回报的计划；只接受可执行的 ready 计划，手机应答后即视为已开始。
+   * shouldDeleteExtras 是确认时的开关选择：同一份快照按它重新生成计划，手机也按它执行。
+   */
+  confirm(requestId: string, shouldDeleteExtras: boolean): DesktopRemoteRequest {
     const entry = this.entry(requestId)
-    const plan = entry.plan
+    const plan = entry.plan && withDeleteExtras(entry.plan, shouldDeleteExtras)
     if (entry.value.status !== 'ready' || !plan?.canExecute) {
       throw new HttpOperationError('invalid-request', 'This plan cannot be executed. Scan again.')
     }
@@ -233,10 +236,11 @@ export class WindowsRemoteSyncRequests {
       entry.localRootId,
       entry.remoteRootId,
     )
+    entry.plan = plan
     entry.isAwaitingJob = true
     this.update(entry, { status: 'starting' })
     this.options.control
-      .request(entry.value.peerId, 'sync.confirm', { requestId })
+      .request(entry.value.peerId, 'sync.confirm', { requestId, shouldDeleteExtras })
       .then(({ jobId }) => {
         if (this.current !== entry || entry.value.status !== 'starting') {
           return

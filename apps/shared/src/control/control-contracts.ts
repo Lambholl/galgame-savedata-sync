@@ -48,8 +48,8 @@ export interface ControlRequestBodies {
   readonly 'directory.list': { readonly rootId: string; readonly parentId: string | null }
   /** 请对方扫描并生成复制计划。 */
   readonly 'sync.prepare': RemoteSyncPrepare
-  /** 确认对方回报的计划，由对方开始执行。 */
-  readonly 'sync.confirm': { readonly requestId: string }
+  /** 确认对方回报的计划，由对方开始执行；shouldDeleteExtras 是确认时的开关选择。 */
+  readonly 'sync.confirm': { readonly requestId: string; readonly shouldDeleteExtras: boolean }
   /** 放弃尚未开始的请求；对方取消并释放本次扫描。 */
   readonly 'sync.cancel': { readonly requestId: string }
   /** 读取对方角色的完整任务状态，含逐项结果；任务不存在时答复 not-found。 */

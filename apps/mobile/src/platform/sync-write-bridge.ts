@@ -180,6 +180,7 @@ export function createSyncWriteBridge(
       operation: 'restore',
       direction: 'local-restore',
       shouldBackup: true,
+      shouldDeleteExtras: false,
       source: value.source,
       target: value.target,
     })

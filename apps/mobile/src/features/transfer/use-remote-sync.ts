@@ -194,7 +194,7 @@ export function useRemoteSync(
           return failure('busy', 'The phone has already started this transfer.')
         }
         try {
-          const state = await sync.execute(id)
+          const state = await sync.execute(id, body.shouldDeleteExtras)
           item.jobId = state.jobId
           events.current.onStarted(state.jobId)
           watch(item, state.jobId).catch(() => undefined)

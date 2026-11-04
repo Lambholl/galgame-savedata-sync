@@ -241,7 +241,7 @@ final class SyncTransferEngine implements AutoCloseable {
             long backupKeepCount = preparation.upload() ? SyncJobModel.backupKeepCount(descriptor) : local.backupKeep(string(binding.get("projectId")), sourceRoot);
             transport.verifySync(connection, binding); preparation.control.check();
             Map<String, Object> preview = object("schemaVersion", 1, "preparationId", preparation.id, "direction", preparation.direction, "binding", binding,
-                "source", preparation.upload() ? source : remote.get("snapshot"), "target", preparation.upload() ? remote.get("snapshot") : source, "shouldBackup", shouldBackup, "backupKeepCount", backupKeepCount); bytes(preview);
+                "source", preparation.upload() ? source : remote.get("snapshot"), "target", preparation.upload() ? remote.get("snapshot") : source, "shouldBackup", shouldBackup, "shouldDeleteExtras", false, "backupKeepCount", backupKeepCount); bytes(preview);
             prepared = preview;
         } catch (Exception cause) {
             problem = ArchiveFailure.from(cause);
@@ -312,6 +312,8 @@ final class SyncTransferEngine implements AutoCloseable {
             "updatedAt", now, "cancelRequested", false, "failureStage", null, "result", null, "error", null, "cleanupError", null,
             "progress", object("sourceBytesRead", 0L, "archiveBytesTransferred", 0L, "fileBytesVerified", 0L, "fileBytesPublished", 0L,
                 "totalFileBytes", plan.value.get("totalFileBytes"), "totalArchiveBytes", count == 0 ? 0L : null, "totalFiles", count, "verifiedFiles", 0L, "publishedFiles", 0L));
+        // 页面重建后靠预览读回计划，这里记下这次确认的选择。
+        preparation.preview.put("shouldDeleteExtras", plan.deleteExtras);
         preparation.consumed = true; used.add(id); jobs.put(id, job); active = job; return transfer(job);
     }
     synchronized void begin(String id) throws Exception {
@@ -466,7 +468,7 @@ final class SyncTransferEngine implements AutoCloseable {
         return new SyncWriter.Execution(job, job.acceptedAt, new SyncWriter.Observer() {
             @Override public void stage(String stage) throws Exception { progress(job, stage, null, 0); }
             @Override public void outcome(Map<String, Object> result) throws Exception {
-                if (!result.get("status").equals("succeeded") || result.get("action").equals("create-directory")) return;
+                if (!result.get("status").equals("succeeded") || !SyncPlanModel.isFileWrite(result)) return;
                 synchronized (SyncTransferEngine.this) {
                     Map<String, Object> counters = map(job.state.get("progress"));
                     counters.put("publishedFiles", number(counters.get("publishedFiles"), 0, 1024) + 1);

@@ -66,22 +66,33 @@ final class SyncPlanModel {
             return path.size() == 1 ? null : id(paths.get(key(path.subList(0, path.size() - 1))).get("entryId"));
         }
     }
+    /** 这一项是否写入文件内容；只有这些动作需要来源文件，结果也只有这些带指纹。 */
+    static boolean isFileWrite(Map<String, Object> operation) {
+        return operation.get("action").equals("create-file") || operation.get("action").equals("replace-file");
+    }
+    static boolean isDelete(Map<String, Object> operation) {
+        return operation.get("action").equals("delete-file") || operation.get("action").equals("delete-directory");
+    }
+    /** 与 shared 的 compareOperations 一致：先建文件夹，再写文件，最后由深到浅删除。 */
+    private static int rank(Map<String, Object> operation) {
+        return operation.get("action").equals("create-directory") ? 0 : isDelete(operation) ? 2 : 1;
+    }
     static final class Plan {
         final Map<String, Object> value;
         final Snapshot source, target;
         final String id, project, reason;
-        final boolean backup;
+        final boolean backup, deleteExtras;
         final List<Map<String, Object>> writes = new ArrayList<>();
         final List<Object> backupFiles = new ArrayList<>();
         Plan(Object raw) throws Exception {
-            value = shape(copy(raw), "planId", "projectId", "operation", "direction", "shouldBackup", "source", "target", "schemaVersion", "entries", "issues", "transferFileCount", "totalFileBytes", "backupFileBytes", "canExecute");
+            value = shape(copy(raw), "planId", "projectId", "operation", "direction", "shouldBackup", "shouldDeleteExtras", "source", "target", "schemaVersion", "entries", "issues", "transferFileCount", "totalFileBytes", "backupFileBytes", "canExecute");
             bytes(value); number(value.get("schemaVersion"), 1, 1); id = id(value.get("planId")); project = id(value.get("projectId"));
             one(value.get("operation"), "copy", "restore"); reason = string(value.get("operation"));
             one(value.get("direction"), "android-to-windows", "windows-to-android", "local-restore");
-            require(value.get("shouldBackup") instanceof Boolean && Boolean.TRUE.equals(value.get("canExecute")) && list(value.get("issues")).isEmpty());
-            backup = (Boolean) value.get("shouldBackup"); source = new Snapshot(value.get("source")); target = new Snapshot(value.get("target"));
+            require(value.get("shouldBackup") instanceof Boolean && value.get("shouldDeleteExtras") instanceof Boolean && Boolean.TRUE.equals(value.get("canExecute")) && list(value.get("issues")).isEmpty());
+            backup = (Boolean) value.get("shouldBackup"); deleteExtras = (Boolean) value.get("shouldDeleteExtras"); source = new Snapshot(value.get("source")); target = new Snapshot(value.get("target"));
             boolean restore = reason.equals("restore");
-            require(restore ? value.get("direction").equals("local-restore") && backup && source.device.equals(target.device) :
+            require(restore ? value.get("direction").equals("local-restore") && backup && !deleteExtras && source.device.equals(target.device) :
                 !value.get("direction").equals("local-restore") && !source.device.equals(target.device));
             Map<String, String> equivalence = new LinkedHashMap<>();
             for (String key : target.paths.keySet()) equivalence.put(BackupModel.key(BackupModel.path(target.paths.get(key).get("path"))), key);
@@ -92,7 +103,7 @@ final class SyncPlanModel {
             List<Object> operations = new ArrayList<>(); long total = 0, old = 0; int count = 0;
             for (String key : all.keySet()) {
                 Map<String, Object> from = source.paths.get(key), to = target.paths.get(key); String action;
-                if (from == null) action = "keep";
+                if (from == null) action = !deleteExtras ? "keep" : to.get("kind").equals("directory") ? "delete-directory" : "delete-file";
                 else if (to == null) action = from.get("kind").equals("directory") ? "create-directory" : "create-file";
                 else {
                     require(from.get("kind").equals(to.get("kind")));
@@ -104,7 +115,7 @@ final class SyncPlanModel {
                 if (action.equals("create-file") || action.equals("replace-file")) { count++; total += number(from.get("sizeBytes"), 0, BackupModel.MAX_FILE); require(total <= BackupModel.MAX_TOTAL); }
             }
             boolean hasWrites = count > 0;
-            for (Object operation : operations) if (map(operation).get("action").equals("create-directory")) hasWrites = true;
+            for (Object operation : operations) if (map(operation).get("action").equals("create-directory") || isDelete(map(operation))) hasWrites = true;
             if (backup && hasWrites) {
                 for (Map<String, Object> entry : target.paths.values()) if (entry.get("kind").equals("file")) {
                     old += number(entry.get("sizeBytes"), 0, BackupModel.MAX_FILE);
@@ -114,10 +125,10 @@ final class SyncPlanModel {
             require(count <= 1024 && backupFiles.size() <= 1024);
             operations.sort((left, right) -> {
                 try {
-                    Map<String, Object> a = map(left), b = map(right); boolean ad = a.get("action").equals("create-directory"), bd = b.get("action").equals("create-directory");
-                    if (ad != bd) return ad ? -1 : 1;
+                    Map<String, Object> a = map(left), b = map(right); int ar = rank(a), br = rank(b);
+                    if (ar != br) return Integer.compare(ar, br);
                     List<String> ap = BackupModel.path(a.get("path")), bp = BackupModel.path(b.get("path"));
-                    int depth = ad ? Integer.compare(ap.size(), bp.size()) : 0;
+                    int depth = ar == 0 ? Integer.compare(ap.size(), bp.size()) : ar == 2 ? Integer.compare(bp.size(), ap.size()) : 0;
                     return depth == 0 ? BackupModel.compare(ap, bp) : depth;
                 } catch (Exception invalid) { throw new IllegalArgumentException(invalid); }
             });
@@ -125,7 +136,7 @@ final class SyncPlanModel {
                 number(value.get("totalFileBytes"), 0, BackupModel.MAX_TOTAL) == total && number(value.get("backupFileBytes"), 0, BackupModel.MAX_TOTAL) == old);
             for (Object operation : operations) {
                 Map<String, Object> entry = map(operation);
-                if (entry.get("action").equals("create-directory") || entry.get("action").equals("create-file") || entry.get("action").equals("replace-file")) writes.add(entry);
+                if (entry.get("action").equals("create-directory") || isFileWrite(entry) || isDelete(entry)) writes.add(entry);
             }
         }
     }

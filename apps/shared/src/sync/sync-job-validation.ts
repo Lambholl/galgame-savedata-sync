@@ -15,7 +15,7 @@ import { isBackupKeepCount } from './backup-retention.ts'
 import { isSyncPlan } from './sync-plan-validation.ts'
 import { isSyncApplyResult, matchesSyncApplyResult } from './sync-result-validation.ts'
 import { isSyncSnapshot } from './sync-validation.ts'
-import { createSyncPlan } from './sync-plan.ts'
+import { createSyncPlan, isSyncFileWrite } from './sync-plan.ts'
 import { syncPathKey } from './sync-paths.ts'
 import type { SyncPlan } from './sync-contracts.ts'
 import type { BatchManifest } from '../protocol/batch-contracts.ts'
@@ -100,9 +100,7 @@ export function matchesSyncJobManifest(
   ) {
     return false
   }
-  const operations = request.plan.entries.filter(
-    (entry) => entry.action === 'create-file' || entry.action === 'replace-file',
-  )
+  const operations = request.plan.entries.filter((entry) => isSyncFileWrite(entry.action))
   const source = new Map(request.plan.source.entries.map((entry) => [entry.entryId, entry]))
   const paths = new Map(
     request.plan.source.entries.map((entry) => [syncPathKey(entry.path), entry]),
@@ -334,7 +332,7 @@ export function matchesSyncJobState(
     return true
   }
   const published = value.result.outcomes.filter(
-    (item) => item.status === 'succeeded' && item.action !== 'create-directory',
+    (item) => item.status === 'succeeded' && isSyncFileWrite(item.action),
   )
   return (
     matchesSyncApplyResult(value.result, request.plan) &&
@@ -364,6 +362,7 @@ export function isSyncPreparationPreview(value: unknown): value is SyncPreparati
       'source',
       'target',
       'shouldBackup',
+      'shouldDeleteExtras',
       'backupKeepCount',
     ]) ||
     value.schemaVersion !== 1 ||
@@ -373,6 +372,7 @@ export function isSyncPreparationPreview(value: unknown): value is SyncPreparati
     !isSyncSnapshot(value.source) ||
     !isSyncSnapshot(value.target) ||
     typeof value.shouldBackup !== 'boolean' ||
+    typeof value.shouldDeleteExtras !== 'boolean' ||
     !isBackupKeepCount(value.backupKeepCount)
   ) {
     return false
@@ -401,6 +401,7 @@ export function syncPlanFromPreview(preview: SyncPreparationPreview): SyncPlan {
     operation: 'copy',
     direction: preview.direction,
     shouldBackup: preview.shouldBackup,
+    shouldDeleteExtras: preview.shouldDeleteExtras,
     source: preview.source,
     target: preview.target,
   })

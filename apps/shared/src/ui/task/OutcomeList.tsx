@@ -41,7 +41,11 @@ export function OutcomeList({
   const t = useT()
   const locale = useLocale()
   const [isWrittenOpen, setIsWrittenOpen] = useState(false)
-  const succeeded = outcomes.filter((item) => item.status === 'succeeded')
+  const [isDeletedOpen, setIsDeletedOpen] = useState(false)
+  const isDeleted = (item: SyncWriteOutcome): boolean =>
+    item.action === 'delete-file' || item.action === 'delete-directory'
+  const succeeded = outcomes.filter((item) => item.status === 'succeeded' && !isDeleted(item))
+  const deleted = outcomes.filter((item) => item.status === 'succeeded' && isDeleted(item))
   const unsettled = unsettledOutcomes(outcomes)
   const hasAction = unsettled.length > 0 || cleanupError !== null || remoteError !== null
   return (
@@ -139,6 +143,42 @@ export function OutcomeList({
                                 : formatBytes(item.sizeBytes),
                           })}
                     </small>
+                  </span>
+                </div>
+              ))}
+            </Expand>
+          </div>
+        </section>
+      )}
+      {deleted.length > 0 && (
+        <section>
+          <h3 className="ss-task-title">{t('task.deleted')}</h3>
+          <div className="ss-task-group">
+            <button
+              type="button"
+              className="ss-task-row ss-pressable"
+              aria-expanded={isDeletedOpen}
+              onClick={() => setIsDeletedOpen(!isDeletedOpen)}
+            >
+              <span className="ss-task-lead is-ok">
+                <DeleteOutlined />
+              </span>
+              <span className="ss-task-body">
+                <span>{t('task.deletedCount', { count: deleted.length })}</span>
+                <small>
+                  {deleted
+                    .slice(0, 2)
+                    .map(fileName)
+                    .join(locale.startsWith('zh') || locale === 'ja-JP' ? '、' : ', ')}
+                </small>
+              </span>
+              <ExpandChevron isOpen={isDeletedOpen} />
+            </button>
+            <Expand isOpen={isDeletedOpen}>
+              {deleted.map((item) => (
+                <div className="ss-task-row is-sub" key={item.path.join('/')}>
+                  <span className="ss-task-body">
+                    <span>{item.path.join(' / ')}</span>
                   </span>
                 </div>
               ))}

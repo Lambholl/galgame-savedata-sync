@@ -72,12 +72,21 @@ export const enUS: Messages = {
   'transfer.noBackupTitle': 'No backup this time',
   'transfer.noBackupText':
     'Backup before writing is off, so this transfer will not preserve the current files in the target folder. Start the transfer anyway?',
+  'transfer.noBackupDeleteText': ({ count }) =>
+    `Backup before writing is off, so the target's current files will not be saved, and the ${count} deleted items cannot be restored. Start anyway?`,
+  'transfer.wipeTitle': 'Source folder is empty',
+  'transfer.wipeBackupText': ({ count }) =>
+    `All ${count} items on the target will be deleted. They are backed up first. Start anyway?`,
+  'transfer.wipeNoBackupText': ({ count }) =>
+    `All ${count} items on the target will be deleted. Backup before writing is off, so they cannot be restored. Start anyway?`,
   'transfer.planUnavailable': 'This plan is no longer available. Go back and refresh.',
   'transfer.planStale': 'The game or a folder changed. Go back and refresh before transferring.',
   'transfer.remoteBusy': 'Another transfer is confirmed and waiting for the phone to start.',
 
   'compare.differs': ({ count }) => `${count} different`,
   'compare.onlySource': ({ count }) => `${count} only in source`,
+  'compare.keepExtras': 'Keep extra files on the target',
+  'compare.deleteTarget': ({ count }) => `${count} to delete from target`,
   'compare.onlyTarget': ({ count }) => `${count} only in target`,
   'compare.allSame': 'Both sides match',
   'compare.filter': 'Diff',
@@ -93,6 +102,7 @@ export const enUS: Messages = {
   'plan.stat.create': 'New',
   'plan.stat.replace': 'Overwrite',
   'plan.stat.keep': 'Keep',
+  'plan.stat.delete': 'Delete',
   'plan.backupOn': ({ count }) =>
     `Back up before writing · keep ${count} ${count === 1 ? 'copy' : 'copies'}`,
   'plan.backupOff': 'No backup; write directly',
@@ -106,6 +116,9 @@ export const enUS: Messages = {
     count === 1
       ? '1 more file is the same on both sides and is not transferred'
       : `${count} more files are the same on both sides and are not transferred`,
+  'plan.group.delete': ({ count }) => `Delete ${count}`,
+  'plan.group.deleteHint': 'Not on the source; removed from the target',
+  'plan.wipeBanner': 'The source folder is empty. Every file on the target will be deleted.',
   'plan.nothing': 'Both sides already match. Nothing to transfer.',
   'plan.detailSource': ({ name }) => `Source · ${name}`,
   'plan.detailTarget': ({ name }) => `Target now · ${name}`,
@@ -148,6 +161,9 @@ export const enUS: Messages = {
   'task.unknown': 'Result not confirmed',
   'task.unknownDetail': 'The content was sent, but the target has not confirmed the write yet.',
   'task.needsAction': 'Needs attention',
+  'task.deleted': 'Deleted',
+  'task.deletedCount': ({ count }) => (count === 1 ? '1 item' : `${count} items`),
+  'task.deletedDetail': ({ count }) => (count === 1 ? '1 item deleted' : `${count} items deleted`),
   'task.written': 'Written',
   'task.fileCount': ({ count }) => (count === 1 ? '1 file' : `${count} files`),
   'task.verified': ({ size }) => `Verified ${size}`,

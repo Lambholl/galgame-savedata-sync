@@ -35,6 +35,7 @@ export function isSyncPlan(value: unknown): value is SyncPlan {
       'operation',
       'direction',
       'shouldBackup',
+      'shouldDeleteExtras',
       'source',
       'target',
       'schemaVersion',
@@ -54,6 +55,7 @@ export function isSyncPlan(value: unknown): value is SyncPlan {
     operation: value.operation,
     direction: value.direction,
     shouldBackup: value.shouldBackup,
+    shouldDeleteExtras: value.shouldDeleteExtras,
     source: value.source,
     target: value.target,
   }

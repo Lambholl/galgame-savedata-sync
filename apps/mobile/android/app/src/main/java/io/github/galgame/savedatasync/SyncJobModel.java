@@ -13,7 +13,7 @@ import static io.github.galgame.savedatasync.TransferSchema.*;
 /** 新同步的原生数据边界；网络输入须在原生通过，不能依赖页面中的共享守卫。 */
 final class SyncJobModel {
     /** 与 shared 的 SYNC_CAPABILITIES_VERSION、SYNC_JOB_SCHEMA_VERSION 保持一致。 */
-    static final int CAPABILITIES_VERSION = 2, JOB_SCHEMA_VERSION = 2;
+    static final int CAPABILITIES_VERSION = 3, JOB_SCHEMA_VERSION = 2;
     private SyncJobModel() {}
     static Map<String, Object> binding(Object raw) throws Exception {
         Map<String, Object> value = shape(copy(raw), "projectId", "remoteProjectId", "localDeviceId", "remoteDeviceId", "localRootId", "remoteRootId");
@@ -113,7 +113,7 @@ final class SyncJobModel {
         manifest.validate(new ArchiveModel.Limits()); require(manifest.transferId.equals(plan.id) && manifest.sourceDeviceId.equals(plan.source.device) && manifest.sourceRootId.equals(plan.source.root));
         require(manifest.files.size() == number(plan.value.get("transferFileCount"), 0, 1024) && manifest.totalFileBytes == number(plan.value.get("totalFileBytes"), 0, BackupModel.MAX_TOTAL));
         int index = 0;
-        for (Map<String, Object> operation : plan.writes) if (!operation.get("action").equals("create-directory")) {
+        for (Map<String, Object> operation : plan.writes) if (SyncPlanModel.isFileWrite(operation)) {
             Map<String, Object> source = plan.source.entry(operation.get("sourceEntryId")); List<String> path = BackupModel.path(source.get("path"));
             ArchiveModel.PreparedFile file = manifest.files.get(index++);
             require(file.sourceEntryId.equals(source.get("entryId")) && Objects.equals(file.sourceParentId, plan.source.parent(path)) && file.sourceName.equals(path.get(path.size() - 1)) &&
@@ -142,7 +142,7 @@ final class SyncJobModel {
             if (status.equals("succeeded")) {
                 require(outcome.get("error") == null);
                 if (!plan.backupFiles.isEmpty()) require(result.get("backupId") != null);
-                if (outcome.get("action").equals("create-directory")) require(outcome.get("sizeBytes") == null && outcome.get("sha256") == null);
+                if (!SyncPlanModel.isFileWrite(operation)) require(outcome.get("sizeBytes") == null && outcome.get("sha256") == null);
                 else {
                     Map<String, Object> source = plan.source.entry(operation.get("sourceEntryId"));
                     require(SyncPlanModel.same(source.get("sizeBytes"), outcome.get("sizeBytes")) && source.get("sha256").equals(outcome.get("sha256")));

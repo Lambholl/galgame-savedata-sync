@@ -67,12 +67,22 @@ export interface TransferComparisonProps {
   readonly onRefresh: () => void
   /** 取消正在进行的扫描；不能取消时为 null，不显示取消按钮。 */
   readonly onCancel: (() => void) | null
+  /** 目标多出的条目是否保留：false 时标红。 */
+  readonly isKeepingExtras: boolean
+  /** 切换保留开关；目标没有多出的条目时为 null，不显示开关。 */
+  readonly onKeepExtrasChange: ((isKeeping: boolean) => void) | null
 }
 
-/** 只在来源有的会在目标新建（绿色），只在目标有的会保留（蓝色），内容不同的会被覆盖（琥珀色）。 */
-function markerOf(item: CompareItem, isSource: boolean): FileIconMarker {
+/**
+ * 只在来源有的会在目标新建（绿色），只在目标有的保留（蓝色）或删除（红色），
+ * 内容不同的会被覆盖（琥珀色）。
+ */
+function markerOf(item: CompareItem, isSource: boolean, isKeeping: boolean): FileIconMarker {
   if (item.state === 'only') {
-    return isSource ? 'new' : 'only'
+    if (isSource) {
+      return 'new'
+    }
+    return isKeeping ? 'only' : 'delete'
   }
   return item.state === 'same' ? 'none' : 'warn'
 }
@@ -154,9 +164,12 @@ function EndpointCard({
 }
 
 /** 文件夹内有差异时整行与内容不同的文件同色。 */
-function toneOf(item: CompareItem, isSource: boolean): PaneRow['tone'] {
+function toneOf(item: CompareItem, isSource: boolean, isKeeping: boolean): PaneRow['tone'] {
   if (item.state === 'only') {
-    return isSource ? 'new' : 'only'
+    if (isSource) {
+      return 'new'
+    }
+    return isKeeping ? 'only' : 'delete'
   }
   return item.state === 'same' ? 'same' : 'differs'
 }
@@ -164,12 +177,14 @@ function toneOf(item: CompareItem, isSource: boolean): PaneRow['tone'] {
 function ComparePane({
   side,
   isSource,
+  isKeeping,
   endpoint,
   status,
   isFilterOn,
 }: {
   readonly side: CompareSide
   readonly isSource: boolean
+  readonly isKeeping: boolean
   readonly endpoint: TransferEndpoint
   readonly status: ComparisonStatus
   readonly isFilterOn: boolean
@@ -194,8 +209,8 @@ function ComparePane({
           path: item.path,
           sizeBytes: item.sizeBytes,
           modifiedAt: item.modifiedAt,
-          marker: markerOf(item, isSource),
-          tone: toneOf(item, isSource),
+          marker: markerOf(item, isSource, isKeeping),
+          tone: toneOf(item, isSource, isKeeping),
         }))
       }
       isLoading={status.kind === 'waiting' || status.kind === 'scanning'}
@@ -217,6 +232,7 @@ function ComparePane({
  * 传输存档页主体：方向条（左边来源、右边目标，中间按钮交换两端）、摘要行与两端文件列。
  * 摘要行在比较完成后用彩色标签写差异数：~ 内容不同，+ 只在来源有，− 只在目标有，
  * 标签、文件行底色与图标状态点同色；比较前写“正在比较两端”、取消或失败的说明，扫描中可取消。
+ * 目标有多出的条目时摘要行多一个开关：蓝色“− 保留”，点一下变红色“− 删除”，这些条目随之标红。
  * 文件夹始终排在文件前。文件列按自身宽度在两行小字与表格三列之间切换，两端规则相同。
  * 放进限高的纵向 flex 容器时铺满剩余高度，两列各自滚动，列头固定在列顶；
  * 列末留出 --ss-pane-end-space（由各端按悬浮按钮设置）的空白，最后几行可以滚到按钮上方。
@@ -232,6 +248,8 @@ export function TransferComparison({
   onPickPeer,
   onRefresh,
   onCancel,
+  isKeepingExtras,
+  onKeepExtrasChange,
 }: TransferComparisonProps): ReactElement {
   const t = useT()
   const [isFilterOn, setIsFilterOn] = useState(false)
@@ -257,6 +275,7 @@ export function TransferComparison({
       key={side}
       side={side}
       isSource={side === source}
+      isKeeping={isKeepingExtras}
       endpoint={endpoints[side]}
       status={status}
       isFilterOn={isFilterOn}
@@ -276,10 +295,12 @@ export function TransferComparison({
       label: t('compare.onlySource', { count: comparison.onlyFiles[source] }),
     },
     {
-      key: 'only',
+      key: isKeepingExtras ? 'only' : 'delete',
       sign: '−',
       count: comparison.onlyFiles[target],
-      label: t('compare.onlyTarget', { count: comparison.onlyFiles[target] }),
+      label: t(isKeepingExtras ? 'compare.onlyTarget' : 'compare.deleteTarget', {
+        count: comparison.onlyFiles[target],
+      }),
     },
   ]
   return (
@@ -322,6 +343,24 @@ export function TransferComparison({
         {isScanning && onCancel && (
           <button type="button" className="ss-chip" onClick={onCancel}>
             <span>{t('common.cancel')}</span>
+          </button>
+        )}
+        {comparison !== null && onKeepExtrasChange && (
+          <button
+            type="button"
+            role="switch"
+            className={`ss-chip ss-keep-chip ${isKeepingExtras ? 'is-keep' : 'is-delete'}`}
+            aria-checked={isKeepingExtras}
+            aria-label={t('compare.keepExtras')}
+            title={t('compare.keepExtras')}
+            disabled={isLocked}
+            onClick={() => onKeepExtrasChange(!isKeepingExtras)}
+          >
+            <b aria-hidden="true">−</b>
+            <span className="ss-keep-chip-label">
+              <span hidden={!isKeepingExtras}>{t('plan.stat.keep')}</span>
+              <span hidden={isKeepingExtras}>{t('plan.stat.delete')}</span>
+            </span>
           </button>
         )}
         {comparison !== null && (

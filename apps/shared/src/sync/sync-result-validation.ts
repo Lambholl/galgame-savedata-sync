@@ -6,19 +6,25 @@ import { SYNC_LIMITS, SYNC_SCHEMA_VERSION } from './sync-contracts.ts'
 import type { SyncApplyResult, SyncPlan, SyncWriteOutcome } from './sync-contracts.ts'
 import { isSyncPath, syncPathKey } from './sync-paths.ts'
 import { isSyncPlan } from './sync-plan-validation.ts'
-import { selectSyncBackupFiles } from './sync-plan.ts'
+import { isSyncFileWrite, isSyncWriteEntry, selectSyncBackupFiles } from './sync-plan.ts'
 
 function isCleanupError(value: unknown): value is OperationError {
   return isOperationError(value) && value.code === 'cleanup-failed'
 }
 
-/** 结果成功需携带实际文件指纹；目录成功和所有未确认结果都不伪造字节/哈希。 */
+/** 写入文件成功需携带实际文件指纹；目录、删除和所有未确认结果都不伪造字节/哈希。 */
 export function isSyncWriteOutcome(value: unknown): value is SyncWriteOutcome {
   if (
     !hasShape(value, ['path', 'action', 'status', 'sizeBytes', 'sha256', 'error']) ||
     !isSyncPath(value.path) ||
     typeof value.action !== 'string' ||
-    !['create-directory', 'create-file', 'replace-file'].includes(value.action) ||
+    ![
+      'create-directory',
+      'create-file',
+      'replace-file',
+      'delete-file',
+      'delete-directory',
+    ].includes(value.action) ||
     !isNullable(value.error, isOperationError)
   ) {
     return false
@@ -26,9 +32,9 @@ export function isSyncWriteOutcome(value: unknown): value is SyncWriteOutcome {
   if (value.status === 'succeeded') {
     return (
       value.error === null &&
-      (value.action === 'create-directory'
-        ? value.sizeBytes === null && value.sha256 === null
-        : isByteCount(value.sizeBytes) && isSha256(value.sha256))
+      (value.action === 'create-file' || value.action === 'replace-file'
+        ? isByteCount(value.sizeBytes) && isSha256(value.sha256)
+        : value.sizeBytes === null && value.sha256 === null)
     )
   }
   if (value.sizeBytes !== null || value.sha256 !== null) {
@@ -85,9 +91,7 @@ export function matchesSyncApplyResult(value: unknown, plan: SyncPlan): value is
   ) {
     return false
   }
-  const expected = plan.entries.filter((entry) =>
-    ['create-directory', 'create-file', 'replace-file'].includes(entry.action),
-  )
+  const expected = plan.entries.filter(isSyncWriteEntry)
   if (expected.length !== value.outcomes.length) {
     return false
   }
@@ -107,7 +111,7 @@ export function matchesSyncApplyResult(value: unknown, plan: SyncPlan): value is
       return false
     }
     if (outcome.status === 'succeeded') {
-      if (entry.action !== 'create-directory') {
+      if (isSyncFileWrite(entry.action)) {
         const file = source.get(entry.sourceEntryId ?? '')
         if (!file || outcome.sizeBytes !== file.sizeBytes || outcome.sha256 !== file.sha256) {
           return false

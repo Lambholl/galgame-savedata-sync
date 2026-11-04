@@ -29,7 +29,6 @@ related_files: []
 
 | 工作 | 状态 | 相关记忆文档 | 相关代码或配置 | 已完成 | 下一步 |
 | --- | --- | --- | --- | --- | --- |
-| 传输页“保留减少的文件”开关（CR-015） | active | requirements/change-requests.md、requirements/product.md、requirements/constraints.md、project/roadmap.md | 原型放 `docs/design/`（已忽略）并发布为 Artifact；维护者确认前不改应用代码 | 需求已登记 | 出原型给维护者确认，确认后写需求、拆包、实现 |
 | 游戏设置页提示目录已失效 | 未开始 | testing/regression-notes.md | 双端游戏设置页 | — | 先出原型。待维护者决定：电脑端备份是否也改成文件夹结构 |
 
 开始产品、代码或文档工作前登记范围、入口和下一步；检查点和阻塞时更新。做完并验证后先更新长期事实，再把状态改为 `in-review`；有新修改时改回 `active`，维护者验收后才删除该行。

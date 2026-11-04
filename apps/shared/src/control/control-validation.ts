@@ -71,6 +71,13 @@ export function isControlRequestBody<M extends ControlRequestMethod>(
   if (method === 'sync.job.read' || method === 'sync.job.cancel') {
     return hasShape(value, ['jobId']) && isOpaqueId(value.jobId)
   }
+  if (method === 'sync.confirm') {
+    return (
+      hasShape(value, ['requestId', 'shouldDeleteExtras']) &&
+      isOpaqueId(value.requestId) &&
+      typeof value.shouldDeleteExtras === 'boolean'
+    )
+  }
   return hasShape(value, ['requestId']) && isOpaqueId(value.requestId)
 }
 export function isControlResponseValue<M extends ControlRequestMethod>(

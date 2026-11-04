@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto'
-import { link, lstat, mkdir, open, readdir, rename, statfs, unlink } from 'node:fs/promises'
+import { link, lstat, mkdir, open, readdir, rename, rmdir, statfs, unlink } from 'node:fs/promises'
 import type { FileHandle } from 'node:fs/promises'
 import type { BigIntStats } from 'node:fs'
 import { join } from 'node:path'
@@ -18,6 +18,8 @@ export interface SyncTargetIO {
   readonly rename: typeof rename
   readonly mkdir: (path: string) => Promise<void>
   readonly unlink: typeof unlink
+  /** 只删空目录：目录非空时系统拒绝，不做递归删除。 */
+  readonly rmdir: (path: string) => Promise<void>
   readonly sync: (file: FileHandle) => Promise<void>
   readonly availableBytes: (path: string) => Promise<bigint | null>
 }
@@ -25,6 +27,7 @@ export const SYNC_TARGET_IO: SyncTargetIO = {
   link,
   rename,
   unlink,
+  rmdir: (path) => rmdir(path),
   mkdir: async (path) => {
     await mkdir(path, { mode: 0o700 })
   },

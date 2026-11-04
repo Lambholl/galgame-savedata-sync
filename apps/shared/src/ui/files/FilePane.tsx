@@ -16,8 +16,8 @@ export interface PaneRow {
   readonly sizeBytes: number | null
   readonly modifiedAt: number | null
   readonly marker: FileIconMarker
-  /** 行的差异底色：same 无底色，differs 覆盖，only 只在目标，new 新建。 */
-  readonly tone: 'same' | 'differs' | 'only' | 'new'
+  /** 行的差异底色：same 无底色，differs 覆盖，only 只在目标，new 新建，delete 将从目标删除。 */
+  readonly tone: 'same' | 'differs' | 'only' | 'new' | 'delete'
 }
 
 /**

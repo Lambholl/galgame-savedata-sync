@@ -139,7 +139,7 @@ button.ss-end:disabled {
 }
 /*
  * 差异数标签：符号加数量，与文件行底色、图标状态点同色。
- * + 新建为绿，~ 覆盖为琥珀，− 只在目标有：保留时为蓝；以后支持删除目标多出的文件时，删除用红色。
+ * + 新建为绿，~ 覆盖为琥珀，− 只在目标有：保留时为蓝，删除时为红。
  */
 .ss-count {
   display: inline-flex;
@@ -169,6 +169,10 @@ button.ss-end:disabled {
   background: var(--ss-only-soft);
   color: var(--ss-only);
 }
+.ss-count.is-delete {
+  background: var(--ss-danger-soft);
+  color: var(--ss-danger);
+}
 .ss-chip {
   display: inline-flex;
   align-items: center;
@@ -197,6 +201,33 @@ button.ss-end:disabled {
 .ss-chip:disabled {
   opacity: 0.5;
   cursor: default;
+}
+/* 保留开关：与 − 标签同色，保留为蓝，删除为红 */
+.ss-keep-chip b {
+  font-family: var(--ss-mono);
+  font-weight: 700;
+}
+.ss-keep-chip.is-keep {
+  border-color: var(--ss-only);
+  background: var(--ss-only-soft);
+  color: var(--ss-only);
+}
+.ss-keep-chip.is-delete {
+  border-color: var(--ss-danger);
+  background: var(--ss-danger-soft);
+  color: var(--ss-danger);
+}
+/* 两个词叠在同一格，宽度取较长的那个，切换时摘要行不跳动。 */
+.ss-keep-chip-label {
+  display: inline-grid;
+}
+.ss-keep-chip-label > span {
+  grid-area: 1 / 1;
+  text-align: center;
+}
+.ss-keep-chip-label > [hidden] {
+  display: inline;
+  visibility: hidden;
 }
 
 /* 两端文件列：父容器限高时铺满剩余高度，两列各自滚动 */

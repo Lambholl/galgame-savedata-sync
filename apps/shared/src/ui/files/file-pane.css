@@ -75,7 +75,7 @@
 .ss-row.is-up {
   align-items: center;
 }
-/* 行的差异底色：覆盖琥珀、只在目标蓝、新建绿；可点的行再叠 ss-pressable 的遮罩 */
+/* 行的差异底色：覆盖琥珀、只在目标蓝、新建绿、将删除红；可点的行再叠 ss-pressable 的遮罩 */
 .ss-row.is-differs {
   background: var(--ss-warn-soft);
 }
@@ -84,6 +84,13 @@
 }
 .ss-row.is-new {
   background: var(--ss-ok-soft);
+}
+.ss-row.is-delete {
+  background: var(--ss-danger-soft);
+}
+/* 色弱时也能分辨：将删除的条目名称加删除线。 */
+.ss-row.is-delete .ss-row-name {
+  text-decoration: line-through;
 }
 .ss-row-body {
   display: flex;

@@ -36,3 +36,6 @@
 .ss-file-icon-marker.is-only {
   background: var(--ss-only);
 }
+.ss-file-icon-marker.is-delete {
+  background: var(--ss-danger);
+}

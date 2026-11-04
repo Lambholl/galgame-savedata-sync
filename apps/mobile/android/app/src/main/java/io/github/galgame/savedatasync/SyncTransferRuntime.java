@@ -33,7 +33,7 @@ final class SyncTransferRuntime {
             }
             @Override public List<ArchiveModel.Source> sources(SyncPlanModel.Plan plan) throws Exception {
                 List<ArchiveModel.Source> sources = new ArrayList<>();
-                for (Map<String, Object> operation : plan.writes) if (!operation.get("action").equals("create-directory")) {
+                for (Map<String, Object> operation : plan.writes) if (SyncPlanModel.isFileWrite(operation)) {
                     sources.add(new SafArchiveSource(store, plan.source.root, id(operation.get("sourceEntryId"))));
                 }
                 return sources;

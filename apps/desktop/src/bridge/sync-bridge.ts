@@ -6,6 +6,7 @@ import {
   isOperationError,
   isOperationResult,
   isSyncApplyResult,
+  isSyncFileWrite,
   isSyncJobRequest,
   isSyncPlan,
   isSyncTransferState,
@@ -125,7 +126,11 @@ export interface DesktopSyncApi {
   ): Promise<OperationResult<DesktopRemoteRequest>>
   /** 读取手机回报的计划，只在 ready 及之后可用。 */
   remotePlan(requestId: string): Promise<OperationResult<SyncPlan>>
-  confirmRemote(requestId: string): Promise<OperationResult<DesktopRemoteRequest>>
+  /** shouldDeleteExtras 是确认时的开关选择；计划随之重新生成后交给手机执行。 */
+  confirmRemote(
+    requestId: string,
+    shouldDeleteExtras: boolean,
+  ): Promise<OperationResult<DesktopRemoteRequest>>
   cancelRemote(requestId: string): Promise<OperationResult<DesktopRemoteRequest>>
   /** 上个进程没写完就结束时留下的写入标记，不含正在进行的写入。 */
   interruptedWrites(): Promise<OperationResult<readonly InterruptedWrite[]>>
@@ -348,7 +353,7 @@ export function isDesktopRestoreState(value: unknown): value is DesktopRestoreSt
     )
   }
   const files = value.result.outcomes.filter(
-    (item) => item.status === 'succeeded' && item.action !== 'create-directory',
+    (item) => item.status === 'succeeded' && isSyncFileWrite(item.action),
   )
   return (
     files.length === progress.publishedFiles &&
@@ -518,6 +523,7 @@ export function createSyncBridge(
           operation: expected.operation,
           direction: expected.direction,
           shouldBackup: expected.shouldBackup,
+          shouldDeleteExtras: expected.shouldDeleteExtras,
           source: expected.source,
           target: expected.target,
         })
@@ -553,11 +559,12 @@ export function createSyncBridge(
   function remoteAction(
     action: 'confirmRemote' | 'cancelRemote',
     requestId: string,
+    shouldDeleteExtras?: boolean,
   ): Promise<OperationResult<DesktopRemoteRequest>> {
     return isOpaqueId(requestId)
       ? call(
           action,
-          [{ requestId }],
+          [action === 'confirmRemote' ? { requestId, shouldDeleteExtras } : { requestId }],
           (value): value is DesktopRemoteRequest =>
             isDesktopRemoteRequest(value) && value.requestId === requestId,
         )
@@ -657,7 +664,10 @@ export function createSyncBridge(
             (value): value is SyncPlan => isSyncPlan(value) && value.operation === 'copy',
           )
         : Promise.resolve(failure()),
-    confirmRemote: (requestId: string) => remoteAction('confirmRemote', requestId),
+    confirmRemote: (requestId: string, shouldDeleteExtras: boolean) =>
+      typeof shouldDeleteExtras === 'boolean'
+        ? remoteAction('confirmRemote', requestId, shouldDeleteExtras)
+        : Promise.resolve(failure()),
     cancelRemote: (requestId: string) => remoteAction('cancelRemote', requestId),
     interruptedWrites: () => call('interruptedWrites', [], isInterruptedWriteList),
     dismissInterruptedWrite: (id: string) =>

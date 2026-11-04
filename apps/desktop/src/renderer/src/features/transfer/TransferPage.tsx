@@ -1,7 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Button, Modal } from 'antd'
 import { CaretRightOutlined, RightOutlined } from '@ant-design/icons'
-import { compareSnapshots, toShownError, unwrap } from '@savedata-sync/shared'
+import {
+  compareSnapshots,
+  isSyncWriteEntry,
+  toShownError,
+  unwrap,
+  withDeleteExtras,
+} from '@savedata-sync/shared'
 import type {
   CatalogGame,
   DirectoryReference,
@@ -11,7 +17,12 @@ import type {
   SyncPlan,
   TransferDirection,
 } from '@savedata-sync/shared'
-import { SyncPlanSummary, TransferComparison, useT } from '@savedata-sync/shared/ui'
+import {
+  SyncPlanSummary,
+  TransferComparison,
+  syncStartConfirmation,
+  useT,
+} from '@savedata-sync/shared/ui'
 import type { ComparisonStatus, PlanEndpoint } from '@savedata-sync/shared/ui'
 import type { DesktopRemoteRequest } from '../../../../bridge/sync-bridge.ts'
 import type { Confirmation } from '../../app/navigation.ts'
@@ -73,6 +84,8 @@ export function TransferPage({
   const [isPeerPickerOpen, setIsPeerPickerOpen] = useState(false)
   const [isPlanOpen, setIsPlanOpen] = useState(false)
   const [isConfirming, setIsConfirming] = useState(false)
+  /** 目标多出的条目是否保留；每次重新比较都回到保留，不记住上次的选择。 */
+  const [isKeepingExtras, setIsKeepingExtras] = useState(true)
   /** 已确认、等手机应答的请求；应答前留在本页，计划过期时才能直接重新比较。 */
   const [confirmedId, setConfirmedId] = useState<string | null>(null)
   const isStarting = isConfirming || confirmedId !== null
@@ -123,6 +136,7 @@ export function TransferPage({
     setRequestId(null)
     setScanError(null)
     setIsPlanOpen(false)
+    setIsKeepingExtras(true)
     desktopSync()
       .startRemote(game.id, peerId, direction)
       .then((result) => {
@@ -189,15 +203,21 @@ export function TransferPage({
       isCurrent = false
     }
   }, [requestId, hasPlan, plan?.requestId])
-  const current = shown && plan?.requestId === shown.requestId ? plan.value : null
+  const reported = shown && plan?.requestId === shown.requestId ? plan.value : null
   const comparison = useMemo(() => {
-    if (!current) {
+    if (!reported) {
       return null
     }
-    return current.direction === 'windows-to-android'
-      ? compareSnapshots(current.source, current.target)
-      : compareSnapshots(current.target, current.source)
-  }, [current])
+    return reported.direction === 'windows-to-android'
+      ? compareSnapshots(reported.source, reported.target)
+      : compareSnapshots(reported.target, reported.source)
+  }, [reported])
+  // 手机回报的计划一律保留；开关只改变这里生成的计划，确认时把选择交给主进程和手机。
+  const current = useMemo(
+    () => reported && withDeleteExtras(reported, !isKeepingExtras),
+    [reported, isKeepingExtras],
+  )
+  const hasExtras = reported?.entries.some((item) => item.action === 'keep') ?? false
   const isOtherConfirmed =
     request !== null && request.requestId !== requestId && request.status === 'starting'
   let status: ComparisonStatus
@@ -236,10 +256,7 @@ export function TransferPage({
   } else {
     status = { kind: 'scanning' }
   }
-  const hasChanges =
-    current?.entries.some((item) =>
-      ['create-file', 'replace-file', 'create-directory'].includes(item.action),
-    ) ?? false
+  const hasChanges = current?.entries.some(isSyncWriteEntry) ?? false
   const canStart = shown?.status === 'ready' && Boolean(current?.canExecute) && hasChanges
   const peerName =
     selectedPeer?.device.name ??
@@ -252,18 +269,14 @@ export function TransferPage({
       return
     }
     const id = shown.requestId
+    const shouldDeleteExtras = current.shouldDeleteExtras
     async function work(): Promise<void> {
-      setRequest(unwrap(await desktopSync().confirmRemote(id)))
+      setRequest(unwrap(await desktopSync().confirmRemote(id, shouldDeleteExtras)))
       setConfirmedId(id)
     }
-    // 开启备份时直接开始；关闭备份时才确认一次。
-    if (!current.shouldBackup) {
-      onConfirm({
-        title: t('transfer.noBackupTitle'),
-        text: t('transfer.noBackupText'),
-        okType: 'danger',
-        work,
-      })
+    const confirmation = syncStartConfirmation(current, t)
+    if (confirmation) {
+      onConfirm({ ...confirmation, okType: 'danger', work })
       return
     }
     setIsConfirming(true)
@@ -305,6 +318,8 @@ export function TransferPage({
               }
             : null
         }
+        isKeepingExtras={isKeepingExtras}
+        onKeepExtrasChange={hasExtras ? setIsKeepingExtras : null}
       />
       {/* 底部只有一个悬浮的下一步按钮；文件列末尾留出它的高度。 */}
       <Button

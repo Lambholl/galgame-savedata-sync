@@ -37,7 +37,7 @@ export interface SyncPlanSummaryProps {
   readonly backupKeepCount: number | null
 }
 
-type Group = 'replace' | 'create' | 'keep'
+type Group = 'replace' | 'create' | 'keep' | 'delete'
 
 interface PlanRow {
   readonly entry: SyncPlanEntry
@@ -62,8 +62,9 @@ function issueText(plan: SyncPlan, t: Translate): string | null {
 }
 
 /**
- * 传输或恢复计划的摘要：路线、新建/覆盖/保留三个数字、备份与大小，
+ * 传输或恢复计划的摘要：路线、新建/覆盖/保留（或删除）三个数字、备份与大小，
  * 再按动作分组列出文件；相同的文件只给数量，问题以一条横幅出现。
+ * 删除目标多出的条目时第三个数字和第三组变红，这一页就是删除预览；来源目录为空时再加一条横幅。
  */
 export function SyncPlanSummary({
   plan,
@@ -75,7 +76,7 @@ export function SyncPlanSummary({
   const [openKey, setOpenKey] = useState<string | null>(null)
   const sources = new Map(plan.source.entries.map((item) => [item.entryId, item]))
   const targets = new Map(plan.target.entries.map((item) => [item.entryId, item]))
-  const groups: Record<Group, PlanRow[]> = { replace: [], create: [], keep: [] }
+  const groups: Record<Group, PlanRow[]> = { replace: [], create: [], keep: [], delete: [] }
   let same = 0
   for (const entry of plan.entries) {
     const row = {
@@ -89,6 +90,8 @@ export function SyncPlanSummary({
       groups.create.push(row)
     } else if (entry.action === 'keep') {
       groups.keep.push(row)
+    } else if (entry.action === 'delete-file' || entry.action === 'delete-directory') {
+      groups.delete.push(row)
     } else if (entry.action === 'skip' && row.source?.kind !== 'directory') {
       same++
     }
@@ -120,6 +123,8 @@ export function SyncPlanSummary({
               `${size(row.target)} → ${size(row.source)}`
             ) : group === 'create' ? (
               <span className="is-up">{kind === 'directory' ? '+' : `+${size(row.source)}`}</span>
+            ) : group === 'delete' ? (
+              <span className="is-down">{kind === 'directory' ? '−' : `−${size(row.target)}`}</span>
             ) : (
               size(row.target)
             )}
@@ -128,7 +133,7 @@ export function SyncPlanSummary({
       )
       if (group !== 'replace') {
         return (
-          <div className="ss-prow" key={key}>
+          <div className={`ss-prow${group === 'delete' ? ' is-delete' : ''}`} key={key}>
             {content}
           </div>
         )
@@ -171,7 +176,8 @@ export function SyncPlanSummary({
       )
     })
   }
-  const hasChanges = groups.replace.length + groups.create.length > 0
+  const hasChanges = groups.replace.length + groups.create.length + groups.delete.length > 0
+  const isWipe = groups.delete.length > 0 && plan.source.entries.length === 0
   return (
     <div className="ss-plan">
       <div className="ss-route">
@@ -196,10 +202,17 @@ export function SyncPlanSummary({
           <b>{groups.replace.length}</b>
           <span>{t('plan.stat.replace')}</span>
         </div>
-        <div className="is-keep">
-          <b>{groups.keep.length}</b>
-          <span>{t('plan.stat.keep')}</span>
-        </div>
+        {plan.shouldDeleteExtras ? (
+          <div className="is-delete">
+            <b>{groups.delete.length}</b>
+            <span>{t('plan.stat.delete')}</span>
+          </div>
+        ) : (
+          <div className="is-keep">
+            <b>{groups.keep.length}</b>
+            <span>{t('plan.stat.keep')}</span>
+          </div>
+        )}
       </div>
       <div className="ss-metaline">
         {plan.operation === 'restore' ? (
@@ -241,6 +254,12 @@ export function SyncPlanSummary({
           </span>
         </div>
       )}
+      {isWipe && (
+        <div className="ss-banner" role="alert">
+          <ExclamationCircleOutlined />
+          <span>{t('plan.wipeBanner')}</span>
+        </div>
+      )}
       {groups.replace.length > 0 && (
         <section>
           <h3 className="ss-sec is-replace">
@@ -268,6 +287,16 @@ export function SyncPlanSummary({
             <small>{t('plan.group.keepHint')}</small>
           </h3>
           <div className="ss-group">{rows('keep')}</div>
+        </section>
+      )}
+      {groups.delete.length > 0 && (
+        <section>
+          <h3 className="ss-sec is-delete">
+            <i />
+            {t('plan.group.delete', { count: groups.delete.length })}
+            <small>{t('plan.group.deleteHint')}</small>
+          </h3>
+          <div className="ss-group">{rows('delete')}</div>
         </section>
       )}
       {!hasChanges && !issue && <p className="ss-plan-note">{t('plan.nothing')}</p>}

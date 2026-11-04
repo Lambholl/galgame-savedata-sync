@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { access, lstat } from 'node:fs/promises'
+import { access, lstat, readdir } from 'node:fs/promises'
 import { constants } from 'node:fs'
 import { join } from 'node:path'
 import type { Readable } from 'node:stream'
@@ -8,7 +8,9 @@ import {
   SYNC_LIMITS,
   BATCH_TIMEOUTS_MS,
   createSyncPlan,
+  isSyncFileWrite,
   isSyncPlan,
+  isSyncWriteEntry,
   matchesSyncPlan,
   selectSyncBackupFiles,
   syncPathKey,
@@ -25,6 +27,7 @@ import type {
 } from '@savedata-sync/shared'
 import type { NativeDirectoryLocation, WindowsDirectoryAdapter } from './directory-adapter.ts'
 import { getFileIdentity, hasSameIdentity, inspectLocalPath } from './directory-paths.ts'
+import type { FileIdentity } from './directory-paths.ts'
 import type { WindowsBackupHandle, WindowsBackupStore } from './backup-store.ts'
 import {
   ArchiveCancelledError,
@@ -148,7 +151,9 @@ function outcome(
   if (
     operation.action !== 'create-directory' &&
     operation.action !== 'create-file' &&
-    operation.action !== 'replace-file'
+    operation.action !== 'replace-file' &&
+    operation.action !== 'delete-file' &&
+    operation.action !== 'delete-directory'
   ) {
     throw new ArchiveError('invalid-request', 'The current plan item has no write action.')
   }
@@ -207,6 +212,7 @@ export class WindowsSyncWriter {
           operation: value.operation,
           direction: value.direction,
           shouldBackup: value.shouldBackup,
+          shouldDeleteExtras: value.shouldDeleteExtras,
           source: material.snapshot,
           target: value.target,
         })) ||
@@ -353,7 +359,7 @@ export class WindowsSyncWriter {
     }
     // 完整输入在任何目录修改前全部重读；逐文件写入还会再次复核。
     for (const operation of job.plan.entries) {
-      if (operation.action === 'create-file' || operation.action === 'replace-file') {
+      if (isSyncFileWrite(operation.action)) {
         checkArchiveAbort(job.signal)
         const entry = fileEntry(job.plan, operation, 'source')
         const input = await required(material).openFile(entry.entryId)
@@ -564,14 +570,69 @@ export class WindowsSyncWriter {
       throw error
     }
   }
+  /**
+   * 删除一项目标多出的条目：文件先核对身份和完整内容，目录只删空目录。
+   * 系统已开始删除但结果没能确认时报 unknown；条目还在且身份未变时按失败抛出。
+   */
+  private async remove(job: WriteJob, operation: SyncPlanEntry): Promise<SyncWriteOutcome> {
+    const parent = this.parent(job, operation),
+      name = required(operation.path.at(-1)),
+      path = join(parent.path, name),
+      isDirectory = operation.action === 'delete-directory'
+    await this.check(job)
+    await checkTargetName(parent, name, true)
+    let identity: FileIdentity
+    if (isDirectory) {
+      const location = required(job.locations.get(syncPathKey(operation.path)))
+      await location.verify()
+      if ((await readdir(location.path)).length > 0) {
+        throw new ArchiveError('source-changed', 'The directory to delete is no longer empty.')
+      }
+      identity = location.identity
+    } else {
+      identity = getFileIdentity(
+        await verifyTargetFile(path, fileEntry(job.plan, operation, 'target'), job.signal),
+      )
+    }
+    await this.check(job)
+    checkArchiveAbort(job.signal)
+    try {
+      await (isDirectory ? this.io.rmdir(path) : this.io.unlink(path))
+    } catch (error) {
+      const current = await lstat(path, { bigint: true }).catch(() => null)
+      if (current && hasSameIdentity(current, identity)) {
+        throw error
+      }
+      return outcome(operation, 'unknown', {
+        code: 'result-unknown',
+        message:
+          'Deletion started but the result could not be fully verified. Read the target again.',
+        canRetry: false,
+      })
+    }
+    // 已到提交点的取消不把修改记成未执行；用独立回读确认条目确实不在了。
+    const isGone = await lstat(path, { bigint: true }).then(
+      () => false,
+      (error: unknown) =>
+        Boolean(error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT'),
+    )
+    if (!isGone) {
+      return outcome(operation, 'unknown', {
+        code: 'result-unknown',
+        message:
+          'Deletion finished but the entry could not be confirmed gone. Read the target again.',
+        canRetry: false,
+      })
+    }
+    job.locations.delete(syncPathKey(operation.path))
+    return outcome(operation, 'succeeded')
+  }
   private async run(
     job: WriteJob,
     material: WindowsSyncMaterial | null,
     options: WindowsSyncWriteOptions,
   ): Promise<SyncApplyResult> {
-    const operations = job.plan.entries.filter((entry) =>
-      ['create-directory', 'create-file', 'replace-file'].includes(entry.action),
-    )
+    const operations = job.plan.entries.filter(isSyncWriteEntry)
     const outcomes = operations.map((entry) => outcome(entry, 'not-attempted'))
     let error: OperationError | null = null,
       cleanup: OperationError | null = null,
@@ -599,7 +660,9 @@ export class WindowsSyncWriter {
         const result =
           operation.action === 'create-directory'
             ? await this.directory(job, operation)
-            : await this.file(job, operation, required(material))
+            : isSyncFileWrite(operation.action)
+              ? await this.file(job, operation, required(material))
+              : await this.remove(job, operation)
         outcomes[position] = result
         try {
           options.onOutcome?.(structuredClone(result))
@@ -700,6 +763,7 @@ export class WindowsSyncWriter {
         operation: 'restore',
         direction: 'local-restore',
         shouldBackup: true,
+        shouldDeleteExtras: false,
         source: handle.snapshot(),
         target,
       })

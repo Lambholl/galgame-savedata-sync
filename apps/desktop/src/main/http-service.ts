@@ -170,8 +170,11 @@ export class WindowsHttpService {
   remoteSyncPlan(requestId: string): ReturnType<WindowsRemoteSyncRequests['plan']> {
     return this.requireRemote().plan(requestId)
   }
-  confirmRemoteSync(requestId: string): ReturnType<WindowsRemoteSyncRequests['confirm']> {
-    return this.requireRemote().confirm(requestId)
+  confirmRemoteSync(
+    requestId: string,
+    shouldDeleteExtras: boolean,
+  ): ReturnType<WindowsRemoteSyncRequests['confirm']> {
+    return this.requireRemote().confirm(requestId, shouldDeleteExtras)
   }
   cancelRemoteSync(requestId: string): ReturnType<WindowsRemoteSyncRequests['cancel']> {
     return this.requireRemote().cancel(requestId)
