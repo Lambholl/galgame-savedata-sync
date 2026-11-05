@@ -96,26 +96,80 @@ summary:focus-visible {
   font-size: 12px;
 }
 /*
- * 可点的行按下时整行渐变出一层 10% 的文字色遮罩，松开后稍慢褪去（参考 Miuix 的按下反馈），
+ * 所有按钮和可点的行按下时渐变出一层 10% 的文字色遮罩，松开后稍慢褪去（参考 Miuix 的按下反馈），
  * 浅色下变暗、深色下变亮；选择行的菜单打开期间保持遮罩。is-pressed 由 app/press-feedback 加减，
- * 这里不用 :active，轻点时它一闪而过；也不用 antd-mobile 自带的按下底色。
+ * 这里不用 :active，轻点时它一闪而过。antd 按钮的 ::before 另有用途（任务条用它扩大点击范围），
+ * 所以遮罩放在 ::after；antd-mobile 按钮的 ::before 本身就是按下遮罩，沿用它的位置和圆角。
  */
-a.adm-list-item:active:not(.adm-list-item-disabled) {
-  background-color: var(--adm-color-background);
+:where(button, .adm-action-sheet-button-item) {
+  position: relative;
 }
-a.adm-list-item::before {
+:is(
+  a.adm-list-item,
+  .adm-action-sheet-button-item,
+  .ant-dropdown-menu-item,
+  button:not(.adm-button, .ant-btn, .ss-pressable)
+)::before,
+.ant-btn::after {
   position: absolute;
   inset: 0;
-  background: var(--ss-fg);
+  border-radius: inherit;
   content: '';
   opacity: 0;
   pointer-events: none;
+}
+/* antd 按钮的遮罩盖住 1px 边框。 */
+.ant-btn::after {
+  inset: calc(var(--ant-btn-border-width) * -1);
+}
+:is(
+  a.adm-list-item,
+  .adm-action-sheet-button-item,
+  .ant-dropdown-menu-item,
+  button:not(.ant-btn)
+)::before,
+.ant-btn::after,
+.ss-game-cover::before {
+  border-color: var(--ss-fg);
+  background: var(--ss-fg);
   transition: opacity 0.35s cubic-bezier(0.25, 0.6, 0.3, 1);
 }
-a.adm-list-item.is-pressed::before,
-a.adm-list-item.is-held::before {
+:is(
+    a.adm-list-item,
+    .adm-action-sheet-button-item,
+    .ant-dropdown-menu-item,
+    button:not(.ant-btn)
+  ).is-pressed::before,
+a.adm-list-item.is-held::before,
+.ant-btn.is-pressed::after,
+.ss-game-card.is-pressed .ss-game-cover::before {
   opacity: 0.1;
   transition-duration: 0.2s;
+}
+/* 游戏卡片的遮罩只盖封面，整张卡片是文字按钮，圆角和封面不一致。 */
+.ss-game-card.ant-btn::after {
+  content: none;
+}
+/* 任务条的按钮铺满整条，遮罩跟着任务条的圆角。 */
+.ss-task-strip .ss-task-strip-link::after {
+  inset: 0;
+  border-radius: var(--ss-r-md);
+}
+/* 组件库自带的按下底色和悬停色都不用：触屏点过后悬停色会一直留着。 */
+a.adm-list-item:active:not(.adm-list-item-disabled),
+.adm-action-sheet-button-item:active:not(.adm-action-sheet-button-item-disabled) {
+  background-color: var(--adm-color-background);
+}
+.ant-dropdown .ant-dropdown-menu-item:not(.ant-dropdown-menu-item-selected):is(:hover, :active) {
+  background-color: transparent;
+}
+.ant-btn.ant-btn.ant-btn {
+  --ant-btn-bg-color-hover: var(--ant-btn-bg-color);
+  --ant-btn-bg-color-active: var(--ant-btn-bg-color);
+  --ant-btn-text-color-hover: var(--ant-btn-text-color);
+  --ant-btn-text-color-active: var(--ant-btn-text-color);
+  --ant-btn-border-color-hover: var(--ant-btn-border-color);
+  --ant-btn-border-color-active: var(--ant-btn-border-color);
 }
 /* Stepper 的加减按钮保持 antd-mobile 自己的尺寸，不套用这里的按钮规则。 */
 button:not(.adm-stepper > *),
@@ -235,6 +289,18 @@ small {
   display: flex;
   flex-direction: column;
   background: var(--ss-page-bg);
+}
+.app-page {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+/* 切页时平移的旧页面克隆，和新页面占同样的位置。 */
+.page-slide-outgoing {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
 }
 .app-heading {
   display: flex;

@@ -108,7 +108,11 @@ export function LinkPicker({
                     {item.state === 'linked' ? (
                       <CheckOutlined className="ss-list-check" />
                     ) : (
-                      <button type="button" className="ss-list-link" onClick={onConnect}>
+                      <button
+                        type="button"
+                        className="ss-list-link ss-pressable"
+                        onClick={onConnect}
+                      >
                         {t('game.goConnect')}
                       </button>
                     )}

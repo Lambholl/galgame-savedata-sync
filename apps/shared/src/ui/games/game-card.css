@@ -38,22 +38,14 @@
   background: var(--ss-cover-0);
   color: var(--ss-on-cover);
 }
+/* 封面的交互遮罩；何时显示、不透明度和渐变时长由两端的样式表各自决定。 */
 .ss-game-cover::before {
   position: absolute;
   inset: 0;
-  background: var(--ss-accent);
+  background: var(--ss-fg);
   opacity: 0;
-  transition: opacity 120ms;
   content: '';
   pointer-events: none;
-}
-@media (hover: hover) {
-  .ss-game-card:hover .ss-game-cover::before {
-    opacity: 0.08;
-  }
-}
-.ss-game-card:active .ss-game-cover::before {
-  opacity: 0.12;
 }
 .ss-game-cover::after {
   position: absolute;

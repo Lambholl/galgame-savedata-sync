@@ -1,10 +1,15 @@
-/** 可点的列表行；禁用的行不给按下反馈。 */
-const PRESSABLE = 'a.adm-list-item:not(.adm-list-item-disabled), .ss-pressable:not(:disabled)'
+/** 所有按钮和可点的行；禁用的不给按下反馈。 */
+const PRESSABLE = [
+  'button:not(:disabled)',
+  'a.adm-list-item:not(.adm-list-item-disabled)',
+  '.adm-action-sheet-button-item:not(.adm-action-sheet-button-item-disabled)',
+  '.ant-dropdown-menu-item:not(.ant-dropdown-menu-item-disabled)',
+].join(', ')
 /** 按下动画的时长，与 mobile.css 里的按下过渡一致。 */
 const PRESS_IN_MS = 200
 
 /**
- * 给可点的列表行加按下反馈：按下时加 is-pressed，整行渐变出一层遮罩；松开后再褪去。
+ * 给按钮和可点的行加按下反馈：按下时加 is-pressed，渐变出一层遮罩；松开后再褪去。
  * 轻点时也等按下动画走完再褪去，否则 :active 一闪而过几乎看不到。
  * 滑动列表时浏览器会取消指针，遮罩随之褪去。返回停止函数。
  */

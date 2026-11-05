@@ -16,12 +16,15 @@ import {
 } from '@ant-design/icons'
 import { isRootPage } from '../app/navigation-types'
 import type { Page } from '../app/navigation-types'
+import { PageSlide } from './PageSlide'
 
 const NAV = [
   { key: 'devices', label: 'nav.devices', icon: <DesktopOutlined /> },
   { key: 'games', label: 'nav.games', icon: <AppstoreOutlined /> },
   { key: 'settings', label: 'nav.settings', icon: <SettingOutlined /> },
 ] as const
+
+const LATERAL_ORDER: readonly Page[] = NAV.map((item) => item.key)
 
 /** 右下角有悬浮主操作的页面，正文末尾留出按钮的高度。 */
 const WITH_ACTION: readonly Page[] = ['sync', 'sync-plan', 'task', 'restore']
@@ -65,38 +68,34 @@ export function LibraryShell({
   const locale = useLocale()
   const active = page === 'devices' || page === 'settings' ? page : 'games'
   const main = useRef<HTMLElement>(null)
-  const previousPage = useRef(page)
   useLayoutEffect(() => {
-    const element = main.current
-    const previous = previousPage.current
-    previousPage.current = page
-    element?.scrollTo({ top: 0 })
-    if (
-      !element ||
-      previous === page ||
-      window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    ) {
-      return
-    }
-    const isMovingBack =
-      direction === 'back' ||
-      (direction === 'lateral' &&
-        NAV.findIndex((item) => item.key === page) < NAV.findIndex((item) => item.key === previous))
-    // 只对页面容器做动效，保留子组件状态；轮询刷新不会重新启动动画。
-    const animation = element.animate(
-      [
-        { opacity: 0, transform: `translateX(${isMovingBack ? -12 : 12}px)` },
-        { opacity: 1, transform: 'translateX(0)' },
-      ],
-      { duration: 300, easing: 'cubic-bezier(0.2, 0.7, 0.2, 1)' },
-    )
-    return () => animation.cancel()
-    // 方向随页面一起变化，只在切页时读取。
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    main.current?.scrollTo({ top: 0 })
   }, [page])
   return (
     <ConfigProvider locale={ADM_LOCALES[locale]}>
-      <div className="mobile-app">
+      <PageSlide
+        page={page}
+        direction={direction}
+        lateralOrder={LATERAL_ORDER}
+        nav={
+          !hasBack && (
+            <nav className="bottom-nav" aria-label={t('nav.main')}>
+              {NAV.map((item) => (
+                <button
+                  key={item.key}
+                  type="button"
+                  className={active === item.key ? 'active' : ''}
+                  aria-current={active === item.key ? 'page' : undefined}
+                  onClick={() => onNavigate(item.key)}
+                >
+                  {item.icon}
+                  <span>{t(item.label)}</span>
+                </button>
+              ))}
+            </nav>
+          )
+        }
+      >
         <header className="app-heading">
           {hasBack && (
             <Button fill="none" aria-label={t('nav.back')} onClick={onBack}>
@@ -120,23 +119,7 @@ export function LibraryShell({
           <div className="page-stack">{children}</div>
         </main>
         {footer}
-        {!hasBack && (
-          <nav className="bottom-nav" aria-label={t('nav.main')}>
-            {NAV.map((item) => (
-              <button
-                key={item.key}
-                type="button"
-                className={active === item.key ? 'active' : ''}
-                aria-current={active === item.key ? 'page' : undefined}
-                onClick={() => onNavigate(item.key)}
-              >
-                {item.icon}
-                <span>{t(item.label)}</span>
-              </button>
-            ))}
-          </nav>
-        )}
-      </div>
+      </PageSlide>
       {dialogs}
     </ConfigProvider>
   )

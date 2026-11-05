@@ -33,7 +33,7 @@ export function BackupPolicyBlock({
   return (
     <button
       type="button"
-      className={`ss-policy${isEnabled ? '' : ' is-off'}`}
+      className={`ss-policy ss-pressable${isEnabled ? '' : ' is-off'}`}
       disabled={!onEdit}
       onClick={onEdit ?? undefined}
     >

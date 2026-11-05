@@ -23,6 +23,9 @@ const ANTD_LOCALES: Readonly<Record<AppLocale, Locale>> = {
   'ja-JP': antdJaJP,
 }
 
+/** antd 按钮的点击水波不用，移动端所有按钮只有按下遮罩。 */
+const NO_WAVE = { disabled: true } as const
+
 function readTheme(): ResolvedTheme {
   return document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light'
 }
@@ -51,6 +54,7 @@ export function App(): React.JSX.Element {
         locale={ANTD_LOCALES[locale]}
         theme={designTheme(resolvedTheme, 'mobile')}
         button={DESIGN_BUTTON}
+        wave={NO_WAVE}
       >
         <MobileApp adapter={ADAPTER} sync={SYNC} backButton={androidBackButton} />
       </ConfigProvider>

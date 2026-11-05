@@ -4,6 +4,30 @@ body {
 * {
   box-sizing: border-box;
 }
+/*
+ * 自定义的按钮、可点的行和卡片按 antd 文字按钮的交互：悬停和按下时叠一层文字色遮罩，
+ * 不透明度取 antd 的 colorBgTextHover、colorBgTextActive，渐变取 motionDurationMid、motionEaseInOut。
+ */
+:root {
+  --library-hover-opacity: 0.06;
+  --library-active-opacity: 0.15;
+}
+:root[data-theme='dark'] {
+  --library-hover-opacity: 0.12;
+  --library-active-opacity: 0.18;
+}
+.ss-pressable::before,
+.ss-game-cover::before {
+  transition: opacity 0.2s cubic-bezier(0.645, 0.045, 0.355, 1);
+}
+.ss-pressable:not(:disabled):hover::before,
+.ss-game-card:hover .ss-game-cover::before {
+  opacity: var(--library-hover-opacity);
+}
+.ss-pressable:not(:disabled):active::before,
+.ss-game-card:active .ss-game-cover::before {
+  opacity: var(--library-active-opacity);
+}
 .library-app {
   height: 100dvh;
   min-height: 520px;

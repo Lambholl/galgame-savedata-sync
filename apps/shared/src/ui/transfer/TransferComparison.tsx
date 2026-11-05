@@ -151,7 +151,7 @@ function EndpointCard({
   return isRemote ? (
     <button
       type="button"
-      className={className}
+      className={`${className} ss-pressable`}
       disabled={isLocked}
       aria-label={`${t('transfer.pickPeer')}: ${endpoint.name}`}
       onClick={onPickPeer}
@@ -309,7 +309,7 @@ export function TransferComparison({
         {card(source)}
         <button
           type="button"
-          className="ss-flip"
+          className="ss-flip ss-pressable"
           disabled={isLocked}
           aria-label={t('transfer.flip')}
           title={t('transfer.flip')}
@@ -341,7 +341,7 @@ export function TransferComparison({
         )}
         <span className="ss-diffbar-space" />
         {isScanning && onCancel && (
-          <button type="button" className="ss-chip" onClick={onCancel}>
+          <button type="button" className="ss-chip ss-pressable" onClick={onCancel}>
             <span>{t('common.cancel')}</span>
           </button>
         )}
@@ -349,7 +349,7 @@ export function TransferComparison({
           <button
             type="button"
             role="switch"
-            className={`ss-chip ss-keep-chip ${isKeepingExtras ? 'is-keep' : 'is-delete'}`}
+            className={`ss-chip ss-pressable ss-keep-chip ${isKeepingExtras ? 'is-keep' : 'is-delete'}`}
             aria-checked={isKeepingExtras}
             aria-label={t('compare.keepExtras')}
             title={t('compare.keepExtras')}
@@ -366,7 +366,7 @@ export function TransferComparison({
         {comparison !== null && (
           <button
             type="button"
-            className={`ss-chip${isFilterOn ? ' is-on' : ''}`}
+            className={`ss-chip ss-pressable${isFilterOn ? ' is-on' : ''}`}
             aria-pressed={isFilterOn}
             onClick={() => setIsFilterOn(!isFilterOn)}
           >
@@ -376,7 +376,7 @@ export function TransferComparison({
         )}
         <button
           type="button"
-          className="ss-chip is-icon"
+          className="ss-chip ss-pressable is-icon"
           aria-label={t('compare.refresh')}
           title={t('compare.refresh')}
           disabled={isLocked || isScanning}
