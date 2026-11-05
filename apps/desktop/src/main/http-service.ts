@@ -156,7 +156,7 @@ export class WindowsHttpService {
   getSyncStates(): readonly SyncJobState[] {
     return this.syncRegistry?.getStates() ?? []
   }
-  /** 电脑发起复制经控制通道请手机扫描和执行；服务停止时请求一并丢弃。 */
+  /** 电脑发起复制经控制通道请移动端扫描和执行；服务停止时请求一并丢弃。 */
   remoteSyncRequest(): ReturnType<WindowsRemoteSyncRequests['state']> {
     return this.remoteRequests?.state() ?? null
   }

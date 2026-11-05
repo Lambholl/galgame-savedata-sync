@@ -118,7 +118,7 @@ GET content 响应及 PUT content 请求均须提供唯一的 Content-Length 和
 1. Android POST downloads 指定 Windows 已登记根内的显式文件引用，Windows 异步准备私有原文快照及 tar.gz，执行与上行相同的计数/源变化检查；返回 ready 后 Android GET manifest。
 2. Android 验证清单及全部本地 TargetSelection、写授权、空间和当前冲突，才 GET content。Windows 只发送已准备归档；源文件之后的变化不改变这份任务快照。
 3. Android 在私有目录保存、完整校验压缩体及所有原文，再使用 WP-010 对 SAF 逐项新建、写入、关闭并回读；校验实际名称、内容和实际元数据后报告各文件结果。
-4. Windows 只记录 sender 的 sent/failed/cancelled/unknown，不推断手机已发布。最终文件结果由 Android receiver 的本地 BatchState 提供；本期不增加回传成功确认或 Windows 发起任务通道。
+4. Windows 只记录 sender 的 sent/failed/cancelled/unknown，不推断移动端已发布。最终文件结果由 Android receiver 的本地 BatchState 提供；本期不增加回传成功确认或 Windows 发起任务通道。
 
 准备阶段复制的是本次所选文件的内容快照。读取前后的可观察属性变化会导致失败；同大小且 mtime 不变的改写可能漏过，多个文件也可能来自不同时刻。测试夹具保持静止；后续产品要提示同步时退出游戏。哈希匹配只证明文件内容与本次清单一致，不构成跨文件原子快照。
 

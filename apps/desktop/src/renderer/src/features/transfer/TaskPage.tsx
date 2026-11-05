@@ -52,7 +52,7 @@ export function TaskPage({
     onOpenBackup(projectId, rootId)
   }
   return (
-    // 详情放在居中的窄栏里，与手机共用同一结构。
+    // 详情放在居中的窄栏里，与移动端共用同一结构。
     <div className="task-page">
       {!tasks.length && !copies.length && !restores.length && (
         <Empty

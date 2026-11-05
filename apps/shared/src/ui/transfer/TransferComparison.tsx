@@ -49,8 +49,8 @@ export type ComparisonStatus =
 export interface TransferComparisonProps {
   /** 电脑一端。 */
   readonly pc: TransferEndpoint
-  /** 手机一端。 */
-  readonly phone: TransferEndpoint
+  /** 移动端一端。 */
+  readonly mobile: TransferEndpoint
   /** 哪一端是对端设备；点它的名称会调用 onPickPeer。 */
   readonly remoteSide: CompareSide
   /** 当前传输方向：来源一端排在左边，目标一端排在右边。 */
@@ -239,7 +239,7 @@ function ComparePane({
  */
 export function TransferComparison({
   pc,
-  phone,
+  mobile,
   remoteSide,
   direction,
   status,
@@ -253,9 +253,9 @@ export function TransferComparison({
 }: TransferComparisonProps): ReactElement {
   const t = useT()
   const [isFilterOn, setIsFilterOn] = useState(false)
-  const endpoints = { pc, phone }
+  const endpoints = { pc, mobile }
   const [source, target]: readonly [CompareSide, CompareSide] =
-    direction === 'windows-to-android' ? ['pc', 'phone'] : ['phone', 'pc']
+    direction === 'windows-to-android' ? ['pc', 'mobile'] : ['mobile', 'pc']
   const comparison = status.kind === 'ready' ? status.comparison : null
   const isScanning = status.kind === 'waiting' || status.kind === 'scanning'
   const card = (side: CompareSide): ReactElement => (

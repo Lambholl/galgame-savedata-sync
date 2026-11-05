@@ -16,7 +16,7 @@ export interface GameLink {
   readonly deviceId: string
   readonly gameId: string
 }
-/** 已保存的设备。地址只用于连接电脑，电脑记住的手机没有监听地址；blocked 是本机的连接开关。 */
+/** 已保存的设备。地址只用于连接电脑，电脑记住的移动端没有监听地址；blocked 是本机的连接开关。 */
 export interface SavedDevice {
   readonly id: string
   readonly name: string

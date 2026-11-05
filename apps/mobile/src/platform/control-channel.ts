@@ -92,11 +92,11 @@ export function createControlChannel(
                 message:
                   cause instanceof Error
                     ? cause.message
-                    : 'The phone failed to process the request.',
+                    : 'The mobile device failed to process the request.',
                 canRetry: false,
               },
             }))
-          : failure('unsupported-operation', 'The phone does not handle this request.')
+          : failure('unsupported-operation', 'The mobile device does not handle this request.')
       await send(deviceId, { v: 1, type: 'response', id: message.id, result })
     } else if (message.type === 'event' && isControlEventBody(message.method, message.body)) {
       for (const handler of events.get(message.method) ?? []) {

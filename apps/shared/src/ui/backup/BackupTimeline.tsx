@@ -21,7 +21,7 @@ export interface BackupItem {
 
 /**
  * 行的交互方式。select：整行可选（电脑，右侧显示所选备份）；
- * restore：每行“恢复”“删除”两个按钮（手机）。
+ * restore：每行“恢复”“删除”两个按钮（移动端）。
  */
 export type BackupTimelineAction =
   | {

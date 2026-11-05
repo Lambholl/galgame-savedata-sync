@@ -12,7 +12,7 @@ export interface BackupPolicyBlockProps {
   readonly keepCount: number
   /** 这个游戏单独设置；false 表示跟随全局设置。 */
   readonly isCustom: boolean
-  /** 备份保存位置；不在这里显示时为 null（手机放在页脚）。 */
+  /** 备份保存位置；不在这里显示时为 null（移动端放在页脚）。 */
   readonly location: string | null
   /** 点开修改策略；不能修改时为 null。 */
   readonly onEdit: (() => void) | null

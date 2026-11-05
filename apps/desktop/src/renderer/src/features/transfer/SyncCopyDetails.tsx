@@ -12,7 +12,7 @@ import { useCopyDetails } from './use-sync-details.ts'
 import { TechnicalDetails } from './TechnicalDetails.tsx'
 
 /**
- * 两个角色的状态都显示；进行中与否按两端状态合成，发送完成而手机还在写入时仍是进行中。
+ * 两个角色的状态都显示；进行中与否按两端状态合成，发送完成而移动端还在写入时仍是进行中。
  * 右下角只放当下能做的一件事：进行中取消传输，结束后重新扫描；查看备份是技术详情上方的一行。
  */
 export function SyncCopyDetails({
@@ -60,7 +60,7 @@ export function SyncCopyDetails({
       })
   }
   const pcEnd: PlanEndpoint = { name: t('transfer.local'), kind: 'pc' }
-  const phoneEnd: PlanEndpoint = { name: peer?.device.name ?? t('common.unknown'), kind: 'phone' }
+  const mobileEnd: PlanEndpoint = { name: peer?.device.name ?? t('common.unknown'), kind: 'mobile' }
   const isUpload = task.direction === 'android-to-windows'
   // 按钮和正文读同一份状态；列表摘要另有轮询，用它会出现正文已完成、按钮还是取消的一瞬间。
   const phase = state
@@ -79,13 +79,13 @@ export function SyncCopyDetails({
       {state ? (
         <SyncTaskSummary
           gameName={game?.name ?? t('common.unknown')}
-          source={isUpload ? phoneEnd : pcEnd}
-          target={isUpload ? pcEnd : phoneEnd}
+          source={isUpload ? mobileEnd : pcEnd}
+          target={isUpload ? pcEnd : mobileEnd}
           local={state.local}
           remote={state.remote}
           remoteError={state.remoteError}
           onRetryCleanup={state.local.cleanupError && !isRunning ? () => act('cleanup') : null}
-          // 备份建在被写入的一端；电脑发送时备份在手机上，这里不提供入口。
+          // 备份建在被写入的一端；电脑发送时备份在移动端上，这里不提供入口。
           onViewBackup={
             state.local.role === 'receiver' && plan
               ? () => onOpenBackup(task.projectId, plan.target.rootId)

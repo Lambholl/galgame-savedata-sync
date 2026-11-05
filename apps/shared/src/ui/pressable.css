@@ -1,6 +1,6 @@
 /*
  * 可点的行与卡片（ss-pressable）：悬停或按下时不直接换底色，而是叠一层文字色的透明遮罩并渐变，
- * 浅色下变暗、深色下变亮，与手机列表行的按下反馈相同。手机由 press-feedback 加减 is-pressed。
+ * 浅色下变暗、深色下变亮，与移动端列表行的按下反馈相同。移动端由 press-feedback 加减 is-pressed。
  */
 .ss-pressable {
   position: relative;

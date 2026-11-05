@@ -34,7 +34,7 @@ const SCANNING: readonly DesktopRemoteRequest['status'][] = ['waiting', 'prepari
 const UNCONFIRMED: readonly DesktopRemoteRequest['status'][] = ['waiting', 'preparing', 'ready']
 
 /**
- * 电脑传输页：进入即请求手机扫描两端，比较结果与计划来自手机返回的同一份计划；
+ * 电脑传输页：进入即请求移动端扫描两端，比较结果与计划来自移动端返回的同一份计划；
  * 翻转方向、切换设备或刷新时取代旧请求，离开页面时取消未确认的请求。
  */
 export function TransferPage({
@@ -67,7 +67,7 @@ export function TransferPage({
   readonly onPeerChange: (id: string) => void
   readonly onUploadChange: (isUpload: boolean) => void
   readonly onConfirm: (confirmation: Confirmation) => void
-  /** 手机已应答计划，转到传输详情；开始前的失败也在那里显示。 */
+  /** 移动端已应答计划，转到传输详情；开始前的失败也在那里显示。 */
   readonly onStarted: () => void
   /** 计划已过期，提示一次；页面自己重新比较。 */
   readonly onPlanExpired: () => void
@@ -86,7 +86,7 @@ export function TransferPage({
   const [isConfirming, setIsConfirming] = useState(false)
   /** 目标多出的条目是否保留；每次重新比较都回到保留，不记住上次的选择。 */
   const [isKeepingExtras, setIsKeepingExtras] = useState(true)
-  /** 已确认、等手机应答的请求；应答前留在本页，计划过期时才能直接重新比较。 */
+  /** 已确认、等移动端应答的请求；应答前留在本页，计划过期时才能直接重新比较。 */
   const [confirmedId, setConfirmedId] = useState<string | null>(null)
   const isStarting = isConfirming || confirmedId !== null
   const latest = useRef<DesktopRemoteRequest | null>(null)
@@ -212,7 +212,7 @@ export function TransferPage({
       ? compareSnapshots(reported.source, reported.target)
       : compareSnapshots(reported.target, reported.source)
   }, [reported])
-  // 手机回报的计划一律保留；开关只改变这里生成的计划，确认时把选择交给主进程和手机。
+  // 移动端回报的计划一律保留；开关只改变这里生成的计划，确认时把选择交给主进程和移动端。
   const current = useMemo(
     () => reported && withDeleteExtras(reported, !isKeepingExtras),
     [reported, isKeepingExtras],
@@ -251,7 +251,7 @@ export function TransferPage({
   } else if (isOtherConfirmed) {
     status = { kind: 'unavailable', reason: t('transfer.remoteBusy') }
   } else if (shown === null || shown.status === 'waiting') {
-    // 请求还没登记或手机还没响应。
+    // 请求还没登记或移动端还没响应。
     status = { kind: 'waiting' }
   } else {
     status = { kind: 'scanning' }
@@ -263,7 +263,7 @@ export function TransferPage({
     t(game.links.length > 0 ? 'transfer.pickPeerTitle' : 'common.unknown')
   const localName = t('transfer.local')
   const pcEnd: PlanEndpoint = { name: localName, kind: 'pc' }
-  const phoneEnd: PlanEndpoint = { name: peerName, kind: 'phone' }
+  const mobileEnd: PlanEndpoint = { name: peerName, kind: 'mobile' }
   function start(): void {
     if (!shown || !current || !canStart) {
       return
@@ -295,13 +295,13 @@ export function TransferPage({
           isOnline: null,
           rootName: localRoot?.displayName ?? '—',
         }}
-        phone={{
+        mobile={{
           name: peerName,
           caption: '',
           isOnline: selectedPeer ? isConnected : null,
           rootName: remoteGame?.root?.displayName ?? '—',
         }}
-        remoteSide="phone"
+        remoteSide="mobile"
         direction={direction}
         status={status}
         isLocked={isDisabled || isActive || isStarting}
@@ -350,8 +350,8 @@ export function TransferPage({
         {current && (
           <SyncPlanSummary
             plan={current}
-            source={upload ? phoneEnd : pcEnd}
-            target={upload ? pcEnd : phoneEnd}
+            source={upload ? mobileEnd : pcEnd}
+            target={upload ? pcEnd : mobileEnd}
             backupKeepCount={shown?.backupKeepCount ?? null}
           />
         )}

@@ -80,7 +80,7 @@ export const zhCN = {
     `目标的全部 ${count} 项都会被删除，而且已关闭写入前备份，删除后无法恢复。仍要开始？`,
   'transfer.planUnavailable': '本次计划不可用，请返回传输存档页刷新。',
   'transfer.planStale': '游戏或目录已变化，请返回刷新后再传输。',
-  'transfer.remoteBusy': '另一项传输已确认，正在等待手机开始。',
+  'transfer.remoteBusy': '另一项传输已确认，正在等待移动端开始。',
 
   'compare.differs': ({ count }: { count: number }): string => `${count} 个内容不同`,
   'compare.onlySource': ({ count }: { count: number }): string => `${count} 个仅来源有`,
@@ -298,9 +298,9 @@ export const zhCN = {
   'device.copyAddress': '复制地址',
   'device.connect': '连接',
   'device.disconnect': '断开',
-  'device.waitingPhone': '等待手机连接',
-  'device.emptyPhone': '添加电脑地址后连接',
-  'device.emptyPc': '手机连接后会显示在这里',
+  'device.waitingMobile': '等待移动端连接',
+  'device.emptyMobile': '添加电脑地址后连接',
+  'device.emptyPc': '移动端连接后会显示在这里',
   'device.noneConnected': '未连接设备',
   'device.connectFailed': '连接失败',
   'device.removeTitle': '移除设备',
@@ -324,8 +324,8 @@ export const zhCN = {
   'transfer.started': '已开始传输',
   'transfer.remoteScanRequest': ({ name }: { name: string }): string => `电脑请求扫描 ${name}`,
   'task.loading': '正在读取任务',
-  'task.phoneToPc': '手机 → 电脑',
-  'task.pcToPhone': '电脑 → 手机',
+  'task.mobileToPc': '移动端 → 电脑',
+  'task.pcToMobile': '电脑 → 移动端',
   'task.sent': '已发送',
   'task.archiveProgress': ({ done, total }: { done: string; total: string }): string =>
     `已传输 ${done} / ${total}`,
@@ -337,7 +337,7 @@ export const zhCN = {
 
   'error.withContext': ({ context, text }: { context: string; text: string }): string =>
     `${context}：${text}`,
-  'error.onPhone': ({ text }: { text: string }): string => `手机上${text}`,
+  'error.onMobile': ({ text }: { text: string }): string => `移动端上${text}`,
   'error.onPc': ({ text }: { text: string }): string => `电脑上${text}`,
   'error.code.invalid-request': '请求内容无效，请刷新后重试。',
   'error.code.protocol-mismatch': '两端应用版本不兼容，请更新到同一版本。',

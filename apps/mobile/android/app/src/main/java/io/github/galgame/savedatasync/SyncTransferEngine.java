@@ -105,7 +105,7 @@ final class SyncTransferEngine implements AutoCloseable {
   private final ExecutorService worker = Executors.newSingleThreadExecutor();
   private final ScheduledExecutorService watcher = Executors.newSingleThreadScheduledExecutor();
   private final ScheduledExecutorService heartbeats = Executors.newSingleThreadScheduledExecutor();
-  /** 向电脑推送任务摘要、应答读取和取消；放在原生，页面被回收或任务由手机发起时同样工作。 */
+  /** 向电脑推送任务摘要、应答读取和取消；放在原生，页面被回收或任务由移动端发起时同样工作。 */
   private final ScheduledExecutorService reports = Executors.newSingleThreadScheduledExecutor();
   private final Map<String, Preparation> preparations = new LinkedHashMap<>();
   private final Map<String, Job> jobs = new LinkedHashMap<>();
@@ -206,7 +206,7 @@ final class SyncTransferEngine implements AutoCloseable {
     transport.controlInterceptor(this::controlRequest);
   }
 
-  /** 有变化就发；进行中没有变化也每秒发一次，电脑靠它判断手机还在。结束后不再重复。 */
+  /** 有变化就发；进行中没有变化也每秒发一次，电脑靠它判断移动端还在。结束后不再重复。 */
   private void report() {
     Map<Job, String> pending = new LinkedHashMap<>();
     long now = System.nanoTime();
@@ -931,7 +931,8 @@ final class SyncTransferEngine implements AutoCloseable {
       if (shouldBackup != job.plan.shouldBackup) {
         throw new ArchiveFailure(
           "source-changed",
-          (job.preparation.upload() ? "PC" : "Phone") + "Backup settings changed. Confirm again."
+          (job.preparation.upload() ? "PC" : "Mobile device") +
+            " backup settings changed. Confirm again."
         );
       }
       job.wasRemoteAttempted = true;
@@ -984,7 +985,7 @@ final class SyncTransferEngine implements AutoCloseable {
           );
         }
       }
-      // 手机接收时总是取消远端。手机发送时，用户取消、总期限或内容没发完才取消；发完后查询失败时，远端继续写入。
+      // 移动端接收时总是取消远端。移动端发送时，用户取消、总期限或内容没发完才取消；发完后查询失败时，远端继续写入。
       if (job.wasRemoteAttempted) {
         if (
           !job.preparation.upload() ||
@@ -1307,7 +1308,10 @@ final class SyncTransferEngine implements AutoCloseable {
     }
     transport.verifySync(job.preparation.connection, job.preparation.binding);
     if (local.backup(project, root) != job.plan.shouldBackup) {
-      throw new ArchiveFailure("source-changed", "Phone backup settings changed. Confirm again.");
+      throw new ArchiveFailure(
+        "source-changed",
+        "Mobile device backup settings changed. Confirm again."
+      );
     }
   }
 
@@ -1673,7 +1677,7 @@ final class SyncTransferEngine implements AutoCloseable {
     return last == null ? null : last.plan.id;
   }
 
-  /** 这个游戏（手机端 projectId）最近一次任务；jobs 有容量上限，遍历是有界的。 */
+  /** 这个游戏（移动端 projectId）最近一次任务；jobs 有容量上限，遍历是有界的。 */
   synchronized Object latest(String projectId) throws Exception {
     available();
     id(projectId);

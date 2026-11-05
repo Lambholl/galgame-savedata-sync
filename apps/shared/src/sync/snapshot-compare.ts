@@ -1,8 +1,8 @@
 import type { SyncEntry, SyncSnapshot } from './sync-contracts.ts'
 import { syncPathKey } from './sync-paths.ts'
 
-/** 两端位置固定：左边电脑，右边手机，与传输方向无关。 */
-export type CompareSide = 'pc' | 'phone'
+/** 两端位置固定：左边电脑，右边移动端，与传输方向无关。 */
+export type CompareSide = 'pc' | 'mobile'
 
 /** 显示用的条目类型；图片指 png/jpg/jpeg/bmp/webp/gif。 */
 export type FileKind = 'directory' | 'image' | 'file'
@@ -70,18 +70,18 @@ function compareItems(left: CompareItem, right: CompareItem): number {
  * 比较两端本次扫描的完整快照，生成每一层的显示列表。
  * 路径按原始名称精确匹配（与传输计划一致）；内容以 SHA-256 与大小判断，任一端哈希未知视为不同。
  */
-export function compareSnapshots(pc: SyncSnapshot, phone: SyncSnapshot): SnapshotComparison {
+export function compareSnapshots(pc: SyncSnapshot, mobile: SyncSnapshot): SnapshotComparison {
   const sides: Record<CompareSide, Map<string, SyncEntry>> = {
     pc: new Map(pc.entries.map((entry) => [syncPathKey(entry.path), entry])),
-    phone: new Map(phone.entries.map((entry) => [syncPathKey(entry.path), entry])),
+    mobile: new Map(mobile.entries.map((entry) => [syncPathKey(entry.path), entry])),
   }
   // 先找出所有不一致的文件路径，再给它们的每一级上级文件夹计数。
   const differing = new Map<string, readonly string[]>()
   let differingFiles = 0
-  const onlyFiles = { pc: 0, phone: 0 }
+  const onlyFiles = { pc: 0, mobile: 0 }
   for (const [side, other] of [
-    ['pc', 'phone'],
-    ['phone', 'pc'],
+    ['pc', 'mobile'],
+    ['mobile', 'pc'],
   ] as const) {
     for (const [key, entry] of sides[side]) {
       if (entry.kind !== 'file' || differing.has(key)) {
@@ -106,8 +106,8 @@ export function compareSnapshots(pc: SyncSnapshot, phone: SyncSnapshot): Snapsho
   }
   const children = new Map<string, CompareItem[]>()
   for (const [side, other] of [
-    ['pc', 'phone'],
-    ['phone', 'pc'],
+    ['pc', 'mobile'],
+    ['mobile', 'pc'],
   ] as const) {
     for (const [key, entry] of sides[side]) {
       const name = entry.path[entry.path.length - 1] ?? ''

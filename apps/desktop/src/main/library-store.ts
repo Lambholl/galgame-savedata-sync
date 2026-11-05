@@ -125,7 +125,7 @@ export class DesktopLibrary {
     if (this.hasOtherPeer(deviceId)) {
       throw new HttpOperationError(
         'busy',
-        'The PC is already connected to another phone. Disconnect it first.',
+        'The PC is already connected to another mobile device. Disconnect it first.',
       )
     }
     this.runtime.set(deviceId, { ...current, seenAt: Date.now() })
@@ -254,7 +254,7 @@ export class DesktopLibrary {
     ) {
       throw new HttpOperationError(
         'busy',
-        'The PC is already connected to another phone. Disconnect it first.',
+        'The PC is already connected to another mobile device. Disconnect it first.',
       )
     }
     if (!saved && this.config.devices.length >= 32) {
@@ -298,7 +298,7 @@ export class DesktopLibrary {
       return Promise.reject(
         new HttpOperationError(
           'not-found',
-          'The phone is offline or the directory reference expired.',
+          'The mobile device is offline or the directory reference expired.',
         ),
       )
     }
@@ -327,7 +327,7 @@ ${parentId ?? ''}`
         if (value.rootId !== rootId || value.parentId !== parentId) {
           throw new HttpOperationError(
             'invalid-request',
-            "The phone's directory response does not match the request.",
+            "The mobile device's directory response does not match the request.",
           )
         }
         const entries = this.runtime.get(deviceId)?.entries

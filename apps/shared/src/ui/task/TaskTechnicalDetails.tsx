@@ -20,7 +20,7 @@ export interface TaskTechnicalDetailsProps {
   readonly onCopy: () => void
 }
 
-/** 与“已写入 N 个文件”同一种可展开行；触控长按由手机端包装组件处理。 */
+/** 与“已写入 N 个文件”同一种可展开行；触控长按由移动端包装组件处理。 */
 export function TaskTechnicalDetails({
   text,
   isExpanded,

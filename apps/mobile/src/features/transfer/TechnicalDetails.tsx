@@ -4,7 +4,7 @@ import { toShownError } from '@savedata-sync/shared'
 import { ErrorText, TaskTechnicalDetails, useT } from '@savedata-sync/shared/ui'
 import { useAppMessage } from '../../app/app-message'
 
-/** 手机技术详情卡片的输入。 */
+/** 移动端技术详情卡片的输入。 */
 export interface TechnicalDetailsProps {
   /** 原样显示和复制的完整技术信息。 */
   readonly text: string

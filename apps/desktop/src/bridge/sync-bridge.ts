@@ -71,8 +71,8 @@ export interface DesktopRestoreState extends DesktopRestoreSummary {
   readonly cleanupError: OperationError | null
 }
 /**
- * 电脑发起的复制请求：waiting 等手机响应，preparing 手机在扫描，ready 可确认计划，
- * starting 等手机开始执行，running 时 jobId 对应复制任务，succeeded 是手机回报的成功结果；
+ * 电脑发起的复制请求：waiting 等移动端响应，preparing 移动端在扫描，ready 可确认计划，
+ * starting 等移动端开始执行，running 时 jobId 对应复制任务，succeeded 是移动端回报的成功结果；
  * failed 带失败原因，开始后的失败或取消也带 jobId。
  */
 export interface DesktopRemoteRequest {
@@ -91,11 +91,11 @@ export interface DesktopRemoteRequest {
     | 'cancelled'
   readonly jobId: string | null
   readonly error: OperationError | null
-  /** 手机回报的计划里，被写入一端的保留份数；还没回报时为 null。 */
+  /** 移动端回报的计划里，被写入一端的保留份数；还没回报时为 null。 */
   readonly backupKeepCount: number | null
   readonly updatedAt: number
 }
-/** 渲染进程使用的复制接口：查看和取消复制任务及手动恢复，并向已连接手机发起复制。 */
+/** 渲染进程使用的复制接口：查看和取消复制任务及手动恢复，并向已连接移动端发起复制。 */
 export interface DesktopSyncApi {
   activity(): Promise<OperationResult<boolean>>
   copies(): Promise<OperationResult<readonly DesktopCopySummary[]>>
@@ -118,15 +118,15 @@ export interface DesktopSyncApi {
   releaseRestore(restoreId: string): Promise<OperationResult<null>>
   /** 当前发起请求；没有请求时返回 null。 */
   remoteRequest(): Promise<OperationResult<DesktopRemoteRequest | null>>
-  /** 请求已连接手机扫描指定游戏；手机应用版本不支持时返回 unsupported-operation。 */
+  /** 请求已连接移动端扫描指定游戏；移动端应用版本不支持时返回 unsupported-operation。 */
   startRemote(
     projectId: string,
     peerId: string,
     direction: DesktopRemoteRequest['direction'],
   ): Promise<OperationResult<DesktopRemoteRequest>>
-  /** 读取手机回报的计划，只在 ready 及之后可用。 */
+  /** 读取移动端回报的计划，只在 ready 及之后可用。 */
   remotePlan(requestId: string): Promise<OperationResult<SyncPlan>>
-  /** shouldDeleteExtras 是确认时的开关选择；计划随之重新生成后交给手机执行。 */
+  /** shouldDeleteExtras 是确认时的开关选择；计划随之重新生成后交给移动端执行。 */
   confirmRemote(
     requestId: string,
     shouldDeleteExtras: boolean,
@@ -459,7 +459,7 @@ export function createSyncBridge(
       manifest = declaration.value
       remember(manifests, jobId, manifest)
     }
-    // 对端的清单主进程已核对过；这里只核对它属于本次任务，手机可能比本机更早知道压缩体大小。
+    // 对端的清单主进程已核对过；这里只核对它属于本次任务，移动端可能比本机更早知道压缩体大小。
     return local.role ===
       (request.plan.direction === 'android-to-windows' ? 'receiver' : 'sender') &&
       matchesSyncJobState(
@@ -578,7 +578,7 @@ export function createSyncBridge(
         [],
         (value): value is readonly DesktopCopySummary[] =>
           Array.isArray(value) &&
-          // 32 个已登记任务，加一个已确认、手机还没登记的任务。
+          // 32 个已登记任务，加一个已确认、移动端还没登记的任务。
           value.length <= 33 &&
           value.every(isDesktopCopySummary) &&
           new Set(value.map((item) => item.jobId)).size === value.length,

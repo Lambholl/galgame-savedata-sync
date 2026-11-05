@@ -9,7 +9,7 @@ final class ArchiveFailure extends IOException {
   final boolean isCancelled;
   final String diagnosticCode;
   ArchiveFailure cleanupFailure;
-  /** 出错的目录在哪一端（phone、pc）；抛出处不知道时为 null。 */
+  /** 出错的目录在哪一端（协议取值 phone 表示移动端，pc 表示电脑）；抛出处不知道时为 null。 */
   String device;
 
   ArchiveFailure(String code, String message) {

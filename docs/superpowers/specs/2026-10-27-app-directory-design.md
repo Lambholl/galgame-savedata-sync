@@ -33,10 +33,10 @@
 | --- | --- | --- |
 | `apps/mobile/src/App.tsx`、`apps/desktop/src/renderer/src/App.tsx` | 都加载 `@savedata-sync/ui` 的 `LibraryApp` | 两端应用入口主要负责注入适配器，页面实际归共享包管理 |
 | `packages/ui/src/LibraryApp.tsx` | 同时持有页面、弹层、主题、表单、轮询、设备和传输状态，通过 `isMobile` 分支处理平台差异 | 改某端交互时要同时检查另一端，界面状态与业务操作交织 |
-| `packages/ui/src/components/GameMenu.tsx` | 手机使用 antd-mobile `Popup`，桌面使用 antd `Modal` | 移动弹层的外壳已经使用移动组件库 |
+| `packages/ui/src/components/GameMenu.tsx` | 移动端使用 antd-mobile `Popup`，桌面使用 antd `Modal` | 移动弹层的外壳已经使用移动组件库 |
 | `packages/ui/src/components/GameActions.tsx` | 内容仍是 antd `Button` 和纵向 `Space`，五项动作都整行排列 | 共用内容没有保留原型的主操作卡片和双列次级操作 |
 | `packages/ui/src/components/LibraryShell.tsx` | 同时挂载两套组件库的主题/语言入口 | 两端界面依赖和主题配置集中在同一个组件中 |
-| `packages/ui/src/style.css` | 移动工具栏文字设为 12px，目录时间为 9px，表格单元格统一 7px 内边距 | 手机通过进一步压缩桌面样式适配窄屏，触控和阅读空间不足 |
+| `packages/ui/src/style.css` | 移动工具栏文字设为 12px，目录时间为 9px，表格单元格统一 7px 内边距 | 移动端通过进一步压缩桌面样式适配窄屏，触控和阅读空间不足 |
 | `packages/ui/src/DirectoryPane.tsx` | 两端共用 antd 小号表格、上一级和刷新按钮 | 文件区的移动操作也需要单独设计 |
 | `packages/ui/src/api.ts`、两端 `library-adapter.ts` | 业务接口、任务判断和结果解包从 UI 包导出，平台适配器反过来依赖 UI 包 | 即使拆开页面，仍需把这些共用规则和类型移到合适的位置 |
 | 两端旧 `DirectoryPanel.tsx`、`TaskPanel.tsx` 等 | 当前正式入口和源码引用检索未发现这些旧验证组件被使用 | 新旧界面并存，容易找错修改入口；迁移时应逐个核实用途 |

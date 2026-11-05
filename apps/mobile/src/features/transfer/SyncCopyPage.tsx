@@ -252,7 +252,7 @@ export function SyncCopyPage({
   }
   const remoteName =
     peer?.device.name ?? t(game.links.length > 0 ? 'transfer.pickPeerTitle' : 'common.unknown')
-  const localEnd: PlanEndpoint = { name: t('transfer.local'), kind: 'phone' }
+  const localEnd: PlanEndpoint = { name: t('transfer.local'), kind: 'mobile' }
   const remoteEnd: PlanEndpoint = { name: remoteName, kind: 'pc' }
   return (
     <>
@@ -266,7 +266,7 @@ export function SyncCopyPage({
             isOnline: peer ? isConnected : null,
             rootName: remote?.root?.displayName ?? '—',
           }}
-          phone={{
+          mobile={{
             name: t('transfer.local'),
             caption: deviceName ?? '',
             isOnline: null,

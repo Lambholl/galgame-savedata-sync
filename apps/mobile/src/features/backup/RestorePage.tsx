@@ -55,7 +55,7 @@ export function RestorePage({
       <PlanConfirm
         plan={plan}
         source={{ name: sourceName, kind: 'backup' }}
-        target={{ name: t('transfer.local'), kind: 'phone' }}
+        target={{ name: t('transfer.local'), kind: 'mobile' }}
         backupKeepCount={null}
         notice={isOldFolder && <p className="notice notice-warning">{t('backup.oldFolder')}</p>}
         action={{

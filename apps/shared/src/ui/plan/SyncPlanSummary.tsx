@@ -21,8 +21,8 @@ import './sync-plan-summary.css'
 export interface PlanEndpoint {
   /** 设备名，或“本机”“本机备份”等。 */
   readonly name: string
-  /** 图标：电脑、手机或备份。 */
-  readonly kind: 'pc' | 'phone' | 'backup'
+  /** 图标：电脑、移动端或备份。 */
+  readonly kind: 'pc' | 'mobile' | 'backup'
 }
 
 /** SyncPlanSummary 的参数。 */
@@ -47,7 +47,7 @@ interface PlanRow {
 
 const ICONS = {
   pc: <DesktopOutlined />,
-  phone: <MobileOutlined />,
+  mobile: <MobileOutlined />,
   backup: <HistoryOutlined />,
 } as const
 

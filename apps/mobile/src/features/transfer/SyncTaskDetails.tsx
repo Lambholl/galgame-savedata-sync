@@ -78,7 +78,7 @@ export function SyncTaskDetails({
   const isRunning =
     state &&
     observeSyncJob(state.local, state.remote, state.remoteError !== null).phase === 'running'
-  const phoneEnd: PlanEndpoint = { name: t('transfer.local'), kind: 'phone' }
+  const mobileEnd: PlanEndpoint = { name: t('transfer.local'), kind: 'mobile' }
   const pcEnd: PlanEndpoint = { name: peer?.device.name ?? t('common.unknown'), kind: 'pc' }
   const isUpload = copy?.preview.direction === 'android-to-windows'
   const failure = error ?? errors[0] ?? null
@@ -116,15 +116,15 @@ export function SyncTaskDetails({
           <SyncTaskSummary
             key={state.jobId}
             gameName={game?.name ?? t('common.unknown')}
-            source={isUpload ? phoneEnd : pcEnd}
-            target={isUpload ? pcEnd : phoneEnd}
+            source={isUpload ? mobileEnd : pcEnd}
+            target={isUpload ? pcEnd : mobileEnd}
             local={state.local}
             remote={state.remote}
             remoteError={state.remoteError}
             onRetryCleanup={
               isRunning || !state.local.cleanupError ? null : () => act(() => sync.cleanupCopy())
             }
-            // 备份建在被写入的一端；手机发送时备份在电脑上，这里不提供入口。
+            // 备份建在被写入的一端；移动端发送时备份在电脑上，这里不提供入口。
             onViewBackup={
               state.local.role === 'receiver' ? () => onBackup(binding.projectId) : null
             }

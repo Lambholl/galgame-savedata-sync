@@ -362,7 +362,7 @@ final class TransferEngine {
           control
         );
       } catch (Exception ignored) {
-        /* 本机仍断开；电脑收不到告别时，控制通道关闭后同样把这台手机算作离线。 */
+        /* 本机仍断开；电脑收不到告别时，控制通道关闭后同样把这台移动端算作离线。 */
       }
     }
     ControlClient client;

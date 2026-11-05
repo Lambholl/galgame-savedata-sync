@@ -106,7 +106,7 @@ export type OperationErrorCode =
   | 'cleanup-failed'
   | 'result-unknown'
 
-/** 出错的一端。 */
+/** 出错的一端；phone 表示移动端，平板也用这个值。取值已随协议发布，协议变化前不改名。 */
 export type ErrorDevice = 'phone' | 'pc'
 
 /**

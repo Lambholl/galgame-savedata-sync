@@ -81,7 +81,8 @@ export const enUS: Messages = {
     `All ${count} items on the target will be deleted. Backup before writing is off, so they cannot be restored. Start anyway?`,
   'transfer.planUnavailable': 'This plan is no longer available. Go back and refresh.',
   'transfer.planStale': 'The game or a folder changed. Go back and refresh before transferring.',
-  'transfer.remoteBusy': 'Another transfer is confirmed and waiting for the phone to start.',
+  'transfer.remoteBusy':
+    'Another transfer is confirmed and waiting for the mobile device to start.',
 
   'compare.differs': ({ count }) => `${count} different`,
   'compare.onlySource': ({ count }) => `${count} only in source`,
@@ -302,9 +303,9 @@ export const enUS: Messages = {
   'device.copyAddress': 'Copy address',
   'device.connect': 'Connect',
   'device.disconnect': 'Disconnect',
-  'device.waitingPhone': 'Waiting for the phone',
-  'device.emptyPhone': 'Add the PC address to connect',
-  'device.emptyPc': 'Phones show up here once they connect',
+  'device.waitingMobile': 'Waiting for the mobile device',
+  'device.emptyMobile': 'Add the PC address to connect',
+  'device.emptyPc': 'Mobile devices show up here once they connect',
   'device.noneConnected': 'No device connected',
   'device.connectFailed': 'Could not connect',
   'device.removeTitle': 'Remove device',
@@ -330,8 +331,8 @@ export const enUS: Messages = {
   'transfer.started': 'Transfer started',
   'transfer.remoteScanRequest': ({ name }) => `The PC asked to scan ${name}`,
   'task.loading': 'Loading the transfer',
-  'task.phoneToPc': 'Phone → PC',
-  'task.pcToPhone': 'PC → Phone',
+  'task.mobileToPc': 'Mobile → PC',
+  'task.pcToMobile': 'PC → Mobile',
   'task.sent': 'Sent',
   'task.archiveProgress': ({ done, total }) => `Transferred ${done} / ${total}`,
   'task.retryCleanup': 'Retry cleanup',
@@ -342,7 +343,7 @@ export const enUS: Messages = {
   'backup.status.running': 'Restoring',
 
   'error.withContext': ({ context, text }) => `${context}: ${text}`,
-  'error.onPhone': ({ text }) => `Phone: ${text}`,
+  'error.onMobile': ({ text }) => `Mobile device: ${text}`,
   'error.onPc': ({ text }) => `PC: ${text}`,
   'error.code.invalid-request': 'The request was not valid. Refresh and try again.',
   'error.code.protocol-mismatch':

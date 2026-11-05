@@ -25,9 +25,9 @@ interface RemoteEntry {
   readonly localRootId: string
   readonly remoteRootId: string
   plan: SyncPlan | null
-  /** 已确认、手机还没在电脑上登记任务；登记后任务由 WindowsSyncRegistry 负责。 */
+  /** 已确认、移动端还没在电脑上登记任务；登记后任务由 WindowsSyncRegistry 负责。 */
   isAwaitingJob: boolean
-  /** 手机最新的任务摘要。 */
+  /** 移动端最新的任务摘要。 */
   digest: SyncJobDigest | null
 }
 
@@ -38,7 +38,7 @@ export interface RemoteSyncRequestOptions {
   readonly deviceId: string
   /** 已有网络传输时拒绝新的发起和确认。 */
   readonly isBusy: () => boolean
-  /** 手机是否已在电脑上登记了这个任务。 */
+  /** 移动端是否已在电脑上登记了这个任务。 */
   readonly hasJob: (jobId: string) => boolean
   readonly now?: () => number
 }
@@ -49,7 +49,7 @@ function isActive(status: DesktopRemoteRequest['status']): status is ActiveStatu
 function matchesSide(snapshot: SyncSnapshot, deviceId: string, rootId: string): boolean {
   return snapshot.deviceId === deviceId && snapshot.rootId === rootId
 }
-/** 手机还没登记任务时本机角色的占位状态；等待中是准备阶段，结束后沿用手机报告的结论。 */
+/** 移动端还没登记任务时本机角色的占位状态；等待中是准备阶段，结束后沿用移动端报告的结论。 */
 function pendingLocalState(entry: RemoteEntry, request: SyncJobRequest): SyncJobState {
   const { status, direction, error, updatedAt } = entry.value
   const plan = request.plan
@@ -97,7 +97,7 @@ function pendingLocalState(entry: RemoteEntry, request: SyncJobRequest): SyncJob
 
 /**
  * 电脑发起复制的会话内登记表，同一时间只保留一个请求。
- * 经控制通道请手机扫描，手机回报计划；电脑确认后由手机执行，并回报最终结果。
+ * 经控制通道请移动端扫描，移动端回报计划；电脑确认后由移动端执行，并回报最终结果。
  * 请求只存内存，服务停止即丢弃。
  */
 export class WindowsRemoteSyncRequests {
@@ -115,25 +115,25 @@ export class WindowsRemoteSyncRequests {
     return this.current ? { ...this.current.value } : null
   }
 
-  /** 读取手机回报的计划；只有 ready 及之后的请求有计划，否则抛 not-found。 */
+  /** 读取移动端回报的计划；只有 ready 及之后的请求有计划，否则抛 not-found。 */
   plan(requestId: string): SyncPlan {
     const entry = this.entry(requestId)
     if (!entry.plan) {
-      throw new HttpOperationError('not-found', 'The phone has not returned this plan yet.')
+      throw new HttpOperationError('not-found', 'The mobile device has not returned this plan yet.')
     }
     return entry.plan
   }
 
   /**
-   * 请已连接手机扫描。项目必须已关联在线手机；已确认的请求还没开始或已有网络传输时抛 busy，
-   * 关联失效时抛 session-mismatch。未确认的旧请求被新请求取代，手机收到新请求时释放旧扫描。
-   * 扫描是否开始由手机随后回报。
+   * 请已连接移动端扫描。项目必须已关联在线移动端；已确认的请求还没开始或已有网络传输时抛 busy，
+   * 关联失效时抛 session-mismatch。未确认的旧请求被新请求取代，移动端收到新请求时释放旧扫描。
+   * 扫描是否开始由移动端随后回报。
    */
   start(projectId: string, peerId: string, direction: TransferDirection): DesktopRemoteRequest {
     if (this.current?.value.status === 'starting') {
       throw new HttpOperationError(
         'busy',
-        'The previous plan is confirmed. Waiting for the phone to start transferring.',
+        'The previous plan is confirmed. Waiting for the mobile device to start transferring.',
       )
     }
     if (this.options.isBusy()) {
@@ -150,19 +150,19 @@ export class WindowsRemoteSyncRequests {
     if (!game?.rootId || !link) {
       throw new HttpOperationError(
         'invalid-request',
-        'Select a PC directory and link the phone in Game settings first.',
+        'Select a PC directory and link the mobile device in Game settings first.',
       )
     }
     if (!peer?.isConnected || !this.options.control.isOpen(peerId)) {
       throw new HttpOperationError(
         'network-failure',
-        'The phone is not connected. Open the app on the phone and connect to the PC.',
+        'The mobile device is not connected. Open the app on the mobile device and connect to the PC.',
       )
     }
     if (!remote?.root) {
       throw new HttpOperationError(
         'invalid-request',
-        'The phone has not selected a directory for this game yet.',
+        'The mobile device has not selected a directory for this game yet.',
       )
     }
     this.options.library.verifyProjectPeer(
@@ -214,8 +214,8 @@ export class WindowsRemoteSyncRequests {
   }
 
   /**
-   * 确认手机回报的计划；只接受可执行的 ready 计划，手机应答后即视为已开始。
-   * shouldDeleteExtras 是确认时的开关选择：同一份快照按它重新生成计划，手机也按它执行。
+   * 确认移动端回报的计划；只接受可执行的 ready 计划，移动端应答后即视为已开始。
+   * shouldDeleteExtras 是确认时的开关选择：同一份快照按它重新生成计划，移动端也按它执行。
    */
   confirm(requestId: string, shouldDeleteExtras: boolean): DesktopRemoteRequest {
     const entry = this.entry(requestId)
@@ -250,7 +250,8 @@ export class WindowsRemoteSyncRequests {
         } else {
           this.fail(entry, {
             code: 'invalid-request',
-            message: 'The task started by the phone does not match this plan. Check the task list.',
+            message:
+              'The task started by the mobile device does not match this plan. Check the task list.',
             canRetry: false,
           })
         }
@@ -268,13 +269,13 @@ export class WindowsRemoteSyncRequests {
     return { ...entry.value }
   }
 
-  /** 确认前可取消，手机随即释放本次扫描；已开始的传输到任务列表取消。 */
+  /** 确认前可取消，移动端随即释放本次扫描；已开始的传输到任务列表取消。 */
   cancel(requestId: string): DesktopRemoteRequest {
     const entry = this.entry(requestId)
     if (entry.value.status === 'starting') {
       throw new HttpOperationError(
         'busy',
-        'The phone is already starting the transfer. Cancel it from the task list.',
+        'The mobile device is already starting the transfer. Cancel it from the task list.',
       )
     }
     if (isActive(entry.value.status)) {
@@ -286,7 +287,7 @@ export class WindowsRemoteSyncRequests {
     return { ...entry.value }
   }
 
-  /** 应用手机的回报；不属于当前请求或当前状态的回报直接忽略。 */
+  /** 应用移动端的回报；不属于当前请求或当前状态的回报直接忽略。 */
   report(peerId: string, report: RemoteSyncReport): void {
     const entry = this.current
     if (entry?.value.peerId !== peerId || entry.value.requestId !== report.requestId) {
@@ -302,7 +303,7 @@ export class WindowsRemoteSyncRequests {
       } else {
         this.fail(entry, {
           code: 'invalid-request',
-          message: 'The plan returned by the phone does not match the project. Scan again.',
+          message: 'The plan returned by the mobile device does not match the project. Scan again.',
           canRetry: false,
         })
       }
@@ -312,8 +313,8 @@ export class WindowsRemoteSyncRequests {
   }
 
   /**
-   * 手机的任务摘要。确认后请求的状态跟随它；之前因断开或应答超时记成失败的请求，
-   * 收到摘要说明手机确实在执行，也会回到进行中。
+   * 移动端的任务摘要。确认后请求的状态跟随它；之前因断开或应答超时记成失败的请求，
+   * 收到摘要说明移动端确实在执行，也会回到进行中。
    */
   observe(peerId: string, digest: SyncJobDigest): void {
     const entry = this.current
@@ -338,8 +339,8 @@ export class WindowsRemoteSyncRequests {
   }
 
   /**
-   * 已确认但手机还没在电脑上登记的任务：详情和列表用它显示等待状态，或开始前的失败。
-   * 手机登记后返回 null，任务改由 WindowsSyncRegistry 提供。
+   * 已确认但移动端还没在电脑上登记的任务：详情和列表用它显示等待状态，或开始前的失败。
+   * 移动端登记后返回 null，任务改由 WindowsSyncRegistry 提供。
    */
   pending(): {
     readonly request: SyncJobRequest
@@ -369,7 +370,7 @@ export class WindowsRemoteSyncRequests {
     }
     const local = pendingLocalState(entry, request)
     const digest = entry.digest
-    // 接收端的终态必须带逐项结果；手机还没开始就结束，没有结果可读，结论看 local。
+    // 接收端的终态必须带逐项结果；移动端还没开始就结束，没有结果可读，结论看 local。
     const remote =
       digest && (digest.role === 'sender' || digest.status === 'running')
         ? { ...digest, result: null }
@@ -394,7 +395,7 @@ export class WindowsRemoteSyncRequests {
     }
   }
 
-  /** 取消手机正在开始的任务；手机还没建立任务时以 not-found 拒绝。 */
+  /** 取消移动端正在开始的任务；移动端还没建立任务时以 not-found 拒绝。 */
   async cancelPending(jobId: string): Promise<void> {
     const entry = this.current
     if (entry?.plan?.planId !== jobId) {
@@ -412,13 +413,15 @@ export class WindowsRemoteSyncRequests {
     if (isActive(entry.value.status)) {
       this.fail(entry, {
         code: 'network-failure',
-        message: 'The phone disconnected or the app closed. Open the app on the phone and retry.',
+        message:
+          'The mobile device disconnected or the app closed. Open the app on the mobile device and retry.',
         canRetry: true,
       })
     } else if (entry.value.status === 'running') {
       this.fail(entry, {
         code: 'result-unknown',
-        message: 'The connection to the phone was lost. The transfer result is unconfirmed.',
+        message:
+          'The connection to the mobile device was lost. The transfer result is unconfirmed.',
         canRetry: false,
       })
     }
@@ -437,7 +440,7 @@ export class WindowsRemoteSyncRequests {
     const local = { deviceId: this.options.deviceId, rootId: entry.localRootId }
     const isUpload = entry.value.direction === 'android-to-windows'
     const [source, target] = isUpload ? [peer, local] : [local, peer]
-    // 计划的项目 ID 取目标一侧：手机 → 电脑时是电脑的项目。
+    // 计划的项目 ID 取目标一侧：移动端 → 电脑时是电脑的项目。
     return (
       plan.operation === 'copy' &&
       plan.direction === entry.value.direction &&

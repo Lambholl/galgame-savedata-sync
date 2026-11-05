@@ -3,7 +3,7 @@ doc_type: code-map
 status: active
 priority: medium
 owner: development
-updated: 2026-11-03
+updated: 2026-11-05
 tags: [代码地图]
 related_files: []
 ---
@@ -13,7 +13,7 @@ related_files: []
 | 路径 | 作用 | 重要约定 |
 | --- | --- | --- |
 | `apps/desktop/src/main/restore-registry.ts`、`sync-ipc.ts`、`src/bridge/sync-bridge.ts` | 进程内异步恢复、有限复制与恢复桥、同次原生计划/结果核对 | 普通准备不占目标名额，确认后借用并保留至清理成功；任务与结果可在页面刷新后查询，备份持久化；不接收路径/字节；电脑发起的方法转给 `remote-sync-requests.ts` |
-| `apps/desktop/src/renderer/src/features/backup`、`features/transfer/SyncCopyDetails.tsx`、`use-sync-details.ts`、`platform/sync-adapter.ts` | 备份开关/列表、恢复预览与确认、复制计划/实际结果、普通本机重扫 | 复用原生计划和结果；发送完成和手机实际写入是两个状态；切页只停止轮询，不取消原生任务；文件夹不汇总大小 |
+| `apps/desktop/src/renderer/src/features/backup`、`features/transfer/SyncCopyDetails.tsx`、`use-sync-details.ts`、`platform/sync-adapter.ts` | 备份开关/列表、恢复预览与确认、复制计划/实际结果、普通本机重扫 | 复用原生计划和结果；发送完成和移动端实际写入是两个状态；切页只停止轮询，不取消原生任务；文件夹不汇总大小 |
 | `package.json`、`pnpm-workspace.yaml`、`pnpm-lock.yaml` | pnpm 工作区、固定版本与工程入口 | 私有工作区；使用指定 pnpm，不依赖系统全局 Gradle |
 | `apps/desktop/` | Electron 主进程、preload 和独立 antd 界面 | Renderer 无 Node 集成；contextIsolation 和 sandbox 开启 |
 | `apps/desktop/src/main/directory-adapter.ts`、`directory-store.ts`、`directory-paths.ts`、`directory-errors.ts` | 目录选择登记、独立配置、当前层元数据、根内原生读流及脱敏错误 | 没有源目录写入 API；拒绝 symlink/junction 与失效身份，配置不保存历史文件索引 |
@@ -29,7 +29,7 @@ related_files: []
 | `apps/desktop/test/`、`apps/desktop/README.md` | Windows 目录、归档、HTTP 与发布的最小长期回归及接口说明 | pnpm check 不含 pnpm test:desktop；真实目录仅只读验证，机器路径不提交 |
 | `apps/mobile/src/app`、`features`、`components`、`styles` | 独立移动入口、导航、游戏卡片、底部弹层和 antd-mobile 页面 | 优先移动组件；使用桌面组件也保留触控区域，操作卡片至少 64px；系统返回由移动端协调 |
 | `apps/mobile/src/features/transfer`、`src/platform` | 双端目录比较、手动连接、方向、计划和原生任务显示 | 当前层浏览；两列独立滚动，时间精确到分钟；业务不判断前后台，重载查询同一原生传输任务；源文件内容不经过网页 |
-| `apps/desktop/src/renderer/src/app`、`features`、`components`、`styles`、`platform` | 独立桌面导航、居中弹窗、antd 页面及有限桥接入 | 两端源码互不导入；桌面传输页可请求手机扫描并在电脑确认计划（TransferPage、main/remote-sync-requests.ts），实际复制由手机执行 |
+| `apps/desktop/src/renderer/src/app`、`features`、`components`、`styles`、`platform` | 独立桌面导航、居中弹窗、antd 页面及有限桥接入 | 两端源码互不导入；桌面传输页可请求移动端扫描并在电脑确认计划（TransferPage、main/remote-sync-requests.ts），实际复制由移动端执行 |
 | `apps/mobile/android/` | Capacitor 生成的原生工程与项目 Wrapper | minSdk 29、compile/target 36；Manifest 明文 HTTP；包含用户发起传输使用的 dataSync 前台服务 |
 | `apps/mobile/android/app/src/main/java/io/github/galgame/savedatasync/` | Java SAF 选择、权限/配置恢复、当前层元数据和原生流 | URI 留原生层，原生流调用者负责关闭；配置不保存条目或哈希 |
 | 同目录 `ArchiveAdapter.java`、`ArchiveModel.java`、`ArchiveFormat.java`、`ArchiveCache.java`、`ArchiveControl.java`、`ArchiveFailure.java`、`SafArchiveSource.java` | Java 私有源快照、严格 USTAR/单 gzip、固定预算/取消/期限与缓存归属/恢复/重试；SAF 读取后复核 | 无 JSON/HTTP/目标发布或文件内容跨桥；句柄关闭读流后 close；进程独占覆盖待清理资源 |

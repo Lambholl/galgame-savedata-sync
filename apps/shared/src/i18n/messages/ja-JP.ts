@@ -80,7 +80,7 @@ export const jaJP: Messages = {
   'transfer.wipeNoBackupText': ({ count }) =>
     `転送先の ${count} 件がすべて削除されます。書き込み前のバックアップが無効なので、元に戻せません。このまま開始しますか？`,
   'transfer.planUnavailable': 'この転送計画は使用できません。転送画面に戻って更新してください。',
-  'transfer.remoteBusy': '別の転送が確定しており、スマホでの開始を待っています。',
+  'transfer.remoteBusy': '別の転送が確定しており、モバイル端末での開始を待っています。',
   'transfer.planStale': 'ゲームまたは保存先が変更されました。戻って更新してから転送してください。',
 
   'compare.differs': ({ count }) => `内容が異なる項目 ${count} 件`,
@@ -297,9 +297,9 @@ export const jaJP: Messages = {
   'device.copyAddress': 'アドレスをコピー',
   'device.connect': '接続',
   'device.disconnect': '切断',
-  'device.waitingPhone': 'スマホからの接続待ち',
-  'device.emptyPhone': 'PC のアドレスを追加して接続してください',
-  'device.emptyPc': 'スマホが接続するとここに表示されます',
+  'device.waitingMobile': 'モバイル端末からの接続待ち',
+  'device.emptyMobile': 'PC のアドレスを追加して接続してください',
+  'device.emptyPc': 'モバイル端末が接続するとここに表示されます',
   'device.noneConnected': '接続中の端末なし',
   'device.connectFailed': '接続に失敗しました',
   'device.removeTitle': '端末の登録を解除',
@@ -325,8 +325,8 @@ export const jaJP: Messages = {
   'transfer.started': '転送を開始しました',
   'transfer.remoteScanRequest': ({ name }) => `PC から ${name} のスキャンが要求されました`,
   'task.loading': '転送の状態を読み込み中',
-  'task.phoneToPc': 'スマホ → PC',
-  'task.pcToPhone': 'PC → スマホ',
+  'task.mobileToPc': 'モバイル → PC',
+  'task.pcToMobile': 'PC → モバイル',
   'task.sent': '送信済み',
   'task.archiveProgress': ({ done, total }) => `転送済み ${done} / ${total}`,
   'task.retryCleanup': 'クリーンアップを再試行',
@@ -337,7 +337,7 @@ export const jaJP: Messages = {
   'backup.status.running': '復元中',
 
   'error.withContext': ({ context, text }) => `${context}：${text}`,
-  'error.onPhone': ({ text }) => `スマホ：${text}`,
+  'error.onMobile': ({ text }) => `モバイル端末：${text}`,
   'error.onPc': ({ text }) => `PC：${text}`,
   'error.code.invalid-request':
     '要求の内容が正しくありません。更新してからもう一度お試しください。',

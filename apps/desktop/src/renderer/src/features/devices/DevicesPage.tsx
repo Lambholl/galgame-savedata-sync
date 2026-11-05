@@ -112,7 +112,7 @@ export function DevicesPage({
                   disabled={isDisabled || isActive || !peer.isConnected}
                   onClick={() => onDeviceAction(peer)}
                 >
-                  {t(peer.isConnected ? 'device.disconnect' : 'device.waitingPhone')}
+                  {t(peer.isConnected ? 'device.disconnect' : 'device.waitingMobile')}
                 </Button>
                 <Button disabled={isDisabled} onClick={() => onManageDevice(peer.device.id)}>
                   {t('device.manage')}

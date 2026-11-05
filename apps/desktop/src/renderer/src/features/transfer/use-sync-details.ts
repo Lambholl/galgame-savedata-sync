@@ -37,7 +37,7 @@ async function readRestore(id: string, previous: RestoreDetails | null): Promise
   }
   return { state, plan }
 }
-/** 结果待确认时继续读取：手机重连后还可能拿到结果。 */
+/** 结果待确认时继续读取：移动端重连后还可能拿到结果。 */
 function copyContinues({ state }: CopyDetails): boolean {
   return (
     state.remoteError !== null ||

@@ -1,7 +1,7 @@
 import type { BatchState } from '../protocol/batch-contracts.ts'
 import type { DirectoryListing, FileMetadata } from '../protocol/contracts.ts'
 
-/** 两端传输任务的状态；upload 表示手机发送到电脑，names 按源 entryId 指定目标名。 */
+/** 两端传输任务的状态；upload 表示移动端发送到电脑，names 按源 entryId 指定目标名。 */
 export interface TransferTask {
   readonly id: string
   readonly title: string

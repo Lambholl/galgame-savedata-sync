@@ -30,7 +30,7 @@ function wait(ms: number): Promise<void> {
 }
 
 /**
- * 电脑发起的复制：经控制通道收到请求后在手机扫描并回报计划，电脑确认后由手机执行。
+ * 电脑发起的复制：经控制通道收到请求后在移动端扫描并回报计划，电脑确认后由移动端执行。
  * 执行进度和结果由原生推送给电脑。电脑取消或断开时释放本机扫描；已开始的传输交给任务页。
  */
 export function useRemoteSync(
@@ -119,7 +119,7 @@ export function useRemoteSync(
           backupKeepCount: preview.backupKeepCount,
         })
       } else {
-        fail(item, state.error ?? { code: 'io-failure', message: 'The phone scan failed.' })
+        fail(item, state.error ?? { code: 'io-failure', message: 'The mobile device scan failed.' })
         await release(item)
       }
     }
@@ -156,7 +156,7 @@ export function useRemoteSync(
           await wait(100)
         }
         if (active?.jobId) {
-          return failure('busy', 'The phone is still running the previous transfer.')
+          return failure('busy', 'The mobile device is still running the previous transfer.')
         }
         if (active) {
           await release(active)
@@ -166,7 +166,7 @@ export function useRemoteSync(
           return { status: 'success', value: null }
         }
         if (busy.current) {
-          return failure('busy', 'The phone is transferring or restoring. Retry later.')
+          return failure('busy', 'The mobile device is transferring or restoring. Retry later.')
         }
         const item: ActiveRequest = {
           requestId: body.requestId,
@@ -187,11 +187,11 @@ export function useRemoteSync(
       control.onRequest('sync.confirm', async (from, body) => {
         const item = active
         if (from !== peerId || item?.requestId !== body.requestId || !item.isReady) {
-          return failure('not-found', 'The phone has no result for this scan. Scan again.')
+          return failure('not-found', 'The mobile device has no result for this scan. Scan again.')
         }
         const id = item.preparationId
         if (!id || item.jobId) {
-          return failure('busy', 'The phone has already started this transfer.')
+          return failure('busy', 'The mobile device has already started this transfer.')
         }
         try {
           const state = await sync.execute(id, body.shouldDeleteExtras)
@@ -201,7 +201,7 @@ export function useRemoteSync(
           return { status: 'success', value: { jobId: state.jobId } }
         } catch (cause) {
           const error = toShownError(cause)
-          // 过期由发起确认的电脑提示并重新比较，手机这边没有要处理的事。
+          // 过期由发起确认的电脑提示并重新比较，移动端这边没有要处理的事。
           if (error.code !== 'plan-expired') {
             events.current.onFailure(error)
           }

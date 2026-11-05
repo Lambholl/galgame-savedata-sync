@@ -21,7 +21,7 @@ export function ErrorText({ error, context }: ErrorTextProps): ReactElement {
   const description = error.code ? t(`error.code.${error.code}`) : error.message
   const text =
     error.device === 'phone'
-      ? t('error.onPhone', { text: description })
+      ? t('error.onMobile', { text: description })
       : error.device === 'pc'
         ? t('error.onPc', { text: description })
         : description

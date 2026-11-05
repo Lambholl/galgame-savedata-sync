@@ -17,7 +17,7 @@ interface ServiceIpcOptions {
   readonly chooseTargetPath: () => Promise<string | null>
 }
 
-/** 与发给手机的设备名同一取值；系统读不到时留空，不改用其他名称。 */
+/** 与发给移动端的设备名同一取值；系统读不到时留空，不改用其他名称。 */
 function localDeviceName(): string | null {
   try {
     return hostname() || null

@@ -79,7 +79,7 @@ export function DevicesPage({
           </Panel>
         ))
       ) : (
-        <EmptyState description={t('device.emptyPhone')} />
+        <EmptyState description={t('device.emptyMobile')} />
       )}
     </>
   )

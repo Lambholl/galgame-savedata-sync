@@ -16,7 +16,7 @@ import type {
   SyncScanState,
 } from '@savedata-sync/shared'
 
-/** HTTP 服务快照，只含公开元数据；地址供手机手动连接，写授权只在当前进程内有效。 */
+/** HTTP 服务快照，只含公开元数据；地址供移动端手动连接，写授权只在当前进程内有效。 */
 export interface DesktopServiceSnapshot {
   /** 本机系统名称；读取失败时为 null，界面留空。 */
   readonly deviceName: string | null

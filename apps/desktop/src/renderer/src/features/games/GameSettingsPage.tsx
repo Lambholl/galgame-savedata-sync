@@ -61,7 +61,7 @@ export function GameSettingsPage({
   const isLocked = isDisabled || isActive
   const draftPeer = peers.find((peer) => peer.device.id === draft?.deviceId)
   function openLink(): void {
-    const available = linkPickerDevices(game, peers, 'phone').filter(
+    const available = linkPickerDevices(game, peers, 'mobile').filter(
       (item) => item.state === 'available',
     )
     const only = available.length === 1 ? available[0] : undefined
@@ -120,7 +120,7 @@ export function GameSettingsPage({
           </Button>
         </h3>
         <LinkedDeviceList
-          items={linkedDevices(game, peers, 'phone', t('game.deviceRemoved'))}
+          items={linkedDevices(game, peers, 'mobile', t('game.deviceRemoved'))}
           actions={(item) => (
             <>
               {item.isConnected && (
@@ -193,7 +193,7 @@ export function GameSettingsPage({
       >
         {draft && (
           <LinkPicker
-            devices={linkPickerDevices(game, peers, 'phone')}
+            devices={linkPickerDevices(game, peers, 'mobile')}
             isDeviceStepShown={draft.mode === 'link'}
             selectedDevice={
               draftPeer ? { deviceId: draftPeer.device.id, name: draftPeer.device.name } : null

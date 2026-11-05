@@ -94,7 +94,7 @@ interface SyncTask {
   shouldReadRemote: boolean
   isReadingRemote: boolean
   remoteReadAt: number
-  /** 最后一次收到摘要的时间；手机进行中每秒至少推送一次，久未收到就是结果待确认。 */
+  /** 最后一次收到摘要的时间；移动端进行中每秒至少推送一次，久未收到就是结果待确认。 */
   remoteSeenAt: number
 }
 function failureStageOf(stage: SyncJobState['stage']): SyncFailureStage | null {
@@ -147,7 +147,7 @@ export function emptyResult(
   }
 }
 /**
- * 管理当前会话内手机登记的复制任务，电脑可以是接收端或发送端。
+ * 管理当前会话内移动端登记的复制任务，电脑可以是接收端或发送端。
  * 电脑接收时接受一次清单和一次内容，再写入目录；电脑发送时准备归档，内容只能读取一次。查询不会重做 IO。
  * 整个任务占用同一个进程名额，直到写入和缓存清理结束；停止时等待 worker，残留通过 retryCleanup 重试。
  * 用过的任务 ID 保留到会话结束；结果保留 10 分钟，最多 32 份，进程重启后不恢复。
@@ -245,7 +245,7 @@ export class WindowsSyncRegistry {
     return this.transferState(task)
   }
   /**
-   * 收到对端推送的摘要。不属于当前任务的摘要直接忽略：手机发起时可能先于登记到达，
+   * 收到对端推送的摘要。不属于当前任务的摘要直接忽略：移动端发起时可能先于登记到达，
    * 进行中的下一条会补上。接收端结束后才读取一次逐项结果，高频摘要不携带它们。
    */
   observe(peerId: string, digest: SyncJobDigest): void {
@@ -331,7 +331,7 @@ export class WindowsSyncRegistry {
       .catch(() => {
         task.remoteError = {
           code: 'result-unknown',
-          message: 'The result from the phone could not be read. It will be read again.',
+          message: 'The result from the mobile device could not be read. It will be read again.',
           canRetry: false,
         }
       })
@@ -393,7 +393,7 @@ export class WindowsSyncRegistry {
       (task) => task.isWorking || task.state.status === 'running' || isRemoteLive(task),
     )
   }
-  /** 返回本机项目的描述和备份设置，供手机查询；要求之前交换的目录表里有这个项目的双向关联。 */
+  /** 返回本机项目的描述和备份设置，供移动端查询；要求之前交换的目录表里有这个项目的双向关联。 */
   async project(projectId: string, peerId: string): Promise<SyncProjectDescriptor> {
     const snapshot = this.options.library.snapshot()
     const game = snapshot.config.games.find((item) => item.id === projectId)
@@ -1176,7 +1176,7 @@ export class WindowsSyncRegistry {
   private sweep(): void {
     const now = performance.now()
     for (const [id, task] of this.tasks) {
-      // 控制通道断开或长时间没有摘要时，对端的进度已不可信；手机重连后摘要会清掉这个错误。
+      // 控制通道断开或长时间没有摘要时，对端的进度已不可信；移动端重连后摘要会清掉这个错误。
       if (
         isRemoteUnsettled(task) &&
         task.remoteError === null &&
@@ -1185,7 +1185,7 @@ export class WindowsSyncRegistry {
       ) {
         task.remoteError = {
           code: 'result-unknown',
-          message: 'The connection to the phone was lost. The result is unconfirmed.',
+          message: 'The connection to the mobile device was lost. The result is unconfirmed.',
           canRetry: false,
         }
       }

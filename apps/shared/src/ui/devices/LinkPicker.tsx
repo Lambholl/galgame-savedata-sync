@@ -10,7 +10,7 @@ export interface LinkPickerDevice {
   /** 设备名。 */
   readonly name: string
   /** 设备类型，决定图标。 */
-  readonly kind: 'pc' | 'phone'
+  readonly kind: 'pc' | 'mobile'
   /** available 可选；linked 已关联，不可再选；offline 未连接，读不到游戏列表。 */
   readonly state: 'available' | 'linked' | 'offline'
 }

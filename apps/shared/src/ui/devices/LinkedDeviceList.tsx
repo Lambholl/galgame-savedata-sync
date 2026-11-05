@@ -11,7 +11,7 @@ export interface LinkedDevice {
   /** 设备名；设备已移除时由调用方传入“设备已移除”。 */
   readonly name: string
   /** 设备类型，决定图标。 */
-  readonly kind: 'pc' | 'phone'
+  readonly kind: 'pc' | 'mobile'
   /** 是否已连接，决定状态点颜色。 */
   readonly isConnected: boolean
   /** 对方的游戏名；读不到时为 null。 */

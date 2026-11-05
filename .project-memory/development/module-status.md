@@ -3,7 +3,7 @@ doc_type: module-status
 status: active
 priority: high
 owner: development
-updated: 2026-11-04
+updated: 2026-11-05
 tags: [模块状态, 开发进度]
 related_files: []
 ---
@@ -34,7 +34,7 @@ related_files: []
 | 共享批量模型 | done | 开发 | apps/shared/src/protocol/batch-*.ts、data-validation.ts、test、README.md | 处理数据与上下文；归档/JSON 解析、网络、发布和计时由其他模块负责 | — |
 | 当前扫描与覆盖计划共享模型 | done | 开发 | apps/shared/src/sync、src/index.ts、README.md | 纯数据与确定比较；实际扫描/备份/写入、权限、会话及期限由平台包处理 | — |
 | Android → Windows 复制编排 | done | 开发 | shared sync jobs、Windows sync-registry/upload-body、Android SyncJobModel/SyncTransferEngine/Runtime/Plugin/Service、TS bridge | 真实存档在支持范围内开放 | — |
-| Windows → Android 复制编排 | done | 开发 | Windows sync-registry/HTTP/source 归档、Android SyncTransferEngine/Runtime/Model、SyncWriter/BackupStore、TS bridge | 手机独立报告目标结果；真实存档在支持范围内开放 | — |
+| Windows → Android 复制编排 | done | 开发 | Windows sync-registry/HTTP/source 归档、Android SyncTransferEngine/Runtime/Model、SyncWriter/BackupStore、TS bridge | 移动端独立报告目标结果；真实存档在支持范围内开放 | — |
 | 固定项目映射与传输前复核 | done | 开发 | apps/shared/src/library/project-binding.ts、双端 library store/adapter/IPC | 配置/设备/目录 ID 固定到任务；实际扫描和写入由平台包处理；TransferRequest 调用方需提供 projectId | — |
 | Windows 独立备份与轮换 | done | 开发 | backup-store/files/ipc、backup-bridge、启动/preload、directory-adapter | 原生写入/恢复、Android 上传接收及桌面页面复用这些材料 | 待维护者决定：电脑端是否也改成可手动管理 |
 | Windows 受保护写入与恢复 | done | 开发 | sync-writer、sync-target-files、target-operation、directory-adapter、transfer-registry、restore-registry、启动 | 其他卷、特殊名称和崩溃残留没有验收，见覆盖缺口 | — |
@@ -49,7 +49,7 @@ related_files: []
 | Android 私有归档 | done | 开发 | ArchiveAdapter/Model/Format/Cache/Control/Failure.java、SafArchiveSource.java、单元/设备测试与互通脚本 | 处理原生归档与私有缓存；JSON/HTTP、目标发布和前台网络调度由其他模块负责；固定预算是技术限制 | — |
 | Windows 目录读取适配 | done | 开发 | apps/desktop/src/main/directory-*.ts、src/bridge/directory-bridge.ts、preload、test | 源目录只读；路径检查覆盖可观察边界，恶意并发重排命名空间不在隔离范围内 | — |
 | Windows 设备页服务控制 | done | 开发 | apps/desktop/src/renderer/src/features/devices、src/bridge/service-bridge.ts、main/service-ipc.ts | 服务启停在设备页显式操作；原生层持有文件路径和内容，界面只读公开快照 | — |
-| Android 连接与传输页 | done | 开发 | apps/mobile/src/app、features/transfer、platform | 手机可发起或执行电脑发起的复制；地址与目录授权分开保存；v1 批量接口只新建文件 | — |
+| Android 连接与传输页 | done | 开发 | apps/mobile/src/app、features/transfer、platform | 移动端可发起或执行电脑发起的复制；地址与目录授权分开保存；v1 批量接口只新建文件 | — |
 | Java SAF 读取适配 | done | 开发 | apps/mobile/README.md、原生插件、src/platform/saf-* 与最小回归 | 读取桥只读；流调用者负责关闭资源 | — |
 | Android 原生工程与审计 | done | 开发 | apps/mobile/android、scripts/android-inventory.gradle | 审计覆盖依赖公告；系统/提供者能力另按设备验证 | 依赖变化后复审 |
 | 工具链安全检查 | done | 开发 | scripts/security-*、scripts/toolchain-policy* | — | 依赖变更后重新审计与构建 |

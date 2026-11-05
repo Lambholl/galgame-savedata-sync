@@ -2,7 +2,7 @@ import type { LibraryGame, LibraryPeer } from '../../library/library.ts'
 import type { LinkedDevice } from './LinkedDeviceList.tsx'
 import type { LinkPickerDevice, LinkPickerGame } from './LinkPicker.tsx'
 
-/** 游戏的关联记录转为关联设备列表；peerKind 是对端设备类型（手机上为 pc，电脑上为 phone）。 */
+/** 游戏的关联记录转为关联设备列表；peerKind 是对端设备类型（移动端上为 pc，电脑上为 mobile）。 */
 export function linkedDevices(
   game: LibraryGame,
   peers: readonly LibraryPeer[],

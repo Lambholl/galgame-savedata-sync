@@ -34,7 +34,7 @@ const pc = snapshot([
   entry('shot 2.png', 'file', 'q'),
   entry('same.ini', 'file', 's'),
 ])
-const phone = snapshot([
+const mobile = snapshot([
   entry('save', 'directory'),
   entry('save/a.sav', 'file', 'a'),
   entry('save/b.sav', 'file', 'B'),
@@ -44,13 +44,13 @@ const phone = snapshot([
 ])
 
 test('counts differing and one-sided files', () => {
-  const comparison = compareSnapshots(pc, phone)
+  const comparison = compareSnapshots(pc, mobile)
   assert.equal(comparison.differingFiles, 1)
-  assert.deepEqual(comparison.onlyFiles, { pc: 2, phone: 2 })
+  assert.deepEqual(comparison.onlyFiles, { pc: 2, mobile: 2 })
 })
 
 test('lists folders first in natural order with states', () => {
-  const comparison = compareSnapshots(pc, phone)
+  const comparison = compareSnapshots(pc, mobile)
   const root = comparisonChildren(comparison, 'pc', [])
   assert.deepEqual(
     root.map((item) => [item.name, item.kind, item.state]),
@@ -62,7 +62,7 @@ test('lists folders first in natural order with states', () => {
     ],
   )
   assert.equal(root[0].differingCount, 2)
-  const save = comparisonChildren(comparison, 'phone', ['save'])
+  const save = comparisonChildren(comparison, 'mobile', ['save'])
   assert.deepEqual(
     save.map((item) => [item.name, item.state]),
     [
