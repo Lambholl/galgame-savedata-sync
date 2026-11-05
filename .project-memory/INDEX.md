@@ -30,6 +30,10 @@ related_files: []
 | 工作 | 状态 | 相关记忆文档 | 相关代码或配置 | 已完成 | 下一步 |
 | --- | --- | --- | --- | --- | --- |
 | 游戏设置页提示目录已失效 | 未开始 | testing/regression-notes.md | 双端游戏设置页 | — | 先出原型。待维护者决定：电脑端备份是否也改成文件夹结构 |
+| CR-016 移动端平板布局 | planned | requirements/change-requests.md、requirements/open-questions.md | apps/mobile 的 LibraryShell、mobile.css、AndroidManifest.xml；apps/shared/src/ui 中随宽度变化的样式 | 查明现状：内容铺满全宽、竖屏锁定；需求已定 | 排在其他工作之后实现，文件夹授权由维护者操作 |
+| CR-017 页面导航：返回规则与启动页 | planned | requirements/change-requests.md、requirements/open-questions.md、testing/test-cases.md | DesktopApp.tsx、DesktopShell.tsx、navigation.ts；MobileApp.tsx、LibraryShell.tsx、navigation-types.ts | 查明两端返回路径；需求已定 | 待维护者安排开始实现 |
+| CR-018 两端分别统一动效 | planned | requirements/change-requests.md、development/implementation-notes.md | LibraryShell.tsx、press-feedback.ts、mobile.css；apps/shared/src/ui/pressable.css；desktop.css | 查明两端切页和按下效果现状 | 形成需求基线，经维护者确认再实现；切页方向依赖 CR-017 |
+| CR-020 “手机端”用语统一为“移动端” | planned | requirements/change-requests.md、project/glossary.md | apps/shared/src/i18n/messages、apps 代码注释和标识符、README、.project-memory | 统计出现位置 | 经维护者确认后实现；术语表同步新增“移动端” |
 
 开始产品、代码或文档工作前登记范围、入口和下一步；检查点和阻塞时更新。做完并验证后先更新长期事实，再把状态改为 `in-review`；有新修改时改回 `active`，维护者验收后才删除该行。
 

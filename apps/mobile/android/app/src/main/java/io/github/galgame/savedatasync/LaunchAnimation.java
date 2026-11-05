@@ -26,7 +26,8 @@ import androidx.core.splashscreen.SplashScreenViewProvider;
 
 /**
  * 接管系统图标的位置和尺寸，眨眼时扩大圆形遮罩露出立绘，再淡出背景并让角色保持不透明滑出。
- * 只在 Activity 的主线程使用；stop 释放动画、延迟任务和开屏 View，切到后台后恢复不会重播。
+ * 只在 Activity 的主线程使用；每个实例只播放一次，stop 释放动画、延迟任务和开屏 View，
+ * 再次播放时由 MainActivity 创建新实例。
  */
 final class LaunchAnimation {
 
@@ -201,6 +202,20 @@ final class LaunchAnimation {
     return false;
   }
 
+  /**
+   * 从后台返回或 Activity 重建时准备并播放开屏动画。系统开屏不一定出现，所以直接按它已退出处理，
+   * 头像使用 prepare 算出的图标尺寸；动画在 contentReady 后的第一次绘制开始，与系统的窗口切换动画同时进行。
+   * 系统关闭动画效果时不显示覆盖层。
+   */
+  void replay(ViewGroup decor) {
+    if (!ValueAnimator.areAnimatorsEnabled()) {
+      stop();
+      return;
+    }
+    prepare(decor);
+    hasExitStarted = true;
+  }
+
   /** 处理系统开屏退出，立即移除会随状态栏重排移动的系统副本。 */
   void start(SplashScreenViewProvider splash) {
     if (isStopped) {
@@ -252,7 +267,7 @@ final class LaunchAnimation {
       : (2f * progress - acceleration) / (2f - acceleration);
   }
 
-  /** Activity 退出、转后台或等待超过 5 秒时移除覆盖层；之后再收到回调也不会重播。 */
+  /** Activity 退出、转后台或等待超过 5 秒时移除覆盖层；之后这个实例再收到回调也不会播放。 */
   void stop() {
     isStopped = true;
     handler.removeCallbacks(timeout);
