@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Dropdown } from 'antd'
 import { List } from 'antd-mobile'
 import { DownOutlined } from '@ant-design/icons'
@@ -13,6 +13,7 @@ export interface ChoiceOption<Value extends string> {
 /**
  * 设置列表里的选择行：右侧显示当前项，点整行从右侧弹出菜单，当前项高亮。
  * 按下时整行变色，菜单打开期间保持这个颜色。
+ * 菜单打开时通过 onOverlayChange 登记关闭函数，Android 返回键先关菜单，再按才返回页面。
  */
 export function ChoiceItem<Value extends string>({
   title,
@@ -20,14 +21,23 @@ export function ChoiceItem<Value extends string>({
   value,
   isDisabled = false,
   onChange,
+  onOverlayChange,
 }: {
   readonly title: string
   readonly options: readonly ChoiceOption<Value>[]
   readonly value: Value
   readonly isDisabled?: boolean
   readonly onChange: (value: Value) => void
+  readonly onOverlayChange: (close: (() => void) | null) => void
 }): React.JSX.Element {
   const [isOpen, setIsOpen] = useState(false)
+  useEffect(() => {
+    if (!isOpen) {
+      return
+    }
+    onOverlayChange(() => setIsOpen(false))
+    return () => onOverlayChange(null)
+  }, [isOpen, onOverlayChange])
   return (
     <Dropdown
       trigger={['click']}

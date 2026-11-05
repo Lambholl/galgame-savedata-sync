@@ -869,6 +869,7 @@ export function MobileApp({
             showError({ code: null, message: t('settings.saveFailed') })
           })
         }}
+        onOverlayChange={changePageOverlay}
       />
     )
   } else {

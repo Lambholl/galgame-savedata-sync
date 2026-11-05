@@ -21,10 +21,12 @@ export function SettingsPage({
   sync,
   preferences,
   onChange,
+  onOverlayChange,
 }: {
   readonly sync: MobileSyncAdapter
   readonly preferences: AppPreferences
   readonly onChange: (next: AppPreferences) => void
+  readonly onOverlayChange: (close: (() => void) | null) => void
 }): React.JSX.Element {
   const t = useT()
   /** 全局备份设置；读取中或读取失败为 null。 */
@@ -82,12 +84,14 @@ export function SettingsPage({
           ]}
           value={preferences.locale}
           onChange={(locale) => onChange({ ...preferences, locale })}
+          onOverlayChange={onOverlayChange}
         />
         <ChoiceItem<ThemePreference>
           title={t('settings.theme')}
           options={THEMES.map((value) => ({ value, label: t(`settings.theme.${value}`) }))}
           value={preferences.theme}
           onChange={(theme) => onChange({ ...preferences, theme })}
+          onOverlayChange={onOverlayChange}
         />
       </List>
       {failureHolder}
