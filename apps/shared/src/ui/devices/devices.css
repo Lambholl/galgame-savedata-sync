@@ -44,6 +44,10 @@
   background: var(--ss-accent-soft);
   color: var(--ss-accent);
 }
+.ss-list-lead.is-warn {
+  background: var(--ss-warn-soft);
+  color: var(--ss-warn);
+}
 .ss-list-dot {
   position: absolute;
   right: -2px;
@@ -77,6 +81,12 @@
   font-size: 12.5px;
   font-variant-numeric: tabular-nums;
   overflow-wrap: anywhere;
+}
+.ss-list-warn {
+  color: var(--ss-warn);
+  font-size: 12.5px;
+  font-weight: 500;
+  line-height: 1.4;
 }
 .ss-list-title {
   display: flex;
@@ -113,6 +123,9 @@
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
+}
+.ss-list-link.is-warn {
+  color: var(--ss-warn);
 }
 .ss-list-empty {
   margin: 0;

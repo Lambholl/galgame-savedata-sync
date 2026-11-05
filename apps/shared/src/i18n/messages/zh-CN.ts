@@ -199,6 +199,8 @@ export const zhCN = {
   'game.cardUnlinked': '未关联设备',
   'game.changeFolder': '更换',
   'game.chooseFolder': '选择目录',
+  'game.reselectFolder': '重新选择',
+  'game.folderLost': '目录已失效，无法读写，请重新选择。',
   'game.linkedDevices': '关联设备',
   'game.link': '关联',
   'game.noLinks': '还没有关联设备。',

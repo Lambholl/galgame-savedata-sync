@@ -191,6 +191,8 @@ export const zhTW: Messages = {
   'game.cardUnlinked': '未關聯裝置',
   'game.changeFolder': '更換',
   'game.chooseFolder': '選擇目錄',
+  'game.reselectFolder': '重新選擇',
+  'game.folderLost': '目錄已失效，無法讀寫，請重新選擇。',
   'game.linkedDevices': '關聯裝置',
   'game.link': '關聯',
   'game.noLinks': '尚未關聯裝置。',

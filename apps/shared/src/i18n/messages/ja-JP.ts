@@ -198,6 +198,8 @@ export const jaJP: Messages = {
   'game.cardUnlinked': '端末の関連付けなし',
   'game.changeFolder': '変更',
   'game.chooseFolder': '保存先を選ぶ',
+  'game.reselectFolder': '選び直す',
+  'game.folderLost': 'このフォルダーは読み書きできなくなりました。選び直してください。',
   'game.linkedDevices': '関連付けた端末',
   'game.link': '関連付け',
   'game.noLinks': '関連付けた端末はまだありません。',

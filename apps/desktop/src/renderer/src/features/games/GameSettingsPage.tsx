@@ -102,6 +102,7 @@ export function GameSettingsPage({
           <FolderRow
             name={localRoot?.displayName ?? null}
             path={localRoot?.displayPath ?? null}
+            isLost={localRoot !== null && localRoot.authorization !== 'granted'}
             onChange={isLocked ? null : onChooseDirectory}
           />
         </section>
