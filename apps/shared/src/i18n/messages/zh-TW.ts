@@ -203,7 +203,6 @@ export const zhTW: Messages = {
   'game.transfer': '傳輸',
   'game.relink': '改為對應其他遊戲',
   'game.unlink': '解除關聯',
-  'game.unlinkHint': '裝置與兩端存檔都會保留',
   'game.linkTitle': '關聯裝置',
   'game.relinkTitle': ({ name }) => `${name} 對應的遊戲`,
   'game.linkHint': '選擇裝置，再選它上面對應的遊戲',

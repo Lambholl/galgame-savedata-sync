@@ -146,12 +146,7 @@ export function GameSettingsPage({
                     { type: 'divider' },
                     {
                       key: 'unlink',
-                      label: (
-                        <span className="menu-label">
-                          {t('game.unlink')}
-                          <small>{t('game.unlinkHint')}</small>
-                        </span>
-                      ),
+                      label: t('game.unlink'),
                       danger: true,
                       disabled: isLocked,
                     },

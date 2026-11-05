@@ -210,7 +210,6 @@ export const jaJP: Messages = {
   'game.transfer': '転送',
   'game.relink': '関連付けるゲームを変更',
   'game.unlink': '関連付けを解除',
-  'game.unlinkHint': '端末の登録と両端末のセーブデータはそのまま残ります',
   'game.linkTitle': '端末を関連付け',
   'game.relinkTitle': ({ name }) => `${name} で対応するゲーム`,
   'game.linkHint': '端末を選び、その端末上の対応するゲームを選んでください',

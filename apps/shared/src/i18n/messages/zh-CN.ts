@@ -211,7 +211,6 @@ export const zhCN = {
   'game.transfer': '传输',
   'game.relink': '改为对应其他游戏',
   'game.unlink': '解除关联',
-  'game.unlinkHint': '设备和两端存档都保留',
   'game.linkTitle': '关联设备',
   'game.relinkTitle': ({ name }: { name: string }): string => `${name} 对应的游戏`,
   'game.linkHint': '选择设备，再选它上面对应的游戏',

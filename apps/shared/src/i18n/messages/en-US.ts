@@ -215,7 +215,6 @@ export const enUS: Messages = {
   'game.transfer': 'Transfer',
   'game.relink': 'Match a different game',
   'game.unlink': 'Unlink',
-  'game.unlinkHint': 'The device and the saves on both sides are kept',
   'game.linkTitle': 'Link a device',
   'game.relinkTitle': ({ name }) => `Matching game on ${name}`,
   'game.linkHint': 'Choose a device, then the matching game on it',

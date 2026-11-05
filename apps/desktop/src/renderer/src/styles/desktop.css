@@ -499,11 +499,6 @@ body {
   align-items: center;
   gap: 8px;
 }
-.menu-label small {
-  display: block;
-  color: var(--ss-muted);
-  font-size: 12px;
-}
 
 /* 备份与恢复：左侧时间线，右侧所选备份或恢复预览 */
 .backup-columns {

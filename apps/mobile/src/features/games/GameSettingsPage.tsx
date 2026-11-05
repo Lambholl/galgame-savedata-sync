@@ -220,7 +220,6 @@ export function GameSettingsPage({
           {
             key: 'unlink',
             text: t('game.unlink'),
-            description: t('game.unlinkHint'),
             danger: true,
             disabled: isLocked,
           },
