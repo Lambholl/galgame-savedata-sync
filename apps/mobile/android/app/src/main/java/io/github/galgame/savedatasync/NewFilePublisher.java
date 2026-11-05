@@ -11,9 +11,9 @@ import java.util.Set;
 import static io.github.galgame.savedatasync.PublicationModel.*;
 
 /**
- * 同步原生单文件发布器，只能在 I/O 工作线程使用。批次校验、HTTP 和 UI 由调用方编排。
- * SAF 创建不是排他原语：不采用覆盖或重命名，创建返回后必须先确认新身份与父目录。
- * 独立于归档名额；流关闭且残留清理完成才释放进程发布名额。
+ * 同步发布单个新文件，只能在 I/O 工作线程使用；批次校验、HTTP 和界面由调用方编排。
+ * SAF 创建不是排他操作：不用覆盖或重命名，创建返回后必须先确认新文档的身份和父目录。
+ * 发布名额独立于归档名额；流关闭且残留清理完成后才释放。
  */
 final class NewFilePublisher {
     interface Source { InputStream open() throws Exception; }
@@ -53,7 +53,7 @@ final class NewFilePublisher {
 
     NewFilePublisher(Backend backend) { this.backend = backend; }
 
-    /** 选择目录及接收前调用；核实持久系统写权限并恢复本进程发布授权。 */
+    /** 选择目录及接收前调用，核实持久系统写权限并恢复本进程的发布授权。 */
     void grant(String rootId) throws Exception {
         final long version;
         synchronized (this) {
@@ -73,12 +73,12 @@ final class NewFilePublisher {
     }
     synchronized void cancel() { if (active != null) active.control.cancel(); }
 
-    /** 批次接纳前可逐项调用的只读检查；不创建目录或文件，不授予写权限。 */
+    /** 接受批次前逐项调用的只读检查；不创建目录或文件，也不授予写权限。 */
     void preflight(Request request, ArchiveControl control) throws Exception {
         preflight(request, request.sizeBytes, control);
     }
 
-    /** requiredBytes 为本批原文总量；各目标均检查整批，兼容同卷下不同父目录。 */
+    /** 接受批次前的只读检查，requiredBytes 是这批原文的总量；每个目标都按整批检查，因为同卷下可能有不同父目录。 */
     void preflight(Request request, long requiredBytes, ArchiveControl control) throws Exception {
         request.validate();
         if (requiredBytes < request.sizeBytes || requiredBytes > new ArchiveModel.Limits().total) {
@@ -115,7 +115,7 @@ final class NewFilePublisher {
             control.check();
             createAttempted = true;
             String id = backend.create(directory, request.name);
-            // createDocument 没有取消参数；取消后也要等待返回并核实归属，不能按文件名猜测清理。
+            // createDocument 没有取消参数；取消后也要等它返回并核实归属，不能按文件名猜测清理。
             ArchiveControl inspection = new ArchiveControl();
             List<Document> after = backend.children(directory, inspection);
             ids(after);
@@ -147,7 +147,7 @@ final class NewFilePublisher {
                 throw new ArchiveFailure("result-unknown", "Metadata after writing does not match the request.");
             }
             control.check();
-            // 此处为已确认发布点；之后的取消和资源关闭错误均不能删除成功文件。
+            // 这里是确认的发布点；之后的取消和资源关闭错误都不能删除已成功的文件。
             status = "succeeded";
             job.succeeded = true;
             job.residual = null;
@@ -178,7 +178,7 @@ final class NewFilePublisher {
         return new Result(request, status, error, success, job.residual, cleanup, cleanupError);
     }
 
-    /** 只重试已知句柄的清理，不重放创建/写入；成功文件只关闭句柄。 */
+    /** 重试已知句柄的清理，不重做创建和写入；成功的文件只关闭句柄。 */
     synchronized boolean retryCleanup() {
         Job job = active;
         if (job == null) return true;
@@ -194,7 +194,7 @@ final class NewFilePublisher {
         return true;
     }
 
-    /** 生命周期先取消，工作线程 join 后再次调用以确认释放；不会抢占阻塞中的平台调用。 */
+    /** 停止发布器：生命周期先取消，工作线程 join 后再次调用以确认释放；阻塞中的平台调用不会被抢占。 */
     synchronized boolean stop() {
         stopped = true; authorizationVersion++; grants.clear(); cancel();
         return retryCleanup();

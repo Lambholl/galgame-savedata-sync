@@ -16,7 +16,7 @@ import type {
   SyncScanState,
 } from '@savedata-sync/shared'
 
-/** 服务快照只含公开元数据；地址用于手机手动连接，写授权仅在本进程有效。 */
+/** HTTP 服务快照，只含公开元数据；地址供手机手动连接，写授权只在当前进程内有效。 */
 export interface DesktopServiceSnapshot {
   /** 本机系统名称；读取失败时为 null，界面留空。 */
   readonly deviceName: string | null
@@ -45,7 +45,7 @@ export const SERVICE_CHANNELS = {
   scanCancel: 'service:scan-cancel',
 } as const
 
-/** 可信本机控制；所有失败 resolve 为脱敏错误，无路径、字节或通用 IPC。 */
+/** 渲染进程使用的服务控制接口；所有失败都 resolve 为脱敏错误。 */
 export interface DesktopServiceApi {
   status(): Promise<OperationResult<DesktopServiceSnapshot>>
   start(port: number): Promise<OperationResult<DesktopServiceSnapshot>>
@@ -101,7 +101,7 @@ function isSnapshot(value: unknown): value is DesktopServiceSnapshot {
   )
 }
 
-/** preload 内部创建冻结桥；无订阅句柄，界面自行停止轮询。 */
+/** 在 preload 内创建冻结的服务桥；界面离开时自行停止轮询。 */
 export function createServiceBridge(
   invoke: (channel: string, ...args: unknown[]) => Promise<unknown>,
 ): DesktopServiceApi {

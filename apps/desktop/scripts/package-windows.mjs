@@ -10,8 +10,8 @@ const REPO_ROOT = resolve(APP_ROOT, '../..')
 const TARGET_NAMES = new Set(['nsis', 'portable'])
 
 /**
- * 在新的私有暂存目录打包已构建资源；不复制工作区依赖、用户目录或测试资料。
- * 成功输出产物路径；读取、复制、下载或打包失败时非零退出，不发布或安装产物。
+ * 在新的私有暂存目录打包已构建的资源；工作区依赖、用户目录和测试资料都不复制。
+ * 成功时输出产物路径；读取、复制、下载或打包失败时非零退出，产物不发布也不安装。
  */
 async function main() {
   if (process.platform !== 'win32') {

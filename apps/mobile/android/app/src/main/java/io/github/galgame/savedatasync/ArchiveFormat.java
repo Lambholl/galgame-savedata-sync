@@ -14,7 +14,7 @@ import java.util.zip.DataFormatException;
 import java.util.zip.GZIPOutputStream;
 import java.util.zip.Inflater;
 
-/** 受限 USTAR 与单 member gzip；所有显式缓冲至多 64 KiB，不展开归档路径。 */
+/** 读写受限的 USTAR 和单 member gzip；所有显式缓冲最多 64 KiB，归档路径不会展开。 */
 final class ArchiveFormat {
     private ArchiveFormat() {}
 
@@ -61,7 +61,7 @@ final class ArchiveFormat {
     }
     static ArchiveFailure invalid(String message) { return new ArchiveFailure("invalid-archive", message); }
 
-    /** 使用 JDK/Android 内置压缩器，明确设置 level 1；close 负责结束并释放原生压缩器。 */
+    /** gzip 写入流，用 JDK 或 Android 内置压缩器，固定 level 1；close 负责结束并释放压缩器。 */
     static final class GzipWriter extends GZIPOutputStream {
         GzipWriter(OutputStream out) throws IOException {
             super(out, ArchiveModel.BUFFER);
@@ -70,8 +70,8 @@ final class ArchiveFormat {
     }
 
     /**
-     * 不使用默许拼接的 GZIPInputStream。持有原始 inflater，结束时回收未消费输入，
-     * 精确校验 CRC/ISIZE 和物理 EOF；调用者必须读到 EOF 后才可接受，且必须 close。
+     * gzip 读取流。GZIPInputStream 默许拼接多个 member，所以这里直接持有 inflater，结束时回收未消费的输入，
+     * 精确校验 CRC、ISIZE 和物理 EOF。调用者必须读到 EOF 才能接受结果，并且必须 close。
      */
     static final class GzipReader extends InputStream {
         private final PushbackInputStream input;

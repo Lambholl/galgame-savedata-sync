@@ -12,7 +12,7 @@ import java.util.concurrent.TimeUnit;
 import static io.github.galgame.savedatasync.TransferJson.*;
 import static io.github.galgame.savedatasync.TransferSchema.*;
 
-/** 应用进程持有本次传输；Activity 只订阅，持续通知服务持有运行期，不保存旧任务到磁盘。 */
+/** 由应用进程持有批量传输；Activity 只订阅，持续通知服务持有运行期，任务不保存到磁盘。 */
 final class TransferRuntime {
     private static TransferRuntime instance;
     final TransferEngine engine;

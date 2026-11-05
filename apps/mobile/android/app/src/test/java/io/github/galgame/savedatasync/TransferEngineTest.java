@@ -20,7 +20,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
-/** 实际归档/发布模块加可注入对端，覆盖两角色结果、零提前发布、生命周期及清理所有权。 */
+/** 用实际的归档和发布模块加可注入的对端，测试两个角色的结果、发布时机、生命周期和清理所有权。 */
 public class TransferEngineTest {
     @Rule public TemporaryFolder temporary = new TemporaryFolder();
     private final List<TransferEngine> engines = new ArrayList<>();

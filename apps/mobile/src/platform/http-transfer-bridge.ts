@@ -28,7 +28,7 @@ import type {
   CatalogReply,
 } from '@savedata-sync/shared'
 
-/** 同一批内 source/target 分开；实际方向由方法确定，不接受路径、URI 或字节。 */
+/** 开始批量传输的参数：同一批内 source 和 target 分开；实际方向由方法决定，参数不含路径、URI 或字节。 */
 export interface TransferStartOptions {
   readonly request: DownloadBatchRequest
   readonly targetRootId: string
@@ -37,7 +37,7 @@ export interface TransferStartOptions {
 export interface TransferHandle {
   readonly transferId: string
 }
-/** Activity 重建后重新取得同一任务的元数据上下文；不会启动或重放传输。 */
+/** Activity 重建后取回的当前任务元数据；不会启动传输。 */
 export interface CurrentTransfer {
   readonly options: TransferStartOptions
   readonly upload: boolean
@@ -46,7 +46,7 @@ export interface CurrentTransfer {
 export interface TransferSubscription {
   remove(): Promise<void>
 }
-/** Capacitor 内部绑定；未知响应必须先经过守卫和本次上下文匹配。 */
+/** Capacitor 的原生插件接口；未知响应必须先经过校验并匹配本次上下文。 */
 export interface HttpTransferNativePlugin {
   connections(): Promise<unknown>
   deviceName(): Promise<unknown>
@@ -74,7 +74,7 @@ export interface HttpTransferNativePlugin {
     callback: (state: unknown) => void,
   ): Promise<TransferSubscription>
 }
-/** 所有 Promise resolve 脱敏结果；任务 ID 单次使用，取消及查询均不自动重放网络请求。 */
+/** 网页使用的批量传输接口。所有 Promise 都 resolve 脱敏结果；任务 ID 只用一次，取消和查询不会自动重发网络请求。 */
 export interface AndroidTransferApi {
   connections(): Promise<OperationResult<readonly BatchDeviceDescriptor[]>>
   /** 本机系统名称，取值规则与发给电脑的相同；只读。 */
@@ -170,8 +170,8 @@ interface TransferContext {
 }
 
 /**
- * 创建只含元数据/任务 DTO 的桥；上下文只在本进程保留。subscribe 返回的句柄必须 remove。
- * query 的 task-conflict 可表示下载仍在远端准备；queryRemote 可查看此时的 sender 状态。
+ * 创建批量传输桥，只传元数据和任务 DTO；上下文只在当前进程保留。subscribe 返回的句柄必须 remove。
+ * query 返回 task-conflict 可能表示下载还在远端准备，此时用 queryRemote 查看发送端状态。
  */
 export function createHttpTransferBridge(
   plugin: HttpTransferNativePlugin,

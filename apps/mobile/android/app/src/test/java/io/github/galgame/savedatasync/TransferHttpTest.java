@@ -15,7 +15,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.Test;
 
-/** 真实回环 TCP 验证 HttpURLConnection 配置与严格响应边界，不以假的传输接口替代 IO。 */
+/** 用真实回环 TCP 验证 HttpURLConnection 配置和严格的响应边界。 */
 public class TransferHttpTest {
     private static final byte[] OK = "{\"status\":\"success\",\"value\":true}".getBytes(StandardCharsets.UTF_8);
     private interface Response { void run(Socket socket, String headers, byte[] request) throws Exception; }

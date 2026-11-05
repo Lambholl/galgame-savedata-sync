@@ -16,7 +16,7 @@ import type {
   SyncIncompleteBackup,
 } from '@savedata-sync/shared'
 
-/** 本机列表只传轮次摘要，完整清单按单轮读取。 */
+/** 备份列表的一行，只含这一轮的摘要；完整清单按单轮读取。 */
 export interface AndroidBackupSummary {
   readonly backupId: string
   readonly projectId: string
@@ -53,7 +53,7 @@ export interface BackupNativePlugin {
   deleteBackup(options: { projectId: string; rootId: string; backupId: string }): Promise<unknown>
   deleteGameBackups(options: { projectId: string }): Promise<unknown>
 }
-/** 公开参数只有 ID 与开关；创建及恢复文件流不经过网页。 */
+/** 网页使用的本机备份接口，参数只有 ID 和开关；创建备份和恢复的文件流不经过网页。 */
 export interface AndroidBackupApi {
   read(): Promise<OperationResult<AndroidBackupInfo>>
   list(projectId: string, rootId: string): Promise<OperationResult<AndroidBackupList>>
@@ -145,7 +145,7 @@ function failure(
     },
   }
 }
-/** 校验原生数据与本次项目/目录/轮次，不读取页面可见性或传递平台文件路径。 */
+/** 创建备份桥：校验原生返回的数据及其项目、目录和轮次。 */
 export function createBackupBridge(
   plugin: BackupNativePlugin,
   isAndroid: () => boolean,

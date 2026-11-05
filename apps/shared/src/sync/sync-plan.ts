@@ -143,8 +143,8 @@ function jsonByteLength(value: unknown): number {
 }
 
 /**
- * 从已校验计划选出写入前需要备份的全部目标文件，包括未变化和仅存在于目标的文件。
- * 关闭备份、没有写入或目标没有文件时返回空集合。此函数只读取计划，不执行 IO。
+ * 从已校验计划选出写入前要备份的全部目标文件，包括未变化和只在目标有的文件。
+ * 关闭备份、没有写入或目标没有文件时返回空集合。
  */
 export function selectSyncBackupFiles(
   plan: Pick<SyncPlan, 'shouldBackup' | 'entries' | 'target'>,
@@ -156,9 +156,9 @@ export function selectSyncBackupFiles(
 }
 
 /**
- * 根据当前快照和显式方向生成确定计划；不读取历史、不执行 IO，也不修改输入。
- * 非法 DTO 抛 Error；业务冲突返回 canExecute=false。未知/溢出总量为 null。
- * 输出复制快照，调用方之后修改输入不会更改本次计划；有效会话/权限由平台复核。
+ * 根据当前快照和用户给的方向生成确定的计划，输入不变。
+ * DTO 非法时抛 Error；业务冲突返回 canExecute=false；总量未知或溢出时为 null。
+ * 输出复制了快照，调用方之后修改输入不影响计划；会话和权限由平台复核。
  */
 export function createSyncPlan(input: SyncPlanInput): SyncPlan {
   if (!isSyncPlanInput(input)) {

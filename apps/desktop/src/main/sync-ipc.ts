@@ -40,7 +40,7 @@ function input(args: readonly unknown[], fields: readonly string[]): Record<stri
   return data
 }
 
-/** 固定本机通道：验证窗口/主 frame、封闭参数与响应预算；跨端发起只登记请求，由手机执行。 */
+/** 注册复制相关 IPC：校验窗口、主 frame、参数和响应大小；跨端发起只登记请求，由手机执行。 */
 export function registerSyncIpc(
   ipc: Pick<IpcMain, 'handle' | 'removeHandler'>,
   service: WindowsHttpService,

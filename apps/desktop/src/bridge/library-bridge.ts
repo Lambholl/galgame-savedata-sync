@@ -17,7 +17,7 @@ export interface LibrarySnapshot {
   readonly config: LibraryConfig
   readonly peers: readonly LibraryPeer[]
 }
-/** 仅保存本机游戏配置和公开设备信息，不接受路径、URI 或文件内容。 */
+/** 渲染进程使用的游戏库接口：保存本机游戏配置和公开设备信息，参数不含路径、URI 或文件内容。 */
 export interface DesktopLibraryApi {
   read(): Promise<OperationResult<LibrarySnapshot>>
   saveGames(games: readonly LibraryGame[]): Promise<OperationResult<LibrarySnapshot>>
@@ -49,7 +49,7 @@ function isSnapshot(value: unknown): value is LibrarySnapshot {
     value.peers.every(isLibraryPeer)
   )
 }
-/** 冻结的有限 IPC 客户端；无效响应 resolve 为脱敏错误。 */
+/** 创建冻结的游戏库 IPC 客户端；响应无效时 resolve 为脱敏错误。 */
 export function createLibraryBridge(
   invoke: (channel: string, ...args: unknown[]) => Promise<unknown>,
 ): DesktopLibraryApi {
@@ -64,7 +64,7 @@ export function createLibraryBridge(
         return value
       }
     } catch {
-      /* IPC 失效由统一错误回报。 */
+      /* IPC 失效由外层返回统一的错误结果。 */
     }
     return {
       status: 'error',

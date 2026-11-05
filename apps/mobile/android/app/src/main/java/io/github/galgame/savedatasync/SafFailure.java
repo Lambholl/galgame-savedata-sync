@@ -4,7 +4,7 @@ import android.os.OperationCanceledException;
 import com.getcapacitor.JSObject;
 import java.io.FileNotFoundException;
 
-/** 稳定且已脱敏的桥接错误；保留原生错误原因，但不发送给 JavaScript。 */
+/** SAF 桥的错误，错误码稳定、消息已脱敏；原始原因保留在原生层，不发给 JavaScript。 */
 final class SafFailure extends Exception {
     final String code;
 

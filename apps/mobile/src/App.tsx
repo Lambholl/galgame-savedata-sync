@@ -27,7 +27,7 @@ function readTheme(): ResolvedTheme {
   return document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light'
 }
 
-/** Android 入口，保留同一个连接与原生任务适配器。 */
+/** Android 入口组件，连接和原生任务适配器在整个应用里共用一份。 */
 export function App(): React.JSX.Element {
   const preferences = useAppPreferences()
   const locale = resolveLocale(preferences.locale, navigator.languages)

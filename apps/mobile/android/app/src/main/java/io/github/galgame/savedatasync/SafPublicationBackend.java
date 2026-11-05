@@ -21,9 +21,9 @@ import java.util.List;
 import static io.github.galgame.savedatasync.PublicationModel.*;
 
 /**
- * 实际 SAF 后端。仅支持可核实为常规文件的描述符，rw 不截断，先比较设备/inode 再写入。
- * 不把文档 ID 转成路径；不遍历清理目录，也不重命名/覆盖。SAF 无比较后删除原语，
- * 元数据与描述符复核只能发现可观察竞争，不能承诺对恶意提供者的原子命名空间隔离。
+ * SAF 的发布后端，只支持能核实为常规文件的描述符。rw 打开不截断，先比较设备和 inode 再写入。
+ * 文档 ID 不转成路径，清理时不遍历目录，也不重命名或覆盖。SAF 没有比较后删除的操作，
+ * 元数据和描述符复核只能发现可观察的竞争，恶意提供者仍可能在两次检查之间替换文件。
  */
 final class SafPublicationBackend implements NewFilePublisher.Backend {
     private static final String[] COLUMNS = {
@@ -52,7 +52,7 @@ final class SafPublicationBackend implements NewFilePublisher.Backend {
         }
         return directory;
     }
-    /** 通过提供者根及子文档关系查询余量；未知容量不当作零，也不把文档 ID 转为路径。 */
+    /** 通过提供者根和子文档关系查询可用容量；容量未知时不当作零。 */
     @Override public Long availableBytes(NewFilePublisher.Directory reference, ArchiveControl control) throws Exception {
         SafDirectoryStore.PublicationDirectory directory = checked(reference, control);
         Signal signal = control.track(new Signal());
@@ -71,7 +71,7 @@ final class SafPublicationBackend implements NewFilePublisher.Backend {
                 }
             }
         } catch (java.lang.SecurityException | java.lang.UnsupportedOperationException | java.lang.IllegalArgumentException | java.io.FileNotFoundException cause) {
-            // 有些提供者仅开放树授权，或没有容量/子文档查询；仍使用写入时的 FD 检查。
+            // 有些提供者只开放树授权，或没有容量和子文档查询；此时依靠写入时的 FD 检查。
             available = null;
         } finally { control.untrack(signal); }
         control.check();
@@ -173,7 +173,7 @@ final class SafPublicationBackend implements NewFilePublisher.Backend {
             SafDirectoryStore.Snapshot s = snapshot(control);
             if (s.isDirectory || s.isVirtual) throw new ArchiveFailure("result-unknown", "The file type changed.");
             try (ParcelFileDescriptor current = descriptor("r", control)) {
-                // 打开时已核实身份；不读取或改变现有内容。
+                // 打开时已核实身份；现有内容不读取也不改变。
             }
         }
         @Override public OutputStream openOutput(long size, ArchiveControl control) throws Exception {

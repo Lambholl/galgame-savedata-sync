@@ -1,13 +1,13 @@
 import { PROTOCOL_VERSION } from './contracts.ts'
 import type { OperationErrorCode } from './contracts.ts'
 
-/** 会话和压缩体校验头；文件名只放 JSON，不放原始 HTTP 头。 */
+/** 会话和压缩体校验的 HTTP 头；文件名只放 JSON，不放原始 HTTP 头。 */
 export const HTTP_HEADERS = {
   sessionId: 'x-sync-session-id',
   archiveSha256: 'x-archive-sha256',
 } as const
 
-/** 静态路由与模板；适配器需校验参数并编码每段，不能直接替换任意路径。 */
+/** 固定路由和路由模板；适配器要校验参数并编码每一段，不能直接代入任意路径。 */
 export const HTTP_ROUTES = {
   device: '/v1/device',
   roots: '/v1/roots',
@@ -19,7 +19,7 @@ export const HTTP_ROUTES = {
   transfer: '/v1/transfers/{transferId}',
 } as const
 
-/** 网络失败发生在本地，没有可伪造的 HTTP 状态；取消使用任务结果，不使用 499。 */
+/** 错误码到 HTTP 状态的映射。网络失败发生在本地，没有 HTTP 状态；取消不是错误码，用任务结果表示。 */
 export const HTTP_ERROR_STATUS = {
   'invalid-request': 400,
   'protocol-mismatch': 409,
@@ -46,12 +46,12 @@ export const HTTP_ERROR_STATUS = {
   'result-unknown': 404,
 } as const satisfies Readonly<Record<OperationErrorCode, number | null>>
 
-/** 只接受当前确切数字版本；字符串、未来版本及不兼容响应均返回 false。 */
+/** 判断协议版本是否受支持：只接受当前的数字版本。 */
 export function isProtocolVersionSupported(value: unknown): value is typeof PROTOCOL_VERSION {
   return value === PROTOCOL_VERSION
 }
 
-/** 设备/根/条目/任务 ID 为 1–128 个 URL 安全 ASCII 字符，不是文件名或 content URI。 */
+/** 校验不透明 ID（设备、根、条目、任务）：1 到 128 个 URL 安全 ASCII 字符，不是文件名或 content URI。 */
 export function isOpaqueId(value: unknown): value is string {
   return (
     typeof value === 'string' &&
@@ -62,15 +62,15 @@ export function isOpaqueId(value: unknown): value is string {
   )
 }
 
-/** 协议统一使用小写 SHA-256；这里只校验格式，不计算或确认文件内容。 */
+/** 校验小写 SHA-256 的格式，不计算或确认文件内容。 */
 export function isSha256(value: unknown): value is string {
   return typeof value === 'string' && value.length === 64 && !/[^a-f0-9]/.test(value)
 }
 
 /**
- * 新建文件采用双端共同可表示的单文件名，最多 255 个 UTF-16 码元。
- * 拒绝路径、控制字符、Windows 保留名称及尾部点/空格；不改写或归一化输入。
- * 不表示提供者一定能创建该名称，实际能力、名称竞争和越界检查仍由适配器负责。
+ * 校验新建文件用的单文件名：两端都能表示，最多 255 个 UTF-16 码元。
+ * 拒绝路径、控制字符、Windows 保留名称和尾部的点或空格；输入不改写、不归一化。
+ * 通过校验不表示提供者一定能创建；实际能力、名称竞争和越界由适配器检查。
  */
 export function isPortableFileName(value: unknown): value is string {
   return (

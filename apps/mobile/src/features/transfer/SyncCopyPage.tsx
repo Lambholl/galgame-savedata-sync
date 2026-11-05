@@ -26,8 +26,8 @@ import { PlanConfirm } from './PlanConfirm'
 const POLL_INTERVAL_MS = 700
 
 /**
- * 传输存档与传输计划共用一次准备：进入页面、翻转方向、切换设备或刷新时自动扫描两端，
- * 比较结果与计划来自同一份预览；离开页面或重新扫描时释放旧准备，已执行的准备交给原生任务。
+ * 传输存档页和传输计划页共用一次准备：进入页面、翻转方向、切换设备或刷新时自动扫描两端，
+ * 比较结果和计划来自同一份预览；离开页面或重新扫描时释放之前的准备，已执行的准备交给原生任务。
  */
 export function SyncCopyPage({
   sync,
@@ -232,7 +232,7 @@ export function SyncCopyPage({
         await onStarted(state.jobId)
       } catch (cause) {
         executed.current = null
-        // 旧计划不能再用：回到比较页重新扫描，由用户确认新结果后再开始，不自动执行。
+        // 这份计划不能再用：回到比较页重新扫描，用户确认新结果后再开始。
         if (toShownError(cause).code !== 'plan-expired') {
           throw cause
         }

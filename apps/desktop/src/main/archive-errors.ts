@@ -1,7 +1,7 @@
 import type { KnownOperationError } from '@savedata-sync/shared'
 import { isOperationError } from '@savedata-sync/shared'
 
-/** 归档失败保留内部 cause；对外仅发送脱敏错误，清理错误不能覆盖原始失败。 */
+/** 归档失败的错误：内部保留 cause，对外只发送脱敏错误；清理错误不能覆盖原始失败。 */
 export class ArchiveError extends Error {
   readonly operationError: KnownOperationError
   cleanupError: KnownOperationError | null = null
@@ -13,7 +13,7 @@ export class ArchiveError extends Error {
   }
 }
 
-/** 取消与失败分开；调用方转换为 cancelled，不创建虚构的取消错误码。 */
+/** 归档被取消时抛出，与失败分开；调用方转换为 cancelled 状态。 */
 export class ArchiveCancelledError extends Error {
   cleanupError: KnownOperationError | null = null
 
@@ -23,7 +23,7 @@ export class ArchiveCancelledError extends Error {
   }
 }
 
-/** 在有限流各检查点中断；超时 signal 映射 timeout，其余 abort 为用户取消。 */
+/** 在有限流的各检查点响应中断：超时的 signal 映射为 timeout，其余 abort 按用户取消处理。 */
 export function checkArchiveAbort(signal?: AbortSignal): void {
   if (!signal?.aborted) {
     return
@@ -35,7 +35,7 @@ export function checkArchiveAbort(signal?: AbortSignal): void {
   throw new ArchiveCancelledError(reason)
 }
 
-/** 原生错误不带路径跨边界；已有归档/目录错误保留稳定码及原始 cause。 */
+/** 把平台错误转成 ArchiveError，消息里不带路径；已有的归档和目录错误保留错误码和原始 cause。 */
 export function toArchiveError(
   error: unknown,
   signal?: AbortSignal,

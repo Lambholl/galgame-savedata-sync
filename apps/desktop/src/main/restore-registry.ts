@@ -44,7 +44,7 @@ function cleanupError(): OperationError {
   }
 }
 
-/** 应用进程持有异步本机恢复；普通准备不占传输名额，页面退出不取消已确认写入。 */
+/** 管理本机恢复任务，由应用进程持有。准备阶段不占传输名额；已确认的写入不随页面退出取消。 */
 export class WindowsRestoreRegistry {
   private readonly options: RestoreOptions
   private readonly jobs = new Map<string, RestoreJob>()
@@ -125,7 +125,7 @@ export class WindowsRestoreRegistry {
     }
     return structuredClone(job.plan)
   }
-  /** 先返回普通准备任务；目标扫描及备份材料验证均由原生执行，服务未启动也可恢复。 */
+  /** 开始准备恢复并立即返回任务；目标扫描和备份材料校验在主进程进行，HTTP 服务没启动也能恢复。 */
   prepare(projectId: string, rootId: string, backupId: string): DesktopRestoreState {
     if (![projectId, rootId, backupId].every(isOpaqueId)) {
       throw new HttpOperationError('invalid-request', 'The restore reference is invalid.')
@@ -253,7 +253,7 @@ export class WindowsRestoreRegistry {
       this.settled(job)
     }
   }
-  /** 消费与本次原生预览相同的计划；先同步占名额，后开始保护及写入，重复确认拒绝。 */
+  /** 按与预览相同的计划开始恢复：先同步占名额，再开始备份保护和写入；重复确认时拒绝。 */
   execute(id: string, value: unknown): DesktopRestoreState {
     const job = this.find(id)
     if (

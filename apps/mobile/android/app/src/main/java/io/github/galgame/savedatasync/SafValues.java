@@ -1,6 +1,6 @@
 package io.github.galgame.savedatasync;
 
-/** 提供者解码与原生单元测试共用的纯边界检查。 */
+/** 提供者解码和原生单元测试共用的纯边界检查。 */
 final class SafValues {
     private static final long MAX_SAFE_INTEGER = 9007199254740991L;
     private static final long MAX_DATE = 8640000000000000L;

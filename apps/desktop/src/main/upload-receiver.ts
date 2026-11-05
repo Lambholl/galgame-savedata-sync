@@ -15,14 +15,14 @@ import { ArchiveCancelledError } from './archive-errors.ts'
 import type { NewFilePublicationRequest, WindowsNewFilePublisher } from './new-file-publisher.ts'
 import { HttpOperationError, toHttpError } from './http-errors.ts'
 
-/** 原生接收依赖；授权和清理仍属于原有适配器，不经请求注入。 */
+/** 接收器的依赖；授权和清理仍属于各自的适配器，不经请求注入。 */
 export interface ReceiverDependencies {
   readonly archive: Pick<WindowsArchiveAdapter, 'receive' | 'retryCleanup'> &
     Partial<Pick<WindowsArchiveAdapter, 'checkReceiveSpace'>>
   readonly publisher: Pick<WindowsNewFilePublisher, 'checkTarget' | 'publish' | 'retryCleanup'>
 }
 
-/** receiver 向通用注册表提交最终实际结果，清理错误独立于文件结果。 */
+/** 接收器提交给注册表的最终结果，清理错误与文件结果分开。 */
 export interface ReceiverCompletion {
   readonly status: 'succeeded' | 'failed' | 'cancelled' | 'unknown'
   readonly error: OperationError | null
@@ -30,7 +30,7 @@ export interface ReceiverCompletion {
   readonly cleanupError: KnownOperationError | null
 }
 
-/** 注册表持有会话/期限/任务名额及归档；本模块只驱动接收与顺序发布。 */
+/** 注册表提供的接口：注册表持有会话、期限、名额和归档，本模块只驱动接收和按顺序发布。 */
 export interface ReceiverHost {
   readonly signal: AbortSignal
   readonly state: () => BatchState
@@ -53,7 +53,7 @@ function known(error: unknown): KnownOperationError {
     : value
 }
 
-/** 将清单和目标映射成单文件原生请求，不将源端引用解析成本机路径。 */
+/** 把清单和目标映射成单文件发布请求；源端引用不会被解析成本机路径。 */
 export function publicationRequests(
   request: ReceiveBatchRequest,
 ): readonly NewFilePublicationRequest[] {
@@ -74,10 +74,10 @@ export function publicationRequests(
 }
 
 /**
- * 一次 PUT 的原生执行器；压缩体确认后独立于响应连接继续校验/发布，不重放。
- * 输入桥隔离 IncomingMessage 与归档流的所有权，原始请求失败仍可返回 JSON 控制错误。
- * 全部归档校验成功才逐文件调用发布适配；首项非成功停止，保留前项成功与明确未尝试项。
- * 资源、进度和取消规则见桌面 README；不实现 Android 或跨会话恢复。
+ * 执行一次上传 PUT：压缩体确认后，校验和发布不再依赖响应连接，也不会重做。
+ * 输入桥隔离 IncomingMessage 与归档流的所有权，原始请求失败时仍能返回 JSON 错误。
+ * 整批归档校验成功才逐个发布；第一个非成功结果后停止，保留前面的成功项，其余标为未尝试。
+ * 资源、进度和取消规则见桌面 README。
  */
 export class WindowsUploadReceiver {
   private readonly request: ReceiveBatchRequest
@@ -110,7 +110,7 @@ export class WindowsUploadReceiver {
     }
   }
 
-  /** 返回压缩体检查点 Promise 与完整 worker；202 不等待解包/发布完成。 */
+  /** 开始接收，返回压缩体检查点 Promise 和完整 worker；202 不等解包和发布完成。 */
   receive(
     input: IncomingMessage,
     response: ServerResponse,

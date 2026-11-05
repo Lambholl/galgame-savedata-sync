@@ -67,7 +67,7 @@ public class AppPreferencesPlugin extends Plugin {
         call.resolve(snapshot(store(getContext())));
     }
 
-    /** 只接受已知取值；保存成功后在界面线程切换夜间模式，返回保存后的值。 */
+    /** 保存偏好，只接受已知取值；保存成功后在界面线程切换夜间模式，返回保存后的值。 */
     @PluginMethod public void write(PluginCall call) {
         String theme = call.getString("theme");
         String locale = call.getString("locale");

@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 owner: project
-updated: 2026-11-04
+updated: 2026-11-05
 tags: [Agent导航, 项目记忆]
 related_files: []
 ---

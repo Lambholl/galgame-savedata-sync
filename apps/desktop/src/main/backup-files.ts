@@ -8,7 +8,7 @@ import { ArchiveError, checkArchiveAbort } from './archive-errors.ts'
 import { getFileIdentity, hasSameIdentity, inspectLocalPath } from './directory-paths.ts'
 import type { FileIdentity } from './directory-paths.ts'
 
-/** 仅主进程可替换的磁盘能力，用于容量和落盘失败的原生验证。 */
+/** 备份用到的磁盘操作，只有主进程可以替换，用来验证容量不足和落盘失败。 */
 export interface BackupDiskIO {
   readonly availableBytes: (path: string) => Promise<bigint | null>
   readonly sync: (handle: FileHandle) => Promise<void>
@@ -21,7 +21,7 @@ export const BACKUP_DISK_IO: BackupDiskIO = {
   sync: (handle) => handle.sync(),
 }
 
-/** 私有备份只访问无链接的普通文件；同一文件有额外硬链接时停止读取或清理。 */
+/** 检查私有备份文件是否为无链接的普通文件并返回身份；同一文件有额外硬链接时停止读取或清理。 */
 export async function inspectBackupFile(path: string, maxBytes: number): Promise<FileIdentity> {
   const value = await inspectLocalPath(path)
   if (!value.isFile() || value.nlink !== 1n || value.size > BigInt(maxBytes)) {
@@ -30,7 +30,7 @@ export async function inspectBackupFile(path: string, maxBytes: number): Promise
   return getFileIdentity(value)
 }
 
-/** 返回原生读流和关闭后的变化检查；调用方拥有流，文件句柄随流关闭。 */
+/** 打开备份文件的读流，同时返回关闭后的变化检查。流归调用方，文件句柄随流关闭。 */
 export async function openBackupFile(
   path: string,
   maxBytes: number,
@@ -68,7 +68,7 @@ export async function openBackupFile(
   }
 }
 
-/** 流式 SHA-256，取消会关闭阻塞的输入；始终等待输入释放后返回。 */
+/** 流式计算 SHA-256。取消时关闭阻塞的输入，总是等输入释放后才返回。 */
 export async function hashBackupStream(
   input: Readable,
   maxBytes: number,
@@ -103,7 +103,7 @@ export async function hashBackupStream(
   }
 }
 
-/** 元数据有独立字节上限，并以严格 UTF-8 解码；不会读取文件内容到 JS 桥。 */
+/** 读取备份元数据 JSON：有独立的字节上限，按严格 UTF-8 解码。 */
 export async function readBackupJson(path: string): Promise<unknown> {
   const file = await openBackupFile(path, BATCH_LIMITS.maxJsonBytes)
   const chunks: Buffer[] = []
@@ -127,7 +127,7 @@ export async function readBackupJson(path: string): Promise<unknown> {
   }
 }
 
-/** 独占创建固定内部文件；同步落盘后关闭，失败由外层轮次所有者清理。 */
+/** 独占创建内部固定名称的 JSON 文件，同步落盘后关闭；失败时由外层持有这一轮备份的代码清理。 */
 export async function writeBackupJson(
   path: string,
   value: unknown,

@@ -52,8 +52,8 @@ public class MainActivity extends BridgeActivity {
     }
 
     /**
-     * Capacitor 保留 Activity 处理 uiMode；部分 WebView 不刷新媒体查询，
-     * 因此由实际原生配置通知页面主题。事件仅含布尔值，不暴露平台文件接口。
+     * 把原生配置的明暗状态通知页面。Capacitor 保留 Activity 处理 uiMode，部分 WebView 不刷新媒体查询，
+     * 所以由这里发事件，事件只含布尔值。
      */
     @Override public void onConfigurationChanged(Configuration configuration) {
         super.onConfigurationChanged(configuration);

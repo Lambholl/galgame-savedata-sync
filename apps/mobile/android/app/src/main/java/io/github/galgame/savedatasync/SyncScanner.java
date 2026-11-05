@@ -19,8 +19,7 @@ import static io.github.galgame.savedatasync.TransferJson.*;
 import static io.github.galgame.savedatasync.TransferSchema.*;
 
 /**
- * 本次只读扫描注册表。单工作线程处理 I/O，控制线程取消查询与阻塞读；结果只存内存。
- * 普通本地只读操作，不启动保活服务或处理应用前后台状态。
+ * 只读扫描的注册表。单个工作线程处理 I/O，控制线程取消查询和阻塞读；结果只存在内存里。
  */
 final class SyncScanner implements AutoCloseable {
     interface Source {
@@ -57,7 +56,7 @@ final class SyncScanner implements AutoCloseable {
         }
     }
     SyncScanner(Source source) { this(source, MAX_ENTRIES, 1800000, 600000); }
-    /** 原生验证可收紧预算；不能通过 JS 改写。 */
+    /** 创建扫描器，校验来源和上限：条目数、超时和结果保留期都不能超过默认值。 */
     SyncScanner(Source source, int maxEntries, long timeoutMillis, long retentionMillis) {
         if (source == null || !SafValues.isId(source.deviceId()) || maxEntries < 1 || maxEntries > MAX_ENTRIES ||
             timeoutMillis < 1 || timeoutMillis > 1800000 || retentionMillis < 1 || retentionMillis > 600000) {
@@ -67,22 +66,22 @@ final class SyncScanner implements AutoCloseable {
         this.timeoutMillis = timeoutMillis; this.retentionMillis = retentionMillis;
         watcher.scheduleAtFixedRate(this::tick, 25, 25, TimeUnit.MILLISECONDS);
     }
-    /** 仅登记已有根引用；返回后可用 query 取得真实终态。 */
+    /** 开始扫描已授权的根目录，有扫描在跑时报 busy；返回后用 query 取得真实结束状态。 */
     synchronized Map<String, Object> start(String rootId) throws Exception {
         id(rootId);
         if (closed || active != null) throw fail("busy");
-        // 名额满时丢掉最旧的结果：active 为空，最旧的一定已结束，只有最新一次比较的结果才可能被确认。
+        // 结果数量到上限时丢掉最旧的结果：active 为空，最旧的一定已结束，只有最新一次比较的结果才可能被确认。
         purge(); if (jobs.size() >= MAX_RESULTS) jobs.remove(jobs.keySet().iterator().next());
         Job job = new Job(rootId, timeoutMillis); jobs.put(job.id, job); active = job;
         try { worker.execute(() -> run(job)); }
         catch (java.util.concurrent.RejectedExecutionException cause) { jobs.remove(job.id); active = null; throw fail("busy"); }
         return map(copy(job.state));
     }
-    /** 返回深拷贝的公开数据；查询不刷新扫描和结果期限。 */
+    /** 返回公开数据的深拷贝；结果在扫描结束 10 分钟后清除，查询不改变这个期限。 */
     synchronized Map<String, Object> query(String scanId) throws Exception {
         purge(); return map(copy(find(scanId).state));
     }
-    /** 原生目标任务在自身 I/O 线程重扫；取消/期限由该任务控制，不登记或延长扫描结果。 */
+    /** 在调用者的 I/O 线程上重新扫描根目录，供复制和恢复任务使用；取消和期限由传入的 ArchiveControl 控制，结果不登记。 */
     Map<String, Object> snapshotNow(String rootId, ArchiveControl control) throws Exception {
         id(rootId); synchronized (this) { if (closed) throw fail("busy"); }
         Job job = new Job(rootId, timeoutMillis, control);
@@ -90,7 +89,7 @@ final class SyncScanner implements AutoCloseable {
         job.entries.sort((a, b) -> comparePath(pathUnchecked(a), pathUnchecked(b)));
         Map<String, Object> result = snapshot(job, null); bytes(result); return result;
     }
-    /** 返回当前快照，取消终态要等工作线程关闭源流后查询。 */
+    /** 请求取消并返回当前快照；取消的结束状态要等工作线程关闭源流后才能查到。 */
     Map<String, Object> cancel(String scanId) throws Exception {
         Job job; synchronized (this) { job = find(scanId); if (job == active) job.cancelled = true; }
         if (job.cancelled) job.control.cancel();

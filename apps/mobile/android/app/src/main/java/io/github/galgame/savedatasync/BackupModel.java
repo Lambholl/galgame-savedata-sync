@@ -11,7 +11,7 @@ import java.util.Set;
 import static io.github.galgame.savedatasync.TransferJson.*;
 import static io.github.galgame.savedatasync.TransferSchema.*;
 
-/** 独立备份 v1 的原生边界；清单只用于恢复，不作为同步历史。 */
+/** 备份 v1 的数据校验和命名规则；清单只用于恢复，不作为同步历史。 */
 final class BackupModel {
     static final long MAX_FILE = 268435456L, MAX_TOTAL = 1073741824L, MAX_DATE = 8640000000000000L;
     private BackupModel() {}
@@ -43,7 +43,7 @@ final class BackupModel {
         String hash = string(value); require(ArchiveModel.hash(hash)); return hash;
     }
 
-    /** 受信任的编排器用它从确认计划中选出写入前需要备份的全部目标文件，只在原生内部使用。 */
+    /** 写入前要备份的一个目标文件，由编排器从确认的计划中选出，只在原生内部使用。 */
     static final class SourceFile {
         final String entryId, sha256;
         final List<String> path;
@@ -155,7 +155,7 @@ final class BackupModel {
         }
         return map(settings.get("defaults"));
     }
-    /** 恢复使用的本次临时树；不把备份清单混入以后同步比较。 */
+    /** 从备份清单生成恢复用的临时目录树；清单不会混进以后的同步比较。 */
     static Map<String, Object> snapshot(Map<String, Object> manifest) throws Exception {
         java.util.LinkedHashMap<String, Object> entries = new java.util.LinkedHashMap<>();
         for (Object raw : list(manifest.get("files"))) {

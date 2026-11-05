@@ -10,7 +10,7 @@ import java.util.Set;
 import static io.github.galgame.savedatasync.TransferJson.*;
 import static io.github.galgame.savedatasync.TransferSchema.*;
 
-/** 新同步的原生数据边界；网络输入须在原生通过，不能依赖页面中的共享守卫。 */
+/** 复制任务的数据校验；网络输入必须在原生层通过，不能依赖页面里的 shared 校验。 */
 final class SyncJobModel {
     /** 与 shared 的 SYNC_CAPABILITIES_VERSION、SYNC_JOB_SCHEMA_VERSION 保持一致。 */
     static final int CAPABILITIES_VERSION = 3, JOB_SCHEMA_VERSION = 2;
@@ -36,7 +36,7 @@ final class SyncJobModel {
         }
         return found;
     }
-    /** 双向公开关联须与已保存配置发布的同一项目及根一致，设备名称和地址不参与匹配。 */
+    /** 校验双向公开关联与已保存配置发布的项目和根目录一致；设备名称和地址不参与匹配。 */
     static void catalogBinding(Map<String, Object> hello, Map<String, Object> reply, Map<String, Object> binding) throws Exception {
         if (hello == null || reply == null) throw fail("session-mismatch");
         Map<String, Object> local = game(hello.get("games"), binding.get("projectId")), remote = game(reply.get("games"), binding.get("remoteProjectId"));
@@ -53,7 +53,7 @@ final class SyncJobModel {
         if (!linked(hello.get("links"), binding.get("projectId"), binding.get("remoteProjectId")) ||
             !linked(reply.get("links"), binding.get("remoteProjectId"), binding.get("projectId"))) throw fail("session-mismatch");
     }
-    /** 原始扫描名称保留冲突供页面展示；可执行计划再使用更严格的 SyncPlanModel。 */
+    /** 解析原始路径。原始扫描名称保留冲突供页面展示；可执行计划再用更严格的 SyncPlanModel 检查。 */
     private static List<String> rawPath(Object raw) throws Exception {
         List<Object> values = list(raw); require(!values.isEmpty() && values.size() <= 64); List<String> result = new ArrayList<>(); int length = -1;
         for (Object item : values) {
@@ -126,7 +126,7 @@ final class SyncJobModel {
         return object("schemaVersion", 1, "jobId", plan.id, "sourceProjectId", binding.get(upload ? "projectId" : "remoteProjectId"), "targetProjectId", binding.get(upload ? "remoteProjectId" : "projectId"), "plan", plan.value);
     }
     private static void cleanup(Object raw) throws Exception { if (raw != null) require(error(raw).get("code").equals("cleanup-failed")); }
-    /** 核对本次完整结果顺序、实际成功指纹及保护备份；返回已确认成功的文件数量和字节数。 */
+    /** 核对这次完整结果的顺序、实际成功指纹和保护备份；返回已确认成功的文件数量和字节数。 */
     static long[] result(Object raw, SyncPlanModel.Plan plan) throws Exception {
         Map<String, Object> result = shape(raw, "schemaVersion", "planId", "backupId", "backupFileCount", "outcomes", "error", "cleanupError"); number(result.get("schemaVersion"), 1, 1);
         require(plan.id.equals(result.get("planId"))); parent(result.get("backupId")); cleanup(result.get("cleanupError"));
@@ -160,7 +160,7 @@ final class SyncJobModel {
         if (!outcomes.isEmpty()) require(stopped ? result.get("error") != null || cancelled : result.get("error") == null);
         return new long[] { files, bytes };
     }
-    /** 远端按方向分别为 receiver/sender；发送完成与本机实际写入结果分别核对。 */
+    /** 校验对端状态：对端按方向是接收端或发送端；发送完成与本机实际写入结果分别核对。 */
     static Map<String, Object> state(Object raw, SyncPlanModel.Plan plan, ArchiveModel.Manifest manifest) throws Exception {
         return state(raw, plan, manifest, plan.value.get("direction").equals("android-to-windows") ? "receiver" : "sender");
     }

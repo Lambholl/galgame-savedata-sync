@@ -12,7 +12,7 @@ import java.util.concurrent.TimeUnit;
 import static io.github.galgame.savedatasync.TransferJson.*;
 import static io.github.galgame.savedatasync.TransferSchema.*;
 
-/** 应用 Context 持有本机恢复预览与任务；Activity 重建后按 ID 查询，不判断前后台或自动重放。 */
+/** 由应用 Context 持有本机恢复的预览和任务；Activity 重建后按 ID 查询。 */
 final class SyncWriteRuntime implements AutoCloseable {
     private final Map<String, String> projects = new LinkedHashMap<>();
     private final Map<String, Job> jobs = new LinkedHashMap<>();
@@ -43,7 +43,7 @@ final class SyncWriteRuntime implements AutoCloseable {
         }), backups);
         expiry.scheduleAtFixedRate(() -> worker.execute(() -> { synchronized (SyncWriteRuntime.this) { purge(); } }), 1, 1, TimeUnit.MINUTES);
     }
-    /** 平台适配层从已保存游戏配置绑定本机项目；只登记现有授权引用，活动任务期间拒绝变更。 */
+    /** 绑定本机项目，平台适配层从已保存的游戏配置调用；只登记现有授权引用，活动任务期间拒绝变更。 */
     synchronized void bindProject(String project, String root) throws Exception {
         available();
         id(project); id(root);
@@ -79,7 +79,7 @@ final class SyncWriteRuntime implements AutoCloseable {
         return job.state();
     }
     synchronized Map<String, Object> query(String restoreId) throws Exception { return find(restoreId).state(); }
-    /** 页面重建只发现当前进程中最近的恢复 ID；过期或进程结束后不恢复写入。 */
+    /** 页面重建时取回当前进程中最近的恢复 ID；过期或进程结束后找不到。 */
     synchronized String current() throws Exception {
         available(); purge();
         if (active != null) return active.id;
@@ -125,7 +125,7 @@ final class SyncWriteRuntime implements AutoCloseable {
         job.error = failure.cancelled ? null : object("code", failure.code, "message", failure.getMessage(), "canRetry", false);
         settled(job);
     }
-    /** 状态和活动名额在同一锁内提交，读取到 ready/终态后即可执行或释放。 */
+    /** 状态和活动名额在同一锁内提交，读到 ready 或结束状态后就可以执行或释放。 */
     private void settled(Job job) { job.running = false; job.touched = System.nanoTime(); if (active == job) active = null; }
     Map<String, Object> cancel(String restoreId) throws Exception {
         Job job; synchronized (this) { job = find(restoreId); }
@@ -156,7 +156,7 @@ final class SyncWriteRuntime implements AutoCloseable {
         return true;
     }
     private void available() throws ArchiveFailure { if (closed) throw new ArchiveFailure("unsupported-operation", "The restore task owner is closed."); }
-    /** 仅由原生所有者退出时调用，Activity 插件销毁不关闭应用级恢复任务。 */
+    /** 关闭恢复运行时：取消活动任务，等工作线程退出后关闭写入器。目前没有调用方，运行时随进程结束。 */
     @Override public void close() throws Exception {
         Job job; synchronized (this) { closed = true; job = active; }
         expiry.shutdownNow(); if (job != null) job.control.cancel();

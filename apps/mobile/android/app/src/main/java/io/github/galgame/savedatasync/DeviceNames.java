@@ -4,7 +4,7 @@ import android.content.Context;
 import android.os.Build;
 import android.provider.Settings;
 
-/** 只读取系统名称用于首次保存设备；系统不提供名称时使用型号，不申请额外权限。 */
+/** 读取系统设备名，首次保存设备时使用；系统不提供名称时用型号，不申请额外权限。 */
 final class DeviceNames {
     private DeviceNames() {}
 

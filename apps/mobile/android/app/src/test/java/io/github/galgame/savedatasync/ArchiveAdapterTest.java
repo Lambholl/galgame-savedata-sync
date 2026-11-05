@@ -28,7 +28,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
-/** 独立 Python 格式期望、实际 IO 和受控故障；不以 writer/reader 自我往返替代格式证据。 */
+/** 测试归档：用独立的 Python 格式期望、实际 IO 和受控故障验证，writer 和 reader 自身往返不足以证明格式。 */
 public class ArchiveAdapterTest {
     @Rule public TemporaryFolder temporary = new TemporaryFolder();
     private final List<ArchiveAdapter> adapters = new ArrayList<>();
@@ -166,7 +166,7 @@ public class ArchiveAdapterTest {
     @Test public void tarMemberNamesTypesEveryHeaderFieldPaddingAndTerminationAreStrict() throws Exception {
         ArchiveAdapter adapter = adapter();
         byte[] tar = fixtureBytes("tarBase64");
-        // 覆盖名称/穿越、所有元数据字段、扩展/链接、prefix 及保留区；重算压缩体哈希。
+        // 覆盖名称和路径穿越、所有元数据字段、扩展和链接、prefix 及保留区；重算压缩体哈希。
         for (int offset : new int[] { 0, 7, 100, 107, 108, 116, 124, 135, 136, 148, 154, 155,
             156, 157, 257, 263, 265, 297, 329, 337, 345, 500, 1036, 3072 }) {
             byte[] changed = tar.clone(); changed[offset] ^= 1;

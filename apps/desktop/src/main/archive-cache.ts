@@ -23,7 +23,7 @@ import {
 } from './directory-paths.ts'
 import type { FileIdentity } from './directory-paths.ts'
 
-/** 本机资源可进一步收紧，不能放宽公开协议预算；也用于无大文件的边界验证。 */
+/** 归档缓存的字节限额，可以比协议公开的上限小，但不能更大；边界验证也靠它避免生成大文件。 */
 export interface ArchiveQuota {
   readonly maxFileBytes: number
   readonly maxTotalFileBytes: number
@@ -32,13 +32,13 @@ export interface ArchiveQuota {
   readonly maxCacheBytes: number
 }
 
-/** 受信任主进程的磁盘能力注入；路径始终经缓存所有权检查，不跨 IPC。 */
+/** 主进程注入的磁盘操作。路径都经过缓存所有权检查，不跨 IPC。 */
 export interface ArchiveCacheIO {
   readonly availableBytes: (path: string) => Promise<bigint>
   readonly unlinkFile: (path: string) => Promise<void>
 }
 
-/** 工厂可收紧预算或替换磁盘检查/删除能力，不影响协议对外声明。 */
+/** 缓存工厂的选项，可以收紧限额或替换磁盘操作；协议对外声明的上限不受影响。 */
 export interface ArchiveCacheOptions {
   readonly quota?: Partial<ArchiveQuota>
   readonly io?: Partial<ArchiveCacheIO>
@@ -88,7 +88,7 @@ async function readMarker(path: string): Promise<Record<string, unknown>> {
   return value as Record<string, unknown>
 }
 
-/** 单个私有任务；所有读流由调用者关闭，清理只删除确认属于本应用的普通文件。 */
+/** 一个私有缓存任务。读流由调用者关闭；清理时只删除确认属于本应用的普通文件。 */
 export class ArchiveCacheJob {
   readonly path: string
   private readonly cache: ArchiveCache
@@ -108,7 +108,7 @@ export class ArchiveCacheJob {
     this.identity = identity
   }
 
-  /** 创建后先写内部所有权记录，失败仍由当前内存所有者负责安全清理。 */
+  /** 创建后先写内部所有权记录；写入失败时由当前持有这个对象的代码负责安全清理。 */
   async initialize(): Promise<void> {
     const text = JSON.stringify({ ownerId: this.cache.ownerId, jobId: this.jobId })
     await this.reserve(Buffer.byteLength(text))
@@ -116,18 +116,18 @@ export class ArchiveCacheJob {
     this.isMarkerWritten = true
   }
 
-  /** 启动时仅认领已验证的孤儿任务，不恢复旧清单或继续传输。 */
+  /** 把任务标记为上次运行遗留的；启动时只认领已验证的遗留任务，然后清理。 */
   markOrphan(): void {
     this.isMarkerWritten = true
     this.isBusy = false
   }
 
-  /** 操作已结束，缓存仍由返回句柄持有，直至明确清理。 */
+  /** 标记操作已结束；缓存仍由返回的句柄持有，直到显式清理。 */
   markIdle(): void {
     this.isBusy = false
   }
 
-  /** 按待写字节先计数再写盘，并检查真实可用空间；失败不能越过硬限。 */
+  /** 写盘前按待写字节数计入限额并检查真实可用空间；失败时抛错，写入量不会超过硬限。 */
   async reserve(bytes: number): Promise<void> {
     if (
       !Number.isSafeInteger(bytes) ||
@@ -143,7 +143,7 @@ export class ArchiveCacheJob {
     this.bytes += bytes
   }
 
-  /** 仅创建固定内部文件名，独占打开，绝不按归档名展开路径。 */
+  /** 独占创建内部固定文件名的写流；文件名不来自归档内容。 */
   async writer(name: string): Promise<WriteStream> {
     await this.inspect()
     if (!isCacheName(name) || name === 'job.json') {
@@ -156,7 +156,7 @@ export class ArchiveCacheJob {
     })
   }
 
-  /** 打开受限只读流；未关闭的流阻止清理，调用者须消费或 destroy。 */
+  /** 打开受限只读流；流没关闭时清理会被阻止，所以调用者必须读完或 destroy。 */
   async reader(
     name: string,
     range?: { readonly start: number; readonly end: number },
@@ -182,7 +182,7 @@ export class ArchiveCacheJob {
     return stream
   }
 
-  /** 校验根、任务目录身份及标记；不承诺对抗外部恶意并发命名空间替换。 */
+  /** 校验缓存根、任务目录身份和标记。校验之后目录仍可能被外部进程替换。 */
   async inspect(): Promise<void> {
     if (this.isCleaned || this.cleaning) {
       throw new ArchiveError(
@@ -209,7 +209,7 @@ export class ArchiveCacheJob {
     }
   }
 
-  /** 幂等清理；失败保留标记/互斥供重试，不能静默继续创建下一任务。 */
+  /** 清理任务缓存，可重复调用。失败时保留标记和互斥，供重试，也挡住下一个任务的创建。 */
   async dispose(): Promise<void> {
     if (this.isCleaned) {
       return
@@ -248,7 +248,7 @@ export class ArchiveCacheJob {
 
   private async removeOwnedFiles(): Promise<void> {
     const names = await readdir(this.path)
-    // 先完整核实，再逐个 unlink；拒绝陌生文件/子目录/链接，不递归删除任意树。
+    // 先完整核实，再逐个 unlink。遇到陌生文件、子目录或链接时拒绝，不递归删除任意目录树。
     for (const name of names) {
       const stats = await lstat(join(this.path, name))
       if (!isCacheName(name) || !stats.isFile() || stats.isSymbolicLink() || stats.nlink !== 1) {
@@ -274,7 +274,7 @@ export class ArchiveCacheJob {
   }
 }
 
-/** 缓存根由主进程配置，不能位于源目录中；进程内只允许一个活动缓存任务。 */
+/** 归档缓存的管理器。缓存根由主进程配置，不能位于源目录中；同一进程只允许一个活动的缓存任务。 */
 export class ArchiveCache {
   readonly path: string
   readonly ownerId: string
@@ -310,7 +310,7 @@ export class ArchiveCache {
     this.io = { ...DEFAULT_IO, ...options.io }
   }
 
-  /** 每次访问都重查缓存根身份；实际路径不经公开 DTO 传递。 */
+  /** 重新核对缓存根的身份；实际路径不出现在公开 DTO 中。 */
   async inspect(): Promise<void> {
     this.assertIsolated(this.path)
     if (!hasSameIdentity(await inspectLocalPath(this.path), this.identity)) {
@@ -318,7 +318,7 @@ export class ArchiveCache {
     }
   }
 
-  /** 原子领取进程内互斥并创建随机任务目录；不是持久化传输账本。 */
+  /** 原子领取进程内互斥并创建随机任务目录。 */
   async createJob(): Promise<ArchiveCacheJob> {
     if (activeJob) {
       throw new ArchiveError('busy', 'An archive task or unreleased cache already exists.')
@@ -374,7 +374,7 @@ export class ArchiveCache {
     }
   }
 
-  /** 调用失败遗留缓存的显式重试；正在操作/仍有读流时拒绝清理。 */
+  /** 重试之前失败的缓存清理；有操作进行中或读流未关闭时拒绝。 */
   async retryCleanup(): Promise<void> {
     if (activeJob && !isWithinDirectory(this.path, activeJob.path)) {
       throw new ArchiveError('busy', 'Another cache root still has an active task.')
@@ -386,9 +386,9 @@ export class ArchiveCache {
 }
 
 /**
- * 初始化主进程提供的既有应用私有目录中的固定缓存子目录。
- * assertIsolated 必须检查全部已登记源根；只认领带匹配所有权标记的旧任务。
- * 不删除陌生目录或恢复旧任务；初始化失败抛脱敏归档错误，原始 cause 留进程内。
+ * 在主进程提供的应用私有目录下初始化固定的缓存子目录。
+ * assertIsolated 必须检查全部已登记的源根。只认领带匹配所有权标记的遗留任务，陌生目录原样保留。
+ * 初始化失败时抛脱敏的归档错误，原始 cause 留在进程内。
  */
 export async function createArchiveCache(
   privateDirectory: string,

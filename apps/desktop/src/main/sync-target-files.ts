@@ -12,13 +12,13 @@ import type { FileIdentity } from './directory-paths.ts'
 import { ArchiveError, checkArchiveAbort } from './archive-errors.ts'
 import { hashBackupStream } from './backup-files.ts'
 
-/** 原生故障/容量接口；不能由 HTTP、IPC 或已确认计划指定。 */
+/** 写入目标用到的磁盘操作，可以替换以验证故障和容量不足；HTTP、IPC 和确认的计划都不能指定。 */
 export interface SyncTargetIO {
   readonly link: typeof link
   readonly rename: typeof rename
   readonly mkdir: (path: string) => Promise<void>
   readonly unlink: typeof unlink
-  /** 只删空目录：目录非空时系统拒绝，不做递归删除。 */
+  /** 删除空目录；目录非空时系统拒绝。 */
   readonly rmdir: (path: string) => Promise<void>
   readonly sync: (file: FileHandle) => Promise<void>
   readonly availableBytes: (path: string) => Promise<bigint | null>
@@ -38,7 +38,7 @@ export const SYNC_TARGET_IO: SyncTargetIO = {
   },
 }
 
-/** 路径始终由已核实父目录和单个计划名称组成；句柄和候选只在当前进程有效。 */
+/** 写入目标前的候选文件：路径由已核实的父目录和计划里的单个名称组成，句柄只在当前进程有效。 */
 export interface SyncCandidate {
   readonly parent: NativeDirectoryLocation
   readonly path: string
@@ -49,7 +49,7 @@ export interface SyncCandidate {
   linkedPath: string | null
 }
 
-/** 名称按共享 NFC/小写键复核，实际操作保持原始名称。 */
+/** 按共享的 NFC 小写键复核名称，实际操作仍用原始名称。 */
 export async function checkTargetName(
   parent: NativeDirectoryLocation,
   name: string,
@@ -65,7 +65,7 @@ export async function checkTargetName(
   await parent.verify()
 }
 
-/** 有界独立读回；可核对原身份和日期，拒绝链接以及读取期间变化。 */
+/** 有界回读目标文件，可以核对身份和日期；遇到链接或读取期间变化时拒绝。 */
 export async function verifyTargetFile(
   path: string,
   entry: SyncEntry,
@@ -130,7 +130,7 @@ export async function verifyTargetFile(
   }
 }
 
-/** 创建后立即登记句柄所有权；调用方即使写入失败也必须 cleanupCandidate。 */
+/** 创建候选文件并立即登记句柄所有权；之后即使写入失败，调用方也必须 cleanupCandidate。 */
 export async function createCandidate(parent: NativeDirectoryLocation): Promise<SyncCandidate> {
   await parent.verify()
   const path = join(parent.path, `.savedata-copy-${randomUUID()}.tmp`)
@@ -146,7 +146,7 @@ export async function createCandidate(parent: NativeDirectoryLocation): Promise<
   }
 }
 
-/** 原生输入由本函数消费并关闭，64 KiB 分块，落盘及独立回读均通过后才可发布。 */
+/** 把输入写入候选文件，64 KiB 分块；输入由本函数读完并关闭，落盘和回读都通过后才可发布。 */
 export async function stageCandidate(
   candidate: SyncCandidate,
   entry: SyncEntry,
@@ -188,7 +188,7 @@ export async function stageCandidate(
   await verifyTargetFile(candidate.path, entry, signal, candidate.identity, false)
 }
 
-/** 最终文件绝不在清理中删除；只删除本实例仍持有且原身份匹配的候选。 */
+/** 清理本实例仍持有且身份匹配的候选文件；最终文件不会被删除。 */
 export async function cleanupCandidate(candidate: SyncCandidate, io: SyncTargetIO): Promise<void> {
   if (!candidate.isClosed) {
     candidate.identity ??= getFileIdentity(await candidate.handle.stat({ bigint: true }))

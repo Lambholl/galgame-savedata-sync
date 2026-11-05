@@ -32,7 +32,7 @@ const expectedRendererUrl = rendererUrl ? new URL(rendererUrl).href : rendererFi
 let preferencesStore: AppPreferencesStore | null = null
 let initializationStage = 'app-data'
 
-/** 只记录文件系统错误码，原始异常中的路径与堆栈留在进程内。 */
+/** 取出文件系统错误码用于记录；原始异常中的路径与堆栈留在进程内。 */
 function systemErrorCode(error: unknown): string | null {
   let cause = error
   for (let depth = 0; depth < 8 && typeof cause === 'object' && cause !== null; depth++) {

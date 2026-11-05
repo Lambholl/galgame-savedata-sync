@@ -20,13 +20,13 @@ import type {
 import type { WindowsDirectoryAdapter } from './directory-adapter.ts'
 import { HttpOperationError, toHttpError } from './http-errors.ts'
 
-/** 只读依赖；不接受 Renderer 路径或写入入口。 */
+/** 扫描用到的只读目录操作。 */
 export type WindowsScanSource = Pick<
   WindowsDirectoryAdapter,
   'deviceId' | 'listDirectory' | 'openFile'
 >
 
-/** 原生验证可收紧限制，网络请求不能修改扫描预算。 */
+/** 扫描选项，主进程验证时可以收紧上限；网络请求不能修改。 */
 export interface WindowsScanOptions {
   readonly maxEntries?: number
   readonly timeoutMs?: number
@@ -55,9 +55,9 @@ function listingKey(value: DirectoryListing): string {
 }
 
 /**
- * 会话内异步只读扫描，真实哈希在 Node 流中计算，目录大小保持 null。
- * 一次仅一个扫描；查询只复制公开快照，取消/stop 等待 worker 关闭文件流。
- * 已完成结果到期清除，不持久化历史索引；用法见桌面 README 的扫描接口。
+ * 当前会话内的异步只读扫描，真实哈希在 Node 流中计算，目录大小保持 null。
+ * 同一时间只有一个扫描；查询只复制公开快照，取消和 stop 等待 worker 关闭文件流。
+ * 完成的结果到期清除；用法见桌面 README 的扫描接口。
  */
 export class WindowsSyncScanner {
   private readonly source: WindowsScanSource
@@ -84,7 +84,7 @@ export class WindowsSyncScanner {
     }
   }
 
-  /** 先登记任务再异步读取，非法根由原生适配器返回具体错误。 */
+  /** 登记扫描任务后异步读取；根目录非法时由目录适配器返回具体错误。 */
   start(rootId: string): SyncScanState {
     if (!isOpaqueId(rootId)) {
       throw new HttpOperationError('invalid-request', 'The scan directory reference is invalid.')
@@ -128,19 +128,19 @@ export class WindowsSyncScanner {
     return structuredClone(job.state)
   }
 
-  /** 只返回本实例的句柄；到期/其他会话 ID 要求重新扫描。 */
+  /** 返回本实例的扫描状态；已到期或属于其他会话的 ID 需要重新扫描。 */
   get(scanId: string): SyncScanState {
     return structuredClone(this.find(scanId).state)
   }
 
-  /** 原生编排等待同一次只读扫描结束；不发起新扫描或延长保留期。 */
+  /** 等待这次扫描结束，不发起新扫描，也不延长结果保留期。 */
   async wait(scanId: string): Promise<SyncScanState> {
     this.get(scanId)
     await this.jobs.get(scanId)?.worker
     return this.get(scanId)
   }
 
-  /** 取消仅终止当前只读扫描，最终状态在 worker 释放流后给出。 */
+  /** 取消当前扫描，worker 释放文件流后才给出最终状态。 */
   cancel(scanId: string): SyncScanState {
     const job = this.find(scanId)
     if (job.state.status === 'running') {
@@ -150,7 +150,7 @@ export class WindowsSyncScanner {
     return structuredClone(job.state)
   }
 
-  /** 关闭接纳，取消并等待活动读取；会话结束后移除全部临时结果。 */
+  /** 停止接受扫描，取消并等待进行中的读取；之后移除全部临时结果。 */
   async stop(): Promise<void> {
     this.isClosed = true
     if (this.active) {
@@ -166,7 +166,7 @@ export class WindowsSyncScanner {
     this.jobs.clear()
   }
 
-  /** 名额满时丢掉最旧的结果：调用时没有活动扫描，最旧的一定已结束，只有最新一次比较的结果才可能被确认。 */
+  /** 结果数量到上限时丢掉最旧的结果：调用时没有活动扫描，最旧的一定已结束，只有最新一次比较的结果才可能被确认。 */
   private evictOldest(): void {
     const [oldest] = this.jobs.values()
     if (oldest) {

@@ -52,7 +52,7 @@ function isPreference(value: unknown): value is SyncBackupPreference {
   )
 }
 
-/** v2 设置；坏配置不能被默认设置覆盖。 */
+/** 校验 v2 备份设置；配置损坏时由调用方报错，不用默认设置覆盖。 */
 export function isSyncBackupSettings(value: unknown): value is SyncBackupSettings {
   return (
     hasShape(value, ['schemaVersion', 'defaults', 'projects']) &&

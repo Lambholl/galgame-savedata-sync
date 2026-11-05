@@ -2,7 +2,7 @@ import type { PreparedFile } from '@savedata-sync/shared'
 import { BATCH_RESOURCES } from '@savedata-sync/shared'
 import { ArchiveError, checkArchiveAbort } from './archive-errors.ts'
 
-/** 生成规范化 USTAR 头；无属主、真实名称、路径、时间或扩展字段。 */
+/** 生成规范化的 USTAR 头；属主、真实名称、路径、时间和扩展字段都不写入。 */
 export function createArchiveHeader(file: PreparedFile): Buffer {
   const header = Buffer.alloc(512)
   header.write(file.fileId, 0, 'ascii')
@@ -34,7 +34,7 @@ for (let value = 0; value < 256; value++) {
   CRC_TABLE.push(crc >>> 0)
 }
 
-/** gzip CRC32 流式累积；不能代替清单的 SHA-256。 */
+/** 流式累加 gzip 的 CRC32。清单的 SHA-256 另外校验。 */
 export class ArchiveCrc32 {
   private state = 0xffffffff
 
@@ -49,7 +49,7 @@ export class ArchiveCrc32 {
   }
 }
 
-/** 单缓冲顺序读 tar；显式分配最多 64 KiB，EOF/填充/额外内容必须检查。 */
+/** 用单个缓冲区顺序读取 tar，显式分配最多 64 KiB；调用者必须检查 EOF、填充和额外内容。 */
 export class ArchiveReader {
   private readonly iterator: AsyncIterator<unknown>
   private chunk: Buffer = Buffer.alloc(0)

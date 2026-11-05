@@ -22,7 +22,7 @@ import type {
 } from './sync-contracts.ts'
 import { isSyncPath, syncNameKey, syncPathKey } from './sync-paths.ts'
 
-/** 只校验已解析 DTO；文件指纹未知可表示，但计划器会阻止执行。 */
+/** 校验已解析的条目；文件指纹可以未知，但计划器会阻止执行。 */
 export function isSyncEntry(value: unknown): value is SyncEntry {
   return (
     hasShape(value, ['entryId', 'path', 'kind', 'sizeBytes', 'modifiedAt', 'sha256', 'error']) &&
@@ -58,7 +58,7 @@ function hasValidTree(entries: readonly SyncEntry[], hasScanError: boolean): boo
   })
 }
 
-/** 检查封闭字段、路径/ID 唯一性及目录父链；不查询权限，不修改输入。 */
+/** 校验快照：字段、路径和 ID 唯一性以及目录父链。 */
 export function isSyncSnapshot(value: unknown): value is SyncSnapshot {
   return (
     hasShape(value, [
@@ -83,7 +83,7 @@ export function isSyncSnapshot(value: unknown): value is SyncSnapshot {
   )
 }
 
-/** 方向只能显式给出；结构合法不表示快照可执行或仍属于有效会话。 */
+/** 校验计划输入：方向必须显式给出；结构合法不表示快照可执行或会话仍有效。 */
 export function isSyncPlanInput(value: unknown): value is SyncPlanInput {
   return (
     hasShape(value, [
@@ -111,7 +111,7 @@ export function isSyncPlanInput(value: unknown): value is SyncPlanInput {
   )
 }
 
-/** 核对扫描结果与句柄绑定；已读字节是文件进度，不是目录汇总大小。 */
+/** 校验扫描状态及其与句柄的绑定；已读字节是文件进度，不是目录汇总大小。 */
 export function isSyncScanState(value: unknown): value is SyncScanState {
   if (
     !hasShape(value, [
@@ -174,7 +174,7 @@ export function isSyncScanState(value: unknown): value is SyncScanState {
   )
 }
 
-/** 新能力声明逐项表达已实现状态；固定扫描预算不能被远端放宽。 */
+/** 校验能力声明：逐项写明已实现的功能；固定的扫描上限不能被远端放宽。 */
 export function isSyncCapabilities(value: unknown): value is SyncCapabilities {
   if (
     !hasShape(value, [
@@ -201,7 +201,7 @@ export function isSyncCapabilities(value: unknown): value is SyncCapabilities {
   )
 }
 
-/** 请求预算固定在原生层；未知版本、路径和额外字段均被拒绝。 */
+/** 校验扫描请求；上限固定在原生层，未知版本、路径和额外字段都拒绝。 */
 export function isSyncScanRequest(value: unknown): value is SyncScanRequest {
   return (
     hasShape(value, ['schemaVersion', 'rootId']) &&
@@ -232,7 +232,7 @@ export function isSyncIncompleteBackup(value: unknown): value is SyncIncompleteB
   )
 }
 
-/** 备份是独立持久格式；连续私有 fileId、无重复路径和预算须在读取时核对。 */
+/** 校验备份清单（独立的持久格式）：私有 fileId 连续，路径不重复，不超过上限。 */
 export function isSyncBackupManifest(value: unknown): value is SyncBackupManifest {
   if (
     !hasShape(value, [

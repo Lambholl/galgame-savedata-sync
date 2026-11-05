@@ -12,13 +12,13 @@ import java.util.concurrent.Executors;
 import static io.github.galgame.savedatasync.TransferJson.*;
 import static io.github.galgame.savedatasync.TransferSchema.*;
 
-/** 本机备份设置、摘要和明确清理；创建和恢复文件流只由原生编排调用。 */
+/** 本机备份的 Capacitor 插件：设置、摘要和显式清理；创建备份和恢复的文件流由原生编排器调用。 */
 @CapacitorPlugin(name = "SyncBackups")
 public class SyncBackupsPlugin extends Plugin {
     private final ExecutorService controls = Executors.newFixedThreadPool(2);
     private volatile boolean destroyed;
     private interface Work { Object run(BackupStore store) throws Exception; }
-    /** 本机设置和显式维护与实际传输/恢复争用同一个名额，避免确认后修改保护设置。 */
+    /** 修改设置和显式维护时占用与传输、恢复相同的名额，避免确认后备份设置被改。 */
     private Object mutate(BackupStore store, Work work) throws Exception {
         Object owner = new Object();
         if (!TargetOperation.acquire(owner)) throw new ArchiveFailure("busy", "Wait for current task cleanup to finish before changing backup settings or maintaining backups.");

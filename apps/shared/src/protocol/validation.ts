@@ -47,7 +47,7 @@ function isDeviceCapabilities(value: unknown): value is DeviceCapabilities {
   )
 }
 
-/** 校验解析后的 JSON 设备描述与确切版本；不请求网络、不保存或改变输入。 */
+/** 校验解析后的 JSON 设备描述和协议版本。 */
 export function isDeviceDescriptor(value: unknown): value is DeviceDescriptor {
   return (
     hasShape(value, ['protocolVersion', 'deviceId', 'displayName', 'platform', 'capabilities']) &&
@@ -59,7 +59,7 @@ export function isDeviceDescriptor(value: unknown): value is DeviceDescriptor {
   )
 }
 
-/** 校验目录引用与可选展示信息；路径仅供显示，操作仍按 rootId 解析。 */
+/** 校验目录引用和可选的展示信息；路径只供显示，操作按 rootId 解析。 */
 export function isDirectoryReference(value: unknown): value is DirectoryReference {
   if (!isRecord(value)) {
     return false
@@ -83,14 +83,14 @@ export function isDirectoryReference(value: unknown): value is DirectoryReferenc
   )
 }
 
-/** 验证根内的不透明引用；访问权限和根内真实路径仍需平台适配器确认。 */
+/** 校验根目录内的不透明引用；访问权限和根内真实路径由平台适配器确认。 */
 export function isEntryReference(value: unknown): value is EntryReference {
   return (
     hasShape(value, ['rootId', 'entryId']) && isOpaqueId(value.rootId) && isOpaqueId(value.entryId)
   )
 }
 
-/** 校验元数据快照；未知保留 null，目录拒绝汇总大小，不执行实际文件读取。 */
+/** 校验元数据快照：未知值保留 null，目录不能带汇总大小。 */
 export function isEntryMetadata(value: unknown): value is EntryMetadata {
   return (
     hasShape(value, [
@@ -115,7 +115,7 @@ export function isEntryMetadata(value: unknown): value is EntryMetadata {
   )
 }
 
-/** 校验当前层成功结果；拒绝重复引用或混入其他根/层的条目，空数组合法。 */
+/** 校验一层目录的成功结果：拒绝重复引用和混入其他根或层的条目，空数组合法。 */
 export function isDirectoryListing(value: unknown): value is DirectoryListing {
   if (
     !hasShape(value, ['rootId', 'parentId', 'observedAt', 'entries']) ||
@@ -133,7 +133,7 @@ export function isDirectoryListing(value: unknown): value is DirectoryListing {
   )
 }
 
-/** 校验错误包络字段；结果未知禁止声明可直接重试，错误消息脱敏由生产者负责。 */
+/** 校验错误字段；结果未知时不能声明可直接重试，消息脱敏由生产者负责。 */
 export function isOperationError(value: unknown): value is OperationError {
   return (
     (hasShape(value, ['code', 'message', 'canRetry']) ||
@@ -147,7 +147,7 @@ export function isOperationError(value: unknown): value is OperationError {
   )
 }
 
-/** 以调用者提供的纯值守卫校验互斥包络；不克隆/冻结对象，消费方不应修改快照。 */
+/** 用调用者提供的守卫校验 OperationResult；对象不克隆也不冻结，消费方不要修改。 */
 export function isOperationResult<TValue>(
   value: unknown,
   guard: ValueGuard<TValue>,
@@ -160,7 +160,7 @@ export function isOperationResult<TValue>(
   )
 }
 
-/** 选择取消是独立结果，不能带目录或错误，也不隐式撤销已保存目录。 */
+/** 校验目录选择结果：取消是单独的结果，不能带目录或错误，已保存目录不受影响。 */
 export function isDirectorySelectionResult(value: unknown): value is DirectorySelectionResult {
   return (
     (hasShape(value, ['status', 'directory']) &&

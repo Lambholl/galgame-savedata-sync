@@ -48,7 +48,7 @@ import { acquireTargetOperation, releaseTargetOperation } from './target-operati
 import { openUploadBody } from './upload-body.ts'
 import type { DesktopCopySummary } from '../bridge/sync-bridge.ts'
 
-/** 原生依赖固定到当前服务会话；网络不能指定路径、容量策略或执行器。 */
+/** 注册表的依赖，固定到当前服务会话；网络请求不能指定路径、容量策略或执行器。 */
 export interface WindowsSyncRegistryOptions {
   readonly archive: Pick<
     WindowsArchiveAdapter,
@@ -147,9 +147,10 @@ export function emptyResult(
   }
 }
 /**
- * Android 上传的会话内接收编排。先登记确认，再接纳一次清单及一次内容；查询不重放 IO。
- * 全任务借用同一进程名额到写入/缓存清理完毕；停止等待 worker，残留通过 retryCleanup 重试。
- * 已用 ID 保留到会话结束；结果保留十分钟且最多 32 份，不恢复进程重启前任务。
+ * 管理当前会话内手机登记的复制任务，电脑可以是接收端或发送端。
+ * 电脑接收时接受一次清单和一次内容，再写入目录；电脑发送时准备归档，内容只能读取一次。查询不会重做 IO。
+ * 整个任务占用同一个进程名额，直到写入和缓存清理结束；停止时等待 worker，残留通过 retryCleanup 重试。
+ * 用过的任务 ID 保留到会话结束；结果保留 10 分钟，最多 32 份，进程重启后不恢复。
  */
 export class WindowsSyncRegistry {
   private readonly options: WindowsSyncRegistryOptions
@@ -177,12 +178,12 @@ export class WindowsSyncRegistry {
     this.timer = setInterval(() => this.sweep(), Math.min(1000, ...Object.values(this.timeouts)))
     this.timer.unref()
   }
-  /** 只供本机控制查询；其他设备的 HTTP 查询仍须核对任务所有者。 */
+  /** 返回所有任务状态，只供本机查询；其他设备的 HTTP 查询要核对任务所有者。 */
   getStates(): readonly SyncJobState[] {
     this.sweep()
     return [...this.tasks.values()].map((task) => structuredClone(task.state))
   }
-  /** 可信本机窗口只轮询摘要；大计划、清单与完整结果按任务分别查询。 */
+  /** 返回任务摘要，供本机窗口轮询；计划、清单和完整结果按任务分别查询。 */
   summaries(): readonly DesktopCopySummary[] {
     this.sweep()
     return [...this.tasks.values()].map((task) => {
@@ -209,7 +210,7 @@ export class WindowsSyncRegistry {
       }
     })
   }
-  /** 本机权限由固定 IPC 验证；此入口不接受对端身份或重新登记任务。 */
+  /** 返回任务的确认请求，供本机读取；权限由固定的 IPC 通道校验。 */
   localRequest(id: string): SyncJobRequest {
     return structuredClone(this.localTask(id).request)
   }
@@ -383,7 +384,7 @@ export class WindowsSyncRegistry {
     }
     return task
   }
-  /** 活动名额包括失败后的待清理资源，供编辑保护和连接切换检查。 */
+  /** 是否占着名额，包括失败后的待清理资源。http-service 据此决定是否重试清理，交换目录表时也算作传输中。 */
   hasWork(): boolean {
     return this.active !== null
   }
@@ -392,7 +393,7 @@ export class WindowsSyncRegistry {
       (task) => task.isWorking || task.state.status === 'running' || isRemoteLive(task),
     )
   }
-  /** 只读目标端设置；先前目录表须有同一项目的双向关联。 */
+  /** 返回本机项目的描述和备份设置，供手机查询；要求之前交换的目录表里有这个项目的双向关联。 */
   async project(projectId: string, peerId: string): Promise<SyncProjectDescriptor> {
     const snapshot = this.options.library.snapshot()
     const game = snapshot.config.games.find((item) => item.id === projectId)
@@ -453,7 +454,7 @@ export class WindowsSyncRegistry {
     }
     checkArchiveAbort(task.controller.signal)
   }
-  /** 格式正确后同步占用任务 ID 和名额；已接纳任务的异步错误留在同一任务中查询。 */
+  /** 登记任务：格式正确后同步占用任务 ID 和名额；任务接受后的异步错误留在任务状态里查询。 */
   register(value: unknown, peerId: string): Promise<SyncJobState> {
     const isUpload = isSyncJobRequest(value) && value.plan.direction === 'android-to-windows'
     if (
@@ -706,15 +707,15 @@ export class WindowsSyncRegistry {
     }
     return task
   }
-  /** 独立返回任务 DTO；不把 GET 当作网络内容进展或延长超时。 */
+  /** 返回任务状态；这次读取不算网络进展，也不延长超时。 */
   get(id: string, peerId: string): SyncJobState {
     return structuredClone(this.require(id, peerId).state)
   }
-  /** 清单未提交和零文件分支返回 null；和任务结果分开控制 JSON 体积。 */
+  /** 返回任务清单；清单未提交或零文件时为 null。清单与任务结果分开，以控制 JSON 大小。 */
   manifest(id: string, peerId: string): BatchManifest | null {
     return structuredClone(this.require(id, peerId).manifest)
   }
-  /** 一次性提交源清单；容量预检失败也消费本次声明，不自动接受第二次。 */
+  /** 一次性提交源清单；容量预检失败也算用过这次声明，不自动接受第二次。 */
   async declare(id: string, peerId: string, value: unknown): Promise<SyncJobState> {
     const task = this.require(id, peerId)
     if (
@@ -750,7 +751,7 @@ export class WindowsSyncRegistry {
     })
     return structuredClone(task.state)
   }
-  /** 定长 gzip 单次领取；202 只确认完整压缩体，实际写入结果通过原任务查询。 */
+  /** 接收定长 gzip，只能领取一次；202 只确认压缩体完整，写入结果通过任务查询。 */
   receive(
     id: string,
     peerId: string,
@@ -793,7 +794,7 @@ export class WindowsSyncRegistry {
     task.worker = this.work(task, () => this.receiveTask(task, input, response, resolve, reject))
     return accepted
   }
-  /** sender ready 的内容只领取一次；sent 只报告本机发送完成，Android 保留独立 receiver 结果。 */
+  /** 发送已准备好的内容，只能领取一次；sent 只表示本机发送完成，接收结果由 Android 单独报告。 */
   sendContent(id: string, peerId: string, response: ServerResponse): Promise<void> {
     const task = this.require(id, peerId)
     if (
@@ -1041,7 +1042,7 @@ export class WindowsSyncRegistry {
         }
       },
     })
-    // 超时引起的取消有稳定根错误；已经成功或提交结果不确定的写入保留实际观察。
+    // 超时引起的取消有稳定的根错误；已成功或提交结果不确定的写入，保留实际观察到的结果。
     const hasCancellation = result.outcomes.some((item) => item.status === 'cancelled')
     const hasAllSucceeded =
       result.error === null && result.outcomes.every((item) => item.status === 'succeeded')
@@ -1123,7 +1124,7 @@ export class WindowsSyncRegistry {
       }
       task.terminalAt = performance.now()
       if (!matchesSyncJobState(structuredClone(task.state), task.request, task.manifest)) {
-        // 原生结果不满足公开守卫时保留结果，停止接纳；不能把错误包装成成功。
+        // 结果不符合公开校验时保留结果并停止接受任务，不能把这个错误当成成功。
         task.state = {
           ...task.state,
           status: 'unknown',
@@ -1166,7 +1167,7 @@ export class WindowsSyncRegistry {
       task.worker = this.fail(task, new ArchiveCancelledError())
     }
   }
-  /** 显式取消不改写已终止结果；不会撤销前面实际成功的文件。 */
+  /** 取消任务。已结束的结果不会被改写，前面已成功的文件不会被撤销。 */
   cancel(id: string, peerId: string): SyncJobState {
     const task = this.require(id, peerId)
     this.abort(task)
@@ -1228,7 +1229,7 @@ export class WindowsSyncRegistry {
       this.tasks.delete(oldest[0])
     }
   }
-  /** 只清理本次仍持有的缓存和候选；失败保持名额，不重复覆盖。 */
+  /** 重试清理当前仍持有的缓存和候选文件；失败时继续占名额。 */
   async retryCleanup(): Promise<void> {
     const task = this.active
     if (!task) {
@@ -1244,7 +1245,7 @@ export class WindowsSyncRegistry {
       result: task.state.result ? { ...task.state.result, cleanupError: null } : null,
     }
   }
-  /** 同步关闭接纳并取消；等待 worker 和清理，失败可再次 stop。 */
+  /** 同步停止接受任务并取消；等待 worker 和清理，失败后可以再次 stop。 */
   async stop(): Promise<void> {
     this.isStopped = true
     clearInterval(this.timer)

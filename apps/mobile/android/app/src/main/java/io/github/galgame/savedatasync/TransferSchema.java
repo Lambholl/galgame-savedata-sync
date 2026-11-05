@@ -9,7 +9,7 @@ import java.util.Objects;
 import java.util.Set;
 import static io.github.galgame.savedatasync.TransferJson.*;
 
-/** v1 传输的封闭字段和任务上下文守卫；全部执行于原生，不能依赖 JS 校验网络输入。 */
+/** 批量传输 v1 的字段校验和任务上下文校验，都在原生层执行，不能依赖 JS 校验网络输入。 */
 final class TransferSchema {
     static final String ERROR_CODES = "invalid-request protocol-mismatch session-mismatch task-conflict invalid-archive resource-limit busy timeout permission-denied authorization-expired not-found not-readable unsupported-operation name-conflict path-outside-root source-changed checksum-mismatch network-failure insufficient-space io-failure cleanup-failed result-unknown";
     private TransferSchema() {}
@@ -157,7 +157,7 @@ final class TransferSchema {
         throw fail("invalid-request");
     }
 
-    /** 同时检查角色、阶段、计数、完整顺序和实际清单/目标，拒绝错误任务的成功结果。 */
+    /** 校验任务状态：角色、阶段、计数、完整顺序和实际的清单、目标都要对上，拒绝其他任务的成功结果。 */
     static Map<String, Object> state(Object value, String transferId, String direction, String role,
                                      ArchiveModel.Manifest manifest, String targetRoot, List<Object> targets, int totalFiles) throws ArchiveFailure {
         Map<String, Object> s = map(value); boolean running = "running".equals(s.get("status"));

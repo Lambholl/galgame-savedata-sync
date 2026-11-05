@@ -62,7 +62,7 @@ import { AddGameDialog } from '../features/games/AddGameDialog'
 
 const EMPTY = emptyLibrary()
 
-/** 移动应用状态与返回栈；传输由原生持有，页面切换保留任务。 */
+/** 移动应用的根组件，持有应用状态和返回栈；传输在原生层，切页不影响任务。 */
 export function MobileApp({
   adapter,
   sync,
@@ -144,7 +144,7 @@ export function MobileApp({
       }
     }
     transferNotices.current.set(state.jobId, signature)
-    // 首次取回旧终态只展示详情；本次发起预先登记 running，快速完成也能提示一次。
+    // 第一次取回已结束的任务只展示详情；本次发起的任务预先登记 running，完成得再快也能提示一次。
     if (previous !== undefined && feedback) {
       appMessage.show({
         type: feedback.type,

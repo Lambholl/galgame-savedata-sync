@@ -14,7 +14,7 @@ export interface TransferFeedback {
   readonly error: ShownError | null
 }
 
-/** 提示依据实际接收结果；已发送、待确认与完整成功分开，清理错误独立保留。 */
+/** 生成传输结束提示，依据实际接收结果；已发送、待确认和完整成功分开，清理错误单独保留。 */
 export function transferFeedback(state: SyncTransferState): TransferFeedback | null {
   const receiver = state.local.role === 'receiver' ? state.local : state.remote
   if (receiver?.status === 'succeeded') {

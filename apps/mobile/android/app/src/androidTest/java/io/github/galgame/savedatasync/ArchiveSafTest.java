@@ -28,9 +28,9 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 /**
- * WP-013 实际设备验收；必须显式传入已通过系统选择器 READ 授权的合成目录显示名。
- * 没有目录或授权时失败而非跳过。源仅原生读取；所有写入在应用私有缓存中。
- * 固定格式/Windows 互通测试无需交互，SAF 测试需要先执行既有选择器用例。
+ * 归档的真机验收测试；SAF 用例必须传入已通过系统选择器 READ 授权的合成目录显示名，没有目录或授权时失败。
+ * 源只读，所有写入都在应用私有缓存中。
+ * 固定格式和 Windows 互通测试不需要交互，SAF 测试要先执行选择器用例。
  */
 @RunWith(AndroidJUnit4.class)
 public class ArchiveSafTest {
@@ -103,7 +103,7 @@ public class ArchiveSafTest {
             byte[] bytes = smallBytes(artifact.openArchive());
             assertArrayEquals(Base64.getDecoder().decode(fixture.getString("tarBase64")),
                 smallBytes(new java.util.zip.GZIPInputStream(new ByteArrayInputStream(bytes))));
-            // 仅保留独立合成格式产物，供主机 Windows 原生解码复验；不含真实数据。
+            // 保留合成格式产物，供主机上的 Windows 原生解码复验；不含真实数据。
             Files.write(context().getCacheDir().toPath().resolve("archive-device-java.gz"), bytes);
         }
         assertCleanCache();
@@ -173,7 +173,7 @@ public class ArchiveSafTest {
                         byte[] buffer = new byte[65536]; int n;
                         while ((n = input.read(buffer)) != -1) output.write(buffer, 0, n);
                     }
-                    // 保留本轮合成 SAF 原生快照供 Windows 独立解包，不保存真实目录内容。
+                    // 保留这次合成的 SAF 快照，供 Windows 独立解包；不保存真实目录内容。
                     Files.copy(staged, context().getCacheDir().toPath().resolve("archive-device-saf.gz"),
                         java.nio.file.StandardCopyOption.REPLACE_EXISTING);
                     JSONObject exported = new JSONObject();

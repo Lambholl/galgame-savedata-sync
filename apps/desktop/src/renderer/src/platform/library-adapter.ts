@@ -3,7 +3,7 @@ import type { Translate } from '@savedata-sync/shared'
 import type { DesktopLibraryAdapter, DesktopSnapshot } from './library-types.ts'
 import { desktopSync } from './sync-adapter.ts'
 
-/** Renderer 通过有限桥操作配置和目录；桌面负责服务、授权与任务显示。 */
+/** 创建桌面游戏库适配器：渲染进程通过 IPC 桥操作配置和目录；桌面负责服务、授权和任务显示。 */
 export function createDesktopLibraryAdapter(): DesktopLibraryAdapter {
   function apis() {
     const library = window.desktopLibrary,

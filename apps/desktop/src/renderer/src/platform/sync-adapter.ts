@@ -2,7 +2,7 @@ import type { DesktopSyncApi } from '../../../bridge/sync-bridge.ts'
 import type { DesktopBackupApi } from '../../../bridge/backup-bridge.ts'
 import { OperationFailure } from '@savedata-sync/shared'
 
-/** 本端有限能力入口；组件只处理公开 DTO，操作失败由调用页面显示。 */
+/** 返回桌面的复制接口；组件只处理公开 DTO，操作失败由调用页面显示。 */
 export function desktopSync(): DesktopSyncApi {
   if (!window.desktopSync) {
     throw new OperationFailure(

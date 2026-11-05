@@ -21,8 +21,8 @@ export interface TransferSelection {
 }
 
 /**
- * 检查当前选择，返回首个问题或 null；不修改数据、不抛业务错误。
- * 文件名沿用协议校验，批内重名与目标冲突均忽略大小写；调用端仍负责实际传输校验。
+ * 检查当前选择，返回第一个问题或 null。
+ * 文件名沿用协议校验，批内重名和目标冲突都忽略大小写；实际传输时调用端还要校验。
  */
 export function validateTransferSelection({
   isPeerConnected,

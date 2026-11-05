@@ -5,13 +5,13 @@ import { DIRECTORY_CHANNELS } from '../bridge/directory-bridge.ts'
 import type { WindowsDirectoryAdapter } from './directory-adapter.ts'
 import { toDirectoryError } from './directory-errors.ts'
 
-/** 系统选择器只由主进程调用，null 为用户取消；可信判断须检查主 frame 与本地窗口。 */
+/** 注册目录 IPC 的选项：系统选择器只由主进程调用，null 表示取消；可信判断要检查主 frame 和本地窗口。 */
 export interface DirectoryIpcOptions {
   readonly choosePath: () => Promise<string | null>
   readonly isTrustedSender: (event: IpcMainInvokeEvent) => boolean
 }
 
-/** 仅信任应用登记窗口的主 frame 和精确 renderer URL；子 frame 或导航后的页面拒绝。 */
+/** 判断 IPC 发送方是否可信：必须是应用登记窗口的主 frame，URL 精确等于 renderer URL。子 frame 和导航后的页面都拒绝。 */
 export function isTrustedDirectorySender(
   event: IpcMainInvokeEvent,
   trustedWindows: ReadonlySet<number>,
@@ -36,8 +36,8 @@ function invalidRequest(): { status: 'error'; error: OperationError } {
 }
 
 /**
- * 注册三个有限 IPC；不接受页面提供的路径、写入方法或读流请求。
- * 返回函数负责移除 handler，窗口退出时由应用调用；选择取消不清空已保存目录。
+ * 注册三个目录 IPC 通道；页面不能传路径，也没有写入或读流通道。
+ * 返回的函数负责移除 handler，窗口退出时由应用调用；取消选择时已保存的目录保留。
  */
 export function registerDirectoryIpc(
   ipc: Pick<IpcMain, 'handle' | 'removeHandler'>,

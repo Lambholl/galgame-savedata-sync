@@ -16,7 +16,7 @@ import type {
   SyncIncompleteBackup,
 } from '@savedata-sync/shared'
 
-/** 列表只有轮次摘要，避免多个大清单挤占控制 JSON；详情按单轮读取。 */
+/** 备份列表的一行，只含这一轮的摘要；详情按单轮读取，避免多份大清单占满控制 JSON。 */
 export interface DesktopBackupSummary {
   readonly backupId: string
   readonly projectId: string
@@ -34,7 +34,7 @@ export interface DesktopBackupInfo {
   readonly displayPath: string
   readonly settings: SyncBackupSettings
 }
-/** 本机受限入口；位置只供显示，没有创建备份、读文件字节或任意路径参数。 */
+/** 渲染进程使用的本机备份接口。备份位置只供显示；创建备份和读取文件内容都在主进程。 */
 export interface DesktopBackupApi {
   read(): Promise<OperationResult<DesktopBackupInfo>>
   list(projectId: string, rootId: string): Promise<OperationResult<DesktopBackupList>>
@@ -129,7 +129,7 @@ function invalid(): OperationResult<never> {
     error: { code: 'invalid-request', message: '备份参数或响应无效。', canRetry: false },
   }
 }
-/** 客户端校验封闭数据与项目/目录上下文；失败只返回脱敏包络。 */
+/** 创建备份桥：校验 IPC 返回的数据及其项目和目录，失败时只返回脱敏后的错误结果。 */
 export function createBackupBridge(
   invoke: (channel: string, ...args: unknown[]) => Promise<unknown>,
 ): DesktopBackupApi {
@@ -144,7 +144,7 @@ export function createBackupBridge(
         return result
       }
     } catch {
-      /* 无效 IPC 由统一错误包络报告。 */
+      /* 无效的 IPC 返回值由外层返回统一的错误结果。 */
     }
     return invalid()
   }

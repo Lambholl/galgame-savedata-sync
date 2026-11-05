@@ -32,7 +32,7 @@ export function createPreferencesBridge(
         return result
       }
     } catch {
-      /* 无效 IPC 由统一错误包络报告。 */
+      /* 无效的 IPC 返回值由外层返回统一的错误结果。 */
     }
     return invalid()
   }

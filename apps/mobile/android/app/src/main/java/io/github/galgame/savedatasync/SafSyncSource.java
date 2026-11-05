@@ -7,7 +7,7 @@ import java.util.List;
 import java.util.Map;
 import static io.github.galgame.savedatasync.TransferJson.*;
 
-/** SAF 枚举与原生读流适配；提供者 URI 和文件内容不进入扫描公开模型。 */
+/** 扫描用的 SAF 枚举和读流；提供者 URI 和文件内容不进入扫描的公开模型。 */
 final class SafSyncSource implements SyncScanner.Source {
     private final SafDirectoryStore store;
     SafSyncSource(SafDirectoryStore store) { this.store = store; }

@@ -1,10 +1,10 @@
-/** HTTP 尚无业务消费者，批量契约原位修订 v1；部署后不兼容变更需新版本。 */
+/** 协议版本。部署后不兼容的变更要用新版本。 */
 export const PROTOCOL_VERSION = 1
 
-/** 能力未知不能当作支持；即使声明支持，调用仍可能失败。 */
+/** 能力状态。未知不能当作支持；声明支持后调用仍可能失败。 */
 export type CapabilityState = 'supported' | 'unsupported' | 'unknown'
 
-/** 条目操作能力由当前平台/提供者给出，不代表已经取得执行授权。 */
+/** 条目操作能力，由当前平台或提供者给出，不代表已取得执行授权。 */
 export interface EntryCapabilities {
   readonly canRead: CapabilityState
   readonly canList: CapabilityState
@@ -22,7 +22,7 @@ export interface DeviceCapabilities {
   readonly canCancelTransfers: CapabilityState
 }
 
-/** 安装内稳定身份；连接地址独立保存，协议不暴露本机路径或 content URI。 */
+/** 设备描述：这次安装的稳定身份，连接地址另存；不含本机路径或 content URI。 */
 export interface DeviceDescriptor {
   readonly protocolVersion: typeof PROTOCOL_VERSION
   readonly deviceId: string
@@ -31,7 +31,7 @@ export interface DeviceDescriptor {
   readonly capabilities: DeviceCapabilities
 }
 
-/** 本地根目录的公开引用；unverified 要求使用前重查授权，不能显示为空目录。 */
+/** 本地根目录的公开引用。unverified 时使用前要重新检查授权，不能显示为空目录。 */
 export interface DirectoryReference {
   readonly rootId: string
   readonly deviceId: string
@@ -43,7 +43,7 @@ export interface DirectoryReference {
   readonly parentName?: string
 }
 
-/** 引用仅在所属根目录内有效；适配器负责解析及防止越界，不拼装主机路径。 */
+/** 条目引用，只在所属根目录内有效；适配器负责解析和防止越界。 */
 export interface EntryReference {
   readonly rootId: string
   readonly entryId: string
@@ -69,10 +69,10 @@ export interface DirectoryMetadata extends EntryMetadataBase {
   readonly sizeBytes: null
 }
 
-/** 当前条目快照；不保存为历史共同基线，不按修改日期选择方向。 */
+/** 当前条目快照，不保存为以后比较的基线，也不按修改日期选择方向。 */
 export type EntryMetadata = FileMetadata | DirectoryMetadata
 
-/** 仅列当前层；成功空数组表示真实空目录，observedAt 是读取时的 Unix 毫秒。 */
+/** 一层目录的列表；成功的空数组表示真实空目录，observedAt 是读取时的 Unix 毫秒。 */
 export interface DirectoryListing {
   readonly rootId: string
   readonly parentId: string | null
@@ -80,7 +80,7 @@ export interface DirectoryListing {
   readonly entries: readonly EntryMetadata[]
 }
 
-/** 跨 HTTP/本地桥的稳定错误码；未知属性用 null，不作为错误。 */
+/** 跨 HTTP 和本地桥的稳定错误码；未知属性用 null，不算错误。 */
 export type OperationErrorCode =
   | 'invalid-request'
   | 'protocol-mismatch'
@@ -110,7 +110,7 @@ export type OperationErrorCode =
 export type ErrorDevice = 'phone' | 'pc'
 
 /**
- * 信息须脱敏；canRetry 只允许核实当前状态后由用户发起新操作，不授权自动重放。
+ * 操作错误。message 必须脱敏；canRetry 只表示用户可以在核实当前状态后发起新操作，不能自动重做。
  * device 只在确定是哪一端访问文件或目录失败时才有。
  */
 export type OperationError = (
@@ -131,22 +131,22 @@ export type OperationError = (
     }
 ) & { readonly device?: ErrorDevice }
 
-/** 成功值和错误互斥；无副作用的读取/本地桥使用此包络，不能用空值掩盖失败。 */
+/** 操作结果，成功值和错误互斥；无副作用的读取和本地桥用它，不能用空值掩盖失败。 */
 export type OperationResult<TValue> =
   | { readonly status: 'success'; readonly value: TValue }
   | { readonly status: 'error'; readonly error: OperationError }
 
-/** 取消系统选择器不表示目录失效，也不清除既有目录引用。 */
+/** 目录选择结果。取消系统选择器不表示目录失效，已有目录引用保留。 */
 export type DirectorySelectionResult =
   | { readonly status: 'selected'; readonly directory: DirectoryReference }
   | { readonly status: 'cancelled' }
   | { readonly status: 'error'; readonly error: OperationError }
 
-/** 用户为本次操作明确选择的方向；与历史方向、日期及文件数量无关。 */
+/** 传输方向，由用户为本次操作明确选择，与历史方向、日期和文件数量无关。 */
 export type TransferDirection = 'windows-to-android' | 'android-to-windows'
 
-/** 只包含本机已选择的目录描述，不公开平台路径。 */
+/** 本机已选择的目录描述列表，不含平台路径。 */
 export type RootsResponse = OperationResult<readonly DirectoryReference[]>
 
-/** 列目录失败使用 error，不能返回成功的空列表。 */
+/** 列目录的响应。失败时用 error，不能返回成功的空列表。 */
 export type DirectoryResponse = OperationResult<DirectoryListing>

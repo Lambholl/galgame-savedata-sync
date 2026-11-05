@@ -74,10 +74,10 @@ function matchesReceiverResults(state: BatchState, request: ReceiveBatchRequest)
 }
 
 /**
- * 将未知状态与本次清单/目标作纯数据核对，不执行 IO 或保存历史。
- * direction 来自调用者本次任务；sender 不接受 receiver 参数，receiver 必须提供完整请求。
- * 拒绝另一清单、缺失结果、错位目标及哈希/字节不符；不证明文件真实发布。
- * 不校验时间先后、会话或源设备真实性，这些由任务调用者核实。
+ * 把未知状态与本次清单和目标作纯数据核对，判断它是否属于这次任务。
+ * direction 来自调用者本次任务；发送端不接受 receiver 参数，接收端必须提供完整请求。
+ * 清单不同、结果缺失、目标错位、哈希或字节不符时返回 false。
+ * 文件是否真的发布、时间先后、会话和源设备真实性由任务调用者核实。
  */
 export function matchesBatchState(
   value: unknown,

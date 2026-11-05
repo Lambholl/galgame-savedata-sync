@@ -17,7 +17,7 @@ import type {
   SyncPlan,
 } from '@savedata-sync/shared'
 
-/** 本机恢复状态与预览分开查询，避免控制 JSON 同时携带两份快照和完整结果。 */
+/** 本机恢复的状态，与预览分开查询，避免控制 JSON 同时带两份快照和完整结果。 */
 export interface AndroidRestoreState {
   readonly restoreId: string
   readonly projectId: string
@@ -40,7 +40,7 @@ export interface SyncWriteNativePlugin {
   interrupted(): Promise<unknown>
   dismissInterrupted(options: { id: string }): Promise<unknown>
 }
-/** 平台层先核对保存的游戏配置，再 bindProject；执行固定预览，文件内容和句柄始终由原生持有。 */
+/** 网页使用的恢复接口。平台层先核对保存的游戏配置，再 bindProject；执行固定的预览，文件内容和句柄都在原生层。 */
 export interface AndroidSyncWriteApi {
   bindProject(projectId: string, rootId: string): Promise<OperationResult<null>>
   prepareRestore(
@@ -119,7 +119,7 @@ function isState(value: unknown): value is AndroidRestoreState {
   }
   return value.status === 'failed' && value.error !== null
 }
-/** 双重核对 ID、纯比较计划及逐项实际结果；页面重建后按原生 ID 取回预览和结果。 */
+/** 创建恢复桥：双重核对 ID、纯比较计划和逐项实际结果；页面重建后按原生 ID 取回预览和结果。 */
 export function createSyncWriteBridge(
   plugin: SyncWriteNativePlugin,
   isAndroid: () => boolean,

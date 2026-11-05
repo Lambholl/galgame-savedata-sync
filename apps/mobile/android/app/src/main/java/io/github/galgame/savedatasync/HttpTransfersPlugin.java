@@ -28,7 +28,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static io.github.galgame.savedatasync.TransferJson.*;
 import static io.github.galgame.savedatasync.TransferSchema.*;
 
-/** 有限的原生 HTTP/任务桥；Activity 只订阅，进行中的传输由持续通知服务持有。 */
+/** 批量传输的 Capacitor 插件；Activity 只订阅事件，进行中的传输由持续通知服务持有。 */
 @CapacitorPlugin(name = "HttpTransfers", permissions = @Permission(alias = "notifications", strings = { android.Manifest.permission.POST_NOTIFICATIONS }))
 public class HttpTransfersPlugin extends Plugin {
     private final ExecutorService io = Executors.newFixedThreadPool(2);
@@ -136,7 +136,7 @@ public class HttpTransfersPlugin extends Plugin {
     }); }
     @PluginMethod public void cancel(PluginCall call) { submit(call, c -> { engine().cancel(id(arguments(call, "transferId").get("transferId"))); return null; }); }
     @PluginMethod public void retryCleanup(PluginCall call) { submit(call, c -> { arguments(call); return engine().retryCleanup(); }); }
-    /** 主动请求通知权限；未允许持续通知时不开始传输。 */
+    /** 请求通知权限；未允许持续通知时不开始传输。 */
     @PluginMethod public void requestNotifications(PluginCall call) {
         try {
             arguments(call); if (destroyed) throw fail("unsupported-operation");
@@ -189,7 +189,7 @@ public class HttpTransfersPlugin extends Plugin {
                     engine(); String root = directory.getString("rootId"); runtime.publisher.grant(root);
                     call.resolve(json(object("status", "selected", "directory", parse(directory.toString().getBytes(StandardCharsets.UTF_8)))));
                 } catch (Exception cause) {
-                    if (!hadWrite) try { getContext().getContentResolver().releasePersistableUriPermission(uri, Intent.FLAG_GRANT_WRITE_URI_PERMISSION); } catch (Exception ignored) { /* 不撤销既有用户授权。 */ }
+                    if (!hadWrite) try { getContext().getContentResolver().releasePersistableUriPermission(uri, Intent.FLAG_GRANT_WRITE_URI_PERMISSION); } catch (Exception ignored) { /* 用户已有的授权不撤销。 */ }
                     call.resolve(new SafFailure("permission-denied", "Write authorization for the target directory was not obtained.", cause).result());
                 }
             });

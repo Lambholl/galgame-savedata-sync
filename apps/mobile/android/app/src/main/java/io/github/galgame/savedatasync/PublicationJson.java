@@ -4,7 +4,7 @@ import com.getcapacitor.JSObject;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-/** 与共享 FileOutcome/BatchCleanup 对齐的原生结果；不暴露提供者 URI、异常或本地路径。 */
+/** 把发布结果转成 shared 的 FileOutcome 和 BatchCleanup 格式；提供者 URI、异常和本地路径不写进去。 */
 final class PublicationJson {
     private PublicationJson() {}
     static JSObject result(PublicationModel.Result result) {

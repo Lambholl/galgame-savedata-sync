@@ -8,8 +8,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.LongSupplier;
 
 /**
- * 单任务取消/期限及资源所有者。I/O 在单一工作线程执行；cancel 可由生命周期线程调用，
- * 会关闭登记的流和 SAF 查询信号以唤醒阻塞读。默认总期限 30 分钟，不能通过进度刷新。
+ * 单个任务的取消、期限和资源管理。I/O 在单一工作线程执行；生命周期线程可以调用 cancel，
+ * 它会关闭登记的流和 SAF 查询信号，唤醒阻塞的读取。默认总期限 30 分钟，进度不会刷新期限。
  */
 final class ArchiveControl {
     private final Set<Closeable> resources = new HashSet<>();

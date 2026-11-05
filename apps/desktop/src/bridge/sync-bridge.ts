@@ -30,8 +30,8 @@ import type {
 } from '@savedata-sync/shared'
 
 /**
- * 列表仅含有界摘要；计划、清单及逐项结果分别读取，避免轮询合并大响应。
- * phase 到 percent 是主进程合成两个角色的结果，详情、横条、历史和完成提示读同一份。
+ * 复制任务列表的一行，只含大小有限的摘要；计划、清单和逐项结果分别读取，避免轮询响应过大。
+ * phase 到 percent 由主进程从两个角色的状态合成，详情、横条、历史和完成提示读同一份。
  */
 export interface DesktopCopySummary {
   readonly jobId: string
@@ -95,7 +95,7 @@ export interface DesktopRemoteRequest {
   readonly backupKeepCount: number | null
   readonly updatedAt: number
 }
-/** 本机查看/取消既有复制及手工恢复，并向已连接手机发起复制；不提供路径、文件字节或通用 IPC。 */
+/** 渲染进程使用的复制接口：查看和取消复制任务及手动恢复，并向已连接手机发起复制。 */
 export interface DesktopSyncApi {
   activity(): Promise<OperationResult<boolean>>
   copies(): Promise<OperationResult<readonly DesktopCopySummary[]>>
@@ -118,7 +118,7 @@ export interface DesktopSyncApi {
   releaseRestore(restoreId: string): Promise<OperationResult<null>>
   /** 当前发起请求；没有请求时返回 null。 */
   remoteRequest(): Promise<OperationResult<DesktopRemoteRequest | null>>
-  /** 请求已连接手机扫描指定游戏；手机未运行新版应用时返回 unsupported-operation。 */
+  /** 请求已连接手机扫描指定游戏；手机应用版本不支持时返回 unsupported-operation。 */
   startRemote(
     projectId: string,
     peerId: string,
@@ -365,7 +365,7 @@ export function isDesktopRestoreState(value: unknown): value is DesktopRestoreSt
   )
 }
 
-/** preload 校验参数、有限响应及同次计划；有界缓存可从主进程恢复，不保存文件数据。 */
+/** 在 preload 内创建复制桥：校验参数和响应，核对计划属于同一次任务；缓存大小有限，丢失后从主进程重新取回。 */
 export function createSyncBridge(
   invoke: (channel: string, ...args: unknown[]) => Promise<unknown>,
 ): DesktopSyncApi {

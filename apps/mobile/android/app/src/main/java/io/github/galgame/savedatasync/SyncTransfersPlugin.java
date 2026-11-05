@@ -12,7 +12,7 @@ import java.util.concurrent.Executors;
 import static io.github.galgame.savedatasync.TransferJson.*;
 import static io.github.galgame.savedatasync.TransferSchema.*;
 
-/** 有限新复制桥：准备/预览、同次确认、状态/清单、取消和释放；无路径、内容或句柄。 */
+/** 复制任务的 Capacitor 插件：准备和预览、确认、状态和清单、取消和释放；路径、内容和句柄都不经过这里。 */
 @CapacitorPlugin(name = "SyncTransfers")
 public class SyncTransfersPlugin extends Plugin {
     private final ExecutorService controls = Executors.newFixedThreadPool(2);

@@ -8,8 +8,8 @@ import java.io.IOException;
 import java.io.InputStream;
 
 /**
- * 将已枚举的 SAF 引用接入纯归档模块；不接受 URI/路径，不申请新授权或目标写权限。
- * 查询和打开必须在后台工作线程调用。控制器取消会同时取消提供者查询和关闭读流；
+ * 把已枚举的 SAF 引用接入归档模块；参数不含 URI 和路径，也不申请新授权。
+ * 查询和打开必须在后台工作线程调用。控制器取消时同时取消提供者查询并关闭读流；
  * 流关闭后注销信号，所有权由 prepare 的工作线程回收。
  */
 final class SafArchiveSource implements ArchiveModel.Source {
@@ -20,9 +20,9 @@ final class SafArchiveSource implements ArchiveModel.Source {
         this.store = store; this.rootId = rootId; this.entryId = entryId;
     }
 
-    /** 应用私有缓存工厂；不使用外部存储或 SAF URI，实际字节始终留在原生层。 */
+    /** 创建使用应用私有缓存的归档适配器；文件字节都留在原生层。 */
     static ArchiveAdapter createAdapter(Context context) throws IOException {
-        // Android 的 /data/user/0 可能是系统别名；仅在可信 Context 边界先解析真实路径，
+        // Android 的 /data/user/0 可能是系统别名，所以先解析真实路径；
         // 缓存管理器仍拒绝真实根以下的链接和归属变化。
         return new ArchiveAdapter(new ArchiveCache(context.getApplicationContext().getCacheDir().getCanonicalFile().toPath()));
     }

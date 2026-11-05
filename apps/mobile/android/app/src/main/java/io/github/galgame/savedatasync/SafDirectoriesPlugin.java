@@ -19,8 +19,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import org.json.JSONObject;
 
 /**
- * 元数据桥不判断前后台；不暴露 URI、路径、文件字节或写入方法。
- * 提供者 I/O 在 UI 线程之外串行执行；插件销毁时释放其持有的查询。
+ * SAF 目录元数据的 Capacitor 插件；URI、路径、文件字节和写入方法都不暴露给网页。
+ * 提供者 I/O 在 UI 线程之外串行执行；插件销毁时释放它持有的查询。
  */
 @CapacitorPlugin(name = "SafDirectories")
 public class SafDirectoriesPlugin extends Plugin {
@@ -74,7 +74,7 @@ public class SafDirectoriesPlugin extends Plugin {
         return result;
     }
 
-    /** 仅以 READ 权限启动系统选择器；取消时保留所有已保存的根目录。 */
+    /** 以 READ 权限启动系统选择器；取消时已保存的根目录都保留。 */
     @PluginMethod
     public void chooseDirectory(PluginCall call) {
         if (!noArguments(call)) return;
@@ -102,7 +102,7 @@ public class SafDirectoriesPlugin extends Plugin {
         });
     }
 
-    /** 仅接收系统 Activity 返回的结果；JS 调用丢失时不会伪造选择成功。 */
+    /** 接收系统 Activity 返回的结果；JS 调用丢失时不算选择成功。 */
     @ActivityCallback
     private void onDirectoryChosen(PluginCall call, ActivityResult activityResult) {
         choosing.set(false);
@@ -118,7 +118,7 @@ public class SafDirectoriesPlugin extends Plugin {
             call.resolve(new SafFailure("permission-denied", "The system did not return valid directory authorization.").result());
             return;
         }
-        // 系统结果直接登记授权，不根据 Activity 可见状态决定是否接收。
+        // 系统结果直接登记授权，与 Activity 是否可见无关。
         submit(call, signal -> {
             JSObject result = new JSObject();
             result.put("status", "selected");
@@ -133,7 +133,7 @@ public class SafDirectoriesPlugin extends Plugin {
         if (noArguments(call)) submit(call, signal -> success(store().listRoots(signal)));
     }
 
-    /** 仅接受 rootId 和可为 null 的 parentId；未知 ID 不会转换为任意提供者 URI。 */
+    /** 列出一层目录，只接受 rootId 和可为 null 的 parentId；未知 ID 不会转换成提供者 URI。 */
     @PluginMethod
     public void listDirectory(PluginCall call) {
         JSObject data = call.getData();

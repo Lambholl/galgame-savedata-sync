@@ -1,6 +1,6 @@
 const EMPTY_HASH = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'
 
-/** 仅构造纯数据清单；归档哈希占位不代表存在真实归档文件。 */
+/** 构造纯数据清单；归档哈希是占位值，没有对应的归档文件。 */
 export function createManifest(sizes = [0]) {
   return {
     protocolVersion: 1,
@@ -27,7 +27,7 @@ export function createManifest(sizes = [0]) {
   }
 }
 
-/** 目标为独立测试根的已有目录；不访问真实磁盘或设备。 */
+/** 构造目标：测试根下已有的目录，不访问真实磁盘或设备。 */
 export function createReceiveRequest(sizes = [0]) {
   const manifest = createManifest(sizes)
   return {
@@ -81,7 +81,7 @@ export function createReceiverState(request = createReceiveRequest()) {
   }
 }
 
-/** 已准备 sender 状态，没有任何目标发布结果。 */
+/** 已准备好的发送端状态，还没有目标发布结果。 */
 export function createSenderState(manifest = createManifest()) {
   return {
     transferId: manifest.transferId,
@@ -106,7 +106,7 @@ export function createSenderState(manifest = createManifest()) {
   }
 }
 
-/** 归档和全部原文已校验，尚无目标发布；不构造任何 IO 通过证据。 */
+/** 归档和全部原文已校验、还没发布目标的状态。 */
 export function createReceiverRunning(request = createReceiveRequest()) {
   const manifest = request.manifest
   return {

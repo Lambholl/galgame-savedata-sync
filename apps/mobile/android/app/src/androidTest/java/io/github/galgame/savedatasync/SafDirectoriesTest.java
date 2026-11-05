@@ -28,9 +28,8 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 /**
- * 真机测试默认仅使用私有夹具；select/read/cancel 交互模式要求人工操作真实系统选择器，
- * 不使用 root 或伪造授权注入。
- * 所有源访问均为只读；报告仅含计数，不包含源路径、名称或哈希。
+ * SAF 目录的真机测试，默认只用私有夹具；select、read、cancel 交互模式要人工操作真实系统选择器。
+ * 所有源访问都只读；报告只含计数，不含源路径、名称或哈希。
  */
 @RunWith(AndroidJUnit4.class)
 public class SafDirectoriesTest {
@@ -113,7 +112,7 @@ public class SafDirectoriesTest {
         SafFailure invalid = assertThrows(SafFailure.class,
             () -> store.openFile(rootId, "unknown-entry", new CancellationSignal()));
         assertEquals("not-found", invalid.code);
-        // 新原生实例不保留旧条目表，必须重新枚举。
+        // 重新创建的原生实例没有之前的条目表，必须重新枚举。
         if (entries.length() > 0) {
             SafDirectoryStore restored = new SafDirectoryStore(context());
             SafFailure stale = assertThrows(SafFailure.class,

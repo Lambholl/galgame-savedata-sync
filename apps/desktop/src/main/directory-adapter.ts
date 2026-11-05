@@ -34,15 +34,15 @@ interface RegisteredEntry {
   readonly identity: FileIdentity
 }
 
-/** 原生读流由调用者消费或 destroy；自动关闭文件句柄，不能经 IPC 发送内容或句柄。 */
+/** 打开文件的结果：读流由调用者读完或 destroy，文件句柄自动关闭；内容和句柄不经 IPC 发送。 */
 export interface DirectoryFileRead {
   readonly metadata: FileMetadata
   readonly stream: Readable
-  /** 读完后重查原身份、大小及可观察时间；不重新读取内容，也不保证原子快照。 */
+  /** 读完后重新核对身份、大小和修改时间，不重新读取内容；这不是原子快照，检查之后文件仍可能变化。 */
   readonly verifyUnchanged: () => Promise<void>
 }
 
-/** 仅原生层持有的目录快照，不授予写权限；验证/元数据方法仍只执行读取。 */
+/** 目录快照，只在主进程内持有，不授予写权限；校验和元数据方法都只读。 */
 export interface NativeDirectoryLocation {
   readonly rootId: string
   readonly parentId: string | null
@@ -53,8 +53,8 @@ export interface NativeDirectoryLocation {
 }
 
 /**
- * Windows 本地只读目录适配；配置持久化在单独应用目录，源目录没有任何写入 API。
- * 条目引用仅在当前进程有效，重启后须重新列目录；不保存历史清单或文件哈希。
+ * Windows 本地只读目录适配器。配置保存在单独的应用目录，对源目录只做读取。
+ * 条目引用只在当前进程有效，重启后要重新列目录。
  */
 export class WindowsDirectoryAdapter {
   private readonly configPath: string
@@ -69,12 +69,12 @@ export class WindowsDirectoryAdapter {
     this.registry = registry
   }
 
-  /** 安装内稳定身份，与 IP 和本次目录读取结果无关。 */
+  /** 这次安装的稳定设备 ID，与 IP 和目录读取结果无关。 */
   get deviceId(): string {
     return this.registry.deviceId
   }
 
-  /** 仅供主进程检查私有缓存与所有已登记根互不包含，不创建目录或暴露路径。 */
+  /** 检查私有缓存与所有已登记根互不包含；由主进程调用，不创建目录。 */
   assertCacheIsolated(cachePath: string): void {
     if (
       !isAbsolute(cachePath) ||
@@ -90,7 +90,7 @@ export class WindowsDirectoryAdapter {
     }
   }
 
-  /** 原生模块登记私有持久区，阻止后续把它或其父子目录选为同步根。 */
+  /** 登记私有持久目录，此后它和它的父子目录都不能选为同步根。 */
   excludePrivateDirectory(path: string): void {
     this.assertCacheIsolated(path)
     this.privateDirectories.add(path)
@@ -110,8 +110,8 @@ export class WindowsDirectoryAdapter {
   }
 
   /**
-   * 仅供受信任主进程/系统选择器登记绝对路径，不接受 Renderer 路径。
-   * 原子保存配置后才更新内存；重新选择同一路径保留 rootId 并重新核实身份。
+   * 登记系统选择器选中的绝对路径，只由主进程调用，渲染进程传不了路径。
+   * 配置原子保存后才更新内存；重新选择同一路径时保留 rootId 并重新核实身份。
    */
   async registerDirectory(path: string): Promise<OperationResult<DirectoryReference>> {
     const operation = this.mutation.then(() =>
@@ -168,7 +168,7 @@ export class WindowsDirectoryAdapter {
     return operation
   }
 
-  /** 返回公开根描述并重查目录身份；失效目录标 unavailable，不丢弃已保存配置。 */
+  /** 返回公开的根目录描述并重新核对身份；失效的目录标为 unavailable，已保存的配置保留。 */
   async listRoots(): Promise<OperationResult<readonly DirectoryReference[]>> {
     return runDirectoryOperation(async () => {
       const roots: DirectoryReference[] = []
@@ -184,7 +184,7 @@ export class WindowsDirectoryAdapter {
     })
   }
 
-  /** 仅枚举当前层；失败返回错误，空目录才返回成功空数组；文件夹大小恒为 null。 */
+  /** 列出当前一层；失败时返回错误，只有空目录才返回成功的空数组。文件夹大小恒为 null。 */
   async listDirectory(
     rootId: string,
     parentId: string | null = null,
@@ -231,8 +231,8 @@ export class WindowsDirectoryAdapter {
   }
 
   /**
-   * 打开已登记条目的只读流，核对路径与句柄身份；不按名称接受任意文件路径。
-   * 成功后流所有权交给调用者；读取期间的流错误由调用者处理，内容变化由传输层校验。
+   * 打开已登记条目的只读流，并核对路径与句柄的身份；参数是条目引用，不是文件路径。
+   * 成功后流归调用者；读取中的流错误由调用者处理，内容变化由传输层校验。
    */
   async openFile(reference: EntryReference): Promise<OperationResult<DirectoryFileRead>> {
     return runDirectoryOperation(async () => {
@@ -289,9 +289,9 @@ export class WindowsDirectoryAdapter {
   }
 
   /**
-   * 供独立原生发布适配定位已登记父目录，不通过 IPC 公开路径，也不授权写入。
-   * 捕获根/父目录身份；verify 不依赖临时条目表，允许关闭或失败后安全清理自有候选。
-   * describeFile 只登记身份匹配的实际普通文件，调用者仍须完成内容回读校验。
+   * 定位已登记的父目录，供主进程内的发布适配器使用；路径不经 IPC 公开，这里也不授予写权限。
+   * 捕获根和父目录的身份；verify 不依赖临时条目表，所以关闭或失败后也能安全清理自己的候选文件。
+   * describeFile 只登记身份匹配的普通文件，调用者仍要回读校验内容。
    */
   async locateNativeDirectory(
     rootId: string,
@@ -466,7 +466,7 @@ export class WindowsDirectoryAdapter {
   }
 }
 
-/** 初始化应用目录配置；只在配置不存在时创建身份，损坏/未知版本失败而不重置。 */
+/** 读取应用目录配置；只有配置不存在时才创建设备身份，损坏或版本未知时失败，不重置。 */
 export async function createDirectoryAdapter(configPath: string): Promise<WindowsDirectoryAdapter> {
   if (!isAbsolute(configPath)) {
     throw new DirectoryAccessError('invalid-request', 'The configuration path must be absolute.')

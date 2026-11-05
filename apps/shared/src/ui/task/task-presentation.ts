@@ -28,7 +28,7 @@ export interface TaskPreview {
   readonly percent: number | null
   /** 决定图标与语义色的任务状态。 */
   readonly phase: SyncTaskPhase
-  /** 复制任务的五段步骤；恢复或旧任务使用 null。 */
+  /** 复制任务的五段步骤；恢复和批量传输用 null。 */
   readonly steps: TaskStepProgress | null
 }
 
@@ -55,7 +55,7 @@ export function syncTaskPreview(
   return { status: t(key[phase]), percent: phase === 'done' ? 100 : null, phase, steps }
 }
 
-/** 恢复任务可见状态；双端的既有摘要均可映射到此类型。 */
+/** 恢复任务的可见状态；两端的摘要都能映射到这个类型。 */
 export type RestoreTaskStatus =
   'preparing' | 'ready' | 'running' | 'succeeded' | 'failed' | 'cancelled' | 'unknown'
 
@@ -91,7 +91,7 @@ export function restoreTaskPreview(
   }
 }
 
-/** 旧版文件传输无项目绑定和完整五阶段；保留入口并只显示确知状态。 */
+/** 批量传输的短状态：它没有项目绑定和完整五阶段，只显示确知的状态。 */
 export function legacyTaskPreview(task: TransferTask, t: Translate): TaskPreview {
   const state = task.remote?.role === 'receiver' ? task.remote : task.local
   const isRunning = taskIsActive(task)

@@ -10,7 +10,7 @@ import java.util.concurrent.TimeUnit;
 import static io.github.galgame.savedatasync.TransferJson.*;
 import static io.github.galgame.savedatasync.TransferSchema.*;
 
-/** 应用 Context 持有新复制，页面只是控制入口；只在确认执行后启动传输通知。 */
+/** 由应用 Context 持有复制引擎，页面只是控制入口；确认执行后才启动传输通知。 */
 final class SyncTransferRuntime {
     private static SyncTransferRuntime instance;
     final SyncTransferEngine engine;
@@ -79,7 +79,7 @@ final class SyncTransferRuntime {
     void retry(String expectedId) {
         controls.execute(() -> {
             if (expectedId != null && expectedId.equals(engine.activeId())) try { engine.retryCleanup(); }
-            catch (Exception ignored) { /* 清理失败仍保留通知和名额，下次显式重试。 */ }
+            catch (Exception ignored) { /* 清理失败时保留通知和名额，下次显式重试。 */ }
         });
     }
 }

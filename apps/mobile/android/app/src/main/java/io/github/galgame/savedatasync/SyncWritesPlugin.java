@@ -12,7 +12,7 @@ import java.util.concurrent.Executors;
 import static io.github.galgame.savedatasync.TransferJson.*;
 import static io.github.galgame.savedatasync.TransferSchema.*;
 
-/** 仅本机恢复的有限桥；原文、FD、URI 和任意路径均留在原生层。 */
+/** 本机恢复的 Capacitor 插件；原文、FD、URI 和任意路径都留在原生层。 */
 @CapacitorPlugin(name = "SyncWrites")
 public class SyncWritesPlugin extends Plugin {
     private final ExecutorService controls = Executors.newFixedThreadPool(2);

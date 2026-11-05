@@ -9,7 +9,7 @@ import { hasShape, isArrayOf } from '../validation/data-validation.ts'
 import type { LibraryConfig, LibraryPeer } from './library.ts'
 import { isLibraryConfig, isLibraryPeer } from './library.ts'
 
-/** 本次任务使用的项目/设备/目录绑定；只复制稳定 ID，不保留可变配置对象。 */
+/** 一次任务使用的项目、设备和目录绑定，只含稳定 ID。 */
 export interface SyncProjectBinding {
   readonly projectId: string
   readonly remoteProjectId: string
@@ -18,7 +18,7 @@ export interface SyncProjectBinding {
   readonly localRootId: string
   readonly remoteRootId: string
 }
-/** 仅稳定 ID 的封闭绑定；实际配置、授权和连接仍由两端原生层核实。 */
+/** 校验绑定只含稳定 ID；实际配置、授权和连接由两端原生层核实。 */
 export function isSyncProjectBinding(value: unknown): value is SyncProjectBinding {
   return (
     hasShape(value, [
@@ -41,8 +41,8 @@ function fail<TValue>(code: OperationErrorCode, message: string): OperationResul
 }
 
 /**
- * 从已登记本机目录和当前对端目录表固定项目映射；不按名称或 IP 猜测关联。
- * 失效授权/离线/错位目录返回具体错误，成功值只含 ID。调用前后由平台刷新真实目录。
+ * 从已登记的本机目录和当前对端目录表确定项目映射；只按关联记录匹配，不按名称或 IP 猜。
+ * 授权失效、设备离线或目录错位时返回具体错误，成功值只含 ID。调用前后由平台刷新真实目录。
  */
 export function resolveSyncProjectBinding(
   config: LibraryConfig,
@@ -99,7 +99,7 @@ export function resolveSyncProjectBinding(
   }
 }
 
-/** 对照新读取的配置/目录表复核已确认绑定；别名或 IP 改动不改变身份关系。 */
+/** 对照新读取的配置和目录表复核已确认的绑定；改别名或 IP 不影响匹配。 */
 export function matchesSyncProjectBinding(
   expected: SyncProjectBinding,
   current: SyncProjectBinding,

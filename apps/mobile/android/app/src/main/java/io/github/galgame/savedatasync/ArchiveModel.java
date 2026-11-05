@@ -8,12 +8,12 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
-/** v1 归档的进程内不可变模型；不是 JSON 解码器，不跨 JS 桥。 */
+/** v1 归档的进程内不可变模型；不解码 JSON，也不跨 JS 桥。 */
 final class ArchiveModel {
     static final int BUFFER = 65536;
     private ArchiveModel() {}
 
-    /** 测试和受信任原生调用者只能收紧固定预算，不能放宽协议。单位均为字节。 */
+    /** 归档的字节上限，单位都是字节；测试和可信的原生调用者只能收紧，不能放宽协议。 */
     static final class Limits {
         final int files;
         final long file, total, tar, archive, cache;
@@ -29,7 +29,7 @@ final class ArchiveModel {
         }
     }
 
-    /** 源身份和可观察属性；未知长度/时间为 null，identity 只在原生层比较。 */
+    /** 源文件的身份和可观察属性；长度或时间未知时为 null，identity 只在原生层比较。 */
     static final class Observation {
         final String identity, entryId, parentId, name;
         final Long size, modified;
@@ -50,9 +50,9 @@ final class ArchiveModel {
         }
     }
 
-    /** 只读源接口；每次打开的流交给归档所有者关闭，observe 必须重新检查授权/身份。 */
+    /** 只读源接口；每次打开的流交给归档所有者关闭，observe 必须重新检查授权和身份。 */
     interface Source {
-        /** 正式 SAF 源必须核对批次源根；纯 IO 合成源可沿用默认实现。 */
+        /** 校验源属于这批的根目录，SAF 源必须实现；纯 IO 的合成源可以用默认实现。 */
         default void validateRoot(String rootId) throws ArchiveFailure {}
         Observation observe(ArchiveControl control) throws Exception;
         InputStream open(ArchiveControl control) throws Exception;
@@ -77,7 +77,7 @@ final class ArchiveModel {
         }
     }
 
-    /** 对应固定 protocolVersion=1、format=tar.gz、compressionLevel=1 的原生清单。 */
+    /** 原生清单，对应固定的 protocolVersion=1、format=tar.gz、compressionLevel=1。 */
     static final class Manifest {
         final String transferId, sourceDeviceId, sourceRootId;
         final List<PreparedFile> files;
@@ -111,7 +111,7 @@ final class ArchiveModel {
         }
     }
 
-    /** 阶段内实际计数；未知 total 用 null。回调在同一 I/O 线程执行，不能阻塞或修改任务。 */
+    /** 阶段内的实际计数；total 未知时为 null。回调在同一 I/O 线程执行，不能阻塞或修改任务。 */
     interface Progress { void update(String stage, long completed, Long total) throws Exception; }
 
     static String id(int index) { return String.format(java.util.Locale.ROOT, "f%06d", index + 1); }

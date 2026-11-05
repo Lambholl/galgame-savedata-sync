@@ -14,7 +14,7 @@ import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 
-/** 只生成目录展示信息；文件操作仍使用 SAF 引用，不读取拼接出的文件系统路径。 */
+/** 生成目录的展示信息；文件操作仍用 SAF 引用，拼接出的路径只用于显示。 */
 final class DirectoryDisplay {
     static final class Info {
         final String path;

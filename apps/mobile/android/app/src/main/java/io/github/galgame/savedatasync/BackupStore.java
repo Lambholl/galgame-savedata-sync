@@ -31,7 +31,7 @@ import static io.github.galgame.savedatasync.TransferSchema.*;
 /**
  * 持久备份，放在用户能直接管理的应用专属外部目录：backups/游戏名/时间/，内含 backup.json 和按原路径保存的 files/。
  * 用户可以随时删除或改名其中任何内容，所以每次都按实际目录重新读取，一份备份出问题不影响其他备份。
- * 变更串行，恢复材料按引用保留；设置放内部目录，删掉备份文件夹不丢设置。只读 SAF 同步根。
+ * 修改操作串行，恢复材料按引用保留；设置放内部目录，删掉备份文件夹不丢设置。SAF 同步根只读。
  */
 final class BackupStore implements AutoCloseable {
     /** 平台提供的位置和名称；目录被用户删除后由实现重新取得。 */
@@ -137,7 +137,7 @@ final class BackupStore implements AutoCloseable {
             return new Round(path, files.directory(path), manifest, committed && intact(path, manifest));
         } catch (Exception unreadable) { return null; }
     }
-    /** 只核对文件在不在、大小对不对，内容在恢复前完整校验。 */
+    /** 检查备份是否完好：只核对文件在不在、大小对不对，内容在恢复前完整校验。 */
     private boolean intact(Path path, Map<String, Object> manifest) throws Exception {
         for (Object raw : TransferJson.list(manifest.get("files"))) {
             Map<String, Object> file = map(raw);
@@ -155,7 +155,7 @@ final class BackupStore implements AutoCloseable {
         return round.manifest.get("projectId").equals(project) && round.manifest.get("rootId").equals(root);
     }
     private static void ids(String project, String root) throws Exception { id(project); id(root); }
-    /** 摘要不携带文件路径；详情按单轮读取，以保持 8 MiB 控制响应限制。 */
+    /** 列出备份摘要，不带文件路径；详情按单轮读取，以保持 8 MiB 控制响应限制。 */
     synchronized Map<String, Object> list(String projectId, String rootId) throws Exception {
         ids(projectId, rootId); List<Round> rounds = rounds(); sort(rounds);
         List<Object> backups = new ArrayList<>(), incomplete = new ArrayList<>();
@@ -197,7 +197,7 @@ final class BackupStore implements AutoCloseable {
     synchronized Map<String, Object> manifest(String projectId, String rootId, String backupId) throws Exception {
         return map(copy(find(projectId, rootId, backupId).manifest));
     }
-    /** 缺少文件时使用默认全局设置，坏设置不被默认值覆盖；格式独立于游戏配置。 */
+    /** 读取备份设置。缺少文件时用默认全局设置，坏设置不被默认值覆盖；格式与游戏配置无关。 */
     synchronized Map<String, Object> settings() throws Exception {
         alive();
         return exists(settingsFile) ? BackupModel.settings(files.readJson(settingsFile)) : BackupModel.emptySettings();
@@ -244,7 +244,7 @@ final class BackupStore implements AutoCloseable {
         }
         throw BackupFiles.failure("io-failure");
     }
-    /** 保存编排器选定的全部目标文件；关闭备份或集合为空时返回 null，并保持 SAF 目标不变。恢复时必须开启保护备份。 */
+    /** 保存编排器选定的全部目标文件；关闭备份或集合为空时返回 null，SAF 目标不变。恢复时必须开启保护备份。 */
     synchronized Map<String, Object> create(String projectId, String rootId, String reason, boolean shouldBackup,
                                            List<Object> entries, ArchiveControl control) throws Exception {
         ids(projectId, rootId); one(reason, "copy", "restore"); require(!reason.equals("restore") || shouldBackup);
@@ -343,7 +343,7 @@ final class BackupStore implements AutoCloseable {
         check(work); files.same(path, before, BackupModel.MAX_FILE);
         if (size != expected || !ArchiveFormat.hex(hash.digest()).equals(file.get("sha256"))) throw BackupFiles.failure("checksum-mismatch");
     }
-    /** 只按完整的备份计份：用户删掉或弄坏的不占名额，不会因此多删旧备份。 */
+    /** 按保留份数删除多余的旧备份；只统计完整的备份，用户删掉或弄坏的不计入保留份数，不会因此多删。 */
     private void prune(String projectId, String rootId) throws Exception {
         List<Round> rounds = rounds(); rounds.removeIf(round -> !round.complete || !group(round, projectId, rootId)); sort(rounds);
         int keep = (int) ((Number) BackupModel.resolve(settings(), projectId, rootId).get("keepCount")).longValue();
@@ -357,7 +357,7 @@ final class BackupStore implements AutoCloseable {
         ids(projectId, rootId); alive(); if (pendingCleanup != null) throw BackupFiles.failure("cleanup-failed");
         prune(projectId, rootId);
     }
-    /** 重试本实例本次创建留下的清理，不扫描或删除其他轮次的未完成数据。 */
+    /** 重试本实例这次创建留下的清理；其他轮次的未完成数据不扫描也不删除。 */
     synchronized boolean retryCleanup() {
         if (active != null || closed) return false;
         try {
@@ -424,7 +424,7 @@ final class BackupStore implements AutoCloseable {
     private static ArchiveFailure cleanupFailure(Exception cause) { return new ArchiveFailure("cleanup-failed", "Backup rotation or leftover cleanup failed.", false, cause); }
     static Map<String, Object> error(ArchiveFailure failure) { return object("code", failure.code, "message", failure.getMessage(), "canRetry", false); }
 
-    /** 校验完整材料后取得引用；使用期间保留该轮，文件流只交给原生恢复编排。 */
+    /** 校验完整材料后取得引用；使用期间保留这一轮，文件流只交给恢复编排器。 */
     synchronized Handle acquire(String projectId, String rootId, String backupId, ArchiveControl control) throws Exception {
         if (handles.size() >= 32) throw BackupFiles.failure("resource-limit");
         Round round = find(projectId, rootId, backupId);
@@ -497,7 +497,7 @@ final class BackupStore implements AutoCloseable {
             release();
         }
     }
-    /** 只在原生所有者关闭存储时释放任务/读流；已提交轮次持久保留。 */
+    /** 关闭存储时释放任务和读流，只由原生所有者调用；已提交的轮次保留。 */
     @Override public void close() throws Exception {
         closed = true; Active current = active; if (current != null) current.control.cancel();
         synchronized (this) {

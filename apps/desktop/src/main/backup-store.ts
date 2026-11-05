@@ -63,17 +63,17 @@ interface BackupRound {
   readonly identity: FileIdentity
   readonly manifest: SyncBackupManifest | null
 }
-/** 公开查询只提供当前项目的清单和需显式清理的轮次，不暴露私有文件路径。 */
+/** 备份查询结果：当前项目的清单和需要显式清理的轮次，不含私有文件路径。 */
 export interface WindowsBackupListing {
   readonly backups: readonly SyncBackupManifest[]
   readonly incomplete: readonly SyncIncompleteBackup[]
 }
-/** 清单提交成功后轮换错误单独报告；调用方仍可使用该有效备份保护写入。 */
+/** 创建备份的结果：清单提交成功后的轮换错误单独报告，调用方仍可使用这份有效备份保护写入。 */
 export interface WindowsBackupCommit {
   readonly manifest: SyncBackupManifest | null
   readonly cleanupError: KnownOperationError | null
 }
-/** 原生调用可提供取消和收紧期限；备份参数不由网络或 Renderer 指定。 */
+/** 创建备份的选项，可以提供取消和更短的期限；备份参数不能由网络或渲染进程指定。 */
 export interface WindowsBackupOptions {
   readonly signal?: AbortSignal
   readonly timeoutMs?: number
@@ -144,8 +144,8 @@ async function exists(path: string): Promise<boolean> {
 }
 
 /**
- * 已完整验证的恢复材料，引用期间不参加轮换；内容只通过原生流返回。
- * 消费者关闭全部读流后 release；snapshot 仅为本次恢复建立临时目录树。
+ * 已完整校验的恢复材料。持有引用期间这一轮不参加轮换，内容只通过主进程内的流返回。
+ * 消费者关闭全部读流后调用 release；snapshot 只为这次恢复建立临时目录树。
  */
 export class WindowsBackupHandle {
   private readonly readers = new Set<Readable>()
@@ -215,7 +215,7 @@ export class WindowsBackupHandle {
     }
     return snapshot
   }
-  /** 返回流的所有权交给消费者；实际写回还须按清单校验内容。 */
+  /** 打开备份里的文件，返回的流归消费者所有；实际写回时还要按清单校验内容。 */
   async openFile(
     fileId: string,
   ): Promise<{ stream: Readable; verifyUnchanged: () => Promise<void> }> {
@@ -246,7 +246,7 @@ export class WindowsBackupHandle {
       },
     }
   }
-  /** 释放后重新尝试轮换；清理错误不改写备份或恢复结果。 */
+  /** 释放引用后重新尝试轮换；清理错误不改变备份或恢复的结果。 */
   async release(): Promise<KnownOperationError | null> {
     if (this.readers.size) {
       throw new ArchiveError('busy', 'Close backup read streams first.')
@@ -257,7 +257,7 @@ export class WindowsBackupHandle {
     this.isReleased = true
     return this.store.release(this, this.round.marker)
   }
-  /** 应用退出时关闭所持读流；普通释放仍要求消费者先结束读取。 */
+  /** 应用退出时关闭所持读流；正常释放仍要求消费者先读完。 */
   async close(): Promise<void> {
     const readers = [...this.readers]
     for (const reader of readers) {
@@ -270,9 +270,9 @@ export class WindowsBackupHandle {
 }
 
 /**
- * Windows 私有持久备份。元数据/创建/轮换串行，恢复材料通过引用保护。
- * 只读同步根，写入固定私有文件名；失败提交前不产生可恢复轮次。
- * 用法及错误/清理语义见桌面 README；仅通过工厂初始化。
+ * Windows 的私有持久备份。元数据操作、创建和轮换串行执行，恢复材料通过引用保护。
+ * 只读同步根，写入固定的私有文件名；提交失败时不会产生可恢复的轮次。
+ * 用法及错误和清理语义见桌面 README；通过工厂函数初始化。
  */
 export class WindowsBackupStore {
   private queue: Promise<void> = Promise.resolve()
@@ -324,7 +324,7 @@ export class WindowsBackupStore {
       throw new ArchiveError('permission-denied', 'The backup directory ownership is invalid.')
     }
   }
-  /** 同包恢复句柄每次读取前核对根、轮次身份和所有权。 */
+  /** 读取前核对根目录、轮次身份和所有权；同包的恢复句柄每次读取前都调用。 */
   async inspectRound(round: BackupRound, hasMarker = true): Promise<void> {
     await this.inspect()
     const path = join(this.path, round.marker.backupId)
@@ -404,7 +404,7 @@ export class WindowsBackupStore {
     }
     return result
   }
-  /** 列表表示已提交的清单；恢复前 acquire 将重新核对每个文件。 */
+  /** 列出已提交的备份清单；恢复前 acquire 会重新核对每个文件。 */
   list(projectId: string, rootId: string): Promise<WindowsBackupListing> {
     group(projectId, rootId)
     return this.exclusive(async () => {
@@ -441,7 +441,7 @@ export class WindowsBackupStore {
       return null
     }
   }
-  /** 缺少文件时用默认全局设置；坏设置不会被默认值覆盖。 */
+  /** 读取备份设置。缺少文件时用默认全局设置；坏设置不会被默认值覆盖。 */
   settings(): Promise<SyncBackupSettings> {
     return this.exclusive(() => this.readSettings())
   }
@@ -456,7 +456,7 @@ export class WindowsBackupStore {
     }
     return value
   }
-  /** 单独设置某个游戏目录；null 改回跟随全局。关闭只影响普通复制，恢复保护由计划器强制开启。 */
+  /** 单独设置某个游戏目录；null 改回跟随全局。关闭备份只影响普通复制，恢复时计划器强制开启保护。 */
   setPreference(
     projectId: string,
     rootId: string,
@@ -499,7 +499,7 @@ export class WindowsBackupStore {
     }
     return settings
   }
-  /** 容量包含完整新轮及清单，旧有效备份保持到新轮提交后；不提前释放旧备份换空间。 */
+  /** 比较备份目录的可用空间和调用方给出的字节数，不够时报 insufficient-space；可用空间未知时放行。不删除旧备份腾空间。 */
   async capacity(
     requiredBytes: number,
   ): Promise<{ requiredBytes: number; availableBytes: number | null }> {
@@ -766,7 +766,7 @@ export class WindowsBackupStore {
       identities.set('manifest.retired', required(identities.get('manifest.json')))
       identities.delete('manifest.json')
     }
-    // 所有内容先验明归属；最后才删所有权记录，失败保留可重试的轮次。
+    // 所有内容先确认归属，最后才删所有权记录；失败时保留记录，这一轮可以重试。
     for (const name of [...identities.keys()].filter((name) => name !== 'round.json')) {
       await this.inspectRound(round, hasMarker)
       if (
@@ -814,7 +814,7 @@ export class WindowsBackupStore {
       }
     }
   }
-  /** 恢复前完整复核；获取引用后才允许轮换其他轮次，不发布任何目标文件。 */
+  /** 恢复前完整复核这一轮并取得引用，取得后才允许轮换其他轮次；目标文件此时还没有改动。 */
   acquire(
     projectId: string,
     rootId: string,
@@ -858,7 +858,7 @@ export class WindowsBackupStore {
       }
     })
   }
-  /** 同包句柄释放引用后轮换；主错误与轮换错误由调用方分别显示。 */
+  /** 同包的句柄释放引用后轮换；主错误与轮换错误由调用方分别显示。 */
   async release(
     handle: WindowsBackupHandle,
     marker: RoundMarker,
@@ -874,12 +874,12 @@ export class WindowsBackupStore {
       return cleanupFailure(error)
     }
   }
-  /** 显式重试轮换，不删除受引用保护或尚未完成的轮次。 */
+  /** 重试轮换；有引用保护或还没完成的轮次不会被删除。 */
   rotate(projectId: string, rootId: string): Promise<void> {
     group(projectId, rootId)
     return this.exclusive(() => this.prune(projectId, rootId))
   }
-  /** 只清理经所有权核实的未提交/已淘汰轮次；不可通过此入口删除有效备份。 */
+  /** 清理已确认所有权的未提交或已淘汰轮次；有效备份由 deleteBackup 删除。 */
   cleanupIncomplete(projectId: string, rootId: string, backupId: string): Promise<void> {
     group(projectId, rootId)
     return this.exclusive(async () => {
@@ -931,7 +931,7 @@ export class WindowsBackupStore {
       await this.writeSettings(withoutGameBackups(await this.readSettings(), projectId))
     })
   }
-  /** 应用退出取消创建并关闭恢复流；备份目录和已提交轮次保留供下次启动查询。 */
+  /** 应用退出时取消创建并关闭恢复流；备份目录和已提交轮次保留，供下次启动查询。 */
   stop(): Promise<void> {
     if (this.stopping) {
       return this.stopping
@@ -950,7 +950,7 @@ export class WindowsBackupStore {
   }
 }
 
-/** 初始化 userData/backups，要求应用私有路径已解析；已有数据只按独立 v1 格式读取。 */
+/** 初始化 userData/backups，要求应用私有路径已解析；已有数据只按 v1 格式读取。 */
 export async function createWindowsBackupStore(
   source: BackupSource,
   privateDirectory: string,

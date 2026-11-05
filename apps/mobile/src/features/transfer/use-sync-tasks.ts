@@ -7,7 +7,7 @@ import type {
   MobileSyncAdapter,
 } from '../../platform/sync-adapter'
 
-/** 同一应用持续查询原生任务；离开页面不取消，卸载仅停止网页轮询。 */
+/** 持续查询原生任务；离开页面不取消任务，卸载只停止网页轮询。 */
 export function useSyncTasks(
   adapter: MobileSyncAdapter,
   projectId: string | null,

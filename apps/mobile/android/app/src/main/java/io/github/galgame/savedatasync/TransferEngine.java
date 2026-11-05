@@ -18,9 +18,9 @@ import static io.github.galgame.savedatasync.TransferJson.*;
 import static io.github.galgame.savedatasync.TransferSchema.*;
 
 /**
- * 原生双向任务所有者。用户发起 start，已发起的任务由持续通知服务持有，不随 Activity 暂停取消。
- * 不持久化地址、清单或历史哈希；query 只读快照，失败响应不授权重发 POST/PUT。
- * 下载准备清单前 query 返回 task-conflict；此时取消/失败仍生成全项未尝试的本地终态。
+ * 批量传输的原生任务所有者，负责两个方向。用户发起 start，任务由持续通知服务持有，Activity 暂停时不取消。
+ * query 只读快照，失败响应不代表可以重发 POST 或 PUT。
+ * 下载清单准备好之前 query 返回 task-conflict；此时取消或失败仍生成全部未尝试的本地结束状态。
  */
 final class TransferEngine {
     interface Local {
@@ -155,7 +155,7 @@ final class TransferEngine {
         synchronized (this) { available(); if (connecting || active != null || TargetOperation.hasWork()) throw fail("busy"); value = connections.get(id); }
         if (value != null) try {
             value.http.json("POST", "/v1/catalog", string(value.descriptor.get("sessionId")), object("deviceId", local.deviceId(), "goodbye", true), 200, control);
-        } catch (Exception ignored) { /* 本机仍断开；电脑收不到告别时由在线期限释放名额。 */ }
+        } catch (Exception ignored) { /* 本机仍断开；电脑收不到告别时，控制通道关闭后同样把这台手机算作离线。 */ }
         ControlClient client;
         synchronized (this) {
             client = detachControl(connections.remove(id));
@@ -163,7 +163,7 @@ final class TransferEngine {
         }
         if (client != null) client.close();
     }
-    /** 每台电脑独立交换目录元数据；不会改变当前浏览连接或活动任务。 */
+    /** 与一台电脑交换目录表，每台电脑独立；当前浏览连接和活动任务不受影响。 */
     Object exchangeCatalog(String id, Object payload, String name, ArchiveControl control) throws Exception {
         Connection value; synchronized (this) { available(); value = connections.get(id); }
         if (value == null) throw fail("not-found");
@@ -229,7 +229,7 @@ final class TransferEngine {
         ControlListener listener = controlListener;
         if (listener != null) listener.state(id, isOpen, code);
     }
-    /** 只摘下控制通道，由调用者在引擎锁外关闭：读线程持有 WebSocket 的锁回调 onClose，再等引擎锁，持锁关闭会死锁。 */
+    /** 摘下控制通道并返回，由调用者在引擎锁外关闭：读线程持有 WebSocket 的锁回调 onClose，再等引擎锁，持锁关闭会死锁。 */
     private static ControlClient detachControl(Connection value) {
         if (value == null || value.control == null) return null;
         ControlClient client = value.control; value.control = null; value.controlOpen = false; return client;
@@ -245,7 +245,7 @@ final class TransferEngine {
         if (client == null) throw fail("not-found");
         try { client.send(text); } catch (RuntimeException cause) { throw fail("not-found"); }
     }
-    /** 新编排固定当前已交换目录表的连接身份；文件材料仍由同一个原生缓存适配器持有。 */
+    /** 复制任务使用的连接身份，固定当前已交换目录表的连接；文件材料仍由同一个归档适配器持有。 */
     static final class SyncConnection {
         final TransferHttp http;
         final String session, deviceId;
@@ -305,7 +305,7 @@ final class TransferEngine {
         }
         return map(copy(listing));
     }
-    /** start 的参数仅含 ID/单文件名；调用方拥有返回句柄，不拥有原生流。 */
+    /** 开始传输，参数只含 ID 和单文件名，只返回 transferId；原生流不交给调用方。 */
     synchronized Map<String, Object> start(Object options, boolean upload) throws Exception {
         available(); connected(); Map<String, Object> arguments = shape(copy(options), "request", "targetRootId", "targets");
         Map<String, Object> request = selection(arguments.get("request")); List<Object> files = list(request.get("files"));
@@ -381,7 +381,7 @@ final class TransferEngine {
         try { accepted = job.http.json("POST", "/v1/transfers/uploads", job.session, request, 201, job.control); }
         catch (ArchiveFailure cause) {
             if (!cause.code.equals("network-failure") && !cause.code.equals("timeout")) throw cause;
-            // 登记回执丢失只查询同 ID，不能重发 POST。若实际已接纳，则继续唯一一次内容发送。
+            // 登记回执丢失时只查询同一 ID，不能重发 POST；如果实际已接受，继续唯一一次内容发送。
             accepted = job.http.json("GET", job.path(), job.session, null, 200, job.control);
         }
         Map<String, Object> remote = acceptRemote(job, accepted);
@@ -397,7 +397,7 @@ final class TransferEngine {
             catch (Exception queryFailure) { synchronized (this) { job.remoteFailure = fail("result-unknown"); } }
             if (job.transferred != job.manifest.archive.sizeBytes) throw fail("result-unknown");
         }
-        // sent 只确认本机完整发送，不将 Windows receiver 成功包装成本机发布。
+        // sent 只确认本机完整发送；Windows 接收端的成功不算本机发布。
         terminalSender(job, "sent", null);
         try { pollRemote(job, true); } catch (Exception cause) {
             if (cancelled(job)) cancelRemote(job);
@@ -447,7 +447,7 @@ final class TransferEngine {
             }
             if (!result.status.equals("succeeded")) break;
         }
-        // 最后一次确认成功可以赢得取消竞争，不在此处回滚或再检查取消。
+        // 最后一次确认成功可以赢过取消竞争，这里不回滚，也不再检查取消。
     }
     private PublicationModel.Request publication(Job job, ArchiveModel.PreparedFile f) throws ArchiveFailure {
         Map<String, Object> t = target(job.targets, f.fileId);
@@ -489,7 +489,7 @@ final class TransferEngine {
             Object result;
             try { result = job.http.json("DELETE", job.path(), job.session, null, 202, control); }
             catch (ArchiveFailure cause) {
-                // DELETE 的终态回执为 200；只查询，不能用另一次 DELETE 重放。
+                // DELETE 的结束回执是 200；只查询，不能再发一次 DELETE。
                 result = job.http.json("GET", job.path(), job.session, null, 200, control);
             }
             acceptRemote(job, result);
@@ -510,13 +510,13 @@ final class TransferEngine {
     }
     synchronized boolean hasWork() { return active != null; }
     synchronized String activeId() { return active == null ? null : active.id; }
-    /** 界面重建后只重新取得本次上下文，不发起或恢复任何网络操作。 */
+    /** 界面重建后重新取得这次任务的上下文，不会发起网络操作。 */
     synchronized Object current() throws Exception {
         available(); Job last = active;
         if (last == null) for (Job job : results.values()) last = job;
         return last == null ? null : copy(object("options", object("request", last.selection, "targetRootId", last.root, "targets", last.targets), "upload", last.upload(), "device", last.connection));
     }
-    /** 通知仅取阶段/计数快照，避免在主线程复制完整清单或文件结果。 */
+    /** 通知只取阶段和计数快照，避免在主线程复制完整清单或文件结果。 */
     synchronized Map<String, Object> notice() {
         if (active == null) return null;
         Map<String, Object> state = active.state;
@@ -580,7 +580,7 @@ final class TransferEngine {
             String status = failure.cancelled ? "cancelled" : job.uploadBodyAttempted && job.transferred > 0 ? "unknown" : "failed";
             job.state = terminal(job, status, status.equals("unknown") ? "result-unknown" : failure.cancelled ? null : failure.code, null); return;
         }
-        // 清单取得前没有目标创建；失败/取消也须生成终态，供重建后的界面查询。
+        // 清单取得前没有创建目标；失败和取消也要生成结束状态，供重建后的界面查询。
         List<Object> values = outcomes.computeIfAbsent(job.id, ignored -> new ArrayList<>());
         String status = "succeeded", code = null, reason = null;
         for (Object value : values) {
@@ -591,7 +591,7 @@ final class TransferEngine {
             ArchiveFailure failure = job.failure == null ? fail("io-failure") : job.failure;
             status = failure.cancelled ? "cancelled" : "failed"; code = failure.cancelled ? null : failure.code;
             reason = failure.cancelled ? "cancelled" : job.allVerified ? "prior-failure" : "batch-invalid";
-            // 发布器在开始目标创建前拒绝，必须形成当项失败以保留已有成功，后项才为未尝试。
+            // 发布器在创建目标前拒绝时，要记成当前项失败以保留已有的成功，后面的项才是未尝试。
             if (job.allVerified && !failure.cancelled) values.add(object("fileId", ArchiveModel.id(values.size()), "status", "failed", "error", error(code), "residualEntries", new ArrayList<>()));
         }
         while (values.size() < job.count()) values.add(object("fileId", ArchiveModel.id(values.size()), "status", "not-attempted", "reason", reason));
@@ -599,7 +599,7 @@ final class TransferEngine {
     }
     @SuppressWarnings("unchecked") private static Map<String, Object> mapUnchecked(Object value) { return (Map<String, Object>) value; }
     private synchronized void release(Job job) { if (active == job) { active = null; PROCESS.compareAndSet(this, null); TargetOperation.release(this); } }
-    /** 不重放任务；可显式重试本次未释放资源，正常销毁的旧实例也可由新实例安全收尾。 */
+    /** 重试清理这次任务未释放的资源；占着进程的是已关闭的实例时，由当前实例替它重试。 */
     boolean retryCleanup() {
         TransferEngine owner = PROCESS.get();
         if (owner != null && owner != this) return owner.closed && owner.retryCleanup();
@@ -607,7 +607,7 @@ final class TransferEngine {
         if (!cleanup(job)) return false;
         synchronized (this) { finish(job); release(job); } emit(job, true); return true;
     }
-    /** 销毁只请求取消；工作线程在平台调用返回并清理后关闭，不在 UI 线程等待。 */
+    /** 销毁引擎：只请求取消；工作线程在平台调用返回并清理后关闭，UI 线程不等待。 */
     void close() {
         List<ControlClient> clients = new ArrayList<>();
         synchronized (this) {

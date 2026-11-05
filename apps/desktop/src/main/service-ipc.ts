@@ -10,7 +10,7 @@ import type { WindowsNewFilePublisher } from './new-file-publisher.ts'
 import { toHttpError } from './http-errors.ts'
 import type { ServicePortSettings } from './service-port-settings.ts'
 
-/** 存档目录选择器由主进程执行；null 表示取消，不撤销已有目录权限。 */
+/** 注册服务 IPC 的选项：存档目录选择器由主进程执行，null 表示取消，已有目录权限不变。 */
 interface ServiceIpcOptions {
   readonly portSettings: ServicePortSettings
   readonly isTrustedSender: (event: IpcMainInvokeEvent) => boolean
@@ -26,7 +26,7 @@ function localDeviceName(): string | null {
   }
 }
 
-/** 注册固定控制通道，校验窗口/主 frame/参数；授权只来自本机系统选择器。退出时移除。 */
+/** 注册服务控制 IPC，校验窗口、主 frame 和参数；写授权只来自本机系统选择器。退出时移除。 */
 export function registerServiceIpc(
   ipc: Pick<IpcMain, 'handle' | 'removeHandler'>,
   adapter: WindowsDirectoryAdapter,

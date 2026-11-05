@@ -24,8 +24,8 @@ function sameValue(left: unknown, right: unknown): boolean {
 }
 
 /**
- * 重新推导全部动作/问题/计数，拒绝伪造 canExecute、过滤冲突或错位源目标。
- * JSON 对象键顺序不影响匹配，数组顺序须为计划器的确定顺序；不执行平台 IO。
+ * 校验计划：重新推导全部动作、问题和计数，canExecute、冲突或源目标与推导不符时拒绝。
+ * JSON 对象键的顺序不影响匹配，数组顺序必须是计划器的确定顺序。
  */
 export function isSyncPlan(value: unknown): value is SyncPlan {
   if (
@@ -62,7 +62,7 @@ export function isSyncPlan(value: unknown): value is SyncPlan {
   return isSyncPlanInput(input) && sameValue(value, createSyncPlan(input))
 }
 
-/** 对照调用方持有的本次输入核对整份计划；平台仍需重核会话和实际文件状态。 */
+/** 对照调用方持有的本次输入核对整份计划；会话和实际文件状态由平台复核。 */
 export function matchesSyncPlan(value: unknown, input: SyncPlanInput): value is SyncPlan {
   return isSyncPlanInput(input) && isSyncPlan(value) && sameValue(value, createSyncPlan(input))
 }

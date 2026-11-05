@@ -7,7 +7,7 @@ import type { DesktopLibrary } from './library-store.ts'
 import { HttpOperationError, toHttpError } from './http-errors.ts'
 import { hasTargetOperation } from './target-operation.ts'
 
-/** 本机备份摘要/设置/显式残留清理，验证主窗口来源；恢复写入另由恢复模块提供。 */
+/** 注册备份相关的 IPC：查询摘要、修改设置、显式清理残留，都校验主窗口来源。恢复写入由恢复模块提供。 */
 export function registerBackupIpc(
   ipc: Pick<IpcMain, 'handle' | 'removeHandler'>,
   store: WindowsBackupStore,

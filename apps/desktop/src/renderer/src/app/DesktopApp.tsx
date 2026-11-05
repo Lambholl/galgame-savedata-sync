@@ -54,7 +54,7 @@ import { AddGameDialog } from '../features/games/AddGameDialog'
 const EMPTY = emptyLibrary()
 const ADAPTER = createDesktopLibraryAdapter()
 
-/** 桌面页面、弹窗与轮询由本端持有；原生任务切页后继续运行。 */
+/** 桌面应用的根组件，持有页面、弹窗和轮询；切页不影响主进程里的任务。 */
 const COPY_MESSAGE_TYPES = {
   done: 'success',
   partial: 'warning',
@@ -156,7 +156,7 @@ export function DesktopApp({
       clearTimeout(timer)
     }
   }, [refresh, invalidate, showError])
-  // 传输结束时用 Message 提示一次结果；打开应用时已结束的旧任务只在详情里看。
+  // 传输结束时用 Message 提示一次结果；打开应用时已经结束的任务只在详情里看。
   const copyStatuses = useRef<ReadonlyMap<string, string> | null>(null)
   useEffect(() => {
     if (!snapshot) {

@@ -54,14 +54,14 @@ import {
 } from './sync-target-files.ts'
 import type { SyncCandidate, SyncTargetIO } from './sync-target-files.ts'
 
-/** 完整校验后的原生输入，可重复读取；快照必须与确认计划相符，流由 writer 关闭。 */
+/** 写入用的输入，已完整校验，可重复读取；快照必须与确认的计划相符，流由 writer 关闭。 */
 export interface WindowsSyncMaterial {
   readonly snapshot: SyncSnapshot
   readonly openFile: (
     entryId: string,
   ) => Promise<{ stream: Readable; verifyUnchanged: () => Promise<void> }>
 }
-/** authorize 每次核实本机项目/根授权；调用方应固定会话及对端配置，不接受路径参数。 */
+/** writer 的依赖：authorize 每次核对计划的项目和目标根目录仍与本机配置一致；会话和对端由 verifyContext 核实。 */
 export interface WindowsSyncWriterOptions {
   readonly authorize: (plan: SyncPlan) => void | Promise<void>
   /** 留写入标记；不传时不记录，只用于不走真实应用的集成验证。 */
@@ -69,10 +69,10 @@ export interface WindowsSyncWriterOptions {
   readonly io?: Partial<SyncTargetIO>
   readonly timeoutMs?: number
 }
-/** 同步阶段通知仅作观察；回调错误不会打断已经完成的原生写入。 */
+/** apply 的选项。阶段通知只用于观察，回调错误不会打断已经完成的写入。 */
 export interface WindowsSyncWriteOptions {
   readonly signal?: AbortSignal
-  /** 仅受信任原生编排借用已接纳的名额；编排在缓存及写入清理后自行释放。 */
+  /** 编排器借用已经取得的名额；编排器在缓存和写入清理后自行释放。 */
   readonly lease?: { readonly token: symbol; readonly acceptedAt: number }
   /** 每次发布前重新核实连接、项目关联及目标备份设置；失败中止后续写入。 */
   readonly verifyContext?: () => void | Promise<void>
@@ -82,7 +82,7 @@ export interface WindowsSyncWriteOptions {
     path: readonly string[] | null,
   ) => void
 }
-/** 仅原生持有的恢复预览；apply/close 二选一，输入轮次在释放前保持引用。 */
+/** 恢复预览，只在主进程内持有；apply 和 close 二选一，释放前保持对输入轮次的引用。 */
 export interface WindowsRestorePreparation {
   readonly plan: SyncPlan
   readonly apply: (options?: WindowsSyncWriteOptions) => Promise<SyncApplyResult>
@@ -168,9 +168,9 @@ function outcome(
 }
 
 /**
- * 已确认计划的原生目标执行器：整批复核/备份后按文件发布，结果只表示实际观察。
- * 与旧批次共用互斥；输入/流/候选均不跨 IPC。失败清理保留名额，retryCleanup 显式释放。
- * 本机恢复入口和调用示例见桌面 README；网络登记与界面由独立编排接入。
+ * 执行已确认的计划：整批复核和备份后逐个文件发布，结果只记录实际观察到的情况。
+ * 与批量传输和恢复共用 TargetOperation 名额；输入、流和候选文件都不跨 IPC。清理失败时保留名额，由 retryCleanup 释放。
+ * 本机恢复入口和调用示例见桌面 README。
  */
 export class WindowsSyncWriter {
   private readonly io: SyncTargetIO
@@ -194,7 +194,7 @@ export class WindowsSyncWriter {
       throw new ArchiveError('invalid-request', 'The target write deadline is invalid.')
     }
   }
-  /** 非法/过期/重复确认及 busy 拒绝；已接纳任务的失败/取消返回完整逐项结果。 */
+  /** 执行计划：非法、过期、重复确认或 busy 时拒绝；任务接受后的失败和取消都返回完整的逐项结果。 */
   apply(
     value: SyncPlan,
     material: WindowsSyncMaterial | null,
@@ -381,7 +381,10 @@ export class WindowsSyncWriter {
     await this.checkSpace(job.plan)
     await this.check(job)
   }
-  /** 接收归档前合并同卷缓存、完整备份及新文件空间；不创建目录或删除旧备份换空间。 */
+  /**
+   * 合并检查目标卷和备份卷的空间：新文件、完整备份，以及调用方传入的私有缓存，同卷的相加。
+   * 编排器在接收归档前调用，写入器在写入前再查一次。不创建目录，也不删旧备份腾空间。
+   */
   async checkSpace(
     plan: SyncPlan,
     privateSpace?: { readonly device: string; readonly requiredBytes: number },
@@ -538,7 +541,7 @@ export class WindowsSyncWriter {
         await this.io.link(candidate.path, path)
       }
       hasPublished = true
-      // 已到提交点的取消不把修改记成未执行；使用独立有界回读确认实际结果。
+      // 已到提交点的取消不把修改记成未执行；用独立的有界回读确认实际结果。
       await verifyTargetFile(
         path,
         source,
@@ -732,7 +735,7 @@ export class WindowsSyncWriter {
       releaseTargetOperation(job.token)
     }
   }
-  /** 只重试本进程仍持有的候选，不重放写入，不猜测崩溃前归属。 */
+  /** 重试清理本进程仍持有的候选文件，不重做写入。 */
   async retryCleanup(): Promise<void> {
     const job = this.job
     if (!job) {
@@ -744,7 +747,7 @@ export class WindowsSyncWriter {
     await this.clean(job)
     this.release(job)
   }
-  /** 取得已验证且保持引用的本机材料，预览不修改同步目录。 */
+  /** 取得已校验并保持引用的备份材料，生成恢复预览；同步目录不变。 */
   async prepareRestore(
     projectId: string,
     rootId: string,
@@ -827,7 +830,7 @@ export class WindowsSyncWriter {
       },
     }
   }
-  /** 停止新任务并显式取消当前操作，等待结果和候选/恢复材料释放；失败可再次 stop。 */
+  /** 停止接受新任务并取消当前操作，等待结果以及候选文件和恢复材料释放；失败后可以再次 stop。 */
   async stop(): Promise<void> {
     this.isStopped = true
     this.job?.controller.abort()

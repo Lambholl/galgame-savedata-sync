@@ -4,7 +4,7 @@ import { isOpaqueId } from '../protocol/protocol.ts'
 import { isArrayOf } from '../validation/data-validation.ts'
 import { OperationFailure } from '../result.ts'
 
-/** 本机的游戏目录与对端关联；不保存文件清单、哈希或平台路径。 */
+/** 一个本机游戏：目录引用和对端关联。 */
 export interface LibraryGame {
   readonly id: string
   readonly name: string
@@ -16,7 +16,7 @@ export interface GameLink {
   readonly deviceId: string
   readonly gameId: string
 }
-/** 地址只用于连接电脑；电脑记住的手机没有监听地址。blocked 是本机的连接开关。 */
+/** 已保存的设备。地址只用于连接电脑，电脑记住的手机没有监听地址；blocked 是本机的连接开关。 */
 export interface SavedDevice {
   readonly id: string
   readonly name: string
@@ -37,7 +37,7 @@ export interface CatalogLink {
   readonly localGameId: string
   readonly remoteGameId: string
 }
-/** 拨号方交换目录表；连接建立后的目录读取和变化通知走控制通道。 */
+/** 拨号方交换目录表时发送的内容；连接建立后，目录读取和变化通知走控制通道。 */
 export interface CatalogPush {
   readonly games: readonly CatalogGame[]
   readonly links: readonly CatalogLink[]
@@ -81,7 +81,7 @@ export function isSavedDevice(value: unknown): value is SavedDevice {
     (value.address === null || (typeof value.address === 'string' && value.address.length <= 256))
   )
 }
-/** 读取前完整校验；损坏配置由调用者报告，不用空配置覆盖。 */
+/** 校验游戏库配置，读取前完整检查；配置损坏时由调用者报告，不用空配置覆盖。 */
 export function isLibraryConfig(value: unknown): value is LibraryConfig {
   if (
     !record(value) ||
@@ -203,7 +203,7 @@ export function normalizeHttpAddress(value: string): string {
   }
   return `http://${host.toLowerCase()}${port ? `:${Number(port)}` : ''}`
 }
-/** 从本次目录引用生成目录表；失效引用显示为空，不保存文件条目。 */
+/** 从当前目录引用生成目录表；失效的引用显示为空。 */
 export function libraryCatalog(
   config: LibraryConfig,
   roots: readonly DirectoryReference[],
@@ -221,7 +221,7 @@ export function libraryLinks(config: LibraryConfig, deviceId: string): readonly 
       .map((link) => ({ localGameId: item.id, remoteGameId: link.gameId })),
   )
 }
-/** 对端明确关联本机游戏后合并反向关系；不会按名称猜测或授予目录写权限。 */
+/** 对端明确关联本机游戏时合并反向关系；只看关联记录，不按名称猜，也不授予目录写权限。 */
 export function mergeCatalogLinks(
   config: LibraryConfig,
   deviceId: string,

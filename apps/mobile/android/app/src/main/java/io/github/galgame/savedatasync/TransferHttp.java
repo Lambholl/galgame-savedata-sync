@@ -19,9 +19,9 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import static io.github.galgame.savedatasync.TransferJson.*;
 
-/** 可注入 HTTP 边界；文件仅为原生有限流，控制 JSON 单独限额，任何副作用都不自动重放。 */
+/** 可注入的 HTTP 接口：文件走有限的原生流，控制 JSON 单独限额，有副作用的请求都不自动重发。 */
 interface TransferHttp {
-    /** 新同步沿用连接但使用独立设备头及原生 60 秒网络期限；注入的受控传输可复用自身。 */
+    /** 返回复制任务用的客户端：地址相同，但带设备头，网络期限是 60 秒；注入的测试传输可以返回自身。 */
     default TransferHttp forSync(String localDeviceId) throws Exception { TransferSchema.id(localDeviceId); return this; }
     /** 控制通道连接的地址；注入的测试传输没有实际地址时返回 null。 */
     default String origin() { return null; }
@@ -32,7 +32,7 @@ interface TransferHttp {
     InputStream download(String path, String session, ArchiveModel.Descriptor archive, ArchiveControl control, ArchiveModel.Progress progress) throws Exception;
     Object upload(String path, String session, ArchiveModel.Descriptor archive, InputStream input, ArchiveControl control, ArchiveModel.Progress progress) throws Exception;
 
-    /** 默认无代理、无缓存、无重定向、Accept-Encoding identity；固定长度写流禁止认证/重定向重放。 */
+    /** 真实的 HTTP 客户端：无代理、无缓存、无重定向，Accept-Encoding 为 identity；固定长度写流禁止认证和重定向时重发。 */
     final class Client implements TransferHttp {
         private static final ScheduledExecutorService WATCH = Executors.newSingleThreadScheduledExecutor(r -> {
             Thread t = new Thread(r, "transfer-network-deadlines"); t.setDaemon(true); return t;

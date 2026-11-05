@@ -24,7 +24,7 @@ import java.util.Set;
 import static io.github.galgame.savedatasync.TransferJson.*;
 import static io.github.galgame.savedatasync.TransferSchema.*;
 
-/** SAF 受保护写入后端；URI 留原生层，rw 打开不截断，文件写入前后比较常规 FD 身份。 */
+/** 复制和恢复写入用的 SAF 后端：URI 留在原生层，rw 打开不截断，写入前后比较常规 FD 的身份。 */
 final class SafSyncBackend implements SyncWriter.Backend {
     interface Authorization { void check(String projectId, String rootId) throws Exception; }
     private static final String[] COLUMNS = { Document.COLUMN_DOCUMENT_ID, Document.COLUMN_DISPLAY_NAME,

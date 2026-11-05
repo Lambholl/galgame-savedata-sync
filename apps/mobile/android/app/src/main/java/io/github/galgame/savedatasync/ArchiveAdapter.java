@@ -12,10 +12,10 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * Java 原生归档入口；在单一后台 I/O 线程调用 prepare/receive，生命周期线程可调用 cancel。
- * 缓存参数只能由应用私有路径构造；输入均为已选择的只读源或已验证结构的原生清单。
- * 返回句柄占用进程任务名额，调用者必须关闭所有读流并 dispose；失败会清理，清理失败
- * 通过 cleanupFailure 独立报告且占用名额，需 retryCleanup。无 HTTP 或目标发布副作用。
+ * Java 原生归档入口，生成和接收 tar.gz。prepare 和 receive 在单一后台 I/O 线程调用，生命周期线程可以调用 cancel。
+ * 缓存参数只能由应用私有路径构造；输入是已选择的只读源或已校验结构的清单。
+ * 返回的句柄占用进程任务名额，调用者必须关闭所有读流并 dispose；失败时会清理，
+ * 清理失败时通过 cleanupFailure 单独报告并继续占名额，要调用 retryCleanup。
  * 固定格式示例和用法见 ArchiveAdapterTest、ArchiveSafTest 及 apps/mobile/README.md。
  */
 final class ArchiveAdapter {
@@ -31,7 +31,7 @@ final class ArchiveAdapter {
     void checkReceiveSpace(ArchiveModel.Manifest manifest) throws Exception {
         checkReceiveSpace(manifest, 0);
     }
-    /** 原生调用者合并同卷目标增量与备份峰值；不向页面暴露私有路径。 */
+    /** 接收内容前检查空间，extraPrivateBytes 由调用者合并同卷的目标增量和备份峰值。 */
     void checkReceiveSpace(ArchiveModel.Manifest manifest, long extraPrivateBytes) throws Exception {
         manifest.validate(limits);
         if (extraPrivateBytes < 0 || extraPrivateBytes > Long.MAX_VALUE - manifest.archive.sizeBytes - manifest.totalFileBytes) throw new ArchiveFailure("invalid-request", "The space preflight byte count is invalid.");
@@ -39,7 +39,7 @@ final class ArchiveAdapter {
     }
     java.nio.file.Path privateRoot() throws Exception { cache.checkSpace(0); return cache.root; }
 
-    /** 读取一次源形成快照；未知长度通过实际流计数，之后仅从私有快照生成和发送归档。 */
+    /** 读取一次源形成快照；未知长度通过实际流计数，之后只从私有快照生成和发送归档。 */
     Artifact prepare(String transferId, String deviceId, String rootId, List<ArchiveModel.Source> sources,
                      ArchiveControl control, ArchiveModel.Progress progress) throws ArchiveFailure {
         ArchiveModel.require(SafValues.isId(transferId) && SafValues.isId(deviceId) && SafValues.isId(rootId) &&
@@ -86,7 +86,7 @@ final class ArchiveAdapter {
                 ArchiveModel.limit(tarSize <= limits.tar);
                 files.add(new ArchiveModel.PreparedFile(id, before, size, ArchiveFormat.hex(hash.digest())));
             }
-            // 预检包含压缩体可能与原文重叠的实际预算；后续每次写入仍执行硬计数和空间检查。
+            // 预检包含压缩体可能与原文重叠的实际容量；之后每次写入仍执行硬计数和空间检查。
             emit(progress, "archiving", 0, tarSize, control);
             HashedOutput packed = new HashedOutput(job.create("archive.gz", limits.archive, control));
             try (OutputStream output = packed; ArchiveFormat.GzipWriter gzip = new ArchiveFormat.GzipWriter(output)) {
@@ -205,9 +205,9 @@ final class ArchiveAdapter {
         job.dispose();
         if (owned == job) { owned = null; current = null; }
     }
-    /** 停止当前归档的读流/SAF 查询；工作线程完成后负责清理，不从生命周期线程删除缓存。 */
+    /** 停止当前归档的读流和 SAF 查询；工作线程结束后负责清理，生命周期线程不删缓存。 */
     void cancel() { ArchiveControl control = current; if (control != null) control.cancel(); }
-    /** 只有本实例拥有的任务可重试清理；调用前必须等待工作线程结束并关闭句柄读流。 */
+    /** 重试本实例拥有的任务的清理；调用前必须等工作线程结束并关闭句柄读流。 */
     synchronized void retryCleanup() throws IOException { if (owned != null) dispose(owned); }
 
     private static int read(InputStream stream, byte[] buffer, ArchiveControl control) throws IOException {
@@ -225,7 +225,7 @@ final class ArchiveAdapter {
     }
     private static ArchiveFailure mismatch() { return new ArchiveFailure("checksum-mismatch", "The archive or uncompressed content length/hash does not match."); }
 
-    /** 不暴露路径的原生句柄；清单不可变，读流归调用者，dispose 失败可再次调用。 */
+    /** 归档句柄，不含路径；清单不可变，读流归调用者，dispose 失败后可以再次调用。 */
     final class Artifact implements AutoCloseable {
         final ArchiveModel.Manifest manifest;
         private final ArchiveCache.Job job;

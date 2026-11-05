@@ -6,14 +6,14 @@ import type { FileIdentity } from './directory-paths.ts'
 import { hasSameIdentity, isWithinDirectory } from './directory-paths.ts'
 import { DirectoryAccessError } from './directory-errors.ts'
 
-/** 只在主进程保存的配置，禁止把 path/identity 暴露给 Renderer 或 HTTP。 */
+/** 一个已选目录的配置，只保存在主进程；path 和 identity 不能暴露给渲染进程或 HTTP。 */
 export interface StoredDirectory {
   readonly rootId: string
   readonly path: string
   readonly identity: FileIdentity
 }
 
-/** schema 1 只保存安装 ID 和用户选定根目录，不保存条目索引或哈希。 */
+/** 目录配置文件（schema 1）：安装 ID 和用户选定的根目录。 */
 export interface DirectoryRegistry {
   readonly schemaVersion: 1
   readonly deviceId: string
@@ -70,8 +70,8 @@ function assertConfigOutsideRoots(configPath: string, registry: DirectoryRegistr
 }
 
 /**
- * 读取本机配置；未知 schema/损坏内容/链接文件一律失败，不覆盖原配置。
- * 仅不存在时返回 null，其他错误保留 cause 并由初始化调用者处理。
+ * 读取本机目录配置。schema 未知、内容损坏或文件是链接时抛错，原配置保留。
+ * 文件不存在时返回 null；其他错误保留 cause，由初始化的调用者处理。
  */
 export async function loadDirectoryRegistry(configPath: string): Promise<DirectoryRegistry | null> {
   let stats
@@ -117,8 +117,8 @@ export async function loadDirectoryRegistry(configPath: string): Promise<Directo
 }
 
 /**
- * 把完整配置写到同目录独占临时文件后替换；不会写入任何所选根目录。
- * 调用者须串行化配置变更；错误时保留旧配置，不静默重建或迁移未知 schema。
+ * 把完整配置写到同目录的独占临时文件，再替换原文件。
+ * 调用者要串行化配置变更；出错时保留原配置。
  */
 export async function saveDirectoryRegistry(
   configPath: string,

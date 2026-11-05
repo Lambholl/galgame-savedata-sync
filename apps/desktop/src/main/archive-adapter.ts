@@ -19,7 +19,7 @@ import { inspectLocalPath } from './directory-paths.ts'
 
 type ArchiveSource = Pick<WindowsDirectoryAdapter, 'deviceId' | 'openFile' | 'assertCacheIsolated'>
 
-/** 原生准备/校验阶段的本次计数，不将已暂存归档字节冒充网络传输进度。 */
+/** 准备和校验阶段的本次计数。已暂存的归档字节不算网络传输进度。 */
 export interface ArchiveCounters {
   readonly sourceBytesRead: number
   readonly archiveBytesStored: number
@@ -34,18 +34,18 @@ interface MutableArchiveCounters {
   verifiedFiles: number
 }
 
-/** signal 由调用者管理期限；回调只传只读数值快照，不包含文件内容。 */
+/** 归档操作的选项：signal 的期限由调用者管理，回调只收到只读的数值快照。 */
 export interface ArchiveOperationOptions {
   readonly signal?: AbortSignal
   readonly onProgress?: (counters: ArchiveCounters) => void
 }
 
-/** 原生接收检查点：仅压缩体已完整落盘并核对长度/SHA 后触发，不表示 tar/原文已通过。 */
+/** 接收归档的选项，含一个检查点回调：压缩体完整落盘并核对长度和 SHA 后触发，此时 tar 和原文还没校验。 */
 export interface ArchiveReceiveOptions extends ArchiveOperationOptions {
   readonly onArchiveStored?: () => void
 }
 
-/** 只供主进程持有的缓存句柄；读流须关闭，dispose 后全部方法失效，不经 IPC 传递。 */
+/** 归档缓存的句柄，只由主进程持有，不经 IPC 传递。读流必须关闭；dispose 后所有方法失效。 */
 export interface WindowsArchive {
   readonly manifest: BatchManifest
   readonly openArchive: () => Promise<Readable>
@@ -189,7 +189,7 @@ async function readSmall(job: ArchiveCacheJob, start: number, size: number): Pro
   return result
 }
 
-/** Windows 私有归档编解码，不提供 HTTP、目标发布或任何 Renderer 方法。 */
+/** Windows 的归档编解码器：在私有缓存里生成和接收 tar.gz。 */
 export class WindowsArchiveAdapter {
   private readonly source: ArchiveSource
   private readonly cache: ArchiveCache
@@ -199,7 +199,7 @@ export class WindowsArchiveAdapter {
     this.cache = cache
   }
 
-  /** 接收前只读检查压缩体与解包原文的空间；不创建任务或预留磁盘。 */
+  /** 接收前检查压缩体和解包后原文所需的磁盘空间；只读，不创建任务，也不预留磁盘。 */
   async checkReceiveSpace(
     manifest: BatchManifest,
   ): Promise<{ device: string; requiredBytes: number }> {
@@ -220,7 +220,7 @@ export class WindowsArchiveAdapter {
     }
   }
 
-  /** 生成独立源快照与 gzip1 归档；失败/取消清理本次缓存，成功将释放责任交给句柄。 */
+  /** 读取源文件，生成快照和 gzip level 1 归档。失败或取消时清理本次缓存；成功后清理由返回的句柄负责。 */
   async prepare(request: unknown, options: ArchiveOperationOptions = {}): Promise<WindowsArchive> {
     if (!isDownloadBatchRequest(request)) {
       throw new ArchiveError('invalid-request', 'The batch download request is invalid.')
@@ -281,7 +281,7 @@ export class WindowsArchiveAdapter {
     }, options)
   }
 
-  /** 接管原始输入流，先完整暂存并校验压缩体，再解包到私有文件；不发布目标。 */
+  /** 接管输入流，先完整暂存并校验压缩体，再解包到私有文件。 */
   async receive(
     manifest: unknown,
     input: Readable,
@@ -351,7 +351,7 @@ export class WindowsArchiveAdapter {
     }
   }
 
-  /** 明确重试本缓存根的失败清理；不删除其他缓存根或正在使用的文件。 */
+  /** 重试本缓存根中失败的清理；其他缓存根和正在使用的文件不受影响。 */
   async retryCleanup(): Promise<void> {
     await this.cache.retryCleanup()
   }
@@ -609,7 +609,7 @@ export class WindowsArchiveAdapter {
   }
 }
 
-/** 在既有应用私有目录建立隔离缓存；初始化清理仅处理匹配标记的孤儿任务。 */
+/** 在已有的应用私有目录里创建归档缓存；初始化时只清理带匹配标记的遗留任务。 */
 export async function createWindowsArchiveAdapter(
   source: ArchiveSource,
   privateDirectory: string,

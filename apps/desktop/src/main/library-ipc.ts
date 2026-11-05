@@ -6,7 +6,7 @@ import type { DesktopLibrary } from './library-store.ts'
 import type { WindowsHttpService } from './http-service.ts'
 import { HttpOperationError, toHttpError } from './http-errors.ts'
 
-/** 本机页面专用的配置与元数据通道；目录内容仍在原生层，退出时移除 handlers。 */
+/** 注册本机页面使用的游戏配置和元数据 IPC，退出时移除；目录内容留在主进程。 */
 export function registerLibraryIpc(
   ipc: Pick<IpcMain, 'handle' | 'removeHandler'>,
   library: DesktopLibrary,

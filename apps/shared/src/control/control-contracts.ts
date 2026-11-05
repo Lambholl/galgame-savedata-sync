@@ -13,7 +13,7 @@ import type { SyncJobDigest, SyncJobState } from '../sync/sync-job-contracts.ts'
  */
 export const CONTROL_ROUTE = '/v1/control'
 export const CONTROL_LIMITS = {
-  /** 单条消息上限，与 HTTP JSON 预算一致。 */
+  /** 单条消息上限，与 HTTP JSON 的大小上限一致。 */
   maxMessageBytes: 8388608,
   /** 请求等待应答的期限。 */
   requestTimeoutMs: 8000,

@@ -14,7 +14,7 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Objects;
 import static io.github.galgame.savedatasync.TransferJson.*;
 
-/** 备份文件的身份、严格 JSON 和落盘操作；原文始终通过 64 KiB 原生流处理。 */
+/** 备份文件的身份检查、严格 JSON 和落盘操作；原文都通过 64 KiB 的流处理。 */
 final class BackupFiles {
     interface Io {
         default Object identity(Path path, BasicFileAttributes value) throws Exception {

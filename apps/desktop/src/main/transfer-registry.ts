@@ -42,7 +42,7 @@ type TransferTimeouts = Pick<
   'ready' | 'awaitingContent' | 'total' | 'networkIdle' | 'terminalRetention'
 >
 
-/** 原生时钟及收紧预算只供可信主进程/测试注入；不能由 HTTP 请求配置。 */
+/** 注册表选项：时钟和更小的限额只由主进程和测试注入，HTTP 请求不能配置。 */
 export interface TransferRegistryOptions {
   readonly now?: () => number
   readonly timeouts?: { readonly [Key in keyof TransferTimeouts]?: number }
@@ -75,10 +75,10 @@ function clone<T>(value: T): T {
 }
 
 /**
- * 会话内注册、单次领取和取消的原生边界；仅 sender 下载已接入。
- * 一个活动任务覆盖准备至清理；终态到期删除清单/结果，已用 ID 保留到 stop。
- * stop 必须等待文件/HTTP worker 收尾；清理失败保留互斥，可明确 retryCleanup。
- * API 示例及调用顺序见桌面 README 的 HTTP 节，不持久化任务或历史哈希。
+ * 当前会话内批量传输任务的注册、单次领取和取消。
+ * 一个活动任务从准备占到清理；结束后到期删除清单和结果，用过的 ID 保留到 stop。
+ * stop 必须等待文件和 HTTP worker 收尾；清理失败时保留互斥，可以 retryCleanup。
+ * API 示例和调用顺序见桌面 README 的 HTTP 节。
  */
 export class WindowsTransferRegistry {
   private readonly ownership = Symbol('transfer-registry')
@@ -130,7 +130,7 @@ export class WindowsTransferRegistry {
     this.timer.unref()
   }
 
-  /** 格式验证成功后同步占用 ID/活动名额；异步准备失败也不允许重用 ID。 */
+  /** 登记下载：格式校验成功后同步占用 ID 和活动名额；异步准备失败后这个 ID 也不能再用。 */
   registerDownload(value: unknown): BatchState {
     if (!isDownloadBatchRequest(value)) {
       const mismatch =
@@ -190,7 +190,7 @@ export class WindowsTransferRegistry {
     return clone(state)
   }
 
-  /** 上传先只读预检全部目标；异步预检期间保留进程名额，拒绝后不占用已用 ID。 */
+  /** 登记上传：先只读预检全部目标，预检期间占进程名额；被拒绝时不占用已用 ID。 */
   registerUpload(value: unknown): Promise<BatchState> {
     if (!isReceiveBatchRequest(value)) {
       const mismatch =
@@ -305,7 +305,7 @@ export class WindowsTransferRegistry {
     return clone(state)
   }
 
-  /** 请求头匹配登记清单后同步领取唯一 PUT；重复或错误方向不消耗原生输入。 */
+  /** 领取唯一一次 PUT：请求头与登记的清单匹配后同步领取；重复或方向错误时不消耗输入。 */
   receiveContent(
     id: string,
     request: IncomingMessage,
@@ -376,17 +376,17 @@ export class WindowsTransferRegistry {
     }
   }
 
-  /** 查询返回独立快照，不改变期限；不存在/到期均不证明远端未写入。 */
+  /** 返回状态的独立快照，不改变期限；任务不存在或已到期都不能说明远端没有写入。 */
   getState(id: string): BatchState {
     return clone(this.find(id).state)
   }
 
-  /** 本机界面读取当前会话快照；遵守既有到期清理，不延长任务保留期。 */
+  /** 返回当前会话的状态快照，供本机界面读取；到期任务照常清理，保留期不延长。 */
   getStates(): readonly BatchState[] {
     this.sweep()
     return [...this.tasks.values()].map((task) => clone(task.state))
   }
-  /** 备份管理只阻止仍在运行的传输；终态清理允许用户明确处理私有残留。 */
+  /** 是否有运行中的传输；已结束但清理失败的任务不算，这时备份管理仍可手动清理残留。 */
   hasRunningWork(): boolean {
     return (
       this.pendingRegistration !== null ||
@@ -394,7 +394,7 @@ export class WindowsTransferRegistry {
     )
   }
 
-  /** 仅在 ready 之后或仍保留清单的终态可读，准备阶段返回 task-conflict。 */
+  /** 返回清单：ready 之后或结束后仍保留清单时可读，准备阶段返回 task-conflict。 */
   getManifest(id: string): BatchManifest {
     const task = this.find(id)
     if (!task.manifest) {
@@ -403,14 +403,14 @@ export class WindowsTransferRegistry {
     return clone(task.manifest)
   }
 
-  /** 取消请求不预先终结正在执行的 IO，清理完成后才释放活动名额。 */
+  /** 请求取消，正在执行的 IO 不会被提前判定结束；清理完成后才释放活动名额。 */
   cancel(id: string): BatchState {
     const task = this.find(id)
     this.abort(task, null)
     return clone(task.state)
   }
 
-  /** 原子领取后再打开原生流；调用者持有响应，Promise 覆盖流发送和缓存清理。 */
+  /** 发送归档内容：原子领取后打开流；响应归调用者，Promise 覆盖发送和缓存清理。 */
   sendContent(id: string, response: ServerResponse): Promise<void> {
     const task = this.find(id)
     if (
@@ -430,7 +430,7 @@ export class WindowsTransferRegistry {
     return task.worker
   }
 
-  /** 实际时钟和测试时钟共用期限检查；轮询不会刷新 acceptedAt/stageAt/networkAt。 */
+  /** 清理到期任务：真实时钟和测试时钟共用这个期限检查；轮询不会刷新 acceptedAt、stageAt、networkAt。 */
   sweep(): void {
     const now = this.now()
     for (const [id, task] of this.tasks) {
@@ -458,7 +458,7 @@ export class WindowsTransferRegistry {
     }
   }
 
-  /** 仅重试确知所有权的归档缓存；成功后更新仍保留的终态并释放互斥。 */
+  /** 重试清理已结束任务留下的归档缓存和候选文件；成功后把保留中的状态改为清理完成，并释放名额。 */
   async retryCleanup(): Promise<void> {
     const id = this.activeId
     if (id === null) {
@@ -483,7 +483,7 @@ export class WindowsTransferRegistry {
     releaseTargetOperation(this.ownership)
   }
 
-  /** 停止接纳、取消并等待当前 worker，最后释放缓存；失败由主进程明确处理。 */
+  /** 停止接受任务，取消并等待当前 worker，最后释放缓存；失败由主进程处理。 */
   async stop(): Promise<void> {
     this.isStopped = true
     clearInterval(this.timer)

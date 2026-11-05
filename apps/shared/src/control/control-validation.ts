@@ -24,7 +24,7 @@ const REQUESTS: readonly ControlRequestMethod[] = [
 ]
 const EVENTS: readonly ControlEventMethod[] = ['catalog.changed', 'sync.report', 'sync.job']
 
-/** 只核对外层格式；请求体、应答值和事件体按方法另行校验。 */
+/** 校验控制消息的外层格式；请求体、应答值和事件体按方法另行校验。 */
 export function isControlMessage(value: unknown): value is ControlMessage {
   if (!isRecord(value) || value.v !== 1) {
     return false

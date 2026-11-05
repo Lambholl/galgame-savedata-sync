@@ -7,7 +7,7 @@ import {
 } from '@savedata-sync/shared'
 import type { OperationResult, SyncCapabilities, SyncScanState } from '@savedata-sync/shared'
 
-/** 有限原生接口，参数和结果只有公开 ID 与扫描元数据。 */
+/** 扫描的原生插件接口，参数和结果只有公开 ID 和扫描元数据。 */
 export interface SyncScanNativePlugin {
   capabilities(): Promise<unknown>
   start(options: { schemaVersion: typeof SYNC_SCHEMA_VERSION; rootId: string }): Promise<unknown>
@@ -15,7 +15,7 @@ export interface SyncScanNativePlugin {
   cancel(options: { scanId: string }): Promise<unknown>
 }
 
-/** Promise 均返回脱敏包络；原生层保存本次扫描状态和结果。 */
+/** 网页使用的扫描接口，Promise 都返回脱敏结果；原生层保存本次扫描的状态和结果。 */
 export interface AndroidSyncScanApi {
   capabilities(): Promise<OperationResult<SyncCapabilities>>
   start(rootId: string): Promise<OperationResult<SyncScanState>>
@@ -31,8 +31,8 @@ function failure(
 }
 
 /**
- * 校验公开参数、原生结果和 Android 平台。
- * start 绑定 rootId，query/cancel 绑定 scanId；不支持浏览器模拟扫描或传递文件字节。
+ * 创建扫描桥：校验公开参数、原生结果和 Android 平台。
+ * start 绑定 rootId，query 和 cancel 绑定 scanId。
  */
 export function createSyncScanBridge(
   plugin: SyncScanNativePlugin,

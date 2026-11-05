@@ -13,14 +13,14 @@ import type {
   OperationResult,
 } from '@savedata-sync/shared'
 
-/** 原生插件传输仅供绑定内部使用；目录地址只供显示，不返回文件字节或平台句柄。 */
+/** SAF 原生插件接口，只在桥内部使用；目录地址只供显示，不返回文件字节或平台句柄。 */
 export interface SafNativePlugin {
   chooseDirectory(): Promise<unknown>
   listRoots(): Promise<unknown>
   listDirectory(options: { rootId: string; parentId: string | null }): Promise<unknown>
 }
 
-/** 目录元数据 API；Promise 返回已脱敏的结果，包括桥不可用的情况。 */
+/** 目录元数据接口；Promise 返回脱敏后的结果，包括桥不可用的情况。 */
 export interface AndroidDirectoryApi {
   chooseDirectory(): Promise<DirectorySelectionResult>
   listRoots(): Promise<OperationResult<readonly DirectoryReference[]>>
@@ -46,8 +46,8 @@ function isRootList(value: unknown): value is readonly DirectoryReference[] {
 }
 
 /**
- * 创建能力有限且已冻结的桥；校验两端数据，并将枚举结果绑定到请求。
- * 不创建订阅或持有原生流；提供者 I/O 和取消操作均由插件管理。
+ * 创建冻结的 SAF 目录桥：校验两端数据，并把枚举结果绑定到请求。
+ * 提供者 I/O 和取消由插件管理。
  */
 export function createSafDirectoryBridge(
   plugin: SafNativePlugin,

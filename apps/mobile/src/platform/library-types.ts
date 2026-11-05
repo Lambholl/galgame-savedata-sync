@@ -10,7 +10,7 @@ import type {
   TransferTask,
 } from '@savedata-sync/shared'
 
-/** 移动页面读取的公开状态；原生句柄、授权与文件内容由平台持有。 */
+/** 移动页面读取的公开状态；原生句柄、授权和文件内容由平台持有。 */
 export interface MobileSnapshot {
   readonly warning: string | null
   readonly config: LibraryConfig
@@ -21,7 +21,7 @@ export interface MobileSnapshot {
   readonly tasks: readonly TransferTask[]
 }
 
-/** Android 能力；失败抛 Error，目录访问沿用 OperationResult。原生任务不随页面销毁。 */
+/** 移动游戏库接口：失败抛 Error，目录访问用 OperationResult；原生任务不随页面销毁。 */
 export interface MobileLibraryAdapter {
   read(): Promise<MobileSnapshot>
   saveGames(games: readonly LibraryGame[]): Promise<void>

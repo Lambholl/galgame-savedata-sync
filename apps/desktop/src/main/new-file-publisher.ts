@@ -23,7 +23,7 @@ import {
   toPublicationError,
 } from './publication-errors.ts'
 
-/** 已验证原文的单文件目标；只接收本机 ID 与单文件名，不接收路径。 */
+/** 发布一个已校验原文的请求，目标用本机 ID 和单文件名表示，不含路径。 */
 export interface NewFilePublicationRequest {
   readonly fileId: string
   readonly rootId: string
@@ -33,10 +33,10 @@ export interface NewFilePublicationRequest {
   readonly sha256: string
 }
 
-/** 逐文件实际结果与候选清理分开，清理失败不推翻已回读确认的成功。 */
+/** 发布结果：文件结果与候选文件清理分开，清理失败不改变已回读确认的成功。 */
 export type NewFilePublicationResult = { readonly outcome: FileOutcome } & BatchCleanup
 
-/** 原生依赖注入，不经 HTTP/IPC 配置；文件系统不支持 link 时失败关闭。 */
+/** 发布器依赖，由主进程注入，不经 HTTP 或 IPC 配置；文件系统不支持硬链接时发布失败。 */
 export interface NewFilePublisherOptions {
   readonly maxFileBytes?: number
   readonly io?: {
@@ -47,7 +47,7 @@ export interface NewFilePublisherOptions {
   }
 }
 
-/** 回调为同步快照；回读尚未成功时 publishedBytes 为 0，不能用于计算批次校验计数。 */
+/** 发布进度的同步快照；回读成功前 publishedBytes 为 0，不能用来算批次校验计数。 */
 export interface PublicationProgress {
   readonly stage: 'staging' | 'publishing' | 'verifying'
   readonly stagedBytes: number
@@ -55,7 +55,7 @@ export interface PublicationProgress {
   readonly publishedBytes: number
 }
 
-/** 输入流从调用起由适配器持有并最终关闭；signal 不回滚已进入发布点的最终文件。 */
+/** 发布选项：输入流从调用起由适配器持有并最终关闭；signal 取消时，已到发布点的最终文件保留。 */
 export interface PublicationOptions {
   readonly signal?: AbortSignal
   readonly onProgress?: (value: PublicationProgress) => void
@@ -83,7 +83,7 @@ interface PublicationJob {
   worker: Promise<NewFilePublicationResult> | null
 }
 
-// 清理失败仍占名额，避免不同原生实例堆积候选；与归档缓存名额独立以支持接收后发布。
+// 清理失败时仍占名额，避免不同实例堆积候选文件；这个名额与归档缓存的名额独立，接收完归档后才能发布。
 let activePublication: symbol | null = null
 
 function validateRequest(value: unknown): asserts value is NewFilePublicationRequest {
@@ -124,11 +124,10 @@ function checkAbort(job: PublicationJob): void {
 }
 
 /**
- * Windows 新文件原生发布，读取登记不会自动授予写权限，grant 仅在本进程存活。
- * 候选独占创建于目标父目录，校验原文并 sync 后用硬链接发布，绝不覆盖既有名字。
- * 输入/候选/回读均有限缓冲；最终回读成功才报告 succeeded；取消竞争及不确定结果不自动重试。
- * stop 撤销授权并等待资源释放，清理失败可 retryCleanup；句柄/路径不经 Renderer 暴露。
- * 不实现 HTTP、批次发布、恢复旧任务或跨进程孤儿候选删除；用法与边界见桌面 README。
+ * Windows 上发布新文件：候选文件独占创建在目标父目录，校验原文并 sync 后用硬链接发布，已有的名字不会被覆盖。
+ * 读取登记不会自动授予写权限，grant 只在当前进程内有效。输入、候选和回读都用有限缓冲。
+ * 最终回读成功才报告 succeeded；取消竞争和结果不确定时不自动重试。
+ * stop 撤销授权并等待资源释放，清理失败时可以 retryCleanup。用法和边界见桌面 README。
  */
 export class WindowsNewFilePublisher {
   private readonly source: Pick<WindowsDirectoryAdapter, 'locateNativeDirectory'>
@@ -155,7 +154,7 @@ export class WindowsNewFilePublisher {
     }
   }
 
-  /** 核实已选择目录的身份与写权限；游戏配置在接收前恢复此进程内授权。 */
+  /** 核实已选目录的身份和写权限；游戏配置在接收前调用它恢复进程内的授权。 */
   async grant(rootId: string): Promise<void> {
     if (this.isStopped) {
       throw new PublicationError('busy', 'The publication adapter has stopped.')
@@ -181,7 +180,7 @@ export class WindowsNewFilePublisher {
     this.grants.set(rootId, location)
   }
 
-  /** 撤销后不接纳该根的新写入；已有操作在发布点前取消，之后返回可观察实际结果。 */
+  /** 撤销根目录的写授权，之后不再接受它的写入；进行中的操作在发布点前取消，过了发布点的返回实际结果。 */
   async revoke(rootId: string): Promise<void> {
     this.grants.delete(rootId)
     if (this.job?.request.rootId === rootId) {
@@ -192,10 +191,10 @@ export class WindowsNewFilePublisher {
   }
 
   /**
-   * 只读预检供后续 receiver 在接收归档前核对授权、父目录、预算和当前同名冲突。
-   * requiredBytes 默认单文件，可传本批原文总量；privateSpace 在缓存同卷时合计其峰值。
-   * 返回仅原生使用的物理父目录/大小写比较键，用于本批目标去重；不预留名称或任务名额。
-   * publish 仍在实际写入和发布点重查，预检成功不代表之后不会出现竞争。
+   * 接收归档前的只读预检：核对授权、父目录、容量和当前的同名冲突。
+   * requiredBytes 默认是单个文件，可以传本批原文总量；privateSpace 与缓存同卷时合计峰值。
+   * 返回物理父目录和大小写比较键，只在主进程内用来给本批目标去重；名称和任务名额都不预留。
+   * publish 在实际写入和发布点还会重查，预检成功后仍可能出现竞争。
    */
   async checkTarget(
     value: unknown,
@@ -255,8 +254,8 @@ export class WindowsNewFilePublisher {
   }
 
   /**
-   * 有效请求返回逐文件结果；非法字段抛 PublicationError。任何退出均关闭输入流。
-   * 调用方（后续 receiver）须先校验整批归档，不能边收未验证归档边调用本接口。
+   * 发布一个文件。请求有效时返回文件结果，字段非法时抛 PublicationError；任何退出都关闭输入流。
+   * 调用方要先校验整批归档，见 WindowsUploadReceiver。
    */
   async publish(
     value: unknown,
@@ -339,7 +338,7 @@ export class WindowsNewFilePublisher {
     }
   }
 
-  /** 仅清理本实例持有且身份仍匹配的候选；不删除已发布最终文件或未知替换物。 */
+  /** 清理本实例持有且身份仍匹配的候选文件；已发布的最终文件和来历不明的替换物保留。 */
   async retryCleanup(): Promise<void> {
     const job = this.job
     if (!job) {
@@ -359,7 +358,7 @@ export class WindowsNewFilePublisher {
     this.release(job)
   }
 
-  /** 等待进行中的操作并重试候选清理；失败保留原生所有权，允许再次 stop。 */
+  /** 停止发布器：等待进行中的操作并重试候选文件清理；失败时保留所有权，可以再次 stop。 */
   stop(): Promise<void> {
     this.isStopped = true
     this.grants.clear()

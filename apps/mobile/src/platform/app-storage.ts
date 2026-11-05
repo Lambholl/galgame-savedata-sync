@@ -14,7 +14,7 @@ const NATIVE =
 const cache = new Map<string, string>()
 
 /**
- * 首次渲染前把配置读进内存。开发阶段不迁移旧版存在 WebView localStorage 的配置（用户 2026-11-01 确认）。
+ * 首次渲染前把配置读进内存；存在 WebView localStorage 的旧版配置不迁移。
  * 读取失败时抛出，避免以空配置启动后覆盖原生已保存的数据。
  */
 export async function loadAppStorage(): Promise<void> {

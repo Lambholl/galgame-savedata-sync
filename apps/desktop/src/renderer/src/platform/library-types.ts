@@ -11,7 +11,7 @@ import type {
 } from '@savedata-sync/shared'
 import type { DesktopCopySummary, DesktopRestoreSummary } from '../../../bridge/sync-bridge.ts'
 
-/** 界面只消费公开元数据；字节、路径和原生句柄留在平台适配器。 */
+/** 界面读取的快照，只含公开元数据；字节、路径和原生句柄留在平台适配器。 */
 export interface DesktopSnapshot {
   readonly warning: string | null
   readonly config: LibraryConfig
@@ -29,7 +29,7 @@ export interface DesktopSnapshot {
   readonly restores: readonly DesktopRestoreSummary[]
   readonly hasActiveOperation: boolean
 }
-/** 配置、设备和任务操作失败时抛 Error；目录结果由调用端解包，切页保留原生任务。 */
+/** 桌面游戏库接口：配置、设备和任务操作失败时抛 Error，目录结果由调用端解包；切页不影响主进程里的任务。 */
 export interface DesktopLibraryAdapter {
   /** 按当前界面语言生成任务的方向标题。 */
   read(t: Translate): Promise<DesktopSnapshot>

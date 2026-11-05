@@ -27,9 +27,9 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 /**
- * 只读 SAF 登记表；必须在 I/O 工作线程调用，不得在 UI 线程调用。
- * 仅持久化根目录授权；条目 ID 和元数据只保留在当前实例中。
- * 文件操作始终使用不透明提供者 ID；完整路径与父目录名由独立展示模块生成。
+ * SAF 目录的只读登记表，必须在 I/O 工作线程调用。
+ * 只持久化根目录授权；条目 ID 和元数据只保留在当前实例中。
+ * 文件操作都用不透明的提供者 ID；完整路径和父目录名由 DirectoryDisplay 生成。
  */
 final class SafDirectoryStore {
     static final String PREFERENCES = "saf-directories-v1";
@@ -151,7 +151,7 @@ final class SafDirectoryStore {
         return value;
     }
 
-    /** 仅持久化真实系统选择器结果中的 READ 权限；不会撤销已有授权。 */
+    /** 登记系统选择器的结果，持久化其中的 READ 权限；已有授权不会被撤销。 */
     synchronized JSObject register(Uri selected, int flags, CancellationSignal signal) throws SafFailure {
         Root candidate = null;
         boolean hadGrant = false;
@@ -194,7 +194,7 @@ final class SafDirectoryStore {
         }
     }
 
-    /** 仅返回已登记根目录；保留已过期或不可用的引用以供恢复。 */
+    /** 返回已登记的根目录；已过期或不可用的引用也保留，供重新授权。 */
     synchronized JSONArray listRoots(CancellationSignal signal) throws SafFailure {
         JSONArray result = new JSONArray();
         try {
@@ -222,7 +222,7 @@ final class SafDirectoryStore {
         }
     }
 
-    /** 仅枚举当前层；未知属性保留为 null，提供者失败不会返回空列表。 */
+    /** 列出当前一层；未知属性保留为 null，提供者失败时报错，不返回空列表。 */
     synchronized JSObject listDirectory(String rootId, String parentId, CancellationSignal signal) throws SafFailure {
         try {
             Root root = requireRoot(rootId);
@@ -276,7 +276,7 @@ final class SafDirectoryStore {
         return entry;
     }
 
-    /** 发布器专用原生定位；只读 JS 桥不调用此入口，也不导出其中的 URI。 */
+    /** 发布器用的目录定位，只在原生层使用；只读的 JS 桥不调用，其中的 URI 也不导出。 */
     static final class PublicationDirectory implements NewFilePublisher.Directory {
         final String rootId, parentId, documentId, name;
         final Uri tree, uri;
@@ -289,7 +289,7 @@ final class SafDirectoryStore {
     synchronized PublicationDirectory publicationDirectory(String rootId, String parentId, CancellationSignal signal) throws SafFailure {
         return publicationDirectory(rootId, parentId, signal, true);
     }
-    /** 覆盖已有文件不要求父目录支持新建；目录/文件创建仍显式核实创建能力。 */
+    /** 定位发布目录。覆盖已有文件不要求父目录支持新建；创建目录和文件时才核实创建能力。 */
     synchronized PublicationDirectory publicationDirectory(String rootId, String parentId, CancellationSignal signal, boolean requireCreate) throws SafFailure {
         try {
             Root root = requireRoot(rootId);
@@ -321,8 +321,8 @@ final class SafDirectoryStore {
     }
 
     /**
-     * 归档读取前后重新查询授权、身份、类型及可观察属性。只返回原生观察模型；
-     * 未知长度保留 null，不能以新查询覆盖枚举时的基线后继续读取已变化的源。
+     * 归档读取前后重新查询授权、身份、类型和可观察属性，返回 Observation。
+     * 未知长度保留 null；不能用新查询覆盖枚举时的基线后继续读取已变化的源。
      */
     synchronized ArchiveModel.Observation archiveObservation(String rootId, String entryId,
                                                             CancellationSignal signal) throws SafFailure {
@@ -347,9 +347,9 @@ final class SafDirectoryStore {
     }
 
     /**
-     * 以 r 模式打开当前已枚举的文件；返回流归调用者所有，调用者必须关闭。
-     * 每次读取均检查取消状态；生命周期管理方还必须关闭阻塞中的流。
-     * 字节不经过 JS 桥；大小和日期检查仅用于发现可观察的源变化，不提供原子快照。
+     * 以 r 模式打开当前已枚举的文件；返回的流归调用者所有，调用者必须关闭。
+     * 每次读取都检查取消状态；生命周期管理方还必须关闭阻塞中的流。
+     * 字节不经过 JS 桥；大小和日期检查只能发现可观察的源变化，读取期间文件仍可能被替换。
      */
     synchronized InputStream openFile(String rootId, String entryId, CancellationSignal signal) throws SafFailure {
         try {

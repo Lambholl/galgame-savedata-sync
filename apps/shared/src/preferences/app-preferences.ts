@@ -7,7 +7,7 @@ export type AppLocale = 'zh-CN' | 'zh-TW' | 'en-US' | 'ja-JP'
 /** 语言偏好：跟随系统，或固定一种界面语言。 */
 export type LocalePreference = 'system' | AppLocale
 
-/** 两端各自保存在本机的界面偏好；不跨设备同步。 */
+/** 两端各自保存在本机的界面偏好。 */
 export interface AppPreferences {
   readonly theme: ThemePreference
   readonly locale: LocalePreference
@@ -25,7 +25,7 @@ export function isLocalePreference(value: unknown): value is LocalePreference {
   return value === 'system' || APP_LOCALES.some((item) => item === value)
 }
 
-/** 封闭对象校验：只接受恰好两个已知字段。 */
+/** 校验偏好对象：只接受恰好两个已知字段。 */
 export function isAppPreferences(value: unknown): value is AppPreferences {
   return (
     typeof value === 'object' &&

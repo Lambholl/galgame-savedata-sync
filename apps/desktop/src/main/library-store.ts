@@ -42,7 +42,7 @@ export class DesktopLibrary {
     private readonly file: string,
     private readonly adapter: WindowsDirectoryAdapter,
   ) {}
-  /** 首次没有文件时使用空库；损坏配置阻止加载，不覆盖原文件。 */
+  /** 读取游戏库配置。第一次没有文件时用空库；配置损坏时加载失败，原文件保留。 */
   async load(): Promise<void> {
     try {
       const value: unknown = JSON.parse(await readFile(this.file, 'utf8'))
@@ -85,11 +85,11 @@ export class DesktopLibrary {
   private isOpen(deviceId: string): boolean {
     return this.runtime.has(deviceId) && Boolean(this.control?.isOpen(deviceId))
   }
-  /** 另一台设备已连上控制通道时拒绝新的连接，首期只连一台。 */
+  /** 是否已有另一台设备连着控制通道；有就拒绝新的连接，目前只连一台。 */
   private hasOtherPeer(deviceId: string): boolean {
     return [...this.runtime.keys()].some((id) => id !== deviceId && this.isOpen(id))
   }
-  /** 控制通道升级前核实：设备已在本会话交换过目录表、未停用、未被本机断开。 */
+  /** 控制通道升级前核实：设备已在本会话交换过目录表、未停用、未被本机断开，也没有另一台设备连着。 */
   canControl(deviceId: string): boolean {
     const saved = this.config.devices.find((item) => item.id === deviceId)
     return (
@@ -109,7 +109,10 @@ export class DesktopLibrary {
       })),
     }
   }
-  /** 已交换目录表的实际原生请求可续用同一连接；不会创建设备或解除显式断开。 */
+  /**
+   * 设备发来实际请求时刷新 seenAt。设备未知、已停用、没交换过目录表或已被本机断开时报 session-mismatch，
+   * 另一台设备连着时报 busy。
+   */
   touchPeer(deviceId: string): void {
     const saved = this.config.devices.find((item) => item.id === deviceId)
     const current = this.runtime.get(deviceId)
@@ -127,7 +130,7 @@ export class DesktopLibrary {
     }
     this.runtime.set(deviceId, { ...current, seenAt: Date.now() })
   }
-  /** 固定双向项目关联和公开根，任务写入前重核；通信超时由任务层独立处理。 */
+  /** 核对项目的双向关联和公开根，任务写入前调用；通信超时由任务层处理。 */
   verifyProjectPeer(
     projectId: string,
     peerId: string,
@@ -287,7 +290,7 @@ export class DesktopLibrary {
       links: libraryLinks(this.config, hello.deviceId),
     }
   }
-  /** 只请求已关联游戏的公开目录 ID；父目录必须来自本会话读取过的条目。 */
+  /** 读取已关联游戏的对方目录，只能用公开 ID；父目录必须来自本会话读取过的条目。 */
   directory(deviceId: string, rootId: string, parentId: string | null): Promise<DirectoryListing> {
     const peer = this.snapshot().peers.find((item) => item.device.id === deviceId)
     const runtime = this.runtime.get(deviceId)

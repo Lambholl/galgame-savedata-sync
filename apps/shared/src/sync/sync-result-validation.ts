@@ -12,7 +12,7 @@ function isCleanupError(value: unknown): value is OperationError {
   return isOperationError(value) && value.code === 'cleanup-failed'
 }
 
-/** 写入文件成功需携带实际文件指纹；目录、删除和所有未确认结果都不伪造字节/哈希。 */
+/** 校验一项写入结果：写文件成功要带实际文件指纹；目录、删除和所有未确认的结果没有字节和哈希。 */
 export function isSyncWriteOutcome(value: unknown): value is SyncWriteOutcome {
   if (
     !hasShape(value, ['path', 'action', 'status', 'sizeBytes', 'sha256', 'error']) ||
@@ -49,7 +49,7 @@ export function isSyncWriteOutcome(value: unknown): value is SyncWriteOutcome {
   return (value.status === 'cancelled' || value.status === 'not-attempted') && value.error === null
 }
 
-/** 校验独立结果 DTO，不把清理成功或 HTTP 200 当成写入成功。 */
+/** 校验写入结果的结构；清理成功或 HTTP 200 不算写入成功。 */
 export function isSyncApplyResult(value: unknown): value is SyncApplyResult {
   return (
     hasShape(value, [
@@ -79,8 +79,8 @@ export function isSyncApplyResult(value: unknown): value is SyncApplyResult {
 }
 
 /**
- * 核对本次可执行计划的完整写入集合、顺序和成功指纹；拒绝漏项及错误目标。
- * 最初失败/取消后只允许未执行项；实际 IO、备份有效性仍由原生层证明。
+ * 核对写入结果与本次可执行计划：完整集合、顺序和成功指纹都要一致，漏项和错误目标都拒绝。
+ * 第一个失败或取消之后只允许未执行项；实际 IO 和备份是否有效由原生层负责。
  */
 export function matchesSyncApplyResult(value: unknown, plan: SyncPlan): value is SyncApplyResult {
   if (

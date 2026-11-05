@@ -27,7 +27,7 @@ import type { AndroidRestoreState, AndroidSyncWriteApi } from './sync-write-brid
 import type { AndroidBackupApi, AndroidBackupInfo, AndroidBackupList } from './backup-bridge'
 import type { MobileLibraryAdapter } from './library-types'
 
-/** 页面展示的固定原生任务上下文；重新读取只查询原任务，不启动或重放执行。 */
+/** 页面展示的原生任务上下文；重新读取只查询原任务，不会启动执行。 */
 export interface MobileCopyDetails {
   readonly state: SyncTransferState
   readonly preview: SyncPreparationPreview
@@ -42,7 +42,7 @@ export interface MobileBackupDetails {
   readonly listing: AndroidBackupList
   readonly root: DirectoryReference
 }
-/** 失败抛 Error；执行前重新核对已保存项目、根、设备关联，通知权限仅在实际传输前请求。 */
+/** 移动复制接口：失败抛 Error；执行前重新核对已保存的项目、根目录和设备关联，通知权限在实际传输前才请求。 */
 export interface MobileSyncAdapter {
   prepare(
     projectId: string,
@@ -82,7 +82,7 @@ export interface MobileSyncAdapter {
   interruptedWrites(): Promise<readonly InterruptedWrite[]>
   dismissInterruptedWrite(id: string): Promise<void>
 }
-/** 默认使用真实原生桥；替换依赖只用于本包的临时集成验证。 */
+/** 依赖，默认用真实原生桥；替换只用于集成验证。 */
 export interface MobileSyncDependencies {
   readonly copies: AndroidSyncTransferApi
   readonly writes: AndroidSyncWriteApi
@@ -104,7 +104,7 @@ function restoreHasWork(state: AndroidRestoreState): boolean {
   )
 }
 
-/** 编辑配置和断开空闲连接前查询原生所有者，不读取前后台状态。 */
+/** 查询原生层是否有进行中的工作，编辑配置和断开空闲连接前调用。 */
 export async function hasAndroidSyncWork(): Promise<boolean> {
   const copyId = unwrap(await androidSyncTransfers.current())
   if (copyId && copyHasWork(unwrap(await androidSyncTransfers.query(copyId)))) {
@@ -114,7 +114,7 @@ export async function hasAndroidSyncWork(): Promise<boolean> {
   return restoreId !== null && restoreHasWork(unwrap(await androidSyncWrites.query(restoreId)))
 }
 
-/** 平台校验持久配置，原生桥校验本次计划和结果；网页不持有文件、路径或写权限。 */
+/** 创建移动复制适配器：平台校验持久配置，原生桥校验本次计划和结果；文件、路径和写权限都不在网页。 */
 export function createMobileSyncAdapter(
   library: MobileLibraryAdapter,
   dependencies?: Partial<MobileSyncDependencies>,

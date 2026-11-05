@@ -3,7 +3,7 @@ import { BATCH_LIMITS, HTTP_ERROR_STATUS, isOpaqueId } from '@savedata-sync/shar
 import type { OperationResult } from '@savedata-sync/shared'
 import { HttpOperationError, toHttpError } from './http-errors.ts'
 
-/** 解码一次的封闭路由；不使用会归一化点段的 URL 路径解析。 */
+/** 解码一次后的固定路由；不用 URL 路径解析，因为它会归一化点段。 */
 export interface HttpRoute {
   readonly kind:
     | 'device'
@@ -31,7 +31,7 @@ function invalid(): never {
   throw new HttpOperationError('invalid-request', 'The HTTP request format is invalid.')
 }
 
-/** 唯一头名按不区分大小写检查；拒绝编码、Range 和歧义定界。 */
+/** 检查请求头并解析路由：头名不区分大小写，不能重复；拒绝 Content-Encoding、Range，以及 Content-Length 和 chunked 同时出现的请求。 */
 export function inspectHttpRequest(request: IncomingMessage): HttpRoute {
   const names = new Set<string>()
   for (let index = 0; index < request.rawHeaders.length; index += 2) {
@@ -267,7 +267,7 @@ export function inspectJsonKeys(text: string): void {
   value(0)
 }
 
-/** 控制 JSON 最多 8 MiB，严格 UTF-8、无重复键/尾随 trailer；不接管文件内容。 */
+/** 读取控制 JSON 请求体：最多 8 MiB，严格 UTF-8，不允许重复键和 trailer。 */
 export async function readHttpJson(request: IncomingMessage): Promise<unknown> {
   const type = request.headers['content-type']
   if (typeof type !== 'string' || !/^application\/json(?:;\s*charset=utf-8)?$/i.test(type)) {
@@ -314,7 +314,7 @@ export async function readHttpJson(request: IncomingMessage): Promise<unknown> {
   }
 }
 
-/** JSON 响应同样计 UTF-8 字节；头发出前完成序列化，超限以稳定错误返回。 */
+/** 发送 JSON 响应，按 UTF-8 字节计长度；响应头发出前完成序列化，超限时返回稳定错误。 */
 export function sendHttpJson(
   response: ServerResponse,
   status: number,
@@ -335,7 +335,7 @@ export function sendHttpJson(
   response.end(body)
 }
 
-/** 归档响应开始后只能关闭连接，不能把错误 JSON 拼入 gzip 数据体。 */
+/** 发送失败响应。归档响应开始后只能关闭连接，错误 JSON 不能混进 gzip 数据体。 */
 export function sendHttpFailure(response: ServerResponse, error: unknown): void {
   if (response.destroyed) {
     return

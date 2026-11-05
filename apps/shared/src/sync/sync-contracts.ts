@@ -1,6 +1,6 @@
 import type { CapabilityState, OperationError, TransferDirection } from '../protocol/contracts.ts'
 
-/** 新复制能力独立版本，不改变旧批量 v1 的非覆盖语义。 */
+/** 复制功能的 schema 版本，与批量传输的 PROTOCOL_VERSION 各自独立。 */
 export const SYNC_SCHEMA_VERSION = 1
 /**
  * 能力声明的版本，也是两端能否互传的唯一门槛。2 表示支持 sync.job 任务观察与
@@ -9,7 +9,7 @@ export const SYNC_SCHEMA_VERSION = 1
  */
 export const SYNC_CAPABILITIES_VERSION = 3
 
-/** 只限制本次扫描；文件传输与备份另受 BATCH_LIMITS 约束。 */
+/** 单次扫描的上限；文件传输和备份另受 BATCH_LIMITS 约束。 */
 export const SYNC_LIMITS = Object.freeze({
   maxEntries: 10000,
   maxDepth: 64,
@@ -20,7 +20,7 @@ export const SYNC_LIMITS = Object.freeze({
   scanTimeoutMs: 1800000,
 } as const)
 
-/** 新能力按独立入口协商，不能改变旧 /v1/device 的封闭字段。 */
+/** 复制功能的 HTTP 路由，先读 capabilities 协商版本和上限；/v1/device 不含复制功能的字段。 */
 export const SYNC_HTTP_ROUTES = {
   capabilities: '/v1/sync/capabilities',
   scans: '/v1/sync/scans',
@@ -42,13 +42,13 @@ export interface SyncCapabilities {
   readonly limits: typeof SYNC_LIMITS
 }
 
-/** 扫描只引用本机已登记根，不接受路径或可放宽预算。 */
+/** 扫描请求：只引用本机已登记的根目录，没有路径和可放宽的上限。 */
 export interface SyncScanRequest {
   readonly schemaVersion: typeof SYNC_SCHEMA_VERSION
   readonly rootId: string
 }
 
-/** 名称使用原始路径段；ID 由原生层解析，路径不能直接充当系统路径。 */
+/** 扫描到的一个条目。名称是原始路径段；ID 由原生层解析，路径不能直接当系统路径用。 */
 export interface SyncEntry {
   readonly entryId: string
   readonly path: readonly string[]
@@ -59,7 +59,7 @@ export interface SyncEntry {
   readonly error: OperationError | null
 }
 
-/** 仅本次会话的快照；error 非空表示扫描失败，空成功数组才是真实空目录。 */
+/** 一次扫描的快照，只在当前会话有效；error 非空表示扫描失败，成功的空数组才是真实空目录。 */
 export interface SyncSnapshot {
   readonly schemaVersion: typeof SYNC_SCHEMA_VERSION
   readonly scanId: string
@@ -70,7 +70,7 @@ export interface SyncSnapshot {
   readonly error: OperationError | null
 }
 
-/** 扫描计数只表示本次读取进度；取消与失败不伪装成空目录成功。 */
+/** 扫描状态：计数只表示本次读取进度；取消和失败不显示成空目录。 */
 export interface SyncScanState {
   readonly schemaVersion: typeof SYNC_SCHEMA_VERSION
   readonly scanId: string
@@ -88,7 +88,7 @@ export type SyncWriteAction =
 
 export type SyncAction = SyncWriteAction | 'skip' | 'keep' | 'conflict'
 
-/** 一项只对应同一原始路径；完整内容期望保留在当前计划的两端快照中。 */
+/** 计划的一项，对应同一个原始路径；完整的内容期望在计划的两端快照里。 */
 export interface SyncPlanEntry {
   readonly path: readonly string[]
   readonly action: SyncAction
@@ -96,7 +96,7 @@ export interface SyncPlanEntry {
   readonly targetEntryId: string | null
 }
 
-/** path=null 表示整份扫描或任务上下文问题，具体文件问题保留原始路径。 */
+/** 计划中的问题。path 为 null 表示整份扫描或任务上下文的问题，文件问题保留原始路径。 */
 export interface SyncIssue {
   readonly code:
     | 'invalid-context'
@@ -110,7 +110,7 @@ export interface SyncIssue {
   readonly path: readonly string[] | null
 }
 
-/** 调用者显式提供本次 ID 和方向；shouldBackup 缺省值由本机设置层提供。 */
+/** 生成计划的输入：调用者提供本次 ID 和方向；shouldBackup 的缺省值由本机设置层提供。 */
 export interface SyncPlanInput {
   readonly planId: string
   readonly projectId: string
@@ -123,7 +123,7 @@ export interface SyncPlanInput {
   readonly target: SyncSnapshot
 }
 
-/** 快照只随计划留在本次内存中；传输统计待写入文件，备份统计写入前的全部目标文件。 */
+/** 可执行计划：快照随计划留在本次内存中；传输统计待写入的文件，备份统计写入前的全部目标文件。 */
 export interface SyncPlan extends SyncPlanInput {
   readonly schemaVersion: typeof SYNC_SCHEMA_VERSION
   readonly entries: readonly SyncPlanEntry[]
@@ -134,7 +134,7 @@ export interface SyncPlan extends SyncPlanInput {
   readonly canExecute: boolean
 }
 
-/** 持久备份清单只为手工恢复；fileId 对应应用私有文件，不是用户路径。 */
+/** 备份清单里的一个文件，只为手动恢复保存；fileId 对应应用私有文件，不是用户路径。 */
 export interface SyncBackupFile {
   readonly fileId: string
   readonly path: readonly string[]
@@ -173,7 +173,7 @@ export interface SyncBackupPreference extends SyncBackupPolicy {
   readonly rootId: string
 }
 
-/** 与游戏配置分开保存在本机备份目录；v1 只有逐目录开关，读取时升级。 */
+/** 备份设置，与游戏配置分开保存在本机备份目录；v1 只有逐目录开关，读取时升级。 */
 export interface SyncBackupSettings {
   readonly schemaVersion: 2
   /** 全局设置。 */
@@ -181,7 +181,7 @@ export interface SyncBackupSettings {
   readonly projects: readonly SyncBackupPreference[]
 }
 
-/** 只列实际观察；unknown 必须保留 result-unknown，不能自动重放写入。 */
+/** 一项写入的实际结果；unknown 必须带 result-unknown，不能自动重做写入。 */
 export interface SyncWriteOutcome {
   readonly path: readonly string[]
   readonly action: SyncWriteAction
@@ -191,7 +191,7 @@ export interface SyncWriteOutcome {
   readonly error: OperationError | null
 }
 
-/** 备份/发布结果与清理独立；清理错误不推翻已确认成功的文件。 */
+/** 写入结果：备份和发布结果与清理分开；清理错误不改变已确认成功的文件。 */
 export interface SyncApplyResult {
   readonly schemaVersion: typeof SYNC_SCHEMA_VERSION
   readonly planId: string

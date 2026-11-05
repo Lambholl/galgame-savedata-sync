@@ -3,7 +3,7 @@ export const NODE_SECURITY_BASELINES = Object.freeze({ 22: [22, 23, 4], 24: [24,
 
 /**
  * 检查数字形式的 Node 版本是否达到项目已知的安全补丁下限。
- * 版本格式错误或主版本不受支持时返回 false；不执行 I/O。
+ * 版本格式错误或主版本不受支持时返回 false。
  * @param {string} version 不含 v 前缀的 major.minor.patch 数字版本。
  * @returns {boolean} 版本是否达到受支持 LTS 的补丁下限。
  */

@@ -12,7 +12,7 @@ import java.util.concurrent.Executors;
 import static io.github.galgame.savedatasync.TransferJson.*;
 import static io.github.galgame.savedatasync.TransferSchema.*;
 
-/** 有限扫描桥，返回扫描状态；不传 URI、平台路径或文件字节。 */
+/** 扫描的 Capacitor 插件，返回扫描状态；URI、平台路径和文件字节都不经过这里。 */
 @CapacitorPlugin(name = "SyncScans")
 public class SyncScansPlugin extends Plugin {
     private final ExecutorService controls = Executors.newFixedThreadPool(2);

@@ -16,9 +16,9 @@ import static io.github.galgame.savedatasync.TransferJson.*;
 import static io.github.galgame.savedatasync.TransferSchema.*;
 
 /**
- * 新复制的应用进程所有者：只读准备与确认执行分开，流、归档和网络留在原生。
- * reserve 在保活启动前占名额，begin 仅在系统接受通知后执行一次；任务不跨重启恢复。
- * 活动任务及未释放缓存占用同一个 TargetOperation；页面销毁不关闭此对象。
+ * 复制任务的应用级所有者：只读准备和确认执行分开，流、归档和网络都在原生层。
+ * reserve 在启动前台服务前占名额，begin 只在系统接受前台服务后执行一次；进程重启后任务不恢复。
+ * 活动任务和未释放的缓存占用同一个 TargetOperation；页面销毁不关闭这个对象。
  */
 final class SyncTransferEngine implements AutoCloseable {
     interface Local {
@@ -118,7 +118,7 @@ final class SyncTransferEngine implements AutoCloseable {
         catch (java.util.concurrent.RejectedExecutionException stopped) { /* 引擎已关闭，电脑按超时处理。 */ }
         return true;
     }
-    /** 只应答发起这次任务的电脑；已结束任务的取消没有效果，结果以读取为准。 */
+    /** 应答电脑读取和取消任务的请求，只应答发起这次任务的电脑；已结束任务的取消没有效果，结果以读取为准。 */
     private void answer(String deviceId, Map<String, Object> message) {
         Map<String, Object> result;
         try {
@@ -162,8 +162,8 @@ final class SyncTransferEngine implements AutoCloseable {
         try {
             Object raw = job.preparation.connection.http.json("GET", job.path(), job.preparation.connection.session, null, 200, control);
             SyncJobModel.state(raw, job.plan, null);
-            // 心跳只核对通信，不写入远端快照，避免与清单/内容回执的顺序竞争。
-        } catch (Exception ignored) { /* 后续提交或查询由主 worker 判断；心跳不重放写入。 */ }
+            // 心跳只核对通信，不写入远端快照，避免与清单和内容回执的顺序竞争。
+        } catch (Exception ignored) { /* 之后的提交或查询由主 worker 判断；心跳不重做写入。 */ }
         finally {
             control.cancel(); synchronized (this) { if (heartbeatControl == control) { heartbeatControl = null; heartbeatOwner = null; } }
         }
@@ -173,8 +173,8 @@ final class SyncTransferEngine implements AutoCloseable {
         if (control != null) control.cancel();
     }
     /**
-     * 普通只读准备，不占传输名额或启动前台服务；返回后按 preparationId 查询。
-     * 新准备取代还没结束的旧准备：旧结果已经过时，单线程 preparer 让新准备等旧准备收尾后才开始。
+     * 开始普通只读准备，不占传输名额，也不启动前台服务；返回后按 preparationId 查询。
+     * 后来的准备取代还没结束的准备：之前的结果已经过时，单线程 preparer 让后来的准备等之前的收尾后才开始。
      */
     Map<String, Object> prepare(Object rawBinding, String direction) throws Exception {
         Preparation preparation, superseded;
@@ -199,7 +199,7 @@ final class SyncTransferEngine implements AutoCloseable {
         try {
             Map<String, Object> binding = preparation.binding; TransferEngine.SyncConnection connection = preparation.connection;
             transport.refreshSync(connection, binding, preparation.control);
-            // 能力版本和固定预算必须先协商；旧批量接口不能承担覆盖。
+            // 能力版本和固定上限必须先协商；批量接口不能承担覆盖。
             Object advertised;
             try { advertised = connection.http.json("GET", "/v1/sync/capabilities", connection.session, null, 200, preparation.control); }
             catch (ArchiveFailure failure) {
@@ -262,7 +262,7 @@ final class SyncTransferEngine implements AutoCloseable {
             }
         }
     }
-    /** 电脑同一时间只跑一个扫描，刚取消的旧扫描可能还在收尾，等一小会儿再报 busy。 */
+    /** 请对端开始扫描。电脑同一时间只跑一个扫描，刚取消的扫描可能还在收尾，等一小会儿再报 busy。 */
     private Object startRemoteScan(Preparation preparation, String rootId) throws Exception {
         TransferEngine.SyncConnection connection = preparation.connection;
         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
@@ -277,7 +277,7 @@ final class SyncTransferEngine implements AutoCloseable {
     private void cancelScan(Preparation preparation) {
         ArchiveControl control = shortControl();
         try { preparation.connection.http.json("DELETE", "/v1/sync/scans/" + preparation.scanId, preparation.connection.session, null, 202, control); }
-        catch (Exception ignored) { /* 只读扫描自行到期，取消回执丢失不重放。 */ }
+        catch (Exception ignored) { /* 只读扫描会自行到期，取消回执丢失后不重发。 */ }
         finally { control.cancel(); }
     }
     private Preparation preparation(String id) throws Exception {
@@ -293,7 +293,7 @@ final class SyncTransferEngine implements AutoCloseable {
         preparation.control.cancel();
         synchronized (this) { if (preparation.status.equals("ready") && !preparation.consumed) { preparation.status = "cancelled"; preparation.preview = null; preparation.settled = System.nanoTime(); } return map(copy(preparation.state())); }
     }
-    /** 消费同一预览且先占名额；调用者随后只允许 begin 或 failStart，不准自动重试 execute。 */
+    /** 按同一份预览占名额；调用者之后只能 begin 或 failStart，不能自动重试 execute。 */
     synchronized Map<String, Object> reserve(String id, Object rawPlan) throws Exception {
         Preparation preparation = preparation(id); SyncPlanModel.Plan plan = new SyncPlanModel.Plan(rawPlan);
         if (!preparation.status.equals("ready") || preparation.consumed || used.contains(id)) throw fail("task-conflict");
@@ -359,7 +359,7 @@ final class SyncTransferEngine implements AutoCloseable {
                 boolean wasCancelled = !job.timedOut && (failure.cancelled || Boolean.TRUE.equals(job.state.get("cancelRequested")));
                 terminal(job, wasCancelled ? "cancelled" : "failed", wasCancelled ? null : job.timedOut ? "timeout" : failure.code);
             }
-            // 用户取消、总期限或内容未发完才取消远端；发完后的查询失败保留远端继续写入。
+            // 手机接收时总是取消远端。手机发送时，用户取消、总期限或内容没发完才取消；发完后查询失败时，远端继续写入。
             if (job.remoteAttempted) {
                 if (!job.preparation.upload() || !job.uploadComplete || failure.cancelled || job.timedOut) cancelRemote(job);
                 else synchronized (this) { if (job.remote == null || job.remote.get("status").equals("running")) job.remoteError = error("result-unknown"); }
@@ -407,11 +407,11 @@ final class SyncTransferEngine implements AutoCloseable {
                 !java.util.Arrays.asList("preparing", "awaiting-content", "transferring").contains(job.remote.get("stage")));
             map(job.state.get("progress")).put("archiveBytesTransferred", job.manifest.archive.sizeBytes);
             job.uploadComplete = true; terminal(job, "sent", null);
-            // 源快照发送完成后立即释放大缓存；任务名额和通知保留到 receiver 结果确定。
+            // 源快照发完后立即释放大缓存；任务名额和通知保留到接收端结果确定。
             cleanup(job);
         }
     }
-    /** 下载只能认领一次；完整私有材料通过校验后才调用本机写入器。 */
+    /** 下载内容，只能认领一次；完整私有材料通过校验后才调用本机写入器。 */
     private void download(Job job) throws Exception {
         while (isRemoteRunning(job) && remoteStage(job).equals("preparing")) {
             job.control.check(); Thread.sleep(100);
@@ -442,7 +442,7 @@ final class SyncTransferEngine implements AutoCloseable {
             synchronized (this) {
                 Map<String, Object> counters = map(job.state.get("progress")); counters.put("fileBytesVerified", job.manifest.totalFileBytes); counters.put("verifiedFiles", count);
             }
-            // 完整体已独立校验；发送端末次回执丢失不改写本机已知结果，也不重发 GET 内容。
+            // 收到的归档已完整校验；发送端最后的回执丢失不改写本机已知结果，也不重新 GET 内容。
             recover(job);
         }
         job.preparingArchive = true;
@@ -478,7 +478,7 @@ final class SyncTransferEngine implements AutoCloseable {
             }
         });
     }
-    /** SAF 后端每次复核当前 native 会话、目标项目/根与本机备份设置。 */
+    /** 核对当前会话、目标项目和根目录以及本机备份设置。接收内容前调用一次，写入器复核目标时经 SafSyncBackend 再调用。 */
     synchronized void verifyTargetContext(String project, String root) throws Exception {
         Job job = active;
         if (job == null || !job.running || job.preparation.upload() || !job.plan.project.equals(project) || !job.plan.target.root.equals(root) || !TargetOperation.owns(job)) throw fail("permission-denied");
@@ -642,7 +642,7 @@ final class SyncTransferEngine implements AutoCloseable {
         return object("transferId", active.plan.id, "upload", active.preparation.upload(), "running", active.running, "stage", stage, "progress", new LinkedHashMap<>(progress));
     }
     @SuppressWarnings("unchecked") private static Map<String, Object> mapUnchecked(Object value) { return (Map<String, Object>) value; }
-    /** 仅由原生所有者退出/验证调用；插件销毁不取消任务。 */
+    /** 关闭引擎：取消进行中的准备和任务，等线程退出后清理并关闭本机写入器。目前没有调用方，引擎随进程结束。 */
     @Override public void close() throws Exception {
         synchronized (this) { closed = true; if (preparing != null) preparing.control.cancel(); if (active != null) active.control.cancel(); if (heartbeatControl != null) heartbeatControl.cancel(); }
         transport.controlInterceptor(null);

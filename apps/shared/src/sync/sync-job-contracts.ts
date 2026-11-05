@@ -3,10 +3,10 @@ import type { OperationError, TransferDirection } from '../protocol/contracts.ts
 import type { SyncProjectBinding } from '../library/project-binding.ts'
 import type { SyncApplyResult, SyncPlan, SyncSnapshot } from './sync-contracts.ts'
 
-/** 新同步请求标记既有目录表连接中的设备，身份核对仍同时依赖会话和保存的项目关联。 */
+/** 复制请求里标识设备的 HTTP 头，用在目录表已建立的连接上；身份核对还要看会话和保存的项目关联。 */
 export const SYNC_DEVICE_HEADER = 'x-sync-device-id'
 
-/** 目标端只读项目元数据；备份开关由目标端本机设置，不通过复制请求远程修改。 */
+/** 目标端项目的只读元数据；备份开关由目标端本机设置，复制请求不能远程修改。 */
 export interface SyncProjectDescriptor {
   readonly schemaVersion: 1
   readonly projectId: string
@@ -17,7 +17,7 @@ export interface SyncProjectDescriptor {
   readonly backupKeepCount: number
 }
 
-/** 先登记确认计划，源准备归档后再单次 PUT 清单；jobId 固定为 plan.planId。 */
+/** 复制任务的登记请求：先登记确认的计划，来源准备好归档后再 PUT 一次清单；jobId 等于 plan.planId。 */
 export interface SyncJobRequest {
   readonly schemaVersion: 1
   readonly jobId: string
@@ -26,7 +26,7 @@ export interface SyncJobRequest {
   readonly plan: SyncPlan
 }
 
-/** 与旧 BatchProgress 字段一致，独立守卫允许仅目录/空计划的零文件及零归档分支。 */
+/** 复制任务进度，字段与 BatchProgress 一致；校验单独进行，允许只有目录或空计划时零文件、零归档。 */
 export interface SyncJobProgress {
   readonly sourceBytesRead: number
   readonly archiveBytesTransferred: number
@@ -72,12 +72,12 @@ export interface SyncJobDigest {
   readonly cleanupError: OperationError | null
 }
 
-/** 任务状态只报告本端角色；sender sent 不表示目标写入成功，receiver 携带实际结果。 */
+/** 本端角色的任务状态：发送端的 sent 不表示目标写入成功，接收端带实际结果。 */
 export interface SyncJobState extends SyncJobDigest {
   readonly result: SyncApplyResult | null
 }
 
-/** 普通只读准备，不申请传输保活；确认输入和完整结果分开查询以遵守控制 JSON 限额。 */
+/** 准备阶段（只读扫描）的状态，不需要传输通知；确认输入和完整结果分开查询，以遵守控制 JSON 的大小上限。 */
 export interface SyncPreparationState {
   readonly schemaVersion: 1
   readonly preparationId: string
@@ -100,7 +100,7 @@ export interface SyncPreparationPreview {
 }
 
 /**
- * 一次传输的两个角色各自的状态，双端查询任务都返回它；远端不可查询时不伪造成功或重放写入。
+ * 一次传输两个角色各自的状态，两端查询任务都返回它。
  * remote 为 null 表示还没收到对端状态；remoteError 表示读到的 remote 已不可信，结果待确认。
  */
 export interface SyncTransferState {

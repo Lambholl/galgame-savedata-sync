@@ -48,7 +48,7 @@ function restoreContinues(value: RestoreDetails): boolean {
   return value.state.isWorking
 }
 
-/** 卸载只停止页面轮询，原生任务继续；同次计划保持不变，重新进入可按 ID 恢复上下文。 */
+/** 读取一次任务的详情：卸载只停止页面轮询，主进程任务继续；同一次计划不变，重新进入可按 ID 恢复。 */
 function useResource<T>(
   id: string,
   load: (id: string, previous: T | null) => Promise<T>,

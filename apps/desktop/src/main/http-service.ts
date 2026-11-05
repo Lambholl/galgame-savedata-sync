@@ -50,22 +50,22 @@ type HttpDirectorySource = Pick<WindowsDirectoryAdapter, 'deviceId' | 'listRoots
 type HttpArchiveProvider = Pick<WindowsArchiveAdapter, 'prepare' | 'retryCleanup'> &
   Partial<Pick<WindowsArchiveAdapter, 'receive'>>
 
-/** 仅受信任主进程可指定监听；缺省回环/动态端口，不在构造时启动网络。 */
+/** 监听选项，只有主进程能指定；缺省监听回环地址和动态端口。 */
 export interface HttpListenOptions {
   readonly host?: string
   readonly port?: number
 }
 
-/** 原生监听快照不包含目录路径；sessionId 每次实际启动重新生成，不是认证凭据。 */
+/** 监听地址快照。sessionId 每次启动重新生成，不是认证凭据。 */
 export interface HttpListenerAddress {
   readonly host: string
   readonly port: number
   readonly sessionId: string
 }
 
-/** 本机缩紧预算/时钟注入见任务注册表，不会经 HTTP 或 Renderer 暴露。 */
+/** HTTP 服务的选项。收紧限额和注入时钟的说明见任务注册表，这些都不经 HTTP 或渲染进程暴露。 */
 export interface WindowsHttpOptions extends Omit<TransferRegistryOptions, 'receiver'> {
-  /** 接收前由本机游戏配置核实目标，恢复本进程授权；失败时拒绝本次传输。 */
+  /** 接收前按本机游戏配置核实目标，并恢复本进程的写授权；失败时拒绝本次传输。 */
   readonly authorizeTarget?: (rootId: string) => Promise<void>
   readonly library?: DesktopLibrary
   readonly displayName?: string
@@ -82,10 +82,10 @@ export interface WindowsHttpOptions extends Omit<TransferRegistryOptions, 'recei
 }
 
 /**
- * v1 HTTP 服务；显式注入发布适配后接收上传，写授权仍须由本机 grant，不自动重放。
- * start/stop 为受信任原生控制，界面通过有限 IPC 调用；start 失败抛脱敏 HttpOperationError。
- * stop 关闭所有连接、取消并等待任务及缓存清理；失败可再次 stop 重试，不提前丢弃所有权。
- * 主进程退出必须 await stop；调用示例和 LAN/回环边界见桌面 README。
+ * v1 HTTP 服务。注入发布适配器后才接收上传，写授权由本机 grant 给出。
+ * start 和 stop 由界面经 IPC 调用；start 失败时抛脱敏的 HttpOperationError。
+ * stop 关闭所有连接，取消并等待任务和缓存清理；失败后可以再次 stop 重试。
+ * 主进程退出前必须 await stop；调用示例和 LAN、回环的边界见桌面 README。
  */
 export class WindowsHttpService {
   private readonly source: HttpDirectorySource
@@ -119,7 +119,7 @@ export class WindowsHttpService {
     }
   }
 
-  /** 启动完成才返回实际端口；同时启动或未完成清理时拒绝，端口冲突不会静默换端口。 */
+  /** 启动监听，完成后才返回实际端口；已在启动或清理未完成时拒绝，端口冲突时报错。 */
   start(options: HttpListenOptions = {}): Promise<HttpListenerAddress> {
     if (this.server || this.registry || this.starting || this.stopping) {
       throw new HttpOperationError(
@@ -138,21 +138,21 @@ export class WindowsHttpService {
     return this.starting
   }
 
-  /** 原生控制查询独立快照；停止后返回 null，不暗示已发布远端文件。 */
+  /** 返回监听地址快照；停止后返回 null。 */
   getAddress(): HttpListenerAddress | null {
     return this.address ? { ...this.address } : null
   }
 
-  /** 运行时网络错误只含稳定消息，调用者可显示并停止/重启服务。 */
+  /** 返回运行时的网络错误（只含稳定消息），调用者可以显示并停止或重启服务。 */
   getError(): OperationError | null {
     return this.runtimeError ? { ...this.runtimeError } : null
   }
 
-  /** 本机控制读取会话内任务，不通过网络查询或延长期限。 */
+  /** 返回当前会话的批量传输状态，供本机界面读取；不走网络，也不延长期限。 */
   getStates(): readonly BatchState[] {
     return this.registry?.getStates() ?? []
   }
-  /** 新复制的 receiver 实际结果；与旧批次状态分别查询，避免混淆公开结构。 */
+  /** 返回当前会话复制任务在电脑这一端的状态，电脑是接收端或发送端都包括；批量传输的状态用 getStates 查询。 */
   getSyncStates(): readonly SyncJobState[] {
     return this.syncRegistry?.getStates() ?? []
   }
@@ -188,7 +188,7 @@ export class WindowsHttpService {
     }
     return this.remoteRequests
   }
-  /** 受信任本机桥分开读取摘要、计划、清单和结果。 */
+  /** 返回复制任务的摘要列表；计划、清单和结果由本机桥分开读取。 */
   syncCopies(): ReturnType<WindowsSyncRegistry['summaries']> {
     const pending = this.remoteRequests?.pending()
     return [...(this.syncRegistry?.summaries() ?? []), ...(pending ? [pending.summary] : [])]
@@ -227,7 +227,7 @@ export class WindowsHttpService {
     }
     return this.syncRegistry
   }
-  /** 包含旧传输、新复制、本机恢复和待清理资源，用于编辑本机配置前检查。 */
+  /** 是否有批量传输、复制任务、本机恢复或待清理资源，编辑本机配置前用它检查。 */
   hasWork(): boolean {
     return hasTargetOperation()
   }
@@ -235,17 +235,17 @@ export class WindowsHttpService {
     return Boolean(this.registry?.hasRunningWork() || this.syncRegistry?.hasRunningWork())
   }
 
-  /** 本机会话扫描入口，供有限 IPC 接入；不返回句柄或平台路径。 */
+  /** 开始一次本机扫描，由 IPC 调用；结果不含句柄或平台路径。 */
   startScan(rootId: string): SyncScanState {
     return this.requireScanner().start(rootId)
   }
 
-  /** 查询仅限当前服务会话，旧句柄不会跨重启恢复。 */
+  /** 查询扫描状态，只在当前服务会话内有效。 */
   getScan(scanId: string): SyncScanState {
     return this.requireScanner().get(scanId)
   }
 
-  /** 显式取消只读扫描；完成状态以 worker 关闭原生流后的查询为准。 */
+  /** 取消只读扫描；worker 关闭文件流后查询才得到最终状态。 */
   cancelScan(scanId: string): SyncScanState {
     return this.requireScanner().cancel(scanId)
   }
@@ -260,7 +260,7 @@ export class WindowsHttpService {
     return this.scanner
   }
 
-  /** 本机显式取消；不存在的任务抛脱敏错误，已发布文件保留。 */
+  /** 取消批量传输；任务不存在时抛脱敏错误，已发布的文件保留。 */
   cancel(transferId: string): BatchState {
     if (!this.registry) {
       throw new HttpOperationError('not-found', 'The service has not started.')
@@ -268,7 +268,7 @@ export class WindowsHttpService {
     return this.registry.cancel(transferId)
   }
 
-  /** 主进程明确重试失败缓存清理；不创建 HTTP 自动重试或重放入口。 */
+  /** 重试失败的缓存清理，由主进程调用。 */
   async retryCleanup(): Promise<void> {
     if (this.syncRegistry?.hasWork()) {
       await this.syncRegistry.retryCleanup()
@@ -281,7 +281,7 @@ export class WindowsHttpService {
     }
   }
 
-  /** 并发停止共用 Promise；清理失败保留注册表供再次 stop，已关闭端口不继续接纳。 */
+  /** 停止服务，并发调用共用同一个 Promise。清理失败时保留注册表，可以再次 stop；端口此时已关闭。 */
   stop(): Promise<void> {
     if (!this.stopping) {
       this.stopping = this.close().finally(() => {

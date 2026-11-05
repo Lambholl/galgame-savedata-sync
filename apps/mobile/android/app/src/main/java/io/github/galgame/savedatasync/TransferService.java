@@ -18,7 +18,7 @@ import android.os.Looper;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
-/** 仅保持用户已经发起的传输；不自动创建任务、不随 Activity 暂停取消、不重启旧任务。 */
+/** 保持用户已发起的传输运行的前台服务；Activity 暂停不取消任务。 */
 public class TransferService extends Service {
     static final String CHANNEL = "active-file-transfers";
     static final int NOTIFICATION_ID = 101;
@@ -133,7 +133,7 @@ public class TransferService extends Service {
         else builder.setProgress(0, 0, active);
         return builder.build();
     }
-    /** 系统 dataSync 期限按实际中止反馈；不会重启已停止的传输。 */
+    /** 系统 dataSync 期限到时按实际中止反馈；已停止的传输不会重启。 */
     @Override public void onTimeout(int startId, int foregroundServiceType) {
         SyncTransferRuntime sync = SyncTransferRuntime.peek();
         if (sync != null && sync.busy()) sync.cancel(sync.engine.activeId(), true);

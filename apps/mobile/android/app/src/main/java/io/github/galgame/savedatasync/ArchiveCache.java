@@ -20,9 +20,9 @@ import java.util.Set;
 import java.util.UUID;
 
 /**
- * 固定私有根中的带标记任务缓存；只允许应用内部传入 Context.getCacheDir 的子目录。
- * 进程中一次仅一个任务，句柄和未闭合清理都占名额；不恢复结果或继续旧任务。
- * 测试钩子只能由受信任原生测试注入，不能来自桥/清单。无恶意并发命名空间隔离承诺。
+ * 管理私有目录下 transfer-archives-v1 里的任务缓存，根目录带所有者标记；应用传入的私有目录是 Context.getCacheDir。
+ * 进程中同时只有一个任务，句柄和未完成的清理都占名额；进程重启后不恢复结果，也不继续之前的任务。
+ * 测试钩子只由原生测试注入。两次检查之间目录可能被替换。
  */
 final class ArchiveCache {
     interface Io {
@@ -73,7 +73,7 @@ final class ArchiveCache {
         }
     }
 
-    /** 接收内容前检查本批缓存峰值，不创建任务目录或预留空间。 */
+    /** 接收内容前检查这批缓存的峰值空间，不创建任务目录，也不预留空间。 */
     void checkSpace(long required) throws IOException {
         verifyRoot();
         if (required < 0) throw new ArchiveFailure("invalid-request", "The space preflight byte count is invalid.");
@@ -101,7 +101,7 @@ final class ArchiveCache {
         }
     }
 
-    /** 启动恢复清理失败时仅重试已核实的孤儿；不关闭当前活动调用者的任务。 */
+    /** 启动时的遗留任务清理失败后，重试清理已核实的遗留任务；当前活动调用者的任务不受影响。 */
     static void retryOrphanCleanup() throws IOException {
         Job job;
         synchronized (ArchiveCache.class) { job = active; }
@@ -134,7 +134,7 @@ final class ArchiveCache {
         return new ArchiveFailure("cleanup-failed", "Private cache ownership cannot be confirmed or cleanup failed.", false, cause);
     }
 
-    /** 句柄只允许通过归档 API 访问；调用者必须关闭读流再 dispose，可重复/重试清理。 */
+    /** 一个缓存任务的句柄，只通过归档 API 访问；调用者必须关闭读流再 dispose，可以重复调用和重试。 */
     final class Job {
         private final Path path;
         private final String token;

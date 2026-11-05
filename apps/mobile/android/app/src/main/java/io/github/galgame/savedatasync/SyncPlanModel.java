@@ -10,7 +10,7 @@ import java.util.Set;
 import static io.github.galgame.savedatasync.TransferJson.*;
 import static io.github.galgame.savedatasync.TransferSchema.*;
 
-/** 可执行 SyncPlan 的独立 Java 守卫；从两份完整快照重算动作/顺序/预算，拒绝删减冲突。 */
+/** 校验可执行的 SyncPlan：从两份完整快照重算动作、顺序和上限，拒绝删减冲突。 */
 final class SyncPlanModel {
     private static final long MAX_SAFE = 9007199254740991L;
     private SyncPlanModel() {}

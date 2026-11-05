@@ -5,7 +5,7 @@ import android.os.Environment;
 import java.io.File;
 import java.nio.file.Path;
 
-/** 同一原生进程共享当前引用映射；不持有 Activity，不将 entryId 另存为历史。 */
+/** 同一原生进程共享的 SAF 目录引用和扫描、备份、恢复实例；不持有 Activity。 */
 final class SafRuntime {
     private static SafDirectoryStore store;
     private static SyncScanner scanner;

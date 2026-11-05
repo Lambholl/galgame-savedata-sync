@@ -23,7 +23,7 @@ import type {
   TransferDirection,
 } from '@savedata-sync/shared'
 
-/** 原生实例属于应用进程，插件/页面销毁只关闭控制入口；文件内容从不经过此桥。 */
+/** 复制任务的原生插件接口。原生实例属于应用进程，插件或页面销毁只关闭控制入口；文件内容不经过这里。 */
 export interface SyncTransferNativePlugin {
   prepare(options: { binding: SyncProjectBinding; direction: TransferDirection }): Promise<unknown>
   queryPreparation(options: { preparationId: string }): Promise<unknown>
@@ -38,7 +38,7 @@ export interface SyncTransferNativePlugin {
   release(options: { preparationId: string }): Promise<unknown>
   retryCleanup(): Promise<unknown>
 }
-/** 平台先核对保存的项目关联；prepare 为普通扫描，execute 前由平台请求传输通知权限。 */
+/** 网页使用的复制接口。平台先核对保存的项目关联；prepare 是普通扫描，execute 前由平台请求传输通知权限。 */
 export interface AndroidSyncTransferApi {
   prepare(
     binding: SyncProjectBinding,
@@ -82,7 +82,7 @@ function request(preview: SyncPreparationPreview): SyncJobRequest {
     plan: syncPlanFromPreview(preview),
   }
 }
-/** 以原生预览恢复同次上下文，逐项核对计划、清单及两个角色结果；有界缓存最多 32 次。 */
+/** 创建复制桥：用原生预览恢复同一次的上下文，逐项核对计划、清单和两个角色的结果；缓存最多 32 次。 */
 export function createSyncTransferBridge(
   plugin: SyncTransferNativePlugin,
   isAndroid: () => boolean,

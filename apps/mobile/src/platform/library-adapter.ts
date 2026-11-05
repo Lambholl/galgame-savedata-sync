@@ -37,7 +37,7 @@ import type {
 } from './http-transfer-bridge'
 import { appStorage } from './app-storage'
 
-/** 平台依赖可由集成验证替换；默认使用真实原生桥和本机持久存储。 */
+/** 平台依赖，默认用真实原生桥和本机持久存储，集成验证可以替换。 */
 export interface MobileLibraryDependencies {
   readonly directories: AndroidDirectoryApi
   readonly transfers: AndroidTransferApi
@@ -50,7 +50,7 @@ const CONFIG_KEY = 'savedata-sync:library:1'
 /** 控制通道断开超过这个时长且没有任务时，本机断开这台设备。 */
 const CONTROL_GRACE_MS = 10000
 /**
- * Android 仅持久化公开 ID/配置；原生拥有连接和任务，网页重载后重新查询。
+ * 创建移动游戏库适配器。只持久化公开 ID 和配置；连接和任务在原生层，网页重载后重新查询。
  * 在线以控制通道为准；目录表只在本机或对方变化时重新交换，对方的目录读取经控制通道应答。
  */
 export function createMobileLibraryAdapter(

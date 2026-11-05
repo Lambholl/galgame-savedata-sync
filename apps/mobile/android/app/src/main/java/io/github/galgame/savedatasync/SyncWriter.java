@@ -19,8 +19,8 @@ import static io.github.galgame.savedatasync.TransferJson.*;
 import static io.github.galgame.savedatasync.TransferSchema.*;
 
 /**
- * 确认计划的原生执行器，仅由 I/O 工作线程调用；文件内容和句柄不跨桥。
- * 全部输入/目标复核及保护备份后逐项写入，首次失败停止；清理未完成保持进程互斥。
+ * 执行已确认的计划，只由 I/O 工作线程调用；文件内容和句柄不跨桥。
+ * 全部输入和目标复核、备份完成后逐项写入，第一个失败后停止；清理没完成时继续占进程名额。
  */
 final class SyncWriter implements AutoCloseable {
     interface Material {
@@ -32,7 +32,7 @@ final class SyncWriter implements AutoCloseable {
         OutputStream output(ArchiveControl control) throws Exception;
         void finish(long size, ArchiveControl control) throws Exception;
         void verify(ArchiveControl control) throws Exception;
-        /** 未知为 null；识别同卷后将目标候选与备份峰值相加。 */
+        /** 判断私有目录是否与目标同卷；未知时为 null。识别同卷后，目标候选文件和备份峰值相加。 */
         Boolean sharesVolume(Path privateDirectory) throws Exception;
     }
     interface Backend {
@@ -48,7 +48,7 @@ final class SyncWriter implements AutoCloseable {
          */
         void delete(String rootId, String parentId, Map<String, Object> expected, ArchiveControl control) throws Exception;
         Replacement replacement(String rootId, String parentId, Map<String, Object> expected, ArchiveControl control) throws Exception;
-        /** 可选的只读卷识别句柄；null 表示提供者不能识别卷，调用者继续按未知处理。 */
+        /** 打开可选的只读卷识别句柄；null 表示提供者不能识别卷，调用者按未知处理。 */
         default Replacement volumeFile(String rootId, String parentId, Map<String, Object> expected, ArchiveControl control) throws Exception { return replacement(rootId, parentId, expected, control); }
         default Boolean sharesPrivateVolume(Path left, Path right) throws Exception { return null; }
         /** 开始写目标前留下写入标记；抛出时不写目标。 */
@@ -60,7 +60,7 @@ final class SyncWriter implements AutoCloseable {
         default void stage(String stage) throws Exception {}
         default void outcome(Map<String, Object> result) throws Exception {}
     }
-    /** 仅原生编排传入：借用确认时取得的名额及时间，始终重新核实实际目录。 */
+    /** 编排器传入的执行上下文：借用确认时取得的名额和时间，实际目录每次重新核实。 */
     static final class Execution {
         final Object token;
         final long acceptedAt;
@@ -185,7 +185,7 @@ final class SyncWriter implements AutoCloseable {
         if (oldBytes > 0) backups.capacity(oldBytes + (Boolean.TRUE.equals(sameVolume) ? growthBytes : 0) + (samePrivate ? cacheBytes : 0));
         return (samePrivate ? oldBytes : 0) + (Boolean.TRUE.equals(sameCache) ? growthBytes : 0);
     }
-    /** 内容 GET 之前检查已知容量和同卷峰值；检查句柄关闭失败同样保留给 retryCleanup。 */
+    /** 内容 GET 之前检查已知容量和同卷峰值；检查句柄关闭失败时也保留给 retryCleanup。 */
     long checkReceiveSpace(SyncPlanModel.Plan plan, Path cacheRoot, long cacheBytes, ArchiveControl control, Execution execution) throws Exception {
         require(execution != null && TargetOperation.owns(execution.token) && cacheBytes >= 0);
         Job job = new Job(plan, control, execution);
@@ -268,7 +268,7 @@ final class SyncWriter implements AutoCloseable {
                 if (!baseline.same(source.observe(job.control))) throw new ArchiveFailure("source-changed", "Uncompressed content changed while writing.");
                 hasWritten = true; target.finish(size, job.control);
             } finally { try { close(job, input); } finally { if (output != null) close(job, output); } }
-            // 已修改的目标即使收到晚取消，也以独立有界回读报告实际结果。
+            // 已修改的目标即使收到晚到的取消，也用独立的有界回读报告实际结果。
             ArchiveControl inspection = new ArchiveControl(); target.verify(inspection);
             InputStream readback = trackInspection(job, target.read(inspection));
             try { digest(readback, entry, inspection, () -> false); } finally { close(job, readback); }
@@ -281,7 +281,7 @@ final class SyncWriter implements AutoCloseable {
         }
     }
     private <T extends Closeable> T trackInspection(Job job, T value) { job.resources.add(value); return value; }
-    /** 非法、过期、已使用及 busy 确认抛异常；已接纳后返回完整实际结果，绝不自动重放。 */
+    /** 执行计划：非法、过期、已用或 busy 的确认抛异常；任务接受后返回完整的实际结果，绝不自动重做。 */
     Map<String, Object> apply(Object raw, Material material, ArchiveControl control) throws Exception {
         return apply(raw, material, control, null);
     }
@@ -350,7 +350,7 @@ final class SyncWriter implements AutoCloseable {
         for (Closeable resource : new ArrayList<>(job.resources)) try { close(job, resource); } catch (Exception failure) { clean = false; }
         return backend.publisher().retryCleanup() && backups.retryCleanup() && clean;
     }
-    /** 清理只重试资源释放，不重新创建或写入任何文件。 */
+    /** 重试资源释放，不重新创建或写入文件。 */
     synchronized boolean retryCleanup() {
         Job job = active; if (job != null && (job.running || !clean(job))) return false;
         for (Restore restore : new ArrayList<>(restores)) if (restore.consumed && !restore.running) {
@@ -358,7 +358,7 @@ final class SyncWriter implements AutoCloseable {
         }
         if (job != null) { active = null; if (job.ownToken) TargetOperation.release(job.token); } return true;
     }
-    /** 本机恢复预览保持输入引用；公开数据供纯 TS 生成计划，确认后必须提交同一份源/目标。 */
+    /** 本机恢复预览，保持对输入的引用；公开数据供 TS 生成计划，确认时必须提交同一份源和目标。 */
     final class Restore implements Material, AutoCloseable {
         final String planId = java.util.UUID.randomUUID().toString(), projectId, rootId;
         final long created = System.nanoTime();
@@ -419,7 +419,7 @@ final class SyncWriter implements AutoCloseable {
             throw failure;
         } finally { synchronized (this) { preparing = null; notifyAll(); } }
     }
-    /** 原生所有者关闭时取消工作并等待释放；普通前后台变化不调用此入口。 */
+    /** 关闭写入器：取消工作并等待释放。只由 SyncTransferEngine 和 SyncWriteRuntime 的 close 调用。 */
     @Override public void close() throws Exception {
         closed = true; Job job = active; if (job != null) job.control.cancel();
         ArchiveControl preview = preparing; if (preview != null) preview.cancel();
