@@ -5,8 +5,9 @@ import admEnUS from 'antd-mobile/es/locales/en-US'
 import admJaJP from 'antd-mobile/es/locales/ja-JP'
 import admZhCN from 'antd-mobile/es/locales/zh-CN'
 import admZhTW from 'antd-mobile/es/locales/zh-TW'
-import type { AppLocale, MessageKey } from '@savedata-sync/shared'
+import type { AppLocale } from '@savedata-sync/shared'
 import { useLocale, useT } from '@savedata-sync/shared/ui'
+import type { NavigationDirection } from '@savedata-sync/shared/ui'
 import {
   AppstoreOutlined,
   ArrowLeftOutlined,
@@ -22,12 +23,6 @@ const NAV = [
   { key: 'settings', label: 'nav.settings', icon: <SettingOutlined /> },
 ] as const
 
-/** 返回按钮的名称；不在这里的页面返回游戏。 */
-const BACK_LABELS: Partial<Record<Page, MessageKey>> = {
-  'sync-plan': 'nav.backToTransfer',
-  restore: 'nav.backToBackup',
-}
-
 /** 右下角有悬浮主操作的页面，正文末尾留出按钮的高度。 */
 const WITH_ACTION: readonly Page[] = ['sync', 'sync-plan', 'task', 'restore']
 
@@ -42,6 +37,8 @@ export function LibraryShell({
   page,
   title,
   gameName,
+  hasBack,
+  direction,
   footer,
   headerAction,
   dialogs,
@@ -52,6 +49,10 @@ export function LibraryShell({
   readonly page: Page
   readonly title: string
   readonly gameName: string | null
+  /** 有来源页时显示返回按钮并隐藏主导航。 */
+  readonly hasBack: boolean
+  /** 切到当前页的方式，决定切页动画的方向。 */
+  readonly direction: NavigationDirection
   readonly footer: ReactNode
   /** 标题栏右侧的页面操作（如“更多”菜单按钮）。 */
   readonly headerAction: ReactNode
@@ -78,12 +79,9 @@ export function LibraryShell({
       return
     }
     const isMovingBack =
-      (previous === 'sync-plan' && page === 'sync') ||
-      (previous === 'restore' && page === 'backup') ||
-      (isRootPage(page) &&
-        (!isRootPage(previous) ||
-          NAV.findIndex((item) => item.key === page) <
-            NAV.findIndex((item) => item.key === previous)))
+      direction === 'back' ||
+      (direction === 'lateral' &&
+        NAV.findIndex((item) => item.key === page) < NAV.findIndex((item) => item.key === previous))
     // 只对页面容器做动效，保留子组件状态；轮询刷新不会重新启动动画。
     const animation = element.animate(
       [
@@ -93,17 +91,15 @@ export function LibraryShell({
       { duration: 300, easing: 'cubic-bezier(0.2, 0.7, 0.2, 1)' },
     )
     return () => animation.cancel()
+    // 方向随页面一起变化，只在切页时读取。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page])
   return (
     <ConfigProvider locale={ADM_LOCALES[locale]}>
       <div className="mobile-app">
         <header className="app-heading">
-          {!isRootPage(page) && (
-            <Button
-              fill="none"
-              aria-label={t(BACK_LABELS[page] ?? 'nav.backToGames')}
-              onClick={onBack}
-            >
+          {hasBack && (
+            <Button fill="none" aria-label={t('nav.back')} onClick={onBack}>
               <ArrowLeftOutlined />
             </Button>
           )}
@@ -114,19 +110,17 @@ export function LibraryShell({
               <p>{gameName}</p>
             )}
           </div>
-          {isRootPage(page) && !headerAction && (
-            <span className="app-wordmark">{t('app.name')}</span>
-          )}
+          {!hasBack && !headerAction && <span className="app-wordmark">{t('app.name')}</span>}
           {headerAction}
         </header>
         <main
-          className={`app-main${isRootPage(page) ? ' app-main-with-nav' : ''}${WITH_ACTION.includes(page) ? ' app-main-with-action' : ''}${page === 'sync' ? ' app-main-fill' : ''}`}
+          className={`app-main${hasBack ? '' : ' app-main-with-nav'}${WITH_ACTION.includes(page) ? ' app-main-with-action' : ''}${page === 'sync' ? ' app-main-fill' : ''}`}
           ref={main}
         >
           <div className="page-stack">{children}</div>
         </main>
         {footer}
-        {isRootPage(page) && (
+        {!hasBack && (
           <nav className="bottom-nav" aria-label={t('nav.main')}>
             {NAV.map((item) => (
               <button

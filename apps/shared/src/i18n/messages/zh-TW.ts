@@ -14,9 +14,7 @@ export const zhTW: Messages = {
   'nav.games': '遊戲',
   'nav.settings': '設定',
   'nav.main': '主導覽',
-  'nav.backToGames': '返回遊戲',
-  'nav.backToTransfer': '返回傳輸存檔',
-  'nav.backToBackup': '返回備份與還原',
+  'nav.back': '返回',
 
   'page.gameSettings': '遊戲設定',
   'page.transfer': '傳輸存檔',

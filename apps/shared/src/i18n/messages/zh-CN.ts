@@ -16,9 +16,7 @@ export const zhCN = {
   'nav.games': '游戏',
   'nav.settings': '设置',
   'nav.main': '主导航',
-  'nav.backToGames': '返回游戏',
-  'nav.backToTransfer': '返回传输存档',
-  'nav.backToBackup': '返回备份与恢复',
+  'nav.back': '返回',
 
   'page.gameSettings': '游戏设置',
   'page.transfer': '传输存档',

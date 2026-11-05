@@ -2,6 +2,12 @@ import type { MessageKey } from '@savedata-sync/shared'
 export type Page =
   'devices' | 'games' | 'settings' | 'edit' | 'task' | 'backup' | 'restore' | 'sync' | 'sync-plan'
 
+/** 重新显示一个页面需要的上下文，随来源记录保存。连接设备的选择不在其中：返回时沿用最新的选择。 */
+export interface PageContext {
+  readonly gameId: string
+  readonly taskProjectId: string | null
+}
+
 export interface Confirmation {
   readonly title: string
   readonly text: string

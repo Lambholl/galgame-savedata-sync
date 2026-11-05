@@ -39,8 +39,10 @@ export function TaskPage({
   readonly onCancel: (id: string) => void
   readonly onCleanup: () => void
   readonly onChanged: () => void
-  readonly onOpenBackup: (projectId: string, rootId: string) => void
-  readonly onRescan: (projectId: string, peerId: string) => void
+  /** shownCopyId 是页面正在显示的那次传输，返回时回到它。 */
+  readonly onOpenBackup: (projectId: string, rootId: string, shownCopyId: string | null) => void
+  /** shownCopyId 是页面正在显示的那次传输，返回时回到它。 */
+  readonly onRescan: (projectId: string, peerId: string, shownCopyId: string | null) => void
 }): React.JSX.Element {
   const t = useT()
   const [copyId, setCopyId] = useState<string | null>(initialCopyId),
@@ -49,7 +51,7 @@ export function TaskPage({
   const copy = copies.find((item) => item.jobId === copyId) ?? copies[copies.length - 1] ?? null
   function backup(projectId: string, rootId: string): void {
     setRestoreId(null)
-    onOpenBackup(projectId, rootId)
+    onOpenBackup(projectId, rootId, copy?.jobId ?? null)
   }
   return (
     // 详情放在居中的窄栏里，与移动端共用同一结构。
@@ -70,7 +72,7 @@ export function TaskPage({
           games={games}
           peers={peers}
           onOpenBackup={backup}
-          onRescan={onRescan}
+          onRescan={(rescanProjectId, peerId) => onRescan(rescanProjectId, peerId, copy.jobId)}
           onChanged={onChanged}
         />
       )}

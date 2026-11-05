@@ -34,13 +34,14 @@ import {
   legacyTaskPreview,
   restoreTaskPreview,
   syncTaskPreview,
+  usePageNavigation,
   useT,
 } from '@savedata-sync/shared/ui'
 import { useAppMessage } from './app-message.ts'
 import { useFailureMessage } from './failure-message.ts'
 import type { TaskStripInfo } from '@savedata-sync/shared/ui'
 import { PAGE_TITLE_KEYS } from './navigation.ts'
-import type { Confirmation, Page } from './navigation.ts'
+import type { Confirmation, Page, PageContext } from './navigation.ts'
 import { BackupPage } from '../features/backup/BackupPage.tsx'
 import { DevicesPage } from '../features/devices/DevicesPage.tsx'
 import { GamesPage } from '../features/games/GamesPage.tsx'
@@ -71,7 +72,6 @@ export function DesktopApp({
   const t = useT()
   const adapter = ADAPTER
   const [appMessage, messageContextHolder] = useAppMessage()
-  const [page, setPage] = useState<Page>('games')
   const [taskProjectId, setTaskProjectId] = useState<string | null>(null)
   const [taskCopyId, setTaskCopyId] = useState<string | null>(null)
   const [taskRestoreId, setTaskRestoreId] = useState<string | null>(null)
@@ -81,6 +81,26 @@ export function DesktopApp({
   const [isBusy, setIsBusy] = useState(false)
   const [gameId, setGameId] = useState('')
   const [backupRootId, setBackupRootId] = useState<string | null>(null)
+  const pageContext: PageContext = {
+    gameId,
+    backupRootId,
+    taskProjectId,
+    taskCopyId,
+    taskRestoreId,
+  }
+  const navigation = usePageNavigation<Page, PageContext>({
+    initialPage: 'devices',
+    homePage: 'games',
+    context: pageContext,
+    onRestore: (context) => {
+      setGameId(context.gameId)
+      setBackupRootId(context.backupRootId)
+      setTaskProjectId(context.taskProjectId)
+      setTaskCopyId(context.taskCopyId)
+      setTaskRestoreId(context.taskRestoreId)
+    },
+  })
+  const { page } = navigation
   const [peerId, setPeerId] = useState('')
   const [isGameActionDialogOpen, setIsGameActionDialogOpen] = useState(false)
   const [isDeviceEditorOpen, setIsDeviceEditorOpen] = useState(false)
@@ -399,7 +419,7 @@ export function DesktopApp({
       setNewDirectory(null)
       setNewGameName('')
       setImportedGame(null)
-      setPage('games')
+      navigation.openMain('games')
     })
   }
   function deviceEditor(id: string): void {
@@ -467,23 +487,30 @@ export function DesktopApp({
     if (value === 'backup') {
       setBackupRootId(null)
     }
-    setPage(value)
+    navigation.open(value)
+  }
+  function showTask(
+    projectId: string | null,
+    copyId: string | null,
+    restoreId: string | null,
+  ): void {
+    setTaskProjectId(projectId)
+    setTaskCopyId(copyId)
+    setTaskRestoreId(restoreId)
+    setIsGameActionDialogOpen(false)
   }
   function openTasks(
     projectId: string | null,
     copyId: string | null,
     restoreId: string | null = null,
   ): void {
-    setTaskProjectId(projectId)
-    setTaskCopyId(copyId)
-    setTaskRestoreId(restoreId)
-    setIsGameActionDialogOpen(false)
-    setPage('task')
+    showTask(projectId, copyId, restoreId)
+    navigation.open('task')
   }
-  function openBackup(projectId: string, rootId: string): void {
+  function openBackup(projectId: string, rootId: string, sourceContext?: PageContext): void {
     setGameId(projectId)
     setBackupRootId(rootId)
-    setPage('backup')
+    navigation.open('backup', sourceContext)
   }
   function dismissInterruptedWrite(): void {
     if (!interruptedWrite) {
@@ -500,11 +527,9 @@ export function DesktopApp({
   }
   function changePeer(id: string): void {
     setPeerId(id)
-    setPage('transfer')
   }
   function changeUpload(isUpload: boolean): void {
     setUpload(isUpload)
-    setPage('transfer')
   }
   function unlinkGame(deviceId: string): void {
     if (!game) {
@@ -557,7 +582,7 @@ export function DesktopApp({
         unwrap(await desktopBackups().deleteGameBackups(gameId))
         await adapter.saveGames(config.games.filter((item) => item.id !== gameId))
         setConfirmation(null)
-        setPage('games')
+        navigation.openMain('games')
       },
     })
   }
@@ -617,9 +642,9 @@ export function DesktopApp({
         onUnlink={unlinkGame}
         onTransfer={(deviceId) => {
           setPeerId(deviceId)
-          setPage('transfer')
+          navigation.open('transfer')
         }}
-        onManageDevices={() => setPage('devices')}
+        onManageDevices={() => navigation.open('devices')}
       />
     )
   } else if (page === 'transfer' && game) {
@@ -651,7 +676,11 @@ export function DesktopApp({
           // 先读到新任务再进详情，否则详情页会先显示上一次的结果。
           refresh()
             .catch((cause: unknown) => showError(toShownError(cause)))
-            .finally(() => openTasks(game.id, null))
+            .finally(() => {
+              // 开始传输结束本次流程：详情返回游戏页，不回比较或计划。
+              showTask(game.id, null, null)
+              navigation.finishFlow('task')
+            })
         }}
         onPlanExpired={() =>
           appMessage.show({
@@ -688,11 +717,21 @@ export function DesktopApp({
         onCancel={(id) => run(() => adapter.cancel(id))}
         onCleanup={() => run(() => adapter.cleanup())}
         onChanged={tasksChanged}
-        onOpenBackup={openBackup}
-        onRescan={(projectId, deviceId) => {
+        onOpenBackup={(projectId, rootId, shownCopyId) =>
+          openBackup(projectId, rootId, {
+            ...pageContext,
+            taskCopyId: shownCopyId,
+            taskRestoreId: null,
+          })
+        }
+        onRescan={(projectId, deviceId, shownCopyId) => {
           setGameId(projectId)
           setPeerId(deviceId)
-          setPage('transfer')
+          navigation.open('transfer', {
+            ...pageContext,
+            taskCopyId: shownCopyId,
+            taskRestoreId: null,
+          })
         }}
       />
     )
@@ -705,8 +744,8 @@ export function DesktopApp({
         rootId={backupRootId ?? game?.rootId ?? null}
         isActive={isActive}
         hasRunningWork={hasRunningWork}
-        onOpenSettings={() => setPage('edit')}
-        onOpenAppSettings={() => setPage('settings')}
+        onOpenSettings={() => navigation.open('edit')}
+        onOpenAppSettings={() => navigation.open('settings')}
         onChanged={tasksChanged}
       />
     )
@@ -821,6 +860,7 @@ export function DesktopApp({
       page={page}
       title={t(PAGE_TITLE_KEYS[page])}
       gameName={game?.name ?? null}
+      hasBack={navigation.backTarget !== null}
       headerAction={
         page === 'transfer' && game ? (
           <>
@@ -829,7 +869,7 @@ export function DesktopApp({
                 type="text"
                 icon={<ControlOutlined />}
                 aria-label={t('page.gameSettings')}
-                onClick={() => setPage('edit')}
+                onClick={() => navigation.open('edit')}
               />
             </Tooltip>
             <Tooltip title={t('page.backup')}>
@@ -837,15 +877,15 @@ export function DesktopApp({
                 type="text"
                 icon={<HistoryOutlined />}
                 aria-label={t('page.backup')}
-                onClick={() => (game.rootId ? openBackup(game.id, game.rootId) : go('backup'))}
+                onClick={() => go('backup')}
               />
             </Tooltip>
           </>
         ) : null
       }
       dialogs={dialogs}
-      onBack={() => setPage('games')}
-      onNavigate={go}
+      onBack={navigation.back}
+      onNavigate={navigation.openMain}
     >
       {body}
     </DesktopShell>

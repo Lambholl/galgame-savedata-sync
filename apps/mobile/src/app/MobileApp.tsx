@@ -35,12 +35,13 @@ import {
   legacyTaskPreview,
   restoreTaskPreview,
   syncTaskPreview,
+  usePageNavigation,
   useT,
 } from '@savedata-sync/shared/ui'
 import { useAppMessage } from './app-message'
 import { useFailureMessage } from './failure-message'
 import type { TaskStripInfo } from '@savedata-sync/shared/ui'
-import type { BackButtonController, Confirmation, Page } from './navigation-types'
+import type { BackButtonController, Confirmation, Page, PageContext } from './navigation-types'
 import { BackupPage } from '../features/backup/BackupPage'
 import { RestorePage } from '../features/backup/RestorePage'
 import { DevicesPage } from '../features/devices/DevicesPage'
@@ -62,7 +63,7 @@ import { AddGameDialog } from '../features/games/AddGameDialog'
 
 const EMPTY = emptyLibrary()
 
-/** 移动应用的根组件，持有应用状态和返回栈；传输在原生层，切页不影响任务。 */
+/** 移动应用的根组件，持有应用状态和页面导航；传输在原生层，切页不影响任务。 */
 export function MobileApp({
   adapter,
   sync,
@@ -75,14 +76,23 @@ export function MobileApp({
   const appPreferences = useAppPreferences()
   const t = useT()
   const [appMessage, messageContextHolder] = useAppMessage()
-  const [page, setPage] = useState<Page>('games')
   const [taskProjectId, setTaskProjectId] = useState<string | null>(null)
+  const [gameId, setGameId] = useState('')
+  const navigation = usePageNavigation<Page, PageContext>({
+    initialPage: 'devices',
+    homePage: 'games',
+    context: { gameId, taskProjectId },
+    onRestore: (context) => {
+      setGameId(context.gameId)
+      setTaskProjectId(context.taskProjectId)
+    },
+  })
+  const { page } = navigation
   const syncTasks = useSyncTasks(sync, page === 'task' ? taskProjectId : null)
   const [snapshot, setSnapshot] = useState<MobileSnapshot | null>(null)
   // 失败用 Message 提示一次，不在页面里放横幅。
   const [showError, failureHolder] = useFailureMessage()
   const [isBusy, setIsBusy] = useState(false)
-  const [gameId, setGameId] = useState('')
   const [peerId, setPeerId] = useState('')
   const [isGameMenuOpen, setIsGameMenuOpen] = useState(false)
   const [isTransferMenuOpen, setIsTransferMenuOpen] = useState(false)
@@ -488,7 +498,7 @@ export function MobileApp({
       setNewDirectory(null)
       setNewGameName('')
       setImportedGame(null)
-      setPage('games')
+      navigation.openMain('games')
     })
   }
   function deviceEditor(id: string | null): void {
@@ -549,12 +559,12 @@ export function MobileApp({
   }
   function go(value: Page): void {
     setIsGameMenuOpen(false)
-    setPage(value)
+    navigation.open(value)
   }
   function openTasks(projectId: string | null): void {
     setTaskProjectId(projectId)
     setIsGameMenuOpen(false)
-    setPage('task')
+    navigation.open('task')
   }
   function confirmSync(value: Confirmation): void {
     setConfirmation({
@@ -568,11 +578,11 @@ export function MobileApp({
   }
   function openBackup(projectId: string): void {
     setGameId(projectId)
-    setPage('backup')
+    navigation.open('backup')
   }
   /** 离开恢复页：准备中的取消，未开始或已结束的释放；进行中的恢复继续。 */
   function closeRestore(): void {
-    setPage('backup')
+    navigation.back()
     const id = restoreTarget?.restoreId
     const status = restoreTarget && openRestore?.state.status
     setRestoreTarget(null)
@@ -588,7 +598,7 @@ export function MobileApp({
       closeRestore()
       return
     }
-    setPage(page === 'sync-plan' ? 'sync' : 'games')
+    navigation.back()
   }
   function unlinkGame(deviceId: string): void {
     if (!game) {
@@ -642,7 +652,7 @@ export function MobileApp({
         await sync.deleteGameBackups(gameId)
         await adapter.saveGames(config.games.filter((item) => item.id !== gameId))
         setConfirmation(null)
-        setPage('games')
+        navigation.openMain('games')
       },
     })
   }
@@ -681,8 +691,13 @@ export function MobileApp({
       closePageOverlay()
       return true
     }
-    if (page !== 'games') {
+    if (navigation.backTarget) {
       goBack()
+      return true
+    }
+    // 主导航页按返回先回设备页，在设备页再按才退出。
+    if (page !== 'devices') {
+      navigation.openMain('devices')
       return true
     }
     return false
@@ -732,9 +747,9 @@ export function MobileApp({
         onUnlink={unlinkGame}
         onTransfer={(deviceId) => {
           setPeerId(deviceId)
-          setPage('sync')
+          navigation.open('sync')
         }}
-        onManageDevices={() => setPage('devices')}
+        onManageDevices={() => navigation.open('devices')}
         onOverlayChange={changePageOverlay}
       />
     )
@@ -753,7 +768,7 @@ export function MobileApp({
         isTransferActive={isActive}
         onPeerChange={setPeerId}
         onConfirm={confirmSync}
-        onPreview={() => setPage('sync-plan')}
+        onPreview={() => navigation.open('sync-plan')}
         onPlanExpired={() => {
           appMessage.show({
             type: 'warning',
@@ -761,14 +776,16 @@ export function MobileApp({
             duration: 3.5,
             slot: 'sync-action-failed',
           })
-          setPage('sync')
+          navigation.open('sync')
         }}
         onFailure={showSyncFailure}
         onStarted={async (jobId) => {
           announceStart(jobId)
           // 先读到新任务再进详情，否则详情页会先显示上一次的结果。
           await syncTasks.refreshCopy().catch(() => undefined)
-          openTasks(game.id)
+          // 开始传输结束本次流程：详情返回游戏页，不回比较或计划。
+          setTaskProjectId(game.id)
+          navigation.finishFlow('task')
         }}
       />
     )
@@ -792,7 +809,7 @@ export function MobileApp({
           onRescan={(projectId, deviceId) => {
             setGameId(projectId)
             setPeerId(deviceId)
-            setPage('sync')
+            navigation.open('sync')
           }}
           onBackup={openBackup}
         />
@@ -815,12 +832,12 @@ export function MobileApp({
         restore={syncTasks.restore}
         isDisabled={isDisabled || isActive}
         onChanged={syncTasks.reload}
-        onSettings={() => setPage('edit')}
-        onOpenAppSettings={() => setPage('settings')}
+        onSettings={() => navigation.open('edit')}
+        onOpenAppSettings={() => navigation.open('settings')}
         onOpenRestore={(restoreId, sourceName) => {
           setRestoreTarget({ restoreId, sourceName })
           syncTasks.reload()
-          setPage('restore')
+          navigation.open('restore')
         }}
         onOverlayChange={changePageOverlay}
       />
@@ -895,7 +912,7 @@ export function MobileApp({
         ]}
         onAction={(action) => {
           setIsTransferMenuOpen(false)
-          setPage(action.key === 'edit' ? 'edit' : 'backup')
+          navigation.open(action.key === 'edit' ? 'edit' : 'backup')
         }}
         onClose={() => setIsTransferMenuOpen(false)}
       />
@@ -960,6 +977,8 @@ export function MobileApp({
       page={page}
       title={t(PAGE_TITLE_KEYS[page])}
       gameName={game?.name ?? null}
+      hasBack={navigation.backTarget !== null}
+      direction={navigation.direction}
       footer={null}
       headerAction={
         page === 'games' ? (
@@ -991,7 +1010,7 @@ export function MobileApp({
       }
       dialogs={dialogs}
       onBack={goBack}
-      onNavigate={go}
+      onNavigate={navigation.openMain}
     >
       {body}
     </LibraryShell>

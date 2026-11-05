@@ -46,6 +46,7 @@ related_files: []
 | `scripts/verify-archive-interop.mjs` | 构建前 Windows 准备、构建后 Windows 接收 Java 输出，另支持设备产物及 SAF 原文验证 | prepare/verify 纳入 android:test；只操作固定报告目录中的合成数据，测试 APK 不包含主机路径配置 |
 | `apps/mobile/src/platform/saf-directory-bridge.ts`、`saf-directories.ts`、`test/`、`README.md` | 受限 TS 桥、原生绑定、数据模型检查与调用说明 | 网页预览不支持；只传公开 DTO/ID，无内容/写入方法；pnpm check 不含 pnpm test:mobile |
 | `apps/mobile/android/app/src/test/`、`src/androidTest/` | Java 纯边界与 3 条设备路径：SAF 读取、归档互通、实际 SAF 快照 | 独立私有夹具与真实选择器授权；真实源只读 |
+| `apps/shared/src/ui/navigation/page-navigation.ts`、`use-page-navigation.ts` | 两端共用的页面导航：前者是来源记录、返回目标和切页方向的纯函数，后者把它接到 React 状态 | 页面名称和上下文由各端定义；跳转关系写在 DesktopApp、MobileApp。`apps/shared/test/page-navigation.test.mjs` 只测来源记录的规则，页面用占位名，增删页面或改某页的返回目标不应该让它失败 |
 | `apps/shared/src/index.ts`、`library/game-links.ts`、`transfer`、`result.ts` | 应用名、共享模型、游戏关联、传输预检和任务判断导出入口 | 纯 TypeScript；界面、Hook、存储、文件与网络操作留在各端 |
 | `apps/shared/src/sync/` | 本次扫描/计划/备份/结果 DTO、路径关系、纯比较及上下文重算守卫 | 独立 schema 1，不改批量 v1；不做 IO、哈希计算或历史查询；复制方向显式，本机恢复强制保护当前内容 |
 | `apps/desktop/src/main/sync-scanner.ts`、HTTP sync 路由、service bridge/IPC | Windows 本次递归扫描、原生哈希及会话内查询/取消 | 单扫描、32 份结果、条目/深度/JSON/期限预算；只读源，目录不汇总大小；取消/停止等待关流，结果不持久化 |

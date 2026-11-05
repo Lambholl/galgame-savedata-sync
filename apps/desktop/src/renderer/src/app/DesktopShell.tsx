@@ -37,6 +37,7 @@ export function DesktopShell({
   page,
   title,
   gameName,
+  hasBack,
   headerAction,
   dialogs,
   onBack,
@@ -47,6 +48,8 @@ export function DesktopShell({
   readonly page: Page
   readonly title: string
   readonly gameName: string | null
+  /** 有来源页时显示返回按钮。 */
+  readonly hasBack: boolean
   /** 标题栏右侧的页面操作（如传输页的游戏设置、备份入口）。 */
   readonly headerAction: ReactNode
   readonly dialogs: ReactNode
@@ -55,7 +58,6 @@ export function DesktopShell({
   readonly children: ReactNode
 }): React.JSX.Element {
   const activeNav = page === 'devices' || page === 'settings' ? page : 'games'
-  const isNestedPage = !isRootPage(page)
   const isDark = resolvedTheme === 'dark'
   const t = useT()
   const locale = useLocale()
@@ -83,11 +85,11 @@ export function DesktopShell({
         </aside>
         <div className="library-surface">
           <header className="library-header">
-            {isNestedPage && (
+            {hasBack && (
               <Button
                 type="text"
                 className="library-back"
-                aria-label={t('nav.backToGames')}
+                aria-label={t('nav.back')}
                 icon={<ArrowLeftOutlined />}
                 onClick={onBack}
               />
@@ -95,7 +97,9 @@ export function DesktopShell({
             <div className="library-header-title">
               <h1>{title}</h1>
               {/* 游戏设置页正文就是可编辑的游戏名，不在标题下重复。 */}
-              {gameName && isNestedPage && page !== 'task' && page !== 'edit' && <p>{gameName}</p>}
+              {gameName && !isRootPage(page) && page !== 'task' && page !== 'edit' && (
+                <p>{gameName}</p>
+              )}
             </div>
             {headerAction && <div className="library-header-actions">{headerAction}</div>}
           </header>

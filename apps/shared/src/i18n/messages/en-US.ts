@@ -15,9 +15,7 @@ export const enUS: Messages = {
   'nav.games': 'Games',
   'nav.settings': 'Settings',
   'nav.main': 'Main navigation',
-  'nav.backToGames': 'Back to games',
-  'nav.backToTransfer': 'Back to transfer',
-  'nav.backToBackup': 'Back to backups',
+  'nav.back': 'Back',
 
   'page.gameSettings': 'Game settings',
   'page.transfer': 'Transfer saves',

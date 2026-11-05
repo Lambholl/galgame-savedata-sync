@@ -16,9 +16,7 @@ export const jaJP: Messages = {
   'nav.games': 'ゲーム',
   'nav.settings': '設定',
   'nav.main': 'メインナビゲーション',
-  'nav.backToGames': 'ゲーム一覧に戻る',
-  'nav.backToTransfer': '転送画面に戻る',
-  'nav.backToBackup': 'バックアップと復元に戻る',
+  'nav.back': '戻る',
 
   'page.gameSettings': 'ゲーム設定',
   'page.transfer': 'セーブデータ転送',
