@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, nativeTheme, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, shell } from 'electron'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { mkdir, realpath } from 'node:fs/promises'
@@ -94,6 +94,9 @@ if (!hasInstanceLock) {
 }
 
 if (hasInstanceLock) {
+  // 页面自带导航，不需要 Electron 默认的 File、Edit 等菜单。
+  // 设为 null 后，Windows 窗口不显示菜单栏，按 Alt 也不会弹出。
+  Menu.setApplicationMenu(null)
   app
     .whenReady()
     .then(async () => {

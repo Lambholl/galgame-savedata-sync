@@ -43,11 +43,14 @@ export function designTheme(resolved: ResolvedTheme, platform: 'desktop' | 'mobi
       // 按钮和标签用胶囊。
       Button: { borderRadius: RADII.pill, borderRadiusLG: RADII.pill, borderRadiusSM: RADII.pill },
       Tag: { borderRadiusSM: RADII.pill },
-      ...(platform === 'desktop' && resolved === 'light'
+      ...(platform === 'desktop'
         ? {
             Menu: {
-              itemSelectedBg: palette.accentSoft,
-              itemSelectedColor: palette.accent,
+              // 电脑侧栏自身的右边框已经和正文分隔，Menu 右侧再画一条竖线会显得多余。
+              activeBarBorderWidth: 0,
+              ...(resolved === 'light'
+                ? { itemSelectedBg: palette.accentSoft, itemSelectedColor: palette.accent }
+                : {}),
             },
           }
         : {}),

@@ -72,7 +72,6 @@ body {
   object-fit: contain;
 }
 .library-sidebar .ant-menu {
-  border: 0;
   background: transparent;
 }
 .library-sidebar small {
