@@ -231,6 +231,7 @@ export const enUS: Messages = {
   'backup.keep': ({ count }) => `keep ${count}`,
   'backup.offHint': 'Incoming transfers write directly to the target folder',
   'backup.location': 'Location',
+  'backup.openFolder': 'Open folder',
   'backup.list': 'Backups',
   'backup.reason.copy': 'Before transfer',
   'backup.reason.restore': 'Before restore',

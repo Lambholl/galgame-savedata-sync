@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Alert, Button, Empty, Form, Modal, Switch } from 'antd'
-import { DeleteOutlined, HistoryOutlined } from '@ant-design/icons'
+import { DeleteOutlined, FolderOpenOutlined, HistoryOutlined } from '@ant-design/icons'
 import {
   formatBytes,
   formatShortDateTime,
@@ -365,11 +365,24 @@ export function BackupPage({
           <section>
             <h3 className="group-title">
               {t('backup.list')}
-              {policy && (
-                <small>
-                  {backups.length} / {policy.keepCount}
-                </small>
-              )}
+              <span className="group-title-end">
+                {policy && (
+                  <small>
+                    {backups.length} / {policy.keepCount}
+                  </small>
+                )}
+                <Button
+                  size="small"
+                  icon={<FolderOpenOutlined />}
+                  onClick={() =>
+                    run(async () => {
+                      unwrap(await desktopBackups().openFolder())
+                    })
+                  }
+                >
+                  {t('backup.openFolder')}
+                </Button>
+              </span>
             </h3>
             <BackupTimeline
               backups={backups.map((item) => ({

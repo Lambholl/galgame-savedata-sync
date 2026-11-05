@@ -4,7 +4,7 @@ status: active
 priority: medium
 owner: project
 id_prefix: CR
-id_high_water: 20
+id_high_water: 21
 updated: 2026-11-06
 tags: [变更请求]
 related_files: []
@@ -23,3 +23,4 @@ related_files: []
 | CR-018 | 两端分别统一动效 | 两端动效分别设计，各端内部保持一致 | 移动端：切页取消淡入，只有位移，两页一起平移；所有类型的按钮使用渐变半透明遮罩。桌面端：切页不加动画；按钮和交互使用 antd 自带动画，自定义的按钮、行和卡片取 antd 文字按钮的悬停和按下效果。实现见[实现细节](../development/implementation-notes.md) | implemented；传输页的芯片和翻转按钮未跑，见 TC-038 |
 | CR-019 | 移动端开屏动画在从后台返回时也播放 | 冷启动才有开屏，从后台返回没有 | 切换应用、回到桌面、锁屏后返回都播放，不另设最短离开时间；Activity 还没收到 onStop 就返回时（平板上约 0.5 秒内）不播放；从文件夹选择器等应用自己打开的系统界面返回时不播放。眨眼不等系统切换动画结束。Android 13+ 关闭最近任务快照以避免闪过离开前的页面。实现见[实现细节](../development/implementation-notes.md)，未跑的场景见[回归状态](../testing/regression-notes.md) | implemented；从文件夹选择器返回未跑 |
 | CR-020 | “手机端”用语统一为“移动端” | 平板也属于移动端，“手机”不能概括全部设备 | 范围包括四种语言的界面文案、错误原文、代码注释、标识符、README、docs 和项目记忆；“Android”表示平台时保留，Git 历史不改。保留两类：协议字段 `ErrorDevice` 的取值 `phone`，改名会破坏与已发布版本的通信；专指手机硬件的记录，如真机型号、手机屏幕宽度和未测设备类别。用语见[术语表](../project/glossary.md) | implemented；改动的文案只出现在连接、传输和报错界面，还没在实机界面上看过 |
+| CR-021 | 电脑端备份改成和移动端相同的文件夹结构 | 两端结构一致，备份才便于在设备间迁移 | 结构为 `<游戏名>/<UTC 时间>/`，内含 backup.json 和按原路径保存的 files/。已有备份不读取、不迁移，也不留兼容代码；备份区仍在 `userData/backups`，备份页给按钮打开这个文件夹。结构已统一，真实传输验证见 TC-040；不做导入功能，另一台设备的备份复制过来不会显示 | implemented |

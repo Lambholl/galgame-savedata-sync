@@ -86,19 +86,19 @@ final class BackupStore implements AutoCloseable {
     }
   }
 
-  /** 磁盘上的一轮备份。isComplete 表示已提交且文件齐全；其余情况按未完成显示，可以清理但不能恢复。 */
+  /** 磁盘上的一轮备份。isCommitted 表示清单已提交；文件是否齐全由 isComplete 在需要时检查。 */
   private static final class Round {
 
     final Path path;
     final Object key;
     final Map<String, Object> manifest;
-    final boolean isComplete;
+    final boolean isCommitted;
 
-    Round(Path path, Object key, Map<String, Object> manifest, boolean isComplete) {
+    Round(Path path, Object key, Map<String, Object> manifest, boolean isCommitted) {
       this.path = path;
       this.key = key;
       this.manifest = manifest;
-      this.isComplete = isComplete;
+      this.isCommitted = isCommitted;
     }
 
     String id() {
@@ -237,33 +237,34 @@ final class BackupStore implements AutoCloseable {
       if (!source.deviceId().equals(manifest.get("deviceId"))) {
         return null;
       }
-      return new Round(
-        path,
-        files.directory(path),
-        manifest,
-        isCommitted && intact(path, manifest)
-      );
+      return new Round(path, files.directory(path), manifest, isCommitted);
     } catch (Exception unreadable) {
       return null;
     }
   }
 
-  /** 检查备份是否完好：只核对文件在不在、大小对不对，内容在恢复前完整校验。 */
-  private boolean intact(Path path, Map<String, Object> manifest) throws Exception {
-    for (Object raw : TransferJson.list(manifest.get("files"))) {
-      Map<String, Object> file = map(raw);
-      try {
+  /**
+   * 备份是否可以恢复：已提交，文件都在且大小对；内容在恢复前完整校验。
+   * 其余情况按不完整显示，可以清理但不能恢复，轮换时最先删除。
+   */
+  private boolean isComplete(Round round) {
+    if (!round.isCommitted) {
+      return false;
+    }
+    try {
+      for (Object raw : TransferJson.list(round.manifest.get("files"))) {
+        Map<String, Object> file = map(raw);
         if (
-          files.regular(content(path, file), BackupModel.MAX_FILE).size() !=
+          files.regular(content(round.path, file), BackupModel.MAX_FILE).size() !=
           number(file.get("sizeBytes"), 0, BackupModel.MAX_FILE)
         ) {
           return false;
         }
-      } catch (Exception missing) {
-        return false;
       }
+      return true;
+    } catch (Exception missing) {
+      return false;
     }
-    return true;
   }
 
   private static Path content(Path round, Map<String, Object> file) throws Exception {
@@ -294,7 +295,7 @@ final class BackupStore implements AutoCloseable {
     List<Object> incomplete = new ArrayList<>();
     for (Round round : rounds) {
       if (group(round, projectId, rootId)) {
-        if (!round.isComplete) {
+        if (!isComplete(round)) {
           incomplete.add(object("backupId", round.id(), "occupiedBytes", occupied(round)));
         } else {
           long total = 0;
@@ -347,12 +348,7 @@ final class BackupStore implements AutoCloseable {
   }
 
   private static void sort(List<Round> rounds) {
-    rounds.sort((a, b) ->
-      Long.compare(
-        b.isComplete ? b.createdAt() : Long.MIN_VALUE,
-        a.isComplete ? a.createdAt() : Long.MIN_VALUE
-      )
-    );
+    rounds.sort((a, b) -> Long.compare(b.createdAt(), a.createdAt()));
   }
 
   private Round lookup(String projectId, String rootId, String backupId) throws Exception {
@@ -368,7 +364,7 @@ final class BackupStore implements AutoCloseable {
 
   private Round find(String projectId, String rootId, String backupId) throws Exception {
     Round round = lookup(projectId, rootId, backupId);
-    if (round == null || !round.isComplete) {
+    if (round == null || !isComplete(round)) {
       throw BackupFiles.failure("not-found");
     }
     return round;
@@ -717,18 +713,24 @@ final class BackupStore implements AutoCloseable {
     }
   }
 
-  /** 按保留份数删除多余的旧备份；只统计完整的备份，用户删掉或弄坏的不计入保留份数，不会因此多删。 */
+  /** 按保留份数删除多余的备份；不完整的也占份数，超出时先删它们，再删最旧的完整备份，好备份不会被坏备份挤掉。 */
   private void prune(String projectId, String rootId) throws Exception {
     List<Round> rounds = rounds();
-    rounds.removeIf(round -> !round.isComplete || !group(round, projectId, rootId));
-    sort(rounds);
+    rounds.removeIf(round -> !group(round, projectId, rootId));
     int keep = (int) (
       (Number) BackupModel.resolve(settings(), projectId, rootId).get("keepCount")
     ).longValue();
     if (rounds.size() <= keep) {
       return;
     }
-    for (Round round : rounds.subList(keep, rounds.size())) {
+    sort(rounds);
+    List<Round> ordered = new ArrayList<>();
+    List<Round> incomplete = new ArrayList<>();
+    for (Round round : rounds) {
+      (isComplete(round) ? ordered : incomplete).add(round);
+    }
+    ordered.addAll(incomplete);
+    for (Round round : ordered.subList(keep, ordered.size())) {
       if (!handles.containsValue(round.id())) {
         try {
           remove(round);
@@ -749,7 +751,7 @@ final class BackupStore implements AutoCloseable {
     prune(projectId, rootId);
   }
 
-  /** 重试本实例这次创建留下的清理；其他轮次的未完成数据不扫描也不删除。 */
+  /** 重试本实例这次创建留下的清理和轮换。 */
   synchronized boolean retryCleanup() {
     if (active != null || isClosed) {
       return false;
@@ -787,7 +789,7 @@ final class BackupStore implements AutoCloseable {
     if (round == null) {
       return;
     }
-    if (round.isComplete) {
+    if (isComplete(round)) {
       throw BackupFiles.failure("permission-denied");
     }
     remove(round);
@@ -834,7 +836,8 @@ final class BackupStore implements AutoCloseable {
     }
     Path marker = round.path.resolve(UNFINISHED);
     if (exists(round.path.resolve(COMMITTED))) {
-      files.move(round.path.resolve(COMMITTED), marker, false);
+      // 手动改动后两个标记可能同时存在，不覆盖的话这份备份删不掉，轮换失败后还会挡住新备份。
+      files.move(round.path.resolve(COMMITTED), marker, true);
     }
     if (exists(round.path)) {
       Files.walkFileTree(

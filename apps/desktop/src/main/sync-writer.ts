@@ -405,7 +405,7 @@ export class WindowsSyncWriter {
       selectSyncBackupFiles(plan).length > 0
         ? (plan.backupFileBytes ?? 0) + 8192 + Buffer.byteLength(JSON.stringify(plan))
         : 0
-    const backupDevice = (await inspectLocalPath(this.backups.path)).dev
+    const backupDevice = (await inspectLocalPath(await this.backups.root())).dev
     const targetDevice = (await inspectLocalPath(root.path)).dev
     const targetRequired =
       newBytes +

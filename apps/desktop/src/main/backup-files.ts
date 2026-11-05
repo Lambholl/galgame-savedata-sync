@@ -3,7 +3,7 @@ import { open, statfs } from 'node:fs/promises'
 import type { FileHandle } from 'node:fs/promises'
 import type { Readable } from 'node:stream'
 import { finished } from 'node:stream/promises'
-import { BATCH_LIMITS } from '@savedata-sync/shared'
+import { BATCH_LIMITS, isPortableFileName } from '@savedata-sync/shared'
 import { ArchiveError, checkArchiveAbort } from './archive-errors.ts'
 import { getFileIdentity, hasSameIdentity, inspectLocalPath } from './directory-paths.ts'
 import type { FileIdentity } from './directory-paths.ts'
@@ -21,7 +21,32 @@ export const BACKUP_DISK_IO: BackupDiskIO = {
   sync: (handle) => handle.sync(),
 }
 
-/** 检查私有备份文件是否为无链接的普通文件并返回身份；同一文件有额外硬链接时停止读取或清理。 */
+const MAX_FOLDER_NAME_LENGTH = 60
+
+/** 游戏名对应的文件夹名：换掉不能用的字符，过长截断；结果仍不可用时退回游戏 ID。 */
+export function backupFolderName(gameName: string | null, projectId: string): string {
+  if (gameName === null) {
+    return projectId
+  }
+  const name = [...gameName]
+    .slice(0, MAX_FOLDER_NAME_LENGTH)
+    .map((character) => {
+      const code = character.charCodeAt(0)
+      return code < 32 || code === 127 || '<>:"/\\|?*'.includes(character) ? '_' : character
+    })
+    .join('')
+    .trim()
+    .replace(/[. ]+$/, '')
+  return isPortableFileName(name) ? name : projectId
+}
+
+/** 一份备份的文件夹名：UTC 时间，与设备时区无关，按名字排序即按时间排序。 */
+export function backupRoundName(createdAt: number): string {
+  const time = new Date(createdAt).toISOString()
+  return `${time.slice(0, 10)}_${time.slice(11, 19).replaceAll(':', '-')}Z`
+}
+
+/** 检查备份文件是否为无链接的普通文件并返回身份；同一文件有额外硬链接时停止读取。 */
 export async function inspectBackupFile(path: string, maxBytes: number): Promise<FileIdentity> {
   const value = await inspectLocalPath(path)
   if (!value.isFile() || value.nlink !== 1n || value.size > BigInt(maxBytes)) {
@@ -127,7 +152,7 @@ export async function readBackupJson(path: string): Promise<unknown> {
   }
 }
 
-/** 独占创建内部固定名称的 JSON 文件，同步落盘后关闭；失败时由外层持有这一轮备份的代码清理。 */
+/** 独占创建固定名称的 JSON 文件，同步落盘后关闭；失败时由外层持有这一轮备份的代码清理。 */
 export async function writeBackupJson(
   path: string,
   value: unknown,

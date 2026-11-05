@@ -61,6 +61,8 @@ export interface DesktopBackupApi {
   deleteBackup(projectId: string, rootId: string, backupId: string): Promise<OperationResult<null>>
   /** 移除游戏时删除它的全部备份和单独设置。 */
   deleteGameBackups(projectId: string): Promise<OperationResult<null>>
+  /** 在系统文件管理器里打开备份文件夹；路径由主进程决定。 */
+  openFolder(): Promise<OperationResult<null>>
 }
 export const BACKUP_CHANNELS = {
   read: 'backup:read',
@@ -72,6 +74,7 @@ export const BACKUP_CHANNELS = {
   cleanupIncomplete: 'backup:cleanup-incomplete',
   deleteBackup: 'backup:delete',
   deleteGameBackups: 'backup:delete-game',
+  openFolder: 'backup:open-folder',
 } as const
 function shape(value: unknown, keys: readonly string[]): value is Record<string, unknown> {
   return (
@@ -236,5 +239,6 @@ export function createBackupBridge(
       !isOpaqueId(projectId)
         ? Promise.resolve(invalid())
         : call('deleteGameBackups', [{ projectId }], (value): value is null => value === null),
+    openFolder: () => call('openFolder', [], (value): value is null => value === null),
   })
 }

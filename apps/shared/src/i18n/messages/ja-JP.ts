@@ -226,6 +226,7 @@ export const jaJP: Messages = {
   'backup.keep': ({ count }) => `${count} 件保持`,
   'backup.offHint': '受信したデータを転送先のファイルに直接書き込みます',
   'backup.location': '保存場所',
+  'backup.openFolder': 'フォルダーを開く',
   'backup.list': 'バックアップ',
   'backup.reason.copy': '転送前',
   'backup.reason.restore': '復元前',

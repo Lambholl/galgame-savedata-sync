@@ -7,12 +7,16 @@ import type { DesktopLibrary } from './library-store.ts'
 import { HttpOperationError, toHttpError } from './http-errors.ts'
 import { hasTargetOperation } from './target-operation.ts'
 
-/** 注册备份相关的 IPC：查询摘要、修改设置、显式清理残留，都校验主窗口来源。恢复写入由恢复模块提供。 */
+/**
+ * 注册备份相关的 IPC：查询摘要、修改设置、显式清理残留、打开备份文件夹，都校验主窗口来源。恢复写入由恢复模块提供。
+ * openPath 用系统文件管理器打开路径，失败时返回错误文字，成功时返回空字符串。
+ */
 export function registerBackupIpc(
   ipc: Pick<IpcMain, 'handle' | 'removeHandler'>,
   store: WindowsBackupStore,
   library: DesktopLibrary,
   isTrusted: (event: IpcMainInvokeEvent) => boolean,
+  openPath: (path: string) => Promise<string>,
   hasRunningWork: () => boolean = () => false,
 ): () => void {
   for (const [action, channel] of Object.entries(BACKUP_CHANNELS)) {
@@ -27,6 +31,14 @@ export function registerBackupIpc(
             throw new HttpOperationError('invalid-request', 'Backup read parameters are invalid.')
           }
           value = { displayPath: store.path, settings: await store.settings() }
+        } else if (action === 'openFolder') {
+          if (args.length) {
+            throw new HttpOperationError('invalid-request', 'Backup parameters are invalid.')
+          }
+          if (await openPath(await store.root())) {
+            throw new HttpOperationError('io-failure', 'The backup folder could not be opened.')
+          }
+          value = null
         } else if (action === 'setDefaults') {
           const input = args[0]
           if (

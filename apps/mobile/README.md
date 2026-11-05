@@ -194,7 +194,7 @@ Android 行为依据见 [dataSync 前台服务](https://developer.android.com/de
 
 `SafRuntime.backups(context)` 把持久备份放在 `getExternalFilesDir(null)/backups/`，备份设置放内部的 `getFilesDir()/backup-settings.json`；源文件通过已有 SAF 授权读取，不弹目录选择器。清除应用数据或卸载会一并删除备份。
 
-每份备份的结构是 `backups/<游戏名>/<yyyy-MM-dd_HH-mm-ss>Z/`，时间用 UTC，内含 `backup.json` 和按原路径保存的 `files/`。文件夹名只用来辨认，归属以 `backup.json` 里的 ID 为准，所以游戏改名、用户改文件夹名都不影响列表；游戏名不能作文件名的字符换成 `_`，超过 60 个字符截断，仍不可用时用游戏 ID。用户可以直接删除文件夹或文件：缺文件的备份显示为不完整，可以清理但不能恢复，不计入保留份数，也不挡新备份；读不懂的内容被忽略，`backups` 被整个删除后自动重建。目录选择拒绝与备份目录互相包含的同步根，这只会在 Android 10 上发生。
+每份备份的结构是 `backups/<游戏名>/<yyyy-MM-dd_HH-mm-ss>Z/`，时间用 UTC，内含 `backup.json` 和按原路径保存的 `files/`。文件夹名只用来辨认，归属以 `backup.json` 里的 ID 为准，所以游戏改名、用户改文件夹名都不影响列表；游戏名不能作文件名的字符换成 `_`，超过 60 个字符截断，仍不可用时用游戏 ID。用户可以直接删除文件夹或文件：缺文件的备份显示为不完整，可以清理但不能恢复，也不挡新备份；读不懂的内容被忽略，`backups` 被整个删除后自动重建。轮换时不完整的备份（含未提交的）也占保留份数，超出时先删它们，再删最旧的完整备份，没超出不检查文件。文件是否齐全只看文件在不在和大小；删除备份和移除游戏不查文件；内容哈希只在创建和恢复时校验。同时有 `backup.json` 和 `in-progress.json` 的备份按已提交处理，删除时覆盖 `in-progress.json`。目录选择拒绝与备份目录互相包含的同步根，这只会在 Android 10 上发生。
 
 应用关闭了系统自动备份和设备间迁移（`allowBackup="false"` 加 `data_extraction_rules.xml`）：存档备份不上传云端，重装后也不会恢复已失效的目录授权和旧设备 ID。
 

@@ -219,6 +219,7 @@ export const zhTW: Messages = {
   'backup.keep': ({ count }) => `保留 ${count} 份`,
   'backup.offHint': '收到傳輸時直接寫入目標檔案',
   'backup.location': '儲存位置',
+  'backup.openFolder': '開啟資料夾',
   'backup.list': '備份',
   'backup.reason.copy': '傳輸前',
   'backup.reason.restore': '還原前',

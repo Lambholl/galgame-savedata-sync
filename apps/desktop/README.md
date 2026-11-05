@@ -285,7 +285,7 @@ receiver 的 sourceBytesRead 始终为 0，接收/原文校验/最终发布字�
 
 ## 12. 独立备份与恢复材料
 
-`createWindowsBackupStore(adapter, privateDirectory)` 在应用私有持久位置 `backups/` 初始化独立备份。启动时登记为私有目录，目录适配器拒绝把它及其父子目录选作同步根；所有备份访问继续复核根和轮次身份。备份不进入同步比较，清除应用数据或手工删除该目录会丢失备份。
+`createWindowsBackupStore(adapter, privateDirectory, gameName)` 在 `userData/backups/` 初始化独立备份，结构和移动端相同：`<游戏名>/<UTC 时间>/` 内含 `backup.json` 和按原路径保存的 `files/`。`gameName` 只决定新备份的文件夹名，备份归属看 `backup.json` 里的 ID。启动时登记备份区，目录适配器拒绝把它及其父子目录选作同步根。用户可以随时删改这个文件夹，所以每次按实际目录读取；整个文件夹被删后自动重建，设置在 `userData/backup-settings.json`，不受影响。备份不进入同步比较，清除应用数据会丢失备份。
 
 | 原生方法 | 输入、输出和资源责任 |
 | --- | --- |
@@ -294,14 +294,14 @@ receiver 的 sourceBytesRead 始终为 0，接收/原文校验/最终发布字�
 | `capacity(requiredBytes)` | 主进程预检私有卷剩余空间，返回所需/可得字节；可得量未知为 null，不足抛 insufficient-space；不提前删除有效旧轮次换空间 |
 | `list(projectId, rootId)` | 返回该项目/根的已提交清单和未完成轮次 ID；清单列出不代表文件刚刚重新校验，恢复必须 acquire |
 | `acquire(projectId, rootId, backupId, options?)` | 完整核对每个原文文件后返回原生句柄；`manifest` 是清单副本，`snapshot()` 为本次恢复建立临时树，`openFile(fileId)` 返回只读 stream 与 verifyUnchanged；消费者关闭读流后 release |
-| `rotate(projectId, rootId)` / `cleanupIncomplete(projectId, rootId, backupId)` | 显式重试轮换或清理已核实归属的未提交/已淘汰轮次；有效备份和正在被恢复引用的轮次不通过残留入口删除 |
-| `deleteBackup(projectId, rootId, backupId)` | 用户确认后删除一份有效备份；先撤下清单，中途失败时变成可清理的残留；正在被恢复引用时拒绝 |
+| `rotate(projectId, rootId)` / `cleanupIncomplete(projectId, rootId, backupId)` | 显式重试轮换或清理未提交、文件缺失或大小不符的轮次；有效备份和正在被恢复引用的轮次不通过残留入口删除；已不存在的算清理完成 |
+| `deleteBackup(projectId, rootId, backupId)` | 用户确认后删除一份备份；先撤下清单，中途失败时变成可清理的残留；正在被恢复引用时拒绝；已不存在的算删除成功 |
 | `deleteGameBackups(projectId)` | 移除游戏时删除它在所有目录下的备份、残留和单独设置；失败时游戏保留，可以重试 |
 | `stop()` | 应用退出时取消正在创建/校验的备份并等待资源释放，关闭持有的恢复流；持久备份留到下次启动 |
 
-创建只写固定私有 fileId，每个文件执行源属性检查、流式大小/SHA-256、落盘和独立回读，再原子提交 `manifest.json`。所有权用 `owner.json` / `round.json` 保存；提交前失败或取消不产生有效轮次。失败抛 `ArchiveError` 或独立 `ArchiveCancelledError`，原始 cause 留在主进程，未清理成功的轮次另附 cleanupError。默认期限 30 分钟，原生 options 可通过 signal 取消或收紧 timeoutMs，读取使用 64 KiB 缓冲。预算、清单和恢复规则见 [M-002 文档](../../docs/plans/m002-sync-copy.md) 第 3 节。
+创建时清单先写成 `in-progress.json`，每个文件执行源属性检查、流式大小/SHA-256、落盘和独立回读，再原子改名为 `backup.json`；提交前失败或取消不产生有效轮次。失败抛 `ArchiveError` 或独立 `ArchiveCancelledError`，原始 cause 留在主进程，未清理成功的轮次另附 cleanupError。默认期限 30 分钟，原生 options 可通过 signal 取消或收紧 timeoutMs，读取使用 64 KiB 缓冲。预算、清单和恢复规则见 [M-002 文档](../../docs/plans/m002-sync-copy.md) 第 3 节。
 
-每个项目/目标根保留最近 3 次。新轮可读后才轮换，淘汰前核对保留轮次内容；活动恢复句柄保护输入轮次，release 后再轮换。淘汰先撤下有效清单，再清理已核实文件；失败返回独立 cleanupError，保留可重试的残留或暂时多留的轮次。重启只读取已提交材料，未完成轮次须明确清理，未知条目不自动删除。
+每个项目/目标根默认保留最近 3 次，只统计完整的备份。新轮可读后才轮换；活动恢复句柄保护输入轮次，release 后再轮换。淘汰先把 `backup.json` 改回 `in-progress.json` 再删文件；失败返回独立 cleanupError，保留可重试的残留或暂时多留的轮次。文件缺失或大小不符的备份和未提交的一样显示为不完整，不能恢复，不挡新备份，须明确清理；读不懂的内容直接忽略，不自动删除。
 
 ```ts
 const backup = await backups.create(confirmedPlan, { signal })

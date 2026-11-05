@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto'
-import { mkdir, open, readdir, rename, rmdir, unlink } from 'node:fs/promises'
+import { lstat, mkdir, open, readdir, rename, rm, rmdir, unlink } from 'node:fs/promises'
+import type { Dirent } from 'node:fs'
 import type { FileHandle } from 'node:fs/promises'
-import { isAbsolute, join } from 'node:path'
+import { dirname, isAbsolute, join } from 'node:path'
 import type { Readable } from 'node:stream'
 import { finished } from 'node:stream/promises'
 import {
@@ -9,7 +10,6 @@ import {
   EMPTY_BACKUP_SETTINGS,
   SYNC_LIMITS,
   compareSyncPaths,
-  isBatchFileId,
   isOpaqueId,
   isSyncBackupManifest,
   isSyncBackupSettings,
@@ -39,6 +39,8 @@ import { getFileIdentity, hasSameIdentity, inspectLocalPath } from './directory-
 import { ArchiveError, checkArchiveAbort, toArchiveError } from './archive-errors.ts'
 import {
   BACKUP_DISK_IO,
+  backupFolderName,
+  backupRoundName,
   hashBackupStream,
   inspectBackupFile,
   openBackupFile,
@@ -51,19 +53,14 @@ type BackupSource = Pick<
   WindowsDirectoryAdapter,
   'deviceId' | 'assertCacheIsolated' | 'excludePrivateDirectory' | 'listDirectory' | 'openFile'
 >
-interface RoundMarker {
-  readonly schemaVersion: 1
-  readonly storeId: string
-  readonly backupId: string
-  readonly projectId: string
-  readonly rootId: string
-}
+/** 磁盘上的一轮备份。isComplete 表示已提交且文件齐全；其余情况按不完整显示，可以清理但不能恢复。 */
 interface BackupRound {
-  readonly marker: RoundMarker
+  readonly path: string
   readonly identity: FileIdentity
-  readonly manifest: SyncBackupManifest | null
+  readonly manifest: SyncBackupManifest
+  readonly isComplete: boolean
 }
-/** 备份查询结果：当前项目的清单和需要显式清理的轮次，不含私有文件路径。 */
+/** 备份查询结果：当前项目的清单和需要显式清理的轮次，不含文件路径。 */
 export interface WindowsBackupListing {
   readonly backups: readonly SyncBackupManifest[]
   readonly incomplete: readonly SyncIncompleteBackup[]
@@ -80,7 +77,12 @@ export interface WindowsBackupOptions {
 }
 
 const stores = new Set<string>()
-const ROUND_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
+const COMMITTED = 'backup.json'
+const UNFINISHED = 'in-progress.json'
+const CONTENT = 'files'
+const MAX_DIRECTORY_ENTRIES = 4096
+const MAX_SAME_SECOND_ROUNDS = 100
+
 function cleanupFailure(error: unknown): KnownOperationError {
   const failure = toArchiveError(error)
   return {
@@ -128,18 +130,60 @@ function group(projectId: string, rootId: string): void {
     )
   }
 }
-function isMissing(error: unknown): boolean {
-  return error !== null && typeof error === 'object' && 'code' in error && error.code === 'ENOENT'
+function hasErrorCode(error: unknown, code: string): boolean {
+  return error !== null && typeof error === 'object' && 'code' in error && error.code === code
 }
 async function exists(path: string): Promise<boolean> {
   try {
     await inspectLocalPath(path)
     return true
   } catch (error) {
-    if (isMissing(error)) {
+    if (hasErrorCode(error, 'ENOENT')) {
       return false
     }
     throw error
+  }
+}
+function isInGroup(round: BackupRound, projectId: string, rootId: string): boolean {
+  return round.manifest.projectId === projectId && round.manifest.rootId === rootId
+}
+function contentPath(roundPath: string, file: SyncBackupFile): string {
+  return join(roundPath, CONTENT, ...file.path)
+}
+async function listDirectory(path: string): Promise<Dirent[]> {
+  const entries = await readdir(path, { withFileTypes: true })
+  if (entries.length > MAX_DIRECTORY_ENTRIES) {
+    throw new ArchiveError('resource-limit', 'The number of backups exceeds the limit.')
+  }
+  return entries
+}
+/** 检查备份是否完好：只核对文件在不在、大小对不对，内容在恢复前完整校验。 */
+async function isIntact(roundPath: string, manifest: SyncBackupManifest): Promise<boolean> {
+  for (const file of manifest.files) {
+    try {
+      const stats = await lstat(contentPath(roundPath, file), { bigint: true })
+      if (!stats.isFile() || stats.nlink !== 1n || stats.size !== BigInt(file.sizeBytes)) {
+        return false
+      }
+    } catch {
+      return false
+    }
+  }
+  return true
+}
+/** 一轮文件夹占用的字节数；读取失败时未知，由界面单独显示。 */
+async function occupiedBytes(round: BackupRound): Promise<number | null> {
+  try {
+    let total = 0
+    const entries = await readdir(round.path, { withFileTypes: true, recursive: true })
+    for (const entry of entries) {
+      if (entry.isFile()) {
+        total += (await lstat(join(entry.parentPath, entry.name))).size
+      }
+    }
+    return total
+  } catch {
+    return null
   }
 }
 
@@ -155,7 +199,7 @@ export class WindowsBackupHandle {
     private readonly round: BackupRound,
   ) {}
   get manifest(): SyncBackupManifest {
-    return structuredClone(required(this.round.manifest))
+    return structuredClone(this.round.manifest)
   }
   snapshot(): SyncSnapshot {
     if (this.isReleased) {
@@ -222,15 +266,12 @@ export class WindowsBackupHandle {
     if (this.isReleased) {
       throw new ArchiveError('not-found', 'The backup material has been released.')
     }
-    const file = required(this.round.manifest).files.find((item) => item.fileId === fileId)
+    const file = this.round.manifest.files.find((item) => item.fileId === fileId)
     if (!file) {
       throw new ArchiveError('not-found', 'The backup file reference does not exist.')
     }
     await this.store.inspectRound(this.round)
-    const value = await openBackupFile(
-      join(this.store.path, this.round.marker.backupId, fileId),
-      file.sizeBytes,
-    )
+    const value = await openBackupFile(contentPath(this.round.path, file), file.sizeBytes)
     if (this.isReleased) {
       value.stream.destroy()
       await finished(value.stream).catch(() => {})
@@ -255,7 +296,7 @@ export class WindowsBackupHandle {
       return null
     }
     this.isReleased = true
-    return this.store.release(this, this.round.marker)
+    return this.store.release(this, this.round.manifest.projectId, this.round.manifest.rootId)
   }
   /** 应用退出时关闭所持读流；正常释放仍要求消费者先读完。 */
   async close(): Promise<void> {
@@ -270,9 +311,10 @@ export class WindowsBackupHandle {
 }
 
 /**
- * Windows 的私有持久备份。元数据操作、创建和轮换串行执行，恢复材料通过引用保护。
- * 只读同步根，写入固定的私有文件名；提交失败时不会产生可恢复的轮次。
- * 用法及错误和清理语义见桌面 README；通过工厂函数初始化。
+ * 持久备份，放在用户能直接管理的文件夹：backups/游戏名/时间/，内含 backup.json 和按原路径保存的 files/，和移动端相同。
+ * 用户可以随时删除或改名其中任何内容，所以每次都按实际目录重新读取，一份备份出问题不影响其他备份。
+ * 元数据操作、创建和轮换串行执行，恢复材料通过引用保护；设置放在备份区外，删掉备份文件夹不丢设置。
+ * 只读同步根；用法及错误和清理语义见桌面 README，通过工厂函数初始化。
  */
 export class WindowsBackupStore {
   private queue: Promise<void> = Promise.resolve()
@@ -283,10 +325,13 @@ export class WindowsBackupStore {
   constructor(
     private readonly source: BackupSource,
     readonly path: string,
-    private readonly storeId: string,
-    private readonly identity: FileIdentity,
+    private readonly settingsDirectory: string,
+    private readonly gameName: (projectId: string) => string | null,
     private readonly io: BackupDiskIO,
   ) {}
+  private get settingsFile(): string {
+    return join(this.settingsDirectory, 'backup-settings.json')
+  }
   private exclusive<T>(work: () => Promise<T>): Promise<T> {
     const next = this.queue
       .then(() => {
@@ -304,103 +349,71 @@ export class WindowsBackupStore {
     )
     return next
   }
-  private async inspect(): Promise<void> {
+  /** 备份根目录；不存在就重新建立，所以用户可以把整个文件夹删掉。 */
+  async root(): Promise<string> {
     this.source.assertCacheIsolated(this.path)
-    if (!hasSameIdentity(await inspectLocalPath(this.path), this.identity)) {
-      throw new ArchiveError('source-changed', 'The backup directory identity changed.')
+    await mkdir(this.path, { recursive: true })
+    if (!(await inspectLocalPath(this.path)).isDirectory()) {
+      throw new ArchiveError('invalid-request', 'The backup location is not a directory.')
     }
-    const marker = await readBackupJson(join(this.path, 'owner.json'))
-    if (
-      !marker ||
-      typeof marker !== 'object' ||
-      !('storeId' in marker) ||
-      marker.storeId !== this.storeId ||
-      !('deviceId' in marker) ||
-      marker.deviceId !== this.source.deviceId ||
-      !('schemaVersion' in marker) ||
-      marker.schemaVersion !== 1 ||
-      Object.keys(marker).length !== 3
-    ) {
-      throw new ArchiveError('permission-denied', 'The backup directory ownership is invalid.')
+    return this.path
+  }
+  /** 读取前核对这一轮的文件夹还是同一个；同包的恢复句柄每次读取前都调用。 */
+  async inspectRound(round: BackupRound): Promise<void> {
+    if (!hasSameIdentity(await inspectLocalPath(round.path), round.identity)) {
+      throw new ArchiveError('source-changed', 'The backup folder changed.')
     }
   }
-  /** 读取前核对根目录、轮次身份和所有权；同包的恢复句柄每次读取前都调用。 */
-  async inspectRound(round: BackupRound, hasMarker = true): Promise<void> {
-    await this.inspect()
-    const path = join(this.path, round.marker.backupId)
-    if (
-      !hasSameIdentity(await inspectLocalPath(path), round.identity) ||
-      (hasMarker &&
-        JSON.stringify(await readBackupJson(join(path, 'round.json'))) !==
-          JSON.stringify(round.marker))
-    ) {
-      throw new ArchiveError('source-changed', 'The backup version identity or ownership changed.')
+  /** 读一个备份文件夹；不是本机备份或读不懂的返回 null，留给用户自己处理。 */
+  private async read(path: string): Promise<BackupRound | null> {
+    try {
+      const stats = await inspectLocalPath(path)
+      if (!stats.isDirectory()) {
+        return null
+      }
+      const isCommitted = await exists(join(path, COMMITTED))
+      const marker = join(path, isCommitted ? COMMITTED : UNFINISHED)
+      if (!(await exists(marker))) {
+        return null
+      }
+      const manifest = await readBackupJson(marker)
+      if (!isSyncBackupManifest(manifest) || manifest.deviceId !== this.source.deviceId) {
+        return null
+      }
+      return {
+        path,
+        identity: getFileIdentity(stats),
+        manifest,
+        isComplete: isCommitted && (await isIntact(path, manifest)),
+      }
+    } catch {
+      return null
     }
   }
   private async rounds(): Promise<BackupRound[]> {
-    await this.inspect()
-    const result: BackupRound[] = [],
-      names = await readdir(this.path)
-    if (names.length > 4096) {
-      throw new ArchiveError('resource-limit', 'The number of backup versions exceeds the limit.')
-    }
-    for (const name of names) {
-      if (
-        ['owner.json', 'settings.json'].includes(name) ||
-        /^settings-[0-9a-f-]+\.tmp$/.test(name)
-      ) {
+    const root = await this.root()
+    const result: BackupRound[] = []
+    const seen = new Set<string>()
+    for (const game of await listDirectory(root)) {
+      if (!game.isDirectory()) {
         continue
       }
-      if (!ROUND_ID.test(name)) {
-        throw new ArchiveError(
-          'invalid-request',
-          'The backup directory contains unknown entries. Inspect it manually.',
-        )
-      }
-      const path = join(this.path, name),
-        stats = await inspectLocalPath(path)
-      if (!stats.isDirectory()) {
-        throw new ArchiveError('invalid-request', 'The backup version is not a directory.')
-      }
-      const marker: unknown = await readBackupJson(join(path, 'round.json'))
-      if (
-        !marker ||
-        typeof marker !== 'object' ||
-        !('schemaVersion' in marker) ||
-        marker.schemaVersion !== 1 ||
-        !('storeId' in marker) ||
-        marker.storeId !== this.storeId ||
-        !('backupId' in marker) ||
-        marker.backupId !== name ||
-        !('projectId' in marker) ||
-        !isOpaqueId(marker.projectId) ||
-        !('rootId' in marker) ||
-        !isOpaqueId(marker.rootId) ||
-        Object.keys(marker).length !== 5
-      ) {
-        throw new ArchiveError('permission-denied', 'The backup version ownership is invalid.')
-      }
-      let manifest: SyncBackupManifest | null = null
-      if (await exists(join(path, 'manifest.json'))) {
-        const value = await readBackupJson(join(path, 'manifest.json'))
-        if (
-          !isSyncBackupManifest(value) ||
-          value.backupId !== name ||
-          value.deviceId !== this.source.deviceId ||
-          value.projectId !== marker.projectId ||
-          value.rootId !== marker.rootId
-        ) {
-          throw new ArchiveError(
-            'invalid-archive',
-            'The backup manifest is damaged or its ownership does not match.',
-          )
+      let names: Dirent[]
+      try {
+        names = await listDirectory(join(root, game.name))
+      } catch (error) {
+        if (hasErrorCode(error, 'ENOENT')) {
+          continue
         }
-        manifest = value
+        throw error
       }
-      if (manifest && (await exists(join(path, 'manifest.retired')))) {
-        throw new ArchiveError('invalid-archive', 'The backup commit state conflicts.')
+      for (const name of names) {
+        const round = await this.read(join(root, game.name, name.name))
+        if (round && !seen.has(round.manifest.backupId)) {
+          seen.add(round.manifest.backupId)
+          result.push(round)
+        }
       }
-      result.push({ marker: marker as RoundMarker, identity: getFileIdentity(stats), manifest })
     }
     return result
   }
@@ -408,49 +421,34 @@ export class WindowsBackupStore {
   list(projectId: string, rootId: string): Promise<WindowsBackupListing> {
     group(projectId, rootId)
     return this.exclusive(async () => {
-      const rounds = (await this.rounds()).filter(
-        (round) => round.marker.projectId === projectId && round.marker.rootId === rootId,
-      )
+      const rounds = (await this.rounds()).filter((round) => isInGroup(round, projectId, rootId))
       const incomplete: SyncIncompleteBackup[] = []
       for (const round of rounds) {
-        if (!round.manifest) {
+        if (!round.isComplete) {
           incomplete.push({
-            backupId: round.marker.backupId,
-            occupiedBytes: await this.occupiedBytes(round),
+            backupId: round.manifest.backupId,
+            occupiedBytes: await occupiedBytes(round),
           })
         }
       }
       return {
         backups: rounds
-          .flatMap((round) => (round.manifest ? [round.manifest] : []))
+          .filter((round) => round.isComplete)
+          .map((round) => round.manifest)
           .sort((a, b) => b.createdAt - a.createdAt),
         incomplete,
       }
     })
-  }
-  /** 一轮私有目录占用的字节数；读取失败时未知，由界面单独显示。 */
-  private async occupiedBytes(round: BackupRound): Promise<number | null> {
-    try {
-      const path = join(this.path, round.marker.backupId)
-      let total = 0
-      for (const name of await readdir(path)) {
-        total += Number((await inspectLocalPath(join(path, name))).size)
-      }
-      return total
-    } catch {
-      return null
-    }
   }
   /** 读取备份设置。缺少文件时用默认全局设置；坏设置不会被默认值覆盖。 */
   settings(): Promise<SyncBackupSettings> {
     return this.exclusive(() => this.readSettings())
   }
   private async readSettings(): Promise<SyncBackupSettings> {
-    await this.inspect()
-    if (!(await exists(join(this.path, 'settings.json')))) {
+    if (!(await exists(this.settingsFile))) {
       return EMPTY_BACKUP_SETTINGS
     }
-    const value = await readBackupJson(join(this.path, 'settings.json'))
+    const value = await readBackupJson(this.settingsFile)
     if (!isSyncBackupSettings(value)) {
       throw new ArchiveError('invalid-request', 'Backup settings are damaged.')
     }
@@ -479,16 +477,14 @@ export class WindowsBackupStore {
     if (!isSyncBackupSettings(settings)) {
       throw new ArchiveError('resource-limit', 'Backup settings are invalid or exceed the limit.')
     }
-    const temporary = join(this.path, `settings-${randomUUID()}.tmp`)
+    const temporary = join(this.settingsDirectory, `backup-settings-${randomUUID()}.tmp`)
     try {
       await writeBackupJson(temporary, settings, this.io)
-      await this.inspect()
-      await rename(temporary, join(this.path, 'settings.json'))
+      await rename(temporary, this.settingsFile)
     } catch (error) {
       const failure = toArchiveError(error)
       try {
         if (await exists(temporary)) {
-          await this.inspect()
           await inspectBackupFile(temporary, BATCH_LIMITS.maxJsonBytes)
           await unlink(temporary)
         }
@@ -506,8 +502,7 @@ export class WindowsBackupStore {
     if (!Number.isSafeInteger(requiredBytes) || requiredBytes < 0) {
       throw new ArchiveError('invalid-request', 'The backup capacity is invalid.')
     }
-    await this.inspect()
-    const available = await this.io.availableBytes(this.path)
+    const available = await this.io.availableBytes(await this.root())
     if (available !== null && available < BigInt(requiredBytes)) {
       throw new ArchiveError(
         'insufficient-space',
@@ -580,6 +575,24 @@ export class WindowsBackupStore {
       throw error
     }
   }
+  /** 新备份的文件夹：游戏名/时间；同一秒已有同名文件夹时加序号。 */
+  private async createRoundDirectory(projectId: string, createdAt: number): Promise<string> {
+    const game = join(await this.root(), backupFolderName(this.gameName(projectId), projectId))
+    await mkdir(game, { recursive: true })
+    const name = backupRoundName(createdAt)
+    for (let index = 1; index <= MAX_SAME_SECOND_ROUNDS; index++) {
+      const path = join(game, index === 1 ? name : `${name}_${index}`)
+      try {
+        await mkdir(path)
+        return path
+      } catch (error) {
+        if (!hasErrorCode(error, 'EEXIST')) {
+          throw error
+        }
+      }
+    }
+    throw new ArchiveError('io-failure', 'The backup folder could not be created.')
+  }
   /** 写入前保存目标目录的全部文件；没有备份轮次时返回 null，且不会写入同步目标。 */
   create(plan: SyncPlan, options: WindowsBackupOptions = {}): Promise<WindowsBackupCommit> {
     if (!isSyncPlan(plan) || !plan.canExecute || plan.target.deviceId !== this.source.deviceId) {
@@ -594,11 +607,9 @@ export class WindowsBackupStore {
         signal = operationSignal(controller, options)
       this.active = controller
       let round: BackupRound | null = null,
-        hasCommitted = false,
-        hasMarker = false
+        hasCommitted = false
       try {
         checkArchiveAbort(signal)
-        const rounds = await this.rounds()
         if (!fixed.shouldBackup) {
           return { manifest: null, cleanupError: null }
         }
@@ -608,9 +619,7 @@ export class WindowsBackupStore {
         if (!targets.length) {
           return { manifest: null, cleanupError: null }
         }
-        if (rounds.some((item) => !item.manifest)) {
-          throw new ArchiveError('cleanup-failed', 'Clean up incomplete backup versions first.')
-        }
+        const rounds = await this.rounds()
         const files: SyncBackupFile[] = targets.map((target, index) => ({
           fileId: `f${String(index + 1).padStart(6, '0')}`,
           path: target.path,
@@ -618,20 +627,16 @@ export class WindowsBackupStore {
           sha256: target.sha256,
           modifiedAt: target.modifiedAt,
         }))
-        const backupId = randomUUID(),
-          manifest: SyncBackupManifest = {
-            schemaVersion: 1,
-            backupId,
-            projectId: fixed.projectId,
-            deviceId: this.source.deviceId,
-            rootId: fixed.target.rootId,
-            createdAt: Math.max(
-              Date.now(),
-              ...rounds.filter((r) => r.manifest).map((r) => required(r.manifest).createdAt + 1),
-            ),
-            reason: fixed.operation,
-            files,
-          }
+        const manifest: SyncBackupManifest = {
+          schemaVersion: 1,
+          backupId: randomUUID(),
+          projectId: fixed.projectId,
+          deviceId: this.source.deviceId,
+          rootId: fixed.target.rootId,
+          createdAt: Math.max(Date.now(), ...rounds.map((item) => item.manifest.createdAt + 1)),
+          reason: fixed.operation,
+          files,
+        }
         if (!isSyncBackupManifest(manifest)) {
           throw new ArchiveError(
             'resource-limit',
@@ -643,33 +648,31 @@ export class WindowsBackupStore {
             Buffer.byteLength(JSON.stringify(manifest)) +
             4096,
         )
-        const path = join(this.path, backupId)
         checkArchiveAbort(signal)
-        await mkdir(path, { mode: 0o700 })
-        const marker: RoundMarker = {
-          schemaVersion: 1,
-          storeId: this.storeId,
-          backupId,
-          projectId: fixed.projectId,
-          rootId: fixed.target.rootId,
+        const path = await this.createRoundDirectory(fixed.projectId, manifest.createdAt)
+        round = {
+          path,
+          identity: getFileIdentity(await inspectLocalPath(path)),
+          manifest,
+          isComplete: false,
         }
-        round = { marker, identity: getFileIdentity(await inspectLocalPath(path)), manifest: null }
-        await writeBackupJson(join(path, 'round.json'), marker, this.io)
-        hasMarker = true
+        await writeBackupJson(join(path, UNFINISHED), manifest, this.io)
         for (const [index, file] of files.entries()) {
           const target = required(targets[index])
           await this.inspectRound(round)
           checkArchiveAbort(signal)
+          const destination = contentPath(path, file)
+          await mkdir(dirname(destination), { recursive: true })
           const source = await this.sourceFile(fixed, target, signal),
             input = source.stream
           let output: FileHandle | undefined
           try {
-            const destination = await open(join(path, file.fileId), 'wx', 0o600)
-            output = destination
+            const handle = await open(destination, 'wx', 0o600)
+            output = handle
             const value = await hashBackupStream(input, file.sizeBytes, signal, async (chunk) => {
               for (let offset = 0; offset < chunk.length;) {
                 checkArchiveAbort(signal)
-                const written = await destination.write(chunk, offset, chunk.length - offset)
+                const written = await handle.write(chunk, offset, chunk.length - offset)
                 if (written.bytesWritten === 0) {
                   throw new ArchiveError('io-failure', 'The backup write made no progress.')
                 }
@@ -693,13 +696,11 @@ export class WindowsBackupStore {
         }
         checkArchiveAbort(signal)
         await this.inspectRound(round)
-        await writeBackupJson(join(path, 'manifest.pending'), manifest, this.io)
-        checkArchiveAbort(signal)
-        await rename(join(path, 'manifest.pending'), join(path, 'manifest.json'))
+        await rename(join(path, UNFINISHED), join(path, COMMITTED))
         hasCommitted = true
         let cleanupError: KnownOperationError | null = null
         try {
-          await this.prune(fixed.projectId, fixed.target.rootId, signal)
+          await this.prune(fixed.projectId, fixed.target.rootId)
         } catch (error) {
           cleanupError = cleanupFailure(error)
         }
@@ -708,7 +709,7 @@ export class WindowsBackupStore {
         const failure = toArchiveError(error, signal)
         if (round && !hasCommitted) {
           try {
-            await this.remove(round, hasMarker)
+            await this.remove(round)
           } catch (cleanup) {
             failure.cleanupError = cleanupFailure(cleanup)
           }
@@ -725,91 +726,42 @@ export class WindowsBackupStore {
     signal?: AbortSignal,
   ): Promise<void> {
     await this.inspectRound(round)
-    const input = await openBackupFile(
-      join(this.path, round.marker.backupId, file.fileId),
-      BATCH_LIMITS.maxFileBytes,
-    )
+    const input = await openBackupFile(contentPath(round.path, file), BATCH_LIMITS.maxFileBytes)
     const value = await hashBackupStream(input.stream, file.sizeBytes, signal)
     await input.verify()
     if (value.sizeBytes !== file.sizeBytes || value.sha256 !== file.sha256) {
       throw new ArchiveError('checksum-mismatch', 'Backup content verification failed.')
     }
   }
-  private async remove(round: BackupRound, hasMarker = true): Promise<void> {
-    await this.inspectRound(round, hasMarker)
-    if ([...this.handles.values()].includes(round.marker.backupId)) {
+  /** 先把备份改回未完成状态再删文件，中途失败时它显示为可清理；标记最后删，游戏文件夹空了也一起删。 */
+  private async remove(round: BackupRound): Promise<void> {
+    if ([...this.handles.values()].includes(round.manifest.backupId)) {
       throw new ArchiveError('busy', 'The backup is being used for a restore.')
     }
-    const path = join(this.path, round.marker.backupId),
-      names = await readdir(path)
-    const identities = new Map<string, FileIdentity>()
-    for (const name of names) {
-      if (
-        !['round.json', 'manifest.json', 'manifest.pending', 'manifest.retired'].includes(name) &&
-        !isBatchFileId(name)
-      ) {
-        throw new ArchiveError(
-          'cleanup-failed',
-          'The backup contains unknown files. Cleanup stopped.',
-        )
+    await this.inspectRound(round)
+    const marker = join(round.path, UNFINISHED)
+    if (await exists(join(round.path, COMMITTED))) {
+      await rename(join(round.path, COMMITTED), marker)
+    }
+    for (const name of await readdir(round.path)) {
+      if (name !== UNFINISHED) {
+        await rm(join(round.path, name), { recursive: true, force: true })
       }
-      identities.set(
-        name,
-        await inspectBackupFile(
-          join(path, name),
-          name.startsWith('f') ? BATCH_LIMITS.maxFileBytes : BATCH_LIMITS.maxJsonBytes,
-        ),
-      )
     }
-    if (names.includes('manifest.json')) {
-      await rename(join(path, 'manifest.json'), join(path, 'manifest.retired'))
-      identities.set('manifest.retired', required(identities.get('manifest.json')))
-      identities.delete('manifest.json')
-    }
-    // 所有内容先确认归属，最后才删所有权记录；失败时保留记录，这一轮可以重试。
-    for (const name of [...identities.keys()].filter((name) => name !== 'round.json')) {
-      await this.inspectRound(round, hasMarker)
-      if (
-        !hasSameIdentity(await inspectLocalPath(join(path, name)), required(identities.get(name)))
-      ) {
-        throw new ArchiveError('cleanup-failed', 'A backup file identity changed during cleanup.')
-      }
-      await unlink(join(path, name))
-    }
-    await this.inspectRound(round, hasMarker)
-    if (identities.has('round.json')) {
-      await unlink(join(path, 'round.json'))
-    }
-    try {
-      await rmdir(path)
-    } catch (error) {
-      await this.inspectRound(round, false)
-      await writeBackupJson(join(path, 'round.json'), round.marker, this.io)
-      throw error
-    }
+    await rm(marker, { force: true })
+    await rmdir(round.path)
+    await rmdir(dirname(round.path)).catch(() => {
+      /* 游戏文件夹里还有其他备份。 */
+    })
   }
-  private async prune(
-    projectId: string,
-    rootId: string,
-    signal = AbortSignal.timeout(SYNC_LIMITS.scanTimeoutMs),
-  ): Promise<void> {
+  /** 按保留份数删除多余的旧备份；只统计完整的备份，用户删掉或弄坏的不计入保留份数，不会因此多删。 */
+  private async prune(projectId: string, rootId: string): Promise<void> {
     const rounds = (await this.rounds())
-      .filter(
-        (round) =>
-          round.manifest && round.marker.projectId === projectId && round.marker.rootId === rootId,
-      )
-      .sort((a, b) => required(b.manifest).createdAt - required(a.manifest).createdAt)
+      .filter((round) => round.isComplete && isInGroup(round, projectId, rootId))
+      .sort((a, b) => b.manifest.createdAt - a.manifest.createdAt)
     const { keepCount } = resolveBackupPolicy(await this.readSettings(), projectId, rootId)
-    if (rounds.length <= keepCount) {
-      return
-    }
-    for (const round of rounds.slice(0, keepCount)) {
-      for (const file of required(round.manifest).files) {
-        await this.verifyFile(round, file, signal)
-      }
-    }
     for (const round of rounds.slice(keepCount)) {
-      if (![...this.handles.values()].includes(round.marker.backupId)) {
+      if (![...this.handles.values()].includes(round.manifest.backupId)) {
         await this.remove(round)
       }
     }
@@ -826,14 +778,8 @@ export class WindowsBackupStore {
       if (this.handles.size >= 32) {
         throw new ArchiveError('resource-limit', 'Too many backup read references are open.')
       }
-      const round = (await this.rounds()).find(
-        (item) =>
-          item.manifest &&
-          item.marker.backupId === backupId &&
-          item.marker.projectId === projectId &&
-          item.marker.rootId === rootId,
-      )
-      if (!round) {
+      const round = await this.lookup(projectId, rootId, backupId)
+      if (!round?.isComplete) {
         throw new ArchiveError(
           'not-found',
           'The backup does not exist or does not belong to this project directory.',
@@ -846,7 +792,7 @@ export class WindowsBackupStore {
       this.active = controller
       try {
         handle.snapshot()
-        for (const file of required(round.manifest).files) {
+        for (const file of round.manifest.files) {
           await this.verifyFile(round, file, signal)
         }
         return handle
@@ -858,41 +804,46 @@ export class WindowsBackupStore {
       }
     })
   }
+  private async lookup(
+    projectId: string,
+    rootId: string,
+    backupId: string,
+  ): Promise<BackupRound | undefined> {
+    return (await this.rounds()).find(
+      (round) => isInGroup(round, projectId, rootId) && round.manifest.backupId === backupId,
+    )
+  }
   /** 同包的句柄释放引用后轮换；主错误与轮换错误由调用方分别显示。 */
   async release(
     handle: WindowsBackupHandle,
-    marker: RoundMarker,
+    projectId: string,
+    rootId: string,
   ): Promise<KnownOperationError | null> {
     this.handles.delete(handle)
     if (this.isClosed) {
       return null
     }
     try {
-      await this.exclusive(() => this.prune(marker.projectId, marker.rootId))
+      await this.exclusive(() => this.prune(projectId, rootId))
       return null
     } catch (error) {
       return cleanupFailure(error)
     }
   }
-  /** 重试轮换；有引用保护或还没完成的轮次不会被删除。 */
+  /** 重试轮换；有引用保护或不完整的轮次不会被删除。 */
   rotate(projectId: string, rootId: string): Promise<void> {
     group(projectId, rootId)
     return this.exclusive(() => this.prune(projectId, rootId))
   }
-  /** 清理已确认所有权的未提交或已淘汰轮次；有效备份由 deleteBackup 删除。 */
+  /** 清理未完成或文件已缺失的备份；已经不存在就算清理完成。有效备份由 deleteBackup 删除。 */
   cleanupIncomplete(projectId: string, rootId: string, backupId: string): Promise<void> {
     group(projectId, rootId)
     return this.exclusive(async () => {
-      const round = (await this.rounds()).find(
-        (item) =>
-          item.marker.backupId === backupId &&
-          item.marker.projectId === projectId &&
-          item.marker.rootId === rootId,
-      )
+      const round = await this.lookup(projectId, rootId, backupId)
       if (!round) {
-        throw new ArchiveError('not-found', 'The incomplete backup does not exist.')
+        return
       }
-      if (round.manifest) {
+      if (round.isComplete) {
         throw new ArchiveError(
           'permission-denied',
           'Valid backups are retained through rotation and cannot be cleaned up as leftovers.',
@@ -901,30 +852,24 @@ export class WindowsBackupStore {
       await this.remove(round)
     })
   }
-  /** 用户明确删除一份已提交备份；正在用于恢复的备份由 remove 拒绝。删到一半失败时变成残留，可再清理。 */
+  /** 用户在应用里删除一份备份；正在用于恢复的由 remove 拒绝，已被手动删除的算删除成功。删到一半失败时变成不完整，可再清理。 */
   deleteBackup(projectId: string, rootId: string, backupId: string): Promise<void> {
     group(projectId, rootId)
     return this.exclusive(async () => {
-      const round = (await this.rounds()).find(
-        (item) =>
-          item.marker.backupId === backupId &&
-          item.marker.projectId === projectId &&
-          item.marker.rootId === rootId,
-      )
-      if (!round?.manifest) {
-        throw new ArchiveError('not-found', 'The backup does not exist.')
+      const round = await this.lookup(projectId, rootId, backupId)
+      if (round) {
+        await this.remove(round)
       }
-      await this.remove(round)
     })
   }
-  /** 移除游戏时删除它在所有目录下的备份、残留和单独设置；中途失败时游戏保留，可以重试。 */
+  /** 移除游戏时删除它在所有目录下的备份和单独设置；中途失败时游戏保留，可以重试。 */
   deleteGameBackups(projectId: string): Promise<void> {
     if (!isOpaqueId(projectId)) {
       throw new ArchiveError('invalid-request', 'The game reference is invalid.')
     }
     return this.exclusive(async () => {
       for (const round of await this.rounds()) {
-        if (round.marker.projectId === projectId) {
+        if (round.manifest.projectId === projectId) {
           await this.remove(round)
         }
       }
@@ -950,10 +895,14 @@ export class WindowsBackupStore {
   }
 }
 
-/** 初始化 userData/backups，要求应用私有路径已解析；已有数据只按 v1 格式读取。 */
+/**
+ * 初始化 userData/backups，要求应用私有路径已解析。
+ * gameName 返回游戏当前名称，只决定新备份的文件夹名；找不到时返回 null。
+ */
 export async function createWindowsBackupStore(
   source: BackupSource,
   privateDirectory: string,
+  gameName: (projectId: string) => string | null,
   io: Partial<BackupDiskIO> = {},
 ): Promise<WindowsBackupStore> {
   if (!isAbsolute(privateDirectory) || !isOpaqueId(source.deviceId)) {
@@ -966,46 +915,9 @@ export async function createWindowsBackupStore(
     throw new ArchiveError('busy', 'This backup store is already open.')
   }
   stores.add(path)
-  const disk = { ...BACKUP_DISK_IO, ...io }
-  try {
-    if (!(await exists(path))) {
-      await mkdir(path, { mode: 0o700 })
-    }
-    const stats = await inspectLocalPath(path)
-    if (!stats.isDirectory()) {
-      throw new ArchiveError('invalid-request', 'The backup location is not a directory.')
-    }
-    if (!(await exists(join(path, 'owner.json')))) {
-      if ((await readdir(path)).length) {
-        throw new ArchiveError(
-          'permission-denied',
-          'The backup directory is nonempty and has no ownership record.',
-        )
-      }
-      await writeBackupJson(
-        join(path, 'owner.json'),
-        { schemaVersion: 1, storeId: randomUUID(), deviceId: source.deviceId },
-        disk,
-      )
-    }
-    const owner = await readBackupJson(join(path, 'owner.json'))
-    if (
-      !owner ||
-      typeof owner !== 'object' ||
-      !('storeId' in owner) ||
-      !isOpaqueId(owner.storeId) ||
-      !('schemaVersion' in owner) ||
-      owner.schemaVersion !== 1 ||
-      !('deviceId' in owner) ||
-      owner.deviceId !== source.deviceId ||
-      Object.keys(owner).length !== 3
-    ) {
-      throw new ArchiveError('permission-denied', 'The backup ownership record is invalid.')
-    }
-    source.excludePrivateDirectory(path)
-    return new WindowsBackupStore(source, path, owner.storeId, getFileIdentity(stats), disk)
-  } catch (error) {
-    stores.delete(path)
-    throw toArchiveError(error)
-  }
+  source.excludePrivateDirectory(path)
+  return new WindowsBackupStore(source, path, privateDirectory, gameName, {
+    ...BACKUP_DISK_IO,
+    ...io,
+  })
 }

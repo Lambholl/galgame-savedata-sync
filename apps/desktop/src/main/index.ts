@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, nativeTheme } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, nativeTheme, shell } from 'electron'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { mkdir, realpath } from 'node:fs/promises'
@@ -111,7 +111,12 @@ if (hasInstanceLock) {
       const library = new DesktopLibrary(join(privateDirectory, 'game-library.json'), adapter)
       await library.load()
       initializationStage = 'backups'
-      const backups = await createWindowsBackupStore(adapter, privateDirectory)
+      const backups = await createWindowsBackupStore(
+        adapter,
+        privateDirectory,
+        (projectId) =>
+          library.snapshot().config.games.find((game) => game.id === projectId)?.name ?? null,
+      )
       initializationStage = 'sync-writer'
       const interruptedWrites = new InterruptedWriteStore(privateDirectory)
       const syncWriter = new WindowsSyncWriter(adapter, backups, {
@@ -186,6 +191,7 @@ if (hasInstanceLock) {
           backups,
           library,
           (event) => isTrustedDirectorySender(event, trustedWindows, expectedRendererUrl),
+          (path) => shell.openPath(path),
           () => httpService.hasRunningNetworkWork() || restores.hasRunningWork(),
         ),
       )

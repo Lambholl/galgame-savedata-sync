@@ -227,6 +227,7 @@ export const zhCN = {
   'backup.keep': ({ count }: { count: number }): string => `保留 ${count} 份`,
   'backup.offHint': '收到传输时直接写入目标文件',
   'backup.location': '保存位置',
+  'backup.openFolder': '打开文件夹',
   'backup.list': '备份',
   'backup.reason.copy': '传输前',
   'backup.reason.restore': '恢复前',
