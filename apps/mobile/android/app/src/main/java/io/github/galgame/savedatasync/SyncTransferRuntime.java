@@ -99,7 +99,7 @@ final class SyncTransferRuntime {
 
         @Override
         public boolean retryCleanup() {
-          return writer.retryCleanup() && backups.retryCleanup();
+          return writer.retryCleanup();
         }
 
         @Override

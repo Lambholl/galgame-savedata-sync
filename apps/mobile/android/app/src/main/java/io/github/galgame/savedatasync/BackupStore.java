@@ -72,9 +72,6 @@ final class BackupStore implements AutoCloseable {
   private volatile Active active;
   private volatile boolean isClosed;
   private boolean isLeaseReleased;
-  private Round pendingCleanup;
-  private String pendingRotationProject;
-  private String pendingRotationRoot;
 
   private static final class Active {
 
@@ -497,9 +494,6 @@ final class BackupStore implements AutoCloseable {
     require(!reason.equals("restore") || shouldBackup);
     final List<BackupModel.SourceFile> sources = BackupModel.sources(entries);
     alive();
-    if (pendingCleanup != null || pendingRotationProject != null) {
-      throw BackupFiles.failure("cleanup-failed");
-    }
     Active work = new Active(control);
     active = work;
     Round round = null;
@@ -628,8 +622,7 @@ final class BackupStore implements AutoCloseable {
       try {
         prune(projectId, rootId);
       } catch (Exception failure) {
-        pendingRotationProject = projectId;
-        pendingRotationRoot = rootId;
+        // 这份备份已经提交，失败只报告；删不掉的备份还在磁盘上，下一次轮换会再删。
         cleanup = error(cleanupFailure(failure));
       }
       return object("manifest", copy(manifest), "cleanupError", cleanup);
@@ -639,7 +632,6 @@ final class BackupStore implements AutoCloseable {
         try {
           remove(round);
         } catch (Exception cleanup) {
-          pendingCleanup = round;
           failure.cleanupFailure = cleanupFailure(cleanup);
         }
       }
@@ -732,12 +724,7 @@ final class BackupStore implements AutoCloseable {
     ordered.addAll(incomplete);
     for (Round round : ordered.subList(keep, ordered.size())) {
       if (!handles.containsValue(round.id())) {
-        try {
-          remove(round);
-        } catch (Exception failure) {
-          pendingCleanup = round;
-          throw failure;
-        }
+        remove(round);
       }
     }
   }
@@ -745,41 +732,7 @@ final class BackupStore implements AutoCloseable {
   synchronized void rotate(String projectId, String rootId) throws Exception {
     ids(projectId, rootId);
     alive();
-    if (pendingCleanup != null) {
-      throw BackupFiles.failure("cleanup-failed");
-    }
     prune(projectId, rootId);
-  }
-
-  /** 重试本实例这次创建留下的清理和轮换。 */
-  synchronized boolean retryCleanup() {
-    if (active != null || isClosed) {
-      return false;
-    }
-    try {
-      if (pendingCleanup != null) {
-        remove(pendingCleanup);
-        pendingCleanup = null;
-      }
-      if (pendingRotationProject != null) {
-        rotate(pendingRotationProject, pendingRotationRoot);
-        pendingRotationProject = null;
-        pendingRotationRoot = null;
-      }
-      return true;
-    } catch (Exception failure) {
-      return false;
-    }
-  }
-
-  private void forgetPending(Round round) {
-    if (
-      pendingCleanup != null &&
-      pendingCleanup.path.equals(round.path) &&
-      Objects.equals(pendingCleanup.key, round.key)
-    ) {
-      pendingCleanup = null;
-    }
   }
 
   /** 清理未完成或文件已缺失的备份；已经不存在就算清理完成。 */
@@ -793,7 +746,6 @@ final class BackupStore implements AutoCloseable {
       throw BackupFiles.failure("permission-denied");
     }
     remove(round);
-    forgetPending(round);
   }
 
   /** 用户在应用里删除一份备份；正在用于恢复的由 remove 拒绝，已被手动删除的算删除成功。删到一半失败时变成未完成，可再清理。 */
@@ -802,7 +754,6 @@ final class BackupStore implements AutoCloseable {
     Round round = lookup(projectId, rootId, backupId);
     if (round != null) {
       remove(round);
-      forgetPending(round);
     }
   }
 
@@ -812,12 +763,7 @@ final class BackupStore implements AutoCloseable {
     for (Round round : rounds()) {
       if (round.manifest.get("projectId").equals(projectId)) {
         remove(round);
-        forgetPending(round);
       }
-    }
-    if (projectId.equals(pendingRotationProject)) {
-      pendingRotationProject = null;
-      pendingRotationRoot = null;
     }
     Map<String, Object> settings = settings();
     List<Object> values = new ArrayList<>(TransferJson.list(settings.get("projects")));

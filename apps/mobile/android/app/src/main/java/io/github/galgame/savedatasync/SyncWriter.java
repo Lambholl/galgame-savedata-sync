@@ -887,7 +887,7 @@ final class SyncWriter implements AutoCloseable {
         isClean = false;
       }
     }
-    return backend.publisher().retryCleanup() && backups.retryCleanup() && isClean;
+    return backend.publisher().retryCleanup() && isClean;
   }
 
   /** 重试资源释放，不重新创建或写入文件。 */

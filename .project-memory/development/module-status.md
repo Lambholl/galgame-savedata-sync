@@ -36,7 +36,7 @@ related_files: []
 | Android → Windows 复制编排 | done | 开发 | shared sync jobs、Windows sync-registry/upload-body、Android SyncJobModel/SyncTransferEngine/Runtime/Plugin/Service、TS bridge | 真实存档在支持范围内开放 | — |
 | Windows → Android 复制编排 | done | 开发 | Windows sync-registry/HTTP/source 归档、Android SyncTransferEngine/Runtime/Model、SyncWriter/BackupStore、TS bridge | 移动端独立报告目标结果；真实存档在支持范围内开放 | — |
 | 固定项目映射与传输前复核 | done | 开发 | apps/shared/src/library/project-binding.ts、双端 library store/adapter/IPC | 配置/设备/目录 ID 固定到任务；实际扫描和写入由平台包处理；TransferRequest 调用方需提供 projectId | — |
-| Windows 独立备份与轮换 | done | 开发 | backup-store/files/ipc、backup-bridge、启动/preload、directory-adapter | 原生写入/恢复、Android 上传接收及桌面页面复用这些材料；结构和移动端相同，用户可手动管理 | 手机传到电脑的真实传输，见 TC-040 |
+| Windows 独立备份与轮换 | done | 开发 | backup-store/files/ipc、backup-bridge、启动/preload、directory-adapter | 原生写入/恢复、Android 上传接收及桌面页面复用这些材料；结构和移动端相同，用户可手动管理 | — |
 | Windows 受保护写入与恢复 | done | 开发 | sync-writer、sync-target-files、target-operation、directory-adapter、transfer-registry、restore-registry、启动 | 其他卷、特殊名称和崩溃残留没有验收，见覆盖缺口 | — |
 | Android 独立备份与轮换 | active | 开发 | BackupStore/Model/Files、AndroidBackupIo、SyncBackupsPlugin、TS backup bridge | 备份移到 `Android/data` 后，备份和恢复已在真机合成目录验证 | 无 |
 | Android 受保护写入与本机恢复 | active | 开发 | SyncPlanModel/Writer、SafSyncBackend、SyncWriteRuntime/Plugin、TargetOperation、TS sync-write bridge | Android 覆盖是原地写入，中断会留下新旧混合的文件，只能靠写入前备份恢复；删除目标多出的条目已在真机合成目录验证，Activity 重建后读回开关选择未跑 | 下次调整传输页时补 Activity 重建 |
