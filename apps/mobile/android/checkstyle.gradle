@@ -1,0 +1,21 @@
+// 用 Checkstyle 检查手写 Java 的命名、导入、大括号和 Javadoc，排版由 Prettier 负责。
+// 配置放在根项目，依赖清单任务会把 Checkstyle 一起列入安全审计。
+apply plugin: 'checkstyle'
+
+checkstyle {
+    toolVersion = '14.3.0'
+    configFile = file('checkstyle.xml')
+    // Checkstyle 只缓存没有违规的文件，改过的文件才重新检查；配置变化时缓存整体失效。
+    configProperties = [
+        cacheFile: layout.buildDirectory.file('checkstyle/cache.properties').get().asFile.path,
+    ]
+    // 配置里的规则都是 warning，这里让任何一条违规都算失败。
+    maxWarnings = 0
+}
+
+tasks.register('javaCheckstyle', Checkstyle) {
+    group = 'verification'
+    description = '检查手写 Java 是否符合 checkstyle.xml。'
+    source = fileTree('app/src') { include '**/*.java' }
+    classpath = files()
+}

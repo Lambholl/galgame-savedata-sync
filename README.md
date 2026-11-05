@@ -58,12 +58,12 @@ Windows PowerShell 若限制执行 `.ps1` 启动器，可使用 `pnpm.cmd` 执�
 | `pnpm desktop:package`     | 构建 Windows x64 安装版与免安装版 exe，输出到 apps/desktop/release |
 | `pnpm desktop:package:portable` | 只构建 Windows x64 免安装版 exe                               |
 | `pnpm dev:mobile`          | 启动移动界面的本机网页预览                                        |
-| `pnpm check`               | 编码/换行、格式、ESLint、类型检查和双端构建                       |
+| `pnpm check`               | 编码/换行、格式、ESLint、Checkstyle（需要 JDK）、类型检查和双端构建 |
 | `pnpm test:all`            | 全量自动化测试及 Android 原生测试；用于发布或高风险改动            |
 | `pnpm security:check`      | 官方 npm 全量审计、固定 pnpm 的 OSV 检查及 Node.js 安全补丁基线   |
 | `pnpm security:npm`        | 审计项目全部 npm 直接和间接依赖，包括开发依赖                     |
 | `pnpm security:android`    | Gradle 解析 Android 运行、测试及构建依赖后通过 OSV 检查 Maven 包  |
-| `pnpm format`              | 先修复 ESLint 问题，再用 Prettier 排版；Markdown 与生成的 Android 工程单独维护 |
+| `pnpm format`              | 先修复 ESLint 问题，再用 Prettier 排版（含手写 Java）；Markdown 与 Android 工程的其他文件单独维护 |
 | `pnpm android:sync`        | 构建移动网页并同步到已纳入仓库的 Android 工程                     |
 | `pnpm android:build`       | 同步资源后使用项目 Gradle Wrapper 构建 debug APK                  |
 | `pnpm android:test`        | Java 单元、跨端原生归档互通、Android lint 及调试/仪器测试 APK 构建，不自动连接设备 |

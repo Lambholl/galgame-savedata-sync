@@ -8,6 +8,12 @@ gradle.beforeProject { project ->
             configuration.resolutionStrategy.eachDependency { details ->
                 def key = "${details.requested.group}:${details.requested.name}"
                 def patchedVersion = dependencySecurity.modules[key]
+                if (patchedVersion == null) {
+                    // 同一模块在运行、测试和构建工具里只用一个版本，一般取出现过的最高版。
+                    // listenablefuture 是例外：9999.0-empty 是空包，只有带 Guava 的配置能用，
+                    // APK 不带 Guava，androidx 又需要它的接口，所以统一用 1.0。
+                    patchedVersion = dependencySecurity.singleVersionModules[key]
+                }
                 if (patchedVersion == null && details.requested.group == 'io.netty'
                     && details.requested.version?.startsWith('4.1.')) {
                     patchedVersion = dependencySecurity.netty4Version
@@ -18,7 +24,7 @@ gradle.beforeProject { project ->
                 }
                 if (patchedVersion != null) {
                     details.useVersion(patchedVersion.toString())
-                    details.because('Known-vulnerability patch policy in dependency-security.json')
+                    details.because('Version policy in dependency-security.json')
                 }
             }
         }

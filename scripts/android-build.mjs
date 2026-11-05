@@ -4,7 +4,12 @@ import { spawn } from 'node:child_process'
 import { getAndroidEnvironment, REPO_ROOT } from './local-environment.mjs'
 
 const { sdkRoot, javaHome, gradleProxy } = getAndroidEnvironment()
-if (!sdkRoot || !existsSync(join(sdkRoot, 'platforms', 'android-36', 'android.jar'))) {
+const isCheckstyle = process.argv.includes('--checkstyle')
+// Checkstyle 只读 Java 源文件，只装了 JDK 的机器也能运行 pnpm lint。
+if (
+  !isCheckstyle &&
+  (!sdkRoot || !existsSync(join(sdkRoot, 'platforms', 'android-36', 'android.jar')))
+) {
   throw new Error(
     'Android SDK Platform 36 missing. Run pnpm env:check and configure dev.local.json.',
   )
@@ -39,7 +44,11 @@ const gradleArgs = isInventory
         ':app:assembleDebugAndroidTest',
         '--console=plain',
       ]
-    : ['--no-daemon', isRelease ? ':app:assembleRelease' : ':app:assembleDebug']
+    : isCheckstyle
+      ? // pnpm lint 经常运行，保留 Gradle 后台进程，免去每次约 17 秒的启动时间。
+        // 检查前可能还没执行 android:sync，:app 缺少生成的文件时无法配置，所以只配置根项目。
+        ['--configure-on-demand', ':javaCheckstyle', '--console=plain']
+      : ['--no-daemon', isRelease ? ':app:assembleRelease' : ':app:assembleDebug']
 // 显式相对路径：设置 NoDefaultCurrentDirectoryInExePath 时，cmd 不在当前目录查找裸名
 const args = isWindows ? ['/d', '/c', '.\\gradlew.bat', ...gradleArgs] : gradleArgs
 const proxyOptions = gradleProxy

@@ -1,5 +1,21 @@
 package io.github.galgame.savedatasync;
 
+import static io.github.galgame.savedatasync.TransferJson.bytes;
+import static io.github.galgame.savedatasync.TransferJson.copy;
+import static io.github.galgame.savedatasync.TransferJson.list;
+import static io.github.galgame.savedatasync.TransferJson.map;
+import static io.github.galgame.savedatasync.TransferJson.object;
+import static io.github.galgame.savedatasync.TransferSchema.device;
+import static io.github.galgame.savedatasync.TransferSchema.id;
+import static io.github.galgame.savedatasync.TransferSchema.nullable;
+import static io.github.galgame.savedatasync.TransferSchema.number;
+import static io.github.galgame.savedatasync.TransferSchema.one;
+import static io.github.galgame.savedatasync.TransferSchema.parent;
+import static io.github.galgame.savedatasync.TransferSchema.require;
+import static io.github.galgame.savedatasync.TransferSchema.shape;
+import static io.github.galgame.savedatasync.TransferSchema.string;
+import static io.github.galgame.savedatasync.TransferSchema.target;
+
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -7,137 +23,318 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import static io.github.galgame.savedatasync.TransferJson.*;
-import static io.github.galgame.savedatasync.TransferSchema.*;
 
 /** 校验可执行的 SyncPlan：从两份完整快照重算动作、顺序和上限，拒绝删减冲突。 */
 final class SyncPlanModel {
-    private static final long MAX_SAFE = 9007199254740991L;
-    private SyncPlanModel() {}
-    static String key(Object path) throws Exception { return new String(bytes(path), java.nio.charset.StandardCharsets.UTF_8); }
-    static boolean same(Object left, Object right) {
-        if (left instanceof Number && right instanceof Number) return ((Number) left).longValue() == ((Number) right).longValue();
-        if (left instanceof Map && right instanceof Map) {
-            Map<?, ?> a = (Map<?, ?>) left, b = (Map<?, ?>) right;
-            if (!a.keySet().equals(b.keySet())) return false;
-            for (Object key : a.keySet()) if (!same(a.get(key), b.get(key))) return false;
-            return true;
+
+  private static final long MAX_SAFE = 9007199254740991L;
+
+  private SyncPlanModel() {}
+
+  static String key(Object path) throws Exception {
+    return new String(bytes(path), java.nio.charset.StandardCharsets.UTF_8);
+  }
+
+  static boolean same(Object left, Object right) {
+    if (left instanceof Number && right instanceof Number) {
+      return ((Number) left).longValue() == ((Number) right).longValue();
+    }
+    if (left instanceof Map && right instanceof Map) {
+      Map<?, ?> a = (Map<?, ?>) left;
+      Map<?, ?> b = (Map<?, ?>) right;
+      if (!a.keySet().equals(b.keySet())) {
+        return false;
+      }
+      for (Object key : a.keySet()) {
+        if (!same(a.get(key), b.get(key))) {
+          return false;
         }
-        if (left instanceof List && right instanceof List) {
-            List<?> a = (List<?>) left, b = (List<?>) right;
-            if (a.size() != b.size()) return false;
-            for (int i = 0; i < a.size(); i++) if (!same(a.get(i), b.get(i))) return false;
-            return true;
+      }
+      return true;
+    }
+    if (left instanceof List && right instanceof List) {
+      List<?> a = (List<?>) left;
+      List<?> b = (List<?>) right;
+      if (a.size() != b.size()) {
+        return false;
+      }
+      for (int i = 0; i < a.size(); i++) {
+        if (!same(a.get(i), b.get(i))) {
+          return false;
         }
-        return Objects.equals(left, right);
+      }
+      return true;
     }
-    static final class Snapshot {
-        final Map<String, Object> value;
-        final String device, root, scan;
-        final Map<String, Map<String, Object>> paths = new LinkedHashMap<>();
-        final Map<String, Map<String, Object>> ids = new LinkedHashMap<>();
-        Snapshot(Object raw) throws Exception {
-            value = shape(copy(raw), "schemaVersion", "scanId", "deviceId", "rootId", "observedAt", "entries", "error");
-            number(value.get("schemaVersion"), 1, 1); device = id(value.get("deviceId")); root = id(value.get("rootId")); scan = id(value.get("scanId"));
-            number(value.get("observedAt"), -BackupModel.MAX_DATE, BackupModel.MAX_DATE); require(value.get("error") == null);
-            List<Object> entries = list(value.get("entries")); require(entries.size() <= 10000); Set<String> names = new HashSet<>();
-            List<String> previous = null;
-            for (Object item : entries) {
-                Map<String, Object> entry = shape(item, "entryId", "path", "kind", "sizeBytes", "modifiedAt", "sha256", "error");
-                String entryId = id(entry.get("entryId")); List<String> path = BackupModel.path(entry.get("path"));
-                require(entry.get("error") == null && names.add(BackupModel.key(path)) && !ids.containsKey(entryId));
-                require(previous == null || BackupModel.compare(previous, path) < 0); previous = path;
-                nullable(entry.get("modifiedAt"), -BackupModel.MAX_DATE, BackupModel.MAX_DATE);
-                one(entry.get("kind"), "file", "directory");
-                if (entry.get("kind").equals("file")) { number(entry.get("sizeBytes"), 0, MAX_SAFE); BackupModel.hash(entry.get("sha256")); }
-                else require(entry.get("sizeBytes") == null && entry.get("sha256") == null);
-                paths.put(key(path), entry); ids.put(entryId, entry);
-            }
-            for (Map<String, Object> entry : paths.values()) {
-                List<String> path = BackupModel.path(entry.get("path"));
-                if (path.size() > 1) {
-                    Map<String, Object> parent = paths.get(key(path.subList(0, path.size() - 1)));
-                    require(parent != null && parent.get("kind").equals("directory"));
-                }
-            }
+    return Objects.equals(left, right);
+  }
+
+  static final class Snapshot {
+
+    final Map<String, Object> value;
+    final String device;
+    final String root;
+    final String scan;
+    final Map<String, Map<String, Object>> paths = new LinkedHashMap<>();
+    final Map<String, Map<String, Object>> ids = new LinkedHashMap<>();
+
+    Snapshot(Object raw) throws Exception {
+      value = shape(
+        copy(raw),
+        "schemaVersion",
+        "scanId",
+        "deviceId",
+        "rootId",
+        "observedAt",
+        "entries",
+        "error"
+      );
+      number(value.get("schemaVersion"), 1, 1);
+      device = id(value.get("deviceId"));
+      root = id(value.get("rootId"));
+      scan = id(value.get("scanId"));
+      number(value.get("observedAt"), -BackupModel.MAX_DATE, BackupModel.MAX_DATE);
+      require(value.get("error") == null);
+      List<Object> entries = list(value.get("entries"));
+      require(entries.size() <= 10000);
+      Set<String> names = new HashSet<>();
+      List<String> previous = null;
+      for (Object item : entries) {
+        Map<String, Object> entry = shape(
+          item,
+          "entryId",
+          "path",
+          "kind",
+          "sizeBytes",
+          "modifiedAt",
+          "sha256",
+          "error"
+        );
+        String entryId = id(entry.get("entryId"));
+        List<String> path = BackupModel.path(entry.get("path"));
+        require(
+          entry.get("error") == null &&
+            names.add(BackupModel.key(path)) &&
+            !ids.containsKey(entryId)
+        );
+        require(previous == null || BackupModel.compare(previous, path) < 0);
+        previous = path;
+        nullable(entry.get("modifiedAt"), -BackupModel.MAX_DATE, BackupModel.MAX_DATE);
+        one(entry.get("kind"), "file", "directory");
+        if (entry.get("kind").equals("file")) {
+          number(entry.get("sizeBytes"), 0, MAX_SAFE);
+          BackupModel.hash(entry.get("sha256"));
+        } else {
+          require(entry.get("sizeBytes") == null && entry.get("sha256") == null);
         }
-        Map<String, Object> entry(Object id) throws Exception { Map<String, Object> value = ids.get(string(id)); require(value != null); return value; }
-        String parent(List<String> path) throws Exception {
-            return path.size() == 1 ? null : id(paths.get(key(path.subList(0, path.size() - 1))).get("entryId"));
+        paths.put(key(path), entry);
+        ids.put(entryId, entry);
+      }
+      for (Map<String, Object> entry : paths.values()) {
+        List<String> path = BackupModel.path(entry.get("path"));
+        if (path.size() > 1) {
+          Map<String, Object> parent = paths.get(key(path.subList(0, path.size() - 1)));
+          require(parent != null && parent.get("kind").equals("directory"));
         }
+      }
     }
-    /** 这一项是否写入文件内容；只有这些动作需要来源文件，结果也只有这些带指纹。 */
-    static boolean isFileWrite(Map<String, Object> operation) {
-        return operation.get("action").equals("create-file") || operation.get("action").equals("replace-file");
+
+    Map<String, Object> entry(Object id) throws Exception {
+      Map<String, Object> value = ids.get(string(id));
+      require(value != null);
+      return value;
     }
-    static boolean isDelete(Map<String, Object> operation) {
-        return operation.get("action").equals("delete-file") || operation.get("action").equals("delete-directory");
+
+    String parent(List<String> path) throws Exception {
+      return path.size() == 1
+        ? null
+        : id(paths.get(key(path.subList(0, path.size() - 1))).get("entryId"));
     }
-    /** 与 shared 的 compareOperations 一致：先建文件夹，再写文件，最后由深到浅删除。 */
-    private static int rank(Map<String, Object> operation) {
-        return operation.get("action").equals("create-directory") ? 0 : isDelete(operation) ? 2 : 1;
-    }
-    static final class Plan {
-        final Map<String, Object> value;
-        final Snapshot source, target;
-        final String id, project, reason;
-        final boolean backup, deleteExtras;
-        final List<Map<String, Object>> writes = new ArrayList<>();
-        final List<Object> backupFiles = new ArrayList<>();
-        Plan(Object raw) throws Exception {
-            value = shape(copy(raw), "planId", "projectId", "operation", "direction", "shouldBackup", "shouldDeleteExtras", "source", "target", "schemaVersion", "entries", "issues", "transferFileCount", "totalFileBytes", "backupFileBytes", "canExecute");
-            bytes(value); number(value.get("schemaVersion"), 1, 1); id = id(value.get("planId")); project = id(value.get("projectId"));
-            one(value.get("operation"), "copy", "restore"); reason = string(value.get("operation"));
-            one(value.get("direction"), "android-to-windows", "windows-to-android", "local-restore");
-            require(value.get("shouldBackup") instanceof Boolean && value.get("shouldDeleteExtras") instanceof Boolean && Boolean.TRUE.equals(value.get("canExecute")) && list(value.get("issues")).isEmpty());
-            backup = (Boolean) value.get("shouldBackup"); deleteExtras = (Boolean) value.get("shouldDeleteExtras"); source = new Snapshot(value.get("source")); target = new Snapshot(value.get("target"));
-            boolean restore = reason.equals("restore");
-            require(restore ? value.get("direction").equals("local-restore") && backup && !deleteExtras && source.device.equals(target.device) :
-                !value.get("direction").equals("local-restore") && !source.device.equals(target.device));
-            Map<String, String> equivalence = new LinkedHashMap<>();
-            for (String key : target.paths.keySet()) equivalence.put(BackupModel.key(BackupModel.path(target.paths.get(key).get("path"))), key);
-            for (String key : source.paths.keySet()) {
-                String other = equivalence.get(BackupModel.key(BackupModel.path(source.paths.get(key).get("path")))); require(other == null || other.equals(key));
-            }
-            Map<String, Map<String, Object>> all = new LinkedHashMap<>(source.paths); target.paths.forEach(all::putIfAbsent);
-            List<Object> operations = new ArrayList<>(); long total = 0, old = 0; int count = 0;
-            for (String key : all.keySet()) {
-                Map<String, Object> from = source.paths.get(key), to = target.paths.get(key); String action;
-                if (from == null) action = !deleteExtras ? "keep" : to.get("kind").equals("directory") ? "delete-directory" : "delete-file";
-                else if (to == null) action = from.get("kind").equals("directory") ? "create-directory" : "create-file";
-                else {
-                    require(from.get("kind").equals(to.get("kind")));
-                    action = from.get("kind").equals("directory") || (same(from.get("sizeBytes"), to.get("sizeBytes")) && from.get("sha256").equals(to.get("sha256"))) ? "skip" : "replace-file";
-                }
-                Map<String, Object> operation = object("path", (from == null ? to : from).get("path"), "action", action,
-                    "sourceEntryId", from == null ? null : from.get("entryId"), "targetEntryId", to == null ? null : to.get("entryId"));
-                operations.add(operation);
-                if (action.equals("create-file") || action.equals("replace-file")) { count++; total += number(from.get("sizeBytes"), 0, BackupModel.MAX_FILE); require(total <= BackupModel.MAX_TOTAL); }
-            }
-            boolean hasWrites = count > 0;
-            for (Object operation : operations) if (map(operation).get("action").equals("create-directory") || isDelete(map(operation))) hasWrites = true;
-            if (backup && hasWrites) {
-                for (Map<String, Object> entry : target.paths.values()) if (entry.get("kind").equals("file")) {
-                    old += number(entry.get("sizeBytes"), 0, BackupModel.MAX_FILE);
-                    backupFiles.add(entry); require(old <= BackupModel.MAX_TOTAL);
-                }
-            }
-            require(count <= 1024 && backupFiles.size() <= 1024);
-            operations.sort((left, right) -> {
-                try {
-                    Map<String, Object> a = map(left), b = map(right); int ar = rank(a), br = rank(b);
-                    if (ar != br) return Integer.compare(ar, br);
-                    List<String> ap = BackupModel.path(a.get("path")), bp = BackupModel.path(b.get("path"));
-                    int depth = ar == 0 ? Integer.compare(ap.size(), bp.size()) : ar == 2 ? Integer.compare(bp.size(), ap.size()) : 0;
-                    return depth == 0 ? BackupModel.compare(ap, bp) : depth;
-                } catch (Exception invalid) { throw new IllegalArgumentException(invalid); }
-            });
-            require(same(operations, value.get("entries")) && number(value.get("transferFileCount"), 0, 1024) == count &&
-                number(value.get("totalFileBytes"), 0, BackupModel.MAX_TOTAL) == total && number(value.get("backupFileBytes"), 0, BackupModel.MAX_TOTAL) == old);
-            for (Object operation : operations) {
-                Map<String, Object> entry = map(operation);
-                if (entry.get("action").equals("create-directory") || isFileWrite(entry) || isDelete(entry)) writes.add(entry);
-            }
+  }
+
+  /** 这一项是否写入文件内容；只有这些动作需要来源文件，结果也只有这些带指纹。 */
+  static boolean isFileWrite(Map<String, Object> operation) {
+    return (
+      operation.get("action").equals("create-file") ||
+      operation.get("action").equals("replace-file")
+    );
+  }
+
+  static boolean isDelete(Map<String, Object> operation) {
+    return (
+      operation.get("action").equals("delete-file") ||
+      operation.get("action").equals("delete-directory")
+    );
+  }
+
+  /** 与 shared 的 compareOperations 一致：先建文件夹，再写文件，最后由深到浅删除。 */
+  private static int rank(Map<String, Object> operation) {
+    return operation.get("action").equals("create-directory") ? 0 : isDelete(operation) ? 2 : 1;
+  }
+
+  static final class Plan {
+
+    final Map<String, Object> value;
+    final Snapshot source;
+    final Snapshot target;
+    final String id;
+    final String project;
+    final String reason;
+    final boolean shouldBackup;
+    final boolean shouldDeleteExtras;
+    final List<Map<String, Object>> writes = new ArrayList<>();
+    final List<Object> backupFiles = new ArrayList<>();
+
+    Plan(Object raw) throws Exception {
+      value = shape(
+        copy(raw),
+        "planId",
+        "projectId",
+        "operation",
+        "direction",
+        "shouldBackup",
+        "shouldDeleteExtras",
+        "source",
+        "target",
+        "schemaVersion",
+        "entries",
+        "issues",
+        "transferFileCount",
+        "totalFileBytes",
+        "backupFileBytes",
+        "canExecute"
+      );
+      bytes(value);
+      number(value.get("schemaVersion"), 1, 1);
+      id = id(value.get("planId"));
+      project = id(value.get("projectId"));
+      one(value.get("operation"), "copy", "restore");
+      reason = string(value.get("operation"));
+      one(value.get("direction"), "android-to-windows", "windows-to-android", "local-restore");
+      require(
+        value.get("shouldBackup") instanceof Boolean &&
+          value.get("shouldDeleteExtras") instanceof Boolean &&
+          Boolean.TRUE.equals(value.get("canExecute")) &&
+          list(value.get("issues")).isEmpty()
+      );
+      shouldBackup = (Boolean) value.get("shouldBackup");
+      shouldDeleteExtras = (Boolean) value.get("shouldDeleteExtras");
+      source = new Snapshot(value.get("source"));
+      target = new Snapshot(value.get("target"));
+      boolean isRestore = reason.equals("restore");
+      require(
+        isRestore
+          ? value.get("direction").equals("local-restore") &&
+              shouldBackup &&
+              !shouldDeleteExtras &&
+              source.device.equals(target.device)
+          : !value.get("direction").equals("local-restore") && !source.device.equals(target.device)
+      );
+      Map<String, String> equivalence = new LinkedHashMap<>();
+      for (String key : target.paths.keySet()) {
+        equivalence.put(BackupModel.key(BackupModel.path(target.paths.get(key).get("path"))), key);
+      }
+      for (String key : source.paths.keySet()) {
+        String other = equivalence.get(
+          BackupModel.key(BackupModel.path(source.paths.get(key).get("path")))
+        );
+        require(other == null || other.equals(key));
+      }
+      Map<String, Map<String, Object>> all = new LinkedHashMap<>(source.paths);
+      target.paths.forEach(all::putIfAbsent);
+      List<Object> operations = new ArrayList<>();
+      long total = 0;
+      long old = 0;
+      int count = 0;
+      for (String key : all.keySet()) {
+        Map<String, Object> from = source.paths.get(key);
+        Map<String, Object> to = target.paths.get(key);
+        String action;
+        if (from == null) {
+          action = !shouldDeleteExtras
+            ? "keep"
+            : to.get("kind").equals("directory")
+              ? "delete-directory"
+              : "delete-file";
+        } else if (to == null) {
+          action = from.get("kind").equals("directory") ? "create-directory" : "create-file";
+        } else {
+          require(from.get("kind").equals(to.get("kind")));
+          action =
+            from.get("kind").equals("directory") ||
+            (same(from.get("sizeBytes"), to.get("sizeBytes")) &&
+              from.get("sha256").equals(to.get("sha256")))
+              ? "skip"
+              : "replace-file";
         }
+        Map<String, Object> operation = object(
+          "path",
+          (from == null ? to : from).get("path"),
+          "action",
+          action,
+          "sourceEntryId",
+          from == null ? null : from.get("entryId"),
+          "targetEntryId",
+          to == null ? null : to.get("entryId")
+        );
+        operations.add(operation);
+        if (action.equals("create-file") || action.equals("replace-file")) {
+          count++;
+          total += number(from.get("sizeBytes"), 0, BackupModel.MAX_FILE);
+          require(total <= BackupModel.MAX_TOTAL);
+        }
+      }
+      boolean hasWrites = count > 0;
+      for (Object operation : operations) {
+        if (map(operation).get("action").equals("create-directory") || isDelete(map(operation))) {
+          hasWrites = true;
+        }
+      }
+      if (shouldBackup && hasWrites) {
+        for (Map<String, Object> entry : target.paths.values()) {
+          if (entry.get("kind").equals("file")) {
+            old += number(entry.get("sizeBytes"), 0, BackupModel.MAX_FILE);
+            backupFiles.add(entry);
+            require(old <= BackupModel.MAX_TOTAL);
+          }
+        }
+      }
+      require(count <= 1024 && backupFiles.size() <= 1024);
+      operations.sort((left, right) -> {
+        try {
+          Map<String, Object> a = map(left);
+          Map<String, Object> b = map(right);
+          int ar = rank(a);
+          int br = rank(b);
+          if (ar != br) {
+            return Integer.compare(ar, br);
+          }
+          List<String> ap = BackupModel.path(a.get("path"));
+          List<String> bp = BackupModel.path(b.get("path"));
+          int depth =
+            ar == 0
+              ? Integer.compare(ap.size(), bp.size())
+              : ar == 2
+                ? Integer.compare(bp.size(), ap.size())
+                : 0;
+          return depth == 0 ? BackupModel.compare(ap, bp) : depth;
+        } catch (Exception invalid) {
+          throw new IllegalArgumentException(invalid);
+        }
+      });
+      require(
+        same(operations, value.get("entries")) &&
+          number(value.get("transferFileCount"), 0, 1024) == count &&
+          number(value.get("totalFileBytes"), 0, BackupModel.MAX_TOTAL) == total &&
+          number(value.get("backupFileBytes"), 0, BackupModel.MAX_TOTAL) == old
+      );
+      for (Object operation : operations) {
+        Map<String, Object> entry = map(operation);
+        if (
+          entry.get("action").equals("create-directory") || isFileWrite(entry) || isDelete(entry)
+        ) {
+          writes.add(entry);
+        }
+      }
     }
+  }
 }

@@ -1,5 +1,18 @@
 package io.github.galgame.savedatasync;
 
+import static io.github.galgame.savedatasync.TransferJson.bytes;
+import static io.github.galgame.savedatasync.TransferJson.fail;
+import static io.github.galgame.savedatasync.TransferJson.object;
+import static io.github.galgame.savedatasync.TransferJson.parse;
+import static io.github.galgame.savedatasync.TransferSchema.directory;
+import static io.github.galgame.savedatasync.TransferSchema.error;
+import static io.github.galgame.savedatasync.TransferSchema.id;
+import static io.github.galgame.savedatasync.TransferSchema.parent;
+import static io.github.galgame.savedatasync.TransferSchema.require;
+import static io.github.galgame.savedatasync.TransferSchema.shape;
+import static io.github.galgame.savedatasync.TransferSchema.string;
+import static io.github.galgame.savedatasync.TransferSchema.text;
+
 import android.app.Activity;
 import android.content.Intent;
 import android.content.UriPermission;
@@ -7,17 +20,15 @@ import android.net.Uri;
 import android.os.CancellationSignal;
 import androidx.activity.result.ActivityResult;
 import com.getcapacitor.JSObject;
+import com.getcapacitor.PermissionState;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
-import com.getcapacitor.PermissionState;
 import com.getcapacitor.annotation.ActivityCallback;
 import com.getcapacitor.annotation.CapacitorPlugin;
 import com.getcapacitor.annotation.Permission;
 import com.getcapacitor.annotation.PermissionCallback;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -25,178 +36,504 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import static io.github.galgame.savedatasync.TransferJson.*;
-import static io.github.galgame.savedatasync.TransferSchema.*;
 
 /** 批量传输的 Capacitor 插件；Activity 只订阅事件，进行中的传输由持续通知服务持有。 */
-@CapacitorPlugin(name = "HttpTransfers", permissions = @Permission(alias = "notifications", strings = { android.Manifest.permission.POST_NOTIFICATIONS }))
+@CapacitorPlugin(
+  name = "HttpTransfers",
+  permissions = @Permission(
+    alias = "notifications",
+    strings = { android.Manifest.permission.POST_NOTIFICATIONS }
+  )
+)
 public class HttpTransfersPlugin extends Plugin {
-    private final ExecutorService io = Executors.newFixedThreadPool(2);
-    private final Set<ArchiveControl> queries = ConcurrentHashMap.newKeySet();
-    private final AtomicBoolean choosing = new AtomicBoolean();
-    private volatile boolean destroyed;
-    private TransferRuntime runtime;
-    private final TransferEngine.Listener listener = value -> {
-        if (!destroyed) try { notifyListeners("transferState", json(value)); }
-        catch (Exception cause) { throw new IllegalStateException("Task status notification failed. Query the actual result.", cause); }
-    };
-    private final TransferEngine.ControlListener control = new TransferEngine.ControlListener() {
-        @Override public void message(String deviceId, String text) {
-            if (!destroyed) { JSObject event = new JSObject(); event.put("deviceId", deviceId); event.put("message", text); notifyListeners("controlMessage", event); }
-        }
-        @Override public void state(String deviceId, boolean isOpen, int code) {
-            if (!destroyed) { JSObject event = new JSObject(); event.put("deviceId", deviceId); event.put("isOpen", isOpen); event.put("code", code); notifyListeners("controlState", event); }
-        }
-    };
-    private synchronized TransferEngine engine() throws Exception {
-        if (destroyed) throw fail("unsupported-operation");
-        if (runtime == null) {
-            runtime = TransferRuntime.get(getContext()); runtime.attach(listener); runtime.engine.controlListener(control);
-        }
-        return runtime.engine;
+
+  private final ExecutorService io = Executors.newFixedThreadPool(2);
+  private final Set<ArchiveControl> queries = ConcurrentHashMap.newKeySet();
+  private final AtomicBoolean choosing = new AtomicBoolean();
+  private volatile boolean isDestroyed;
+  private TransferRuntime runtime;
+  private final TransferEngine.Listener listener = value -> {
+    if (!isDestroyed) {
+      try {
+        notifyListeners("transferState", json(value));
+      } catch (Exception cause) {
+        throw new IllegalStateException(
+          "Task status notification failed. Query the actual result.",
+          cause
+        );
+      }
     }
-    private interface Work { Object run(ArchiveControl control) throws Exception; }
-    private static JSObject json(Object value) throws Exception { return new JSObject(new String(bytes(value), StandardCharsets.UTF_8)); }
-    /** 连接错误直接显示 HTTP/协议码、系统 errno 或原始异常类型，不推测原因。 */
-    private static Map<String, Object> connectionError(Exception cause) {
-        ArchiveFailure failure = NewFilePublisher.failure(cause);
-        Map<String, Object> result = error(failure.code);
-        String diagnostic = failure.diagnosticCode;
-        String nativeCode = null;
-        String exceptionType = null;
-        Throwable current = cause;
-        for (int depth = 0; current != null && depth < 16; depth++, current = current.getCause()) {
-            if (current instanceof ArchiveFailure && ((ArchiveFailure) current).diagnosticCode != null) {
-                diagnostic = ((ArchiveFailure) current).diagnosticCode;
-            }
-            if (current instanceof android.system.ErrnoException) {
-                int errno = ((android.system.ErrnoException) current).errno;
-                String name = android.system.OsConstants.errnoName(errno);
-                nativeCode = name != null ? name : "errno=" + errno;
-            } else if (!(current instanceof ArchiveFailure)) {
-                exceptionType = current.getClass().getSimpleName();
-            }
-        }
-        String detail = nativeCode != null ? nativeCode : exceptionType;
-        if (diagnostic != null) result.put("message", diagnostic);
-        else if (detail == null) result.put("message", failure.code);
-        else result.put("message", failure.code.equals("timeout") ? failure.code + " / " + detail : detail);
-        return result;
-    }
-    private void submit(PluginCall call, Work work) {
-        try {
-            io.execute(() -> {
-                ArchiveControl control = call.getMethodName().equals("connect")
-                    ? new ArchiveControl(System::nanoTime, TimeUnit.SECONDS.toNanos(5)) : new ArchiveControl();
-                queries.add(control);
-                try {
-                    if (destroyed) throw fail("unsupported-operation");
-                    Object value = work.run(control);
-                    if (!call.getMethodName().startsWith("start")) control.check();
-                    call.resolve(json(object("status", "success", "value", value)));
-                } catch (Exception cause) {
-                    try {
-                        Map<String, Object> failure = call.getMethodName().equals("connect") || call.getMethodName().equals("exchangeCatalog")
-                            ? connectionError(cause) : error(NewFilePublisher.failure(cause).code);
-                        call.resolve(json(object("status", "error", "error", failure)));
-                    }
-                    catch (Exception invalid) { call.resolve(new SafFailure("io-failure", "The task service is unavailable.").result()); }
-                } finally { queries.remove(control); }
-            });
-        } catch (java.util.concurrent.RejectedExecutionException cause) { call.resolve(new SafFailure("unsupported-operation", "The app is closed.").result()); }
-    }
-    private Map<String, Object> arguments(PluginCall call, String... fields) throws Exception {
-        return shape(parse(call.getData().toString().getBytes(StandardCharsets.UTF_8)), fields);
-    }
-    @PluginMethod public void connect(PluginCall call) { submit(call, c -> { Map<String, Object> a = arguments(call, "address"); return engine().connect(new TransferHttp.Client(string(a.get("address"))), c); }); }
-    @PluginMethod public void disconnect(PluginCall call) { submit(call, c -> { arguments(call); engine().disconnect(); return null; }); }
-    @PluginMethod public void connections(PluginCall call) { submit(call, c -> { arguments(call); return engine().connections(); }); }
-    @PluginMethod public void selectDevice(PluginCall call) { submit(call, c -> engine().selectDevice(id(arguments(call, "deviceId").get("deviceId")))); }
-    @PluginMethod public void disconnectDevice(PluginCall call) { submit(call, c -> { engine().disconnectDevice(id(arguments(call, "deviceId").get("deviceId")), c); return null; }); }
-    @PluginMethod public void exchangeCatalog(PluginCall call) { submit(call, c -> {
-        Map<String, Object> a = arguments(call, "deviceId", "catalog");
-        return engine().exchangeCatalog(id(a.get("deviceId")), a.get("catalog"), DeviceNames.current(getContext()), c);
-    }); }
-    @PluginMethod public void deviceName(PluginCall call) { submit(call, c -> { arguments(call); return DeviceNames.current(getContext()); }); }
-    @PluginMethod public void controlStates(PluginCall call) { submit(call, c -> { arguments(call); return engine().controlStates(); }); }
-    @PluginMethod public void sendControl(PluginCall call) { submit(call, c -> {
-        Map<String, Object> a = arguments(call, "deviceId", "message");
-        engine().sendControl(id(a.get("deviceId")), string(a.get("message"))); return null;
-    }); }
-    @PluginMethod public void listRemoteRoots(PluginCall call) { submit(call, c -> { arguments(call); return engine().roots(c); }); }
-    @PluginMethod public void listRemoteDirectory(PluginCall call) { submit(call, c -> { Map<String, Object> a = arguments(call, "rootId", "parentId"); return engine().directory(id(a.get("rootId")), parent(a.get("parentId")), c); }); }
-    @PluginMethod public void startDownload(PluginCall call) { submit(call, c -> { engine(); return runtime.start(arguments(call, "request", "targetRootId", "targets"), false); }); }
-    @PluginMethod public void startUpload(PluginCall call) { submit(call, c -> { engine(); return runtime.start(arguments(call, "request", "targetRootId", "targets"), true); }); }
-    @PluginMethod public void current(PluginCall call) { submit(call, c -> { arguments(call); return engine().current(); }); }
-    @PluginMethod public void query(PluginCall call) { submit(call, c -> engine().query(id(arguments(call, "transferId").get("transferId")))); }
-    @PluginMethod public void getManifest(PluginCall call) { submit(call, c -> engine().manifest(id(arguments(call, "transferId").get("transferId")))); }
-    @PluginMethod public void queryRemote(PluginCall call) { submit(call, c -> {
-        Map<String, Object> a = arguments(call, "transferId", "refresh"); require(a.get("refresh") instanceof Boolean);
-        return engine().remoteState(id(a.get("transferId")), (Boolean) a.get("refresh"), c);
-    }); }
-    @PluginMethod public void cancel(PluginCall call) { submit(call, c -> { engine().cancel(id(arguments(call, "transferId").get("transferId"))); return null; }); }
-    @PluginMethod public void retryCleanup(PluginCall call) { submit(call, c -> { arguments(call); return engine().retryCleanup(); }); }
-    /** 请求通知权限；未允许持续通知时不开始传输。 */
-    @PluginMethod public void requestNotifications(PluginCall call) {
-        try {
-            arguments(call); if (destroyed) throw fail("unsupported-operation");
-            TransferService.prepareChannel(getContext());
-            if (android.os.Build.VERSION.SDK_INT >= 33 && getPermissionState("notifications") != PermissionState.GRANTED) {
-                requestPermissionForAlias("notifications", call, "onNotificationPermission"); return;
-            }
-            call.resolve(json(object("status", "success", "value", TransferService.notificationsAllowed(getContext()))));
-        } catch (Exception cause) { call.resolve(new SafFailure("permission-denied", "Cannot request transfer notification permission.", cause).result()); }
-    }
-    @PermissionCallback private void onNotificationPermission(PluginCall call) {
-        if (call == null) return;
-        try { call.resolve(json(object("status", "success", "value", TransferService.notificationsAllowed(getContext())))); }
-        catch (Exception cause) { call.resolve(new SafFailure("permission-denied", "Transfer notifications are unavailable.", cause).result()); }
+  };
+  private final TransferEngine.ControlListener control = new TransferEngine.ControlListener() {
+    @Override
+    public void message(String deviceId, String text) {
+      if (!isDestroyed) {
+        JSObject event = new JSObject();
+        event.put("deviceId", deviceId);
+        event.put("message", text);
+        notifyListeners("controlMessage", event);
+      }
     }
 
-    /** 选择存档目录时保存系统读写权限；以后接收会重新核实已有持久权限。 */
-    @PluginMethod public void chooseTarget(PluginCall call) {
-        try { arguments(call); if (destroyed || !choosing.compareAndSet(false, true)) throw fail("unsupported-operation"); }
-        catch (Exception cause) { call.resolve(new SafFailure("invalid-request", "Complete the current directory selection first.").result()); return; }
-        io.execute(() -> {
-            try {
-                engine();
-                getActivity().runOnUiThread(() -> {
-                    try {
-                        if (destroyed) throw fail("unsupported-operation");
-                        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
-                        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION |
-                            Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION | Intent.FLAG_GRANT_PREFIX_URI_PERMISSION);
-                        startActivityForResult(call, intent, "onTargetChosen");
-                    } catch (Exception cause) { choosing.set(false); call.resolve(new SafFailure("permission-denied", "Cannot open the target directory picker.").result()); }
-                });
-            } catch (Exception cause) { choosing.set(false); call.resolve(new SafFailure("permission-denied", "Cannot open the target directory picker.").result()); }
-        });
+    @Override
+    public void state(String deviceId, boolean isOpen, int code) {
+      if (!isDestroyed) {
+        JSObject event = new JSObject();
+        event.put("deviceId", deviceId);
+        event.put("isOpen", isOpen);
+        event.put("code", code);
+        notifyListeners("controlState", event);
+      }
     }
-    @ActivityCallback private void onTargetChosen(PluginCall call, ActivityResult result) {
-        choosing.set(false); if (call == null) return;
-        if (result.getResultCode() == Activity.RESULT_CANCELED) { JSObject value = new JSObject(); value.put("status", "cancelled"); call.resolve(value); return; }
+  };
+
+  private synchronized TransferEngine engine() throws Exception {
+    if (isDestroyed) {
+      throw fail("unsupported-operation");
+    }
+    if (runtime == null) {
+      runtime = TransferRuntime.get(getContext());
+      runtime.attach(listener);
+      runtime.engine.controlListener(control);
+    }
+    return runtime.engine;
+  }
+
+  private interface Work {
+    Object run(ArchiveControl control) throws Exception;
+  }
+
+  private static JSObject json(Object value) throws Exception {
+    return new JSObject(new String(bytes(value), StandardCharsets.UTF_8));
+  }
+
+  /** 连接错误直接显示 HTTP/协议码、系统 errno 或原始异常类型，不推测原因。 */
+  private static Map<String, Object> connectionError(Exception cause) {
+    ArchiveFailure failure = NewFilePublisher.failure(cause);
+    Map<String, Object> result = error(failure.code);
+    String diagnostic = failure.diagnosticCode;
+    String nativeCode = null;
+    String exceptionType = null;
+    Throwable current = cause;
+    for (int depth = 0; current != null && depth < 16; depth++, current = current.getCause()) {
+      if (current instanceof ArchiveFailure && ((ArchiveFailure) current).diagnosticCode != null) {
+        diagnostic = ((ArchiveFailure) current).diagnosticCode;
+      }
+      if (current instanceof android.system.ErrnoException) {
+        int errno = ((android.system.ErrnoException) current).errno;
+        String name = android.system.OsConstants.errnoName(errno);
+        nativeCode = name != null ? name : "errno=" + errno;
+      } else if (!(current instanceof ArchiveFailure)) {
+        exceptionType = current.getClass().getSimpleName();
+      }
+    }
+    String detail = nativeCode != null ? nativeCode : exceptionType;
+    if (diagnostic != null) {
+      result.put("message", diagnostic);
+    } else if (detail == null) {
+      result.put("message", failure.code);
+    } else {
+      result.put(
+        "message",
+        failure.code.equals("timeout") ? failure.code + " / " + detail : detail
+      );
+    }
+    return result;
+  }
+
+  private void submit(PluginCall call, Work work) {
+    try {
+      io.execute(() -> {
+        ArchiveControl control = call.getMethodName().equals("connect")
+          ? new ArchiveControl(System::nanoTime, TimeUnit.SECONDS.toNanos(5))
+          : new ArchiveControl();
+        queries.add(control);
         try {
-            Intent data = result.getData(); int rights = Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION;
-            if (result.getResultCode() != Activity.RESULT_OK || data == null || data.getData() == null || (data.getFlags() & rights) != rights ||
-                (data.getFlags() & Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION) == 0) throw fail("permission-denied");
-            Uri uri = data.getData();
-            io.execute(() -> {
-                boolean hadWrite = false;
-                for (UriPermission permission : getContext().getContentResolver().getPersistedUriPermissions()) if (uri.equals(permission.getUri()) && permission.isWritePermission()) hadWrite = true;
-                try {
-                    getContext().getContentResolver().takePersistableUriPermission(uri, rights);
-                    JSObject directory = SafRuntime.store(getContext()).register(uri, data.getFlags(), new CancellationSignal());
-                    engine(); String root = directory.getString("rootId"); runtime.publisher.grant(root);
-                    call.resolve(json(object("status", "selected", "directory", parse(directory.toString().getBytes(StandardCharsets.UTF_8)))));
-                } catch (Exception cause) {
-                    if (!hadWrite) try { getContext().getContentResolver().releasePersistableUriPermission(uri, Intent.FLAG_GRANT_WRITE_URI_PERMISSION); } catch (Exception ignored) { /* 用户已有的授权不撤销。 */ }
-                    call.resolve(new SafFailure("permission-denied", "Write authorization for the target directory was not obtained.", cause).result());
-                }
-            });
-        } catch (Exception cause) { call.resolve(new SafFailure("permission-denied", "The system did not return valid write authorization.", cause).result()); }
+          if (isDestroyed) {
+            throw fail("unsupported-operation");
+          }
+          Object value = work.run(control);
+          if (!call.getMethodName().startsWith("start")) {
+            control.check();
+          }
+          call.resolve(json(object("status", "success", "value", value)));
+        } catch (Exception cause) {
+          try {
+            Map<String, Object> failure =
+              call.getMethodName().equals("connect") ||
+              call.getMethodName().equals("exchangeCatalog")
+                ? connectionError(cause)
+                : error(NewFilePublisher.failure(cause).code);
+            call.resolve(json(object("status", "error", "error", failure)));
+          } catch (Exception invalid) {
+            call.resolve(new SafFailure("io-failure", "The task service is unavailable.").result());
+          }
+        } finally {
+          queries.remove(control);
+        }
+      });
+    } catch (java.util.concurrent.RejectedExecutionException cause) {
+      call.resolve(new SafFailure("unsupported-operation", "The app is closed.").result());
     }
-    @Override protected void handleOnDestroy() {
-        destroyed = true; for (ArchiveControl control : queries) control.cancel();
-        synchronized (this) { if (runtime != null) { runtime.detach(listener); runtime.engine.releaseControlListener(control); } } io.shutdownNow();
+  }
+
+  private Map<String, Object> arguments(PluginCall call, String... fields) throws Exception {
+    return shape(parse(call.getData().toString().getBytes(StandardCharsets.UTF_8)), fields);
+  }
+
+  @PluginMethod
+  public void connect(PluginCall call) {
+    submit(call, c -> {
+      Map<String, Object> a = arguments(call, "address");
+      return engine().connect(new TransferHttp.Client(string(a.get("address"))), c);
+    });
+  }
+
+  @PluginMethod
+  public void disconnect(PluginCall call) {
+    submit(call, c -> {
+      arguments(call);
+      engine().disconnect();
+      return null;
+    });
+  }
+
+  @PluginMethod
+  public void connections(PluginCall call) {
+    submit(call, c -> {
+      arguments(call);
+      return engine().connections();
+    });
+  }
+
+  @PluginMethod
+  public void selectDevice(PluginCall call) {
+    submit(call, c -> engine().selectDevice(id(arguments(call, "deviceId").get("deviceId"))));
+  }
+
+  @PluginMethod
+  public void disconnectDevice(PluginCall call) {
+    submit(call, c -> {
+      engine().disconnectDevice(id(arguments(call, "deviceId").get("deviceId")), c);
+      return null;
+    });
+  }
+
+  @PluginMethod
+  public void exchangeCatalog(PluginCall call) {
+    submit(call, c -> {
+      Map<String, Object> a = arguments(call, "deviceId", "catalog");
+      return engine().exchangeCatalog(
+        id(a.get("deviceId")),
+        a.get("catalog"),
+        DeviceNames.current(getContext()),
+        c
+      );
+    });
+  }
+
+  @PluginMethod
+  public void deviceName(PluginCall call) {
+    submit(call, c -> {
+      arguments(call);
+      return DeviceNames.current(getContext());
+    });
+  }
+
+  @PluginMethod
+  public void controlStates(PluginCall call) {
+    submit(call, c -> {
+      arguments(call);
+      return engine().controlStates();
+    });
+  }
+
+  @PluginMethod
+  public void sendControl(PluginCall call) {
+    submit(call, c -> {
+      Map<String, Object> a = arguments(call, "deviceId", "message");
+      engine().sendControl(id(a.get("deviceId")), string(a.get("message")));
+      return null;
+    });
+  }
+
+  @PluginMethod
+  public void listRemoteRoots(PluginCall call) {
+    submit(call, c -> {
+      arguments(call);
+      return engine().roots(c);
+    });
+  }
+
+  @PluginMethod
+  public void listRemoteDirectory(PluginCall call) {
+    submit(call, c -> {
+      Map<String, Object> a = arguments(call, "rootId", "parentId");
+      return engine().directory(id(a.get("rootId")), parent(a.get("parentId")), c);
+    });
+  }
+
+  @PluginMethod
+  public void startDownload(PluginCall call) {
+    submit(call, c -> {
+      engine();
+      return runtime.start(arguments(call, "request", "targetRootId", "targets"), false);
+    });
+  }
+
+  @PluginMethod
+  public void startUpload(PluginCall call) {
+    submit(call, c -> {
+      engine();
+      return runtime.start(arguments(call, "request", "targetRootId", "targets"), true);
+    });
+  }
+
+  @PluginMethod
+  public void current(PluginCall call) {
+    submit(call, c -> {
+      arguments(call);
+      return engine().current();
+    });
+  }
+
+  @PluginMethod
+  public void query(PluginCall call) {
+    submit(call, c -> engine().query(id(arguments(call, "transferId").get("transferId"))));
+  }
+
+  @PluginMethod
+  public void getManifest(PluginCall call) {
+    submit(call, c -> engine().manifest(id(arguments(call, "transferId").get("transferId"))));
+  }
+
+  @PluginMethod
+  public void queryRemote(PluginCall call) {
+    submit(call, c -> {
+      Map<String, Object> a = arguments(call, "transferId", "refresh");
+      require(a.get("refresh") instanceof Boolean);
+      return engine().remoteState(id(a.get("transferId")), (Boolean) a.get("refresh"), c);
+    });
+  }
+
+  @PluginMethod
+  public void cancel(PluginCall call) {
+    submit(call, c -> {
+      engine().cancel(id(arguments(call, "transferId").get("transferId")));
+      return null;
+    });
+  }
+
+  @PluginMethod
+  public void retryCleanup(PluginCall call) {
+    submit(call, c -> {
+      arguments(call);
+      return engine().retryCleanup();
+    });
+  }
+
+  /** 请求通知权限；未允许持续通知时不开始传输。 */
+  @PluginMethod
+  public void requestNotifications(PluginCall call) {
+    try {
+      arguments(call);
+      if (isDestroyed) {
+        throw fail("unsupported-operation");
+      }
+      TransferService.prepareChannel(getContext());
+      if (
+        android.os.Build.VERSION.SDK_INT >= 33 &&
+        getPermissionState("notifications") != PermissionState.GRANTED
+      ) {
+        requestPermissionForAlias("notifications", call, "onNotificationPermission");
+        return;
+      }
+      call.resolve(
+        json(
+          object("status", "success", "value", TransferService.notificationsAllowed(getContext()))
+        )
+      );
+    } catch (Exception cause) {
+      call.resolve(
+        new SafFailure(
+          "permission-denied",
+          "Cannot request transfer notification permission.",
+          cause
+        ).result()
+      );
     }
+  }
+
+  @PermissionCallback
+  private void onNotificationPermission(PluginCall call) {
+    if (call == null) {
+      return;
+    }
+    try {
+      call.resolve(
+        json(
+          object("status", "success", "value", TransferService.notificationsAllowed(getContext()))
+        )
+      );
+    } catch (Exception cause) {
+      call.resolve(
+        new SafFailure(
+          "permission-denied",
+          "Transfer notifications are unavailable.",
+          cause
+        ).result()
+      );
+    }
+  }
+
+  /** 选择存档目录时保存系统读写权限；以后接收会重新核实已有持久权限。 */
+  @PluginMethod
+  public void chooseTarget(PluginCall call) {
+    try {
+      arguments(call);
+      if (isDestroyed || !choosing.compareAndSet(false, true)) {
+        throw fail("unsupported-operation");
+      }
+    } catch (Exception cause) {
+      call.resolve(
+        new SafFailure(
+          "invalid-request",
+          "Complete the current directory selection first."
+        ).result()
+      );
+      return;
+    }
+    io.execute(() -> {
+      try {
+        engine();
+        getActivity().runOnUiThread(() -> {
+          try {
+            if (isDestroyed) {
+              throw fail("unsupported-operation");
+            }
+            Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
+            intent.addFlags(
+              Intent.FLAG_GRANT_READ_URI_PERMISSION |
+                Intent.FLAG_GRANT_WRITE_URI_PERMISSION |
+                Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION |
+                Intent.FLAG_GRANT_PREFIX_URI_PERMISSION
+            );
+            startActivityForResult(call, intent, "onTargetChosen");
+          } catch (Exception cause) {
+            choosing.set(false);
+            call.resolve(
+              new SafFailure(
+                "permission-denied",
+                "Cannot open the target directory picker."
+              ).result()
+            );
+          }
+        });
+      } catch (Exception cause) {
+        choosing.set(false);
+        call.resolve(
+          new SafFailure("permission-denied", "Cannot open the target directory picker.").result()
+        );
+      }
+    });
+  }
+
+  @ActivityCallback
+  private void onTargetChosen(PluginCall call, ActivityResult result) {
+    choosing.set(false);
+    if (call == null) {
+      return;
+    }
+    if (result.getResultCode() == Activity.RESULT_CANCELED) {
+      JSObject value = new JSObject();
+      value.put("status", "cancelled");
+      call.resolve(value);
+      return;
+    }
+    try {
+      Intent data = result.getData();
+      int rights = Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION;
+      if (
+        result.getResultCode() != Activity.RESULT_OK ||
+        data == null ||
+        data.getData() == null ||
+        (data.getFlags() & rights) != rights ||
+        (data.getFlags() & Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION) == 0
+      ) {
+        throw fail("permission-denied");
+      }
+      Uri uri = data.getData();
+      io.execute(() -> {
+        boolean hasExistingWrite = false;
+        for (UriPermission permission : getContext()
+          .getContentResolver()
+          .getPersistedUriPermissions()) {
+          if (uri.equals(permission.getUri()) && permission.isWritePermission()) {
+            hasExistingWrite = true;
+          }
+        }
+        try {
+          getContext().getContentResolver().takePersistableUriPermission(uri, rights);
+          JSObject directory = SafRuntime.store(getContext()).register(
+            uri,
+            data.getFlags(),
+            new CancellationSignal()
+          );
+          engine();
+          String root = directory.getString("rootId");
+          runtime.publisher.grant(root);
+          call.resolve(
+            json(
+              object(
+                "status",
+                "selected",
+                "directory",
+                parse(directory.toString().getBytes(StandardCharsets.UTF_8))
+              )
+            )
+          );
+        } catch (Exception cause) {
+          if (!hasExistingWrite) {
+            try {
+              getContext()
+                .getContentResolver()
+                .releasePersistableUriPermission(uri, Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+            } catch (Exception ignored) {
+              /* 用户已有的授权不撤销。 */
+            }
+          }
+          call.resolve(
+            new SafFailure(
+              "permission-denied",
+              "Write authorization for the target directory was not obtained.",
+              cause
+            ).result()
+          );
+        }
+      });
+    } catch (Exception cause) {
+      call.resolve(
+        new SafFailure(
+          "permission-denied",
+          "The system did not return valid write authorization.",
+          cause
+        ).result()
+      );
+    }
+  }
+
+  @Override
+  protected void handleOnDestroy() {
+    isDestroyed = true;
+    for (ArchiveControl control : queries) {
+      control.cancel();
+    }
+    synchronized (this) {
+      if (runtime != null) {
+        runtime.detach(listener);
+        runtime.engine.releaseControlListener(control);
+      }
+    }
+    io.shutdownNow();
+  }
 }

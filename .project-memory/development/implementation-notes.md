@@ -67,9 +67,9 @@ related_files: []
 | Android 原生 HTTP/通知 | TransferJson 严格 UTF-8/重复键/安全整数及有界 JSON，TransferSchema 独立核对任务/清单/角色/结果；无代理/缓存/重定向/自动解压，64 KiB、固定长度/SHA、连接和默认网络无进展等待 5 秒、初次握手总期限 5 秒及传输总期限 30 分钟；丢失 POST/PUT 回执只查询。应用级 Runtime 持有任务，dataSync 服务持续通知保持传输；Activity 暂停或销毁不取消，完成/显式取消与清理后停止 | Transfer*.java、HttpTransfersPlugin、SafRuntime、TS 桥；移动 README |
 | 重载与清单前终态 | Android 不按前后台状态停止轮询，原生目录/HTTP/扫描不设可见性门禁；重载从 current 查询同一原生任务；清单生成前取消/失败返回全项未尝试终态；系统提供的桌面 userData 先 realpath，再进行私有缓存检查 | apps/mobile/src/app、features、components、platform；apps/desktop/src/renderer/src、bridge、main；TransferEngine.java |
 | 固定依赖 | React 18 / TypeScript 5.9；pnpm 10.34.8；精确锁定版本和 lockfile，保留严格 peer 检查 | package.json、pnpm-lock.yaml、pnpm-workspace.yaml |
-| npm 安全 | xcode 的 uuid 定向修复为 11.1.1。未处理的公告见回归状态 | scripts/security-check.mjs、pnpm-workspace.yaml；testing/regression-notes.md |
+| npm 安全 | xcode 的 uuid 定向修复为 11.1.1；同一主版本的包用 overrides 合成一个版本，跨主版本的留给上游升级。未处理的公告见回归状态 | scripts/security-check.mjs、pnpm-workspace.yaml；testing/regression-notes.md |
 | Gradle 安全 | Gradle 8.14.6；分发 ZIP 固定官方 SHA-256，Wrapper JAR 按官方 SHA-256 校验 | apps/mobile/android/gradle/wrapper/、gradlew、gradlew.bat |
-| Android 工具依赖 | AGP 8.13.2 与统一补丁策略；审计覆盖全部可解析 Maven 配置（含各变体、测试、lint 和构建工具）与 Gradle Core；包含 Protobuf 3.x 修复且保留 4.x 请求 | apps/mobile/android/dependency-security.json、scripts/security-android.mjs |
+| Android 工具依赖 | AGP 8.13.2 与统一补丁策略；审计覆盖全部可解析 Maven 配置（含各变体、测试、lint 和构建工具）与 Gradle Core；包含 Protobuf 3.x 修复且保留 4.x 请求；同一模块全项目只解析一个版本，`security:android` 发现多版本时失败 | apps/mobile/android/dependency-security.json、apps/mobile/android/settings.gradle、scripts/security-android.mjs |
 | 连接状态与短时提示 | 控制连接的 ping 兼作心跳；两端以控制连接是否打开判断在线，手机控制连接关闭 10 秒且空闲时释放连接，活动任务仍可查询。断连回到未连接，Message 提示一次，不诊断原因；手机连接失败用同一提示，跟随本端明暗主题 | 双端 App、移动 library-adapter/App、shared library 注释 |
 | Windows 独立备份 | 在私有 backups 保存独立清单和原文，逐文件复核源、哈希/落盘/回读后提交；按保留份数轮换（默认 3 份），恢复材料引用保护输入，轮换失败另报；不保存比较基线。独立设置缺省开启，坏设置保留；启动登记私有区以阻止选作同步根，未提交/淘汰残留仅显式清理 | backup-store/files/ipc、backup-bridge、directory-adapter、启动/preload |
 | Windows 受保护写入与恢复 | 先重扫目标和核对全部输入，预检同卷峰值；备份开启且有写入时保存目标目录全部文件，再按计划创建目录和逐文件发布。同卷候选 fsync/回读，覆盖前再核对旧内容和身份，最终回读后才成功。本机恢复引用输入且强制保护当前文件；候选清理失败时继续占用互斥 | sync-writer、sync-target-files、target-operation、directory-adapter、transfer-registry、启动 |

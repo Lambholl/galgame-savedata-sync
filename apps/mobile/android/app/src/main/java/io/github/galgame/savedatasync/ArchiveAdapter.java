@@ -19,235 +19,400 @@ import java.util.Set;
  * 固定格式示例和用法见 ArchiveAdapterTest、ArchiveSafTest 及 apps/mobile/README.md。
  */
 final class ArchiveAdapter {
-    private final ArchiveCache cache;
-    private final ArchiveModel.Limits limits;
-    private volatile ArchiveControl current;
-    private ArchiveCache.Job owned;
 
-    ArchiveAdapter(ArchiveCache cache) { this(cache, new ArchiveModel.Limits()); }
-    ArchiveAdapter(ArchiveCache cache, ArchiveModel.Limits limits) { this.cache = cache; this.limits = limits; }
+  private final ArchiveCache cache;
+  private final ArchiveModel.Limits limits;
+  private volatile ArchiveControl current;
+  private ArchiveCache.Job owned;
 
-    /** 清单确定后、打开 HTTP 内容流前检查压缩体与解包原文所需空间。 */
-    void checkReceiveSpace(ArchiveModel.Manifest manifest) throws Exception {
-        checkReceiveSpace(manifest, 0);
-    }
-    /** 接收内容前检查空间，extraPrivateBytes 由调用者合并同卷的目标增量和备份峰值。 */
-    void checkReceiveSpace(ArchiveModel.Manifest manifest, long extraPrivateBytes) throws Exception {
-        manifest.validate(limits);
-        if (extraPrivateBytes < 0 || extraPrivateBytes > Long.MAX_VALUE - manifest.archive.sizeBytes - manifest.totalFileBytes) throw new ArchiveFailure("invalid-request", "The space preflight byte count is invalid.");
-        cache.checkSpace(manifest.archive.sizeBytes + manifest.totalFileBytes + extraPrivateBytes);
-    }
-    java.nio.file.Path privateRoot() throws Exception { cache.checkSpace(0); return cache.root; }
+  ArchiveAdapter(ArchiveCache cache) {
+    this(cache, new ArchiveModel.Limits());
+  }
 
-    /** 读取一次源形成快照；未知长度通过实际流计数，之后只从私有快照生成和发送归档。 */
-    Artifact prepare(String transferId, String deviceId, String rootId, List<ArchiveModel.Source> sources,
-                     ArchiveControl control, ArchiveModel.Progress progress) throws ArchiveFailure {
-        ArchiveModel.require(SafValues.isId(transferId) && SafValues.isId(deviceId) && SafValues.isId(rootId) &&
-            sources != null && !sources.isEmpty() && control != null);
-        ArchiveModel.limit(sources.size() <= limits.files);
-        ArchiveCache.Job job = begin(control);
-        try {
-            Set<String> entries = new HashSet<>();
-            List<ArchiveModel.PreparedFile> files = new ArrayList<>();
-            long total = 0, tarSize = 1024;
-            emit(progress, "preparing", 0, null, control);
-            for (int index = 0; index < sources.size(); index++) {
-                control.check();
-                ArchiveModel.Source source = sources.get(index);
-                ArchiveModel.require(source != null);
-                source.validateRoot(rootId);
-                ArchiveModel.Observation before = source.observe(control);
-                ArchiveModel.require(before != null);
-                before.validate();
-                ArchiveModel.require(entries.add(before.entryId));
-                if (before.size != null) {
-                    ArchiveModel.limit(before.size <= limits.file && before.size <= limits.total - total);
-                    job.space(before.size);
-                }
-                String id = ArchiveModel.id(index);
-                MessageDigest hash = ArchiveFormat.sha256();
-                long size = 0;
-                InputStream input = control.track(source.open(control));
-                try (InputStream stream = input; OutputStream out = job.create(id, limits.file, control)) {
-                    byte[] buffer = new byte[ArchiveModel.BUFFER];
-                    int n;
-                    while ((n = read(stream, buffer, control)) != -1) {
-                        ArchiveModel.limit(size <= limits.file - n && total <= limits.total - n);
-                        out.write(buffer, 0, n); hash.update(buffer, 0, n);
-                        size += n; total += n;
-                        emit(progress, "preparing", total, null, control);
-                    }
-                } finally { control.untrack(input); }
-                ArchiveModel.Observation after = source.observe(control);
-                if (!before.same(after) || (before.size != null && before.size != size)) {
-                    throw new ArchiveFailure("source-changed", "The source file changed during archive preparation.");
-                }
-                tarSize += 512 + ArchiveModel.padded(size);
-                ArchiveModel.limit(tarSize <= limits.tar);
-                files.add(new ArchiveModel.PreparedFile(id, before, size, ArchiveFormat.hex(hash.digest())));
-            }
-            // 预检包含压缩体可能与原文重叠的实际容量；之后每次写入仍执行硬计数和空间检查。
-            emit(progress, "archiving", 0, tarSize, control);
-            HashedOutput packed = new HashedOutput(job.create("archive.gz", limits.archive, control));
-            try (OutputStream output = packed; ArchiveFormat.GzipWriter gzip = new ArchiveFormat.GzipWriter(output)) {
-                byte[] buffer = new byte[ArchiveModel.BUFFER];
-                long written = 0;
-                for (ArchiveModel.PreparedFile file : files) {
-                    gzip.write(ArchiveFormat.header(file.fileId, file.sizeBytes)); written += 512;
-                    MessageDigest hash = ArchiveFormat.sha256();
-                    long size = 0;
-                    try (InputStream input = job.open(file.fileId, control)) {
-                        int n;
-                        while ((n = read(input, buffer, control)) != -1) {
-                            if (size > file.sizeBytes - n) throw mismatch();
-                            gzip.write(buffer, 0, n); hash.update(buffer, 0, n); size += n; written += n;
-                            emit(progress, "archiving", written, tarSize, control);
-                        }
-                    }
-                    if (size != file.sizeBytes || !ArchiveFormat.hex(hash.digest()).equals(file.sha256)) throw mismatch();
-                    int padding = (int) (ArchiveModel.padded(size) - size);
-                    gzip.write(new byte[padding]); written += padding;
-                }
-                gzip.write(new byte[1024]); written += 1024;
-                emit(progress, "archiving", written, tarSize, control);
-            }
-            ArchiveModel.Manifest manifest = new ArchiveModel.Manifest(transferId, deviceId, rootId, files, total,
-                new ArchiveModel.Descriptor(packed.count, tarSize, packed.digest()));
-            manifest.validate(limits);
-            control.check();
-            return new Artifact(job, manifest, control);
-        } catch (Exception cause) { throw failed(job, control, cause); }
-    }
+  ArchiveAdapter(ArchiveCache cache, ArchiveModel.Limits limits) {
+    this.cache = cache;
+    this.limits = limits;
+  }
 
-    /** 接管并关闭输入；先保存并校验完整压缩体，再逐项解包校验，全部成功才返回句柄。 */
-    Artifact receive(ArchiveModel.Manifest manifest, InputStream source, ArchiveControl control,
-                     ArchiveModel.Progress progress) throws ArchiveFailure {
-        ArchiveModel.require(source != null && control != null);
-        ArchiveCache.Job job = null;
-        try (InputStream input = source) {
-            ArchiveModel.require(manifest != null);
-            manifest.validate(limits);
-            job = begin(control);
-            control.track(input);
-            job.space(manifest.archive.sizeBytes + manifest.totalFileBytes);
-            MessageDigest hash = ArchiveFormat.sha256();
-            long size = 0;
-            byte[] buffer = new byte[ArchiveModel.BUFFER];
-            emit(progress, "receiving", 0, manifest.archive.sizeBytes, control);
-            try (OutputStream out = job.create("archive.gz", limits.archive, control)) {
-                int n;
-                while ((n = read(input, buffer, control)) != -1) {
-                    ArchiveModel.limit(size <= limits.archive - n);
-                    if (size > manifest.archive.sizeBytes - n) throw mismatch();
-                    out.write(buffer, 0, n); hash.update(buffer, 0, n); size += n;
-                    emit(progress, "receiving", size, manifest.archive.sizeBytes, control);
-                }
-            }
-            if (size != manifest.archive.sizeBytes || !ArchiveFormat.hex(hash.digest()).equals(manifest.archive.sha256)) throw mismatch();
-            control.untrack(input);
-            emit(progress, "verifying", 0, manifest.totalFileBytes, control);
-            try (InputStream compressed = job.open("archive.gz", control);
-                 ArchiveFormat.GzipReader tar = new ArchiveFormat.GzipReader(compressed, limits.tar, control)) {
-                long completed = 0;
-                for (ArchiveModel.PreparedFile file : manifest.files) {
-                    byte[] header = new byte[512];
-                    ArchiveFormat.exact(tar, header, 512, control);
-                    if (!Arrays.equals(header, ArchiveFormat.header(file.fileId, file.sizeBytes))) {
-                        throw ArchiveFormat.invalid("A tar header, order, type, length, or field does not match the manifest.");
-                    }
-                    MessageDigest contentHash = ArchiveFormat.sha256();
-                    long remaining = file.sizeBytes;
-                    try (OutputStream out = job.create(file.fileId, limits.file, control)) {
-                        while (remaining > 0) {
-                            int n = (int) Math.min(buffer.length, remaining);
-                            ArchiveFormat.exact(tar, buffer, n, control);
-                            out.write(buffer, 0, n); contentHash.update(buffer, 0, n);
-                            remaining -= n; completed += n;
-                            ArchiveModel.limit(completed <= limits.total);
-                            emit(progress, "verifying", completed, manifest.totalFileBytes, control);
-                        }
-                    }
-                    if (!ArchiveFormat.hex(contentHash.digest()).equals(file.sha256)) throw mismatch();
-                    int padding = (int) (ArchiveModel.padded(file.sizeBytes) - file.sizeBytes);
-                    ArchiveFormat.exact(tar, buffer, padding, control); ArchiveFormat.zeros(buffer, padding);
-                }
-                ArchiveFormat.exact(tar, buffer, 1024, control); ArchiveFormat.zeros(buffer, 1024);
-                if (tar.read() != -1) throw ArchiveFormat.invalid("Extra records follow the end of the tar archive.");
-                emit(progress, "verifying", completed, manifest.totalFileBytes, control);
-            }
-            control.check();
-            return new Artifact(job, manifest, control);
-        } catch (Exception cause) {
-            if (job == null) throw ArchiveFailure.from(cause);
-            throw failed(job, control, cause);
-        } finally { control.untrack(source); }
-    }
+  /** 清单确定后、打开 HTTP 内容流前检查压缩体与解包原文所需空间。 */
+  void checkReceiveSpace(ArchiveModel.Manifest manifest) throws Exception {
+    checkReceiveSpace(manifest, 0);
+  }
 
-    private synchronized ArchiveCache.Job begin(ArchiveControl control) throws ArchiveFailure {
-        try {
-            control.check();
-            ArchiveCache.Job job = cache.begin(limits.cache);
-            owned = job; current = control;
-            return job;
-        } catch (Exception cause) { throw ArchiveFailure.from(cause); }
+  /** 接收内容前检查空间，extraPrivateBytes 由调用者合并同卷的目标增量和备份峰值。 */
+  void checkReceiveSpace(ArchiveModel.Manifest manifest, long extraPrivateBytes) throws Exception {
+    manifest.validate(limits);
+    if (
+      extraPrivateBytes < 0 ||
+      extraPrivateBytes > Long.MAX_VALUE - manifest.archive.sizeBytes - manifest.totalFileBytes
+    ) {
+      throw new ArchiveFailure("invalid-request", "The space preflight byte count is invalid.");
     }
-    private ArchiveFailure failed(ArchiveCache.Job job, ArchiveControl control, Exception cause) {
-        ArchiveFailure failure = ArchiveFailure.from(cause);
-        try { control.check(); } catch (ArchiveFailure cancellation) {
-            cancellation.addSuppressed(failure); failure = cancellation;
-        }
-        try { dispose(job); } catch (IOException cleanup) {
-            failure.cleanupFailure = ArchiveCache.cleanup(cleanup);
-        }
-        return failure;
-    }
-    private synchronized void dispose(ArchiveCache.Job job) throws IOException {
-        job.dispose();
-        if (owned == job) { owned = null; current = null; }
-    }
-    /** 停止当前归档的读流和 SAF 查询；工作线程结束后负责清理，生命周期线程不删缓存。 */
-    void cancel() { ArchiveControl control = current; if (control != null) control.cancel(); }
-    /** 重试本实例拥有的任务的清理；调用前必须等工作线程结束并关闭句柄读流。 */
-    synchronized void retryCleanup() throws IOException { if (owned != null) dispose(owned); }
+    cache.checkSpace(manifest.archive.sizeBytes + manifest.totalFileBytes + extraPrivateBytes);
+  }
 
-    private static int read(InputStream stream, byte[] buffer, ArchiveControl control) throws IOException {
+  java.nio.file.Path privateRoot() throws Exception {
+    cache.checkSpace(0);
+    return cache.root;
+  }
+
+  /** 读取一次源形成快照；未知长度通过实际流计数，之后只从私有快照生成和发送归档。 */
+  Artifact prepare(
+    String transferId,
+    String deviceId,
+    String rootId,
+    List<ArchiveModel.Source> sources,
+    ArchiveControl control,
+    ArchiveModel.Progress progress
+  ) throws ArchiveFailure {
+    ArchiveModel.require(
+      SafValues.isId(transferId) &&
+        SafValues.isId(deviceId) &&
+        SafValues.isId(rootId) &&
+        sources != null &&
+        !sources.isEmpty() &&
+        control != null
+    );
+    ArchiveModel.limit(sources.size() <= limits.files);
+    ArchiveCache.Job job = begin(control);
+    try {
+      Set<String> entries = new HashSet<>();
+      List<ArchiveModel.PreparedFile> files = new ArrayList<>();
+      long total = 0;
+      long tarSize = 1024;
+      emit(progress, "preparing", 0, null, control);
+      for (int index = 0; index < sources.size(); index++) {
         control.check();
-        int n = stream.read(buffer);
-        control.check();
-        if (n == 0) throw new ArchiveFailure("io-failure", "The input stream made no read progress.");
-        return n;
+        ArchiveModel.Source source = sources.get(index);
+        ArchiveModel.require(source != null);
+        source.validateRoot(rootId);
+        ArchiveModel.Observation before = source.observe(control);
+        ArchiveModel.require(before != null);
+        before.validate();
+        ArchiveModel.require(entries.add(before.entryId));
+        if (before.size != null) {
+          ArchiveModel.limit(before.size <= limits.file && before.size <= limits.total - total);
+          job.space(before.size);
+        }
+        String id = ArchiveModel.id(index);
+        MessageDigest hash = ArchiveFormat.sha256();
+        long size = 0;
+        InputStream input = control.track(source.open(control));
+        try (InputStream stream = input; OutputStream out = job.create(id, limits.file, control)) {
+          byte[] buffer = new byte[ArchiveModel.BUFFER];
+          int n;
+          while ((n = read(stream, buffer, control)) != -1) {
+            ArchiveModel.limit(size <= limits.file - n && total <= limits.total - n);
+            out.write(buffer, 0, n);
+            hash.update(buffer, 0, n);
+            size += n;
+            total += n;
+            emit(progress, "preparing", total, null, control);
+          }
+        } finally {
+          control.untrack(input);
+        }
+        ArchiveModel.Observation after = source.observe(control);
+        if (!before.same(after) || (before.size != null && before.size != size)) {
+          throw new ArchiveFailure(
+            "source-changed",
+            "The source file changed during archive preparation."
+          );
+        }
+        tarSize += 512 + ArchiveModel.padded(size);
+        ArchiveModel.limit(tarSize <= limits.tar);
+        files.add(
+          new ArchiveModel.PreparedFile(id, before, size, ArchiveFormat.hex(hash.digest()))
+        );
+      }
+      // 预检包含压缩体可能与原文重叠的实际容量；之后每次写入仍执行硬计数和空间检查。
+      emit(progress, "archiving", 0, tarSize, control);
+      HashedOutput packed = new HashedOutput(job.create("archive.gz", limits.archive, control));
+      try (
+        OutputStream output = packed;
+        ArchiveFormat.GzipWriter gzip = new ArchiveFormat.GzipWriter(output)
+      ) {
+        byte[] buffer = new byte[ArchiveModel.BUFFER];
+        long written = 0;
+        for (ArchiveModel.PreparedFile file : files) {
+          gzip.write(ArchiveFormat.header(file.fileId, file.sizeBytes));
+          written += 512;
+          MessageDigest hash = ArchiveFormat.sha256();
+          long size = 0;
+          try (InputStream input = job.open(file.fileId, control)) {
+            int n;
+            while ((n = read(input, buffer, control)) != -1) {
+              if (size > file.sizeBytes - n) {
+                throw mismatch();
+              }
+              gzip.write(buffer, 0, n);
+              hash.update(buffer, 0, n);
+              size += n;
+              written += n;
+              emit(progress, "archiving", written, tarSize, control);
+            }
+          }
+          if (size != file.sizeBytes || !ArchiveFormat.hex(hash.digest()).equals(file.sha256)) {
+            throw mismatch();
+          }
+          int padding = (int) (ArchiveModel.padded(size) - size);
+          gzip.write(new byte[padding]);
+          written += padding;
+        }
+        gzip.write(new byte[1024]);
+        written += 1024;
+        emit(progress, "archiving", written, tarSize, control);
+      }
+      ArchiveModel.Manifest manifest = new ArchiveModel.Manifest(
+        transferId,
+        deviceId,
+        rootId,
+        files,
+        total,
+        new ArchiveModel.Descriptor(packed.count, tarSize, packed.digest())
+      );
+      manifest.validate(limits);
+      control.check();
+      return new Artifact(job, manifest, control);
+    } catch (Exception cause) {
+      throw failed(job, control, cause);
     }
-    private static void emit(ArchiveModel.Progress progress, String stage, long count, Long total,
-                             ArchiveControl control) throws Exception {
-        control.check();
-        if (progress != null) progress.update(stage, count, total);
-        control.check();
-    }
-    private static ArchiveFailure mismatch() { return new ArchiveFailure("checksum-mismatch", "The archive or uncompressed content length/hash does not match."); }
+  }
 
-    /** 归档句柄，不含路径；清单不可变，读流归调用者，dispose 失败后可以再次调用。 */
-    final class Artifact implements AutoCloseable {
-        final ArchiveModel.Manifest manifest;
-        private final ArchiveCache.Job job;
-        private final ArchiveControl control;
-        Artifact(ArchiveCache.Job job, ArchiveModel.Manifest manifest, ArchiveControl control) {
-            this.job = job; this.manifest = manifest; this.control = control;
+  /** 接管并关闭输入；先保存并校验完整压缩体，再逐项解包校验，全部成功才返回句柄。 */
+  Artifact receive(
+    ArchiveModel.Manifest manifest,
+    InputStream source,
+    ArchiveControl control,
+    ArchiveModel.Progress progress
+  ) throws ArchiveFailure {
+    ArchiveModel.require(source != null && control != null);
+    ArchiveCache.Job job = null;
+    try (InputStream input = source) {
+      ArchiveModel.require(manifest != null);
+      manifest.validate(limits);
+      job = begin(control);
+      control.track(input);
+      job.space(manifest.archive.sizeBytes + manifest.totalFileBytes);
+      MessageDigest hash = ArchiveFormat.sha256();
+      long size = 0;
+      byte[] buffer = new byte[ArchiveModel.BUFFER];
+      emit(progress, "receiving", 0, manifest.archive.sizeBytes, control);
+      try (OutputStream out = job.create("archive.gz", limits.archive, control)) {
+        int n;
+        while ((n = read(input, buffer, control)) != -1) {
+          ArchiveModel.limit(size <= limits.archive - n);
+          if (size > manifest.archive.sizeBytes - n) {
+            throw mismatch();
+          }
+          out.write(buffer, 0, n);
+          hash.update(buffer, 0, n);
+          size += n;
+          emit(progress, "receiving", size, manifest.archive.sizeBytes, control);
         }
-        InputStream openArchive() throws IOException { return job.open("archive.gz", control); }
-        InputStream openFile(String fileId) throws IOException {
-            for (ArchiveModel.PreparedFile file : manifest.files) if (file.fileId.equals(fileId)) return job.open(fileId, control);
-            throw new ArchiveFailure("invalid-request", "The file reference does not belong to this archive manifest.");
+      }
+      if (
+        size != manifest.archive.sizeBytes ||
+        !ArchiveFormat.hex(hash.digest()).equals(manifest.archive.sha256)
+      ) {
+        throw mismatch();
+      }
+      control.untrack(input);
+      emit(progress, "verifying", 0, manifest.totalFileBytes, control);
+      try (
+        InputStream compressed = job.open("archive.gz", control);
+        ArchiveFormat.GzipReader tar = new ArchiveFormat.GzipReader(compressed, limits.tar, control)
+      ) {
+        long completed = 0;
+        for (ArchiveModel.PreparedFile file : manifest.files) {
+          byte[] header = new byte[512];
+          ArchiveFormat.exact(tar, header, 512, control);
+          if (!Arrays.equals(header, ArchiveFormat.header(file.fileId, file.sizeBytes))) {
+            throw ArchiveFormat.invalid(
+              "A tar header, order, type, length, or field does not match the manifest."
+            );
+          }
+          MessageDigest contentHash = ArchiveFormat.sha256();
+          long remaining = file.sizeBytes;
+          try (OutputStream out = job.create(file.fileId, limits.file, control)) {
+            while (remaining > 0) {
+              int n = (int) Math.min(buffer.length, remaining);
+              ArchiveFormat.exact(tar, buffer, n, control);
+              out.write(buffer, 0, n);
+              contentHash.update(buffer, 0, n);
+              remaining -= n;
+              completed += n;
+              ArchiveModel.limit(completed <= limits.total);
+              emit(progress, "verifying", completed, manifest.totalFileBytes, control);
+            }
+          }
+          if (!ArchiveFormat.hex(contentHash.digest()).equals(file.sha256)) {
+            throw mismatch();
+          }
+          int padding = (int) (ArchiveModel.padded(file.sizeBytes) - file.sizeBytes);
+          ArchiveFormat.exact(tar, buffer, padding, control);
+          ArchiveFormat.zeros(buffer, padding);
         }
-        @Override public void close() throws IOException { dispose(job); }
+        ArchiveFormat.exact(tar, buffer, 1024, control);
+        ArchiveFormat.zeros(buffer, 1024);
+        if (tar.read() != -1) {
+          throw ArchiveFormat.invalid("Extra records follow the end of the tar archive.");
+        }
+        emit(progress, "verifying", completed, manifest.totalFileBytes, control);
+      }
+      control.check();
+      return new Artifact(job, manifest, control);
+    } catch (Exception cause) {
+      if (job == null) {
+        throw ArchiveFailure.from(cause);
+      }
+      throw failed(job, control, cause);
+    } finally {
+      control.untrack(source);
     }
-    private static final class HashedOutput extends FilterOutputStream {
-        private final MessageDigest hash = ArchiveFormat.sha256();
-        private long count;
-        HashedOutput(OutputStream output) { super(output); }
-        @Override public void write(int value) throws IOException { write(new byte[] { (byte) value }); }
-        @Override public void write(byte[] bytes, int offset, int length) throws IOException {
-            out.write(bytes, offset, length); hash.update(bytes, offset, length); count += length;
-        }
-        String digest() { return ArchiveFormat.hex(hash.digest()); }
+  }
+
+  private synchronized ArchiveCache.Job begin(ArchiveControl control) throws ArchiveFailure {
+    try {
+      control.check();
+      ArchiveCache.Job job = cache.begin(limits.cache);
+      owned = job;
+      current = control;
+      return job;
+    } catch (Exception cause) {
+      throw ArchiveFailure.from(cause);
     }
+  }
+
+  private ArchiveFailure failed(ArchiveCache.Job job, ArchiveControl control, Exception cause) {
+    ArchiveFailure failure = ArchiveFailure.from(cause);
+    try {
+      control.check();
+    } catch (ArchiveFailure cancellation) {
+      cancellation.addSuppressed(failure);
+      failure = cancellation;
+    }
+    try {
+      dispose(job);
+    } catch (IOException cleanup) {
+      failure.cleanupFailure = ArchiveCache.cleanup(cleanup);
+    }
+    return failure;
+  }
+
+  private synchronized void dispose(ArchiveCache.Job job) throws IOException {
+    job.dispose();
+    if (owned == job) {
+      owned = null;
+      current = null;
+    }
+  }
+
+  /** 停止当前归档的读流和 SAF 查询；工作线程结束后负责清理，生命周期线程不删缓存。 */
+  void cancel() {
+    ArchiveControl control = current;
+    if (control != null) {
+      control.cancel();
+    }
+  }
+
+  /** 重试本实例拥有的任务的清理；调用前必须等工作线程结束并关闭句柄读流。 */
+  synchronized void retryCleanup() throws IOException {
+    if (owned != null) {
+      dispose(owned);
+    }
+  }
+
+  private static int read(InputStream stream, byte[] buffer, ArchiveControl control)
+    throws IOException {
+    control.check();
+    int n = stream.read(buffer);
+    control.check();
+    if (n == 0) {
+      throw new ArchiveFailure("io-failure", "The input stream made no read progress.");
+    }
+    return n;
+  }
+
+  private static void emit(
+    ArchiveModel.Progress progress,
+    String stage,
+    long count,
+    Long total,
+    ArchiveControl control
+  ) throws Exception {
+    control.check();
+    if (progress != null) {
+      progress.update(stage, count, total);
+    }
+    control.check();
+  }
+
+  private static ArchiveFailure mismatch() {
+    return new ArchiveFailure(
+      "checksum-mismatch",
+      "The archive or uncompressed content length/hash does not match."
+    );
+  }
+
+  /** 归档句柄，不含路径；清单不可变，读流归调用者，dispose 失败后可以再次调用。 */
+  final class Artifact implements AutoCloseable {
+
+    final ArchiveModel.Manifest manifest;
+    private final ArchiveCache.Job job;
+    private final ArchiveControl control;
+
+    Artifact(ArchiveCache.Job job, ArchiveModel.Manifest manifest, ArchiveControl control) {
+      this.job = job;
+      this.manifest = manifest;
+      this.control = control;
+    }
+
+    InputStream openArchive() throws IOException {
+      return job.open("archive.gz", control);
+    }
+
+    InputStream openFile(String fileId) throws IOException {
+      for (ArchiveModel.PreparedFile file : manifest.files) {
+        if (file.fileId.equals(fileId)) {
+          return job.open(fileId, control);
+        }
+      }
+      throw new ArchiveFailure(
+        "invalid-request",
+        "The file reference does not belong to this archive manifest."
+      );
+    }
+
+    @Override
+    public void close() throws IOException {
+      dispose(job);
+    }
+  }
+
+  private static final class HashedOutput extends FilterOutputStream {
+
+    private final MessageDigest hash = ArchiveFormat.sha256();
+    private long count;
+
+    HashedOutput(OutputStream output) {
+      super(output);
+    }
+
+    @Override
+    public void write(int value) throws IOException {
+      write(new byte[] { (byte) value });
+    }
+
+    @Override
+    public void write(byte[] bytes, int offset, int length) throws IOException {
+      out.write(bytes, offset, length);
+      hash.update(bytes, offset, length);
+      count += length;
+    }
+
+    String digest() {
+      return ArchiveFormat.hex(hash.digest());
+    }
+  }
 }

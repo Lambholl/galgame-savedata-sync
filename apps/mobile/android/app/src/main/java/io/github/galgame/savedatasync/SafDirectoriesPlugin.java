@@ -24,133 +24,180 @@ import org.json.JSONObject;
  */
 @CapacitorPlugin(name = "SafDirectories")
 public class SafDirectoriesPlugin extends Plugin {
-    private final ExecutorService worker = Executors.newSingleThreadExecutor();
-    private final Set<CancellationSignal> signals = ConcurrentHashMap.newKeySet();
-    private final AtomicBoolean choosing = new AtomicBoolean();
-    private volatile boolean destroyed;
 
-    private SafDirectoryStore store() throws SafFailure {
-        return SafRuntime.store(getContext());
-    }
+  private final ExecutorService worker = Executors.newSingleThreadExecutor();
+  private final Set<CancellationSignal> signals = ConcurrentHashMap.newKeySet();
+  private final AtomicBoolean choosing = new AtomicBoolean();
+  private volatile boolean isDestroyed;
 
-    private interface Work { JSObject run(CancellationSignal signal) throws Exception; }
+  private SafDirectoryStore store() throws SafFailure {
+    return SafRuntime.store(getContext());
+  }
 
-    private void submit(PluginCall call, Work work) {
+  private interface Work {
+    JSObject run(CancellationSignal signal) throws Exception;
+  }
+
+  private void submit(PluginCall call, Work work) {
+    try {
+      worker.execute(() -> {
+        CancellationSignal signal = new CancellationSignal();
+        signals.add(signal);
         try {
-            worker.execute(() -> {
-                CancellationSignal signal = new CancellationSignal();
-                signals.add(signal);
-                try {
-                    if (destroyed) {
-                        throw new SafFailure("unsupported-operation", "The directory service is closed.");
-                    }
-                    JSObject result = work.run(signal);
-                    if (result != null) {
-                        signal.throwIfCanceled();
-                        call.resolve(result);
-                    }
-                } catch (Exception cause) {
-                    if ("chooseDirectory".equals(call.getMethodName())) choosing.set(false);
-                    call.resolve(SafFailure.from(cause).result());
-                } finally {
-                    signals.remove(signal);
-                }
-            });
-        } catch (RejectedExecutionException cause) {
-            call.resolve(new SafFailure("io-failure", "The app is closed. Open it again.", cause).result());
-        }
-    }
-
-    private boolean noArguments(PluginCall call) {
-        if (call.getData().length() == 0) return true;
-        call.resolve(new SafFailure("invalid-request", "Extra parameters are not accepted.").result());
-        return false;
-    }
-
-    private static JSObject success(Object value) {
-        JSObject result = new JSObject();
-        result.put("status", "success");
-        result.put("value", value);
-        return result;
-    }
-
-    /** 以 READ 权限启动系统选择器；取消时已保存的根目录都保留。 */
-    @PluginMethod
-    public void chooseDirectory(PluginCall call) {
-        if (!noArguments(call)) return;
-        if (destroyed || !choosing.compareAndSet(false, true)) {
-            call.resolve(new SafFailure("unsupported-operation", "Complete the current directory selection first.").result());
-            return;
-        }
-        // 启动可授予权限的选择器前，先校验登记表。
-        submit(call, signal -> {
-            store();
+          if (isDestroyed) {
+            throw new SafFailure("unsupported-operation", "The directory service is closed.");
+          }
+          JSObject result = work.run(signal);
+          if (result != null) {
             signal.throwIfCanceled();
-            getActivity().runOnUiThread(() -> {
-                try {
-                    if (destroyed) throw new IllegalStateException("Directory plugin destroyed");
-                    Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
-                    intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION |
-                        Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION | Intent.FLAG_GRANT_PREFIX_URI_PERMISSION);
-                    startActivityForResult(call, intent, "onDirectoryChosen");
-                } catch (Exception cause) {
-                    choosing.set(false);
-                    call.resolve(SafFailure.from(cause).result());
-                }
-            });
-            return null;
-        });
-    }
-
-    /** 接收系统 Activity 返回的结果；JS 调用丢失时不算选择成功。 */
-    @ActivityCallback
-    private void onDirectoryChosen(PluginCall call, ActivityResult activityResult) {
-        choosing.set(false);
-        if (call == null) return;
-        if (activityResult.getResultCode() == Activity.RESULT_CANCELED) {
-            JSObject result = new JSObject();
-            result.put("status", "cancelled");
             call.resolve(result);
-            return;
+          }
+        } catch (Exception cause) {
+          if ("chooseDirectory".equals(call.getMethodName())) {
+            choosing.set(false);
+          }
+          call.resolve(SafFailure.from(cause).result());
+        } finally {
+          signals.remove(signal);
         }
-        Intent data = activityResult.getData();
-        if (activityResult.getResultCode() != Activity.RESULT_OK || data == null || data.getData() == null) {
-            call.resolve(new SafFailure("permission-denied", "The system did not return valid directory authorization.").result());
-            return;
+      });
+    } catch (RejectedExecutionException cause) {
+      call.resolve(
+        new SafFailure("io-failure", "The app is closed. Open it again.", cause).result()
+      );
+    }
+  }
+
+  private boolean noArguments(PluginCall call) {
+    if (call.getData().length() == 0) {
+      return true;
+    }
+    call.resolve(new SafFailure("invalid-request", "Extra parameters are not accepted.").result());
+    return false;
+  }
+
+  private static JSObject success(Object value) {
+    JSObject result = new JSObject();
+    result.put("status", "success");
+    result.put("value", value);
+    return result;
+  }
+
+  /** 以 READ 权限启动系统选择器；取消时已保存的根目录都保留。 */
+  @PluginMethod
+  public void chooseDirectory(PluginCall call) {
+    if (!noArguments(call)) {
+      return;
+    }
+    if (isDestroyed || !choosing.compareAndSet(false, true)) {
+      call.resolve(
+        new SafFailure(
+          "unsupported-operation",
+          "Complete the current directory selection first."
+        ).result()
+      );
+      return;
+    }
+    // 启动可授予权限的选择器前，先校验登记表。
+    submit(call, signal -> {
+      store();
+      signal.throwIfCanceled();
+      getActivity().runOnUiThread(() -> {
+        try {
+          if (isDestroyed) {
+            throw new IllegalStateException("Directory plugin destroyed");
+          }
+          Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
+          intent.addFlags(
+            Intent.FLAG_GRANT_READ_URI_PERMISSION |
+              Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION |
+              Intent.FLAG_GRANT_PREFIX_URI_PERMISSION
+          );
+          startActivityForResult(call, intent, "onDirectoryChosen");
+        } catch (Exception cause) {
+          choosing.set(false);
+          call.resolve(SafFailure.from(cause).result());
         }
-        // 系统结果直接登记授权，与 Activity 是否可见无关。
-        submit(call, signal -> {
-            JSObject result = new JSObject();
-            result.put("status", "selected");
-            result.put("directory", store().register(data.getData(), data.getFlags(), signal));
-            return result;
-        });
-    }
+      });
+      return null;
+    });
+  }
 
-    /** 返回共享 RootsResponse，其中包含已过期的保存引用。 */
-    @PluginMethod
-    public void listRoots(PluginCall call) {
-        if (noArguments(call)) submit(call, signal -> success(store().listRoots(signal)));
+  /** 接收系统 Activity 返回的结果；JS 调用丢失时不算选择成功。 */
+  @ActivityCallback
+  private void onDirectoryChosen(PluginCall call, ActivityResult activityResult) {
+    choosing.set(false);
+    if (call == null) {
+      return;
     }
+    if (activityResult.getResultCode() == Activity.RESULT_CANCELED) {
+      JSObject result = new JSObject();
+      result.put("status", "cancelled");
+      call.resolve(result);
+      return;
+    }
+    Intent data = activityResult.getData();
+    if (
+      activityResult.getResultCode() != Activity.RESULT_OK || data == null || data.getData() == null
+    ) {
+      call.resolve(
+        new SafFailure(
+          "permission-denied",
+          "The system did not return valid directory authorization."
+        ).result()
+      );
+      return;
+    }
+    // 系统结果直接登记授权，与 Activity 是否可见无关。
+    submit(call, signal -> {
+      JSObject result = new JSObject();
+      result.put("status", "selected");
+      result.put("directory", store().register(data.getData(), data.getFlags(), signal));
+      return result;
+    });
+  }
 
-    /** 列出一层目录，只接受 rootId 和可为 null 的 parentId；未知 ID 不会转换成提供者 URI。 */
-    @PluginMethod
-    public void listDirectory(PluginCall call) {
-        JSObject data = call.getData();
-        Object root = data.opt("rootId");
-        Object parent = data.opt("parentId");
-        if (data.length() != 2 || !SafValues.isId(root) ||
-            (parent != JSONObject.NULL && !SafValues.isId(parent))) {
-            call.resolve(new SafFailure("invalid-request", "Directory read parameters are invalid.").result());
-            return;
-        }
-        submit(call, signal -> success(store().listDirectory(
-            (String) root, parent == JSONObject.NULL ? null : (String) parent, signal)));
+  /** 返回共享 RootsResponse，其中包含已过期的保存引用。 */
+  @PluginMethod
+  public void listRoots(PluginCall call) {
+    if (noArguments(call)) {
+      submit(call, signal -> success(store().listRoots(signal)));
     }
+  }
 
-    @Override protected void handleOnDestroy() {
-        destroyed = true;
-        for (CancellationSignal signal : signals) signal.cancel();
-        worker.shutdownNow();
+  /** 列出一层目录，只接受 rootId 和可为 null 的 parentId；未知 ID 不会转换成提供者 URI。 */
+  @PluginMethod
+  public void listDirectory(PluginCall call) {
+    JSObject data = call.getData();
+    Object root = data.opt("rootId");
+    Object parent = data.opt("parentId");
+    if (
+      data.length() != 2 ||
+      !SafValues.isId(root) ||
+      (parent != JSONObject.NULL && !SafValues.isId(parent))
+    ) {
+      call.resolve(
+        new SafFailure("invalid-request", "Directory read parameters are invalid.").result()
+      );
+      return;
     }
+    submit(call, signal ->
+      success(
+        store().listDirectory(
+          (String) root,
+          parent == JSONObject.NULL ? null : (String) parent,
+          signal
+        )
+      )
+    );
+  }
+
+  @Override
+  protected void handleOnDestroy() {
+    isDestroyed = true;
+    for (CancellationSignal signal : signals) {
+      signal.cancel();
+    }
+    worker.shutdownNow();
+  }
 }

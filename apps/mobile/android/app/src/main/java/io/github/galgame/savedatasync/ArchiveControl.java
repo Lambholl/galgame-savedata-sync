@@ -12,35 +12,62 @@ import java.util.function.LongSupplier;
  * 它会关闭登记的流和 SAF 查询信号，唤醒阻塞的读取。默认总期限 30 分钟，进度不会刷新期限。
  */
 final class ArchiveControl {
-    private final Set<Closeable> resources = new HashSet<>();
-    private final LongSupplier clock;
-    private final long started, timeout;
-    private volatile boolean cancelled;
 
-    ArchiveControl() { this(System::nanoTime, TimeUnit.MINUTES.toNanos(30)); }
-    ArchiveControl(LongSupplier clock, long timeout) {
-        if (timeout <= 0 || timeout > TimeUnit.MINUTES.toNanos(30)) throw new IllegalArgumentException("Invalid timeout");
-        this.clock = clock; this.timeout = timeout; started = clock.getAsLong();
+  private final Set<Closeable> resources = new HashSet<>();
+  private final LongSupplier clock;
+  private final long started;
+  private final long timeout;
+  private volatile boolean isCancelled;
+
+  ArchiveControl() {
+    this(System::nanoTime, TimeUnit.MINUTES.toNanos(30));
+  }
+
+  ArchiveControl(LongSupplier clock, long timeout) {
+    if (timeout <= 0 || timeout > TimeUnit.MINUTES.toNanos(30)) {
+      throw new IllegalArgumentException("Invalid timeout");
     }
-    void check() throws ArchiveFailure {
-        if (cancelled || Thread.currentThread().isInterrupted()) {
-            throw new ArchiveFailure("io-failure", "The archive was cancelled.", true, null);
-        }
-        if (clock.getAsLong() - started >= timeout) throw new ArchiveFailure("timeout", "The archive task timed out.");
+    this.clock = clock;
+    this.timeout = timeout;
+    started = clock.getAsLong();
+  }
+
+  void check() throws ArchiveFailure {
+    if (isCancelled || Thread.currentThread().isInterrupted()) {
+      throw new ArchiveFailure("io-failure", "The archive was cancelled.", true, null);
     }
-    synchronized <T extends Closeable> T track(T resource) throws IOException {
-        try { check(); } catch (ArchiveFailure failure) { resource.close(); throw failure; }
-        resources.add(resource);
-        return resource;
+    if (clock.getAsLong() - started >= timeout) {
+      throw new ArchiveFailure("timeout", "The archive task timed out.");
     }
-    synchronized void untrack(Closeable resource) { resources.remove(resource); }
-    void cancel() {
-        Closeable[] closing;
-        synchronized (this) { cancelled = true; closing = resources.toArray(new Closeable[0]); }
-        for (Closeable resource : closing) {
-            try { resource.close(); } catch (Exception ignored) {
-                // 原始 I/O 异常由工作线程报告；缓存清理由任务所有者单独执行。
-            }
-        }
+  }
+
+  synchronized <T extends Closeable> T track(T resource) throws IOException {
+    try {
+      check();
+    } catch (ArchiveFailure failure) {
+      resource.close();
+      throw failure;
     }
+    resources.add(resource);
+    return resource;
+  }
+
+  synchronized void untrack(Closeable resource) {
+    resources.remove(resource);
+  }
+
+  void cancel() {
+    Closeable[] closing;
+    synchronized (this) {
+      isCancelled = true;
+      closing = resources.toArray(new Closeable[0]);
+    }
+    for (Closeable resource : closing) {
+      try {
+        resource.close();
+      } catch (Exception ignored) {
+        // 原始 I/O 异常由工作线程报告；缓存清理由任务所有者单独执行。
+      }
+    }
+  }
 }

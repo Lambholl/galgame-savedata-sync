@@ -32,5 +32,6 @@ related_files: []
 | Android SAF 初次访问时间变化 | unresolved | API 33 合成夹具首次读取后观察到 ctime 变化，原文和 mtime 一致，原因未确认 | 只读目录复验内容、大小和 mtime；ctime 是否变化按提供者能力记录 |
 | Windows 跨进程发布恢复 | open | 强杀可能留下候选；其他卷和特殊名称等价未验证 | 独立目标夹具；按前缀自动删除或恢复旧任务不在方案内 |
 | 依赖手动审计 | open | CI 日志报告 antd-mobile 间接依赖 deepmerge 的低危公告 GHSA-gcqx-w48m-w2h4，尚未处理 | pnpm security:check；Android 依赖另用 pnpm security:android |
+| 依赖版本统一 | 真机和打包未复核 | APK 依赖强制升级：kotlin-stdlib 2.2.0、kotlinx-coroutines 1.9.0、concurrent-futures 1.2.0、jspecify 1.0.1；设备测试平台的 gRPC 升到 1.69.1。electron-builder 用到的 plist、semver、ci-info、sax 被 overrides 合并。已通过构建和单元测试；仪器测试只构建未在设备上运行，电脑端只跑了 `electron-builder --version` | 真机启动并完成一次传输，运行仪器测试；发版前打一次桌面包 |
 
 界面检查结果不转成 DOM、选择器或颜色断言。模板、主题、基准和重复失败场景不在回归范围。

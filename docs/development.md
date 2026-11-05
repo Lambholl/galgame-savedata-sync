@@ -155,8 +155,10 @@ pnpm security:android
 
 - pnpm 固定 10.34.8，并单独查询 OSV，因为包管理器不属于业务 lockfile 依赖树。
 - `xcode>uuid` 精确覆盖为 11.1.1，修复 [GHSA-w5hq-g745-h8pq](https://github.com/uuidjs/uuid/security/advisories/GHSA-w5hq-g745-h8pq)。选择仍支持 CommonJS 的修复版本，已验证 xcode 的 UUID 生成调用兼容，其他包保留当前主版本。
+- `pnpm-workspace.yaml` 的 `overrides` 让同一主版本的 npm 包只保留一个版本。跨主版本的多版本（共 33 个包，如 `glob` 7 和 13）API 不兼容，留给上游升级，也不设失败检查。
 - Gradle 采用 [8.14.6 安全补丁](https://docs.gradle.org/8.14.6/release-notes.html)，分发 ZIP 固定官方 SHA-256；下载或哈希不符时构建失败。
 - Android Gradle Plugin 升级至兼容的 8.13.2。`apps/mobile/android/dependency-security.json` 统一修补构建间接库：Netty 保持兼容的 4.1 分支，压缩、JOSE、Bouncy Castle 和 JDOM 使用经 OSV 检查的修复版本；Protobuf 3.x 修补至 3.25.9，独立的 4.x 请求保留原版本。策略覆盖生成项目的 buildscript 和普通依赖，不改 `node_modules`。未使用的 Google Services 构建插件已经移除。
+- 同一 Maven 模块全项目只解析一个版本，运行、测试和构建工具都算在内。版本写在 `dependency-security.json` 的 `singleVersionModules`，一般取出现过的最高版；`listenablefuture` 固定 1.0，因为 `9999.0-empty` 是空包，而 APK 不带 Guava。`security:android` 发现多版本时失败。
 - `security:android` 先构建移动网页并执行 Capacitor 同步，生成 Git 忽略的 Cordova 工程，再重新解析全部可解析的 Maven 配置（包括各构建变体、测试、lint 等工具）及 buildscript classpath，写入 Git 忽略的 `.reports/android-dependencies.json`，并向 OSV 查询这些版本和 Gradle Core。任何一步失败，命令都会失败。
 - CI 固定 Action commit SHA，使用 JDK 21 和 runner 预装 SDK，并执行 `pnpm check`、`pnpm android:build`。Node.js 安全基线见 `scripts/toolchain-policy.mjs`，由手动安全检查核对。
 

@@ -4,29 +4,47 @@ import java.io.IOException;
 
 /** 归档错误，只传递稳定的错误码和脱敏消息；清理错误不能覆盖主错误。 */
 final class ArchiveFailure extends IOException {
-    final String code;
-    final boolean cancelled;
-    final String diagnosticCode;
-    ArchiveFailure cleanupFailure;
-    /** 出错的目录在哪一端（phone、pc）；抛出处不知道时为 null。 */
-    String device;
 
-    ArchiveFailure(String code, String message) { this(code, message, false, null); }
-    ArchiveFailure(String code, String message, boolean cancelled, Throwable cause) {
-        this(code, message, cancelled, cause, null);
-    }
-    ArchiveFailure(String code, String message, boolean cancelled, Throwable cause, String diagnosticCode) {
-        super(message, cause);
-        this.code = code;
-        this.cancelled = cancelled;
-        this.diagnosticCode = diagnosticCode;
-    }
+  final String code;
+  final boolean isCancelled;
+  final String diagnosticCode;
+  ArchiveFailure cleanupFailure;
+  /** 出错的目录在哪一端（phone、pc）；抛出处不知道时为 null。 */
+  String device;
 
-    static ArchiveFailure from(Exception cause) {
-        if (cause instanceof ArchiveFailure) return (ArchiveFailure) cause;
-        if (cause instanceof SafFailure) {
-            return new ArchiveFailure(((SafFailure) cause).code, "Cannot read the authorized source file.", false, cause);
-        }
-        return new ArchiveFailure("io-failure", "Local archive I/O failed.", false, cause);
+  ArchiveFailure(String code, String message) {
+    this(code, message, false, null);
+  }
+
+  ArchiveFailure(String code, String message, boolean isCancelled, Throwable cause) {
+    this(code, message, isCancelled, cause, null);
+  }
+
+  ArchiveFailure(
+    String code,
+    String message,
+    boolean isCancelled,
+    Throwable cause,
+    String diagnosticCode
+  ) {
+    super(message, cause);
+    this.code = code;
+    this.isCancelled = isCancelled;
+    this.diagnosticCode = diagnosticCode;
+  }
+
+  static ArchiveFailure from(Exception cause) {
+    if (cause instanceof ArchiveFailure) {
+      return (ArchiveFailure) cause;
     }
+    if (cause instanceof SafFailure) {
+      return new ArchiveFailure(
+        ((SafFailure) cause).code,
+        "Cannot read the authorized source file.",
+        false,
+        cause
+      );
+    }
+    return new ArchiveFailure("io-failure", "Local archive I/O failed.", false, cause);
+  }
 }

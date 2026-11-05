@@ -19,53 +19,64 @@ import org.json.JSONObject;
  */
 @CapacitorPlugin(name = "AppStorage")
 public class AppStoragePlugin extends Plugin {
-    private static final String FILE = "app-storage";
-    private static final String LIBRARY = "savedata-sync:library:1";
-    private static final Set<String> KEYS = Collections.singleton(LIBRARY);
-    /** 配置只含 ID、名称和目录引用，正常远小于此上限。 */
-    private static final int MAX_LENGTH = 4 * 1024 * 1024;
 
-    /** 原生任务不经过网页，直接读游戏名；找不到或配置不可读时返回 null。 */
-    static String gameName(Context context, String projectId) {
-        try {
-            String saved = context.getSharedPreferences(FILE, Context.MODE_PRIVATE).getString(LIBRARY, null);
-            if (saved == null) return null;
-            JSONArray games = new JSONObject(saved).getJSONArray("games");
-            for (int i = 0; i < games.length(); i++) {
-                JSONObject game = games.getJSONObject(i);
-                if (projectId.equals(game.getString("id"))) return game.getString("name");
-            }
-        } catch (JSONException unreadable) { /* 备份文件夹退回使用游戏 ID。 */ }
+  private static final String FILE = "app-storage";
+  private static final String LIBRARY = "savedata-sync:library:1";
+  private static final Set<String> KEYS = Collections.singleton(LIBRARY);
+  /** 配置只含 ID、名称和目录引用，正常远小于此上限。 */
+  private static final int MAX_LENGTH = 4 * 1024 * 1024;
+
+  /** 原生任务不经过网页，直接读游戏名；找不到或配置不可读时返回 null。 */
+  static String gameName(Context context, String projectId) {
+    try {
+      String saved = context
+        .getSharedPreferences(FILE, Context.MODE_PRIVATE)
+        .getString(LIBRARY, null);
+      if (saved == null) {
         return null;
-    }
-
-    private SharedPreferences store() {
-        return getContext().getSharedPreferences(FILE, Context.MODE_PRIVATE);
-    }
-
-    @PluginMethod public void read(PluginCall call) {
-        String key = call.getString("key");
-        if (!KEYS.contains(key)) {
-            call.reject("invalid-request");
-            return;
+      }
+      JSONArray games = new JSONObject(saved).getJSONArray("games");
+      for (int i = 0; i < games.length(); i++) {
+        JSONObject game = games.getJSONObject(i);
+        if (projectId.equals(game.getString("id"))) {
+          return game.getString("name");
         }
-        JSObject result = new JSObject();
-        String value = store().getString(key, null);
-        result.put("value", value == null ? JSObject.NULL : value);
-        call.resolve(result);
+      }
+    } catch (JSONException unreadable) {
+      /* 备份文件夹退回使用游戏 ID。 */
     }
+    return null;
+  }
 
-    @PluginMethod public void write(PluginCall call) {
-        String key = call.getString("key");
-        String value = call.getString("value");
-        if (!KEYS.contains(key) || value == null || value.length() > MAX_LENGTH) {
-            call.reject("invalid-request");
-            return;
-        }
-        if (!store().edit().putString(key, value).commit()) {
-            call.reject("io-failure");
-            return;
-        }
-        call.resolve();
+  private SharedPreferences store() {
+    return getContext().getSharedPreferences(FILE, Context.MODE_PRIVATE);
+  }
+
+  @PluginMethod
+  public void read(PluginCall call) {
+    String key = call.getString("key");
+    if (!KEYS.contains(key)) {
+      call.reject("invalid-request");
+      return;
     }
+    JSObject result = new JSObject();
+    String value = store().getString(key, null);
+    result.put("value", value == null ? JSObject.NULL : value);
+    call.resolve(result);
+  }
+
+  @PluginMethod
+  public void write(PluginCall call) {
+    String key = call.getString("key");
+    String value = call.getString("value");
+    if (!KEYS.contains(key) || value == null || value.length() > MAX_LENGTH) {
+      call.reject("invalid-request");
+      return;
+    }
+    if (!store().edit().putString(key, value).commit()) {
+      call.reject("io-failure");
+      return;
+    }
+    call.resolve();
+  }
 }

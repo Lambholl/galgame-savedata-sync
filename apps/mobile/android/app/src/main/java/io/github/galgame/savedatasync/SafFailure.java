@@ -6,40 +6,59 @@ import java.io.FileNotFoundException;
 
 /** SAF 桥的错误，错误码稳定、消息已脱敏；原始原因保留在原生层，不发给 JavaScript。 */
 final class SafFailure extends Exception {
-    final String code;
 
-    SafFailure(String code, String message) {
-        super(message);
-        this.code = code;
-    }
+  final String code;
 
-    SafFailure(String code, String message, Throwable cause) {
-        super(message, cause);
-        this.code = code;
-    }
+  SafFailure(String code, String message) {
+    super(message);
+    this.code = code;
+  }
 
-    JSObject result() {
-        JSObject error = new JSObject();
-        error.put("code", code);
-        error.put("message", getMessage());
-        error.put("canRetry", !code.equals("invalid-request"));
-        JSObject result = new JSObject();
-        result.put("status", "error");
-        result.put("error", error);
-        return result;
-    }
+  SafFailure(String code, String message, Throwable cause) {
+    super(message, cause);
+    this.code = code;
+  }
 
-    static SafFailure from(Exception cause) {
-        if (cause instanceof SafFailure) return (SafFailure) cause;
-        if (cause instanceof SecurityException) {
-            return new SafFailure("permission-denied", "Directory access was denied. Select the directory again.", cause);
-        }
-        if (cause instanceof FileNotFoundException) {
-            return new SafFailure("not-found", "The directory or file is no longer available. Read it again.", cause);
-        }
-        if (cause instanceof OperationCanceledException || cause instanceof InterruptedException) {
-            return new SafFailure("io-failure", "Reading stopped because of the app lifecycle or cancellation.", cause);
-        }
-        return new SafFailure("io-failure", "Cannot read the directory provider or local configuration.", cause);
+  JSObject result() {
+    JSObject error = new JSObject();
+    error.put("code", code);
+    error.put("message", getMessage());
+    error.put("canRetry", !code.equals("invalid-request"));
+    JSObject result = new JSObject();
+    result.put("status", "error");
+    result.put("error", error);
+    return result;
+  }
+
+  static SafFailure from(Exception cause) {
+    if (cause instanceof SafFailure) {
+      return (SafFailure) cause;
     }
+    if (cause instanceof SecurityException) {
+      return new SafFailure(
+        "permission-denied",
+        "Directory access was denied. Select the directory again.",
+        cause
+      );
+    }
+    if (cause instanceof FileNotFoundException) {
+      return new SafFailure(
+        "not-found",
+        "The directory or file is no longer available. Read it again.",
+        cause
+      );
+    }
+    if (cause instanceof OperationCanceledException || cause instanceof InterruptedException) {
+      return new SafFailure(
+        "io-failure",
+        "Reading stopped because of the app lifecycle or cancellation.",
+        cause
+      );
+    }
+    return new SafFailure(
+      "io-failure",
+      "Cannot read the directory provider or local configuration.",
+      cause
+    );
+  }
 }

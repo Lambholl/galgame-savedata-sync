@@ -4,7 +4,9 @@ out/
 release/
 pnpm-lock.yaml
 .project-memory/
-apps/mobile/android/
+# Android 工程里只有手写 Java 由 Prettier 排版；这里匹配文件而不是目录，下面的例外才能生效。
+apps/mobile/android/**/*.*
+!apps/mobile/android/app/src/**/*.java
 dev.local.json
 .reports/
 

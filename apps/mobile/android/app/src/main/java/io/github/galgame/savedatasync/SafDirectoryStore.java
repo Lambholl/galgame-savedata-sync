@@ -32,464 +32,691 @@ import org.json.JSONObject;
  * 文件操作都用不透明的提供者 ID；完整路径和父目录名由 DirectoryDisplay 生成。
  */
 final class SafDirectoryStore {
-    static final String PREFERENCES = "saf-directories-v1";
-    private static final String[] PROJECTION = {
-        Document.COLUMN_DOCUMENT_ID, Document.COLUMN_DISPLAY_NAME, Document.COLUMN_MIME_TYPE,
-        Document.COLUMN_SIZE, Document.COLUMN_LAST_MODIFIED, Document.COLUMN_FLAGS
-    };
-    private final ContentResolver resolver;
-    private final Context context;
-    private final SharedPreferences preferences;
-    private final List<Root> roots = new ArrayList<>();
-    private final Map<String, Entry> entries = new HashMap<>();
-    private final Map<String, String> documentIds = new HashMap<>();
-    private final Map<String, DirectoryDisplay.Info> display = new HashMap<>();
-    private final String deviceId;
 
-    String deviceId() { return deviceId; }
+  static final String PREFERENCES = "saf-directories-v1";
+  private static final String[] PROJECTION = {
+    Document.COLUMN_DOCUMENT_ID,
+    Document.COLUMN_DISPLAY_NAME,
+    Document.COLUMN_MIME_TYPE,
+    Document.COLUMN_SIZE,
+    Document.COLUMN_LAST_MODIFIED,
+    Document.COLUMN_FLAGS,
+  };
+  private final ContentResolver resolver;
+  private final Context context;
+  private final SharedPreferences preferences;
+  private final List<Root> roots = new ArrayList<>();
+  private final Map<String, Entry> entries = new HashMap<>();
+  private final Map<String, String> documentIds = new HashMap<>();
+  private final Map<String, DirectoryDisplay.Info> display = new HashMap<>();
+  private final String deviceId;
 
-    SafDirectoryStore(Context context) throws SafFailure {
-        this(context, PREFERENCES);
+  String deviceId() {
+    return deviceId;
+  }
+
+  SafDirectoryStore(Context context) throws SafFailure {
+    this(context, PREFERENCES);
+  }
+
+  /** 使用单独的偏好设置名称，将仪器测试夹具与用户设置隔离。 */
+  SafDirectoryStore(Context context, String preferencesName) throws SafFailure {
+    this.context = context.getApplicationContext();
+    resolver = this.context.getContentResolver();
+    preferences = context.getSharedPreferences(preferencesName, Context.MODE_PRIVATE);
+    try {
+      String saved = preferences.getString("registry", null);
+      if (saved == null) {
+        deviceId = UUID.randomUUID().toString();
+        persist();
+        return;
+      }
+      JSONObject registry = new JSONObject(saved);
+      if (
+        registry.length() != 3 ||
+        !(registry.get("schemaVersion") instanceof Integer) ||
+        registry.getInt("schemaVersion") != 1 ||
+        !SafValues.isId(registry.get("deviceId"))
+      ) {
+        throw new IllegalArgumentException("Unknown registry");
+      }
+      deviceId = registry.getString("deviceId");
+      JSONArray records = registry.getJSONArray("roots");
+      Set<String> ids = new HashSet<>();
+      Set<String> uris = new HashSet<>();
+      for (int index = 0; index < records.length(); index++) {
+        JSONObject record = records.getJSONObject(index);
+        if (
+          record.length() != 3 ||
+          !(record.get("rootId") instanceof String) ||
+          !(record.get("treeUri") instanceof String) ||
+          !(record.get("displayName") instanceof String)
+        ) {
+          throw new IllegalArgumentException("Invalid root fields");
+        }
+        String id = record.getString("rootId");
+        Uri uri = treeUri(record.getString("treeUri"));
+        if (!SafValues.isId(id) || !ids.add(id) || !uris.add(uri.toString())) {
+          throw new IllegalArgumentException("Invalid root reference");
+        }
+        roots.add(new Root(id, uri, SafValues.text(record.getString("displayName"))));
+      }
+    } catch (Exception cause) {
+      throw new SafFailure(
+        "io-failure",
+        "The directory configuration cannot be restored. Preserve it and inspect its format.",
+        cause
+      );
     }
+  }
 
-    /** 使用单独的偏好设置名称，将仪器测试夹具与用户设置隔离。 */
-    SafDirectoryStore(Context context, String preferencesName) throws SafFailure {
-        this.context = context.getApplicationContext();
-        resolver = this.context.getContentResolver();
-        preferences = context.getSharedPreferences(preferencesName, Context.MODE_PRIVATE);
+  private static Uri treeUri(String value) {
+    Uri uri = Uri.parse(value);
+    if (
+      !"content".equals(uri.getScheme()) ||
+      uri.getAuthority() == null ||
+      !DocumentsContract.isTreeUri(uri)
+    ) {
+      throw new IllegalArgumentException("Invalid tree URI");
+    }
+    DocumentsContract.getTreeDocumentId(uri);
+    return uri;
+  }
+
+  private void persist() throws Exception {
+    JSONArray records = new JSONArray();
+    for (Root root : roots) {
+      JSONObject record = new JSONObject();
+      record.put("rootId", root.id);
+      record.put("treeUri", root.uri.toString());
+      record.put("displayName", root.name);
+      records.put(record);
+    }
+    JSONObject registry = new JSONObject();
+    registry.put("schemaVersion", 1);
+    registry.put("deviceId", deviceId);
+    registry.put("roots", records);
+    if (!preferences.edit().putString("registry", registry.toString()).commit()) {
+      throw new IOException("Registry save failed");
+    }
+  }
+
+  private boolean hasGrant(Root root) {
+    for (UriPermission permission : resolver.getPersistedUriPermissions()) {
+      if (permission.getUri().equals(root.uri) && permission.isReadPermission()) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private Root requireRoot(String rootId) throws SafFailure {
+    for (Root root : roots) {
+      if (root.id.equals(rootId)) {
+        if (!hasGrant(root)) {
+          throw new SafFailure(
+            "authorization-expired",
+            "Directory authorization expired. Select the directory again."
+          );
+        }
+        return root;
+      }
+    }
+    throw new SafFailure(
+      "not-found",
+      "The directory reference does not exist. Select the directory again."
+    );
+  }
+
+  private JSObject describe(Root root, String authorization) {
+    JSObject value = new JSObject();
+    value.put("rootId", root.id);
+    value.put("deviceId", deviceId);
+    value.put("displayName", root.name);
+    DirectoryDisplay.Info info = display.get(root.id);
+    if (info == null) {
+      info = DirectoryDisplay.resolve(context, resolver, root.uri, root.name);
+      display.put(root.id, info);
+    }
+    value.put("displayPath", info.path);
+    if (info.parentName != null && !info.parentName.trim().isEmpty()) {
+      value.put("parentName", info.parentName);
+    }
+    value.put("authorization", authorization);
+    return value;
+  }
+
+  /** 登记系统选择器的结果，持久化其中的 READ 权限；已有授权不会被撤销。 */
+  synchronized JSObject register(Uri selected, int flags, CancellationSignal signal)
+    throws SafFailure {
+    Root candidate = null;
+    boolean hasExistingGrant = false;
+    boolean wasAdded = false;
+    try {
+      Uri uri = treeUri(selected.toString());
+      if (
+        (flags & Intent.FLAG_GRANT_READ_URI_PERMISSION) == 0 ||
+        (flags & Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION) == 0
+      ) {
+        throw new SafFailure(
+          "permission-denied",
+          "The provider did not grant persistable read permission."
+        );
+      }
+      candidate = new Root(UUID.randomUUID().toString(), uri, "Directory");
+      for (Root root : roots) {
+        if (root.uri.equals(uri)) {
+          candidate = root;
+        }
+      }
+      hasExistingGrant = hasGrant(candidate);
+      resolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
+      Snapshot snapshot = query(candidate, DocumentsContract.getTreeDocumentId(uri), signal);
+      if (!snapshot.isDirectory) {
+        throw new SafFailure("not-readable", "The selected reference is not a directory.");
+      }
+      if (DirectoryDisplay.overlapsBackups(context, uri)) {
+        throw new SafFailure(
+          "unsupported-operation",
+          "The selected directory overlaps the backup folder."
+        );
+      }
+      Root saved = new Root(candidate.id, uri, snapshot.name);
+      if (!roots.contains(candidate)) {
+        roots.add(saved);
+        wasAdded = true;
+      }
+      signal.throwIfCanceled();
+      persist();
+      display.remove(candidate.id);
+      return describe(wasAdded ? saved : candidate, "granted");
+    } catch (Exception cause) {
+      if (wasAdded && candidate != null) {
+        String id = candidate.id;
+        roots.removeIf(root -> root.id.equals(id));
+      }
+      if (candidate != null && !hasExistingGrant) {
         try {
-            String saved = preferences.getString("registry", null);
-            if (saved == null) {
-                deviceId = UUID.randomUUID().toString();
-                persist();
-                return;
-            }
-            JSONObject registry = new JSONObject(saved);
-            if (registry.length() != 3 || !(registry.get("schemaVersion") instanceof Integer) ||
-                registry.getInt("schemaVersion") != 1 || !SafValues.isId(registry.get("deviceId"))) {
-                throw new IllegalArgumentException("Unknown registry");
-            }
-            deviceId = registry.getString("deviceId");
-            JSONArray records = registry.getJSONArray("roots");
-            Set<String> ids = new HashSet<>();
-            Set<String> uris = new HashSet<>();
-            for (int index = 0; index < records.length(); index++) {
-                JSONObject record = records.getJSONObject(index);
-                if (record.length() != 3 || !(record.get("rootId") instanceof String) ||
-                    !(record.get("treeUri") instanceof String) || !(record.get("displayName") instanceof String)) {
-                    throw new IllegalArgumentException("Invalid root fields");
-                }
-                String id = record.getString("rootId");
-                Uri uri = treeUri(record.getString("treeUri"));
-                if (!SafValues.isId(id) || !ids.add(id) || !uris.add(uri.toString())) {
-                    throw new IllegalArgumentException("Invalid root reference");
-                }
-                roots.add(new Root(id, uri, SafValues.text(record.getString("displayName"))));
-            }
-        } catch (Exception cause) {
-            throw new SafFailure("io-failure", "The directory configuration cannot be restored. Preserve it and inspect its format.", cause);
+          resolver.releasePersistableUriPermission(
+            candidate.uri,
+            Intent.FLAG_GRANT_READ_URI_PERMISSION
+          );
+        } catch (SecurityException ignored) {
+          // 获取失败时没有需要释放的新授权；不触碰任何已有授权。
         }
+      }
+      throw SafFailure.from(cause);
     }
+  }
 
-    private static Uri treeUri(String value) {
-        Uri uri = Uri.parse(value);
-        if (!"content".equals(uri.getScheme()) || uri.getAuthority() == null || !DocumentsContract.isTreeUri(uri)) {
-            throw new IllegalArgumentException("Invalid tree URI");
+  /** 返回已登记的根目录；已过期或不可用的引用也保留，供重新授权。 */
+  synchronized JSONArray listRoots(CancellationSignal signal) throws SafFailure {
+    JSONArray result = new JSONArray();
+    try {
+      for (Root root : roots) {
+        signal.throwIfCanceled();
+        String authorization = "expired";
+        if (hasGrant(root)) {
+          try {
+            Snapshot snapshot = query(root, DocumentsContract.getTreeDocumentId(root.uri), signal);
+            authorization = snapshot.isDirectory ? "granted" : "unavailable";
+          } catch (OperationCanceledException cause) {
+            throw cause;
+          } catch (SecurityException cause) {
+            authorization = "expired";
+          } catch (Exception cause) {
+            // 一个目录读不了只标记它自己；整体失败会连累其他游戏，也存不了重新选择的目录。
+            authorization = "unavailable";
+          }
         }
-        DocumentsContract.getTreeDocumentId(uri);
-        return uri;
+        result.put(describe(root, authorization));
+      }
+      return result;
+    } catch (Exception cause) {
+      throw SafFailure.from(cause);
     }
+  }
 
-    private void persist() throws Exception {
-        JSONArray records = new JSONArray();
-        for (Root root : roots) {
-            JSONObject record = new JSONObject();
-            record.put("rootId", root.id);
-            record.put("treeUri", root.uri.toString());
-            record.put("displayName", root.name);
-            records.put(record);
+  /** 列出当前一层；未知属性保留为 null，提供者失败时报错，不返回空列表。 */
+  synchronized JSObject listDirectory(String rootId, String parentId, CancellationSignal signal)
+    throws SafFailure {
+    try {
+      Root root = requireRoot(rootId);
+      String documentId = DocumentsContract.getTreeDocumentId(root.uri);
+      if (parentId != null) {
+        Entry parent = requireEntry(rootId, parentId);
+        Snapshot current = query(root, parent.documentId, signal);
+        if (!current.isDirectory) {
+          throw new SafFailure("not-readable", "The current reference is not a directory.");
         }
-        JSONObject registry = new JSONObject();
-        registry.put("schemaVersion", 1);
-        registry.put("deviceId", deviceId);
-        registry.put("roots", records);
-        if (!preferences.edit().putString("registry", registry.toString()).commit()) {
-            throw new IOException("Registry save failed");
+        documentId = parent.documentId;
+      } else if (!query(root, documentId, signal).isDirectory) {
+        throw new SafFailure("not-readable", "The root directory is no longer available.");
+      }
+      Uri children = DocumentsContract.buildChildDocumentsUriUsingTree(root.uri, documentId);
+      JSONArray values = new JSONArray();
+      Set<String> seen = new HashSet<>();
+      try (Cursor cursor = resolver.query(children, PROJECTION, null, null, null, signal)) {
+        if (cursor == null) {
+          throw new java.io.FileNotFoundException("Provider returned no cursor");
         }
+        while (cursor.moveToNext()) {
+          signal.throwIfCanceled();
+          Snapshot snapshot = decode(cursor);
+          if (!seen.add(snapshot.documentId) || snapshot.documentId.equals(documentId)) {
+            throw new IOException("Provider returned inconsistent IDs");
+          }
+          String key = rootId + "\n" + snapshot.documentId;
+          String id = documentIds.get(key);
+          if (id == null) {
+            id = UUID.randomUUID().toString();
+            documentIds.put(key, id);
+          }
+          entries.put(id, new Entry(rootId, snapshot.documentId, parentId, snapshot));
+          values.put(metadata(rootId, id, parentId, snapshot));
+        }
+      }
+      signal.throwIfCanceled();
+      JSObject result = new JSObject();
+      result.put("rootId", rootId);
+      result.put("parentId", parentId == null ? JSONObject.NULL : parentId);
+      result.put("observedAt", System.currentTimeMillis());
+      result.put("entries", values);
+      return result;
+    } catch (Exception cause) {
+      throw SafFailure.from(cause);
     }
+  }
 
-    private boolean hasGrant(Root root) {
-        for (UriPermission permission : resolver.getPersistedUriPermissions()) {
-            if (permission.getUri().equals(root.uri) && permission.isReadPermission()) return true;
-        }
-        return false;
+  private Entry requireEntry(String rootId, String entryId) throws SafFailure {
+    Entry entry = entries.get(entryId);
+    if (entry == null || !entry.rootId.equals(rootId)) {
+      throw new SafFailure(
+        "not-found",
+        "The entry reference does not exist or expired. Read the directory again."
+      );
     }
+    return entry;
+  }
 
-    private Root requireRoot(String rootId) throws SafFailure {
-        for (Root root : roots) {
-            if (root.id.equals(rootId)) {
-                if (!hasGrant(root)) throw new SafFailure("authorization-expired", "Directory authorization expired. Select the directory again.");
-                return root;
-            }
-        }
-        throw new SafFailure("not-found", "The directory reference does not exist. Select the directory again.");
+  /** 发布器用的目录定位，只在原生层使用；只读的 JS 桥不调用，其中的 URI 也不导出。 */
+  static final class PublicationDirectory implements NewFilePublisher.Directory {
+
+    final String rootId;
+    final String parentId;
+    final String documentId;
+    final String name;
+    final Uri tree;
+    final Uri uri;
+
+    PublicationDirectory(String rootId, String parentId, String documentId, String name, Uri tree) {
+      this.rootId = rootId;
+      this.parentId = parentId;
+      this.documentId = documentId;
+      this.name = name;
+      this.tree = tree;
+      uri = DocumentsContract.buildDocumentUriUsingTree(tree, documentId);
     }
+  }
 
-    private JSObject describe(Root root, String authorization) {
-        JSObject value = new JSObject();
-        value.put("rootId", root.id);
-        value.put("deviceId", deviceId);
-        value.put("displayName", root.name);
-        DirectoryDisplay.Info info = display.get(root.id);
-        if (info == null) {
-            info = DirectoryDisplay.resolve(context, resolver, root.uri, root.name);
-            display.put(root.id, info);
+  synchronized PublicationDirectory publicationDirectory(
+    String rootId,
+    String parentId,
+    CancellationSignal signal
+  ) throws SafFailure {
+    return publicationDirectory(rootId, parentId, signal, true);
+  }
+
+  /** 定位发布目录。覆盖已有文件不要求父目录支持新建；创建目录和文件时才核实创建能力。 */
+  synchronized PublicationDirectory publicationDirectory(
+    String rootId,
+    String parentId,
+    CancellationSignal signal,
+    boolean requireCreate
+  ) throws SafFailure {
+    try {
+      Root root = requireRoot(rootId);
+      boolean hasWritePermission = false;
+      for (UriPermission permission : resolver.getPersistedUriPermissions()) {
+        if (permission.getUri().equals(root.uri) && permission.isWritePermission()) {
+          hasWritePermission = true;
         }
-        value.put("displayPath", info.path);
-        if (info.parentName != null && !info.parentName.trim().isEmpty()) value.put("parentName", info.parentName);
-        value.put("authorization", authorization);
-        return value;
+      }
+      if (!hasWritePermission) {
+        throw new SafFailure(
+          "permission-denied",
+          "The system has not granted persistent write permission for this directory."
+        );
+      }
+      Entry parent = parentId == null ? null : requireEntry(rootId, parentId);
+      String id =
+        parent == null ? DocumentsContract.getTreeDocumentId(root.uri) : parent.documentId;
+      Snapshot current = query(root, id, signal);
+      if (!current.isDirectory || current.isVirtual) {
+        throw new SafFailure("unsupported-operation", "The target is not a regular directory.");
+      }
+      String expected = parent == null ? root.name : parent.snapshot.name;
+      if (!expected.equals(current.name)) {
+        throw new SafFailure("source-changed", "The target directory name changed.");
+      }
+      if (requireCreate && (current.flags & Document.FLAG_DIR_SUPPORTS_CREATE) == 0) {
+        throw new SafFailure(
+          "unsupported-operation",
+          "The provider does not declare support for creating files."
+        );
+      }
+      return new PublicationDirectory(rootId, parentId, id, current.name, root.uri);
+    } catch (Exception cause) {
+      throw SafFailure.from(cause);
     }
+  }
 
-    /** 登记系统选择器的结果，持久化其中的 READ 权限；已有授权不会被撤销。 */
-    synchronized JSObject register(Uri selected, int flags, CancellationSignal signal) throws SafFailure {
-        Root candidate = null;
-        boolean hadGrant = false;
-        boolean added = false;
-        try {
-            Uri uri = treeUri(selected.toString());
-            if ((flags & Intent.FLAG_GRANT_READ_URI_PERMISSION) == 0 ||
-                (flags & Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION) == 0) {
-                throw new SafFailure("permission-denied", "The provider did not grant persistable read permission.");
-            }
-            candidate = new Root(UUID.randomUUID().toString(), uri, "Directory");
-            for (Root root : roots) if (root.uri.equals(uri)) candidate = root;
-            hadGrant = hasGrant(candidate);
-            resolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
-            Snapshot snapshot = query(candidate, DocumentsContract.getTreeDocumentId(uri), signal);
-            if (!snapshot.isDirectory) throw new SafFailure("not-readable", "The selected reference is not a directory.");
-            if (DirectoryDisplay.overlapsBackups(context, uri)) throw new SafFailure("unsupported-operation", "The selected directory overlaps the backup folder.");
-            Root saved = new Root(candidate.id, uri, snapshot.name);
-            if (!roots.contains(candidate)) {
-                roots.add(saved);
-                added = true;
-            }
+  synchronized PublicationModel.Entry publicationEntry(
+    PublicationDirectory directory,
+    Snapshot snapshot
+  ) throws SafFailure {
+    requireRoot(directory.rootId);
+    String key = directory.rootId + "\n" + snapshot.documentId;
+    String entryId = documentIds.get(key);
+    if (entryId == null) {
+      entryId = UUID.randomUUID().toString();
+      documentIds.put(key, entryId);
+    }
+    entries.put(
+      entryId,
+      new Entry(directory.rootId, snapshot.documentId, directory.parentId, snapshot)
+    );
+    return new PublicationModel.Entry(
+      directory.rootId,
+      directory.parentId,
+      entryId,
+      snapshot.name,
+      snapshot.size,
+      snapshot.modified
+    );
+  }
+
+  /**
+   * 归档读取前后重新查询授权、身份、类型和可观察属性，返回 Observation。
+   * 未知长度保留 null；不能用新查询覆盖枚举时的基线后继续读取已变化的源。
+   */
+  synchronized ArchiveModel.Observation archiveObservation(
+    String rootId,
+    String entryId,
+    CancellationSignal signal
+  ) throws SafFailure {
+    try {
+      Root root = requireRoot(rootId);
+      Entry entry = requireEntry(rootId, entryId);
+      Snapshot current = query(root, entry.documentId, signal);
+      if (current.isDirectory || current.isVirtual) {
+        throw new SafFailure(
+          "unsupported-operation",
+          "This entry does not support raw file archiving."
+        );
+      }
+      ArchiveModel.Observation baseline = observation(entry, entry.snapshot);
+      ArchiveModel.Observation observed = observation(entry, current);
+      if (!baseline.same(observed)) {
+        throw new SafFailure(
+          "source-changed",
+          "Source file attributes changed. Read the directory again."
+        );
+      }
+      return observed;
+    } catch (Exception cause) {
+      throw SafFailure.from(cause);
+    }
+  }
+
+  private ArchiveModel.Observation observation(Entry entry, Snapshot snapshot) {
+    return new ArchiveModel.Observation(
+      entry.rootId + ":" + snapshot.documentId,
+      documentIds.get(entry.rootId + "\n" + entry.documentId),
+      entry.parentId,
+      snapshot.name,
+      snapshot.size,
+      snapshot.modified
+    );
+  }
+
+  /**
+   * 以 r 模式打开当前已枚举的文件；返回的流归调用者所有，调用者必须关闭。
+   * 每次读取都检查取消状态；生命周期管理方还必须关闭阻塞中的流。
+   * 字节不经过 JS 桥；大小和日期检查只能发现可观察的源变化，读取期间文件仍可能被替换。
+   */
+  synchronized InputStream openFile(String rootId, String entryId, CancellationSignal signal)
+    throws SafFailure {
+    try {
+      Root root = requireRoot(rootId);
+      Entry entry = requireEntry(rootId, entryId);
+      Snapshot current = query(root, entry.documentId, signal);
+      if (current.isDirectory || current.isVirtual) {
+        throw new SafFailure(
+          "unsupported-operation",
+          "This entry does not support raw file reading."
+        );
+      }
+      if (
+        !current.name.equals(entry.snapshot.name) ||
+        !java.util.Objects.equals(current.size, entry.snapshot.size) ||
+        !java.util.Objects.equals(current.modified, entry.snapshot.modified)
+      ) {
+        throw new SafFailure(
+          "source-changed",
+          "Source file attributes changed. Read the directory again."
+        );
+      }
+      AssetFileDescriptor descriptor = resolver.openAssetFileDescriptor(
+        documentUri(root, entry.documentId),
+        "r",
+        signal
+      );
+      if (descriptor == null) {
+        throw new IOException("Provider returned no descriptor");
+      }
+      try {
+        InputStream stream = descriptor.createInputStream();
+        signal.throwIfCanceled();
+        return new FilterInputStream(stream) {
+          @Override
+          public int read() throws IOException {
             signal.throwIfCanceled();
-            persist();
-            display.remove(candidate.id);
-            return describe(added ? saved : candidate, "granted");
-        } catch (Exception cause) {
-            if (added && candidate != null) {
-                String id = candidate.id;
-                roots.removeIf(root -> root.id.equals(id));
-            }
-            if (candidate != null && !hadGrant) {
-                try {
-                    resolver.releasePersistableUriPermission(candidate.uri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
-                } catch (SecurityException ignored) {
-                    // 获取失败时没有需要释放的新授权；不触碰任何已有授权。
-                }
-            }
-            throw SafFailure.from(cause);
-        }
-    }
+            return in.read();
+          }
 
-    /** 返回已登记的根目录；已过期或不可用的引用也保留，供重新授权。 */
-    synchronized JSONArray listRoots(CancellationSignal signal) throws SafFailure {
-        JSONArray result = new JSONArray();
-        try {
-            for (Root root : roots) {
-                signal.throwIfCanceled();
-                String authorization = "expired";
-                if (hasGrant(root)) {
-                    try {
-                        Snapshot snapshot = query(root, DocumentsContract.getTreeDocumentId(root.uri), signal);
-                        authorization = snapshot.isDirectory ? "granted" : "unavailable";
-                    } catch (OperationCanceledException cause) {
-                        throw cause;
-                    } catch (SecurityException cause) {
-                        authorization = "expired";
-                    } catch (Exception cause) {
-                        // 一个目录读不了只标记它自己；整体失败会连累其他游戏，也存不了重新选择的目录。
-                        authorization = "unavailable";
-                    }
-                }
-                result.put(describe(root, authorization));
-            }
-            return result;
-        } catch (Exception cause) {
-            throw SafFailure.from(cause);
-        }
-    }
-
-    /** 列出当前一层；未知属性保留为 null，提供者失败时报错，不返回空列表。 */
-    synchronized JSObject listDirectory(String rootId, String parentId, CancellationSignal signal) throws SafFailure {
-        try {
-            Root root = requireRoot(rootId);
-            String documentId = DocumentsContract.getTreeDocumentId(root.uri);
-            if (parentId != null) {
-                Entry parent = requireEntry(rootId, parentId);
-                Snapshot current = query(root, parent.documentId, signal);
-                if (!current.isDirectory) throw new SafFailure("not-readable", "The current reference is not a directory.");
-                documentId = parent.documentId;
-            } else if (!query(root, documentId, signal).isDirectory) {
-                throw new SafFailure("not-readable", "The root directory is no longer available.");
-            }
-            Uri children = DocumentsContract.buildChildDocumentsUriUsingTree(root.uri, documentId);
-            JSONArray values = new JSONArray();
-            Set<String> seen = new HashSet<>();
-            try (Cursor cursor = resolver.query(children, PROJECTION, null, null, null, signal)) {
-                if (cursor == null) throw new java.io.FileNotFoundException("Provider returned no cursor");
-                while (cursor.moveToNext()) {
-                    signal.throwIfCanceled();
-                    Snapshot snapshot = decode(cursor);
-                    if (!seen.add(snapshot.documentId) || snapshot.documentId.equals(documentId)) {
-                        throw new IOException("Provider returned inconsistent IDs");
-                    }
-                    String key = rootId + "\n" + snapshot.documentId;
-                    String id = documentIds.get(key);
-                    if (id == null) {
-                        id = UUID.randomUUID().toString();
-                        documentIds.put(key, id);
-                    }
-                    entries.put(id, new Entry(rootId, snapshot.documentId, parentId, snapshot));
-                    values.put(metadata(rootId, id, parentId, snapshot));
-                }
-            }
+          @Override
+          public int read(byte[] buffer, int offset, int length) throws IOException {
             signal.throwIfCanceled();
-            JSObject result = new JSObject();
-            result.put("rootId", rootId);
-            result.put("parentId", parentId == null ? JSONObject.NULL : parentId);
-            result.put("observedAt", System.currentTimeMillis());
-            result.put("entries", values);
-            return result;
-        } catch (Exception cause) {
-            throw SafFailure.from(cause);
-        }
-    }
+            return in.read(buffer, offset, length);
+          }
 
-    private Entry requireEntry(String rootId, String entryId) throws SafFailure {
-        Entry entry = entries.get(entryId);
-        if (entry == null || !entry.rootId.equals(rootId)) {
-            throw new SafFailure("not-found", "The entry reference does not exist or expired. Read the directory again.");
-        }
-        return entry;
-    }
-
-    /** 发布器用的目录定位，只在原生层使用；只读的 JS 桥不调用，其中的 URI 也不导出。 */
-    static final class PublicationDirectory implements NewFilePublisher.Directory {
-        final String rootId, parentId, documentId, name;
-        final Uri tree, uri;
-        PublicationDirectory(String rootId, String parentId, String documentId, String name, Uri tree) {
-            this.rootId = rootId; this.parentId = parentId; this.documentId = documentId; this.name = name;
-            this.tree = tree; uri = DocumentsContract.buildDocumentUriUsingTree(tree, documentId);
-        }
-    }
-
-    synchronized PublicationDirectory publicationDirectory(String rootId, String parentId, CancellationSignal signal) throws SafFailure {
-        return publicationDirectory(rootId, parentId, signal, true);
-    }
-    /** 定位发布目录。覆盖已有文件不要求父目录支持新建；创建目录和文件时才核实创建能力。 */
-    synchronized PublicationDirectory publicationDirectory(String rootId, String parentId, CancellationSignal signal, boolean requireCreate) throws SafFailure {
-        try {
-            Root root = requireRoot(rootId);
-            boolean write = false;
-            for (UriPermission permission : resolver.getPersistedUriPermissions()) {
-                if (permission.getUri().equals(root.uri) && permission.isWritePermission()) write = true;
-            }
-            if (!write) throw new SafFailure("permission-denied", "The system has not granted persistent write permission for this directory.");
-            Entry parent = parentId == null ? null : requireEntry(rootId, parentId);
-            String id = parent == null ? DocumentsContract.getTreeDocumentId(root.uri) : parent.documentId;
-            Snapshot current = query(root, id, signal);
-            if (!current.isDirectory || current.isVirtual) throw new SafFailure("unsupported-operation", "The target is not a regular directory.");
-            String expected = parent == null ? root.name : parent.snapshot.name;
-            if (!expected.equals(current.name)) throw new SafFailure("source-changed", "The target directory name changed.");
-            if (requireCreate && (current.flags & Document.FLAG_DIR_SUPPORTS_CREATE) == 0) {
-                throw new SafFailure("unsupported-operation", "The provider does not declare support for creating files.");
-            }
-            return new PublicationDirectory(rootId, parentId, id, current.name, root.uri);
-        } catch (Exception cause) { throw SafFailure.from(cause); }
-    }
-
-    synchronized PublicationModel.Entry publicationEntry(PublicationDirectory directory, Snapshot snapshot) throws SafFailure {
-        requireRoot(directory.rootId);
-        String key = directory.rootId + "\n" + snapshot.documentId;
-        String entryId = documentIds.get(key);
-        if (entryId == null) { entryId = UUID.randomUUID().toString(); documentIds.put(key, entryId); }
-        entries.put(entryId, new Entry(directory.rootId, snapshot.documentId, directory.parentId, snapshot));
-        return new PublicationModel.Entry(directory.rootId, directory.parentId, entryId, snapshot.name, snapshot.size, snapshot.modified);
-    }
-
-    /**
-     * 归档读取前后重新查询授权、身份、类型和可观察属性，返回 Observation。
-     * 未知长度保留 null；不能用新查询覆盖枚举时的基线后继续读取已变化的源。
-     */
-    synchronized ArchiveModel.Observation archiveObservation(String rootId, String entryId,
-                                                            CancellationSignal signal) throws SafFailure {
-        try {
-            Root root = requireRoot(rootId);
-            Entry entry = requireEntry(rootId, entryId);
-            Snapshot current = query(root, entry.documentId, signal);
-            if (current.isDirectory || current.isVirtual) {
-                throw new SafFailure("unsupported-operation", "This entry does not support raw file archiving.");
-            }
-            ArchiveModel.Observation baseline = observation(entry, entry.snapshot);
-            ArchiveModel.Observation observed = observation(entry, current);
-            if (!baseline.same(observed)) throw new SafFailure("source-changed", "Source file attributes changed. Read the directory again.");
-            return observed;
-        } catch (Exception cause) { throw SafFailure.from(cause); }
-    }
-
-    private ArchiveModel.Observation observation(Entry entry, Snapshot snapshot) {
-        return new ArchiveModel.Observation(entry.rootId + ":" + snapshot.documentId,
-            documentIds.get(entry.rootId + "\n" + entry.documentId), entry.parentId,
-            snapshot.name, snapshot.size, snapshot.modified);
-    }
-
-    /**
-     * 以 r 模式打开当前已枚举的文件；返回的流归调用者所有，调用者必须关闭。
-     * 每次读取都检查取消状态；生命周期管理方还必须关闭阻塞中的流。
-     * 字节不经过 JS 桥；大小和日期检查只能发现可观察的源变化，读取期间文件仍可能被替换。
-     */
-    synchronized InputStream openFile(String rootId, String entryId, CancellationSignal signal) throws SafFailure {
-        try {
-            Root root = requireRoot(rootId);
-            Entry entry = requireEntry(rootId, entryId);
-            Snapshot current = query(root, entry.documentId, signal);
-            if (current.isDirectory || current.isVirtual) {
-                throw new SafFailure("unsupported-operation", "This entry does not support raw file reading.");
-            }
-            if (!current.name.equals(entry.snapshot.name) ||
-                !java.util.Objects.equals(current.size, entry.snapshot.size) ||
-                !java.util.Objects.equals(current.modified, entry.snapshot.modified)) {
-                throw new SafFailure("source-changed", "Source file attributes changed. Read the directory again.");
-            }
-            AssetFileDescriptor descriptor = resolver.openAssetFileDescriptor(documentUri(root, entry.documentId), "r", signal);
-            if (descriptor == null) throw new IOException("Provider returned no descriptor");
+          @Override
+          public void close() throws IOException {
             try {
-                InputStream stream = descriptor.createInputStream();
-                signal.throwIfCanceled();
-                return new FilterInputStream(stream) {
-                    @Override public int read() throws IOException {
-                        signal.throwIfCanceled();
-                        return in.read();
-                    }
-                    @Override public int read(byte[] buffer, int offset, int length) throws IOException {
-                        signal.throwIfCanceled();
-                        return in.read(buffer, offset, length);
-                    }
-                    @Override public void close() throws IOException {
-                        try { super.close(); } finally { descriptor.close(); }
-                    }
-                };
-            } catch (Exception cause) {
-                descriptor.close();
-                throw cause;
+              super.close();
+            } finally {
+              descriptor.close();
             }
-        } catch (Exception cause) {
-            throw SafFailure.from(cause);
-        }
+          }
+        };
+      } catch (Exception cause) {
+        descriptor.close();
+        throw cause;
+      }
+    } catch (Exception cause) {
+      throw SafFailure.from(cause);
+    }
+  }
+
+  private Uri documentUri(Root root, String documentId) {
+    return DocumentsContract.buildDocumentUriUsingTree(root.uri, documentId);
+  }
+
+  private Snapshot query(Root root, String documentId, CancellationSignal signal) throws Exception {
+    try (
+      Cursor cursor = resolver.query(
+        documentUri(root, documentId),
+        PROJECTION,
+        null,
+        null,
+        null,
+        signal
+      )
+    ) {
+      // DocumentsProvider 查询不存在的文档时返回 null 而不是抛异常，例如目录被改名后。
+      if (cursor == null) {
+        throw new java.io.FileNotFoundException("Provider returned no cursor");
+      }
+      if (!cursor.moveToFirst()) {
+        throw new java.io.FileNotFoundException("Document missing");
+      }
+      Snapshot snapshot = decode(cursor);
+      if (!documentId.equals(snapshot.documentId)) {
+        throw new IOException("Provider ID mismatch");
+      }
+      return snapshot;
+    }
+  }
+
+  private static String requiredString(Cursor cursor, String column) {
+    int index = cursor.getColumnIndexOrThrow(column);
+    if (cursor.getType(index) != Cursor.FIELD_TYPE_STRING) {
+      throw new IllegalArgumentException("Invalid provider text field");
+    }
+    return cursor.getString(index);
+  }
+
+  private static Long optionalLong(Cursor cursor, String column) {
+    int index = cursor.getColumnIndex(column);
+    if (index < 0 || cursor.isNull(index)) {
+      return null;
+    }
+    if (cursor.getType(index) != Cursor.FIELD_TYPE_INTEGER) {
+      throw new IllegalArgumentException("Invalid provider numeric field");
+    }
+    return cursor.getLong(index);
+  }
+
+  static Snapshot decode(Cursor cursor) {
+    String documentId = requiredString(cursor, Document.COLUMN_DOCUMENT_ID);
+    if (documentId.isEmpty()) {
+      throw new IllegalArgumentException("Missing document ID");
+    }
+    String name = SafValues.text(requiredString(cursor, Document.COLUMN_DISPLAY_NAME));
+    String mime = requiredString(cursor, Document.COLUMN_MIME_TYPE);
+    if (mime.isEmpty()) {
+      throw new IllegalArgumentException("Missing document kind");
+    }
+    boolean isDirectory = Document.MIME_TYPE_DIR.equals(mime);
+    Long flags = optionalLong(cursor, Document.COLUMN_FLAGS);
+    return new Snapshot(
+      documentId,
+      name,
+      isDirectory,
+      flags != null,
+      flags != null && (flags & Document.FLAG_VIRTUAL_DOCUMENT) != 0,
+      isDirectory ? null : SafValues.size(optionalLong(cursor, Document.COLUMN_SIZE)),
+      SafValues.modified(optionalLong(cursor, Document.COLUMN_LAST_MODIFIED)),
+      flags == null ? 0 : flags
+    );
+  }
+
+  static JSObject metadata(String rootId, String entryId, String parentId, Snapshot snapshot) {
+    JSObject capabilities = new JSObject();
+    capabilities.put(
+      "canRead",
+      snapshot.isDirectory || snapshot.isVirtual
+        ? "unsupported"
+        : snapshot.hasFlags
+          ? "supported"
+          : "unknown"
+    );
+    capabilities.put("canList", snapshot.isDirectory ? "supported" : "unsupported");
+    capabilities.put("canCreate", "unsupported");
+    capabilities.put("canRename", "unsupported");
+    capabilities.put("canDelete", "unsupported");
+    JSObject value = new JSObject();
+    value.put("rootId", rootId);
+    value.put("entryId", entryId);
+    value.put("parentId", parentId == null ? JSONObject.NULL : parentId);
+    value.put("name", snapshot.name);
+    value.put("kind", snapshot.isDirectory ? "directory" : "file");
+    value.put("sizeBytes", snapshot.size == null ? JSONObject.NULL : snapshot.size);
+    value.put("modifiedAt", snapshot.modified == null ? JSONObject.NULL : snapshot.modified);
+    value.put("capabilities", capabilities);
+    return value;
+  }
+
+  private static final class Root {
+
+    final String id;
+    final Uri uri;
+    final String name;
+
+    Root(String id, Uri uri, String name) {
+      this.id = id;
+      this.uri = uri;
+      this.name = name;
+    }
+  }
+
+  private static final class Entry {
+
+    final String rootId;
+    final String documentId;
+    final String parentId;
+    final Snapshot snapshot;
+
+    Entry(String rootId, String documentId, String parentId, Snapshot snapshot) {
+      this.rootId = rootId;
+      this.documentId = documentId;
+      this.parentId = parentId;
+      this.snapshot = snapshot;
+    }
+  }
+
+  static final class Snapshot {
+
+    final String documentId;
+    final String name;
+    final boolean isDirectory;
+    final boolean hasFlags;
+    final boolean isVirtual;
+    final Long size;
+    final Long modified;
+    final long flags;
+
+    Snapshot(
+      String documentId,
+      String name,
+      boolean isDirectory,
+      boolean hasFlags,
+      boolean isVirtual,
+      Long size,
+      Long modified
+    ) {
+      this(documentId, name, isDirectory, hasFlags, isVirtual, size, modified, 0);
     }
 
-    private Uri documentUri(Root root, String documentId) {
-        return DocumentsContract.buildDocumentUriUsingTree(root.uri, documentId);
+    Snapshot(
+      String documentId,
+      String name,
+      boolean isDirectory,
+      boolean hasFlags,
+      boolean isVirtual,
+      Long size,
+      Long modified,
+      long flags
+    ) {
+      this.documentId = documentId;
+      this.name = name;
+      this.isDirectory = isDirectory;
+      this.hasFlags = hasFlags;
+      this.isVirtual = isVirtual;
+      this.size = size;
+      this.modified = modified;
+      this.flags = flags;
     }
-
-    private Snapshot query(Root root, String documentId, CancellationSignal signal) throws Exception {
-        try (Cursor cursor = resolver.query(documentUri(root, documentId), PROJECTION, null, null, null, signal)) {
-            // DocumentsProvider 查询不存在的文档时返回 null 而不是抛异常，例如目录被改名后。
-            if (cursor == null) throw new java.io.FileNotFoundException("Provider returned no cursor");
-            if (!cursor.moveToFirst()) throw new java.io.FileNotFoundException("Document missing");
-            Snapshot snapshot = decode(cursor);
-            if (!documentId.equals(snapshot.documentId)) throw new IOException("Provider ID mismatch");
-            return snapshot;
-        }
-    }
-
-    private static String requiredString(Cursor cursor, String column) {
-        int index = cursor.getColumnIndexOrThrow(column);
-        if (cursor.getType(index) != Cursor.FIELD_TYPE_STRING) {
-            throw new IllegalArgumentException("Invalid provider text field");
-        }
-        return cursor.getString(index);
-    }
-
-    private static Long optionalLong(Cursor cursor, String column) {
-        int index = cursor.getColumnIndex(column);
-        if (index < 0 || cursor.isNull(index)) return null;
-        if (cursor.getType(index) != Cursor.FIELD_TYPE_INTEGER) {
-            throw new IllegalArgumentException("Invalid provider numeric field");
-        }
-        return cursor.getLong(index);
-    }
-
-    static Snapshot decode(Cursor cursor) {
-        String documentId = requiredString(cursor, Document.COLUMN_DOCUMENT_ID);
-        if (documentId.isEmpty()) throw new IllegalArgumentException("Missing document ID");
-        String name = SafValues.text(requiredString(cursor, Document.COLUMN_DISPLAY_NAME));
-        String mime = requiredString(cursor, Document.COLUMN_MIME_TYPE);
-        if (mime.isEmpty()) throw new IllegalArgumentException("Missing document kind");
-        boolean directory = Document.MIME_TYPE_DIR.equals(mime);
-        Long flags = optionalLong(cursor, Document.COLUMN_FLAGS);
-        return new Snapshot(documentId, name, directory,
-            flags != null,
-            flags != null && (flags & Document.FLAG_VIRTUAL_DOCUMENT) != 0,
-            directory ? null : SafValues.size(optionalLong(cursor, Document.COLUMN_SIZE)),
-            SafValues.modified(optionalLong(cursor, Document.COLUMN_LAST_MODIFIED)), flags == null ? 0 : flags);
-    }
-
-    static JSObject metadata(String rootId, String entryId, String parentId, Snapshot snapshot) {
-        JSObject capabilities = new JSObject();
-        capabilities.put("canRead", snapshot.isDirectory || snapshot.isVirtual ? "unsupported" :
-            snapshot.hasFlags ? "supported" : "unknown");
-        capabilities.put("canList", snapshot.isDirectory ? "supported" : "unsupported");
-        capabilities.put("canCreate", "unsupported");
-        capabilities.put("canRename", "unsupported");
-        capabilities.put("canDelete", "unsupported");
-        JSObject value = new JSObject();
-        value.put("rootId", rootId);
-        value.put("entryId", entryId);
-        value.put("parentId", parentId == null ? JSONObject.NULL : parentId);
-        value.put("name", snapshot.name);
-        value.put("kind", snapshot.isDirectory ? "directory" : "file");
-        value.put("sizeBytes", snapshot.size == null ? JSONObject.NULL : snapshot.size);
-        value.put("modifiedAt", snapshot.modified == null ? JSONObject.NULL : snapshot.modified);
-        value.put("capabilities", capabilities);
-        return value;
-    }
-
-    private static final class Root {
-        final String id;
-        final Uri uri;
-        final String name;
-        Root(String id, Uri uri, String name) { this.id = id; this.uri = uri; this.name = name; }
-    }
-
-    private static final class Entry {
-        final String rootId;
-        final String documentId;
-        final String parentId;
-        final Snapshot snapshot;
-        Entry(String rootId, String documentId, String parentId, Snapshot snapshot) {
-            this.rootId = rootId; this.documentId = documentId; this.parentId = parentId; this.snapshot = snapshot;
-        }
-    }
-
-    static final class Snapshot {
-        final String documentId;
-        final String name;
-        final boolean isDirectory;
-        final boolean hasFlags;
-        final boolean isVirtual;
-        final Long size;
-        final Long modified;
-        final long flags;
-        Snapshot(String documentId, String name, boolean isDirectory, boolean hasFlags, boolean isVirtual, Long size, Long modified) {
-            this(documentId, name, isDirectory, hasFlags, isVirtual, size, modified, 0);
-        }
-        Snapshot(String documentId, String name, boolean isDirectory, boolean hasFlags, boolean isVirtual, Long size, Long modified, long flags) {
-            this.documentId = documentId; this.name = name; this.isDirectory = isDirectory;
-            this.hasFlags = hasFlags; this.isVirtual = isVirtual; this.size = size; this.modified = modified; this.flags = flags;
-        }
-    }
+  }
 }

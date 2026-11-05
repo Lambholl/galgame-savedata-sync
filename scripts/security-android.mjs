@@ -12,6 +12,18 @@ const packages = [
   ...inventory.packages,
   { name: 'org.gradle:gradle-core', version: inventory.gradleVersion },
 ]
+// 清单覆盖全部可解析配置，所以这里能发现跨运行、测试和构建工具的版本分裂。
+const versionsByName = Map.groupBy(inventory.packages, ({ name }) => name)
+const splitModules = [...versionsByName].filter(([, versions]) => versions.length > 1)
+for (const [name, versions] of splitModules) {
+  console.error(
+    `[FAIL] ${name} resolves to several versions: ${versions.map(({ version }) => version).join(', ')}`,
+  )
+}
+if (splitModules.length) {
+  console.error('Add the module to singleVersionModules in dependency-security.json.')
+  process.exitCode = 1
+}
 let findings = 0
 for (let offset = 0; offset < packages.length; offset += 100) {
   const batch = packages.slice(offset, offset + 100)
