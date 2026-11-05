@@ -185,7 +185,7 @@ final class LaunchAnimation {
     if (left == 0 && top == 0 && right == 0 && bottom == 0) {
       return true;
     }
-    // Capacitor 把系统栏边距加在 DecorView，连系统的开屏副本也会被挤动。
+    // WebView 低于 140 时 Capacitor 把系统栏边距加在 DecorView，连系统的开屏副本也会被挤动。
     // 动画期间把同一份边距放在正文上；跳过这次绘制，等布局完成后再显示。
     windowPadding[0] = left;
     windowPadding[1] = top;

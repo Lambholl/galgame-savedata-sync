@@ -21,7 +21,7 @@ export interface PageSlideProps {
   readonly direction: NavigationDirection
   /** 主导航页的左右顺序。 */
   readonly lateralOrder: readonly Page[]
-  /** 底部导航；前后两页都有时它不动，只有一页有时它跟着那一页平移。 */
+  /** 主导航；前后两页都有时它不动，只有一页有时它跟着那一页平移。 */
   readonly nav: ReactNode
   /** 随页面平移的内容：标题栏、正文和底部操作。 */
   readonly children: ReactNode
@@ -48,7 +48,7 @@ export class PageSlide extends Component<PageSlideProps> {
     ) {
       return null
     }
-    // 上一次平移还没结束时先收掉，页面容器的下一个兄弟节点才是底部导航。
+    // 上一次平移还没结束时先收掉，页面容器的下一个兄弟节点才是主导航。
     this.stopSlide()
     const element = page.cloneNode(true) as HTMLElement
     element.classList.add('page-slide-outgoing')
@@ -78,10 +78,11 @@ export class PageSlide extends Component<PageSlideProps> {
     for (const { index, top } of scrolls) {
       children[index]?.scrollTo({ top })
     }
-    const side = this.isMovingBack(previous.page) ? -1 : 1
-    // 用 translate 而不是 transform：底部导航的 transform 用来水平居中，动画不能覆盖它。
-    const enter = [{ translate: `${side * 100}% 0` }, { translate: '0 0' }]
-    const leave = [{ translate: '0 0' }, { translate: `${side * -100}% 0` }]
+    const distance = (this.isMovingBack(previous.page) ? -1 : 1) * page.offsetWidth
+    // 用 translate 而不是 transform：窄屏底部导航的 transform 用来水平居中，动画不能覆盖它。
+    // 距离用像素：百分比按元素自身宽度算，导航比页面窄，会走不到一起。
+    const enter = [{ translate: `${distance}px 0` }, { translate: '0 0' }]
+    const leave = [{ translate: '0 0' }, { translate: `${-distance}px 0` }]
     const nav = page.nextElementSibling
     const animations = [
       page.animate(enter, SLIDE_TIMING),

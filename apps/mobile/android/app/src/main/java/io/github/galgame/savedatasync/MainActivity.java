@@ -1,16 +1,21 @@
 package io.github.galgame.savedatasync;
 
 import android.content.Intent;
+import android.content.pm.ActivityInfo;
 import android.content.res.Configuration;
 import android.os.Build;
 import android.os.Bundle;
 import android.view.ViewGroup;
 import android.webkit.WebView;
+import androidx.activity.EdgeToEdge;
 import androidx.core.splashscreen.SplashScreen;
 import com.getcapacitor.BridgeActivity;
 
 /** 应用主 Activity：按已保存主题启动，注册原生插件，并管理开屏动画的显示和退出。 */
 public class MainActivity extends BridgeActivity {
+
+  /** 屏幕最短边不小于这个值（dp）的设备支持横竖屏，其余设备锁竖屏。 */
+  private static final int ROTATABLE_SMALLEST_WIDTH_DP = 600;
 
   private LaunchAnimation launchAnimation;
   private boolean isStartupContentReady;
@@ -18,6 +23,7 @@ public class MainActivity extends BridgeActivity {
 
   @Override
   public void onCreate(Bundle savedInstanceState) {
+    applyOrientationPolicy(getResources().getConfiguration());
     // 先按已保存主题设置夜间模式，窗口背景和启动画面随之取 values / values-night。
     AppPreferencesPlugin.applyStoredTheme(this);
     SplashScreen splash = SplashScreen.installSplashScreen(this);
@@ -33,6 +39,8 @@ public class MainActivity extends BridgeActivity {
     registerPlugin(SyncWritesPlugin.class);
     registerPlugin(SyncTransfersPlugin.class);
     super.onCreate(savedInstanceState);
+    // Android 15 起系统强制窗口铺满，更低版本要主动开启；否则页面画不到系统栏下面，状态栏显示系统自己的颜色。
+    EdgeToEdge.enable(this);
     // 系统从后台恢复窗口时会先显示任务快照，也就是离开前的页面，然后才轮到开屏覆盖层。
     if (Build.VERSION.SDK_INT >= 33) {
       setRecentsScreenshotEnabled(false);
@@ -114,13 +122,23 @@ public class MainActivity extends BridgeActivity {
     super.onDestroy();
   }
 
+  /** 按屏幕最短边决定是否允许旋转；折叠屏展开或合上时最短边会变，配置变化时要重新判断。 */
+  private void applyOrientationPolicy(Configuration configuration) {
+    setRequestedOrientation(
+      configuration.smallestScreenWidthDp >= ROTATABLE_SMALLEST_WIDTH_DP
+        ? ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+        : ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+    );
+  }
+
   /**
-   * 把原生配置的明暗状态通知页面。Capacitor 保留 Activity 处理 uiMode，部分 WebView 不刷新媒体查询，
-   * 所以由这里发事件，事件只含布尔值。
+   * 重新判断是否允许旋转，并把原生配置的明暗状态通知页面。
+   * Capacitor 保留 Activity 处理 uiMode，部分 WebView 不刷新媒体查询，所以由这里发事件，事件只含布尔值。
    */
   @Override
   public void onConfigurationChanged(Configuration configuration) {
     super.onConfigurationChanged(configuration);
+    applyOrientationPolicy(configuration);
     if (getBridge() != null) {
       boolean isDark =
         (configuration.uiMode & Configuration.UI_MODE_NIGHT_MASK) ==

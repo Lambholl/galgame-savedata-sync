@@ -26,7 +26,8 @@ let lastKey = 0
  * 返回的元素放进页面，提供 Message 所需的主题与语言上下文。
  */
 export function useAppMessage(): readonly [AppMessage, ReactElement] {
-  const [api, holder] = message.useMessage()
+  // 页面画到状态栏下面，提示要从状态栏下方开始。
+  const [api, holder] = message.useMessage({ top: 'calc(8px + env(safe-area-inset-top))' })
   const slots = useRef(new Map<string, string>())
   const appMessage = useMemo<AppMessage>(
     () => ({

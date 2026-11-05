@@ -29,6 +29,9 @@ const LATERAL_ORDER: readonly Page[] = NAV.map((item) => item.key)
 /** 右下角有悬浮主操作的页面，正文末尾留出按钮的高度。 */
 const WITH_ACTION: readonly Page[] = ['sync', 'sync-plan', 'task', 'restore']
 
+/** 大屏上内容放得下更多列的页面：游戏网格和两列文件比较，正文最大宽度放宽。 */
+const WIDE: readonly Page[] = ['games', 'sync']
+
 const ADM_LOCALES = {
   'zh-CN': admZhCN,
   'zh-TW': admZhTW,
@@ -79,7 +82,7 @@ export function LibraryShell({
         lateralOrder={LATERAL_ORDER}
         nav={
           !hasBack && (
-            <nav className="bottom-nav" aria-label={t('nav.main')}>
+            <nav className="main-nav" aria-label={t('nav.main')}>
               {NAV.map((item) => (
                 <button
                   key={item.key}
@@ -113,7 +116,7 @@ export function LibraryShell({
           {headerAction}
         </header>
         <main
-          className={`app-main${hasBack ? '' : ' app-main-with-nav'}${WITH_ACTION.includes(page) ? ' app-main-with-action' : ''}${page === 'sync' ? ' app-main-fill' : ''}`}
+          className={`app-main${hasBack ? '' : ' app-main-with-nav'}${WITH_ACTION.includes(page) ? ' app-main-with-action' : ''}${page === 'sync' ? ' app-main-fill' : ''}${WIDE.includes(page) ? ' app-main-wide' : ''}`}
           ref={main}
         >
           <div className="page-stack">{children}</div>

@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 owner: project
-updated: 2026-11-05
+updated: 2026-11-06
 tags: [Agent导航, 项目记忆]
 related_files: []
 ---
@@ -30,7 +30,6 @@ related_files: []
 | 工作 | 状态 | 相关记忆文档 | 相关代码或配置 | 已完成 | 下一步 |
 | --- | --- | --- | --- | --- | --- |
 | 游戏设置页提示目录已失效 | 未开始 | testing/regression-notes.md | 双端游戏设置页 | — | 先出原型。待维护者决定：电脑端备份是否也改成文件夹结构 |
-| CR-016 移动端平板布局 | planned | requirements/change-requests.md、requirements/open-questions.md | apps/mobile 的 LibraryShell、mobile.css、AndroidManifest.xml；apps/shared/src/ui 中随宽度变化的样式 | 查明现状：内容铺满全宽、竖屏锁定；需求已定 | 排在其他工作之后实现，文件夹授权由维护者操作 |
 
 开始产品、代码或文档工作前登记范围、入口和下一步；检查点和阻塞时更新。做完并验证后先更新长期事实，再把状态改为 `in-review`；有新修改时改回 `active`，维护者验收后才删除该行。
 

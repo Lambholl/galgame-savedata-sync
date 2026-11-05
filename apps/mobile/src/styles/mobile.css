@@ -290,11 +290,25 @@ small {
   flex-direction: column;
   background: var(--ss-page-bg);
 }
+/* 状态栏自己的背景：盖住画到它下面的主导航和平移中的页面，层级低于弹层遮罩，弹层打开时一起压暗。 */
+.mobile-app::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  z-index: 700;
+  height: env(safe-area-inset-top);
+  /* 亮色页面背景是渐变：按整页尺寸铺开，和下方的页面背景连成一片。 */
+  background: var(--ss-page-bg) top left / 100% 100dvh no-repeat;
+}
+/* 页面铺满屏幕、画到系统栏下面，弹层遮罩才盖得到系统栏；贴边的内容各自避开系统栏和挖孔。 */
 .app-page {
   display: flex;
   flex: 1;
   flex-direction: column;
   min-height: 0;
+  padding-inline: env(safe-area-inset-left) env(safe-area-inset-right);
 }
 /* 切页时平移的旧页面克隆，和新页面占同样的位置。 */
 .page-slide-outgoing {
@@ -306,8 +320,8 @@ small {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: max(8px, env(safe-area-inset-top)) 12px 8px;
-  min-height: 52px;
+  padding: calc(8px + env(safe-area-inset-top)) 12px 8px;
+  min-height: calc(52px + env(safe-area-inset-top));
   border-bottom: 1px solid var(--ss-line);
   flex-shrink: 0;
 }
@@ -345,7 +359,7 @@ small {
   flex: 1;
   overflow-y: auto;
   overscroll-behavior-y: contain;
-  padding: 12px;
+  padding: 12px 12px calc(12px + env(safe-area-inset-bottom));
   min-height: 0;
 }
 /* 有悬浮主按钮的页面：正文末尾留出按钮的高度，最后的内容可以滚到按钮上方 */
@@ -462,10 +476,10 @@ small {
 .panel p + p {
   margin-top: 6px;
 }
-.bottom-nav {
+.main-nav {
   position: absolute;
   left: 50%;
-  bottom: calc(18px + env(safe-area-inset-bottom));
+  bottom: calc(8px + env(safe-area-inset-bottom));
   z-index: 600;
   transform: translateX(-50%);
   display: grid;
@@ -479,7 +493,7 @@ small {
   border-radius: var(--ss-r-pill);
   box-shadow: var(--ss-shadow);
 }
-.bottom-nav button {
+.main-nav button {
   border: 0;
   background: transparent;
   color: var(--ss-muted);
@@ -494,10 +508,10 @@ small {
   border-radius: var(--ss-r-pill);
   font-size: 12px;
 }
-.bottom-nav .anticon {
+.main-nav .anticon {
   font-size: 22px;
 }
-.bottom-nav .active {
+.main-nav .active {
   background: var(--ss-accent-soft);
   color: var(--adm-color-primary);
   font-weight: 600;
@@ -689,7 +703,11 @@ small {
   padding: 18px 14px 12px;
   background: var(--ss-group);
   color: var(--ss-fg);
-  max-height: 88dvh;
+  /* 弹层离底部有间距，矮屏幕上 88% 的高度可能顶到状态栏。 */
+  max-height: min(
+    88dvh,
+    calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 24px)
+  );
   overflow-y: auto;
 }
 .add-game-dialog h2 {
@@ -851,17 +869,82 @@ small {
   color: var(--ss-muted);
 }
 
-@media (min-width: 700px) {
-  .app-main {
-    padding: 16px;
+/*
+ * 大屏布局。手机锁竖屏，宽度到不了 600px；最短边不小于 600dp 的设备横竖屏都能到；
+ * 平板分屏变窄时回到窄屏布局。600dp 的设备横屏时除去系统栏高度不到 600px，故不判断高度。
+ */
+@media (min-width: 600px) {
+  /* 主导航是左上角的胶囊，盖在平移的页面上方。 */
+  .main-nav {
+    top: calc(12px + env(safe-area-inset-top));
+    bottom: auto;
+    left: calc(12px + env(safe-area-inset-left));
+    transform: none;
+    display: flex;
+    flex-direction: column;
+    width: 64px;
+    max-width: none;
+    gap: 0;
+    /* 6px + 2px按钮margin补偿 */
+    padding-block: 8px;
   }
+  /* 为防止间距显得过大，使导航栏按钮之间部分重叠。 */
+  .main-nav button {
+    width: 100%;
+    min-width: 0;
+    min-height: 64px;
+    padding-inline: 4px;
+    margin-block: -2px;
+  }
+  /*
+   * 标题栏和正文用左右内边距限制内容宽度并让出胶囊的位置，滚动范围和分隔线仍是整个页面宽度。
+   * 页面的宽度始终等于屏幕宽度，平移时两页才接得上。
+   */
+  .app-page {
+    --mobile-nav-space: 0px;
+    --mobile-content-width: 760px;
+    --mobile-content-inset: max(
+      16px,
+      calc((100% - var(--mobile-nav-space) - var(--mobile-content-width)) / 2)
+    );
+  }
+  .app-page:has(+ .main-nav),
+  .page-slide-outgoing:has(~ .main-nav),
+  .page-slide-outgoing:has(> .main-nav) {
+    --mobile-nav-space: 88px;
+  }
+  .app-page:has(.app-main-wide) {
+    --mobile-content-width: 1200px;
+  }
+  .app-heading {
+    padding-inline: calc(var(--mobile-nav-space) + var(--mobile-content-inset))
+      var(--mobile-content-inset);
+  }
+  .app-main {
+    padding-block-start: 16px;
+    padding-inline: calc(var(--mobile-nav-space) + var(--mobile-content-inset))
+      var(--mobile-content-inset);
+  }
+  .app-main.app-main-with-nav {
+    padding-bottom: calc(16px + env(safe-area-inset-bottom));
+  }
+  /* 游戏封面不随宽度无限放大，放得下就多一列。 */
   .game-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 18px 14px;
+  }
+  /* 底部弹层限宽居中。位置用外边距：弹出动画占用了 transform。 */
+  .adm-popup-body-position-bottom,
+  .adm-popup-body.add-game-dialog {
+    right: 0;
+    left: 0;
+    width: min(560px, 100%);
+    margin-inline: auto;
   }
 }
 .startup-error {
   margin: 0;
-  padding: 48px 24px;
+  padding: calc(48px + env(safe-area-inset-top)) 24px 48px;
   color: var(--ss-fg);
   font: 15px/1.6 var(--ss-font);
   text-align: center;
