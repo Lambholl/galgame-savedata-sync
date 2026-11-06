@@ -27,7 +27,7 @@ export default defineConfig(async ({ command }): Promise<UserConfig> => ({
   // 分发包不带 node_modules，主进程运行时用到的依赖要打进 out/main。
   main: {
     build: {
-      externalizeDeps: { exclude: ['@savedata-sync/shared', '@homebridge/ciao'] },
+      externalizeDeps: { exclude: ['@savedata-sync/shared', '@homebridge/ciao', 'ws'] },
     },
   },
   preload: {

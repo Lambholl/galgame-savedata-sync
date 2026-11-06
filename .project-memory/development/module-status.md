@@ -24,7 +24,7 @@ related_files: []
 | 四语言界面、错误与原生通知 | done | 开发 | shared i18n/result/ui、双端 app/features/platform、desktop main、Android Java/res | Android 通知语言切换没有真机复核 | 真机复核通知语言 |
 | Android 确认执行、结果与本机恢复界面 | done | 开发 | mobile sync-adapter、SyncCopy/Plan/Task/Backup 页面、useSyncTasks、SyncWrites/BackupsPlugin | 双向执行由原生持有；发送完成与目标成功分开 | — |
 | Windows 计划、结果与本机恢复界面 | done | 开发 | restore-registry、sync-ipc/bridge、preload、备份/任务页、platform/sync-adapter | 进程重启不恢复任务，备份和配置保留 | — |
-| Windows 分发包 | done | 开发 | apps/desktop/electron-builder.json、scripts/package-windows.mjs、双层 package.json、pnpm-lock.yaml | 没有配置代码签名；使用已编译资源与隔离的最小应用清单；产物位于 apps/desktop/release | — |
+| Windows 分发包 | done | 开发 | apps/desktop/electron-builder.json、scripts/package-windows.mjs、双层 package.json、pnpm-lock.yaml | 没有配置代码签名；使用已编译资源与隔离的最小应用清单，不带 node_modules，主进程第三方依赖（ws、ciao）由 electron.vite.config.ts 打进 out/main；产物位于 apps/desktop/release | 下次发版前打一次桌面包，确认启动和连接 |
 | 正式设备/游戏/设置界面 | done | 开发 | apps/mobile/src、apps/desktop/src/renderer/src、apps/shared、桌面 bridge 与 library-ipc/store | 一个游戏关联多台设备，同时只连一台 | — |
 | Android HTTP 与持续通知 | done | 开发 | TransferJson/Schema/Http/Engine、HttpTransfersPlugin、TransferRuntime/Service、SafRuntime、TS 桥及最小检查 | 全部校验前不发布，sender sent 与 receiver 成功分开；应用级任务持有，Activity 暂停/销毁时任务继续，通知提供显式取消；任务只由用户发起，不调度或重放旧任务 | — |
 | 工作区与质量配置 | done | 开发 | 根目录配置、apps/shared、scripts/check-text.mjs | — | — |
