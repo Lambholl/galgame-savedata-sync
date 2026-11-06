@@ -3,7 +3,7 @@ doc_type: architecture-overview
 status: active
 priority: high
 owner: architecture
-updated: 2026-11-05
+updated: 2026-11-06
 tags: [架构总览]
 related_files: []
 ---
@@ -61,7 +61,7 @@ related_files: []
 
 ### 3.1 设备识别与地址更新
 
-1. Windows 启动 HTTP 服务并显示当前地址、端口和稳定设备 ID；Android 通过手动 IP 连接并读取设备描述。
+1. Windows HTTP 服务监听 `0.0.0.0`，界面显示一个推荐 IPv4 地址、端口和稳定设备 ID；地址优先取有默认网关的接口，同级按网关与接口 metric 之和排序。Android 通过手动 IP 连接并读取设备描述。
 2. 建立连接后核对设备 ID，关联保存的设备记录；地址或显示名称不作为设备身份。
 3. DHCP 或网络变化时旧连接失效，用户手动更新 IP 后继续使用原项目与目录映射；新地址返回不同设备 ID 时要求重新关联。
 4. mDNS/DNS-SD 自动发现、发现列表和 DHCP 自动重连属于 M-003；扫码与配对码不在当前范围，定位设备不依赖公网服务。

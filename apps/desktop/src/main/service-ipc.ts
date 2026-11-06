@@ -1,5 +1,5 @@
 import type { IpcMain, IpcMainInvokeEvent } from 'electron'
-import { hostname, networkInterfaces } from 'node:os'
+import { hostname } from 'node:os'
 import { isOpaqueId } from '@savedata-sync/shared'
 import type { DirectoryReference, OperationResult } from '@savedata-sync/shared'
 import { SERVICE_CHANNELS } from '../bridge/service-bridge.ts'
@@ -9,6 +9,7 @@ import type { WindowsHttpService } from './http-service.ts'
 import type { WindowsNewFilePublisher } from './new-file-publisher.ts'
 import { toHttpError } from './http-errors.ts'
 import type { ServicePortSettings } from './service-port-settings.ts'
+import { createRecommendedAddressReader } from './recommended-address.ts'
 
 /** 注册服务 IPC 的选项：存档目录选择器由主进程执行，null 表示取消，已有目录权限不变。 */
 interface ServiceIpcOptions {
@@ -35,20 +36,14 @@ export function registerServiceIpc(
   options: ServiceIpcOptions,
 ): () => void {
   const targets = new Map<string, DirectoryReference>()
+  const readRecommendedAddress = createRecommendedAddressReader()
   let isMutating = false
-  function snapshot(): OperationResult<DesktopServiceSnapshot> {
+  async function snapshot(): Promise<OperationResult<DesktopServiceSnapshot>> {
+    const recommendedAddress = service.getAddress() ? await readRecommendedAddress() : null
+    // 查询网卡时，服务可能已停止或换了端口。查完网卡重新查一遍服务和端口以保证界面信息最新。
     const address = service.getAddress()
-    const addresses = address
-      ? [
-          ...new Set(
-            Object.values(networkInterfaces()).flatMap((items) =>
-              (items ?? [])
-                .filter((item) => item.family === 'IPv4' && !item.internal)
-                .map((item) => `http://${item.address}:${address.port}`),
-            ),
-          ),
-        ]
-      : []
+    const addresses =
+      address && recommendedAddress ? [`http://${recommendedAddress}:${address.port}`] : []
     return {
       status: 'success',
       value: {

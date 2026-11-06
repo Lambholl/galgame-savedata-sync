@@ -24,6 +24,7 @@ export interface DesktopServiceSnapshot {
   readonly listener: {
     readonly host: string
     readonly port: number
+    /** 推荐最多一个 IPv4 HTTP 地址 */
     readonly addresses: readonly string[]
   } | null
   readonly error: OperationError | null

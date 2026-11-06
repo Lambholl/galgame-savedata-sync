@@ -4,7 +4,7 @@ status: active
 priority: medium
 owner: project
 id_prefix: CR
-id_high_water: 21
+id_high_water: 22
 updated: 2026-11-06
 tags: [变更请求]
 related_files: []
