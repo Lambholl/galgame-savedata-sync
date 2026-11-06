@@ -5,7 +5,7 @@ priority: medium
 owner: development
 id_prefix: BUG
 id_high_water: 7
-updated: 2026-11-03
+updated: 2026-11-06
 tags: [已知问题]
 related_files: []
 ---
