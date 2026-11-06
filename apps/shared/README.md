@@ -10,6 +10,7 @@
 - [6. 检查与验证边界](#6-检查与验证边界)
 - [7. 游戏关联与传输预检](#7-游戏关联与传输预检)
 - [8. 当前扫描与覆盖计划](#8-当前扫描与覆盖计划)
+- [9. 发现与连接二维码](#9-发现与连接二维码)
 
 ## 1. 范围与兼容性
 
@@ -136,3 +137,15 @@ withGameLink、withoutGameLink、createImportedGame 返回新的游戏配置，�
 `isSyncApplyResult` 校验逐项结果、备份 ID 和独立清理错误。`matchesSyncApplyResult(result, plan)` 核对完整写入集合、顺序、成功项长度/哈希及默认保护；失败/取消后只允许未执行项。目录成功不携带文件字节，未知结果必须使用 result-unknown。权限、实际内容、备份有效性、会话期限、资源释放和真实写入仍由平台模块处理。
 
 `SyncJobRequest` 固定两端项目及完整计划；`matchesSyncJobManifest` 核对源引用、原名/父目录/日期和指纹，`matchesSyncJobState` 核对角色、计数及完整实际结果。Windows 源 preparing 完成后以 ready 等待单次内容 GET，零文件计划不提交归档。`SyncPreparationPreview` 通过 `syncPlanFromPreview` 生成同一份计划，plan.projectId 使用目标端本机项目 ID；`SyncTransferState` 分别保存本机及远端状态，sender sent 不表示 receiver 成功。`SyncJobDigest` 是 `SyncJobState` 去掉逐项结果的有界摘要，由 `isSyncJobDigest` 和 `matchesSyncJobDigest` 校验；`observeSyncJob(local, remote, hasRemoteError)` 把两个角色合成总体状态、阶段、当前段百分比、失败阶段和计数，两端的详情、横条、历史和提示都读它。准备、任务、清单和结果分开查询，协议统一见上面的 M-002 文档。
+
+## 9. 发现与连接二维码
+
+`src/connection` 定义拨号方找到监听方用的两种格式，按监听方和拨号方区分，不按平台区分。两种格式都只用来拿到地址，连接后仍以 `/v1/device` 返回的设备 ID 为准。
+
+| 格式 | 内容 | 函数 |
+| --- | --- | --- |
+| DNS-SD 服务 | 服务类型 `_savedata-sync._tcp`（`DISCOVERY_SERVICE`）。实例名是显示名，按码位截到 63 个 UTF-8 字节，重名时由系统加后缀，只用于显示。TXT 为 `v`（协议版本）、`id`（设备 ID）、`pf`（`windows` 或 `android`），端口和地址取 SRV 与 A 记录 | `createDiscoveryInstanceName`、`createDiscoveryTxt`、`parseDiscoveryTxt` |
+| 连接二维码 | `savedata-sync://connect?v=1&id=<设备 ID>&p=<端口>&a=<IPv4>,<IPv4>`，地址 1–8 个、按推荐顺序、不重复。监听方显示，只有移动端扫码 | `createConnectionQrText`、`parseConnectionQrText` |
+| 候选地址 | 把 IPv4 列表和端口转成依次尝试的 `http://ip:port`，保留顺序，跳过非 IPv4 和重复项 | `createConnectionCandidates`、`isIpv4Address`、`isListeningPort` |
+
+解析函数返回 `valid`、`unsupported-version` 或 `invalid`。版本字段先于其他字段检查，版本不同时其余字段不解析，发现列表和扫码页可以提示对端需要更新。二维码字段名和前缀区分大小写，字段必须恰好是 `v`、`id`、`p`、`a`；TXT 按 RFC 6763 不区分键名大小写、忽略未知字段，同一个键出现多次时拒绝。生成函数遇到不合法的设备 ID、端口或地址时抛出 `invalid-request`。

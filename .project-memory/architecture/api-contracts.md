@@ -19,12 +19,13 @@ related_files: []
 - [5. 版本与线格式](#5-版本与线格式)
 - [6. 检查与验证边界](#6-检查与验证边界)
 - [7. 游戏设备元数据与界面](#7-游戏设备元数据与界面)
+- [8. 发现与连接二维码](#8-发现与连接二维码)
 
 ## 1. 状态与范围
 
 本文记录当前接口。Windows 为 HTTP 服务端，Android 原生层为拨号方和控制客户端。平台说明见 `apps/desktop/README.md`、`apps/mobile/README.md`，共享字段与线格式见 `apps/shared/README.md`。
 
-已接入：游戏与设备配置、三页导航、并列目录视图、受保护覆盖、可选的目标多余条目删除、写入前全量备份、本机恢复和两端发起。还没有 mDNS 自动发现，安排见[路线图](../project/roadmap.md)。
+已接入：游戏与设备配置、三页导航、并列目录视图、受保护覆盖、可选的目标多余条目删除、写入前全量备份、本机恢复和两端发起。发现与连接二维码的格式已在 `apps/shared` 定义（第 8 节），两端还没有接入 mDNS 广播、搜索和扫码，安排见[路线图](../project/roadmap.md)。
 
 文件传输双向统一采用 tar.gz（[Q-008](../requirements/open-questions.md)），完整设计见 `docs/plans/m001-tar-gzip-protocol.md`。Windows 提供 v1 读取、sender 和上传 receiver 端点；受保护复制接口见第 3 节。
 
@@ -171,3 +172,11 @@ Android 桥提供 `connections`、`selectDevice`、`disconnectDevice`、`exchang
 主动握手后的首个 catalog 请求携带 `x-sync-connect: 1`，之后的交换不携带。桌面断开只修改进程内会话并以 4001 关闭控制连接，不写入 `blocked=true`；断开后的普通交换收到 `session-mismatch`，移动端再次主动连接时清除标记。连接失败返回 HTTP 状态、协议码及原生 errno 或异常类型，不附加原因改写或重试建议。
 
 界面由 `apps/desktop/src/renderer/src` 和 `apps/mobile/src` 各自维护，平台接入位于各端 `platform/library-adapter.ts`。`apps/shared` 提供协议、配置、任务数据、传输预检与游戏关联规则，不依赖组件库或平台 API。双端都有复制计划/结果、备份设置/列表和本机恢复，也都能发起复制和选择删除目标多出的条目。v1 批量文件传输只新建文件，不覆盖已有文件。
+
+## 8. 发现与连接二维码
+
+格式在 `apps/shared/src/connection`，字段和函数见 `apps/shared/README.md` 第 9 节。两种格式都由监听方提供、拨号方读取，不按平台区分；扫码只在移动端提供。拿到的地址只用来连接，连接后仍用 `/v1/device` 核对设备 ID，设备 ID 不一致时不替换已保存的设备。
+
+- DNS-SD：服务类型 `_savedata-sync._tcp`，实例名是截到 63 个 UTF-8 字节的显示名，TXT 为 `v`、`id`、`pf`。地址和端口取 SRV 与 A 记录，拨号方只用 IPv4。
+- 二维码：`savedata-sync://connect?v=1&id=<设备 ID>&p=<端口>&a=<IPv4>,…`，1–8 个地址按推荐顺序排列，拨号方依次尝试。
+- 版本：两种格式的 `v` 都是 `PROTOCOL_VERSION`。版本不同时解析结果为 `unsupported-version`，其余字段不解析；不合法时为 `invalid`。
