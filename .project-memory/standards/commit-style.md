@@ -3,7 +3,7 @@ doc_type: commit-style
 status: active
 priority: low
 owner: project
-updated: 2026-11-04
+updated: 2026-11-07
 tags: [提交规范]
 related_files: []
 ---
@@ -35,7 +35,7 @@ related_files: []
 - 非微小改动必须写提交正文；只改错别字、格式或单行配置时可以只写标题。
 - `git add`、`commit` 和 `push` 分别需要维护者明确同意；批准计划、实现、做完或收尾不等于同意这些操作，计划或文档里写的提交安排也不算。
 - 提交同意默认只覆盖当前工作的一次提交；范围变化或需要 `commit --amend` 时重新确认。
-- `push` 须明确远端和分支，不包含标签或 force-push。合并、rebase、cherry-pick、继续冲突中的 Git 操作和清理分支/worktree 均需维护者单独同意。
+- `push` 须明确远端和分支，不 force-push。发布时 main 和 tag 一起推送：`git push --atomic origin main vX.Y.Z`；打 tag 和推送 tag 都要维护者同意，同意里写明 tag 名。只推送 tag、不推送 main 时，发布工作流会因 tag 不在 `origin/main` 上而失败。版本规则见 `docs/development.md` 的“版本号”一节。合并、rebase、cherry-pick、继续冲突中的 Git 操作和清理分支/worktree 均需维护者单独同意。
 - 提交 Body 按规范示例模板填写：先写改动背景和原因，再用“技术方案：”列出要点，最后写“影响范围：”；验证结果写在“测试确认：”中，只写项目测试、构建或人工检查，不写项目记忆维护命令；没有实际内容的段落直接省略。
 
 ## 3. 提交格式

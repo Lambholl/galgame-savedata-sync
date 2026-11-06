@@ -63,5 +63,5 @@ related_files: []
 | `scripts/security-check.mjs`、`scripts/toolchain-policy.mjs` | npm 全量审计、pnpm 公告与 Node 安全补丁门禁 | 查询失败即失败；安全基线来自已核实的官方发行记录 |
 | `scripts/android-inventory.gradle`、`scripts/security-android.mjs` | 解析 Maven 实际依赖并查询 OSV | 含运行、测试和构建图；未解析依赖导致失败；临时报告在 .reports/ |
 | `.github/workflows/ci.yml` | Windows 工程检查与 Android 构建 CI | Action 固定 commit SHA；只处理分支 push 与 PR 并执行 pnpm check 与 android:build，tag 交给独立发布流程；安全审计通过原命令手动运行 |
-| `.github/workflows/release.yml`、`scripts/check-release-version.mjs` | `vX.Y.Z` tag 的完整测试、版本门禁、Portable/APK 构建、SHA-256、artifact 和草稿 Release | 普通 push 不保存二进制；发布只构建 Portable，不构建 NSIS；tag 与五处版本一致才继续；草稿说明由 GitHub 自动生成，已知问题在页面补充，不进入 Git |
+| `.github/workflows/release.yml`、`scripts/app-version.mjs` | `vX.Y.Z` tag 的版本推算、完整测试、Portable/APK 构建、SHA-256、artifact 和草稿 Release | 版本只来自 Git tag，`app-version.mjs` 供两端 Vite 配置（注入共享包 `APP_VERSION`）、`package-windows.mjs` 和 Android `build.gradle` 共用；发布要求 tag 指向当前提交且在 `origin/main` 上；普通 push 不保存二进制；发布只构建 Portable，不构建 NSIS；草稿说明由 GitHub 自动生成，已知问题在页面补充，不进入 Git |
 | `README.md`、`docs/development.md` | 开发命令、工具要求与检查范围 | 版本约束以工程配置为准 |

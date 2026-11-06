@@ -4,6 +4,7 @@ import { dirname, join, resolve } from 'node:path'
 import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import { build, Platform, Arch } from 'electron-builder'
+import { resolveAppVersion } from '../../../scripts/app-version.mjs'
 
 const APP_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const REPO_ROOT = resolve(APP_ROOT, '../..')
@@ -24,6 +25,8 @@ async function main() {
     throw new Error(`不支持的 Windows 打包目标：${invalidTargets.join('、')}`)
   }
   const metadata = JSON.parse(await readFile(join(APP_ROOT, 'package.json'), 'utf8'))
+  // package.json 的 version 固定为 0.0.0，分发包的版本由 Git tag 推算，与界面显示的版本相同。
+  const version = resolveAppVersion().name
   const config = JSON.parse(await readFile(join(APP_ROOT, 'electron-builder.json'), 'utf8'))
   for (const entry of ['out/main/index.js', 'out/preload/index.cjs', 'out/renderer/index.html']) {
     await access(join(APP_ROOT, entry))
@@ -51,7 +54,7 @@ async function main() {
     JSON.stringify(
       {
         name: metadata.name,
-        version: metadata.version,
+        version,
         description: 'Windows 与 Android 局域网存档同步工具',
         type: metadata.type,
         main: metadata.main,
@@ -67,9 +70,9 @@ async function main() {
     join(staging, 'package-lock.json'),
     JSON.stringify({
       name: metadata.name,
-      version: metadata.version,
+      version,
       lockfileVersion: 3,
-      packages: { '': { name: metadata.name, version: metadata.version } },
+      packages: { '': { name: metadata.name, version } },
     }) + '\n',
     { encoding: 'utf8', flag: 'wx' },
   )

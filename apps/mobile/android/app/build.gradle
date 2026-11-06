@@ -18,6 +18,18 @@ if (!hasSharedSigning && sharedSigning.values().any { it }) {
     throw new GradleException('Android 签名配置不完整：storeFile、storePassword、keyAlias、keyPassword 需要同时提供。')
 }
 
+// 版本名和 versionCode 由仓库的 scripts/app-version.mjs 按 Git tag 推算，与桌面端和界面显示的版本相同。
+// 发布时读取环境变量 RELEASE_TAG，开发构建用最近的发布 tag 加上之后的提交数和哈希。
+def appVersion
+try {
+    def output = providers.exec {
+        commandLine 'node', rootProject.file('../../../scripts/app-version.mjs').absolutePath
+    }.standardOutput.asText.get()
+    appVersion = new groovy.json.JsonSlurper().parseText(output)
+} catch (Exception error) {
+    throw new GradleException('无法计算应用版本：需要在 PATH 中找到 Node，并在仓库内构建。', error)
+}
+
 android {
     namespace = "io.github.galgame.savedatasync"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -25,8 +37,8 @@ android {
         applicationId "io.github.galgame.savedatasync"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 5
-        versionName "0.3.0"
+        versionCode appVersion.code as int
+        versionName appVersion.name
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // 打包资源时排除的文件与目录；已调整为适配现代 Web 应用。

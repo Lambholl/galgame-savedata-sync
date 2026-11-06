@@ -32,6 +32,9 @@ jobs:
             throw "缺少 Android 签名 Secrets：$($missing -join '、')。配置方法见 docs/development.md 的「Android 签名」一节。"
           }
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        # 拉取全部历史和 main，供下面检查 tag 是否在 main 上。
+        with:
+          fetch-depth: 0
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
@@ -43,8 +46,16 @@ jobs:
           java-version: '21'
           cache: gradle
       - run: pnpm install --frozen-lockfile
-      - name: Verify release version
-        run: node scripts/check-release-version.mjs "$env:RELEASE_TAG"
+      # 版本号来自 tag。只发布 main 上的提交，main 和 tag 要一起推送（git push --atomic origin main vX.Y.Z），
+      # 或者先推送 main；只推送 tag 时这一步失败，推送 main 后重新运行即可。
+      - name: Verify release tag
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          node scripts/app-version.mjs
+          if ($LASTEXITCODE -ne 0) { throw 'tag 不是 vX.Y.Z，或当前提交不是这个 tag 指向的提交' }
+          git merge-base --is-ancestor HEAD origin/main
+          if ($LASTEXITCODE -ne 0) { throw "$env:RELEASE_TAG 指向的提交不在 origin/main 上" }
       - run: pnpm check
       - run: pnpm test:all
       - run: pnpm desktop:package:portable

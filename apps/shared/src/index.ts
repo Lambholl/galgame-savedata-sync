@@ -1,5 +1,12 @@
-/** 界面显示的版本号；发布检查要求与各 package.json、Android versionName 一致。 */
-export const APP_VERSION = '0.3.0'
+/** 两端的 Vite 构建配置把 scripts/app-version.mjs 算出的版本名注入到这里。 */
+declare const SAVEDATA_SYNC_VERSION: string | undefined
+
+/**
+ * 界面显示的版本号，由 Git tag 推算：发布版如 0.3.0，开发版如 0.3.0+12.gcfb3753。
+ * 用 Node 直接运行共享代码（例如测试）时没有注入，取 0.0.0+unknown。
+ */
+export const APP_VERSION: string =
+  typeof SAVEDATA_SYNC_VERSION === 'string' ? SAVEDATA_SYNC_VERSION : '0.0.0+unknown'
 
 export * from './protocol/contracts.ts'
 export * from './protocol/protocol.ts'

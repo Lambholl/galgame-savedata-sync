@@ -125,22 +125,43 @@ keytool -genkeypair -v -keystore savedata-sync-release.jks -alias savedata-sync 
 
 ## 发布流程
 
-推送 `v<major>.<minor>.<patch>` tag 会触发[发布工作流](../.github/workflows/release.yml)。普通分支 push 与 PR 只运行仓库检查，不保存构建产物。
+### 版本号
+
+版本号只来自 Git tag，仓库里不写版本号：4 个 `package.json` 的 `version` 固定为 `0.0.0`，不随发布修改。`scripts/app-version.mjs` 计算本次构建的版本，两端界面、Windows 分发包和 Android 都从它取值：
+
+| 构建 | 版本名 | Android versionCode |
+| --- | --- | --- |
+| 发布工作流（环境变量 `RELEASE_TAG`），或当前提交正好是发布 tag 且工作区没有改动 | `0.3.0` | `major * 1000000 + minor * 1000 + patch`，0.3.0 为 3000 |
+| 发布 tag 之后的开发构建 | `0.3.0+12.gcfb3753`，工作区有改动时末尾加 `.dirty` | 与最近的发布 tag 相同 |
+| 找不到发布 tag（没有 git、浅克隆没拉 tag） | `0.0.0+unknown` | 1 |
+
+- 发布 tag 是 `v<major>.<minor>.<patch>`，每段 0–999，不带前导零。带 `-` 的 tag（如预发布）不参与推算。
+- 开发版和同一 tag 的正式版 versionCode 相同，配置固定签名后可以互相覆盖安装；下一个正式版的 versionCode 更大。
+- 运行 `node scripts/app-version.mjs` 可以查看当前版本。Android 构建时 Gradle 调用这个脚本，所以 PATH 里要有 Node。
+- 开发服务器只在启动时计算一次版本，之后提交或改动文件不会更新界面上的版本号。
+
+### 发布步骤
+
+只发布 main 上的提交。在 main 的最新提交上打 tag，和 main 一起推送：
+
+```sh
+git tag -a v0.3.0 -m "0.3.0 Experience Enhancement"
+git push --atomic origin main v0.3.0
+```
+
+`--atomic` 让 main 和 tag 要么都推送成功，要么都不推送，避免 main 被拒绝时 tag 单独触发发布。单独推送 tag 也可以，但 main 要先推送，否则发布工作流的检查会失败；推送 main 后在 Actions 页面重新运行即可。补丁版本同样在 main 上修复后打 tag，不使用发布分支。
+
+推送 tag 会触发[发布工作流](../.github/workflows/release.yml)。普通分支 push 与 PR 只运行仓库检查，不保存构建产物。
 
 发布工作流依次完成：
 
-1. 核对 tag 与根包、共享包、桌面包、移动包和 Android `versionName`。
+1. 核对 tag 格式和当前提交，确认 tag 指向的提交在 `origin/main` 上。
 2. 运行 `pnpm check` 与 `pnpm test:all`。
 3. 使用 `pnpm desktop:package:portable` 生成 Windows x64 免安装版，不构建安装版。
 4. 用 Secrets 中的固定密钥构建 Android release APK 并校验签名，生成 `SHA256SUMS.txt`。
 5. 将三个文件上传为保留 7 天的 Actions artifact，并创建草稿 GitHub Release。
 
 草稿说明由 GitHub 根据提交自动生成。发布前在 Release 页面补充本版已知问题、安装限制和下载说明；发布说明不保存在仓库。
-
-```sh
-git tag -a v0.3.0 -m "存档同步 0.3.0"
-git push origin v0.3.0
-```
 
 创建草稿需要仓库 Actions 工作流权限允许 `contents: write`。Android APK 用固定密钥签名（见 [Android 签名](#android-签名)），Windows 免安装版未签名。
 

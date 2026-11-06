@@ -1,8 +1,11 @@
 import react from '@vitejs/plugin-react'
 import { defineConfig, type UserConfig } from 'electron-vite'
 import { createServer } from 'node:net'
+import { resolveAppVersion } from '../../scripts/app-version.mjs'
 
 const rendererHost = '127.0.0.1'
+// 共享包的 APP_VERSION 读取这个常量；开发服务器只在启动时计算一次版本。
+const versionDefine = { SAVEDATA_SYNC_VERSION: JSON.stringify(resolveAppVersion().name) }
 
 // electron-vite 用配置中的端口拼 ELECTRON_RENDERER_URL，不读实际监听端口，
 // 所以不能直接写 port: 0；先向系统申请空闲端口，再用 strictPort 固定。
@@ -26,11 +29,13 @@ function findFreePort(host: string): Promise<number> {
 export default defineConfig(async ({ command }): Promise<UserConfig> => ({
   // 分发包不带 node_modules，主进程运行时用到的依赖要打进 out/main。
   main: {
+    define: versionDefine,
     build: {
       externalizeDeps: { exclude: ['@savedata-sync/shared', '@homebridge/ciao', 'ws'] },
     },
   },
   preload: {
+    define: versionDefine,
     build: {
       externalizeDeps: { exclude: ['@savedata-sync/shared'] },
       rollupOptions: {
@@ -39,6 +44,7 @@ export default defineConfig(async ({ command }): Promise<UserConfig> => ({
     },
   },
   renderer: {
+    define: versionDefine,
     plugins: [react()],
     ...(command === 'serve' && {
       server: { host: rendererHost, port: await findFreePort(rendererHost), strictPort: true },
