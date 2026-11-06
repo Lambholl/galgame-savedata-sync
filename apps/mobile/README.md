@@ -13,6 +13,7 @@
 - [独立备份与恢复材料](#独立备份与恢复材料)
 - [受保护写入与本机恢复](#受保护写入与本机恢复)
 - [双向复制编排](#双向复制编排)
+- [局域网设备搜索](#局域网设备搜索)
 - [验证](#验证)
 
 ## 界面入口
@@ -277,6 +278,25 @@ const plan = syncPlanFromPreview(preview)
 const running = unwrap(await androidSyncTransfers.execute(preparing.preparationId, plan))
 // query 同一 jobId 的两个角色；current/preview 用于页面重建，不能自动调用 execute。
 ```
+
+## 局域网设备搜索
+
+`src/platform/device-discovery.ts` 导出 `deviceDiscovery`，用 NsdManager 搜索监听方广播的 `_savedata-sync._tcp` 服务，格式见 shared README 第 9 节。
+
+| 方法 | 行为 |
+| --- | --- |
+| watch(listener) | 第一个订阅者开始原生搜索，最后一个取消订阅后停止；listener 先收到当前结果，之后每次变化收到完整结果。页面离开时调用返回的函数 |
+| retry() | status 为 failed 时重新开始搜索；没有订阅者时不做任何事 |
+
+结果的 status 为 `searching`、`failed`（系统拒绝开始搜索）或 `unavailable`（浏览器预览）。devices 每项是设备 ID、平台、实例名、端口和至少一个 IPv4 地址，同一设备 ID 出现在多个实例名下时合并；TXT 由 shared 的 `parseDiscoveryTxt` 校验，不合法的服务丢弃，协议版本不同的只把实例名放进 incompatibleNames。地址用 `createConnectionCandidates` 转成连接地址，连接后仍要核对设备 ID。
+
+原生部分是 `DeviceDiscoveryPlugin`（桥和 Activity 生命周期）和 `DiscoveryBrowser`（搜索与解析，全部状态在一个 worker 线程上）。
+
+- API 34 及以上对每个服务注册 ServiceInfoCallback，地址和 TXT 变化时更新结果；更低版本用 resolveService 逐个解析，10 秒没有回调就跳过，FAILURE_ALREADY_ACTIVE 隔 1 秒重试，最多 3 次，解析后不再更新。
+- 只保留 IPv4 地址；TXT 值按 UTF-8 严格解码，只有键或解码失败的字段省略。同一实例名只解析一次。
+- Activity 停止时暂停搜索并清空结果（原生 status 为 paused，桥显示为没有结果的 searching），回到前台时重新搜索；销毁时停止并结束 worker。
+- 网页重载后原生搜索可能还在进行而没有订阅者，模块加载时先停止一次。
+- 系统 NsdService 负责组播，应用不申请 MulticastLock，也不需要额外权限。
 
 ## 验证
 
