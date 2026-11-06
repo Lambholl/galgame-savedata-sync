@@ -59,7 +59,7 @@ related_files: []
 | `development/implementation-notes.md` | 实现细节 | active | 实现细节 |
 | `development/known-issues.md` | 已知问题 | active | 已知问题 |
 | `development/module-status.md` | 模块状态 | active | 模块状态, 开发进度 |
-| `development/work-packages.md` | 工作包登记 | active | 工作包, M-002, 验收 |
+| `development/work-packages.md` | 工作包登记 | active | 工作包, M-002, M-003, 验收 |
 | `governance/assumptions.md` | 项目假设 | active | 假设 |
 | `governance/dependencies.md` | 外部依赖 | active | 外部依赖 |
 | `governance/issues.md` | 问题登记表 | active | 问题 |
