@@ -3,7 +3,7 @@ doc_type: code-map
 status: active
 priority: medium
 owner: development
-updated: 2026-11-06
+updated: 2026-11-07
 tags: [代码地图]
 related_files: []
 ---
@@ -26,6 +26,7 @@ related_files: []
 | `apps/desktop/test/http-service.test.mjs` | 真实回环 HTTP/TCP、异步结果、单次领取、期限与清理回归 | 独立临时夹具 |
 | `apps/desktop/src/bridge/directory-bridge.ts`、`src/main/directory-ipc.ts`、`src/preload/index.ts` | 三个有限目录方法与 IPC 来源/参数/返回校验 | 绝对路径和文件内容不跨桥；handler 在退出时移除；main/preload 内联共享包 |
 | `apps/desktop/src/bridge/service-bridge.ts`、`src/main/service-ipc.ts`、`src/renderer/src/features/devices` | 本机服务启停/接收根授权/任务桥与设备页控制 | 系统选择及本机确认后授权，校验来源与 DTO；不传私有路径/字节 |
+| `apps/desktop/src/main/discovery-advertiser.ts` | 服务运行期间用 `@homebridge/ciao` 做 mDNS 广播，状态进服务快照的 `discovery` | 服务 IPC 启停时调用，退出前由 `index.ts` 停止；失败不影响 HTTP 服务，30 秒重试 |
 | `apps/desktop/test/`、`apps/desktop/README.md` | Windows 目录、归档、HTTP 与发布的最小长期回归及接口说明 | pnpm check 不含 pnpm test:desktop；真实目录仅只读验证，机器路径不提交 |
 | `apps/mobile/src/app`、`features`、`components`、`styles` | 独立移动入口、导航、游戏卡片、底部弹层和 antd-mobile 页面 | 优先移动组件；使用桌面组件也保留触控区域，操作卡片至少 64px；系统返回由移动端协调 |
 | `apps/mobile/src/features/transfer`、`src/platform` | 双端目录比较、手动连接、方向、计划和原生任务显示 | 当前层浏览；两列独立滚动，时间精确到分钟；业务不判断前后台，重载查询同一原生传输任务；源文件内容不经过网页 |

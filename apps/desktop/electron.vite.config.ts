@@ -24,7 +24,12 @@ function findFreePort(host: string): Promise<number> {
 }
 
 export default defineConfig(async ({ command }): Promise<UserConfig> => ({
-  main: { build: { externalizeDeps: { exclude: ['@savedata-sync/shared'] } } },
+  // 分发包不带 node_modules，主进程运行时用到的依赖要打进 out/main。
+  main: {
+    build: {
+      externalizeDeps: { exclude: ['@savedata-sync/shared', '@homebridge/ciao'] },
+    },
+  },
   preload: {
     build: {
       externalizeDeps: { exclude: ['@savedata-sync/shared'] },

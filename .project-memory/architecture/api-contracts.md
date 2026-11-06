@@ -3,7 +3,7 @@ doc_type: api-contracts
 status: active
 priority: medium
 owner: architecture
-updated: 2026-11-06
+updated: 2026-11-07
 tags: [API, 接口约定]
 related_files: []
 ---
@@ -179,4 +179,5 @@ Android 桥提供 `connections`、`selectDevice`、`disconnectDevice`、`exchang
 
 - DNS-SD：服务类型 `_savedata-sync._tcp`，实例名是截到 63 个 UTF-8 字节的显示名，TXT 为 `v`、`id`、`pf`。地址和端口取 SRV 与 A 记录，拨号方只用 IPv4。
 - 二维码：`savedata-sync://connect?v=1&id=<设备 ID>&p=<端口>&a=<IPv4>,…`，1–8 个地址按推荐顺序排列，拨号方依次尝试。
+- 电脑端广播：HTTP 服务监听期间由主进程广播，停止服务或退出应用时发 goodbye 包。SRV 主机名是 `savedata-sync-<设备 ID>`（小写，`_` 换成 `-`），不用显示名；只发 A 记录，每块网卡只回答这块网卡的地址。实例名重名时自动加序号。广播失败时 HTTP 服务照常运行，服务快照的 `discovery` 显示失败并每 30 秒重试。实现见桌面 README 第 3 节。
 - 版本：两种格式的 `v` 都是 `PROTOCOL_VERSION`。版本不同时解析结果为 `unsupported-version`，其余字段不解析；不合法时为 `invalid`。

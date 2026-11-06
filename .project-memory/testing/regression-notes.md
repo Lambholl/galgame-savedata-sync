@@ -3,7 +3,7 @@ doc_type: regression-notes
 status: active
 priority: medium
 owner: testing
-updated: 2026-11-06
+updated: 2026-11-07
 tags: [回归测试, 当前状态]
 related_files: []
 ---
@@ -37,7 +37,8 @@ related_files: []
 | 四语言与原生通知 | 通知语言切换未真机复核 | 通知渠道和资源已编译核对 | 设备上切换语言后发起一次传输，看通知 |
 | Android SAF 初次访问时间变化 | unresolved | API 33 合成夹具首次读取后观察到 ctime 变化，原文和 mtime 一致，原因未确认 | 只读目录复验内容、大小和 mtime；ctime 是否变化按提供者能力记录 |
 | Windows 跨进程发布恢复 | open | 强杀可能留下候选；其他卷和特殊名称等价未验证 | 独立目标夹具；按前缀自动删除或恢复旧任务不在方案内 |
-| 依赖手动审计 | open | CI 日志报告 antd-mobile 间接依赖 deepmerge 的低危公告 GHSA-gcqx-w48m-w2h4，尚未处理 | pnpm security:check；Android 依赖另用 pnpm security:android |
+| 依赖手动审计 | open | `pnpm security:npm` 报 4 条公告，都未处理：deepmerge 低危 GHSA-gcqx-w48m-w2h4（antd-mobile），glob 中危 GHSA-3g3m-2fjr-6pw4（@capacitor/cli → rimraf），minimatch 中危 GHSA-g3hv-75wg-m249（eslint；electron-builder → @electron/universal）。`@homebridge/ciao` 及其依赖没有命中 | pnpm security:check；Android 依赖另用 pnpm security:android |
+| Windows 局域网广播 | 本机通过，跨设备未测 | 用 Node 直接运行广播模块，原始 mDNS 查询在以太网和代理虚拟网卡上都收到 PTR、SRV、TXT（`v`、`id`、`pf`）、A 记录，每块网卡只带自己的地址；停止后收到 TTL 0 的 goodbye 包；启动中立即停止再启动、连续两次启动、空显示名回退为 `savedata-sync` 都正常，停止后进程能退出。没有测：Electron 应用内启停、Portable 版防火墙、另一台设备搜索、注册失败重试 | 设备页启动服务后在另一台设备用 DNS-SD 浏览 `_savedata-sync._tcp`；Portable 版首次运行看防火墙提示 |
 | 依赖版本统一 | 真机和打包未复核 | APK 依赖强制升级：kotlin-stdlib 2.2.0、kotlinx-coroutines 1.9.0、concurrent-futures 1.2.0、jspecify 1.0.1；设备测试平台的 gRPC 升到 1.69.1。electron-builder 用到的 plist、semver、ci-info、sax 被 overrides 合并。已通过构建和单元测试；仪器测试只构建未在设备上运行，电脑端只跑了 `electron-builder --version` | 真机启动并完成一次传输，运行仪器测试；发版前打一次桌面包 |
 
 界面检查结果不转成 DOM、选择器或颜色断言。模板、主题、基准和重复失败场景不在回归范围。

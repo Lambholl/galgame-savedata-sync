@@ -119,7 +119,9 @@ preload 通过 `window.desktopDirectories` 暴露冻结的 `DesktopDirectoryApi`
 
 应用退出时移除 handler，窗口关闭时删除可信窗口记录；应用采用单实例锁，常态下只有一个实例更新配置。该包只提供三个请求式方法，没有事件订阅；网页调用者不持有需要释放的文件句柄。
 
-服务控制另由 `window.desktopService` 的冻结 `DesktopServiceApi` 提供：`status()`、`start(port)`、`randomizePort()`、`stop()`、`chooseTarget()`、`revokeTarget(rootId)`、`cancel(transferId)`、`retryCleanup()`。固定通道与响应守卫在 `src/bridge/service-bridge.ts`，主进程来源/参数校验在 `src/main/service-ipc.ts`。`start` 接受 1 到 65535 的整数，本机显式启动后监听 `0.0.0.0`，冲突返回错误。端口保存到应用私有目录，首次生成 49152 到 65535 的随机值；`randomizePort()` 选择并保存另一个端口。快照含配置端口、实际监听地址、运行错误、本进程接收根和当前会话任务；没有 sessionId、私有路径或文件内容。
+服务控制另由 `window.desktopService` 的冻结 `DesktopServiceApi` 提供：`status()`、`start(port)`、`randomizePort()`、`stop()`、`chooseTarget()`、`revokeTarget(rootId)`、`cancel(transferId)`、`retryCleanup()`。固定通道与响应守卫在 `src/bridge/service-bridge.ts`，主进程来源/参数校验在 `src/main/service-ipc.ts`。`start` 接受 1 到 65535 的整数，本机显式启动后监听 `0.0.0.0`，冲突返回错误。端口保存到应用私有目录，首次生成 49152 到 65535 的随机值；`randomizePort()` 选择并保存另一个端口。快照含配置端口、实际监听地址、运行错误、局域网广播状态、本进程接收根和当前会话任务；没有 sessionId、私有路径或文件内容。
+
+服务开始监听后，`src/main/discovery-advertiser.ts` 用 `@homebridge/ciao` 在局域网广播 `_savedata-sync._tcp`（格式见 `apps/shared/README.md` 第 9 节）：实例名取本机名称，SRV 主机名由设备 ID 生成，只发 IPv4，每块网卡只回答这块网卡的地址；网卡增减或地址变化后 ciao 每 15 秒检查一次并重新宣告。停止服务和退出应用时发送 goodbye 包并关闭 UDP 5353 套接字，最多等 3 秒。广播失败不影响 HTTP 服务，快照的 `discovery.status` 为 `failed`，每 30 秒重试。`advertising` 只表示本机已发出宣告，防火墙拦截 UDP 5353 时其他设备仍然搜不到。ciao 由 electron-vite 打进 `out/main`，因为分发包不带 `node_modules`。
 
 `chooseTarget()` 打开原生系统选择器；选中目录后执行 `publisher.grant`，取消保留既有授权。`revokeTarget` 撤销新写入授权并收尾该根的当前发布。其他操作返回 `OperationResult<DesktopServiceSnapshot>`；选择器返回 `DirectorySelectionResult`。全部 Promise 将失败转为脱敏错误，无事件或原生句柄需要调用者释放。界面每秒读取状态，卸载停止轮询。`getStates()` 只取当前会话快照，不延长任务保留期；`cancel()` 保留已经发布的文件。
 

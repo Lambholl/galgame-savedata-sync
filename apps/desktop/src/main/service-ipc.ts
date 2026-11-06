@@ -5,6 +5,7 @@ import type { DirectoryReference, OperationResult } from '@savedata-sync/shared'
 import { SERVICE_CHANNELS } from '../bridge/service-bridge.ts'
 import type { DesktopServiceSnapshot } from '../bridge/service-bridge.ts'
 import type { WindowsDirectoryAdapter } from './directory-adapter.ts'
+import type { WindowsDiscoveryAdvertiser } from './discovery-advertiser.ts'
 import type { WindowsHttpService } from './http-service.ts'
 import type { WindowsNewFilePublisher } from './new-file-publisher.ts'
 import { toHttpError } from './http-errors.ts'
@@ -14,6 +15,8 @@ import { createRecommendedAddressReader } from './recommended-address.ts'
 /** 注册服务 IPC 的选项：存档目录选择器由主进程执行，null 表示取消，已有目录权限不变。 */
 interface ServiceIpcOptions {
   readonly portSettings: ServicePortSettings
+  /** 服务开始监听后在局域网广播，停止服务后停止广播；应用退出时由主进程入口另行停止。 */
+  readonly advertiser: Pick<WindowsDiscoveryAdvertiser, 'start' | 'stop' | 'getState'>
   readonly isTrustedSender: (event: IpcMainInvokeEvent) => boolean
   readonly chooseTargetPath: () => Promise<string | null>
 }
@@ -51,6 +54,7 @@ export function registerServiceIpc(
         configuredPort: options.portSettings.getPort(),
         listener: address ? { host: address.host, port: address.port, addresses } : null,
         error: service.getError(),
+        discovery: options.advertiser.getState(),
         targets: [...targets.values()],
         tasks: service.getStates(),
       },
@@ -114,7 +118,12 @@ export function registerServiceIpc(
             return fail('busy', 'Stop the service before changing the port.')
           }
           await options.portSettings.save(port)
-          await service.start({ host: '0.0.0.0', port })
+          const listener = await service.start({ host: '0.0.0.0', port })
+          options.advertiser.start({
+            port: listener.port,
+            deviceId: adapter.deviceId,
+            displayName: localDeviceName(),
+          })
         } else if (action === 'revokeTarget' || action === 'cancel') {
           const id = argument(args, action === 'cancel' ? 'transferId' : 'rootId')
           if (!isOpaqueId(id)) {
@@ -153,7 +162,12 @@ export function registerServiceIpc(
             return { status: 'selected', directory: result.value }
           }
           if (action === 'stop') {
-            await service.stop()
+            // stop 失败时监听也已关闭，所以无论成败都停止广播，免得其他设备搜到连不上的地址。
+            try {
+              await service.stop()
+            } finally {
+              await options.advertiser.stop()
+            }
           }
           if (action === 'cleanup') {
             await service.retryCleanup()

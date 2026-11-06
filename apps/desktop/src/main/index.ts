@@ -9,6 +9,7 @@ import { isTrustedDirectorySender, registerDirectoryIpc } from './directory-ipc.
 import { toDirectoryError } from './directory-errors.ts'
 import { createWindowsArchiveAdapter } from './archive-adapter.ts'
 import { WindowsHttpService } from './http-service.ts'
+import { WindowsDiscoveryAdvertiser } from './discovery-advertiser.ts'
 import { HttpOperationError, toHttpError } from './http-errors.ts'
 import { WindowsNewFilePublisher } from './new-file-publisher.ts'
 import { registerServiceIpc } from './service-ipc.ts'
@@ -175,6 +176,7 @@ if (hasInstanceLock) {
           await publisher.grant(rootId)
         },
       })
+      const advertiser = new WindowsDiscoveryAdvertiser()
       const restores = new WindowsRestoreRegistry({
         source: adapter,
         backups,
@@ -217,6 +219,8 @@ if (hasInstanceLock) {
         isClosing = true
         httpService
           .stop()
+          // 广播停止只发 goodbye 包并关闭套接字，不会失败；HTTP 服务停止失败时也要先撤下广播。
+          .finally(() => advertiser.stop())
           .then(() => restores.stop())
           .then(() => Promise.allSettled([publisher.stop(), syncWriter.stop()]))
           .then(async (results) => {
@@ -251,6 +255,7 @@ if (hasInstanceLock) {
       app.once('will-quit', disposeDirectoryIpc)
       const disposeServiceIpc = registerServiceIpc(ipcMain, adapter, httpService, publisher, {
         portSettings,
+        advertiser,
         isTrustedSender: (event) =>
           isTrustedDirectorySender(event, trustedWindows, expectedRendererUrl),
         chooseTargetPath: async () => {

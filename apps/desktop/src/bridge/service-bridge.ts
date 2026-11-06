@@ -28,8 +28,45 @@ export interface DesktopServiceSnapshot {
     readonly addresses: readonly string[]
   } | null
   readonly error: OperationError | null
+  readonly discovery: DesktopDiscoveryState
   readonly targets: readonly DirectoryReference[]
   readonly tasks: readonly BatchState[]
+}
+
+/** 本机 HTTP 服务在局域网的 mDNS 广播状态。 */
+export interface DesktopDiscoveryState {
+  /**
+   * off：服务未运行，没有广播。
+   * starting：正在探测名称并宣告。
+   * advertising：已在本机各网卡宣告；网卡增减或地址变化后自动重新宣告。
+   * 这只说明本机已发出宣告，防火墙拦截 UDP 5353 时其他设备仍然搜不到。
+   * failed：注册失败；服务运行期间每 30 秒重新注册一次，成功后变为 advertising。
+   */
+  readonly status: 'off' | 'starting' | 'advertising' | 'failed'
+  /** 正在广播的 DNS-SD 实例名；局域网里重名时会加序号，因此可能和设备名不同。不在 advertising 时为 null。 */
+  readonly instanceName: string | null
+  /** 最近一次注册失败的脱敏错误；只在 failed 时有值。 */
+  readonly error: OperationError | null
+}
+
+const DISCOVERY_STATUSES: ReadonlySet<unknown> = new Set([
+  'off',
+  'starting',
+  'advertising',
+  'failed',
+])
+
+function isDiscoveryState(value: unknown): value is DesktopDiscoveryState {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'status' in value &&
+    DISCOVERY_STATUSES.has(value.status) &&
+    'instanceName' in value &&
+    (value.instanceName === null || typeof value.instanceName === 'string') &&
+    'error' in value &&
+    (value.error === null || isOperationError(value.error))
+  )
 }
 
 export const SERVICE_CHANNELS = {
@@ -69,6 +106,7 @@ function isSnapshot(value: unknown): value is DesktopServiceSnapshot {
     !('configuredPort' in value) ||
     !('listener' in value) ||
     !('error' in value) ||
+    !('discovery' in value) ||
     !('targets' in value) ||
     !('tasks' in value)
   ) {
@@ -95,6 +133,7 @@ function isSnapshot(value: unknown): value is DesktopServiceSnapshot {
         Array.isArray(listener.addresses) &&
         listener.addresses.every((item: unknown) => typeof item === 'string'))) &&
     (value.error === null || isOperationError(value.error)) &&
+    isDiscoveryState(value.discovery) &&
     Array.isArray(value.targets) &&
     value.targets.every(isDirectoryReference) &&
     Array.isArray(value.tasks) &&

@@ -3,7 +3,7 @@ doc_type: module-status
 status: active
 priority: high
 owner: development
-updated: 2026-11-06
+updated: 2026-11-07
 tags: [模块状态, 开发进度]
 related_files: []
 ---
@@ -49,6 +49,7 @@ related_files: []
 | Android 私有归档 | done | 开发 | ArchiveAdapter/Model/Format/Cache/Control/Failure.java、SafArchiveSource.java、单元/设备测试与互通脚本 | 处理原生归档与私有缓存；JSON/HTTP、目标发布和前台网络调度由其他模块负责；固定预算是技术限制 | — |
 | Windows 目录读取适配 | done | 开发 | apps/desktop/src/main/directory-*.ts、src/bridge/directory-bridge.ts、preload、test | 源目录只读；路径检查覆盖可观察边界，恶意并发重排命名空间不在隔离范围内 | — |
 | Windows 设备页服务控制 | done | 开发 | apps/desktop/src/renderer/src/features/devices、src/bridge/service-bridge.ts、main/service-ipc.ts | 服务启停在设备页显式操作；原生层持有文件路径和内容，界面只读公开快照 | — |
+| Windows 局域网广播 | active | 开发 | main/discovery-advertiser.ts、service-ipc.ts、index.ts、bridge/service-bridge.ts | 广播只在服务运行期间进行，失败不影响 HTTP 服务；防火墙拦截 UDP 5353 时本机无法察觉 | Portable 版和另一台设备实测，见 WP-032 |
 | Android 连接与传输页 | done | 开发 | apps/mobile/src/app、features/transfer、platform | 移动端可发起或执行电脑发起的复制；地址与目录授权分开保存；v1 批量接口只新建文件 | — |
 | Java SAF 读取适配 | done | 开发 | apps/mobile/README.md、原生插件、src/platform/saf-* 与最小回归 | 读取桥只读；流调用者负责关闭资源 | — |
 | Android 原生工程与审计 | done | 开发 | apps/mobile/android、scripts/android-inventory.gradle | 审计覆盖依赖公告；系统/提供者能力另按设备验证 | 依赖变化后复审 |
