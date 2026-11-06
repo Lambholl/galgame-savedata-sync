@@ -4,8 +4,8 @@ status: active
 priority: high
 owner: development
 id_prefix: WP
-id_high_water: 37
-updated: 2026-11-06
+id_high_water: 38
+updated: 2026-11-07
 tags: [工作包, M-002, M-003, 验收]
 related_files:
   - docs/plans/m002-sync-copy.md
@@ -31,15 +31,16 @@ M-003（连接与重连）的工作包如下。前提：
 | ID | 工作包 | 内容与完成标准 | 依赖 | 状态 |
 | --- | --- | --- | --- | --- |
 | WP-030 | 对称连接协议 | `apps/shared/src/connection` 定义 DNS-SD 服务类型、实例名（显示名）和 TXT 字段（协议版本、设备 ID、平台），二维码载荷（版本、设备 ID、端口、1–8 个候选 IPv4），以及候选地址转换，由监听方广播和显示，不限定平台。生成和解析函数、长期测试 `apps/shared/test/connection-discovery.test.mjs`，格式见[接口约定](../architecture/api-contracts.md)第 8 节。shared 测试和 `pnpm check` 通过 | — | done |
-| WP-031 | 设备页原型 | 在 `docs/design/` 做双端可交互原型（不进 Git）。两端信息结构相同：本机作为监听方的部分（服务开关、端口、推荐地址、二维码、广播状态）和连接其他设备的部分（已保存设备、发现列表、扫码、手动 IP，以及连接、断开和管理；扫码只出现在移动端）。原型要标出 M-005 之前未实现的角色（Android 监听、电脑拨号）怎么呈现。维护者确认原型后才开始 WP-034 | — | planned |
+| WP-031 | 设备页原型 | 在 `docs/design/` 做双端可交互原型（不进 Git）。两端信息结构相同：本机作为监听方的部分（服务主开关、端口、推荐地址、二维码）和连接其他设备的部分（已保存设备、发现列表、扫码、手动 IP，以及连接、断开和管理；扫码只出现在移动端）。原型要标出 M-005 之前未实现的角色（Android 监听、电脑拨号）怎么呈现。维护者确认原型后才开始 WP-034。原型在 `docs/design/device-page-v3/`，用两端真实的外壳、组件和样式表，二维码是占位图。本机服务卡片在 `ServiceHero.tsx` 和 `proto-hero.css`，两端共用，按卡片自身宽度切换三档排版；在仓库根目录运行 `pnpm exec vite --config docs/design/device-page-v3/vite.config.ts`，总览页列出各状态，M-005 的样子单独标出，移动端画框可以切换手机和平板尺寸。依赖靠该目录下指向 `apps/mobile/node_modules` 的目录联接，重新创建原型目录时要补上。待定问题见 [Q-014～Q-016](../requirements/open-questions.md)，WP-034 开始前回答 | — | done |
 | WP-032 | 电脑端 mDNS 广播 | 服务启动时注册、停止时注销，端口或网卡变化后重新广播，广播状态进入服务快照。实现候选为纯 JS 库（如 `bonjour-service`），进入本包时由维护者确定；新依赖要过安全审计并登记。Portable 版不能预置防火墙规则，UDP 5353 放行要实测 | WP-030 | planned |
 | WP-033 | Android NSD 搜索 | Java 插件封装 `NsdManager` 搜索和解析（API 34 以下逐个解析），通过 TS 桥返回设备 ID、名称和地址；只在需要时搜索，离开页面即停止 | WP-030 | planned |
-| WP-034 | 设备页实现 | 按 WP-031 原型改造双端设备页：电脑端显示服务、推荐地址、二维码和广播状态；Android 端提供发现列表和手动 IP，已保存的设备在发现列表里标出。二维码生成库是新依赖，要过安全审计并登记 | WP-031、WP-032、WP-033 | planned |
+| WP-034 | 设备页实现 | 按 WP-031 原型改造双端设备页：电脑端显示服务、推荐地址、二维码和广播状态；Android 端提供发现列表和手动 IP，已保存的设备在发现列表里标出。设备页文案按 M-005 角色对称后的说法写，不说“电脑”“手机”“移动端”，说“设备”“另一台设备”，M-005 之前读起来也不会错：`device.addPc` 改为“添加设备”，`device.emptyMobile` 改为“扫码或添加设备后连接”，`device.emptyPc` 改为“连接过的设备会出现在这里”，`device.waitingMobile` 改为“等待其他设备连接”；扫码提示“对准另一台设备上的二维码”，二维码弹窗标题“用另一台设备扫码连接”；电脑的添加按钮和游戏页一样放在“已保存的设备”标题右边。en-US 对应改写。二维码生成库是新依赖，要过安全审计并登记 | WP-031、WP-032、WP-033 | planned |
 | WP-035 | Android 扫码 | 申请相机权限、扫描页、解析载荷、依次尝试候选地址，设备 ID 一致才保存；拒绝相机权限时退回手动输入。扫码库候选为打包进 APK 的 ML Kit 条码模型加 CameraX（不依赖 Google Play 服务），进入本包时由维护者确定 | WP-030、WP-034 | planned |
 | WP-036 | 改址自动重连 | 已保存的设备连不上时按设备 ID 搜索，找到后更新地址并重连，目录映射保留；超时提示手动改址。确认 Android 地址变化后控制通道能重新拨号 | WP-033、WP-034 | planned |
-| WP-037 | M-003 验收 | 补测试用例；真机验证电脑或 Android 改址、AP 隔离或屏蔽组播时退回手动改址、扫码、多网卡电脑；更新验收和回归状态 | WP-030～WP-036 | planned |
+| WP-038 | 全应用文案改成对称说法 | 设备页以外按平台称呼对方的文案也改成 M-005 角色对称后的说法：`transfer.remoteBusy`（“等待移动端开始”）、`transfer.remoteScanRequest`（“电脑请求扫描”）、`task.mobileToPc`、`task.pcToMobile`（“移动端 → 电脑”）、`error.onMobile`、`error.onPc`（“电脑上…”）。改成“本机”“对方设备”或对方的设备名，具体文案和是否改键名进入本包时定，zh-CN 和 en-US 一起改。改完界面文案里不再出现“电脑”“手机”“移动端” | WP-034 | planned |
+| WP-037 | M-003 验收 | 补测试用例；真机验证电脑或 Android 改址、AP 隔离或屏蔽组播时退回手动改址、扫码、多网卡电脑；更新验收和回归状态 | WP-030～WP-036、WP-038 | planned |
 
-建议顺序：WP-030、WP-031 → WP-032、WP-033 → WP-034 → WP-035、WP-036 → WP-037。
+建议顺序：WP-030、WP-031 → WP-032、WP-033 → WP-034 → WP-035、WP-036、WP-038 → WP-037。
 
 ## 2. 执行与拆分规则
 
