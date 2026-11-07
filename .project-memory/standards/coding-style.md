@@ -3,7 +3,7 @@ doc_type: coding-style
 status: active
 priority: high
 owner: development
-updated: 2026-11-05
+updated: 2026-11-08
 tags: [编码规范]
 related_files: []
 ---
@@ -72,7 +72,6 @@ related_files: []
 | --- | --- |
 | CLI 或网络检查失败 | 显式非零退出，不把下载、解析或审计失败当作成功 |
 | Electron 异步启动 | 捕获加载/初始化错误，保留原始错误上下文；preload 仅暴露明确的只读边界 |
-| 工具日志 | 不输出密钥、代理凭据或其他敏感配置；完整命令历史不写入记忆 |
 
 ## 6. 版权信息
 
@@ -94,12 +93,11 @@ related_files: []
 
 ## 8. 代码注释
 
-| 场景 | 规则 |
+注释规则见[注释规范](comment-style.md)，这里只写项目差异。
+
+| 场景 | 项目差异 |
 | --- | --- |
-| 注释语言 | 遵循 Skill `references/general-standards/common-rules.md` 的跨语言中文注释规则；覆盖源码、配置及文档代码示例，第三方版权与许可声明保留原文。 |
-| 必要注释 | 函数和类的注释先说明功能（做什么、操作什么数据、返回什么）；之后再补充读代码看不出的业务规则、边界条件、安全和隐私约束、非显然算法和兼容性取舍。行内注释写原因和后果。 |
-| 写法 | 写给第一次读这段代码的维护者：用完整的句子和代码里查得到的名称，写明具体是什么数据、什么期限、由谁调用。术语要能在代码或 `project/glossary.md` 里查到。详细规则见 Skill `references/general-standards/common-rules.md` 的“注释原则”。 |
-| 避免注释 | 不把显而易见的语句改写成注释，不用注释掩盖混乱实现。不写代码没做什么（范围决定放需求或架构文档，移除原因放提交信息），不写工单号（如 `M-002`、`CR-001`），不写给评审者看的自证，不为不存在的调用方、测试或场景写说明。 |
+| 工单号 | 本项目的工作包和变更编号形如 `M-002`、`CR-001`，同样不写进注释 |
 
 ## 9. 自动化检查与边界
 
@@ -114,8 +112,7 @@ related_files: []
 | TypeScript 布尔变量、参数和属性使用语义前缀；主体保持 PascalCase，保证整体名称符合 lowerCamelCase | `eslint.config.mjs` 的 `@typescript-eslint/naming-convention`；已在协议中发布的 `blocked`、`cancelRequested`、`dark`、`upload`、`refresh` 保留原名，改协议时再迁移 |
 | Android 同一 Maven 模块在运行、测试和构建工具里只解析一个版本 | `apps/mobile/android/dependency-security.json` 的 `singleVersionModules`，由 `settings.gradle` 应用；`pnpm security:android` 发现多版本时失败。这一步要联网并重新解析依赖，不在 `pnpm check` 里 |
 | 编码、BOM、换行与严格类型 | `scripts/check-text.mjs`、`tsconfig.base.json`；`pnpm check:text`、`pnpm typecheck` |
-| 自动化测试准入 | 默认不新增或扩写，只有维护者在当前任务明确要求时才写；长期测试只守 API、数据结构、持久化、文件安全和核心业务结果 |
-| 界面检查 | 通过实际运行、设备操作和浏览器交互，按常规字号及常用移动设备尺寸检查；不验证极端字体大小。交付效果时直接打开可交互的浏览器预览并保留，不提供截图。按钮、文案、DOM、CSS、颜色、布局和快照不进入长期自动化测试 |
+| 界面检查 | 通过实际运行、设备操作和浏览器交互，按常规字号及常用移动设备尺寸检查；不验证极端字体大小。按钮、文案、DOM、CSS、颜色、布局和快照不进入长期自动化测试；测试准入见[测试规范](testing-style.md) |
 | 全量测试 | `pnpm test:all`；用于发布前、大范围高风险改动或维护者明确要求时，`pnpm check` 和普通 CI 不运行它 |
 | shared/ui 组件参数不透传样式（禁止 `style`、`className`、`styles`、`classNames` 与剩余属性展开）、主入口不导入 ui 入口 | `eslint.config.mjs` 按 `apps/shared/src/ui` 目录用 `no-restricted-syntax` 禁止这些参数名、继承 `HTMLAttributes`/`ComponentProps`/`CSSProperties`、JSX 展开与剩余参数，并用 `no-restricted-imports` 限制导入；Props 命名导出与 TSDoc 用途说明由人工评审 |
 | 文件与目录命名、JavaScript 布尔变量业务命名、文档语义完整性、日志脱敏、事件生命周期及 JS Promise 失败处理 | 由人工评审；JavaScript 无类型信息，ESLint 只检查其 lowerCamelCase 基础命名 |
