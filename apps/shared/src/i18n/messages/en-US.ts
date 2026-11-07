@@ -302,6 +302,7 @@ export const enUS: Messages = {
   'service.discoveryOn': 'Broadcasting',
   'service.discoveryFailed': 'Failed, retrying shortly',
   'service.noAddress': 'Local address unavailable',
+  'service.addressLoading': 'Reading local address',
   'service.showQr': 'Show QR code',
   'service.qrTitle': 'Scan with another device to connect',
 

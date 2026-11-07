@@ -48,16 +48,7 @@ export interface Palette {
   readonly cover3: string
   readonly onCover: string
   readonly onCoverLine: string
-  /** 连接二维码的底色和模块色；明暗相同。 */
-  readonly qrBg: string
-  readonly qrFg: string
 }
-
-/**
- * 连接二维码的底色和模块色。深色主题也用白底黑模块：相机扫码要求深色模块在浅色底上，
- * 反色的二维码有些识别库读不出。
- */
-export const QR_COLORS = { qrBg: '#ffffff', qrFg: '#000000' } as const
 
 const COVERS = {
   cover0: 'linear-gradient(155deg, #c3dcf2, #7b9fc8 45%, #2f4a7d)',
@@ -98,7 +89,6 @@ export const PALETTES: Readonly<Record<ResolvedTheme, Palette>> = {
     scrim: 'rgba(18, 24, 38, 0.38)',
     shadow: '0 1px 2px rgba(23, 32, 51, 0.06), 0 6px 18px rgba(23, 32, 51, 0.06)',
     ...COVERS,
-    ...QR_COLORS,
   },
   dark: {
     bg: '#000000',
@@ -129,7 +119,6 @@ export const PALETTES: Readonly<Record<ResolvedTheme, Palette>> = {
     scrim: 'rgba(0, 0, 0, 0.6)',
     shadow: '0 1px 2px rgba(0, 0, 0, 0.5)',
     ...COVERS,
-    ...QR_COLORS,
   },
 }
 

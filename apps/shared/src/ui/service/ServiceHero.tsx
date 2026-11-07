@@ -26,6 +26,8 @@ export interface ServiceHeroProps {
   readonly state: ServiceHeroState
   /** 推荐地址，写成 `IPv4:端口`；服务停止或读不到本机地址时为 null。 */
   readonly address: string | null
+  /** 服务已启动、本机地址还在读取：地址位置和二维码位置显示加载动画。 */
+  readonly isAddressLoading: boolean
   /** 开始监听的时间（Unix 毫秒），运行时据此显示运行时长；服务停止时为 null。 */
   readonly startedAt: number | null
   /** 当前连着本机的设备名；没有连接时为 null，显示“—”。 */
@@ -109,6 +111,7 @@ function useUptime(startedAt: number | null): string | null {
 export function ServiceHero({
   state,
   address,
+  isAddressLoading,
   startedAt,
   connectedName,
   discovery,
@@ -136,7 +139,11 @@ export function ServiceHero({
           </div>
           {isRunning ? (
             <div className="ss-service-address">
-              {address === null ? (
+              {isAddressLoading ? (
+                <span className="ss-service-no-address" role="status">
+                  <LoadingOutlined /> {t('service.addressLoading')}
+                </span>
+              ) : address === null ? (
                 <span className="ss-service-no-address">{t('service.noAddress')}</span>
               ) : (
                 <>
@@ -186,7 +193,15 @@ export function ServiceHero({
             </dl>
           )}
         </div>
-        {isRunning && qrText !== null && (
+        {isRunning && isAddressLoading && (
+          <div className="ss-service-qr">
+            {/* 和二维码同样大小，读到地址后二维码出现在原处，卡片不跳动。 */}
+            <div className="ss-connection-qr-placeholder" aria-hidden="true">
+              <LoadingOutlined />
+            </div>
+          </div>
+        )}
+        {isRunning && !isAddressLoading && qrText !== null && (
           <div className="ss-service-qr">
             <ConnectionQr text={qrText} size={132} label={t('service.qrTitle')} />
           </div>

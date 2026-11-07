@@ -124,6 +124,8 @@ export function DesktopApp({
     }
   }, [isBusy])
   const [copied, setCopied] = useState('')
+  const copiedTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
+  useEffect(() => () => clearTimeout(copiedTimer.current), [])
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null)
   const [interruptedWrites, setInterruptedWrites] = useState<readonly InterruptedWrite[]>([])
 
@@ -183,6 +185,19 @@ export function DesktopApp({
       clearTimeout(timer)
     }
   }, [refresh, invalidate, showError])
+  // 服务刚启动时主进程还在读取本机地址（通常不到半秒）。这期间每 250 毫秒再读一次快照，
+  // 不等 1.8 秒的常规轮询，地址读到后尽快显示。
+  const isAddressLoading =
+    Boolean(snapshot?.service?.listener) && snapshot?.service?.ipv4Addresses === null
+  useEffect(() => {
+    if (!isAddressLoading) {
+      return
+    }
+    const timer = setTimeout(() => {
+      refresh().catch((cause: unknown) => showError(toShownError(cause)))
+    }, 250)
+    return () => clearTimeout(timer)
+  }, [isAddressLoading, snapshot, refresh, showError])
   // 传输结束时用 Message 提示一次结果；打开应用时已经结束的任务只在详情里看。
   const copyStatuses = useRef<ReadonlyMap<string, string> | null>(null)
   useEffect(() => {
@@ -461,10 +476,16 @@ export function DesktopApp({
     })
   }
   function copyAddress(address: string): void {
-    run(async () => {
-      await navigator.clipboard.writeText(formatConnectionAddress(address))
-      setCopied(address)
-    })
+    navigator.clipboard
+      .writeText(formatConnectionAddress(address))
+      .then(() => {
+        appMessage.show({ type: 'success', content: t('common.copied'), slot: 'copy-address' })
+        // 复制按钮显示对勾 2 秒后换回复制图标；连续复制时从最后一次重新计时。
+        setCopied(address)
+        clearTimeout(copiedTimer.current)
+        copiedTimer.current = setTimeout(() => setCopied(''), 2000)
+      })
+      .catch((cause: unknown) => showError(toShownError(cause)))
   }
   function toggleService(): void {
     const service = snapshot?.service

@@ -24,8 +24,8 @@ export interface DesktopServiceView {
     /** 开始监听的时间（Unix 毫秒）。 */
     readonly startedAt: number
   } | null
-  /** 本机 IPv4 地址，按推荐顺序排列，最多 8 个；服务停止或读不到网卡时为空数组。 */
-  readonly ipv4Addresses: readonly string[]
+  /** 本机 IPv4 地址，按推荐顺序排列，最多 8 个；服务启动后还在读取时为 null，服务停止或读不到网卡时为空数组。 */
+  readonly ipv4Addresses: readonly string[] | null
   readonly discovery: DesktopDiscoveryState
 }
 

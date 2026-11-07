@@ -7,204 +7,294 @@ import { MAX_CANDIDATE_ADDRESSES } from '@savedata-sync/shared'
 
 const execFileAsync = promisify(execFile)
 const CACHE_MS = 30_000
+const QUERY_TIMEOUT_MS = 10_000
+/** 路由表里查不到 metric 的地址排在查得到的后面。 */
+const UNKNOWN_METRIC = 1_000_000
+/** 网卡设备类的注册表键，每块网卡一个子键，记录 NetCfgInstanceId（网卡 GUID）和 Characteristics。 */
+const ADAPTER_CLASS_KEY =
+  'HKLM\\SYSTEM\\CurrentControlSet\\Control\\Class\\{4d36e972-e325-11ce-bfc1-08002be10318}'
+/** 每块网卡的 TCP/IP 设置，子键名是网卡 GUID，记录手动配置的 IPAddress 和 DHCP 分到的 DhcpIPAddress。 */
+const TCPIP_INTERFACES_KEY =
+  'HKLM\\SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters\\Interfaces'
+/** Characteristics 的 NCF_VIRTUAL 和 NCF_PHYSICAL 位，由网卡驱动安装信息写入。 */
+const NCF_VIRTUAL = 0x1
+const NCF_PHYSICAL = 0x4
 
-/** Windows 网卡的 IPv4 地址、默认网关及排序信息。 */
+/** 本机一个 IPv4 地址及其所在网卡的信息，用来判断其他设备能不能访问到它。 */
 export interface NetworkAddressCandidate {
   readonly address: string
   readonly interfaceName: string
-  /** 默认路由的下一跳。 */
-  readonly gateway: string | null
-  /** 网关与接口 metric 之和。 */
+  /**
+   * 网卡驱动声明自己是物理网卡（NCF_PHYSICAL 且不是 NCF_VIRTUAL），如 PCI 有线网卡、无线网卡和 USB 网卡；
+   * 虚拟机、Hyper-V、VPN、代理和热点网卡都不是。注册表里找不到这个地址时按非物理网卡处理。
+   */
+  readonly isPhysical: boolean
+  /** 地址所在网卡上有 IPv4 默认路由。 */
+  readonly hasDefaultRoute: boolean
+  /** 有默认路由时取默认路由的 metric，否则取本机地址主机路由的 metric。越小越优先。 */
   readonly metric: number
 }
 
-interface ParsedGateway {
-  readonly address: string
-  metric: number | null
+/** `route print -4` 中按本机地址整理出的路由 metric。 */
+export interface LocalRouteMetrics {
+  /** 本机地址 → 经它出去的默认路由（0.0.0.0/0）中最小的 metric。 */
+  readonly defaultRoutes: ReadonlyMap<string, number>
+  /** 本机地址 → 指向它自己的主机路由（/32）的 metric，等于接口 metric 加 256。 */
+  readonly hostRoutes: ReadonlyMap<string, number>
 }
 
-interface ParsedInterface {
-  readonly interfaceName: string
-  readonly addresses: string[]
-  readonly gateways: ParsedGateway[]
-  metric: number | null
-}
+/** Windows 移动热点和 Internet 连接共享固定使用的本机地址；这块网卡是虚拟的、没有默认路由，但连上热点的设备能访问。 */
+const WINDOWS_HOTSPOT_ADDRESS = '192.168.137.1'
 
-function parseMetric(value: string): number {
-  const metric = Number(value)
-  if (!/^\d+$/.test(value) || !Number.isSafeInteger(metric) || metric < 0) {
-    throw new Error('Netsh returned an invalid network metric.')
-  }
-  return metric
+function setMinimum(map: Map<string, number>, key: string, value: number): void {
+  map.set(key, Math.min(value, map.get(key) ?? value))
 }
 
 /**
- * 解析英文 netsh IPv4 地址输出，保留各接口的多个 IP，采用 metric 最小的默认网关。
- * 返回未排序的候选；缺少接口头、地址格式错误或 metric 缺失时抛出错误。
+ * 解析 `route print -4` 的活动路由表。只读每行开头的目标、掩码和末尾的接口地址、metric：
+ * 表头和网关列（“On-link”）会随系统语言变化，但这几列始终是数字。
+ * 永久路由表每行只有四列、没有接口地址，按列数排除。
  */
-export function parseNetshAddresses(output: string): NetworkAddressCandidate[] {
-  const interfaces: ParsedInterface[] = []
-  let current: ParsedInterface | null = null
-  let gateway: ParsedGateway | null = null
+export function parseRoutePrint(output: string): LocalRouteMetrics {
+  const defaultRoutes = new Map<string, number>()
+  const hostRoutes = new Map<string, number>()
   for (const line of output.split(/\r?\n/)) {
-    const header = /^Configuration for interface "(.*)"\s*$/.exec(line)
-    if (header) {
-      current = { interfaceName: header[1] ?? '', addresses: [], gateways: [], metric: null }
-      interfaces.push(current)
-      gateway = null
+    const columns = line.trim().split(/\s+/)
+    const [destination = '', mask = ''] = columns
+    const local = columns.at(-2) ?? ''
+    const metric = Number(columns.at(-1))
+    if (columns.length < 5 || !isIPv4(local) || !Number.isSafeInteger(metric) || metric < 0) {
       continue
     }
-    const field =
-      /^\s*(IP Address|Default Gateway|Gateway Metric|InterfaceMetric):\s*(.*?)\s*$/.exec(line)
-    if (!current || !field) {
+    if (destination === '0.0.0.0' && mask === '0.0.0.0') {
+      setMinimum(defaultRoutes, local, metric)
+    } else if (destination === local && mask === '255.255.255.255') {
+      setMinimum(hostRoutes, local, metric)
+    }
+  }
+  return { defaultRoutes, hostRoutes }
+}
+
+/** `reg query` 输出中的一个值；data 是 reg 打印的原文，REG_MULTI_SZ 各项以 `\0` 分隔。 */
+interface RegistryValue {
+  readonly key: string
+  readonly name: string
+  readonly data: string
+}
+
+function parseRegistryQuery(output: string): RegistryValue[] {
+  const values: RegistryValue[] = []
+  let key = ''
+  for (const line of output.split(/\r?\n/)) {
+    if (line.startsWith('HKEY_')) {
+      key = line.trim()
       continue
     }
-    const value = field[2] ?? ''
-    if (field[1] === 'IP Address') {
-      if (!isIPv4(value)) {
-        throw new Error('Netsh returned an invalid IPv4 address.')
-      }
-      current.addresses.push(value)
-    } else if (field[1] === 'Default Gateway') {
-      gateway = null
-      if (value && value !== '0.0.0.0') {
-        if (!isIPv4(value)) {
-          throw new Error('Netsh returned an invalid default gateway.')
-        }
-        gateway = { address: value, metric: null }
-        current.gateways.push(gateway)
-      }
-    } else if (field[1] === 'Gateway Metric' && gateway) {
-      gateway.metric = parseMetric(value)
-    } else if (field[1] === 'InterfaceMetric') {
-      current.metric = parseMetric(value)
+    const match = /^\s+(\S+)\s+REG_[A-Z0-9_]+\s*(.*)$/.exec(line)
+    if (match && key) {
+      values.push({ key, name: match[1] ?? '', data: (match[2] ?? '').trim() })
     }
   }
-  if (interfaces.length === 0) {
-    throw new Error('Netsh returned an unrecognized address configuration.')
-  }
-  return interfaces.flatMap((item) => {
-    if (item.addresses.length === 0) {
-      return []
-    }
-    if (item.metric === null) {
-      throw new Error('Netsh did not return an interface metric.')
-    }
-    const gateways = item.gateways.map((entry) => {
-      if (entry.metric === null) {
-        throw new Error('Netsh did not return a gateway metric.')
-      }
-      return { address: entry.address, metric: entry.metric }
-    })
-    const bestGateway = gateways.sort((a, b) => a.metric - b.metric)[0]
-    const metric = item.metric + (bestGateway?.metric ?? 0)
-    if (!Number.isSafeInteger(metric)) {
-      throw new Error('Netsh returned an invalid combined metric.')
-    }
-    return item.addresses.map((address) => ({
-      address,
-      interfaceName: item.interfaceName,
-      gateway: bestGateway?.address ?? null,
-      metric,
-    }))
-  })
+  return values
 }
 
 /**
- * 将候选地址按默认网关和 metric 排序，有默认网关的接口优先，返回过滤后的新数组。
- * 同级先比较 metric，再用接口名称和地址稳定排序；没有合适地址时返回空数组。
+ * 从网卡设备类和 TCP/IP 设置的注册表查询结果中找出物理网卡上的 IPv4 地址。
+ * classOutput 是 ADAPTER_CLASS_KEY 下 NetCfgInstanceId 和 Characteristics 两次查询的输出拼在一起，
+ * tcpipOutput 是 TCPIP_INTERFACES_KEY 下按名称搜索 IPAddress 的输出。
+ * 只取网卡 GUID 子键本身的地址：其下按无线网络分开的子键保存的是以前连过的网络分到的地址。
+ * 停用或断开的网卡也可能留着上次的地址，调用方要再用 os.networkInterfaces 核对。
+ */
+export function parsePhysicalAddresses(classOutput: string, tcpipOutput: string): Set<string> {
+  const adapters = new Map<string, { id?: string; characteristics?: number }>()
+  for (const value of parseRegistryQuery(classOutput)) {
+    const adapter = adapters.get(value.key) ?? {}
+    if (value.name === 'NetCfgInstanceId') {
+      adapter.id = value.data.toLowerCase()
+    } else if (value.name === 'Characteristics') {
+      adapter.characteristics = Number(value.data)
+    }
+    adapters.set(value.key, adapter)
+  }
+  const physicalIds = new Set(
+    [...adapters.values()]
+      .filter(
+        ({ id, characteristics = 0 }) =>
+          id && (characteristics & NCF_PHYSICAL) !== 0 && (characteristics & NCF_VIRTUAL) === 0,
+      )
+      .map(({ id }) => id),
+  )
+  const addresses = new Set<string>()
+  for (const value of parseRegistryQuery(tcpipOutput)) {
+    const id = /\\Interfaces\\(\{[0-9a-f-]+\})$/i.exec(value.key)?.[1]?.toLowerCase()
+    if (id && physicalIds.has(id) && /^(Dhcp)?IPAddress$/.test(value.name)) {
+      for (const address of value.data.split('\\0')) {
+        if (isIPv4(address)) {
+          addresses.add(address)
+        }
+      }
+    }
+  }
+  return addresses
+}
+
+function isUsableAddress(address: string): boolean {
+  const [first = 0, second = 0] = address.split('.').map(Number)
+  return (
+    isIPv4(address) &&
+    first > 0 &&
+    first < 224 &&
+    first !== 127 &&
+    !address.startsWith('169.254.') &&
+    // 198.18.0.0/15 是测试保留段，代理软件的虚拟网卡（TUN）常用它，其他设备访问不到。
+    !(first === 198 && (second === 18 || second === 19))
+  )
+}
+
+function byMetric(a: NetworkAddressCandidate, b: NetworkAddressCandidate): number {
+  return (
+    a.metric - b.metric ||
+    a.interfaceName.localeCompare(b.interfaceName) ||
+    a.address.localeCompare(b.address, 'en', { numeric: true })
+  )
+}
+
+/**
+ * 选出其他设备可能访问到的地址并排序，返回新数组；没有合适地址时返回空数组。
+ * 虚拟机、Hyper-V、Docker、VPN 和代理的虚拟网卡不选：其他设备访问不到，列出来既暴露本机的内部网络，
+ * 又会让扫码的设备去连它所在网络里碰巧用同一地址的其他主机。按下面的顺序取第一组非空的局域网地址：
+ * 1. 物理网卡且有默认路由。VPN、代理即使接管了默认路由也是虚拟网卡，不会选上。
+ * 2. 任意有默认路由的网卡。Hyper-V 外部交换机会把本机地址移到虚拟网卡上，此时只能退到这一组。
+ * 局域网地址之后再加上 Windows 移动热点地址。两组都没有地址时：有热点只给热点，
+ * 否则（例如两台设备用网线直连、手动配置地址）退回全部可用地址，免得没有地址可试。
+ * 组内先比较 metric，再用接口名称和地址稳定排序。
  */
 export function rankNetworkAddresses(
   candidates: readonly NetworkAddressCandidate[],
 ): NetworkAddressCandidate[] {
-  return candidates
-    .filter((candidate) => {
-      const address = candidate.address
-      const firstOctet = Number(address.split('.')[0])
-      return (
-        isIPv4(address) &&
-        firstOctet > 0 &&
-        firstOctet < 224 &&
-        firstOctet !== 127 &&
-        !address.startsWith('169.254.')
-      )
-    })
-    .sort(
-      (a, b) =>
-        Number(a.gateway === null) - Number(b.gateway === null) ||
-        a.metric - b.metric ||
-        a.interfaceName.localeCompare(b.interfaceName) ||
-        a.address.localeCompare(b.address, 'en', { numeric: true }),
-    )
+  const usable = candidates.filter((candidate) => isUsableAddress(candidate.address))
+  const hotspots = usable.filter((candidate) => candidate.address === WINDOWS_HOTSPOT_ADDRESS)
+  const others = usable.filter((candidate) => candidate.address !== WINDOWS_HOTSPOT_ADDRESS)
+  const lan = [
+    others.filter((candidate) => candidate.isPhysical && candidate.hasDefaultRoute),
+    others.filter((candidate) => candidate.hasDefaultRoute),
+  ].find((group) => group.length > 0)
+  if (lan) {
+    return [...lan.sort(byMetric), ...hotspots]
+  }
+  return hotspots.length ? hotspots : usable.sort(byMetric)
+}
+
+async function runSystemTool(file: string, args: readonly string[]): Promise<string> {
+  const systemDirectory = join(process.env.SystemRoot ?? 'C:\\Windows', 'System32')
+  // 输出按系统代码页编码；这里只解析其中的 ASCII 部分（地址、数字、GUID），按 latin1 读入不会改变它们。
+  const { stdout } = await execFileAsync(join(systemDirectory, file), args, {
+    encoding: 'latin1',
+    windowsHide: true,
+    timeout: QUERY_TIMEOUT_MS,
+    maxBuffer: 4 * 1024 * 1024,
+  })
+  return stdout
+}
+
+/** 注册表查询失败时（如键不存在、没有匹配项时 reg 以非零退出）按没有物理网卡处理，地址选择退到默认路由。 */
+async function readRegistry(args: readonly string[]): Promise<string> {
+  try {
+    return await runSystemTool('reg.exe', ['query', ...args])
+  } catch (error) {
+    console.warn('Failed to read the network adapter registry.', error)
+    return ''
+  }
 }
 
 /**
- * 异步运行英文 netsh 查询，并用 os.networkInterfaces 核对本机非回环 IPv4 地址。
- * 返回按默认网关和 metric 排序的地址。
- * 查询进程隐藏运行，最长等待 20 秒；系统查询失败、输出格式错误或非 Windows 平台时 reject。
+ * 读取本机非回环 IPv4 地址（os.networkInterfaces），用 `route print -4` 查默认路由和 metric，
+ * 用 `reg query` 查网卡是不是物理网卡，返回 rankNetworkAddresses 选出并排序的地址。
+ * 四个系统命令并行运行、隐藏窗口，每个最长等 10 秒，通常共约 0.2–0.3 秒。
+ * 路由表读取失败或非 Windows 平台时 reject；注册表读取失败只记录警告。
  */
 export async function queryNetworkAddresses(): Promise<NetworkAddressCandidate[]> {
   if (process.platform !== 'win32') {
     throw new Error('Network address selection requires Windows.')
   }
-  const systemDirectory = join(process.env.SystemRoot ?? 'C:\\Windows', 'System32')
-  const command = `chcp 437 >nul && "${join(systemDirectory, 'netsh.exe')}" interface ipv4 show address`
-  const { stdout } = await execFileAsync(
-    join(systemDirectory, 'cmd.exe'),
-    ['/d', '/s', '/c', command],
-    {
-      encoding: 'utf8',
-      windowsHide: true,
-      windowsVerbatimArguments: true,
-      timeout: 20_000,
-      maxBuffer: 1024 * 1024,
-    },
-  )
-  const localAddresses = new Set(
-    Object.values(networkInterfaces()).flatMap((items) =>
+  const [routes, classIds, classCharacteristics, tcpip] = await Promise.all([
+    runSystemTool('route.exe', ['print', '-4']),
+    readRegistry([ADAPTER_CLASS_KEY, '/s', '/v', 'NetCfgInstanceId']),
+    readRegistry([ADAPTER_CLASS_KEY, '/s', '/v', 'Characteristics']),
+    readRegistry([TCPIP_INTERFACES_KEY, '/s', '/f', 'IPAddress']),
+  ])
+  const { defaultRoutes, hostRoutes } = parseRoutePrint(routes)
+  const physical = parsePhysicalAddresses(`${classIds}\n${classCharacteristics}`, tcpip)
+  return rankNetworkAddresses(
+    Object.entries(networkInterfaces()).flatMap(([interfaceName, items]) =>
       (items ?? [])
         .filter((item) => item.family === 'IPv4' && !item.internal)
-        .map((item) => item.address),
+        .map(({ address }) => {
+          const defaultMetric = defaultRoutes.get(address)
+          return {
+            address,
+            interfaceName,
+            isPhysical: physical.has(address),
+            hasDefaultRoute: defaultMetric !== undefined,
+            metric: defaultMetric ?? hostRoutes.get(address) ?? UNKNOWN_METRIC,
+          }
+        }),
     ),
-  )
-  return rankNetworkAddresses(
-    parseNetshAddresses(stdout).filter((item) => localAddresses.has(item.address)),
   )
 }
 
-/**
- * 创建本机 IPv4 地址读取器，供服务快照调用。返回按推荐顺序排列的地址，第一个是推荐地址，
- * 最多 MAX_CANDIDATE_ADDRESSES 个，与连接二维码能携带的候选地址数相同；无候选或查询失败时为空数组。
- * 首次读取等待查询完成；结果缓存 30 秒，过期后读取仍返回缓存并在后台刷新。
- * 同时发起的读取共用一次查询，查询失败会记录错误并清空地址，下次到期重试。
- */
-export function createNetworkAddressReader(): () => Promise<readonly string[]> {
-  let addresses: readonly string[] = []
-  let hasLoaded = false
+/** 服务快照用的本机 IPv4 地址读取器，见 createNetworkAddressReader。 */
+export interface NetworkAddressReader {
+  /**
+   * 立即返回缓存的地址，按推荐顺序排列，第一个是推荐地址，最多 MAX_CANDIDATE_ADDRESSES 个；
+   * 还没读到时返回 null，无候选或查询失败时为空数组。缓存不存在或超过 30 秒时在后台查询，
+   * 查询期间仍返回缓存；同一时间只有一次查询。
+   */
+  read(): readonly string[] | null
+  /** 丢弃缓存，之后的 read 在新的查询完成前返回 null。进行中的查询结果作废。 */
+  reset(): void
+}
+
+/** 创建本机 IPv4 地址读取器；query 默认为 queryNetworkAddresses。查询失败时记录错误并缓存空数组，30 秒后重试。 */
+export function createNetworkAddressReader(
+  query: () => Promise<readonly NetworkAddressCandidate[]> = queryNetworkAddresses,
+): NetworkAddressReader {
+  let addresses: readonly string[] | null = null
   let refreshAt = 0
-  let pending: Promise<readonly string[]> | null = null
-  return () => {
-    if (pending === null && Date.now() >= refreshAt) {
-      pending = queryNetworkAddresses()
-        .then((candidates) => {
-          // 同一地址可能出现在两块网卡上（如桥接），只保留排序靠前的一次。
-          addresses = [...new Set(candidates.map((item) => item.address))].slice(
-            0,
-            MAX_CANDIDATE_ADDRESSES,
-          )
-          return addresses
-        })
-        .catch((error: unknown) => {
-          console.error('Failed to read the local IPv4 addresses.', error)
-          addresses = []
-          return addresses
-        })
-        .finally(() => {
-          hasLoaded = true
-          refreshAt = Date.now() + CACHE_MS
-          pending = null
-        })
+  let generation = 0
+  let isQuerying = false
+  async function refresh(): Promise<void> {
+    const current = generation
+    let result: readonly string[] = []
+    try {
+      // 同一地址可能出现在两块网卡上（如桥接），只保留排序靠前的一次。
+      result = [...new Set((await query()).map((item) => item.address))].slice(
+        0,
+        MAX_CANDIDATE_ADDRESSES,
+      )
+    } catch (error) {
+      console.error('Failed to read the local IPv4 addresses.', error)
+    } finally {
+      isQuerying = false
     }
-    return hasLoaded ? Promise.resolve(addresses) : (pending ?? Promise.resolve(addresses))
+    if (current === generation) {
+      addresses = result
+      refreshAt = Date.now() + CACHE_MS
+    }
+  }
+  return {
+    read() {
+      if (!isQuerying && Date.now() >= refreshAt) {
+        isQuerying = true
+        // refresh 自己捕获查询错误，这里只防止意外异常变成未处理的 Promise。
+        refresh().catch((error: unknown) => console.error(error))
+      }
+      return addresses
+    },
+    reset() {
+      generation++
+      addresses = null
+      refreshAt = 0
+    },
   }
 }

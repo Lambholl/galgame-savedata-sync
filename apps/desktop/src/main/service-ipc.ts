@@ -39,11 +39,10 @@ export function registerServiceIpc(
   options: ServiceIpcOptions,
 ): () => void {
   const targets = new Map<string, DirectoryReference>()
-  const readNetworkAddresses = createNetworkAddressReader()
+  const networkAddresses = createNetworkAddressReader()
   let isMutating = false
-  async function snapshot(): Promise<OperationResult<DesktopServiceSnapshot>> {
-    const networkAddresses = service.getAddress() ? await readNetworkAddresses() : []
-    // 查询网卡时，服务可能已停止或换了端口。查完网卡重新查一遍服务和端口以保证界面信息最新。
+  // 快照不等待网卡查询：服务运行时带上缓存的地址，还没读到时为 null，界面显示读取中并加快轮询。
+  function snapshot(): OperationResult<DesktopServiceSnapshot> {
     const address = service.getAddress()
     return {
       status: 'success',
@@ -55,7 +54,7 @@ export function registerServiceIpc(
           ? {
               host: address.host,
               port: address.port,
-              ipv4Addresses: networkAddresses,
+              ipv4Addresses: networkAddresses.read(),
               startedAt: address.startedAt,
             }
           : null,
@@ -125,6 +124,8 @@ export function registerServiceIpc(
           }
           await options.portSettings.save(port)
           const listener = await service.start({ host: '0.0.0.0', port })
+          // 服务停止期间网络可能变了（换了 Wi-Fi、开了 VPN），每次启动都重新读取地址。
+          networkAddresses.reset()
           options.advertiser.start({
             port: listener.port,
             deviceId: adapter.deviceId,

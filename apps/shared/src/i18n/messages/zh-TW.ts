@@ -286,6 +286,7 @@ export const zhTW: Messages = {
   'service.discoveryOn': '正在廣播',
   'service.discoveryFailed': '廣播失敗，稍後自動重試',
   'service.noAddress': '讀不到本機位址',
+  'service.addressLoading': '正在讀取本機位址',
   'service.showQr': '顯示 QR 碼',
   'service.qrTitle': '用另一台裝置掃描連線',
 

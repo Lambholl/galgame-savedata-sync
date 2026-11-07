@@ -30,9 +30,10 @@ export interface DesktopServiceSnapshot {
     readonly port: number
     /**
      * 本机 IPv4 地址（不含端口），按推荐顺序排列，第一个是推荐地址；最多 MAX_CANDIDATE_ADDRESSES 个。
-     * 设备页显示第一个，连接二维码带全部。查询网卡失败或没有可用网卡时为空数组。
+     * 设备页显示第一个，连接二维码带全部。服务启动后还没读到时为 null（通常不到半秒），
+     * 查询网卡失败或没有可用网卡时为空数组。
      */
-    readonly ipv4Addresses: readonly string[]
+    readonly ipv4Addresses: readonly string[] | null
     /** 开始监听的时间（Unix 毫秒）。 */
     readonly startedAt: number
   } | null
@@ -141,9 +142,10 @@ function isSnapshot(value: unknown): value is DesktopServiceSnapshot {
         listener.port > 0 &&
         listener.port <= 65535 &&
         'ipv4Addresses' in listener &&
-        Array.isArray(listener.ipv4Addresses) &&
-        listener.ipv4Addresses.length <= MAX_CANDIDATE_ADDRESSES &&
-        listener.ipv4Addresses.every(isIpv4Address) &&
+        (listener.ipv4Addresses === null ||
+          (Array.isArray(listener.ipv4Addresses) &&
+            listener.ipv4Addresses.length <= MAX_CANDIDATE_ADDRESSES &&
+            listener.ipv4Addresses.every(isIpv4Address))) &&
         'startedAt' in listener &&
         typeof listener.startedAt === 'number' &&
         Number.isSafeInteger(listener.startedAt))) &&

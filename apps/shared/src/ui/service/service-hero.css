@@ -87,6 +87,8 @@
   font-size: clamp(20px, 4.2cqi, 36px);
   font-weight: 700;
   line-height: 1.15;
+  /* 换成读取中或读不到地址的小字时保持地址行高度，卡片内容不上下跳动。 */
+  min-height: 1.15em;
   font-variant-numeric: tabular-nums;
 }
 .ss-service-address > .ss-copyable {
@@ -148,13 +150,29 @@
   flex-shrink: 0;
 }
 
-/* 二维码四周留出约 2 个模块宽的白边，深色主题下也是白底，扫码时和卡片底色分开。 */
+/*
+ * 二维码四周留出约 2 个模块宽的空白，扫码时和卡片底色分开。底色用卡片色 group、模块用正文色 fg：
+ * 浅色主题白底深色码；深色主题深底浅色码，是反色二维码，扫码端的识别库要能读反色。
+ */
 .ss-connection-qr {
   display: inline-block;
   padding: 8px;
   border-radius: var(--ss-r-sm);
-  background: var(--ss-qr-bg);
+  background: var(--ss-group);
+  color: var(--ss-fg);
   line-height: 0;
+}
+
+/* 读取地址时占住二维码的位置：132 + 2 × 8 留白。 */
+.ss-connection-qr-placeholder {
+  display: grid;
+  place-items: center;
+  width: 148px;
+  height: 148px;
+  border-radius: var(--ss-r-sm);
+  background: var(--ss-group);
+  color: var(--ss-muted);
+  font-size: 24px;
 }
 
 /* 开关和它身后的光晕。光晕只比开关大一圈，不伸到文字区域里。 */

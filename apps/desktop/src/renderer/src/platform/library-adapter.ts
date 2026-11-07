@@ -44,7 +44,7 @@ export function createDesktopLibraryAdapter(): DesktopLibraryAdapter {
             port: status.listener.port,
             startedAt: status.listener.startedAt,
           },
-          ipv4Addresses: status.listener?.ipv4Addresses ?? [],
+          ipv4Addresses: status.listener ? status.listener.ipv4Addresses : [],
           discovery: status.discovery,
         },
         tasks: status.tasks.map((local) => ({

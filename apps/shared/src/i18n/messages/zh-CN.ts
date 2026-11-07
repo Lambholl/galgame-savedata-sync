@@ -297,6 +297,7 @@ export const zhCN = {
   'service.discoveryOn': '正在广播',
   'service.discoveryFailed': '广播失败，稍后自动重试',
   'service.noAddress': '读不到本机地址',
+  'service.addressLoading': '正在读取本机地址',
   'service.showQr': '显示二维码',
   'service.qrTitle': '用另一台设备扫码连接',
 

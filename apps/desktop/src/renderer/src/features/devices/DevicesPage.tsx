@@ -45,15 +45,13 @@ export function DevicesPage({
   const t = useT()
   const [isQrOpen, setIsQrOpen] = useState(false)
   const listener = service?.listener ?? null
-  const recommended = service?.ipv4Addresses[0]
+  // null 表示服务刚启动、还在读取本机地址。
+  const addresses = service ? service.ipv4Addresses : []
+  const recommended = addresses?.[0]
   const address = listener && recommended ? `${recommended}:${listener.port}` : null
   const qrText =
-    service && listener && service.ipv4Addresses.length > 0
-      ? createConnectionQrText({
-          deviceId: service.deviceId,
-          port: listener.port,
-          addresses: service.ipv4Addresses,
-        })
+    service && listener && addresses?.length
+      ? createConnectionQrText({ deviceId: service.deviceId, port: listener.port, addresses })
       : null
   const state: ServiceHeroState = serviceChange ?? (listener ? 'running' : 'stopped')
   const isPortValid = port !== null && Number.isInteger(port) && port >= 1 && port <= 65535
@@ -63,6 +61,7 @@ export function DevicesPage({
         <ServiceHero
           state={state}
           address={address}
+          isAddressLoading={addresses === null}
           startedAt={listener?.startedAt ?? null}
           connectedName={peers.find((peer) => peer.isConnected)?.device.name ?? null}
           discovery={service.discovery.status}

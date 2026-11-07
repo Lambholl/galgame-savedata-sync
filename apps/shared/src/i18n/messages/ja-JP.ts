@@ -296,6 +296,7 @@ export const jaJP: Messages = {
   'service.discoveryOn': '公開中',
   'service.discoveryFailed': '失敗しました。まもなく再試行します',
   'service.noAddress': 'この端末のアドレスを取得できません',
+  'service.addressLoading': 'この端末のアドレスを取得しています',
   'service.showQr': 'QR コードを表示',
   'service.qrTitle': '別の端末でスキャンして接続',
 
