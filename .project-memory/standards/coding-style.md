@@ -27,9 +27,9 @@ related_files: []
 | 来源 | 路径 | 优先级 | 状态 |
 | --- | --- | --- | --- |
 | 自动化配置 | `.editorconfig`、`.gitattributes`、`.prettierrc.json`、`.prettierignore`、`eslint.config.mjs`、`apps/mobile/android/checkstyle.xml`、`tsconfig.base.json`、`package.json` | P0 | active |
-| Skill 通用规范入口 | `references/general-standards/language-baseline.md` | P1 | active |
-| Skill 通用编码规则 | `references/general-standards/common-rules.md` | P1 | active |
-| 项目记忆 | 本文件 | P2 | active |
+| 项目记忆 | 本文件 | P1 | active |
+| Skill 通用规范入口 | `references/general-standards/language-baseline.md` | P2 | active |
+| Skill 通用编码规则 | `references/general-standards/common-rules.md` | P2 | active |
 | 现有代码风格 | `apps/`、`apps/shared/`、`scripts/` | P3 | active |
 
 ## 2. 维护边界
