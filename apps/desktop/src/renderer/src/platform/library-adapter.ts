@@ -38,9 +38,14 @@ export function createDesktopLibraryAdapter(): DesktopLibraryAdapter {
         })),
         roots: unwrap(roots),
         service: {
+          deviceId: status.deviceId,
           port: status.configuredPort,
-          isRunning: Boolean(status.listener),
-          addresses: status.listener?.addresses ?? [],
+          listener: status.listener && {
+            port: status.listener.port,
+            startedAt: status.listener.startedAt,
+          },
+          ipv4Addresses: status.listener?.ipv4Addresses ?? [],
+          discovery: status.discovery,
         },
         tasks: status.tasks.map((local) => ({
           id: local.transferId,

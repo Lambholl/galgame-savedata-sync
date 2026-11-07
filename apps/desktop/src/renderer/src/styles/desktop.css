@@ -148,32 +148,31 @@ body {
   margin: 8px 0;
   font-size: 17px;
 }
-.library-device-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: 16px;
+/* 已保存的设备：一张列表卡片，每行一台设备，右侧是断开和管理。 */
+.library-device-list .ant-card-body {
+  padding-block: 4px;
+}
+.library-device-row {
+  width: 100%;
+}
+/* Listy 给每一行都画下边线，最后一行的线贴着卡片底边，多出一道。 */
+.library-device-list .ant-listy-item:last-child {
+  border-bottom: 0;
 }
 .library-device-icon {
-  width: 48px;
-  height: 48px;
-  background: var(--ss-accent-soft);
-  color: var(--ss-accent);
-  border-radius: var(--ss-r-md);
+  flex: none;
   display: grid;
   place-items: center;
-  font-size: 25px;
-  margin-bottom: 20px;
-}
-.library-dark .library-device-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--ss-r-sm);
   background: var(--ss-accent-soft);
   color: var(--ss-accent);
+  font-size: 20px;
 }
-.library-device-card h3 {
-  margin: 8px 0 14px;
-  font-size: 16px;
-}
-.library-device-card .ant-space {
-  display: flex;
+.library-device-icon.is-online {
+  background: var(--ss-accent);
+  color: var(--ss-accent-fg);
 }
 .library-device-info {
   flex: 1;
@@ -187,22 +186,18 @@ body {
   flex: none;
   margin-inline-end: 0;
 }
-.library-compact {
-  width: 100%;
-}
-.library-compact .ant-input,
-.library-compact .ant-input-affix-wrapper {
-  min-width: 0;
-  flex: 1;
-}
-.library-compact > .ant-btn {
-  flex-shrink: 0;
-}
-.library-address + .library-address {
-  margin-top: 8px;
+.library-device-caption {
+  color: var(--ss-muted);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
 }
 .library-port {
-  margin: 16px 4px 0;
+  font-size: 16px;
+}
+.library-qr-address {
+  font-size: 18px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }
 .library-game-grid {
   display: grid;

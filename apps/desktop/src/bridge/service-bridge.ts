@@ -2,10 +2,12 @@ import {
   isBatchState,
   isDirectoryReference,
   isDirectorySelectionResult,
+  isIpv4Address,
   isOpaqueId,
   isOperationError,
   isOperationResult,
   isSyncScanState,
+  MAX_CANDIDATE_ADDRESSES,
 } from '@savedata-sync/shared'
 import type {
   BatchState,
@@ -16,16 +18,23 @@ import type {
   SyncScanState,
 } from '@savedata-sync/shared'
 
-/** HTTP 服务快照，只含公开元数据；地址供移动端手动连接，写授权只在当前进程内有效。 */
+/** HTTP 服务快照，只含公开元数据；地址和设备 ID 供其他设备连接，写授权只在当前进程内有效。 */
 export interface DesktopServiceSnapshot {
+  /** 本机稳定设备 ID，写进连接二维码。 */
+  readonly deviceId: string
   /** 本机系统名称；读取失败时为 null，界面留空。 */
   readonly deviceName: string | null
   readonly configuredPort: number
   readonly listener: {
     readonly host: string
     readonly port: number
-    /** 推荐最多一个 IPv4 HTTP 地址 */
-    readonly addresses: readonly string[]
+    /**
+     * 本机 IPv4 地址（不含端口），按推荐顺序排列，第一个是推荐地址；最多 MAX_CANDIDATE_ADDRESSES 个。
+     * 设备页显示第一个，连接二维码带全部。查询网卡失败或没有可用网卡时为空数组。
+     */
+    readonly ipv4Addresses: readonly string[]
+    /** 开始监听的时间（Unix 毫秒）。 */
+    readonly startedAt: number
   } | null
   readonly error: OperationError | null
   readonly discovery: DesktopDiscoveryState
@@ -102,6 +111,7 @@ function isSnapshot(value: unknown): value is DesktopServiceSnapshot {
   if (
     typeof value !== 'object' ||
     value === null ||
+    !('deviceId' in value) ||
     !('deviceName' in value) ||
     !('configuredPort' in value) ||
     !('listener' in value) ||
@@ -114,6 +124,7 @@ function isSnapshot(value: unknown): value is DesktopServiceSnapshot {
   }
   const listener = value.listener
   return (
+    isOpaqueId(value.deviceId) &&
     (value.deviceName === null ||
       (typeof value.deviceName === 'string' && value.deviceName.length > 0)) &&
     typeof value.configuredPort === 'number' &&
@@ -129,9 +140,13 @@ function isSnapshot(value: unknown): value is DesktopServiceSnapshot {
         Number.isInteger(listener.port) &&
         listener.port > 0 &&
         listener.port <= 65535 &&
-        'addresses' in listener &&
-        Array.isArray(listener.addresses) &&
-        listener.addresses.every((item: unknown) => typeof item === 'string'))) &&
+        'ipv4Addresses' in listener &&
+        Array.isArray(listener.ipv4Addresses) &&
+        listener.ipv4Addresses.length <= MAX_CANDIDATE_ADDRESSES &&
+        listener.ipv4Addresses.every(isIpv4Address) &&
+        'startedAt' in listener &&
+        typeof listener.startedAt === 'number' &&
+        Number.isSafeInteger(listener.startedAt))) &&
     (value.error === null || isOperationError(value.error)) &&
     isDiscoveryState(value.discovery) &&
     Array.isArray(value.targets) &&

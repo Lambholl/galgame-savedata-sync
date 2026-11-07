@@ -9,7 +9,25 @@ import type {
   TransferTask,
   Translate,
 } from '@savedata-sync/shared'
+import type { DesktopDiscoveryState } from '../../../bridge/service-bridge.ts'
 import type { DesktopCopySummary, DesktopRestoreSummary } from '../../../bridge/sync-bridge.ts'
+
+/** 设备页显示的本机服务状态。 */
+export interface DesktopServiceView {
+  /** 本机稳定设备 ID，写进连接二维码。 */
+  readonly deviceId: string
+  /** 设置里保存的监听端口；服务停止时在设备页修改。 */
+  readonly port: number
+  /** 正在监听时的端口和开始时间；服务停止时为 null。 */
+  readonly listener: {
+    readonly port: number
+    /** 开始监听的时间（Unix 毫秒）。 */
+    readonly startedAt: number
+  } | null
+  /** 本机 IPv4 地址，按推荐顺序排列，最多 8 个；服务停止或读不到网卡时为空数组。 */
+  readonly ipv4Addresses: readonly string[]
+  readonly discovery: DesktopDiscoveryState
+}
 
 /** 界面读取的快照，只含公开元数据；字节、路径和原生句柄留在平台适配器。 */
 export interface DesktopSnapshot {
@@ -19,11 +37,7 @@ export interface DesktopSnapshot {
   readonly deviceName: string | null
   readonly peers: readonly LibraryPeer[]
   readonly roots: readonly DirectoryReference[]
-  readonly service: {
-    readonly addresses: readonly string[]
-    readonly isRunning: boolean
-    readonly port: number
-  } | null
+  readonly service: DesktopServiceView | null
   readonly tasks: readonly TransferTask[]
   readonly copies: readonly DesktopCopySummary[]
   readonly restores: readonly DesktopRestoreSummary[]

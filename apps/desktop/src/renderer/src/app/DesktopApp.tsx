@@ -116,6 +116,13 @@ export function DesktopApp({
   const [importKey, setImportKey] = useState('')
   const [upload, setUpload] = useState(false)
   const [portDraft, setPort] = useState<number | null | undefined>(undefined)
+  // 设备页开关按下后、服务快照刷新前显示“正在启动”或“正在停止”；只在 isBusy 期间有效。
+  const [serviceChange, setServiceChange] = useState<'starting' | 'stopping' | null>(null)
+  useEffect(() => {
+    if (!isBusy) {
+      setServiceChange(null)
+    }
+  }, [isBusy])
   const [copied, setCopied] = useState('')
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null)
   const [interruptedWrites, setInterruptedWrites] = useState<readonly InterruptedWrite[]>([])
@@ -464,7 +471,8 @@ export function DesktopApp({
     if (!service) {
       return
     }
-    if (service.isRunning && hasRunningNetworkWork) {
+    const isRunning = service.listener !== null
+    if (isRunning && hasRunningNetworkWork) {
       setConfirmation({
         title: t('service.stopTitle'),
         text: t('service.stopText'),
@@ -474,7 +482,10 @@ export function DesktopApp({
         },
       })
     } else {
-      run(() => adapter.service(!service.isRunning, port ?? service.port))
+      run(async () => {
+        setServiceChange(isRunning ? 'stopping' : 'starting')
+        await adapter.service(!isRunning, port ?? service.port)
+      })
     }
   }
   function actOnDevice(peer: LibraryPeer): void {
@@ -590,7 +601,8 @@ export function DesktopApp({
   if (page === 'devices') {
     body = (
       <DevicesPage
-        snapshot={snapshot}
+        service={snapshot?.service ?? null}
+        serviceChange={isBusy ? serviceChange : null}
         peers={peers}
         copied={copied}
         port={port}

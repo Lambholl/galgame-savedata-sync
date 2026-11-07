@@ -267,8 +267,8 @@ export function createMobileLibraryAdapter(
           save({
             ...load(),
             devices: [
-              ...load().devices,
               { id, name: descriptor.device.displayName, address: null, blocked: false },
+              ...load().devices,
             ],
           })
         }
@@ -364,16 +364,17 @@ export function createMobileLibraryAdapter(
           }),
         )
         const saved = load().devices.find((item) => item.id === id)
+        // 连上的设备移到开头，已保存的设备按最近连接排序。
         save({
           ...load(),
           devices: [
-            ...load().devices.filter((item) => item.id !== id),
             {
               id,
               name: saved?.name ?? descriptor.device.displayName,
               address: normalized,
               blocked: false,
             },
+            ...load().devices.filter((item) => item.id !== id),
           ],
         })
         save(mergeCatalogLinks(load(), id, reply.links))
@@ -386,6 +387,21 @@ export function createMobileLibraryAdapter(
         await androidTransfers.disconnect()
         throw error
       }
+    },
+    async connectCandidates(candidates, expectedDeviceId): Promise<void> {
+      let lastError: unknown = new Error('invalid-request')
+      for (const candidate of candidates) {
+        if (descriptors.length) {
+          throw new Error('busy')
+        }
+        try {
+          await this.connect(candidate, expectedDeviceId)
+          return
+        } catch (error) {
+          lastError = error
+        }
+      }
+      throw lastError
     },
     async device(id, action, name, address): Promise<void> {
       if (action === 'disconnect') {

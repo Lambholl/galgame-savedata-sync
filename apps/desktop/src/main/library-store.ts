@@ -266,21 +266,29 @@ export class DesktopLibrary {
       seenAt: Date.now(),
       entries: previous?.entries ?? new Set(),
     })
-    await this.update((current) =>
-      mergeCatalogLinks(
+    await this.update((current) => {
+      const existing = current.devices.find((item) => item.id === hello.deviceId)
+      return mergeCatalogLinks(
         {
           ...current,
-          devices: current.devices.some((item) => item.id === hello.deviceId)
-            ? current.devices
-            : [
-                ...current.devices,
-                { id: hello.deviceId, name: hello.name, address: null, blocked: false },
-              ],
+          // 每次新连接把设备移到开头，已保存的设备按最近连接排序；连接期间的目录刷新不改顺序。
+          devices:
+            isNewConnection || !existing
+              ? [
+                  existing ?? {
+                    id: hello.deviceId,
+                    name: hello.name,
+                    address: null,
+                    blocked: false,
+                  },
+                  ...current.devices.filter((item) => item.id !== hello.deviceId),
+                ]
+              : current.devices,
         },
         hello.deviceId,
         hello.links.filter((link) => hello.games.some((item) => item.id === link.localGameId)),
-      ),
-    )
+      )
+    })
     const roots = await this.adapter.listRoots()
     if (roots.status === 'error') {
       throw new HttpOperationError(roots.error.code, roots.error.message)

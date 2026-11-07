@@ -538,13 +538,6 @@ small {
 .action-row > .adm-button {
   min-width: var(--mobile-icon-target);
 }
-.section-heading {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-}
 .connection-status {
   display: flex;
   align-items: center;
@@ -590,48 +583,59 @@ small {
 .panel .empty-state {
   min-height: 100px;
 }
-.device-heading {
-  display: flex;
-  gap: 10px;
-  align-items: flex-start;
+/* 设备页的两组列表：已保存的设备、附近的设备。 */
+.device-list {
+  margin: 0;
 }
-.device-heading > div {
-  min-width: 0;
-}
-.device-heading h2 {
-  overflow-wrap: anywhere;
+/* 长按打开管理，不弹系统的长按菜单。 */
+.device-saved {
+  -webkit-touch-callout: none;
 }
 .device-icon {
-  padding: 8px;
-  background: var(--ss-accent-soft);
-  color: var(--adm-color-primary);
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
   border-radius: var(--ss-r-sm);
+  background: var(--ss-accent-soft);
+  color: var(--ss-accent);
   font-size: 20px;
 }
-.device-status {
-  display: inline-block;
-  margin-top: 4px;
-  color: var(--ss-muted);
-  font-size: 12px;
+.device-icon.is-online {
+  background: var(--ss-accent);
+  color: var(--ss-accent-fg);
 }
-.device-status.connected {
+.device-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.device-ok {
   color: var(--ss-ok);
 }
-.device-address {
-  display: flex;
+/* 已保存的设备在附近搜到：圆点加文字，不只靠颜色区分。 */
+.device-near {
+  display: inline-flex;
   align-items: center;
-  margin: 8px 0;
-  gap: 8px;
+  gap: 4px;
+  color: var(--ss-ok);
 }
-.device-address > span {
-  min-width: 0;
-  flex: 1;
+.device-near::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.device-warn {
+  color: var(--ss-warn);
+}
+.device-muted {
   color: var(--ss-muted);
-  overflow-wrap: anywhere;
-  font-size: 12px;
 }
-.device-address + .action-row {
-  margin-top: 8px;
+/* 已有连接时的连接按钮：看起来和禁用一样，但点了会提示先断开。 */
+.adm-button.device-connect-blocked {
+  opacity: 0.4;
 }
 .field {
   display: flex;

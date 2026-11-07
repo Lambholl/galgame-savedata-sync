@@ -3,6 +3,7 @@ import { isIPv4 } from 'node:net'
 import { networkInterfaces } from 'node:os'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
+import { MAX_CANDIDATE_ADDRESSES } from '@savedata-sync/shared'
 
 const execFileAsync = promisify(execFile)
 const CACHE_MS = 30_000
@@ -172,26 +173,31 @@ export async function queryNetworkAddresses(): Promise<NetworkAddressCandidate[]
 }
 
 /**
- * 创建推荐地址读取器，供服务快照调用；无候选或查询失败时 resolve 为 null。
+ * 创建本机 IPv4 地址读取器，供服务快照调用。返回按推荐顺序排列的地址，第一个是推荐地址，
+ * 最多 MAX_CANDIDATE_ADDRESSES 个，与连接二维码能携带的候选地址数相同；无候选或查询失败时为空数组。
  * 首次读取等待查询完成；结果缓存 30 秒，过期后读取仍返回缓存并在后台刷新。
  * 同时发起的读取共用一次查询，查询失败会记录错误并清空地址，下次到期重试。
  */
-export function createRecommendedAddressReader(): () => Promise<string | null> {
-  let address: string | null = null
+export function createNetworkAddressReader(): () => Promise<readonly string[]> {
+  let addresses: readonly string[] = []
   let hasLoaded = false
   let refreshAt = 0
-  let pending: Promise<string | null> | null = null
+  let pending: Promise<readonly string[]> | null = null
   return () => {
     if (pending === null && Date.now() >= refreshAt) {
       pending = queryNetworkAddresses()
         .then((candidates) => {
-          address = candidates[0]?.address ?? null
-          return address
+          // 同一地址可能出现在两块网卡上（如桥接），只保留排序靠前的一次。
+          addresses = [...new Set(candidates.map((item) => item.address))].slice(
+            0,
+            MAX_CANDIDATE_ADDRESSES,
+          )
+          return addresses
         })
         .catch((error: unknown) => {
-          console.error('Failed to select the recommended IPv4 address.', error)
-          address = null
-          return null
+          console.error('Failed to read the local IPv4 addresses.', error)
+          addresses = []
+          return addresses
         })
         .finally(() => {
           hasLoaded = true
@@ -199,6 +205,6 @@ export function createRecommendedAddressReader(): () => Promise<string | null> {
           pending = null
         })
     }
-    return hasLoaded ? Promise.resolve(address) : (pending ?? Promise.resolve(address))
+    return hasLoaded ? Promise.resolve(addresses) : (pending ?? Promise.resolve(addresses))
   }
 }

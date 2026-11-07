@@ -10,7 +10,7 @@ import type { WindowsHttpService } from './http-service.ts'
 import type { WindowsNewFilePublisher } from './new-file-publisher.ts'
 import { toHttpError } from './http-errors.ts'
 import type { ServicePortSettings } from './service-port-settings.ts'
-import { createRecommendedAddressReader } from './recommended-address.ts'
+import { createNetworkAddressReader } from './recommended-address.ts'
 
 /** 注册服务 IPC 的选项：存档目录选择器由主进程执行，null 表示取消，已有目录权限不变。 */
 interface ServiceIpcOptions {
@@ -39,20 +39,26 @@ export function registerServiceIpc(
   options: ServiceIpcOptions,
 ): () => void {
   const targets = new Map<string, DirectoryReference>()
-  const readRecommendedAddress = createRecommendedAddressReader()
+  const readNetworkAddresses = createNetworkAddressReader()
   let isMutating = false
   async function snapshot(): Promise<OperationResult<DesktopServiceSnapshot>> {
-    const recommendedAddress = service.getAddress() ? await readRecommendedAddress() : null
+    const networkAddresses = service.getAddress() ? await readNetworkAddresses() : []
     // 查询网卡时，服务可能已停止或换了端口。查完网卡重新查一遍服务和端口以保证界面信息最新。
     const address = service.getAddress()
-    const addresses =
-      address && recommendedAddress ? [`http://${recommendedAddress}:${address.port}`] : []
     return {
       status: 'success',
       value: {
+        deviceId: adapter.deviceId,
         deviceName: localDeviceName(),
         configuredPort: options.portSettings.getPort(),
-        listener: address ? { host: address.host, port: address.port, addresses } : null,
+        listener: address
+          ? {
+              host: address.host,
+              port: address.port,
+              ipv4Addresses: networkAddresses,
+              startedAt: address.startedAt,
+            }
+          : null,
         error: service.getError(),
         discovery: options.advertiser.getState(),
         targets: [...targets.values()],

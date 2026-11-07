@@ -1,0 +1,336 @@
+/*
+ * 本机服务卡片、主开关和连接二维码，只引用 --ss-* 设计变量。
+ * 排版按卡片自身宽度分三档：
+ *   720px 及以上：信息 | 二维码 | 开关；
+ *   520～719px：信息 | 开关，二维码收进地址旁的按钮；
+ *   520px 以下：标题和运行信息在左、开关在右，地址单独占一整行，不会被开关压住。
+ */
+
+.ss-service-hero {
+  container-type: inline-size;
+  border-radius: var(--ss-r-lg);
+  background: var(--ss-raised);
+  box-shadow: var(--ss-shadow);
+  overflow: hidden;
+  color: var(--ss-fg);
+  font-family: var(--ss-font);
+}
+.ss-service-body {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  padding: 26px 30px;
+}
+
+/* 文字始终画在开关光晕上面。 */
+.ss-service-info,
+.ss-service-title,
+.ss-service-address,
+.ss-service-port,
+.ss-service-meta {
+  position: relative;
+  z-index: 2;
+}
+.ss-service-info {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.ss-service-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+  font-size: 15px;
+  font-weight: 600;
+}
+.ss-service-title > .anticon {
+  font-size: 18px;
+}
+
+/* 状态胶囊：圆点颜色加文字。开关本身不放文字，状态的文字说明在这里。 */
+.ss-service-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 12px;
+  border-radius: var(--ss-r-pill);
+  font-size: 13px;
+  font-weight: 600;
+  background: var(--ss-group);
+  color: var(--ss-muted);
+}
+.ss-service-pill::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.ss-service-pill.is-running {
+  background: color-mix(in srgb, var(--ss-ok) 18%, transparent);
+  color: var(--ss-ok);
+}
+.ss-service-pill.is-starting,
+.ss-service-pill.is-stopping {
+  background: var(--ss-accent-soft);
+  color: var(--ss-accent);
+}
+
+.ss-service-address {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+  font-size: clamp(20px, 4.2cqi, 36px);
+  font-weight: 700;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+}
+.ss-service-address > .ss-copyable {
+  margin-right: 6px;
+}
+.ss-service-no-address {
+  margin-right: 6px;
+  color: var(--ss-muted);
+  font-size: 15px;
+  font-weight: 600;
+}
+.ss-service-port {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+}
+.ss-service-icon-button {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--ss-r-sm);
+  background: transparent;
+  color: var(--ss-muted);
+  font-size: 18px;
+}
+
+.ss-service-meta {
+  display: flex;
+  gap: 32px;
+  margin: 0;
+  white-space: nowrap;
+}
+.ss-service-meta > div {
+  min-width: 0;
+}
+.ss-service-meta dt {
+  color: var(--ss-muted);
+  font-size: 12px;
+}
+.ss-service-meta dd {
+  margin: 2px 0 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 15px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.ss-service-meta dd.is-warn {
+  color: var(--ss-warn);
+}
+
+.ss-service-qr {
+  position: relative;
+  z-index: 2;
+  flex-shrink: 0;
+}
+
+/* 二维码四周留出约 2 个模块宽的白边，深色主题下也是白底，扫码时和卡片底色分开。 */
+.ss-connection-qr {
+  display: inline-block;
+  padding: 8px;
+  border-radius: var(--ss-r-sm);
+  background: var(--ss-qr-bg);
+  line-height: 0;
+}
+
+/* 开关和它身后的光晕。光晕只比开关大一圈，不伸到文字区域里。 */
+.ss-service-toggle-slot {
+  position: relative;
+  z-index: 1;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+}
+.ss-service-toggle-slot::before {
+  content: '';
+  position: absolute;
+  inset: -18px;
+  border-radius: 50%;
+  background: var(--ss-group);
+  transition: background 0.3s;
+}
+.ss-service-hero.is-running .ss-service-toggle-slot::before,
+.ss-service-hero.is-starting .ss-service-toggle-slot::before {
+  background: var(--ss-accent-soft);
+}
+
+/* 主开关：只有图标，140px 的波浪圆。 */
+.ss-service-toggle {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 140px;
+  height: 140px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  transition: transform 0.15s;
+}
+.ss-service-toggle:active:not(:disabled) {
+  transform: scale(0.95);
+}
+.ss-service-toggle:disabled {
+  cursor: not-allowed;
+}
+.ss-service-toggle.is-starting:disabled,
+.ss-service-toggle.is-stopping:disabled {
+  cursor: progress;
+}
+.ss-service-toggle:focus-visible {
+  outline: 3px solid var(--ss-accent);
+  outline-offset: 4px;
+  border-radius: 50%;
+}
+.ss-service-toggle-shape {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  transition: filter 0.3s;
+}
+.ss-service-toggle-fill {
+  fill: var(--ss-raised);
+  stroke: var(--ss-line);
+  stroke-width: 1.5;
+  transition:
+    fill 0.3s,
+    stroke 0.3s;
+}
+.ss-service-toggle.is-running .ss-service-toggle-fill,
+.ss-service-toggle.is-stopping .ss-service-toggle-fill {
+  fill: var(--ss-accent);
+  stroke: var(--ss-accent);
+}
+
+/*
+ * 按下遮罩用同一条波浪路径画，形状和旋转都跟着开关。
+ * 移动端给所有按钮铺一层方形遮罩（mobile.css 的 ::before），盖在波浪圆上会露出方角，这里关掉那层。
+ * 移动端靠 press-feedback 加的 is-pressed，电脑靠 :active。
+ */
+.ss-service-toggle.ss-service-toggle::before {
+  content: none;
+}
+.ss-service-toggle-press {
+  fill: var(--ss-fg);
+  opacity: 0;
+  transition: opacity 0.35s cubic-bezier(0.25, 0.6, 0.3, 1);
+}
+.ss-service-toggle.is-pressed .ss-service-toggle-press,
+.ss-service-toggle:active:not(:disabled) .ss-service-toggle-press {
+  opacity: 0.1;
+  transition-duration: 0.2s;
+}
+.ss-service-toggle.is-running .ss-service-toggle-shape {
+  filter: drop-shadow(0 6px 14px color-mix(in srgb, var(--ss-accent) 40%, transparent));
+}
+.ss-service-toggle.is-running .ss-service-toggle-shape,
+.ss-service-toggle.is-starting .ss-service-toggle-shape,
+.ss-service-toggle.is-stopping .ss-service-toggle-shape {
+  animation: ss-service-spin 24s linear infinite;
+}
+.ss-service-toggle.is-starting .ss-service-toggle-shape,
+.ss-service-toggle.is-stopping .ss-service-toggle-shape {
+  animation-duration: 2.4s;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ss-service-toggle .ss-service-toggle-shape {
+    animation: none;
+  }
+}
+@keyframes ss-service-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.ss-service-toggle-icon {
+  position: relative;
+  color: var(--ss-accent);
+  font-size: 52px;
+  line-height: 1;
+}
+.ss-service-toggle.is-running .ss-service-toggle-icon,
+.ss-service-toggle.is-stopping .ss-service-toggle-icon {
+  color: var(--ss-accent-fg);
+}
+
+/* 二维码按钮只在卡片放不下二维码时出现。 */
+.ss-service-hero .ss-service-qr-button {
+  display: none;
+}
+
+@container (max-width: 719px) {
+  .ss-service-qr {
+    display: none;
+  }
+  .ss-service-hero .ss-service-qr-button {
+    display: grid;
+  }
+}
+
+@container (max-width: 519px) {
+  .ss-service-body {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      'head toggle'
+      'meta toggle'
+      'address address';
+    column-gap: 16px;
+    row-gap: 14px;
+    padding: 22px 24px;
+  }
+  .ss-service-info {
+    display: contents;
+  }
+  .ss-service-title {
+    grid-area: head;
+    align-self: end;
+  }
+  .ss-service-meta {
+    grid-area: meta;
+    align-self: start;
+    flex-wrap: wrap;
+    gap: 12px 20px;
+  }
+  .ss-service-address {
+    grid-area: address;
+    font-size: clamp(20px, 7cqi, 30px);
+  }
+  /* 停止时没有运行信息，端口放在标题下面、开关左边，卡片只剩开关那么高。 */
+  .ss-service-port {
+    grid-area: meta;
+    align-self: start;
+    min-height: 0;
+    flex-wrap: wrap;
+  }
+  .ss-service-toggle-slot {
+    grid-area: toggle;
+    margin: 6px 6px 0 0;
+  }
+}

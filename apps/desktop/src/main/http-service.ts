@@ -61,6 +61,8 @@ export interface HttpListenerAddress {
   readonly host: string
   readonly port: number
   readonly sessionId: string
+  /** 开始监听的时间（Unix 毫秒），设备页据此显示运行时长。 */
+  readonly startedAt: number
 }
 
 /** HTTP 服务的选项。收紧限额和注入时钟的说明见任务注册表，这些都不经 HTTP 或渲染进程暴露。 */
@@ -438,7 +440,7 @@ export class WindowsHttpService {
     if (!address || typeof address === 'string') {
       throw new HttpOperationError('io-failure', 'The local listening address is unavailable.')
     }
-    this.address = { host: address.address, port: address.port, sessionId }
+    this.address = { host: address.address, port: address.port, sessionId, startedAt: Date.now() }
     return { ...this.address }
   }
 

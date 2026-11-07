@@ -4,6 +4,7 @@ import { DownloadOutlined, MoreOutlined, PlusOutlined } from '@ant-design/icons'
 import { EmptyState } from '../components/EmptyState'
 import {
   OperationFailure,
+  createConnectionCandidates,
   emptyLibrary,
   formatConnectionAddress,
   observeSyncJob,
@@ -22,6 +23,7 @@ import type {
   ShownError,
 } from '@savedata-sync/shared'
 import type { MobileLibraryAdapter, MobileSnapshot } from '../platform/library-types'
+import type { DiscoveredDevice } from '../platform/device-discovery'
 import { ConfirmationDialog } from '../components/ConfirmationDialog.tsx'
 import { InterruptedWriteDialog } from '../components/InterruptedWriteDialog.tsx'
 import { DeviceEditorDialog } from '../components/DeviceEditorDialog.tsx'
@@ -114,7 +116,13 @@ export function MobileApp({
     readonly restoreId: string
     readonly sourceName: string
   } | null>(null)
-  const [copied, setCopied] = useState('')
+  // 设备页正在连接的设备 ID，行内显示转圈；只在 isBusy 期间有效。
+  const [connectingId, setConnectingId] = useState<string | null>(null)
+  useEffect(() => {
+    if (!isBusy) {
+      setConnectingId(null)
+    }
+  }, [isBusy])
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null)
   const [interruptedWrites, setInterruptedWrites] = useState<readonly InterruptedWrite[]>([])
   const operating = useRef(false)
@@ -537,17 +545,35 @@ export function MobileApp({
       },
     })
   }
-  function copyAddress(address: string): void {
+  function connectDevice(peer: LibraryPeer): void {
     run(async () => {
-      await navigator.clipboard.writeText(formatConnectionAddress(address))
-      setCopied(address)
-    })
+      setConnectingId(peer.device.id)
+      await adapter.device(peer.device.id, 'allow')
+    }, showConnectionFailure)
   }
-  function actOnDevice(peer: LibraryPeer): void {
-    run(
-      () => adapter.device(peer.device.id, peer.isConnected ? 'disconnect' : 'allow'),
-      peer.isConnected ? undefined : showConnectionFailure,
-    )
+  function disconnectDevice(peer: LibraryPeer): void {
+    run(() => adapter.device(peer.device.id, 'disconnect'))
+  }
+  function connectNearby(device: DiscoveredDevice): void {
+    run(async () => {
+      setConnectingId(device.deviceId)
+      await adapter.connectCandidates(
+        createConnectionCandidates(device.addresses, device.port),
+        device.deviceId,
+      )
+      appMessage.show({
+        type: 'success',
+        content: t('app.connectedTo', { name: device.name }),
+        slot: 'connection',
+      })
+    }, showConnectionFailure)
+  }
+  function showConnectBlocked(name: string): void {
+    appMessage.show({
+      type: 'info',
+      content: t('device.disconnectFirst', { name }),
+      slot: 'connection',
+    })
   }
   function showConnectionFailure(failure: ShownError): void {
     appMessage.show({
@@ -708,14 +734,14 @@ export function MobileApp({
       <DevicesPage
         peers={peers}
         online={online}
-        copied={copied}
-        isBusy={isBusy}
+        connectingId={isBusy ? connectingId : null}
         isDisabled={isDisabled}
         isActive={isActive}
-        onCopyAddress={copyAddress}
-        onAddDevice={() => deviceEditor(null)}
-        onDeviceAction={actOnDevice}
+        onConnect={connectDevice}
+        onDisconnect={disconnectDevice}
         onManageDevice={deviceEditor}
+        onConnectNearby={connectNearby}
+        onBlocked={showConnectBlocked}
       />
     )
   } else if (page === 'games') {
@@ -999,6 +1025,15 @@ export function MobileApp({
               <PlusOutlined />
             </Button>
           </span>
+        ) : page === 'devices' ? (
+          <Button
+            fill="none"
+            aria-label={t('device.addPc')}
+            disabled={isDisabled || isActive}
+            onClick={() => deviceEditor(null)}
+          >
+            <PlusOutlined />
+          </Button>
         ) : page === 'sync' ? (
           <Button
             fill="none"

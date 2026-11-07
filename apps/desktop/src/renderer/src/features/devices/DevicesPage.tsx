@@ -1,12 +1,16 @@
-import { Button, Card, Empty, Flex, InputNumber, Space, Tag } from 'antd'
+import { useState } from 'react'
+import { Button, Card, Empty, Flex, InputNumber, Listy, Modal, Tag } from 'antd'
 import { AndroidOutlined } from '@ant-design/icons'
+import { createConnectionQrText, formatConnectionAddress } from '@savedata-sync/shared'
 import type { LibraryPeer } from '@savedata-sync/shared'
-import { useT } from '@savedata-sync/shared/ui'
-import type { DesktopSnapshot } from '../../platform/library-types.ts'
-import { AddressField } from './AddressField.tsx'
+import { ConnectionQr, ServiceHero, useT } from '@savedata-sync/shared/ui'
+import type { ServiceHeroState } from '@savedata-sync/shared/ui'
+import type { DesktopServiceView } from '../../platform/library-types.ts'
 
+/** 设备页：上面是本机服务卡片，下面是已保存的设备列表。 */
 export function DevicesPage({
-  snapshot,
+  service,
+  serviceChange,
   peers,
   copied,
   port,
@@ -20,9 +24,13 @@ export function DevicesPage({
   onDeviceAction,
   onManageDevice,
 }: {
-  readonly snapshot: DesktopSnapshot | null
+  readonly service: DesktopServiceView | null
+  /** 正在执行的启动或停止请求；没有时为 null。 */
+  readonly serviceChange: 'starting' | 'stopping' | null
   readonly peers: readonly LibraryPeer[]
+  /** 最近复制的地址，对应的复制按钮显示对勾。 */
   readonly copied: string
+  /** 端口输入框的值；为 null 时输入框为空，不能启动服务。 */
   readonly port: number | null
   readonly isBusy: boolean
   readonly isDisabled: boolean
@@ -35,95 +43,119 @@ export function DevicesPage({
   readonly onManageDevice: (id: string) => void
 }): React.JSX.Element {
   const t = useT()
-  const service = snapshot?.service
+  const [isQrOpen, setIsQrOpen] = useState(false)
+  const listener = service?.listener ?? null
+  const recommended = service?.ipv4Addresses[0]
+  const address = listener && recommended ? `${recommended}:${listener.port}` : null
+  const qrText =
+    service && listener && service.ipv4Addresses.length > 0
+      ? createConnectionQrText({
+          deviceId: service.deviceId,
+          port: listener.port,
+          addresses: service.ipv4Addresses,
+        })
+      : null
+  const state: ServiceHeroState = serviceChange ?? (listener ? 'running' : 'stopped')
+  const isPortValid = port !== null && Number.isInteger(port) && port >= 1 && port <= 65535
   return (
     <>
       {service && (
-        <Card
-          title={t('service.title')}
-          extra={
-            <Button
-              disabled={
-                isDisabled ||
-                (!service.isRunning &&
-                  (port === null || !Number.isInteger(port) || port < 1 || port > 65535))
-              }
-              onClick={onToggleService}
-            >
-              {t(service.isRunning ? 'service.stop' : 'service.start')}
-            </Button>
+        <ServiceHero
+          state={state}
+          address={address}
+          startedAt={listener?.startedAt ?? null}
+          connectedName={peers.find((peer) => peer.isConnected)?.device.name ?? null}
+          discovery={service.discovery.status}
+          qrText={qrText}
+          isCopied={address !== null && copied === address}
+          isToggleDisabled={isDisabled || (!listener && !isPortValid)}
+          portEditor={
+            <Flex align="center" gap="small" className="library-port">
+              {t('service.port')}
+              <InputNumber
+                size="large"
+                aria-label={t('service.port')}
+                min={1}
+                max={65535}
+                precision={0}
+                value={port}
+                readOnly={isBusy}
+                onChange={onPortChange}
+              />
+              <Button size="large" disabled={isBusy} onClick={onRandomizePort}>
+                {t('service.randomizePort')}
+              </Button>
+            </Flex>
           }
-        >
-          {service.addresses.map((address) => (
-            <div className="library-address" key={address}>
-              <AddressField address={address} copied={copied} onCopy={onCopyAddress} />
-            </div>
-          ))}
-          <Flex align="center" className="library-port" gap="small">
-            {t('service.portSettings')}
-            <InputNumber
-              aria-label={t('service.port')}
-              min={1}
-              max={65535}
-              precision={0}
-              value={port}
-              readOnly={service.isRunning || isBusy}
-              onChange={onPortChange}
-            />
-            <Button disabled={service.isRunning || isBusy} onClick={onRandomizePort}>
-              {t('service.randomizePort')}
-            </Button>
-          </Flex>
-        </Card>
+          onToggle={onToggleService}
+          onCopy={() => address && onCopyAddress(address)}
+          onShowQr={() => setIsQrOpen(true)}
+        />
       )}
       <div className="library-section-heading">
         <h2>{t('device.saved')}</h2>
       </div>
-      {peers.length ? (
-        <div className="library-device-grid">
-          {peers.map((peer) => (
-            <Card key={peer.device.id} className="library-device-card">
-              <Flex align="flex-start" gap="small">
-                <div className="library-device-icon">
+      <Card className="library-device-list">
+        {peers.length ? (
+          <Listy<LibraryPeer>
+            items={[...peers]}
+            rowKey={(peer) => peer.device.id}
+            itemRender={(peer) => (
+              <Flex align="center" gap={12} className="library-device-row">
+                <span className={`library-device-icon${peer.isConnected ? ' is-online' : ''}`}>
                   <AndroidOutlined />
-                </div>
+                </span>
                 <Flex vertical className="library-device-info">
                   <Flex align="center" gap="small">
                     <strong className="library-device-name ss-copyable">{peer.device.name}</strong>
-                    <Tag
-                      color={peer.isConnected ? 'success' : 'default'}
-                      className="library-device-state"
-                    >
-                      {t(peer.isConnected ? 'transfer.connected' : 'transfer.disconnected')}
-                    </Tag>
+                    {peer.isConnected && (
+                      <Tag color="success" className="library-device-state">
+                        {t('transfer.connected')}
+                      </Tag>
+                    )}
                   </Flex>
-                  {peer.device.address && (
-                    <AddressField
-                      address={peer.device.address}
-                      copied={copied}
-                      onCopy={onCopyAddress}
-                    />
+                  {/* 连着且没有地址时不写说明：标签已经写了“已连接”。 */}
+                  {(peer.device.address || !peer.isConnected) && (
+                    <span className="library-device-caption">
+                      {peer.device.address
+                        ? formatConnectionAddress(peer.device.address)
+                        : t('device.waitingMobile')}
+                    </span>
                   )}
                 </Flex>
-              </Flex>
-              <Space wrap>
-                <Button
-                  danger={peer.isConnected}
-                  disabled={isDisabled || isActive || !peer.isConnected}
-                  onClick={() => onDeviceAction(peer)}
-                >
-                  {t(peer.isConnected ? 'device.disconnect' : 'device.waitingMobile')}
-                </Button>
+                {peer.isConnected && (
+                  <Button
+                    danger
+                    disabled={isDisabled || isActive}
+                    onClick={() => onDeviceAction(peer)}
+                  >
+                    {t('device.disconnect')}
+                  </Button>
+                )}
                 <Button disabled={isDisabled} onClick={() => onManageDevice(peer.device.id)}>
                   {t('device.manage')}
                 </Button>
-              </Space>
-            </Card>
-          ))}
-        </div>
-      ) : (
-        <Empty description={t('device.emptyPc')} />
-      )}
+              </Flex>
+            )}
+          />
+        ) : (
+          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('device.emptyPc')} />
+        )}
+      </Card>
+      <Modal
+        title={t('service.qrTitle')}
+        open={isQrOpen && qrText !== null}
+        footer={null}
+        width={340}
+        onCancel={() => setIsQrOpen(false)}
+      >
+        {qrText && (
+          <Flex vertical align="center" gap={12}>
+            <ConnectionQr text={qrText} size={240} label={t('service.qrTitle')} />
+            <span className="library-qr-address ss-copyable">{address}</span>
+          </Flex>
+        )}
+      </Modal>
     </>
   )
 }
