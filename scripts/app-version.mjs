@@ -34,7 +34,7 @@ export function parseReleaseTag(tag) {
 /**
  * 把 `git describe --tags --long --dirty` 的输出转成版本。
  * 正好在 tag 上且工作区干净时返回 tag 的版本；否则版本名追加 semver 构建元数据
- * `+<tag 之后的提交数>.g<提交哈希>[.dirty]`，versionCode 与 tag 相同，
+ * `+<tag 之后的提交数>.g<提交哈希>[.d]`（`.d` 表示工作区有未提交的改动），versionCode 与 tag 相同，
  * 因此开发版和同一 tag 的正式版可以用同一把密钥互相覆盖安装。
  * @param {string} output describe 的一行输出。
  * @returns {{ name: string, code: number } | null} 输出格式不符时返回 null。
@@ -49,7 +49,7 @@ export function parseDescribeOutput(output) {
   if (commits === '0' && !dirty) {
     return release
   }
-  return { name: `${release.name}+${commits}.g${hash}${dirty ? '.dirty' : ''}`, code: release.code }
+  return { name: `${release.name}+${commits}.g${hash}${dirty ? '.d' : ''}`, code: release.code }
 }
 
 function git(args, cwd) {

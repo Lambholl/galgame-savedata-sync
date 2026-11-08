@@ -132,7 +132,7 @@ keytool -genkeypair -v -keystore savedata-sync-release.jks -alias savedata-sync 
 | 构建 | 版本名 | Android versionCode |
 | --- | --- | --- |
 | 发布工作流（环境变量 `RELEASE_TAG`），或当前提交正好是发布 tag 且工作区没有改动 | `0.3.0` | `major * 1000000 + minor * 1000 + patch`，0.3.0 为 3000 |
-| 发布 tag 之后的开发构建 | `0.3.0+12.gcfb3753`，工作区有改动时末尾加 `.dirty` | 与最近的发布 tag 相同 |
+| 发布 tag 之后的开发构建 | `0.3.0+12.gcfb3753`，工作区有改动时末尾加 `.d` | 与最近的发布 tag 相同 |
 | 找不到发布 tag（没有 git、浅克隆没拉 tag） | `0.0.0+unknown` | 1 |
 
 - 发布 tag 是 `v<major>.<minor>.<patch>`，每段 0–999，不带前导零。带 `-` 的 tag（如预发布）不参与推算。
