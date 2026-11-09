@@ -678,6 +678,10 @@ html.camera-live .app-heading {
   background: var(--ss-accent);
   color: var(--ss-accent-fg);
 }
+/* SpinLoading 的 svg 默认是行内元素，按基线排在行框里，图标比自己的方框偏下，和旁边的文字对不齐。 */
+.adm-spin-loading-svg {
+  display: block;
+}
 .device-inline {
   display: inline-flex;
   align-items: center;
