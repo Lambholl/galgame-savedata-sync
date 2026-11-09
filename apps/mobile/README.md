@@ -14,6 +14,7 @@
 - [受保护写入与本机恢复](#受保护写入与本机恢复)
 - [双向复制编排](#双向复制编排)
 - [局域网设备搜索](#局域网设备搜索)
+- [扫码连接](#扫码连接)
 - [验证](#验证)
 
 ## 界面入口
@@ -297,6 +298,34 @@ const running = unwrap(await androidSyncTransfers.execute(preparing.preparationI
 - API 34 及以上对每个服务注册 ServiceInfoCallback，地址和 TXT 变化时更新结果；更低版本用 resolveService 逐个解析，10 秒没有回调就跳过，FAILURE_ALREADY_ACTIVE 隔 1 秒重试，最多 3 次，解析后不再更新。
 - 只保留 IPv4 地址；TXT 值按 UTF-8 严格解码，只有键或解码失败的字段省略。同一实例名只解析一次。
 - Activity 停止时暂停搜索并清空结果（原生 status 为 paused，桥显示为没有结果的 searching），回到前台时重新搜索；销毁时停止并结束 worker。
+
+## 扫码连接
+
+设备页标题栏的扫码按钮打开扫码页（`src/features/devices/ScanPage.tsx`），已有设备连接时只提示先断开。打开页面时申请相机权限并开始扫描，离开页面即关闭相机。
+
+| 扫到的内容 | 行为 |
+| --- | --- |
+| 有效的连接二维码 | 回到设备页，用 `connectCandidates` 依次尝试候选地址并核对设备 ID，设备 ID 不一致时不保存 |
+| 协议版本不同的连接二维码 | 提示两台设备更新到同一版本，关闭提示后继续扫描 |
+| 其他二维码 | 提示“不是连接二维码”，继续扫描 |
+
+没有相机权限时页面提供“去系统设置”和“手动输入”，从系统设置授权后返回会自动开始扫描；相机打不开时提供“重试”和“手动输入”。
+
+`src/platform/qr-scanner.ts` 导出 `qrScanner`：
+
+| 方法 | 行为 |
+| --- | --- |
+| start() | 需要时申请权限，打开后置相机；resolve `started`、`denied` 或 `failed`（相机打不开或浏览器预览），不会 reject |
+| stop() | 关闭相机并移除取景画面 |
+| watchDetected(listener) | listener 收到二维码原文，同一段文本每 2 秒最多一次；文本由 shared 的 `parseConnectionQrText` 校验 |
+| watchPermissionGranted(listener) | 应用回到前台时检查相机权限，已授权就调用 listener |
+| openAppSettings() | 打开本应用的系统设置页 |
+
+原生部分是 `QrScannerPlugin`（桥和权限）、`QrCameraSession`（CameraX 绑定和取帧）和 `QrFrameDecoder`（ZXing 解码）。
+
+- WebView 的背景本来就是透明的（`capacitor.config.ts`）。取景画面是插在 WebView 下面的 `PreviewView`，用 TextureView 模式；相机打开后 `ScanPage` 在 html 上加 `camera-live`，由 `mobile.css` 让出页面背景。
+- 解码只开 QR 格式和 `ALSO_INVERTED`，同一帧先按正常码读，读不出再翻转一次，监听方深色主题的反色码走这条路径。识别用完整的分析帧，取景框只是对准提示。
+- 相机绑定 Activity 的生命周期，退到后台时系统关闭相机，回到前台后恢复。
 - 网页重载后原生搜索可能还在进行而没有订阅者，模块加载时先停止一次。
 - 系统 NsdService 负责组播，应用不申请 MulticastLock，也不需要额外权限。
 

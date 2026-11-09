@@ -583,6 +583,79 @@ small {
 .panel .empty-state {
   min-height: 100px;
 }
+/* 扫码页：取景画面由原生层放在透明的 WebView 下面，相机打开后页面让出背景，标题栏保持不透明。 */
+html.camera-live,
+html.camera-live body,
+html.camera-live .mobile-app {
+  background: transparent;
+}
+html.camera-live .app-heading {
+  background: var(--ss-page-bg) top left / 100% 100dvh no-repeat;
+}
+.app-main:has(.scan-view) {
+  padding: 0;
+}
+.app-main:has(.scan-view) .page-stack {
+  height: 100%;
+}
+.scan-view {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+}
+.scan-frame {
+  --scan-corner: linear-gradient(var(--ss-accent-fg), var(--ss-accent-fg));
+  position: relative;
+  width: 240px;
+  height: 240px;
+  background:
+    var(--scan-corner) top left / 32px 3px no-repeat,
+    var(--scan-corner) top left / 3px 32px no-repeat,
+    var(--scan-corner) top right / 32px 3px no-repeat,
+    var(--scan-corner) top right / 3px 32px no-repeat,
+    var(--scan-corner) bottom left / 32px 3px no-repeat,
+    var(--scan-corner) bottom left / 3px 32px no-repeat,
+    var(--scan-corner) bottom right / 32px 3px no-repeat,
+    var(--scan-corner) bottom right / 3px 32px no-repeat;
+}
+.scan-line {
+  position: absolute;
+  right: 14px;
+  left: 14px;
+  height: 2px;
+  background: var(--ss-accent);
+  box-shadow: 0 0 10px var(--ss-accent);
+  animation: scan-line 2.2s ease-in-out infinite alternate;
+}
+@keyframes scan-line {
+  from {
+    top: 14px;
+  }
+  to {
+    top: 224px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .scan-line {
+    top: 50%;
+    animation: none;
+  }
+}
+/* 取景画面的明暗不确定，提示文字放在底板上才读得清。 */
+.scan-hint {
+  padding: 6px 14px;
+  border-radius: var(--ss-r-pill);
+  background: var(--ss-chrome);
+  color: var(--ss-fg);
+  font-size: 14px;
+}
+.scan-fallback {
+  display: flex;
+  gap: 8px;
+}
 /* 设备页的两组列表：已保存的设备、附近的设备。 */
 .device-list {
   margin: 0;

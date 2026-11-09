@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ActionSheet, Button } from 'antd-mobile'
-import { DownloadOutlined, MoreOutlined, PlusOutlined } from '@ant-design/icons'
+import { DownloadOutlined, MoreOutlined, PlusOutlined, ScanOutlined } from '@ant-design/icons'
 import { EmptyState } from '../components/EmptyState'
 import {
   OperationFailure,
@@ -16,6 +16,7 @@ import {
 } from '@savedata-sync/shared'
 import type {
   CatalogGame,
+  ConnectionQrPayload,
   DirectoryReference,
   InterruptedWrite,
   LibraryGame,
@@ -47,6 +48,7 @@ import type { BackButtonController, Confirmation, Page, PageContext } from './na
 import { BackupPage } from '../features/backup/BackupPage'
 import { RestorePage } from '../features/backup/RestorePage'
 import { DevicesPage } from '../features/devices/DevicesPage'
+import { ScanPage } from '../features/devices/ScanPage'
 import { GamesPage } from '../features/games/GamesPage'
 import { GameSettingsPage } from '../features/games/GameSettingsPage'
 import { SettingsPage } from '../features/settings/SettingsPage'
@@ -568,6 +570,35 @@ export function MobileApp({
       })
     }, showConnectionFailure)
   }
+  function openScan(): void {
+    if (online) {
+      showConnectBlocked(online.device.name)
+    } else {
+      navigation.open('scan')
+    }
+  }
+  /** 回到设备页并连接扫到的设备。这台设备可能不在任何列表里，所以用 Message 显示连接中。 */
+  function connectScanned(payload: ConnectionQrPayload): void {
+    navigation.back()
+    run(async () => {
+      setConnectingId(payload.deviceId)
+      appMessage.show({
+        type: 'info',
+        content: t('device.connecting'),
+        duration: 0,
+        slot: 'connection',
+      })
+      const name = await adapter.connectCandidates(
+        createConnectionCandidates(payload.addresses, payload.port),
+        payload.deviceId,
+      )
+      appMessage.show({
+        type: 'success',
+        content: t('app.connectedTo', { name }),
+        slot: 'connection',
+      })
+    }, showConnectionFailure)
+  }
   function showConnectBlocked(name: string): void {
     appMessage.show({
       type: 'info',
@@ -742,6 +773,20 @@ export function MobileApp({
         onManageDevice={deviceEditor}
         onConnectNearby={connectNearby}
         onBlocked={showConnectBlocked}
+      />
+    )
+  } else if (page === 'scan') {
+    body = (
+      <ScanPage
+        onScanned={connectScanned}
+        onInvalidCode={() =>
+          appMessage.show({ type: 'info', content: t('device.scanInvalid'), slot: 'connection' })
+        }
+        onManualInput={() => {
+          navigation.back()
+          deviceEditor(null)
+        }}
+        onOverlayChange={changePageOverlay}
       />
     )
   } else if (page === 'games') {
@@ -1026,14 +1071,24 @@ export function MobileApp({
             </Button>
           </span>
         ) : page === 'devices' ? (
-          <Button
-            fill="none"
-            aria-label={t('device.addPc')}
-            disabled={isDisabled || isActive}
-            onClick={() => deviceEditor(null)}
-          >
-            <PlusOutlined />
-          </Button>
+          <span className="games-header-actions">
+            <Button
+              fill="none"
+              aria-label={t('device.scan')}
+              disabled={isDisabled || isActive}
+              onClick={openScan}
+            >
+              <ScanOutlined />
+            </Button>
+            <Button
+              fill="none"
+              aria-label={t('device.addPc')}
+              disabled={isDisabled || isActive}
+              onClick={() => deviceEditor(null)}
+            >
+              <PlusOutlined />
+            </Button>
+          </span>
         ) : page === 'sync' ? (
           <Button
             fill="none"

@@ -39,6 +39,7 @@ public class MainActivity extends BridgeActivity {
     registerPlugin(SyncWritesPlugin.class);
     registerPlugin(SyncTransfersPlugin.class);
     registerPlugin(DeviceDiscoveryPlugin.class);
+    registerPlugin(QrScannerPlugin.class);
     super.onCreate(savedInstanceState);
     // Android 15 起系统强制窗口铺满，更低版本要主动开启；否则页面画不到系统栏下面，状态栏显示系统自己的颜色。
     EdgeToEdge.enable(this);

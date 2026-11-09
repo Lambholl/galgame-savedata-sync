@@ -49,4 +49,8 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.CAMERA" />
+
+    <!-- 没有相机的设备也能安装，用发现列表或手动 IP 连接。 -->
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
 </manifest>

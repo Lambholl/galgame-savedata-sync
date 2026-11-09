@@ -340,7 +340,7 @@ export function createMobileLibraryAdapter(
     chooseDirectory() {
       return androidTransfers.chooseTarget()
     },
-    async connect(address, expectedDeviceId): Promise<void> {
+    async connect(address, expectedDeviceId): Promise<string> {
       if (descriptors.length) {
         throw new Error('busy')
       }
@@ -363,14 +363,15 @@ export function createMobileLibraryAdapter(
             links: libraryLinks(load(), id),
           }),
         )
-        const saved = load().devices.find((item) => item.id === id)
+        const name =
+          load().devices.find((item) => item.id === id)?.name ?? descriptor.device.displayName
         // 连上的设备移到开头，已保存的设备按最近连接排序。
         save({
           ...load(),
           devices: [
             {
               id,
-              name: saved?.name ?? descriptor.device.displayName,
+              name,
               address: normalized,
               blocked: false,
             },
@@ -382,21 +383,21 @@ export function createMobileLibraryAdapter(
         closedSince.set(id, Date.now())
         descriptors = [descriptor]
         selectedId = null
+        return name
       } catch (error) {
         // 连接未完成时直接释放本机会话，避免等待对端告别请求再次超时。
         await androidTransfers.disconnect()
         throw error
       }
     },
-    async connectCandidates(candidates, expectedDeviceId): Promise<void> {
+    async connectCandidates(candidates, expectedDeviceId): Promise<string> {
       let lastError: unknown = new Error('invalid-request')
       for (const candidate of candidates) {
         if (descriptors.length) {
           throw new Error('busy')
         }
         try {
-          await this.connect(candidate, expectedDeviceId)
-          return
+          return await this.connect(candidate, expectedDeviceId)
         } catch (error) {
           lastError = error
         }

@@ -3,7 +3,7 @@ doc_type: module-status
 status: active
 priority: high
 owner: development
-updated: 2026-11-08
+updated: 2026-11-09
 tags: [模块状态, 开发进度]
 related_files: []
 ---
@@ -28,6 +28,7 @@ related_files: []
 | Android 受保护写入与本机恢复 | active | 开发 | SyncPlanModel/Writer、SafSyncBackend、SyncWriteRuntime/Plugin、TargetOperation、TS sync-write bridge | Android 覆盖是原地写入，中断会留下新旧混合的文件，只能靠写入前备份恢复；删除目标多出的条目已在真机合成目录验证，Activity 重建后读回开关选择未跑 | 下次调整传输页时补 Activity 重建 |
 | Windows 局域网广播 | active | 开发 | main/discovery-advertiser.ts、service-ipc.ts、index.ts、bridge/service-bridge.ts | 广播只在服务运行期间进行，失败不影响 HTTP 服务；防火墙拦截 UDP 5353 时本机无法察觉 | 开发版已被手机搜到；Portable 版防火墙未测，见 WP-032 |
 | Android 局域网搜索 | active | 开发 | DeviceDiscoveryPlugin、DiscoveryBrowser、TS `platform/device-discovery.ts` | 只在有订阅时搜索，Activity 停止时暂停；只返回 IPv4；设备页“附近的设备”订阅它 | API 33、35 真机通过；网页重载未测 |
+| Android 扫码 | active | 开发 | QrScannerPlugin、QrCameraSession、QrFrameDecoder、TS `platform/qr-scanner.ts`、`features/devices/ScanPage.tsx` | 打开扫码页时申请相机权限，离开页面即关闭相机；扫到后依次尝试候选地址，设备 ID 不一致时不保存；权限被拒时可去系统设置或手动输入 | 真机通过；设备 ID 不一致、协议版本不同的二维码和平板旋转未测 |
 
 ## 2. 状态说明
 

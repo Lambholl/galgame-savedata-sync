@@ -1,6 +1,15 @@
 import type { MessageKey } from '@savedata-sync/shared'
 export type Page =
-  'devices' | 'games' | 'settings' | 'edit' | 'task' | 'backup' | 'restore' | 'sync' | 'sync-plan'
+  | 'devices'
+  | 'games'
+  | 'settings'
+  | 'edit'
+  | 'task'
+  | 'backup'
+  | 'restore'
+  | 'sync'
+  | 'sync-plan'
+  | 'scan'
 
 /** 重新显示一个页面需要的上下文，随来源记录保存。连接设备的选择不在其中：返回时沿用最新的选择。 */
 export interface PageContext {
@@ -31,6 +40,7 @@ export const PAGE_TITLE_KEYS: Readonly<Record<Page, MessageKey>> = {
   restore: 'backup.restoreTask',
   sync: 'page.transfer',
   'sync-plan': 'page.plan',
+  scan: 'device.scanTitle',
 }
 
 export function isRootPage(page: Page): boolean {

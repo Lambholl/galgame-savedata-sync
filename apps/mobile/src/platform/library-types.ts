@@ -26,13 +26,14 @@ export interface MobileLibraryAdapter {
   read(): Promise<MobileSnapshot>
   saveGames(games: readonly LibraryGame[]): Promise<void>
   chooseDirectory(): Promise<DirectorySelectionResult>
-  connect(address: string, expectedDeviceId?: string): Promise<void>
+  /** 连接 address 并保存设备；resolve 对方的设备名（已保存过的用保存的名称）。 */
+  connect(address: string, expectedDeviceId?: string): Promise<string>
   /**
-   * 依次用 candidates 里的地址连接 expectedDeviceId 那台设备，第一个连上且设备 ID 一致的地址保存为该设备的地址。
+   * 依次用 candidates 里的地址连接 expectedDeviceId 那台设备，第一个连上且设备 ID 一致的地址保存为该设备的地址，resolve 对方的设备名。
    * 某个地址连不上或连到别的设备时换下一个；全部失败时 reject 最后一个地址的错误。
    * 已有连接时 reject `busy`，不再尝试后面的地址。
    */
-  connectCandidates(candidates: readonly string[], expectedDeviceId: string): Promise<void>
+  connectCandidates(candidates: readonly string[], expectedDeviceId: string): Promise<string>
   device(
     id: string,
     action: 'disconnect' | 'allow' | 'forget' | 'rename',

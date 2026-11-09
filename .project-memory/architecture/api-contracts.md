@@ -3,7 +3,7 @@ doc_type: api-contracts
 status: active
 priority: medium
 owner: architecture
-updated: 2026-11-07
+updated: 2026-11-09
 tags: [API, 接口约定]
 related_files: []
 ---
@@ -25,7 +25,7 @@ related_files: []
 
 本文记录当前接口。Windows 为 HTTP 服务端，Android 原生层为拨号方和控制客户端。平台说明见 `apps/desktop/README.md`、`apps/mobile/README.md`，共享字段与线格式见 `apps/shared/README.md`。
 
-已接入：游戏与设备配置、三页导航、并列目录视图、受保护覆盖、可选的目标多余条目删除、写入前全量备份、本机恢复和两端发起。发现与连接二维码的格式已在 `apps/shared` 定义（第 8 节），两端还没有接入 mDNS 广播、搜索和扫码，安排见[路线图](../project/roadmap.md)。
+已接入：游戏与设备配置、三页导航、并列目录视图、受保护覆盖、可选的目标多余条目删除、写入前全量备份、本机恢复和两端发起。发现与连接二维码的格式在 `apps/shared` 定义（第 8 节）：电脑端广播并显示二维码，Android 端搜索和扫码；改址自动重连的安排见[路线图](../project/roadmap.md)。
 
 文件传输双向统一采用 tar.gz（[Q-008](../requirements/open-questions.md)），完整设计见 `docs/plans/m001-tar-gzip-protocol.md`。Windows 提供 v1 读取、sender 和上传 receiver 端点；受保护复制接口见第 3 节。
 
