@@ -1,10 +1,10 @@
 import { useEffect } from 'react'
 import { createTranslator } from '@savedata-sync/shared'
-import { I18nProvider } from '@savedata-sync/shared/ui'
+import { I18nProvider, LocalDeviceProvider } from '@savedata-sync/shared/ui'
 import { DesktopApp } from './DesktopApp.tsx'
 import { useAppPreferences } from './use-app-preferences.ts'
 
-/** 读取界面偏好并提供语言，页面与弹窗都在其下渲染。 */
+/** 读取界面偏好，提供语言和本机设备种类，页面与弹窗都在其下渲染。 */
 export function DesktopRoot(): React.JSX.Element {
   const appPreferences = useAppPreferences()
   useEffect(() => {
@@ -13,7 +13,9 @@ export function DesktopRoot(): React.JSX.Element {
   }, [appPreferences.locale])
   return (
     <I18nProvider locale={appPreferences.locale}>
-      <DesktopApp appPreferences={appPreferences} />
+      <LocalDeviceProvider device="pc">
+        <DesktopApp appPreferences={appPreferences} />
+      </LocalDeviceProvider>
     </I18nProvider>
   )
 }

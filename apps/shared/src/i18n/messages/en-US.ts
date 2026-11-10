@@ -79,8 +79,8 @@ export const enUS: Messages = {
     `All ${count} items on the target will be deleted. Backup before writing is off, so they cannot be restored. Start anyway?`,
   'transfer.planUnavailable': 'This plan is no longer available. Go back and refresh.',
   'transfer.planStale': 'The game or a folder changed. Go back and refresh before transferring.',
-  'transfer.remoteBusy':
-    'Another transfer is confirmed and waiting for the mobile device to start.',
+  'transfer.remoteBusy': ({ name }) =>
+    `Another transfer is confirmed and waiting for ${name} to start.`,
 
   'compare.differs': ({ count }) => `${count} different`,
   'compare.onlySource': ({ count }) => `${count} only in source`,
@@ -362,10 +362,10 @@ export const enUS: Messages = {
   'game.transferRunning': 'Transfer in progress',
 
   'transfer.started': 'Transfer started',
-  'transfer.remoteScanRequest': ({ name }) => `The PC asked to scan ${name}`,
+  'transfer.remoteScanRequest': ({ device, name }) => `${device} asked to scan ${name}`,
   'task.loading': 'Loading the transfer',
-  'task.mobileToPc': 'Mobile → PC',
-  'task.pcToMobile': 'PC → Mobile',
+  'task.remoteToLocal': 'Other device → This device',
+  'task.localToRemote': 'This device → Other device',
   'task.sent': 'Sent',
   'task.archiveProgress': ({ done, total }) => `Transferred ${done} / ${total}`,
   'task.retryCleanup': 'Retry cleanup',
@@ -376,8 +376,8 @@ export const enUS: Messages = {
   'backup.status.running': 'Restoring',
 
   'error.withContext': ({ context, text }) => `${context}: ${text}`,
-  'error.onMobile': ({ text }) => `Mobile device: ${text}`,
-  'error.onPc': ({ text }) => `PC: ${text}`,
+  'error.onLocal': ({ text }) => `This device: ${text}`,
+  'error.onRemote': ({ text }) => `Other device: ${text}`,
   'error.code.invalid-request': 'The request was not valid. Refresh and try again.',
   'error.code.protocol-mismatch':
     'The two apps are on incompatible versions. Update both to the same version.',

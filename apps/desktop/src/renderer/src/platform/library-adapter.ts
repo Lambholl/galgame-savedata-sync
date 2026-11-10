@@ -50,7 +50,7 @@ export function createDesktopLibraryAdapter(): DesktopLibraryAdapter {
         tasks: status.tasks.map((local) => ({
           id: local.transferId,
           title: t(
-            local.direction === 'android-to-windows' ? 'task.mobileToPc' : 'task.pcToMobile',
+            local.direction === 'android-to-windows' ? 'task.remoteToLocal' : 'task.localToRemote',
           ),
           local,
           remote: null,

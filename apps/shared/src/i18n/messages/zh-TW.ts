@@ -75,7 +75,7 @@ export const zhTW: Messages = {
     `目標的全部 ${count} 項都會被刪除，而且已關閉寫入前備份，刪除後無法復原。仍要開始嗎？`,
   'transfer.planUnavailable': '本次計畫無法使用，請回到傳輸存檔頁重新整理。',
   'transfer.planStale': '遊戲或目錄已變更，請返回重新整理後再傳輸。',
-  'transfer.remoteBusy': '另一項傳輸已確認，正在等待行動端開始。',
+  'transfer.remoteBusy': ({ name }) => `另一項傳輸已確認，正在等待 ${name} 開始。`,
 
   'compare.differs': ({ count }) => `${count} 個內容不同`,
   'compare.onlySource': ({ count }) => `${count} 個僅來源有`,
@@ -343,10 +343,10 @@ export const zhTW: Messages = {
   'game.transferRunning': '傳輸進行中',
 
   'transfer.started': '已開始傳輸',
-  'transfer.remoteScanRequest': ({ name }) => `電腦請求掃描 ${name}`,
+  'transfer.remoteScanRequest': ({ device, name }) => `${device} 請求掃描 ${name}`,
   'task.loading': '正在讀取任務',
-  'task.mobileToPc': '行動端 → 電腦',
-  'task.pcToMobile': '電腦 → 行動端',
+  'task.remoteToLocal': '對方裝置 → 本機',
+  'task.localToRemote': '本機 → 對方裝置',
   'task.sent': '已傳送',
   'task.archiveProgress': ({ done, total }) => `已傳輸 ${done} / ${total}`,
   'task.retryCleanup': '重試清理',
@@ -356,8 +356,8 @@ export const zhTW: Messages = {
   'backup.status.running': '還原中',
 
   'error.withContext': ({ context, text }) => `${context}：${text}`,
-  'error.onMobile': ({ text }) => `行動端上${text}`,
-  'error.onPc': ({ text }) => `電腦上${text}`,
+  'error.onLocal': ({ text }) => `本機上${text}`,
+  'error.onRemote': ({ text }) => `對方裝置上${text}`,
   'error.code.invalid-request': '請求內容無效，請重新整理後重試。',
   'error.code.protocol-mismatch': '兩端應用程式版本不相容，請更新到同一版本。',
   'error.code.session-mismatch': '裝置連線已變更，請重新連線後再試。',

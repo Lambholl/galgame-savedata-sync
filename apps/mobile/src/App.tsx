@@ -7,7 +7,12 @@ import antdZhTW from 'antd/locale/zh_TW'
 import type { Locale } from 'antd/es/locale'
 import { createTranslator, resolveLocale } from '@savedata-sync/shared'
 import type { AppLocale, ResolvedTheme } from '@savedata-sync/shared'
-import { DESIGN_BUTTON, I18nProvider, designTheme } from '@savedata-sync/shared/ui'
+import {
+  DESIGN_BUTTON,
+  I18nProvider,
+  LocalDeviceProvider,
+  designTheme,
+} from '@savedata-sync/shared/ui'
 import { MobileApp } from './app/MobileApp'
 import { useAppPreferences } from './app/app-preferences'
 import { androidBackButton } from './app/back-button'
@@ -56,7 +61,9 @@ export function App(): React.JSX.Element {
         button={DESIGN_BUTTON}
         wave={NO_WAVE}
       >
-        <MobileApp adapter={ADAPTER} sync={SYNC} backButton={androidBackButton} />
+        <LocalDeviceProvider device="phone">
+          <MobileApp adapter={ADAPTER} sync={SYNC} backButton={androidBackButton} />
+        </LocalDeviceProvider>
       </ConfigProvider>
     </I18nProvider>
   )

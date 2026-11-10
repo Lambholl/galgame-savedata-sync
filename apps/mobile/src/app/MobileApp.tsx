@@ -409,7 +409,10 @@ export function MobileApp({
       const name = config.games.find((item) => item.id === projectId)?.name ?? t('common.unknown')
       appMessage.show({
         type: 'info',
-        content: t('transfer.remoteScanRequest', { name }),
+        content: t('transfer.remoteScanRequest', {
+          device: online?.device.name ?? t('common.unknown'),
+          name,
+        }),
         slot: 'remote-sync-scan',
       })
     },

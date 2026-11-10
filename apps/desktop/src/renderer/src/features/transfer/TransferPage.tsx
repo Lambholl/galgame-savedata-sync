@@ -249,9 +249,12 @@ export function TransferPage({
   } else if (comparison) {
     status = { kind: 'ready', comparison }
   } else if (isOtherConfirmed) {
-    status = { kind: 'unavailable', reason: t('transfer.remoteBusy') }
+    status = {
+      kind: 'unavailable',
+      reason: t('transfer.remoteBusy', { name: selectedPeer.device.name }),
+    }
   } else if (shown === null || shown.status === 'waiting') {
-    // 请求还没登记或移动端还没响应。
+    // 请求还没登记或对方设备还没响应。
     status = { kind: 'waiting' }
   } else {
     status = { kind: 'scanning' }

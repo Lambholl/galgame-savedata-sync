@@ -11,7 +11,7 @@
     <string name="transfer_stage_backing_up">Backing up</string>
     <string name="transfer_stage_cleaning">Cleaning up</string>
     <string name="transfer_stage_done">Finishing</string>
-    <string name="transfer_stage_sent">Sent; confirming the PC received the files</string>
+    <string name="transfer_stage_sent">Sent; confirming the other device received the files</string>
     <string name="transfer_cleanup_pending">Temporary files not cleaned up</string>
     <string name="transfer_title_sending">%1$s: Sending files</string>
     <string name="transfer_title_receiving">%1$s: Receiving files</string>

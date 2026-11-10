@@ -78,7 +78,8 @@ export const zhCN = {
     `目标的全部 ${count} 项都会被删除，而且已关闭写入前备份，删除后无法恢复。仍要开始？`,
   'transfer.planUnavailable': '本次计划不可用，请返回传输存档页刷新。',
   'transfer.planStale': '游戏或目录已变化，请返回刷新后再传输。',
-  'transfer.remoteBusy': '另一项传输已确认，正在等待移动端开始。',
+  'transfer.remoteBusy': ({ name }: { name: string }): string =>
+    `另一项传输已确认，正在等待 ${name} 开始。`,
 
   'compare.differs': ({ count }: { count: number }): string => `${count} 个内容不同`,
   'compare.onlySource': ({ count }: { count: number }): string => `${count} 个仅来源有`,
@@ -355,10 +356,11 @@ export const zhCN = {
   'game.transferRunning': '传输进行中',
 
   'transfer.started': '已开始传输',
-  'transfer.remoteScanRequest': ({ name }: { name: string }): string => `电脑请求扫描 ${name}`,
+  'transfer.remoteScanRequest': ({ device, name }: { device: string; name: string }): string =>
+    `${device} 请求扫描 ${name}`,
   'task.loading': '正在读取任务',
-  'task.mobileToPc': '移动端 → 电脑',
-  'task.pcToMobile': '电脑 → 移动端',
+  'task.remoteToLocal': '对方设备 → 本机',
+  'task.localToRemote': '本机 → 对方设备',
   'task.sent': '已发送',
   'task.archiveProgress': ({ done, total }: { done: string; total: string }): string =>
     `已传输 ${done} / ${total}`,
@@ -370,8 +372,8 @@ export const zhCN = {
 
   'error.withContext': ({ context, text }: { context: string; text: string }): string =>
     `${context}：${text}`,
-  'error.onMobile': ({ text }: { text: string }): string => `移动端上${text}`,
-  'error.onPc': ({ text }: { text: string }): string => `电脑上${text}`,
+  'error.onLocal': ({ text }: { text: string }): string => `本机上${text}`,
+  'error.onRemote': ({ text }: { text: string }): string => `对方设备上${text}`,
   'error.code.invalid-request': '请求内容无效，请刷新后重试。',
   'error.code.protocol-mismatch': '两端应用版本不兼容，请更新到同一版本。',
   'error.code.session-mismatch': '设备连接已变化，请重新连接后再试。',
