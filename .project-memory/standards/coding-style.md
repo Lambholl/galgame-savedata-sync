@@ -1,55 +1,43 @@
 ---
 doc_type: coding-style
 status: active
-priority: high
-owner: development
-updated: 2026-11-08
+updated: 2026-11-10
 tags: [编码规范]
 related_files: []
 ---
 
 # 项目级编码规范
 
+这里只写项目相对 Skill 通用规则（`references/general-standards/`）的差异，写明原因和适用范围。规范优先级见 Skill `references/general-standards/language-baseline.md`。
+
 ## 目录
 
 - [1. 规范来源](#1-规范来源)
-- [2. 维护边界](#2-维护边界)
-- [3. 命名规范](#3-命名规范)
-- [4. 目录与模块规范](#4-目录与模块规范)
-- [5. 错误处理与日志](#5-错误处理与日志)
-- [6. 版权信息](#6-版权信息)
-- [7. 接口与函数说明](#7-接口与函数说明)
-- [8. 代码注释](#8-代码注释)
-- [9. 自动化检查与边界](#9-自动化检查与边界)
+- [2. 命名规范](#2-命名规范)
+- [3. 目录与模块规范](#3-目录与模块规范)
+- [4. 错误处理与日志](#4-错误处理与日志)
+- [5. 版权信息](#5-版权信息)
+- [6. 代码注释](#6-代码注释)
+- [7. 自动化检查与边界](#7-自动化检查与边界)
 
 ## 1. 规范来源
 
-| 来源 | 路径 | 优先级 | 状态 |
-| --- | --- | --- | --- |
-| 自动化配置 | `.editorconfig`、`.gitattributes`、`.prettierrc.json`、`.prettierignore`、`eslint.config.mjs`、`apps/mobile/android/checkstyle.xml`、`tsconfig.base.json`、`package.json` | P0 | active |
-| 项目记忆 | 本文件 | P1 | active |
-| Skill 通用规范入口 | `references/general-standards/language-baseline.md` | P2 | active |
-| Skill 通用编码规则 | `references/general-standards/common-rules.md` | P2 | active |
-| 现有代码风格 | `apps/`、`apps/shared/`、`scripts/` | P3 | active |
-
-## 2. 维护边界
-
-| 类型 | 写入位置 | 规则 |
+| 来源 | 路径 | 状态 |
 | --- | --- | --- |
-| 通用语言规范基线 | Skill 自身 `references/general-standards/` | 不在项目模板中私自修改 |
-| 项目级覆盖和差异 | 本文件或同目录规范文件 | 记录差异原因、适用范围和生效条件 |
-| 自动化格式规则 | `.prettierrc.json`、`.editorconfig` | 排版设置维护一份；ESLint 使用 `eslint-config-prettier/flat` 关闭冲突规则，随后为 TS/TSX 启用 `curly: all` 和 `arrow-body-style: as-needed`；Java 同样由 Prettier 排版，`checkstyle.xml` 去掉和它冲突的规则 |
+| 自动化配置 | `.editorconfig`、`.gitattributes`、`.prettierrc.json`、`.prettierignore`、`eslint.config.mjs`、`apps/mobile/android/checkstyle.xml`、`tsconfig.base.json`、`package.json` | active |
+| 现有代码风格 | `apps/`、`apps/shared/`、`scripts/` | active |
 
-## 3. 命名规范
+排版设置只在 `.prettierrc.json` 和 `.editorconfig` 维护一份：ESLint 用 `eslint-config-prettier/flat` 关闭冲突规则，随后为 TS/TSX 启用 `curly: all` 和 `arrow-body-style: as-needed`；Java 同样由 Prettier 排版，`checkstyle.xml` 去掉和它冲突的规则。
+
+## 2. 命名规范
 
 | 类型 | 规则 | 示例 |
 | --- | --- | --- |
-| 手写 TS/JS 与 React | 遵循语言基线；React 组件 PascalCase，普通脚本与模块 kebab-case，优先命名导出 | `App.tsx`、`toolchain-policy.mjs` |
-| TypeScript 布尔值 | 变量、参数、类属性和类型属性使用语义前缀加 PascalCase 主体；允许 `is`、`has`、`can`、`should`、`was`、`were`、`did`、`do`、`will`、`must`、`may`、`need`、`require`、`allow`、`support`、`accept`、`contain`、`include`、`exist`、`match`、`use`、`own` | `isConnected`、`hasPermission`、`canRetry`、`shouldRefresh`、`wasCancelled`、`allowEmpty` |
-| Java 布尔值 | 变量、参数和字段使用和 TypeScript 相同的语义前缀；`static final` 常量按 UPPER_SNAKE_CASE | `isRunning`、`hasTimedOut`、`shouldBackup` |
+| 手写 TS/JS 与 React | 遵循语言规则；React 组件 PascalCase，普通脚本与模块 kebab-case，优先命名导出 | `App.tsx`、`toolchain-policy.mjs` |
+| 布尔值 | 前缀按通用规则。TypeScript 前缀后的主体用 PascalCase，由 ESLint 检查；Java 由 Checkstyle 检查。已发布协议字段的例外见第 7 节 | `isConnected`、`hasTimedOut` |
 | 框架约定 | Vite、Capacitor、ESLint 配置按框架要求默认导出 | `vite.config.ts`、`capacitor.config.ts` |
 
-## 4. 目录与模块规范
+## 3. 目录与模块规范
 
 | 规则 | 原因 |
 | --- | --- |
@@ -61,45 +49,36 @@ related_files: []
 | 移动组件与触控 | 优先使用 antd-mobile，按实际需要使用 antd。尺寸参照 QQ 界面：普通按钮 45 CSS px 起、整行主操作 50 CSS px 起；图标点击区 36 CSS px 起，选项行约 44–52 CSS px；游戏主操作 56 CSS px、次级操作卡片 52 CSS px 起。标题 18px、常用文字和按钮 14px、辅助文字 12px；长文字换行后可增长高度（按钮除外，见“设计变量与样式管理”），常规字号和窄屏下保持可读、可点按 |
 | 界面反馈与可展开行 | 不放“详情”这类折叠开关，也不用文字链接式按钮（移动端上没有点按反馈）：入口做成整行可点的行（图标、文字、右箭头），行内操作用小胶囊 Button。错误只显示本地化说明，原始消息与错误码在电脑上悬停可见，任务详情里写进技术详情。所有 Message 都走各端 `app/app-message.ts` 的 useAppMessage（ESLint 禁止别处直接用 antd 的 message）：每条用新 key，需要互相替换的提示用同一个 slot，因为重开退场中的同 key 提示时计时不会重启，提示会一直不消失。页面的失败信息用 Message 提示一次（各端 `app/failure-message.ts` 的 useFailureMessage，同一失败连续出现只提示一次），不放红色横幅；读不到内容时正文留带“重试”的空状态；传输结束双端各用 Message 提示一次结果。任务结论、失败文件原因和比较状态栏属于记录，留在页面上。可展开的内容统一用 shared/ui 的 Expand 与 ExpandChevron：朝下箭头展开后转 180°，高度平滑过渡。自定义的按钮、可点的行与卡片加 ss-pressable，交互时只叠加渐显的低透明前景色，不直接改背景色；两端分别设计，移动端所有按钮只在按下时显示遮罩，桌面端悬停和按下的取值与 antd 文字按钮相同，见[实现细节](../development/implementation-notes.md)。外观相同的界面直接复用：文件列表用 FilePane，计划确认用电脑 PlanDrawer、移动端 PlanConfirm，恢复等流程打开新页面，不在原页面里切换内容 |
 | 原生生成工程 | `apps/mobile/android/` 下除 `app/src` 的 Java 外保留原生工具风格，不用 Prettier 重写；手写改动仍需检查 UTF-8 与换行 |
-| Android Java | 沿用 Java，遵循 Skill `references/general-standards/languages/java.md`；和它的差异见第 9 节。原生代码用 Checkstyle、javac、Android lint、单元/仪器测试验证，不为本包引入 Kotlin 插件 |
+| Android Java | 沿用 Java，遵循 Skill `references/general-standards/languages/java.md`；和它的差异见第 7 节。原生代码用 Checkstyle、javac、Android lint、单元/仪器测试验证，不为本包引入 Kotlin 插件 |
 | 检查入口 | `pnpm check` 执行文本、格式、lint（ESLint 和 Checkstyle，后者需要 JDK）、类型检查和双端构建；`pnpm test:all` 单独运行全量测试；`security:check` / `security:android` 分别审计 Node 工具链及 Maven |
 | Windows 交付 | 默认只编译桌面运行资源，不重新生成安装版或免安装版；完整打包须有维护者新的明确要求。Android 按原入口生成 APK |
 | 版本控制边界 | 忽略清单以 `.gitignore` 为准，生成产物与临时报告不进入 Git；界面原型只留在本地（`docs/design/`、`.reports/`，都已忽略） |
 
-## 5. 错误处理与日志
+## 4. 错误处理与日志
 
 | 场景 | 规则 |
 | --- | --- |
 | CLI 或网络检查失败 | 显式非零退出，不把下载、解析或审计失败当作成功 |
 | Electron 异步启动 | 捕获加载/初始化错误，保留原始错误上下文；preload 仅暴露明确的只读边界 |
 
-## 6. 版权信息
+## 5. 版权信息
 
-版权信息以项目实际作者、现有许可证和项目约定为准。还没明确的署名信息保持待确认。
+遵循项目现有许可证和明确的作者署名；未明确时不新增版权主体。
 
 | 场景 | 规则 |
 | --- | --- |
-| 默认规则 | 遵循项目现有许可证和明确的作者署名；未明确时不新增版权主体 |
 | 项目差异 | 项目使用 AGPL-3.0，见根目录 `LICENSE`；不另加许可证或版权主体，第三方版权与许可声明保留原文 |
 
-## 7. 接口与函数说明
+## 6. 代码注释
 
-| 对象 | 说明内容 |
-| --- | --- |
-| 对外 API / CLI 命令 | 输入参数、输出结构、错误码或异常、兼容性约束、示例位置。 |
-| 公开函数 / 模块接口 | 参数含义、返回值、副作用、错误行为、调用前置条件。 |
-| 配置项 / 数据结构 | 字段含义、默认值、取值范围、迁移或兼容性影响。 |
-| FFI / 跨语言边界 | 所有权、生命周期、线程安全、内存释放责任、异常或错误码传递方式。 |
-
-## 8. 代码注释
-
-注释规则见[注释规范](comment-style.md)，这里只写项目差异。
+注释规则见 Skill `references/general-standards/common-rules.md` 的“注释原则”，这里只写项目差异。
 
 | 场景 | 项目差异 |
 | --- | --- |
 | 工单号 | 本项目的工作包和变更编号形如 `M-002`、`CR-001`，同样不写进注释 |
+| 术语 | 注释里的术语以代码和[项目术语表](../project/glossary.md)为准 |
 
-## 9. 自动化检查与边界
+## 7. 自动化检查与边界
 
 | 目标与范围 | 执行入口与证据 |
 | --- | --- |
@@ -108,7 +87,7 @@ related_files: []
 | Java 命名、导入、大括号、Javadoc 和布尔前缀。基于 Checkstyle 的 `google_checks.xml`，差异写在 `checkstyle.xml` 开头：去掉排版规则，空 catch 接受中文原因，`@PluginMethod`（接口说明在 TypeScript 插件定义）和 `@After` 不要求 Javadoc，增加未使用导入和布尔前缀检查 | `apps/mobile/android/checkstyle.xml`、`checkstyle.gradle`；`pnpm lint` 通过 `scripts/android-build.mjs --checkstyle` 运行，只要 JDK，不要 Android SDK；只重新检查改过的文件，违规时非零退出 |
 | 全部 Markdown（含 MDX、Prettier 支持的其他 Markdown 扩展名与无扩展名 README）人工维护 | `.prettierignore`；Prettier 排除文件及其中的代码块，编码检查仍由 `pnpm check:text` 覆盖 |
 | 手写 JS/TS 的声明、严格比较、动态执行、错误对象与命名导出约束；TS 另检查类型安全、模块边界类型和未处理 Promise | `eslint.config.mjs`；JS 使用语法检查，TS 使用类型感知规则；生成目录不纳入检查 |
-| TypeScript 命名遵循语言基线；TSX 允许 PascalCase 组件；外部对象字面量键与导入名保留兼容性 | `eslint.config.mjs`；默认导出仅对当前四个 ESLint、Vite、Capacitor 配置文件豁免 |
+| TypeScript 命名遵循语言规则；TSX 允许 PascalCase 组件；外部对象字面量键与导入名保留兼容性 | `eslint.config.mjs`；默认导出仅对当前四个 ESLint、Vite、Capacitor 配置文件豁免 |
 | TypeScript 布尔变量、参数和属性使用语义前缀；主体保持 PascalCase，保证整体名称符合 lowerCamelCase | `eslint.config.mjs` 的 `@typescript-eslint/naming-convention`；已在协议中发布的 `blocked`、`cancelRequested`、`dark`、`upload`、`refresh` 保留原名，改协议时再迁移 |
 | Android 同一 Maven 模块在运行、测试和构建工具里只解析一个版本 | `apps/mobile/android/dependency-security.json` 的 `singleVersionModules`，由 `settings.gradle` 应用；`pnpm security:android` 发现多版本时失败。这一步要联网并重新解析依赖，不在 `pnpm check` 里 |
 | 编码、BOM、换行与严格类型 | `scripts/check-text.mjs`、`tsconfig.base.json`；`pnpm check:text`、`pnpm typecheck` |

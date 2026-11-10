@@ -1,8 +1,6 @@
 ---
 doc_type: regression-notes
 status: active
-priority: medium
-owner: testing
 updated: 2026-11-09
 tags: [回归测试, 当前状态]
 related_files: []

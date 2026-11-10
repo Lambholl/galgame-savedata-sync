@@ -1,8 +1,6 @@
 ---
 doc_type: api-contracts
 status: active
-priority: medium
-owner: architecture
 updated: 2026-11-09
 tags: [API, 接口约定]
 related_files: []

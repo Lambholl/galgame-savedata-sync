@@ -1,8 +1,6 @@
 ---
 doc_type: test-cases
 status: active
-priority: medium
-owner: testing
 id_prefix: TC
 id_high_water: 41
 updated: 2026-11-06

@@ -1,8 +1,6 @@
 ---
 doc_type: product-requirements
 status: active
-priority: high
-owner: product
 id_prefix: REQ
 id_high_water: 22
 updated: 2026-11-06

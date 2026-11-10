@@ -1,8 +1,6 @@
 ---
 doc_type: commit-style
 status: active
-priority: low
-owner: project
 updated: 2026-11-08
 tags: [提交规范]
 related_files: []

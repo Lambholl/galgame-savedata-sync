@@ -1,8 +1,6 @@
 ---
 doc_type: constraints
 status: active
-priority: medium
-owner: project
 updated: 2026-11-08
 tags: [约束]
 related_files: []

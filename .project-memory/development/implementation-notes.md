@@ -1,8 +1,6 @@
 ---
 doc_type: implementation-notes
 status: active
-priority: medium
-owner: development
 updated: 2026-11-07
 tags: [实现细节]
 related_files: []

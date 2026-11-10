@@ -1,8 +1,6 @@
 ---
 doc_type: coverage-gaps
 status: active
-priority: medium
-owner: testing
 updated: 2026-11-05
 tags: [测试缺口]
 related_files: []

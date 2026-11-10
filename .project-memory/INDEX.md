@@ -1,8 +1,7 @@
 ---
 doc_type: index
 status: active
-owner: project
-updated: 2026-11-09
+updated: 2026-11-10
 tags: [Agent导航, 项目记忆]
 related_files: []
 ---
@@ -20,9 +19,7 @@ related_files: []
 
 1. 先读本 INDEX，再根据任务和文档 `## 目录` 选择需要的原文章节。
 2. 可直接使用 `rg`、`sed`、`head` 或 `cat`；需要章节切片时使用 `read --file <path> --toc|--section <标题>|--full`。
-3. 任务范围变化时重新查看导航；规范、版本或路径不明确时先调查再写入。
-
-本文件提供导航、可恢复当前工作和当前文档清单，不复制项目正文。`archive/` 不进入本索引或默认搜索。
+3. 任务范围变化时重新查看导航；规范或路径不明确时先调查再写入。
 
 ## 2. 当前工作
 
@@ -66,7 +63,6 @@ related_files: []
 | `requirements/product.md` | 产品需求 | active | 产品需求 |
 | `requirements/scope.md` | 项目范围 | active | 范围 |
 | `standards/coding-style.md` | 项目级编码规范 | active | 编码规范 |
-| `standards/comment-style.md` | 注释规范 | active | 注释规范 |
 | `standards/commit-style.md` | 提交规范 | active | 提交规范 |
 | `standards/testing-style.md` | 测试规范 | active | 测试规范 |
 | `testing/acceptance.md` | 验收标准 | active | 验收标准 |

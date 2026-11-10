@@ -1,8 +1,6 @@
 ---
 doc_type: module-status
 status: active
-priority: high
-owner: development
 updated: 2026-11-09
 tags: [模块状态, 开发进度]
 related_files: []

@@ -1,8 +1,6 @@
 ---
 doc_type: scope
 status: active
-priority: high
-owner: project
 updated: 2026-11-06
 tags: [范围]
 related_files: []

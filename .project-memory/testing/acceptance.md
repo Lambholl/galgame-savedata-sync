@@ -1,8 +1,6 @@
 ---
 doc_type: acceptance
 status: active
-priority: high
-owner: testing
 updated: 2026-11-06
 tags: [验收标准]
 related_files: []

@@ -1,8 +1,6 @@
 ---
 doc_type: adr
 status: accepted
-priority: high
-owner: architecture
 updated: 2026-11-05
 tags: [决策, 界面, 组件库, 共用组件]
 related_files: [eslint.config.mjs, apps/shared]

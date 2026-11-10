@@ -1,8 +1,6 @@
 ---
 doc_type: risks
 status: active
-priority: high
-owner: development
 id_prefix: R
 id_high_water: 1
 updated: 2026-11-08

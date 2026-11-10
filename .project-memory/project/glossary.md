@@ -1,8 +1,6 @@
 ---
 doc_type: glossary
 status: draft
-priority: medium
-owner: project
 updated: 2026-11-05
 tags: [术语]
 related_files: []

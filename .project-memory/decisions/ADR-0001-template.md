@@ -1,8 +1,6 @@
 ---
 doc_type: adr
 status: proposed
-priority: high
-owner: architecture
 updated: 2026-10-25
 tags: [决策]
 related_files: []

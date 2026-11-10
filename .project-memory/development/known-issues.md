@@ -1,8 +1,6 @@
 ---
 doc_type: known-issues
 status: active
-priority: medium
-owner: development
 id_prefix: BUG
 id_high_water: 7
 updated: 2026-11-08

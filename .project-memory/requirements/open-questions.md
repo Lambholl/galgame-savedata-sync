@@ -1,8 +1,6 @@
 ---
 doc_type: open-questions
 status: active
-priority: medium
-owner: project
 id_prefix: Q
 id_high_water: 16
 updated: 2026-11-08

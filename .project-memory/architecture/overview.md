@@ -1,8 +1,6 @@
 ---
 doc_type: architecture-overview
 status: active
-priority: high
-owner: architecture
 updated: 2026-11-08
 tags: [架构总览]
 related_files: []

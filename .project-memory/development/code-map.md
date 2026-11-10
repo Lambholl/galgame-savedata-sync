@@ -1,8 +1,6 @@
 ---
 doc_type: code-map
 status: active
-priority: medium
-owner: development
 updated: 2026-11-09
 tags: [代码地图]
 related_files: []

@@ -1,8 +1,6 @@
 ---
 doc_type: architecture-dependencies
 status: draft
-priority: medium
-owner: architecture
 updated: 2026-11-09
 tags: [依赖]
 related_files: []

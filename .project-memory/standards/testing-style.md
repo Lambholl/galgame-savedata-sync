@@ -1,8 +1,6 @@
 ---
 doc_type: testing-style
 status: active
-priority: medium
-owner: testing
 updated: 2026-11-08
 tags: [测试规范]
 related_files: []
