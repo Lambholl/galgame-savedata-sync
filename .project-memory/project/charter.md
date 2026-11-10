@@ -1,7 +1,7 @@
 ---
 doc_type: project-charter
 status: active
-updated: 2026-11-10
+updated: 2026-11-11
 tags: [项目目标, 成功标准]
 related_files: []
 ---
@@ -19,7 +19,7 @@ related_files: []
 
 - 项目目标：在 Windows 电脑与 Android 设备之间，通过局域网手动选择方向同步文件夹，减少游玩 galgame 时手工复制存档的操作。
 - 目标用户：在电脑与 Android 设备之间切换、需要管理多个游戏或文件夹的使用者。
-- 当前阶段：M-003（连接与重连）进行中，进度见[路线图](roadmap.md)。M-002 已收口，真实存档覆盖在支持范围内开放，范围见仓库根目录的 `docs/plans/m002-sync-copy.md` 第 6 节；传输页“保留减少的文件”开关（CR-015）已实现并通过 Windows 和 Android 真机合成目录验证。M-002 没有做 Android 10 实测。实现见[实现细节](../development/implementation-notes.md)，1 GiB 传输基线见仓库根目录的 `docs/validation/m001-resources.md`。
+- 当前阶段：M-003（连接与重连）已完成，随 0.3.1 发布：局域网发现、扫码连接、手动 IP 和改址自动重连，验收见[验收标准](../testing/acceptance.md)；下一里程碑见[路线图](roadmap.md)。M-002 已收口，真实存档覆盖在支持范围内开放，范围见仓库根目录的 `docs/plans/m002-sync-copy.md` 第 6 节；传输页“保留减少的文件”开关（CR-015）已实现并通过 Windows 和 Android 真机合成目录验证。M-002 没有做 Android 10 实测。实现见[实现细节](../development/implementation-notes.md)，1 GiB 传输基线见仓库根目录的 `docs/validation/m001-resources.md`。
 - 成功标准：见[验收标准](../testing/acceptance.md)。
 - 当前约束：默认不新增或扩写自动化测试。开发验证写入限明确选定的独立合成目标，真实存档不用于故障注入。
 

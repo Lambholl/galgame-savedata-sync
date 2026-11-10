@@ -682,8 +682,9 @@ html.camera-live .app-heading {
 .adm-spin-loading-svg {
   display: block;
 }
+/* 用块级 flex：inline-flex 按文字基线排在行框里，会把描述行撑高约 2px，让这一行比其他行高。 */
 .device-inline {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   gap: 6px;
 }

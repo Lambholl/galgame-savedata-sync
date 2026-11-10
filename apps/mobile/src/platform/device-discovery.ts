@@ -191,15 +191,16 @@ export function createDeviceDiscovery(
 }
 
 /**
- * 在局域网里按设备 ID 查找一台监听方设备，用于已保存设备的原地址连不上之后找它的当前地址。
+ * 在局域网里按设备 ID 查找一台监听方设备，用于在已保存设备的原地址连不上时找它的当前地址。
  * 查找期间订阅 discovery 的搜索结果：结果里出现这个设备 ID 时 resolve 为该设备；
- * 等满 timeoutMs 仍没有、系统拒绝搜索或没有局域网搜索（浏览器预览）时 resolve 为 null，不会 reject。
+ * 等满 timeoutMs 仍没有、signal 中止、系统拒绝搜索或没有局域网搜索（浏览器预览）时 resolve 为 null，不会 reject。
  * 结束时取消订阅，没有其他订阅者时原生搜索随之停止。
  */
 export function findDevice(
   discovery: DeviceDiscoveryApi,
   deviceId: string,
   timeoutMs: number,
+  signal: AbortSignal,
 ): Promise<DiscoveredDevice | null> {
   return new Promise((resolve) => {
     let stop: (() => void) | null = null
@@ -210,10 +211,19 @@ export function findDevice(
       }
       isDone = true
       clearTimeout(timer)
+      signal.removeEventListener('abort', abort)
       stop?.()
       resolve(device)
     }
-    const timer = setTimeout(() => finish(null), timeoutMs)
+    function abort(): void {
+      finish(null)
+    }
+    const timer = setTimeout(abort, timeoutMs)
+    if (signal.aborted) {
+      abort()
+      return
+    }
+    signal.addEventListener('abort', abort)
     stop = discovery.watch((snapshot) => {
       if (snapshot.status !== 'searching') {
         finish(null)

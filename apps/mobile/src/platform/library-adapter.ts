@@ -199,6 +199,26 @@ export function createMobileLibraryAdapter(
   }
   async function disconnect(id: string): Promise<void> {
     unwrap(await androidTransfers.disconnectDevice(id))
+    forgetSession(id)
+  }
+  /**
+   * 用户主动连接设备之前，释放控制通道已断开、还在宽限期内的本机会话。
+   * 控制通道异常断开后，会话保留 CONTROL_GRACE_MS 等对方恢复，这期间界面已显示未连接，点“连接”时不再等。
+   * 用原生 disconnect 只释放本机会话：对方已经断开，向它发告别请求只会等到超时。
+   * 控制通道还开着或有进行中的任务时保留会话，之后的连接照常因 busy 失败。
+   */
+  async function releaseClosedSession(): Promise<void> {
+    const ids = descriptors.map((item) => item.device.deviceId)
+    if (!ids.length || ids.some((id) => control.state(id)?.isOpen) || (await hasWork())) {
+      return
+    }
+    unwrap(await androidTransfers.disconnect())
+    for (const id of ids) {
+      forgetSession(id)
+    }
+  }
+  /** 清掉本机为这台设备记录的会话、目录交换和控制通道状态；原生会话由调用方先释放。 */
+  function forgetSession(id: string): void {
     descriptors = descriptors.filter((item) => item.device.deviceId !== id)
     pushed.delete(id)
     stale.delete(id)
@@ -341,6 +361,7 @@ export function createMobileLibraryAdapter(
       return androidTransfers.chooseTarget()
     },
     async connect(address, expectedDeviceId): Promise<string> {
+      await releaseClosedSession()
       if (descriptors.length) {
         throw new Error('busy')
       }
@@ -392,6 +413,7 @@ export function createMobileLibraryAdapter(
     },
     async connectCandidates(candidates, expectedDeviceId): Promise<string> {
       let lastError: unknown = new Error('invalid-request')
+      await releaseClosedSession()
       for (const candidate of candidates) {
         if (descriptors.length) {
           throw new Error('busy')

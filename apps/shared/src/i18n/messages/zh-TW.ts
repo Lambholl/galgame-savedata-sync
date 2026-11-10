@@ -311,8 +311,6 @@ export const zhTW: Messages = {
   'device.nearbyEmpty': '沒有找到',
   'device.nearbyOutdated': '版本不同，兩台裝置都更新後才能連線',
   'device.nearbyFailed': '無法搜尋附近的裝置',
-  'device.lookupFinding': '原位址無法連線，正在尋找',
-  'device.lookupFailed': ({ name }) => `找不到 ${name}。點按裝置可修改位址，也可以掃描 QR 碼連線`,
   'device.relocated': ({ name }) => `已找到 ${name} 的新位址並連線`,
   'device.scan': '掃描連線',
   'device.scanTitle': '掃描',

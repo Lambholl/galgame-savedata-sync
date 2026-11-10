@@ -62,7 +62,6 @@ export function DevicesPage({
   peers,
   online,
   connectingId,
-  lookingUpId,
   isDisabled,
   isActive,
   onConnect,
@@ -76,8 +75,6 @@ export function DevicesPage({
   readonly online: LibraryPeer | null
   /** 正在连接的设备 ID，可能是已保存的设备，也可能是附近的设备；没有时为 null。 */
   readonly connectingId: string | null
-  /** 原地址连不上后正在按设备 ID 查找的已保存设备，该行显示查找中；没有时为 null。 */
-  readonly lookingUpId: string | null
   readonly isDisabled: boolean
   readonly isActive: boolean
   /**
@@ -127,7 +124,6 @@ export function DevicesPage({
               // 附近搜到的地址里没有保存的地址时，显示搜到的地址：点“连接”会连它，连上后保存的地址换成它。
               const moved = found !== undefined && !isAtSavedAddress(peer, found) ? found : null
               const nearbyAddress = moved ? `${moved.addresses[0] ?? ''}:${moved.port}` : address
-              const isFinding = lookingUpId === peer.device.id
               return (
                 <List.Item
                   key={peer.device.id}
@@ -143,11 +139,6 @@ export function DevicesPage({
                         {address
                           ? `${t('transfer.connected')} · ${address}`
                           : t('transfer.connected')}
-                      </span>
-                    ) : isFinding ? (
-                      <span className="device-inline">
-                        <SpinLoading style={{ '--size': '12px' }} />
-                        {t('device.lookupFinding')}
                       </span>
                     ) : isConnecting ? (
                       t('device.connecting')
@@ -175,7 +166,7 @@ export function DevicesPage({
                       >
                         {t('device.disconnect')}
                       </Button>
-                    ) : isFinding ? undefined : isConnecting ? (
+                    ) : isConnecting ? (
                       <SpinLoading style={{ '--size': '20px' }} />
                     ) : peer.device.address ? (
                       <ConnectButton

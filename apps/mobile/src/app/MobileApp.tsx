@@ -68,7 +68,10 @@ import { AddGameDialog } from '../features/games/AddGameDialog'
 
 const EMPTY = emptyLibrary()
 
-/** 已保存设备的原地址连不上后，按设备 ID 在局域网里查找的时长；超过后显示没找到。 */
+/**
+ * 连接已保存设备时按设备 ID 在局域网里查找的时长，从开始连接保存的地址算起。
+ * 和连接超时相同：原地址不回应时，连接超时的同时查找也结束，约 5 秒得出结果。
+ */
 const DEVICE_LOOKUP_MS = 5_000
 
 /**
@@ -138,8 +141,6 @@ export function MobileApp({
       setConnectingId(null)
     }
   }, [isBusy])
-  // 原地址连不上后正在按设备 ID 查找的已保存设备，设备页在这一行显示查找中；只在 isBusy 期间有效。
-  const [lookingUpId, setLookingUpId] = useState<string | null>(null)
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null)
   const [interruptedWrites, setInterruptedWrites] = useState<readonly InterruptedWrite[]>([])
   const operating = useRef(false)
@@ -578,8 +579,10 @@ export function MobileApp({
     })
   }
   /**
-   * 连接已保存的设备。moved 是附近搜到的这台设备，这时先连搜到的地址，最后再试保存的地址；
-   * 没有 moved 时连保存的地址，连不上或连到另一台设备再按设备 ID 查找。连上后保存的地址换成实际连上的地址。
+   * 连接已保存的设备。moved 是附近搜到的这台设备，这时先连搜到的地址，最后再试保存的地址。
+   * 没有 moved 时连保存的地址，同时在后台按设备 ID 查找，界面上只显示连接中；保存的地址连上就停止查找。
+   * 保存的地址连不上或连到另一台设备时，查到了就连查到的地址，没查到时提示保存的地址连接失败的原因。
+   * 连上后保存的地址换成实际连上的地址。
    */
   function connectDevice(peer: LibraryPeer, moved: DiscoveredDevice | null): void {
     const id = peer.device.id
@@ -593,36 +596,21 @@ export function MobileApp({
         noteRelocated(name, candidates, peer)
         return
       }
+      const lookup = new AbortController()
+      const found = findDevice(deviceDiscovery, id, DEVICE_LOOKUP_MS, lookup.signal)
       try {
         await adapter.device(id, 'allow')
       } catch (cause) {
-        if (!shouldLookUpDevice(cause)) {
+        const device = shouldLookUpDevice(cause) ? await found : null
+        if (device === null) {
           throw cause
         }
-        await relocateDevice(peer)
+        const candidates = createConnectionCandidates(device.addresses, device.port)
+        noteRelocated(await adapter.connectCandidates(candidates, id), candidates, peer)
+      } finally {
+        lookup.abort()
       }
     }, showConnectionFailure)
-  }
-  /**
-   * 按设备 ID 在局域网里查找已保存的设备，找到后依次连它广播的地址。
-   * 查找超时算连接失败：提示改地址或扫码后正常结束，该行恢复成可连接。找到后连不上时 reject，由调用方提示连接失败。
-   */
-  async function relocateDevice(peer: LibraryPeer): Promise<void> {
-    setLookingUpId(peer.device.id)
-    const found = await findDevice(deviceDiscovery, peer.device.id, DEVICE_LOOKUP_MS)
-    setLookingUpId(null)
-    if (found === null) {
-      appMessage.show({
-        type: 'error',
-        content: t('device.lookupFailed', { name: peer.device.name }),
-        duration: 3.5,
-        slot: 'connection',
-      })
-      return
-    }
-    const candidates = createConnectionCandidates(found.addresses, found.port)
-    const name = await adapter.connectCandidates(candidates, peer.device.id)
-    noteRelocated(name, candidates, peer)
   }
   /**
    * 连上已保存的设备后，用的地址里没有保存的地址时，把“已找到新地址并连接”交给 refresh 提示。
@@ -849,7 +837,6 @@ export function MobileApp({
         peers={peers}
         online={online}
         connectingId={isBusy ? connectingId : null}
-        lookingUpId={isBusy ? lookingUpId : null}
         isDisabled={isDisabled}
         isActive={isActive}
         onConnect={connectDevice}
