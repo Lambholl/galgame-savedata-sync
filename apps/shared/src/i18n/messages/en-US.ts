@@ -327,6 +327,10 @@ export const enUS: Messages = {
   'device.nearbyEmpty': 'None found',
   'device.nearbyOutdated': 'Different version. Update both devices to connect',
   'device.nearbyFailed': 'Could not search for nearby devices',
+  'device.lookupFinding': 'Not at its saved address. Searching…',
+  'device.lookupFailed': ({ name }) =>
+    `Could not find ${name}. Tap the device to edit its address, or scan its QR code to connect`,
+  'device.relocated': ({ name }) => `Found ${name} at a new address and connected`,
   'device.scan': 'Scan to connect',
   'device.scanTitle': 'Scan',
   'device.scanHint': 'Point at the QR code on the other device',

@@ -322,6 +322,10 @@ export const zhCN = {
   'device.nearbyEmpty': '没有找到',
   'device.nearbyOutdated': '版本不同，两台设备都更新后才能连接',
   'device.nearbyFailed': '无法搜索附近的设备',
+  'device.lookupFinding': '原地址连不上，正在查找',
+  'device.lookupFailed': ({ name }: { name: string }): string =>
+    `没找到 ${name}。点按设备可修改地址，也可以扫码连接`,
+  'device.relocated': ({ name }: { name: string }): string => `已找到 ${name} 的新地址并连接`,
   'device.scan': '扫码连接',
   'device.scanTitle': '扫码',
   'device.scanHint': '对准另一台设备上的二维码',

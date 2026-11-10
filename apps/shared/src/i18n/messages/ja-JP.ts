@@ -322,6 +322,10 @@ export const jaJP: Messages = {
   'device.nearbyEmpty': '見つかりません',
   'device.nearbyOutdated': 'バージョンが異なります。両方の端末を更新すると接続できます',
   'device.nearbyFailed': '近くの端末を検索できません',
+  'device.lookupFinding': '保存したアドレスに接続できません。検索中…',
+  'device.lookupFailed': ({ name }) =>
+    `${name} が見つかりません。端末をタップしてアドレスを編集するか、QR コードをスキャンして接続してください`,
+  'device.relocated': ({ name }) => `${name} の新しいアドレスを見つけて接続しました`,
   'device.scan': 'スキャンして接続',
   'device.scanTitle': 'スキャン',
   'device.scanHint': 'もう一方の端末の QR コードに合わせてください',

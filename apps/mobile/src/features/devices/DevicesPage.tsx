@@ -55,12 +55,14 @@ function ConnectButton({
 
 /**
  * 设备页：已保存的设备和局域网里搜到的附近设备两组列表。页面打开期间一直在搜索，离开页面即停止。
- * 附近的设备只列还没保存的；已保存的设备在附近搜到时，在已保存的列表里标“在附近”。点按或长按已保存设备的整行打开管理。
+ * 附近的设备只列还没保存的；已保存的设备在附近搜到时，在已保存的列表里标“在附近”，地址变了时显示搜到的地址。
+ * 点按或长按已保存设备的整行打开管理。
  */
 export function DevicesPage({
   peers,
   online,
   connectingId,
+  lookingUpId,
   isDisabled,
   isActive,
   onConnect,
@@ -74,9 +76,14 @@ export function DevicesPage({
   readonly online: LibraryPeer | null
   /** 正在连接的设备 ID，可能是已保存的设备，也可能是附近的设备；没有时为 null。 */
   readonly connectingId: string | null
+  /** 原地址连不上后正在按设备 ID 查找的已保存设备，该行显示查找中；没有时为 null。 */
+  readonly lookingUpId: string | null
   readonly isDisabled: boolean
   readonly isActive: boolean
-  readonly onConnect: (peer: LibraryPeer) => void
+  /**
+   * 连接已保存的设备。附近搜到了这台设备、搜到的地址里却没有保存的地址时，moved 是搜到的设备，否则为 null。
+   */
+  readonly onConnect: (peer: LibraryPeer, moved: DiscoveredDevice | null) => void
   readonly onDisconnect: (peer: LibraryPeer) => void
   readonly onManageDevice: (id: string) => void
   readonly onConnectNearby: (device: DiscoveredDevice) => void
@@ -87,21 +94,16 @@ export function DevicesPage({
   const nearby = useNearbyDevices()
   const savedIds = new Set(peers.map((peer) => peer.device.id))
   const nearbyDevices = nearby.snapshot.devices.filter((device) => !savedIds.has(device.deviceId))
-  // 只有搜到的地址里有保存的地址才标“在附近”：地址变了时点连接仍会失败，标了反而误导。
-  const savedAddresses = new Map(
-    peers.flatMap((peer) =>
-      peer.device.address ? [[peer.device.id, formatConnectionAddress(peer.device.address)]] : [],
-    ),
-  )
-  const reachableIds = new Set(
+  const nearbySaved = new Map(
     nearby.snapshot.devices
-      .filter((device) =>
-        device.addresses.some(
-          (address) => `${address}:${device.port}` === savedAddresses.get(device.deviceId),
-        ),
-      )
-      .map((device) => device.deviceId),
+      .filter((device) => savedIds.has(device.deviceId))
+      .map((device) => [device.deviceId, device]),
   )
+  /** 判断附近搜到的地址里有没有这台设备保存的地址。 */
+  function isAtSavedAddress(peer: LibraryPeer, device: DiscoveredDevice): boolean {
+    const saved = peer.device.address && formatConnectionAddress(peer.device.address)
+    return device.addresses.some((address) => `${address}:${device.port}` === saved)
+  }
   const blockedBy =
     online?.device.name ??
     peers.find((peer) => peer.device.id === connectingId)?.device.name ??
@@ -121,6 +123,11 @@ export function DevicesPage({
             {peers.map((peer) => {
               const isConnecting = connectingId === peer.device.id
               const address = peer.device.address && formatConnectionAddress(peer.device.address)
+              const found = nearbySaved.get(peer.device.id)
+              // 附近搜到的地址里没有保存的地址时，显示搜到的地址：点“连接”会连它，连上后保存的地址换成它。
+              const moved = found !== undefined && !isAtSavedAddress(peer, found) ? found : null
+              const nearbyAddress = moved ? `${moved.addresses[0] ?? ''}:${moved.port}` : address
+              const isFinding = lookingUpId === peer.device.id
               return (
                 <List.Item
                   key={peer.device.id}
@@ -137,12 +144,17 @@ export function DevicesPage({
                           ? `${t('transfer.connected')} · ${address}`
                           : t('transfer.connected')}
                       </span>
+                    ) : isFinding ? (
+                      <span className="device-inline">
+                        <SpinLoading style={{ '--size': '12px' }} />
+                        {t('device.lookupFinding')}
+                      </span>
                     ) : isConnecting ? (
                       t('device.connecting')
-                    ) : reachableIds.has(peer.device.id) ? (
+                    ) : found !== undefined ? (
                       <span className="device-inline">
                         <span className="device-near">{t('device.nearbyHere')}</span>
-                        {address}
+                        {nearbyAddress}
                       </span>
                     ) : (
                       address
@@ -163,13 +175,13 @@ export function DevicesPage({
                       >
                         {t('device.disconnect')}
                       </Button>
-                    ) : isConnecting ? (
+                    ) : isFinding ? undefined : isConnecting ? (
                       <SpinLoading style={{ '--size': '20px' }} />
                     ) : peer.device.address ? (
                       <ConnectButton
                         blockedBy={blockedBy}
                         isDisabled={isDisabled || isActive}
-                        onConnect={() => onConnect(peer)}
+                        onConnect={() => onConnect(peer, moved)}
                         onBlocked={onBlocked}
                       />
                     ) : undefined

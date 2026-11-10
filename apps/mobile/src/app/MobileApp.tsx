@@ -24,6 +24,7 @@ import type {
   ShownError,
 } from '@savedata-sync/shared'
 import type { MobileLibraryAdapter, MobileSnapshot } from '../platform/library-types'
+import { deviceDiscovery, findDevice } from '../platform/device-discovery'
 import type { DiscoveredDevice } from '../platform/device-discovery'
 import { ConfirmationDialog } from '../components/ConfirmationDialog.tsx'
 import { InterruptedWriteDialog } from '../components/InterruptedWriteDialog.tsx'
@@ -66,6 +67,18 @@ import '../styles/mobile.css'
 import { AddGameDialog } from '../features/games/AddGameDialog'
 
 const EMPTY = emptyLibrary()
+
+/** 已保存设备的原地址连不上后，按设备 ID 在局域网里查找的时长；超过后显示没找到。 */
+const DEVICE_LOOKUP_MS = 5_000
+
+/**
+ * 判断连接已保存设备的失败是否要按设备 ID 查找：原地址连不上、超时，或这个地址上现在是另一台设备。
+ * 版本不同、配置损坏等其他失败换地址也解决不了，直接提示。
+ */
+function shouldLookUpDevice(cause: unknown): boolean {
+  const code = toShownError(cause).code
+  return code === 'network-failure' || code === 'timeout' || code === 'session-mismatch'
+}
 
 /** 移动应用的根组件，持有应用状态和页面导航；传输在原生层，切页不影响任务。 */
 export function MobileApp({
@@ -125,6 +138,8 @@ export function MobileApp({
       setConnectingId(null)
     }
   }, [isBusy])
+  // 原地址连不上后正在按设备 ID 查找的已保存设备，设备页在这一行显示查找中；只在 isBusy 期间有效。
+  const [lookingUpId, setLookingUpId] = useState<string | null>(null)
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null)
   const [interruptedWrites, setInterruptedWrites] = useState<readonly InterruptedWrite[]>([])
   const operating = useRef(false)
@@ -182,6 +197,11 @@ export function MobileApp({
     generation.current++
   }, [])
   const snapshotRef = useRef(snapshot)
+  // refresh 发现这台设备新连上时提示的文字，代替默认的“已连接到”；提示后清空，开始新的连接时也清空。
+  // 连接返回时控制通道可能还没打开，要等之后的某次 refresh 才算连上，所以不能每次 refresh 都清空。
+  const connectedNotice = useRef<{ readonly deviceId: string; readonly content: string } | null>(
+    null,
+  )
   snapshotRef.current = snapshot
   const refresh = useCallback(async (): Promise<void> => {
     const version = ++generation.current
@@ -205,11 +225,18 @@ export function MobileApp({
           ),
       )
       if (connected) {
+        const notice = connectedNotice.current
+        const isNoticed = notice?.deviceId === connected.device.id
         appMessage.show({
           type: 'success',
-          content: t('app.connectedTo', { name: connected.device.name }),
+          content: isNoticed
+            ? notice.content
+            : t('app.connectedTo', { name: connected.device.name }),
           slot: 'connection',
         })
+        if (isNoticed) {
+          connectedNotice.current = null
+        }
       }
       snapshotRef.current = value
       setSnapshot(value)
@@ -547,11 +574,64 @@ export function MobileApp({
       },
     })
   }
-  function connectDevice(peer: LibraryPeer): void {
+  /**
+   * 连接已保存的设备。moved 是附近搜到的这台设备，这时先连搜到的地址，最后再试保存的地址；
+   * 没有 moved 时连保存的地址，连不上或连到另一台设备再按设备 ID 查找。连上后保存的地址换成实际连上的地址。
+   */
+  function connectDevice(peer: LibraryPeer, moved: DiscoveredDevice | null): void {
+    const id = peer.device.id
     run(async () => {
-      setConnectingId(peer.device.id)
-      await adapter.device(peer.device.id, 'allow')
+      connectedNotice.current = null
+      setConnectingId(id)
+      if (moved !== null) {
+        const candidates = createConnectionCandidates(moved.addresses, moved.port)
+        const saved = peer.device.address ? [peer.device.address] : []
+        const name = await adapter.connectCandidates([...new Set([...candidates, ...saved])], id)
+        noteRelocated(name, candidates, peer)
+        return
+      }
+      try {
+        await adapter.device(id, 'allow')
+      } catch (cause) {
+        if (!shouldLookUpDevice(cause)) {
+          throw cause
+        }
+        await relocateDevice(peer)
+      }
     }, showConnectionFailure)
+  }
+  /**
+   * 按设备 ID 在局域网里查找已保存的设备，找到后依次连它广播的地址。
+   * 查找超时算连接失败：提示改地址或扫码后正常结束，该行恢复成可连接。找到后连不上时 reject，由调用方提示连接失败。
+   */
+  async function relocateDevice(peer: LibraryPeer): Promise<void> {
+    setLookingUpId(peer.device.id)
+    const found = await findDevice(deviceDiscovery, peer.device.id, DEVICE_LOOKUP_MS)
+    setLookingUpId(null)
+    if (found === null) {
+      appMessage.show({
+        type: 'error',
+        content: t('device.lookupFailed', { name: peer.device.name }),
+        duration: 3.5,
+        slot: 'connection',
+      })
+      return
+    }
+    const candidates = createConnectionCandidates(found.addresses, found.port)
+    const name = await adapter.connectCandidates(candidates, peer.device.id)
+    noteRelocated(name, candidates, peer)
+  }
+  /**
+   * 连上已保存的设备后，用的地址里没有保存的地址时，把“已找到新地址并连接”交给 refresh 提示。
+   * run 结束后的 refresh 会提示新连上的设备，直接在这里提示会被它的“已连接到”覆盖。
+   */
+  function noteRelocated(name: string, candidates: readonly string[], peer: LibraryPeer): void {
+    if (peer.device.address === null || !candidates.includes(peer.device.address)) {
+      connectedNotice.current = {
+        deviceId: peer.device.id,
+        content: t('device.relocated', { name }),
+      }
+    }
   }
   function disconnectDevice(peer: LibraryPeer): void {
     run(() => adapter.device(peer.device.id, 'disconnect'))
@@ -766,6 +846,7 @@ export function MobileApp({
         peers={peers}
         online={online}
         connectingId={isBusy ? connectingId : null}
+        lookingUpId={isBusy ? lookingUpId : null}
         isDisabled={isDisabled}
         isActive={isActive}
         onConnect={connectDevice}

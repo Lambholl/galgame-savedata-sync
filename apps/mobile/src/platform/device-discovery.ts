@@ -190,6 +190,47 @@ export function createDeviceDiscovery(
   }
 }
 
+/**
+ * 在局域网里按设备 ID 查找一台监听方设备，用于已保存设备的原地址连不上之后找它的当前地址。
+ * 查找期间订阅 discovery 的搜索结果：结果里出现这个设备 ID 时 resolve 为该设备；
+ * 等满 timeoutMs 仍没有、系统拒绝搜索或没有局域网搜索（浏览器预览）时 resolve 为 null，不会 reject。
+ * 结束时取消订阅，没有其他订阅者时原生搜索随之停止。
+ */
+export function findDevice(
+  discovery: DeviceDiscoveryApi,
+  deviceId: string,
+  timeoutMs: number,
+): Promise<DiscoveredDevice | null> {
+  return new Promise((resolve) => {
+    let stop: (() => void) | null = null
+    let isDone = false
+    function finish(device: DiscoveredDevice | null): void {
+      if (isDone) {
+        return
+      }
+      isDone = true
+      clearTimeout(timer)
+      stop?.()
+      resolve(device)
+    }
+    const timer = setTimeout(() => finish(null), timeoutMs)
+    stop = discovery.watch((snapshot) => {
+      if (snapshot.status !== 'searching') {
+        finish(null)
+        return
+      }
+      const device = snapshot.devices.find((item) => item.deviceId === deviceId)
+      if (device !== undefined) {
+        finish(device)
+      }
+    })
+    // watch 先同步回报一次当前结果，这时可能已经结束，stop 还没赋值。
+    if (isDone) {
+      stop()
+    }
+  })
+}
+
 /** 应用使用的局域网设备搜索。 */
 export const deviceDiscovery = createDeviceDiscovery(
   Capacitor.getPlatform() === 'android'
