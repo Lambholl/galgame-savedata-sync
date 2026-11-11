@@ -50,24 +50,24 @@ type HttpDirectorySource = Pick<WindowsDirectoryAdapter, 'deviceId' | 'listRoots
 type HttpArchiveProvider = Pick<WindowsArchiveAdapter, 'prepare' | 'retryCleanup'> &
   Partial<Pick<WindowsArchiveAdapter, 'receive'>>
 
-/** 监听选项，只有主进程能指定；缺省监听回环地址和动态端口。 */
+/** 监听选项；缺省时监听回环地址和动态端口。 */
 export interface HttpListenOptions {
   readonly host?: string
   readonly port?: number
 }
 
-/** 监听地址快照。sessionId 每次启动重新生成，不是认证凭据。 */
+/** 监听地址快照。sessionId 每次启动重新生成。 */
 export interface HttpListenerAddress {
   readonly host: string
   readonly port: number
   readonly sessionId: string
-  /** 开始监听的时间（Unix 毫秒），设备页据此显示运行时长。 */
+  /** 开始监听的时间（Unix 毫秒）。 */
   readonly startedAt: number
 }
 
-/** HTTP 服务的选项。收紧限额和注入时钟的说明见任务注册表，这些都不经 HTTP 或渲染进程暴露。 */
+/** HTTP 服务的选项；限额和时钟的含义同 TransferRegistryOptions。 */
 export interface WindowsHttpOptions extends Omit<TransferRegistryOptions, 'receiver'> {
-  /** 接收前按本机游戏配置核实目标，并恢复本进程的写授权；失败时拒绝本次传输。 */
+  /** 接收前核实目标并恢复写授权；reject 时拒绝本次传输。 */
   readonly authorizeTarget?: (rootId: string) => Promise<void>
   readonly library?: DesktopLibrary
   readonly displayName?: string
@@ -83,12 +83,7 @@ export interface WindowsHttpOptions extends Omit<TransferRegistryOptions, 'recei
   }
 }
 
-/**
- * v1 HTTP 服务。注入发布适配器后才接收上传，写授权由本机 grant 给出。
- * start 和 stop 由界面经 IPC 调用；start 失败时抛脱敏的 HttpOperationError。
- * stop 关闭所有连接，取消并等待任务和缓存清理；失败后可以再次 stop 重试。
- * 主进程退出前必须 await stop；调用示例和 LAN、回环的边界见桌面 README。
- */
+/** 本机 v1 HTTP 服务，提供批量传输、复制任务、远程复制请求和控制通道。提供发布适配器时才接收上传。 */
 export class WindowsHttpService {
   private readonly source: HttpDirectorySource
   private readonly archive: HttpArchiveProvider
@@ -121,7 +116,12 @@ export class WindowsHttpService {
     }
   }
 
-  /** 启动监听，完成后才返回实际端口；已在启动或清理未完成时拒绝，端口冲突时报错。 */
+  /**
+   * 启动监听。
+   *
+   * @returns 实际监听的地址和端口。
+   * @throws HttpOperationError 已在运行、清理未完成或端口冲突时抛出。
+   */
   start(options: HttpListenOptions = {}): Promise<HttpListenerAddress> {
     if (this.server || this.registry || this.starting || this.stopping) {
       throw new HttpOperationError(
@@ -145,23 +145,28 @@ export class WindowsHttpService {
     return this.address ? { ...this.address } : null
   }
 
-  /** 返回运行时的网络错误（只含稳定消息），调用者可以显示并停止或重启服务。 */
+  /** 返回运行时的网络错误；没有错误时为 null。 */
   getError(): OperationError | null {
     return this.runtimeError ? { ...this.runtimeError } : null
   }
 
-  /** 返回当前会话的批量传输状态，供本机界面读取；不走网络，也不延长期限。 */
+  /** 返回当前会话的批量传输状态；读取不延长任务期限。 */
   getStates(): readonly BatchState[] {
     return this.registry?.getStates() ?? []
   }
-  /** 返回当前会话复制任务在电脑这一端的状态，电脑是接收端或发送端都包括；批量传输的状态用 getStates 查询。 */
+  /** 返回当前会话复制任务在本机这一端的状态，包括本机作为接收端和发送端的任务。 */
   getSyncStates(): readonly SyncJobState[] {
     return this.syncRegistry?.getStates() ?? []
   }
-  /** 电脑发起复制经控制通道请移动端扫描和执行；服务停止时请求一并丢弃。 */
+  /** 读取本机发起的复制请求；没有请求或服务没运行时为 null。服务停止时请求一并丢弃。 */
   remoteSyncRequest(): ReturnType<WindowsRemoteSyncRequests['state']> {
     return this.remoteRequests?.state() ?? null
   }
+  /**
+   * 请已连接的移动端扫描并准备复制。
+   *
+   * @throws HttpOperationError 服务没运行时抛出，错误码为 unsupported-operation。
+   */
   startRemoteSync(
     projectId: string,
     peerId: string,
@@ -169,15 +174,18 @@ export class WindowsHttpService {
   ): ReturnType<WindowsRemoteSyncRequests['start']> {
     return this.requireRemote().start(projectId, peerId, direction)
   }
+  /** 读取移动端回报的计划；服务没运行时抛错。 */
   remoteSyncPlan(requestId: string): ReturnType<WindowsRemoteSyncRequests['plan']> {
     return this.requireRemote().plan(requestId)
   }
+  /** 确认计划并让移动端开始执行；服务没运行时抛错。 */
   confirmRemoteSync(
     requestId: string,
     shouldDeleteExtras: boolean,
   ): ReturnType<WindowsRemoteSyncRequests['confirm']> {
     return this.requireRemote().confirm(requestId, shouldDeleteExtras)
   }
+  /** 取消发起的请求；服务没运行时抛错。 */
   cancelRemoteSync(requestId: string): ReturnType<WindowsRemoteSyncRequests['cancel']> {
     return this.requireRemote().cancel(requestId)
   }
@@ -190,25 +198,29 @@ export class WindowsHttpService {
     }
     return this.remoteRequests
   }
-  /** 返回复制任务的摘要列表；计划、清单和结果由本机桥分开读取。 */
+  /** 返回复制任务的摘要列表，包括还没登记的本机发起任务。 */
   syncCopies(): ReturnType<WindowsSyncRegistry['summaries']> {
     const pending = this.remoteRequests?.pending()
     return [...(this.syncRegistry?.summaries() ?? []), ...(pending ? [pending.summary] : [])]
   }
-  /** 还没登记的电脑发起任务由发起请求提供，详情页同样能读到计划和状态。 */
+  /** 返回 ID 为 id、还没登记的本机发起任务；没有时为 null。 */
   private pendingCopy(id: string): ReturnType<WindowsRemoteSyncRequests['pending']> {
     const pending = this.remoteRequests?.pending()
     return pending?.request.jobId === id ? pending : null
   }
+  /** 读取复制任务的登记请求；服务会话已结束时抛出 not-found 错误。 */
   syncCopyRequest(id: string): ReturnType<WindowsSyncRegistry['localRequest']> {
     return this.pendingCopy(id)?.request ?? this.localSync().localRequest(id)
   }
+  /** 读取复制任务的状态；服务会话已结束时抛出 not-found 错误。 */
   syncCopyState(id: string): SyncTransferState {
     return this.pendingCopy(id)?.state ?? this.localSync().localState(id)
   }
+  /** 读取复制任务的清单；服务会话已结束时抛出 not-found 错误。 */
   syncCopyManifest(id: string): ReturnType<WindowsSyncRegistry['localManifest']> {
     return this.localSync().localManifest(id)
   }
+  /** 取消复制任务，包括还没登记的本机发起任务。 */
   async cancelSyncCopy(id: string): Promise<SyncTransferState> {
     const pending = this.pendingCopy(id)
     if (pending) {
@@ -217,6 +229,7 @@ export class WindowsHttpService {
     }
     return this.localSync().localCancel(id)
   }
+  /** 重试复制任务的缓存清理；服务会话已结束时抛出 not-found 错误。 */
   cleanupSyncCopy(id: string): Promise<void> {
     return this.localSync().localCleanup(id)
   }
@@ -229,25 +242,26 @@ export class WindowsHttpService {
     }
     return this.syncRegistry
   }
-  /** 是否有批量传输、复制任务、本机恢复或待清理资源，编辑本机配置前用它检查。 */
+  /** 判断是否有批量传输、复制任务、本机恢复或待清理的资源。 */
   hasWork(): boolean {
     return hasTargetOperation()
   }
+  /** 判断是否有正在运行的批量传输或复制任务。 */
   hasRunningNetworkWork(): boolean {
     return Boolean(this.registry?.hasRunningWork() || this.syncRegistry?.hasRunningWork())
   }
 
-  /** 开始一次本机扫描，由 IPC 调用；结果不含句柄或平台路径。 */
+  /** 开始扫描一个本机根目录。 */
   startScan(rootId: string): SyncScanState {
     return this.requireScanner().start(rootId)
   }
 
-  /** 查询扫描状态，只在当前服务会话内有效。 */
+  /** 读取扫描状态；scanId 只在当前服务会话内有效。 */
   getScan(scanId: string): SyncScanState {
     return this.requireScanner().get(scanId)
   }
 
-  /** 取消只读扫描；worker 关闭文件流后查询才得到最终状态。 */
+  /** 取消扫描；返回的状态可能还不是最终状态，扫描线程关闭文件后才是。 */
   cancelScan(scanId: string): SyncScanState {
     return this.requireScanner().cancel(scanId)
   }
@@ -262,7 +276,7 @@ export class WindowsHttpService {
     return this.scanner
   }
 
-  /** 取消批量传输；任务不存在时抛脱敏错误，已发布的文件保留。 */
+  /** 取消批量传输，已发布的文件保留；任务不存在时抛错。 */
   cancel(transferId: string): BatchState {
     if (!this.registry) {
       throw new HttpOperationError('not-found', 'The service has not started.')
@@ -270,7 +284,7 @@ export class WindowsHttpService {
     return this.registry.cancel(transferId)
   }
 
-  /** 重试失败的缓存清理，由主进程调用。 */
+  /** 重试失败的缓存清理。 */
   async retryCleanup(): Promise<void> {
     if (this.syncRegistry?.hasWork()) {
       await this.syncRegistry.retryCleanup()
@@ -283,7 +297,7 @@ export class WindowsHttpService {
     }
   }
 
-  /** 停止服务，并发调用共用同一个 Promise。清理失败时保留注册表，可以再次 stop；端口此时已关闭。 */
+  /** 停止服务：关闭所有连接，取消并等待任务和缓存清理；并发调用共用同一个 Promise。清理失败时端口已关闭，可以再次 stop。 */
   stop(): Promise<void> {
     if (!this.stopping) {
       this.stopping = this.close().finally(() => {
@@ -465,7 +479,7 @@ export class WindowsHttpService {
     const registry = this.registry
     this.remoteRequests = null
     this.stopControl()
-    // stop 在同步部分即关闭接纳并发送 abort，再等待原生 worker。
+    // registry.stop 在同步部分就停止接纳并发送 abort，之后才等待原生 worker。
     const stopping = registry?.stop() ?? Promise.resolve()
     const results = await Promise.allSettled([
       closed,
@@ -491,7 +505,7 @@ export class WindowsHttpService {
     this.options.library?.attachControl(null)
   }
 
-  /** 控制通道只接受本会话已交换目录表的设备；其余升级一律拒绝。 */
+  /** 处理控制通道的升级请求，只接受本会话已交换目录表的设备。 */
   private upgrade(request: IncomingMessage, socket: Duplex, head: Buffer, sessionId: string): void {
     const peerId = request.headers[SYNC_DEVICE_HEADER]
     if (

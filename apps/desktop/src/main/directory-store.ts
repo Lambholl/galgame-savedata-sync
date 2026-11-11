@@ -6,7 +6,7 @@ import type { FileIdentity } from './directory-paths.ts'
 import { hasSameIdentity, isWithinDirectory } from './directory-paths.ts'
 import { DirectoryAccessError } from './directory-errors.ts'
 
-/** 一个已选目录的配置，只保存在主进程；path 和 identity 不能暴露给渲染进程或 HTTP。 */
+/** 一个已登记目录的配置。 */
 export interface StoredDirectory {
   readonly rootId: string
   readonly path: string
@@ -70,8 +70,10 @@ function assertConfigOutsideRoots(configPath: string, registry: DirectoryRegistr
 }
 
 /**
- * 读取本机目录配置。schema 未知、内容损坏或文件是链接时抛错，原配置保留。
- * 文件不存在时返回 null；其他错误保留 cause，由初始化的调用者处理。
+ * 读取目录配置。
+ *
+ * @returns 配置；文件不存在时返回 null。
+ * @throws DirectoryAccessError schema 未知、内容损坏或文件是链接时抛出，原文件保留。
  */
 export async function loadDirectoryRegistry(configPath: string): Promise<DirectoryRegistry | null> {
   let stats
@@ -116,10 +118,7 @@ export async function loadDirectoryRegistry(configPath: string): Promise<Directo
   }
 }
 
-/**
- * 把完整配置写到同目录的独占临时文件，再替换原文件。
- * 调用者要串行化配置变更；出错时保留原配置。
- */
+/** 先写同目录的临时文件再替换原文件；出错时原配置保留。同一文件的保存不能并发。 */
 export async function saveDirectoryRegistry(
   configPath: string,
   registry: DirectoryRegistry,

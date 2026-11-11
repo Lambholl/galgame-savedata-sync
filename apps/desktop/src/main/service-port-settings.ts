@@ -1,12 +1,13 @@
 import { randomInt, randomUUID } from 'node:crypto'
 import { readFile, rename, unlink, writeFile } from 'node:fs/promises'
 
-/** 监听端口保存在应用私有目录；首次启动和手动随机时使用高位端口。 */
+/** 监听端口的设置。 */
 export class ServicePortSettings {
   private port = 0
 
   constructor(private readonly file: string) {}
 
+  /** 读取端口；文件不存在时随机选一个高位端口并保存，内容无效时抛错。 */
   async load(): Promise<void> {
     try {
       const value: unknown = JSON.parse(await readFile(this.file, 'utf8'))
@@ -30,10 +31,12 @@ export class ServicePortSettings {
     }
   }
 
+  /** 返回当前端口。 */
   getPort(): number {
     return this.port
   }
 
+  /** 保存端口；port 不是 1 到 65535 的整数时抛错。写入成功后 getPort 才返回新值。 */
   async save(port: number): Promise<void> {
     if (!Number.isInteger(port) || port < 1 || port > 65535) {
       throw new Error('The port must be an integer from 1 to 65535.')
@@ -49,6 +52,7 @@ export class ServicePortSettings {
     }
   }
 
+  /** 随机选一个与当前不同的高位端口（49152 到 65535）并保存。 */
   async randomize(): Promise<void> {
     let port: number
     do {

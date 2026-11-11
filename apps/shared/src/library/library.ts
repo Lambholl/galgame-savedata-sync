@@ -12,44 +12,51 @@ export interface LibraryGame {
   readonly links: readonly GameLink[]
   readonly excludedDevices?: readonly string[]
 }
+/** 本机游戏与某台对端设备上游戏的关联。 */
 export interface GameLink {
   readonly deviceId: string
   readonly gameId: string
 }
-/** 已保存的设备。地址只用于连接电脑，电脑记住的移动端没有监听地址；blocked 是本机的连接开关。 */
+/** 已保存的设备。address 是对端的监听地址，对端不监听时为 null；blocked 为 true 时本机不与它连接。 */
 export interface SavedDevice {
   readonly id: string
   readonly name: string
   readonly address: string | null
   readonly blocked: boolean
 }
+/** 本机的游戏库配置：游戏和已保存的设备。 */
 export interface LibraryConfig {
   readonly schemaVersion: 1
   readonly games: readonly LibraryGame[]
   readonly devices: readonly SavedDevice[]
 }
+/** 目录表里的一个游戏；目录引用失效时 root 为 null。 */
 export interface CatalogGame {
   readonly id: string
   readonly name: string
   readonly root: DirectoryReference | null
 }
+/** 目录表里的一条关联：发送方的游戏 ID 和接收方的游戏 ID。 */
 export interface CatalogLink {
   readonly localGameId: string
   readonly remoteGameId: string
 }
-/** 拨号方交换目录表时发送的内容；连接建立后，目录读取和变化通知走控制通道。 */
+/** 一端的目录表：游戏和与对方的关联。 */
 export interface CatalogPush {
   readonly games: readonly CatalogGame[]
   readonly links: readonly CatalogLink[]
 }
+/** 带发送方设备 ID 和名称的目录表。 */
 export interface CatalogHello extends CatalogPush {
   readonly deviceId: string
   readonly name: string
 }
+/** 交换目录表时对方答复的目录表。 */
 export interface CatalogReply {
   readonly games: readonly CatalogGame[]
   readonly links: readonly CatalogLink[]
 }
+/** 一台已保存的对端设备，以及它的连接状态和游戏。 */
 export interface LibraryPeer {
   readonly device: SavedDevice
   readonly isConnected: boolean
@@ -72,6 +79,7 @@ function unique<T>(items: readonly T[], key: (item: T) => string): boolean {
 function isLink(value: unknown): value is GameLink {
   return record(value) && isOpaqueId(value.deviceId) && isOpaqueId(value.gameId)
 }
+/** 校验已保存的设备。 */
 export function isSavedDevice(value: unknown): value is SavedDevice {
   return (
     record(value) &&
@@ -81,7 +89,7 @@ export function isSavedDevice(value: unknown): value is SavedDevice {
     (value.address === null || (typeof value.address === 'string' && value.address.length <= 256))
   )
 }
-/** 校验游戏库配置，读取前完整检查；配置损坏时由调用者报告，不用空配置覆盖。 */
+/** 校验整份游戏库配置。 */
 export function isLibraryConfig(value: unknown): value is LibraryConfig {
   if (
     !record(value) ||
@@ -147,9 +155,11 @@ function catalog(value: Record<string, unknown>): boolean {
     unique(value.links, (item) => item.localGameId)
   )
 }
+/** 校验目录表。 */
 export function isCatalogPush(value: unknown): value is CatalogPush {
   return record(value) && Object.keys(value).length === 2 && catalog(value)
 }
+/** 校验带设备身份的目录表：每个目录引用都属于发送方设备。 */
 export function isCatalogHello(value: unknown): value is CatalogHello {
   return (
     record(value) &&
@@ -162,9 +172,11 @@ export function isCatalogHello(value: unknown): value is CatalogHello {
     )
   )
 }
+/** 校验答复的目录表。 */
 export function isCatalogReply(value: unknown): value is CatalogReply {
   return record(value) && Object.keys(value).length === 2 && catalog(value)
 }
+/** 校验对端设备及其游戏列表。 */
 export function isLibraryPeer(value: unknown): value is LibraryPeer {
   return (
     record(value) &&
@@ -175,15 +187,20 @@ export function isLibraryPeer(value: unknown): value is LibraryPeer {
     isArrayOf(value.games, isCatalogGame)
   )
 }
+/** 返回没有游戏和设备的游戏库配置。 */
 export function emptyLibrary(): LibraryConfig {
   return { schemaVersion: 1, games: [], devices: [] }
 }
-/** 显示与复制连接地址：省略内部 HTTP 地址的协议前缀，保留 IP、IPv6 方括号与端口。 */
+/** 去掉 HTTP 地址的协议前缀，保留 IP、IPv6 方括号和端口。 */
 export function formatConnectionAddress(value: string): string {
   return value.replace(/^http:\/\//i, '')
 }
 
-/** 将 IP 与端口规范为内部 HTTP 地址；也接受完整 HTTP 地址，拒绝账户、路径及其他协议。 */
+/**
+ * 把 IP 和端口规范成 `http://` 开头的地址；也接受完整的 HTTP 地址。
+ *
+ * @throws OperationFailure 地址带账户、路径或其他协议时抛出，code 为 invalid-request。
+ */
 export function normalizeHttpAddress(value: string): string {
   const match =
     /^(?:http:\/\/)?(\[[a-f\d:]+\]|(?:0|[1-9]\d{0,2})(?:\.(?:0|[1-9]\d{0,2})){3})(?::([1-9]\d{0,4}))?\/?$/i.exec(
@@ -203,7 +220,7 @@ export function normalizeHttpAddress(value: string): string {
   }
   return `http://${host.toLowerCase()}${port ? `:${Number(port)}` : ''}`
 }
-/** 从当前目录引用生成目录表；失效的引用显示为空。 */
+/** 从本机游戏和目录引用生成目录表的游戏列表；找不到目录引用的游戏 root 为 null。 */
 export function libraryCatalog(
   config: LibraryConfig,
   roots: readonly DirectoryReference[],
@@ -214,6 +231,7 @@ export function libraryCatalog(
     root: roots.find((root) => root.rootId === item.rootId) ?? null,
   }))
 }
+/** 列出本机游戏与指定设备的关联。 */
 export function libraryLinks(config: LibraryConfig, deviceId: string): readonly CatalogLink[] {
   return config.games.flatMap((item) =>
     item.links
@@ -221,7 +239,13 @@ export function libraryLinks(config: LibraryConfig, deviceId: string): readonly 
       .map((link) => ({ localGameId: item.id, remoteGameId: link.gameId })),
   )
 }
-/** 对端明确关联本机游戏时合并反向关系；只看关联记录，不按名称猜，也不授予目录写权限。 */
+/**
+ * 按对端目录表同步本机游戏与该设备的关联。
+ *
+ * 对端关联到本机游戏的，加入关联，排除列表里有该设备的游戏除外；本机记录的对端游戏已改为关联本机其他游戏的，移除旧关联。
+ *
+ * @returns 新的游戏库配置，config 本身不变。
+ */
 export function mergeCatalogLinks(
   config: LibraryConfig,
   deviceId: string,

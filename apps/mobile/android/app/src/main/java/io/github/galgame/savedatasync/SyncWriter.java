@@ -33,8 +33,9 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 /**
- * 执行已确认的计划，只由 I/O 工作线程调用；文件内容和句柄不跨桥。
- * 全部输入和目标复核、备份完成后逐项写入，第一个失败后停止；清理没完成时继续占进程名额。
+ * 执行已确认的计划，只能在 I/O 工作线程调用。
+ *
+ * <p>输入和目标复核、备份完成后逐项写入，第一个失败后停止；清理没完成时继续占进程名额。
  */
 final class SyncWriter implements AutoCloseable {
 
@@ -53,7 +54,7 @@ final class SyncWriter implements AutoCloseable {
 
     void verify(ArchiveControl control) throws Exception;
 
-    /** 判断私有目录是否与目标同卷；未知时为 null。识别同卷后，目标候选文件和备份峰值相加。 */
+    /** 判断私有目录是否与目标同卷；判断不了时返回 null。 */
     Boolean sharesVolume(Path privateDirectory) throws Exception;
   }
 
@@ -74,8 +75,9 @@ final class SyncWriter implements AutoCloseable {
       throws Exception;
 
     /**
-     * 删除快照里的一个条目；文件夹只删空的。身份或属性已变时抛 source-changed 且不删除；
-     * 已发出删除但结果没能确认时抛 result-unknown。
+     * 删除快照里的一个条目；文件夹只删空的。
+     *
+     * @throws Exception 身份或属性已变（source-changed，条目保留），或已发出删除但结果没能确认（result-unknown）。
      */
     void delete(
       String rootId,
@@ -91,7 +93,7 @@ final class SyncWriter implements AutoCloseable {
       ArchiveControl control
     ) throws Exception;
 
-    /** 打开可选的只读卷识别句柄；null 表示提供者不能识别卷，调用者按未知处理。 */
+    /** 打开只读的卷识别句柄；提供者不能识别卷时返回 null。 */
     default Replacement volumeFile(
       String rootId,
       String parentId,
@@ -105,10 +107,14 @@ final class SyncWriter implements AutoCloseable {
       return null;
     }
 
-    /** 开始写目标前留下写入标记；抛出时不写目标。 */
+    /**
+     * 留下这次写入的标记。
+     *
+     * @throws Exception 标记没能留下。
+     */
     default void writeStarted(SyncPlanModel.Plan plan, Object backupId) throws Exception {}
 
-    /** 写入走到结束后删除标记，不得抛出。 */
+    /** 删除这次写入的标记；实现不能抛出异常。 */
     default void writeEnded(SyncPlanModel.Plan plan) {}
   }
 
@@ -118,7 +124,7 @@ final class SyncWriter implements AutoCloseable {
     default void outcome(Map<String, Object> result) throws Exception {}
   }
 
-  /** 编排器传入的执行上下文：借用确认时取得的名额和时间，实际目录每次重新核实。 */
+  /** 执行上下文，带着确认时取得的名额和期限。 */
   static final class Execution {
 
     final Object token;
@@ -414,7 +420,7 @@ final class SyncWriter implements AutoCloseable {
     return (isSamePrivate ? oldBytes : 0) + (Boolean.TRUE.equals(isSameCache) ? growthBytes : 0);
   }
 
-  /** 内容 GET 之前检查已知容量和同卷峰值；检查句柄关闭失败时也保留给 retryCleanup。 */
+  /** 检查目标的已知容量能否容纳接收内容和同卷的备份峰值；检查句柄关闭失败时留给 retryCleanup。 */
   long checkReceiveSpace(
     SyncPlanModel.Plan plan,
     Path cacheRoot,
@@ -662,7 +668,12 @@ final class SyncWriter implements AutoCloseable {
     return value;
   }
 
-  /** 执行计划：非法、过期、已用或 busy 的确认抛异常；任务接受后返回完整的实际结果，绝不自动重做。 */
+  /**
+   * 执行计划，每份确认只能执行一次。
+   *
+   * @return 完整的实际结果。
+   * @throws Exception 确认非法、过期或已用过，或已有任务在进行（busy）。
+   */
   Map<String, Object> apply(Object raw, Material material, ArchiveControl control)
     throws Exception {
     return apply(raw, material, control, null);
@@ -890,7 +901,11 @@ final class SyncWriter implements AutoCloseable {
     return backend.publisher().retryCleanup() && isClean;
   }
 
-  /** 重试资源释放，不重新创建或写入文件。 */
+  /**
+   * 重试资源释放；已写入的文件保持不变。
+   *
+   * @return 全部释放时为 true；任务仍在进行或释放失败时为 false。
+   */
   synchronized boolean retryCleanup() {
     Job job = active;
     if (job != null && (job.isRunning || !clean(job))) {
@@ -914,7 +929,7 @@ final class SyncWriter implements AutoCloseable {
     return true;
   }
 
-  /** 本机恢复预览，保持对输入的引用；公开数据供 TS 生成计划，确认时必须提交同一份源和目标。 */
+  /** 本机恢复的预览，持有输入的引用；确认时要提交同一份源和目标。 */
   final class Restore implements Material, AutoCloseable {
 
     final String planId = java.util.UUID.randomUUID().toString();
@@ -1076,7 +1091,7 @@ final class SyncWriter implements AutoCloseable {
     job.resources.remove(value);
   }
 
-  /** 关闭写入器：取消工作并等待释放。只由 SyncTransferEngine 和 SyncWriteRuntime 的 close 调用。 */
+  /** 关闭写入器：取消工作并等待资源释放。 */
   @Override
   public void close() throws Exception {
     isClosed = true;

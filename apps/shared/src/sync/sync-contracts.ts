@@ -1,15 +1,14 @@
 import type { CapabilityState, OperationError, TransferDirection } from '../protocol/contracts.ts'
 
-/** 复制功能的 schema 版本，与批量传输的 PROTOCOL_VERSION 各自独立。 */
+/** 复制功能的 schema 版本，与 PROTOCOL_VERSION 分别计数。 */
 export const SYNC_SCHEMA_VERSION = 1
 /**
- * 能力声明的版本，也是两端能否互传的唯一门槛。2 表示支持 sync.job 任务观察与
- * SyncJobState 的 failureStage，3 表示计划可带 shouldDeleteExtras 与删除动作；
- * 版本不同时发起方在扫描前就提示更新，不会走到任务阶段。
+ * 能力声明的版本，两端相同才能互传。2 起支持 sync.job 任务观察和 SyncJobState 的 failureStage，
+ * 3 起计划可以带 shouldDeleteExtras 和删除动作。
  */
 export const SYNC_CAPABILITIES_VERSION = 3
 
-/** 单次扫描的上限；文件传输和备份另受 BATCH_LIMITS 约束。 */
+/** 单次扫描的上限。 */
 export const SYNC_LIMITS = Object.freeze({
   maxEntries: 10000,
   maxDepth: 64,
@@ -20,7 +19,7 @@ export const SYNC_LIMITS = Object.freeze({
   scanTimeoutMs: 1800000,
 } as const)
 
-/** 复制功能的 HTTP 路由，先读 capabilities 协商版本和上限；/v1/device 不含复制功能的字段。 */
+/** 复制功能的 HTTP 路由。 */
 export const SYNC_HTTP_ROUTES = {
   capabilities: '/v1/sync/capabilities',
   scans: '/v1/sync/scans',
@@ -32,6 +31,7 @@ export const SYNC_HTTP_ROUTES = {
   content: '/v1/sync/jobs/{jobId}/content',
 } as const
 
+/** 复制功能的能力声明。 */
 export interface SyncCapabilities {
   readonly schemaVersion: typeof SYNC_CAPABILITIES_VERSION
   readonly deviceId: string
@@ -42,13 +42,13 @@ export interface SyncCapabilities {
   readonly limits: typeof SYNC_LIMITS
 }
 
-/** 扫描请求：只引用本机已登记的根目录，没有路径和可放宽的上限。 */
+/** 扫描请求：本机已登记的一个根目录。 */
 export interface SyncScanRequest {
   readonly schemaVersion: typeof SYNC_SCHEMA_VERSION
   readonly rootId: string
 }
 
-/** 扫描到的一个条目。名称是原始路径段；ID 由原生层解析，路径不能直接当系统路径用。 */
+/** 扫描到的一个条目。path 由原始名称段组成。 */
 export interface SyncEntry {
   readonly entryId: string
   readonly path: readonly string[]
@@ -59,7 +59,7 @@ export interface SyncEntry {
   readonly error: OperationError | null
 }
 
-/** 一次扫描的快照，只在当前会话有效；error 非空表示扫描失败，成功的空数组才是真实空目录。 */
+/** 一次扫描的快照，只在当前会话有效；error 非空表示扫描失败，error 为 null 时空数组表示空目录。 */
 export interface SyncSnapshot {
   readonly schemaVersion: typeof SYNC_SCHEMA_VERSION
   readonly scanId: string
@@ -70,7 +70,7 @@ export interface SyncSnapshot {
   readonly error: OperationError | null
 }
 
-/** 扫描状态：计数只表示本次读取进度；取消和失败不显示成空目录。 */
+/** 扫描状态；计数是这次扫描的读取进度。 */
 export interface SyncScanState {
   readonly schemaVersion: typeof SYNC_SCHEMA_VERSION
   readonly scanId: string
@@ -86,9 +86,10 @@ export interface SyncScanState {
 export type SyncWriteAction =
   'create-directory' | 'create-file' | 'replace-file' | 'delete-file' | 'delete-directory'
 
+/** 计划项的动作，包括不改动目标的 skip、keep 和 conflict。 */
 export type SyncAction = SyncWriteAction | 'skip' | 'keep' | 'conflict'
 
-/** 计划的一项，对应同一个原始路径；完整的内容期望在计划的两端快照里。 */
+/** 计划的一项，对应一个原始路径；两端的内容在计划的快照里。 */
 export interface SyncPlanEntry {
   readonly path: readonly string[]
   readonly action: SyncAction
@@ -110,7 +111,7 @@ export interface SyncIssue {
   readonly path: readonly string[] | null
 }
 
-/** 生成计划的输入：调用者提供本次 ID 和方向；shouldBackup 的缺省值由本机设置层提供。 */
+/** 生成计划的输入。 */
 export interface SyncPlanInput {
   readonly planId: string
   readonly projectId: string
@@ -123,7 +124,7 @@ export interface SyncPlanInput {
   readonly target: SyncSnapshot
 }
 
-/** 可执行计划：快照随计划留在本次内存中；传输统计待写入的文件，备份统计写入前的全部目标文件。 */
+/** 计划：动作、问题和统计。传输统计只算要写入的文件，备份统计算写入前的全部目标文件。 */
 export interface SyncPlan extends SyncPlanInput {
   readonly schemaVersion: typeof SYNC_SCHEMA_VERSION
   readonly entries: readonly SyncPlanEntry[]
@@ -134,7 +135,7 @@ export interface SyncPlan extends SyncPlanInput {
   readonly canExecute: boolean
 }
 
-/** 备份清单里的一个文件，只为手动恢复保存；fileId 对应应用私有文件，不是用户路径。 */
+/** 备份清单里的一个文件；fileId 是备份内的私有文件编号。 */
 export interface SyncBackupFile {
   readonly fileId: string
   readonly path: readonly string[]
@@ -143,6 +144,7 @@ export interface SyncBackupFile {
   readonly modifiedAt: number | null
 }
 
+/** 一份已提交的写入前备份的清单。 */
 export interface SyncBackupManifest {
   readonly schemaVersion: typeof SYNC_SCHEMA_VERSION
   readonly backupId: string
@@ -154,7 +156,7 @@ export interface SyncBackupManifest {
   readonly files: readonly SyncBackupFile[]
 }
 
-/** 没有提交清单的残留轮次；occupiedBytes 只统计应用私有文件，读不到时为 null，不算作 0。 */
+/** 没有提交清单的残留备份；occupiedBytes 是它占用的字节数，读不到时为 null。 */
 export interface SyncIncompleteBackup {
   readonly backupId: string
   readonly occupiedBytes: number | null
@@ -167,13 +169,13 @@ export interface SyncBackupPolicy {
   readonly keepCount: number
 }
 
-/** 某个游戏目录的单独设置；没有记录的游戏目录跟随全局设置。 */
+/** 某个游戏目录的单独设置。 */
 export interface SyncBackupPreference extends SyncBackupPolicy {
   readonly projectId: string
   readonly rootId: string
 }
 
-/** 备份设置，与游戏配置分开保存在本机备份目录；v1 只有逐目录开关，读取时升级。 */
+/** 备份设置：全局策略和逐个游戏目录的单独策略。 */
 export interface SyncBackupSettings {
   readonly schemaVersion: 2
   /** 全局设置。 */
@@ -181,7 +183,7 @@ export interface SyncBackupSettings {
   readonly projects: readonly SyncBackupPreference[]
 }
 
-/** 一项写入的实际结果；unknown 必须带 result-unknown，不能自动重做写入。 */
+/** 一项写入的实际结果；unknown 带 result-unknown 错误。 */
 export interface SyncWriteOutcome {
   readonly path: readonly string[]
   readonly action: SyncWriteAction
@@ -191,12 +193,12 @@ export interface SyncWriteOutcome {
   readonly error: OperationError | null
 }
 
-/** 写入结果：备份和发布结果与清理分开；清理错误不改变已确认成功的文件。 */
+/** 一次写入的结果：备份、逐项结果和清理分开记录。 */
 export interface SyncApplyResult {
   readonly schemaVersion: typeof SYNC_SCHEMA_VERSION
   readonly planId: string
   readonly backupId: string | null
-  /** 实际提交的备份清单里的文件数；不是计划里的覆盖数。没有备份或不知道时为 null。 */
+  /** 实际提交的备份清单里的文件数；没有备份或不知道时为 null。 */
   readonly backupFileCount: number | null
   readonly outcomes: readonly SyncWriteOutcome[]
   readonly error: OperationError | null

@@ -26,7 +26,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
-/** 备份 v1 的数据校验和命名规则；清单只用于恢复，不作为同步历史。 */
+/** 备份 v1 的数据校验和命名规则。 */
 final class BackupModel {
 
   static final long MAX_FILE = 268435456L;
@@ -74,7 +74,7 @@ final class BackupModel {
     return hash;
   }
 
-  /** 写入前要备份的一个目标文件，由编排器从确认的计划中选出，只在原生内部使用。 */
+  /** 写入前要备份的一个目标文件。 */
   static final class SourceFile {
 
     final String entryId;
@@ -233,7 +233,7 @@ final class BackupModel {
     return projectId;
   }
 
-  /** 一份备份的文件夹名：UTC 时间，与设备时区无关，按名字排序即按时间排序。 */
+  /** 一份备份的文件夹名：UTC 时间，按名字排序就是按时间排序。 */
   static String roundName(long createdAt) {
     java.text.SimpleDateFormat format = new java.text.SimpleDateFormat(
       "yyyy-MM-dd_HH-mm-ss'Z'",
@@ -273,7 +273,7 @@ final class BackupModel {
     );
   }
 
-  /** 备份设置：全局设置加按游戏目录的单独设置；格式不符即视为损坏。 */
+  /** 校验备份设置：全局设置加按游戏目录的单独设置；格式不符时抛错。 */
   static Map<String, Object> settings(Object raw) throws Exception {
     Map<String, Object> value = shape(raw, "schemaVersion", "defaults", "projects");
     number(value.get("schemaVersion"), 2, 2);
@@ -321,7 +321,7 @@ final class BackupModel {
     return map(settings.get("defaults"));
   }
 
-  /** 从备份清单生成恢复用的临时目录树；清单不会混进以后的同步比较。 */
+  /** 从备份清单生成恢复用的目录树快照。 */
   static Map<String, Object> snapshot(Map<String, Object> manifest) throws Exception {
     java.util.LinkedHashMap<String, Object> entries = new java.util.LinkedHashMap<>();
     for (Object raw : list(manifest.get("files"))) {

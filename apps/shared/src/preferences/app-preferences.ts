@@ -13,19 +13,24 @@ export interface AppPreferences {
   readonly locale: LocalePreference
 }
 
+/** 全部主题偏好。 */
 export const THEME_PREFERENCES: readonly ThemePreference[] = ['system', 'light', 'dark']
+/** 全部界面语言。 */
 export const APP_LOCALES: readonly AppLocale[] = ['zh-CN', 'zh-TW', 'en-US', 'ja-JP']
+/** 默认偏好：主题和语言都跟随系统。 */
 export const DEFAULT_APP_PREFERENCES: AppPreferences = { theme: 'system', locale: 'system' }
 
+/** 校验主题偏好。 */
 export function isThemePreference(value: unknown): value is ThemePreference {
   return THEME_PREFERENCES.some((item) => item === value)
 }
 
+/** 校验语言偏好。 */
 export function isLocalePreference(value: unknown): value is LocalePreference {
   return value === 'system' || APP_LOCALES.some((item) => item === value)
 }
 
-/** 校验偏好对象：只接受恰好两个已知字段。 */
+/** 校验偏好对象：恰好有 theme 和 locale 两个字段。 */
 export function isAppPreferences(value: unknown): value is AppPreferences {
   return (
     typeof value === 'object' &&
@@ -39,10 +44,7 @@ export function isAppPreferences(value: unknown): value is AppPreferences {
   )
 }
 
-/**
- * 读取已保存的偏好；缺少或无效的字段回落到默认值，不抛错。
- * 用于本机存储被手工修改或来自旧版本的情况。
- */
+/** 解析已保存的偏好；缺少或无效的字段取默认值。 */
 export function parseAppPreferences(value: unknown): AppPreferences {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
     return DEFAULT_APP_PREFERENCES
@@ -52,6 +54,7 @@ export function parseAppPreferences(value: unknown): AppPreferences {
   return { theme, locale }
 }
 
+/** 按偏好和系统明暗得出实际主题。 */
 export function resolveTheme(preference: ThemePreference, isSystemDark: boolean): ResolvedTheme {
   if (preference === 'system') {
     return isSystemDark ? 'dark' : 'light'
@@ -60,7 +63,7 @@ export function resolveTheme(preference: ThemePreference, isSystemDark: boolean)
 }
 
 /**
- * 按系统语言列表（如 navigator.languages）选界面语言：取第一个能对应的语言。
+ * 按系统语言列表（如 navigator.languages）选界面语言：取第一个能对应上的语言。
  * 繁体（zh-TW、zh-HK、zh-MO、zh-Hant）用 zh-TW，其余中文用 zh-CN；都不匹配时用 en-US。
  */
 export function resolveLocale(

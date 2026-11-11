@@ -34,7 +34,7 @@ function FileTitle({ result }: { readonly result: FileOutcome }): React.JSX.Elem
     </>
   )
 }
-/** 以接收端结果显示成功；发送完成后缺少回执时保留待确认状态。 */
+/** 一次批量传输的详情；以接收端结果判定成功，发送完成后缺少回执时显示待确认。 */
 export function TaskPage({
   tasks,
   isBusy,

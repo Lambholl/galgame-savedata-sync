@@ -1,4 +1,5 @@
 import type { MessageKey } from '@savedata-sync/shared'
+/** 移动应用的页面。 */
 export type Page =
   | 'devices'
   | 'games'
@@ -11,12 +12,13 @@ export type Page =
   | 'sync-plan'
   | 'scan'
 
-/** 重新显示一个页面需要的上下文，随来源记录保存。连接设备的选择不在其中：返回时沿用最新的选择。 */
+/** 重新显示一个页面需要的上下文。 */
 export interface PageContext {
   readonly gameId: string
   readonly taskProjectId: string | null
 }
 
+/** 一次确认弹层的内容和确认后执行的操作。 */
 export interface Confirmation {
   readonly title: string
   readonly text: string
@@ -24,12 +26,13 @@ export interface Confirmation {
   readonly okType?: 'danger' | 'primary'
 }
 
-/** 返回处理器返回 true 时消费事件；取消订阅释放原生监听。 */
+/** 系统返回键。 */
 export interface BackButtonController {
+  /** 订阅返回键；handler 返回 true 表示已处理。返回取消订阅的函数。 */
   subscribe(handler: () => boolean): () => void
 }
 
-/** 各页标题对应的文案键；按钮名与所打开页面的标题一致。 */
+/** 各页标题对应的文案键。 */
 export const PAGE_TITLE_KEYS: Readonly<Record<Page, MessageKey>> = {
   devices: 'nav.devices',
   games: 'nav.games',
@@ -43,6 +46,7 @@ export const PAGE_TITLE_KEYS: Readonly<Record<Page, MessageKey>> = {
   scan: 'device.scanTitle',
 }
 
+/** 判断页面是否是主导航里的一级页面。 */
 export function isRootPage(page: Page): boolean {
   return page === 'games' || page === 'devices' || page === 'settings'
 }

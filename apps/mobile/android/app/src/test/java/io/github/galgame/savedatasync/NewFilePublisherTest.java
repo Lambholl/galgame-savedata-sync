@@ -25,7 +25,7 @@ import java.util.Map;
 import org.junit.After;
 import org.junit.Test;
 
-/** 用受控故障测试发布状态和所有权；真实 ContentResolver 由设备测试覆盖。 */
+/** 用受控故障测试发布状态和所有权。 */
 public class NewFilePublisherTest {
 
   private final List<NewFilePublisher> publishers = new ArrayList<>();

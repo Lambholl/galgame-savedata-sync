@@ -129,7 +129,7 @@ test('新文件名保留 Unicode，拒绝路径、Windows 保留名和歧义尾�
   ]) {
     assert.equal(isPortableFileName(name), false, name)
   }
-  // 浏览元数据可以显示不可跨平台创建的名称，不能静默改名。
+  // 浏览时显示条目的原名，即使这个名称不能在另一端创建。
   assert.equal(isEntryMetadata({ ...FILE, name: 'CON.dat' }), true)
 })
 

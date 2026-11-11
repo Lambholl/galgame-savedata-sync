@@ -151,7 +151,7 @@ final class SyncPlanModel {
     }
   }
 
-  /** 这一项是否写入文件内容；只有这些动作需要来源文件，结果也只有这些带指纹。 */
+  /** 判断这一项是否写入文件内容；写入文件内容的动作需要来源文件，结果里带指纹。 */
   static boolean isFileWrite(Map<String, Object> operation) {
     return (
       operation.get("action").equals("create-file") ||
@@ -166,7 +166,7 @@ final class SyncPlanModel {
     );
   }
 
-  /** 与 shared 的 compareOperations 一致：先建文件夹，再写文件，最后由深到浅删除。 */
+  /** 返回动作的执行顺位：先建文件夹，再写文件，最后由深到浅删除；与 shared 的 compareOperations 相同。 */
   private static int rank(Map<String, Object> operation) {
     return operation.get("action").equals("create-directory") ? 0 : isDelete(operation) ? 2 : 1;
   }

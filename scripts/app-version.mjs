@@ -34,8 +34,7 @@ export function parseReleaseTag(tag) {
 /**
  * 把 `git describe --tags --long --dirty` 的输出转成版本。
  * 正好在 tag 上且工作区干净时返回 tag 的版本；否则版本名追加 semver 构建元数据
- * `+<tag 之后的提交数>.g<提交哈希>[.d]`（`.d` 表示工作区有未提交的改动），versionCode 与 tag 相同，
- * 因此开发版和同一 tag 的正式版可以用同一把密钥互相覆盖安装。
+ * `+<tag 之后的提交数>.g<提交哈希>[.d]`（`.d` 表示工作区有未提交的改动），versionCode 与 tag 相同。
  * @param {string} output describe 的一行输出。
  * @returns {{ name: string, code: number } | null} 输出格式不符时返回 null。
  */
@@ -49,6 +48,7 @@ export function parseDescribeOutput(output) {
   if (commits === '0' && !dirty) {
     return release
   }
+  // versionCode 沿用 tag 的值，开发版和同一 tag 的正式版可以用同一把密钥互相覆盖安装。
   return { name: `${release.name}+${commits}.g${hash}${dirty ? '.d' : ''}`, code: release.code }
 }
 
@@ -62,11 +62,11 @@ function git(args, cwd) {
 }
 
 /**
- * 计算本次构建的版本，桌面打包、两端界面和 Android Gradle 都从这里取值。
- * 环境变量 RELEASE_TAG 有值时按发布处理：tag 必须是 vX.Y.Z，且当前提交就是该 tag 指向的提交，否则抛出错误。
- * 没有 RELEASE_TAG 时用最近的发布 tag 推算开发版；找不到 tag 或 git 不可用时返回 UNKNOWN_APP_VERSION。
+ * 计算本次构建的版本。
+ * 环境变量 RELEASE_TAG 有值时返回这个 tag 的版本；没有时用最近的发布 tag 推算开发版。
  * @param {{ env?: NodeJS.ProcessEnv, cwd?: string }} [options] 默认读取 process.env，在仓库根目录运行 git。
- * @returns {{ name: string, code: number }} 版本名和 Android versionCode。
+ * @returns {{ name: string, code: number }} 版本名和 Android versionCode；找不到 tag 或 git 不可用时为 UNKNOWN_APP_VERSION。
+ * @throws {Error} RELEASE_TAG 不是 vX.Y.Z，或当前提交不是它指向的提交。
  */
 export function resolveAppVersion({ env = process.env, cwd = REPO_ROOT } = {}) {
   const releaseTag = env.RELEASE_TAG

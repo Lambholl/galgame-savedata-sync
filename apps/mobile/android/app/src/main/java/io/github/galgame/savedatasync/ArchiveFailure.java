@@ -2,7 +2,7 @@ package io.github.galgame.savedatasync;
 
 import java.io.IOException;
 
-/** 归档错误，只传递稳定的错误码和脱敏消息；清理错误不能覆盖主错误。 */
+/** 归档错误：稳定的错误码和脱敏消息；清理失败另外记录，不覆盖主错误。 */
 final class ArchiveFailure extends IOException {
 
   final String code;

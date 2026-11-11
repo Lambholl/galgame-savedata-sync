@@ -29,10 +29,7 @@ import type {
   SyncTransferState,
 } from '@savedata-sync/shared'
 
-/**
- * 复制任务列表的一行，只含大小有限的摘要；计划、清单和逐项结果分别读取，避免轮询响应过大。
- * phase 到 percent 由主进程从两个角色的状态合成，详情、横条、历史和完成提示读同一份。
- */
+/** 复制任务列表的一行；phase 到 percent 是由两个角色的状态合成的结论。 */
 export interface DesktopCopySummary {
   readonly jobId: string
   readonly projectId: string
@@ -46,6 +43,7 @@ export interface DesktopCopySummary {
   readonly updatedAt: number
   readonly hasCleanupError: boolean
 }
+/** 本机恢复任务列表的一行。 */
 export interface DesktopRestoreSummary {
   readonly restoreId: string
   readonly projectId: string
@@ -59,6 +57,7 @@ export interface DesktopRestoreSummary {
   readonly hasCleanupError: boolean
   readonly isWorking: boolean
 }
+/** 本机恢复任务的完整状态，包括进度、结果和错误。 */
 export interface DesktopRestoreState extends DesktopRestoreSummary {
   readonly progress: {
     readonly publishedFiles: number
@@ -71,7 +70,7 @@ export interface DesktopRestoreState extends DesktopRestoreSummary {
   readonly cleanupError: OperationError | null
 }
 /**
- * 电脑发起的复制请求：waiting 等移动端响应，preparing 移动端在扫描，ready 可确认计划，
+ * 电脑发起的复制请求：waiting 等移动端响应，preparing 表示移动端在扫描，ready 可以确认计划，
  * starting 等移动端开始执行，running 时 jobId 对应复制任务，succeeded 是移动端回报的成功结果；
  * failed 带失败原因，开始后的失败或取消也带 jobId。
  */
@@ -95,28 +94,41 @@ export interface DesktopRemoteRequest {
   readonly backupKeepCount: number | null
   readonly updatedAt: number
 }
-/** 渲染进程使用的复制接口：查看和取消复制任务及手动恢复，并向已连接移动端发起复制。 */
+/** 复制接口：查看和取消复制任务，本机恢复，以及向已连接的移动端发起复制。 */
 export interface DesktopSyncApi {
+  /** 判断服务是否有进行中的传输或复制任务。 */
   activity(): Promise<OperationResult<boolean>>
+  /** 列出复制任务。 */
   copies(): Promise<OperationResult<readonly DesktopCopySummary[]>>
+  /** 读取复制任务的登记请求，包括计划。 */
   copyPlan(jobId: string): Promise<OperationResult<SyncJobRequest>>
   /** 本机和对端两个角色的状态；对端结果还没确认时 remote 为进行中或 remoteError 非空。 */
   copyState(jobId: string): Promise<OperationResult<SyncTransferState>>
+  /** 取消复制任务。 */
   cancelCopy(jobId: string): Promise<OperationResult<SyncTransferState>>
+  /** 重试复制任务的缓存清理。 */
   cleanupCopy(jobId: string): Promise<OperationResult<null>>
+  /** 列出本机恢复任务。 */
   restores(): Promise<OperationResult<readonly DesktopRestoreSummary[]>>
+  /** 从一份备份创建恢复任务并生成恢复计划。 */
   prepareRestore(
     projectId: string,
     rootId: string,
     backupId: string,
   ): Promise<OperationResult<DesktopRestoreState>>
+  /** 读取恢复计划。 */
   restorePlan(restoreId: string): Promise<OperationResult<SyncPlan>>
+  /** 读取恢复任务的状态。 */
   restoreState(restoreId: string): Promise<OperationResult<DesktopRestoreState>>
+  /** 按确认的计划执行恢复；plan 必须与 restorePlan 返回的计划相同。 */
   executeRestore(restoreId: string, plan: SyncPlan): Promise<OperationResult<DesktopRestoreState>>
+  /** 取消恢复任务。 */
   cancelRestore(restoreId: string): Promise<OperationResult<DesktopRestoreState>>
+  /** 重试恢复任务的缓存清理；任务还在运行时返回 busy。 */
   cleanupRestore(restoreId: string): Promise<OperationResult<DesktopRestoreState>>
+  /** 释放已结束的恢复任务；任务还在运行时返回 busy。 */
   releaseRestore(restoreId: string): Promise<OperationResult<null>>
-  /** 当前发起请求；没有请求时返回 null。 */
+  /** 读取当前发起的请求；没有请求时为 null。 */
   remoteRequest(): Promise<OperationResult<DesktopRemoteRequest | null>>
   /** 请求已连接移动端扫描指定游戏；移动端应用版本不支持时返回 unsupported-operation。 */
   startRemote(
@@ -124,18 +136,21 @@ export interface DesktopSyncApi {
     peerId: string,
     direction: DesktopRemoteRequest['direction'],
   ): Promise<OperationResult<DesktopRemoteRequest>>
-  /** 读取移动端回报的计划，只在 ready 及之后可用。 */
+  /** 读取移动端回报的计划；请求还没到 ready 时返回错误。 */
   remotePlan(requestId: string): Promise<OperationResult<SyncPlan>>
-  /** shouldDeleteExtras 是确认时的开关选择；计划随之重新生成后交给移动端执行。 */
+  /** 确认计划并让移动端开始执行；计划按 shouldDeleteExtras 重新生成。 */
   confirmRemote(
     requestId: string,
     shouldDeleteExtras: boolean,
   ): Promise<OperationResult<DesktopRemoteRequest>>
+  /** 取消发起的请求。 */
   cancelRemote(requestId: string): Promise<OperationResult<DesktopRemoteRequest>>
-  /** 上个进程没写完就结束时留下的写入标记，不含正在进行的写入。 */
+  /** 列出之前的进程没写完就结束时留下的写入标记。 */
   interruptedWrites(): Promise<OperationResult<readonly InterruptedWrite[]>>
+  /** 删除一个写入标记。 */
   dismissInterruptedWrite(id: string): Promise<OperationResult<null>>
 }
+/** 复制接口的 IPC 通道名。 */
 export const SYNC_CHANNELS = {
   activity: 'sync:activity',
   copies: 'sync:copies',
@@ -215,6 +230,7 @@ const COPY_STAGES = [
   'done',
 ] as const
 
+/** 校验复制任务摘要。 */
 export function isDesktopCopySummary(value: unknown): value is DesktopCopySummary {
   return (
     shape(value, COPY_FIELDS) &&
@@ -263,6 +279,7 @@ function restoreSummary(value: Record<string, unknown>): boolean {
         : value.stage === 'done')
   )
 }
+/** 校验发起的复制请求。 */
 export function isDesktopRemoteRequest(value: unknown): value is DesktopRemoteRequest {
   return (
     shape(value, [
@@ -299,9 +316,11 @@ export function isDesktopRemoteRequest(value: unknown): value is DesktopRemoteRe
     time(value.updatedAt)
   )
 }
+/** 校验恢复任务摘要。 */
 export function isDesktopRestoreSummary(value: unknown): value is DesktopRestoreSummary {
   return shape(value, RESTORE_FIELDS) && restoreSummary(value)
 }
+/** 校验恢复任务的完整状态。 */
 export function isDesktopRestoreState(value: unknown): value is DesktopRestoreState {
   if (
     !shape(value, [...RESTORE_FIELDS, 'progress', 'result', 'error', 'cleanupError']) ||
@@ -365,7 +384,11 @@ export function isDesktopRestoreState(value: unknown): value is DesktopRestoreSt
   )
 }
 
-/** 在 preload 内创建复制桥：校验参数和响应，核对计划属于同一次任务；缓存大小有限，丢失后从主进程重新取回。 */
+/**
+ * 用 invoke 创建冻结的 DesktopSyncApi。
+ *
+ * @returns 参数无效、返回格式不对或计划不属于同一次任务时，对应方法返回错误结果。
+ */
 export function createSyncBridge(
   invoke: (channel: string, ...args: unknown[]) => Promise<unknown>,
 ): DesktopSyncApi {
@@ -459,7 +482,7 @@ export function createSyncBridge(
       manifest = declaration.value
       remember(manifests, jobId, manifest)
     }
-    // 对端的清单主进程已核对过；这里只核对它属于本次任务，移动端可能比本机更早知道压缩体大小。
+    // 对端的清单已在主进程核对过，这里只核对它属于本次任务；移动端可能比本机更早知道压缩体大小。
     return local.role ===
       (request.plan.direction === 'android-to-windows' ? 'receiver' : 'sender') &&
       matchesSyncJobState(

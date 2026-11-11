@@ -6,13 +6,11 @@ import { isIpv4Address, isListeningPort, MAX_CANDIDATE_ADDRESSES } from './conne
 /** 连接二维码文本的前缀；文本格式为 `savedata-sync://connect?v=1&id=<设备 ID>&p=<端口>&a=<IPv4>,<IPv4>`。 */
 export const CONNECTION_QR_PREFIX = 'savedata-sync://connect?'
 
-/** 二维码文本的最大长度，超过的文本不解析。8 个地址、128 位设备 ID 的文本不超过 300 个字符。 */
+// 8 个地址加 128 个字符的设备 ID，文本不超过 300 个字符。
+/** 可以解析的二维码文本的最大长度。 */
 const MAX_QR_TEXT_LENGTH = 512
 
-/**
- * 连接二维码的内容，由监听方显示、移动端扫码读取。
- * 二维码只用来找到监听方的地址，连接后仍以 `/v1/device` 返回的设备 ID 为准。
- */
+/** 连接二维码携带的监听方设备 ID、端口和地址。 */
 export interface ConnectionQrPayload {
   /** 监听方的稳定设备 ID。 */
   readonly deviceId: string
@@ -24,7 +22,7 @@ export interface ConnectionQrPayload {
 
 /**
  * 解析二维码的结果。
- * unsupported-version 表示二维码来自协议版本不同的应用，其余字段不再解析；invalid 表示不是本应用的连接二维码或内容不合法。
+ * unsupported-version 表示二维码的协议版本与本应用不同；invalid 表示不是本应用的连接二维码或内容不合法。
  */
 export type ConnectionQrResult =
   | { readonly status: 'valid'; readonly payload: ConnectionQrPayload }
@@ -41,9 +39,9 @@ function hasValidAddresses(addresses: readonly unknown[]): boolean {
 }
 
 /**
- * 生成监听方显示的连接二维码文本。
- * 设备 ID 只含 URL 安全字符，IPv4 和端口只含数字和点，因此各字段不需要百分号编码。
- * 设备 ID、端口或地址列表不合法时抛出 invalid-request 的 OperationFailure。
+ * 生成连接二维码文本。
+ *
+ * @throws OperationFailure 设备 ID、端口或地址列表不合法时抛出，code 为 invalid-request。
  */
 export function createConnectionQrText(payload: ConnectionQrPayload): string {
   if (
@@ -53,6 +51,7 @@ export function createConnectionQrText(payload: ConnectionQrPayload): string {
   ) {
     throw new OperationFailure('invalid-request', 'The connection QR code content is invalid.')
   }
+  // 设备 ID 只含 URL 安全字符，IPv4 和端口只含数字和点，各字段不需要百分号编码。
   return `${CONNECTION_QR_PREFIX}v=${PROTOCOL_VERSION}&id=${payload.deviceId}&p=${payload.port}&a=${payload.addresses.join(',')}`
 }
 
@@ -73,9 +72,10 @@ function readQueryFields(query: string): ReadonlyMap<string, string> | null {
 }
 
 /**
- * 解析移动端扫到的二维码文本。
+ * 解析连接二维码文本。
+ *
  * 前缀和字段名区分大小写，字段必须恰好是 v、id、p、a 且各出现一次。
- * 协议版本先于其他字段检查，以后的版本可以改变其余字段。
+ * 协议版本先于其他字段检查，协议版本不同时返回 unsupported-version。
  */
 export function parseConnectionQrText(text: unknown): ConnectionQrResult {
   if (

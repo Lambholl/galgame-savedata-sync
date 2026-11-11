@@ -1,10 +1,10 @@
 import { normalizeHttpAddress } from '../library/library.ts'
 import { OperationFailure } from '../result.ts'
 
-/** 二维码最多携带的候选 IPv4 地址数，限制二维码的尺寸和拨号方逐个尝试的次数。 */
+/** 连接二维码最多携带的 IPv4 地址数。 */
 export const MAX_CANDIDATE_ADDRESSES = 8
 
-/** 校验点分十进制 IPv4 地址：四段 0–255，不接受前导零、空白和端口。 */
+/** 校验点分十进制 IPv4 地址：四段 0–255，拒绝前导零、空白和端口。 */
 export function isIpv4Address(value: unknown): value is string {
   return (
     typeof value === 'string' &&
@@ -19,9 +19,11 @@ export function isListeningPort(value: unknown): value is number {
 }
 
 /**
- * 把监听方的 IPv4 地址和端口转成拨号方依次尝试的内部 HTTP 地址（`http://ip:port`）。
- * 保留输入顺序，监听方把推荐地址放在第一位；非 IPv4 的值（如 DNS-SD 解析出的 IPv6）被跳过，重复地址只保留第一次。
- * 返回空数组表示没有可用的 IPv4 地址；端口无效时抛出 invalid-request 的 OperationFailure。
+ * 把 IPv4 地址和端口转成 `http://ip:port` 形式的候选地址。
+ *
+ * @param addresses 按输入顺序输出；跳过非 IPv4 的值，重复地址只保留第一个。
+ * @returns 没有可用的 IPv4 地址时返回空数组。
+ * @throws OperationFailure 端口无效时抛出，code 为 invalid-request。
  */
 export function createConnectionCandidates(
   addresses: readonly string[],

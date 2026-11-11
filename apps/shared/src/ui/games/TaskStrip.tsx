@@ -14,7 +14,7 @@ import './games.css'
 
 /** 根页面的一条传输或恢复摘要。 */
 export interface TaskStripInfo extends TaskPreview {
-  /** 任务所属游戏；批量传输任务没有关联时用它的原始标题。 */
+  /** 任务所属的游戏名，或没有关联游戏的批量传输任务的标题。 */
   readonly gameName: string
 }
 
@@ -22,11 +22,11 @@ export interface TaskStripInfo extends TaskPreview {
 export interface TaskStripProps {
   /** 当前任务的短摘要。 */
   readonly task: TaskStripInfo
-  /** 打开这项任务，由平台完成页面导航。 */
+  /** 点按这条摘要。 */
   readonly onOpen: () => void
 }
 
-/** 进行中显示阶段和进度，结束后显示结果；整条可点击。 */
+/** 任务摘要条：进行中显示阶段和进度，结束后显示结果；整条可以点按。 */
 export function TaskStrip({ task, onOpen }: TaskStripProps): ReactElement {
   const isRunning = task.phase === 'running'
   const t = useT()
@@ -40,7 +40,7 @@ export function TaskStrip({ task, onOpen }: TaskStripProps): ReactElement {
   const activeCount = completed + (hasCurrent ? 1 : 0)
   const currentPercent = task.percent ?? (hasError ? 100 : 0)
   const currentColor = hasError ? 'var(--ss-danger)' : 'var(--ss-accent)'
-  // steps 默认整段着色；当前段用本阶段的计数补充局部填充。
+  // Progress 的 steps 只能整段着色，当前段按本阶段的计数另外画局部填充。
   const progressRootStyle = {
     display: 'flex',
     lineHeight: 0,

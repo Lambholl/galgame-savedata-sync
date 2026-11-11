@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { useT } from '@savedata-sync/shared/ui'
 import { Sheet } from '../../components/Sheet'
 
+/** 以游戏名为标题的游戏菜单弹层。 */
 export function GameMenu({
   isOpen,
   gameName,

@@ -18,7 +18,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
-/** 由应用 Context 持有本机恢复的预览和任务；Activity 重建后按 ID 查询。 */
+/** 进程内共享的本机恢复预览和任务，Activity 重建后可按 ID 查询。 */
 final class SyncWriteRuntime implements AutoCloseable {
 
   private final Map<String, String> projects = new LinkedHashMap<>();
@@ -104,7 +104,11 @@ final class SyncWriteRuntime implements AutoCloseable {
     );
   }
 
-  /** 绑定本机项目，平台适配层从已保存的游戏配置调用；只登记现有授权引用，活动任务期间拒绝变更。 */
+  /**
+   * 绑定本机项目和已授权的根目录。
+   *
+   * @throws Exception 有任务在进行（busy），根目录没有授权，或绑定数量超过上限。
+   */
   synchronized void bindProject(String project, String root) throws Exception {
     available();
     id(project);
@@ -199,7 +203,7 @@ final class SyncWriteRuntime implements AutoCloseable {
     return find(restoreId).state();
   }
 
-  /** 页面重建时取回当前进程中最近的恢复 ID；过期或进程结束后找不到。 */
+  /** 返回当前进程中最近的恢复 ID；全部过期后返回 null。 */
   synchronized String current() throws Exception {
     available();
     purge();
@@ -368,7 +372,7 @@ final class SyncWriteRuntime implements AutoCloseable {
     }
   }
 
-  /** 关闭恢复运行时：取消活动任务，等工作线程退出后关闭写入器。目前没有调用方，运行时随进程结束。 */
+  /** 关闭恢复运行时：取消活动任务，等工作线程退出后关闭写入器。 */
   @Override
   public void close() throws Exception {
     Job job;

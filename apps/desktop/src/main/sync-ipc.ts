@@ -40,7 +40,11 @@ function input(args: readonly unknown[], fields: readonly string[]): Record<stri
   return data
 }
 
-/** 注册复制相关 IPC：校验窗口、主 frame、参数和响应大小；跨端发起只登记请求，由移动端执行。 */
+/**
+ * 注册复制接口的 IPC 处理函数；isTrusted 不通过、参数无效或响应超限时返回错误。
+ *
+ * @returns 移除这些处理函数的函数。
+ */
 export function registerSyncIpc(
   ipc: Pick<IpcMain, 'handle' | 'removeHandler'>,
   service: WindowsHttpService,

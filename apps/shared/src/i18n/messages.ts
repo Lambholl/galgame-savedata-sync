@@ -10,7 +10,7 @@ export type Messages = {
   readonly [K in MessageKey]: Base[K] extends string ? string : Base[K]
 }
 
-/** 某个键需要的参数；纯文本条目不接受参数。 */
+/** 某个键需要的参数；纯文本条目的参数列表为空。 */
 export type MessageArgs<K extends MessageKey> = Base[K] extends (params: infer P) => string
   ? [params: P]
   : []

@@ -12,17 +12,21 @@ import type { FileIdentity } from './directory-paths.ts'
 import { ArchiveError, checkArchiveAbort } from './archive-errors.ts'
 import { hashBackupStream } from './backup-files.ts'
 
-/** 写入目标用到的磁盘操作，可以替换以验证故障和容量不足；HTTP、IPC 和确认的计划都不能指定。 */
+/** 写入目标用到的磁盘操作。 */
 export interface SyncTargetIO {
   readonly link: typeof link
   readonly rename: typeof rename
+  /** 创建一个目录，只有当前用户可访问。 */
   readonly mkdir: (path: string) => Promise<void>
   readonly unlink: typeof unlink
   /** 删除空目录；目录非空时系统拒绝。 */
   readonly rmdir: (path: string) => Promise<void>
+  /** 把文件内容同步写入磁盘。 */
   readonly sync: (file: FileHandle) => Promise<void>
+  /** 读取 path 所在磁盘的可用字节数；无法得知时为 null。 */
   readonly availableBytes: (path: string) => Promise<bigint | null>
 }
+/** 使用真实文件系统的写入磁盘操作。 */
 export const SYNC_TARGET_IO: SyncTargetIO = {
   link,
   rename,
@@ -38,7 +42,7 @@ export const SYNC_TARGET_IO: SyncTargetIO = {
   },
 }
 
-/** 写入目标前的候选文件：路径由已核实的父目录和计划里的单个名称组成，句柄只在当前进程有效。 */
+/** 写入目标前的候选文件，位于已核实的父目录中。 */
 export interface SyncCandidate {
   readonly parent: NativeDirectoryLocation
   readonly path: string
@@ -65,7 +69,7 @@ export async function checkTargetName(
   await parent.verify()
 }
 
-/** 有界回读目标文件，可以核对身份和日期；遇到链接或读取期间变化时拒绝。 */
+/** 有界回读目标文件，可选核对身份和日期；遇到链接或读取期间文件变化时抛错。 */
 export async function verifyTargetFile(
   path: string,
   entry: SyncEntry,
@@ -130,7 +134,7 @@ export async function verifyTargetFile(
   }
 }
 
-/** 创建候选文件并立即登记句柄所有权；之后即使写入失败，调用方也必须 cleanupCandidate。 */
+/** 创建候选文件；之后无论成败都要 cleanupCandidate。 */
 export async function createCandidate(parent: NativeDirectoryLocation): Promise<SyncCandidate> {
   await parent.verify()
   const path = join(parent.path, `.savedata-copy-${randomUUID()}.tmp`)
@@ -146,7 +150,7 @@ export async function createCandidate(parent: NativeDirectoryLocation): Promise<
   }
 }
 
-/** 把输入写入候选文件，64 KiB 分块；输入由本函数读完并关闭，落盘和回读都通过后才可发布。 */
+/** 把输入写入候选文件并落盘、回读核对；输入流由本函数读完并关闭。 */
 export async function stageCandidate(
   candidate: SyncCandidate,
   entry: SyncEntry,
@@ -188,7 +192,7 @@ export async function stageCandidate(
   await verifyTargetFile(candidate.path, entry, signal, candidate.identity, false)
 }
 
-/** 清理本实例仍持有且身份匹配的候选文件；最终文件不会被删除。 */
+/** 清理仍持有且身份匹配的候选文件；已发布的文件保留。 */
 export async function cleanupCandidate(candidate: SyncCandidate, io: SyncTargetIO): Promise<void> {
   if (!candidate.isClosed) {
     candidate.identity ??= getFileIdentity(await candidate.handle.stat({ bigint: true }))

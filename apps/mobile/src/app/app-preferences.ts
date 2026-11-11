@@ -23,10 +23,7 @@ function publish(next: AppPreferences): void {
   }
 }
 
-/**
- * 首次渲染前读取一次已保存的偏好；读取失败时用默认值。
- * 浏览器预览没有原生插件，偏好只在本次运行内有效。
- */
+/** 读取已保存的偏好；读取失败时用默认值。没有原生插件时，偏好只在本次运行内有效。 */
 export async function loadAppPreferences(): Promise<void> {
   if (!NATIVE) {
     return
@@ -46,7 +43,7 @@ export function getAppPreferences(): AppPreferences {
   return current
 }
 
-/** 立即生效并保存；保存失败时恢复原值并抛出错误，由调用方提示。 */
+/** 立即生效并保存；保存失败时恢复原值并抛错。 */
 export async function setAppPreferences(next: AppPreferences): Promise<void> {
   const previous = current
   publish(next)
@@ -61,7 +58,7 @@ export async function setAppPreferences(next: AppPreferences): Promise<void> {
   }
 }
 
-/** 供 useSyncExternalStore 与主题同步订阅；返回取消订阅函数。 */
+/** 订阅偏好变化；返回取消订阅的函数。 */
 export function subscribeAppPreferences(listener: () => void): () => void {
   listeners.add(listener)
   return () => listeners.delete(listener)

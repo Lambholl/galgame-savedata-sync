@@ -5,7 +5,11 @@ import { PREFERENCES_CHANNELS } from '../bridge/preferences-bridge.ts'
 import { HttpOperationError, toHttpError } from './http-errors.ts'
 import type { AppPreferencesStore } from './preferences-store.ts'
 
-/** 注册界面偏好的读写 IPC，校验主窗口来源；保存成功后通知调用方应用主题。退出时移除。 */
+/**
+ * 注册界面偏好接口的 IPC 处理函数；isTrusted 不通过的调用返回错误。保存成功后调用 onChange。
+ *
+ * @returns 移除这些处理函数的函数。
+ */
 export function registerPreferencesIpc(
   ipc: Pick<IpcMain, 'handle' | 'removeHandler'>,
   store: AppPreferencesStore,

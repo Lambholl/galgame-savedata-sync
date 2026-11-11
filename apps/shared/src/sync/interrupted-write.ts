@@ -1,9 +1,6 @@
 import { isOpaqueId } from '../protocol/protocol.ts'
 
-/**
- * 写入标记：开始写目标目录前落盘，写入结束时删除。上一个进程留下的标记说明那次写入没有走到结束，
- * 目标文件可能不完整。文件名与 id 相同，id 取计划 ID。
- */
+/** 写入标记：一次目标目录写入开始时保存，结束时删除。id 是计划 ID。 */
 export interface InterruptedWrite {
   readonly id: string
   readonly projectId: string
@@ -14,9 +11,10 @@ export interface InterruptedWrite {
   readonly startedAt: number
 }
 
-/** 一次最多读取的标记数；每次写入结束都会删除自己的标记，正常不会累积。 */
+/** 一次最多读取的写入标记数。 */
 export const MAX_INTERRUPTED_WRITES = 16
 
+/** 校验写入标记。 */
 export function isInterruptedWrite(value: unknown): value is InterruptedWrite {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
     return false
@@ -31,6 +29,7 @@ export function isInterruptedWrite(value: unknown): value is InterruptedWrite {
   )
 }
 
+/** 校验写入标记列表：最多 MAX_INTERRUPTED_WRITES 条。 */
 export function isInterruptedWriteList(value: unknown): value is readonly InterruptedWrite[] {
   return (
     Array.isArray(value) &&

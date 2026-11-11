@@ -35,7 +35,7 @@ function readTheme(): ResolvedTheme {
   return document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light'
 }
 
-/** Android 入口组件，连接和原生任务适配器在整个应用里共用一份。 */
+/** 移动应用的根组件：跟随主题切换 antd 主题，整个应用共用一份游戏库和复制适配器。 */
 export function App(): React.JSX.Element {
   const preferences = useAppPreferences()
   const locale = resolveLocale(preferences.locale, navigator.languages)

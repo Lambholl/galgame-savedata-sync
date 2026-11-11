@@ -2,7 +2,7 @@ import { Capacitor, registerPlugin } from '@capacitor/core'
 import { createBackupBridge } from './backup-bridge'
 import type { BackupNativePlugin } from './backup-bridge'
 
-/** Android 本机备份的查询和设置；恢复写回走 androidSyncWrites。 */
+/** 应用使用的本机备份接口。 */
 export const androidBackups = createBackupBridge(
   registerPlugin<BackupNativePlugin>('SyncBackups'),
   () => Capacitor.getPlatform() === 'android',

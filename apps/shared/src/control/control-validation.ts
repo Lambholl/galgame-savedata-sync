@@ -24,7 +24,7 @@ const REQUESTS: readonly ControlRequestMethod[] = [
 ]
 const EVENTS: readonly ControlEventMethod[] = ['catalog.changed', 'sync.report', 'sync.job']
 
-/** 校验控制消息的外层格式；请求体、应答值和事件体按方法另行校验。 */
+/** 只校验控制消息的外层字段。 */
 export function isControlMessage(value: unknown): value is ControlMessage {
   if (!isRecord(value) || value.v !== 1) {
     return false
@@ -49,6 +49,7 @@ export function isControlMessage(value: unknown): value is ControlMessage {
     isOneOf(value.method, EVENTS)
   )
 }
+/** 按方法校验控制请求体。 */
 export function isControlRequestBody<M extends ControlRequestMethod>(
   method: M,
   value: unknown,
@@ -80,6 +81,7 @@ export function isControlRequestBody<M extends ControlRequestMethod>(
   }
   return hasShape(value, ['requestId']) && isOpaqueId(value.requestId)
 }
+/** 按方法校验控制应答的成功值。 */
 export function isControlResponseValue<M extends ControlRequestMethod>(
   method: M,
   value: unknown,
@@ -95,7 +97,7 @@ export function isControlResponseValue<M extends ControlRequestMethod>(
   }
   return value === null
 }
-/** 每种状态只允许对应字段；计划与项目的匹配由发起方另行核对。 */
+/** 校验扫描回报：每种状态只带它自己的字段。 */
 export function isRemoteSyncReport(value: unknown): value is RemoteSyncReport {
   if (!isRecord(value) || !isOpaqueId(value.requestId)) {
     return false
@@ -116,6 +118,7 @@ export function isRemoteSyncReport(value: unknown): value is RemoteSyncReport {
     isOperationError(value.error)
   )
 }
+/** 按方法校验控制事件体。 */
 export function isControlEventBody<M extends ControlEventMethod>(
   method: M,
   value: unknown,

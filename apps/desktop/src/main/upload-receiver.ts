@@ -15,14 +15,14 @@ import { ArchiveCancelledError } from './archive-errors.ts'
 import type { NewFilePublicationRequest, WindowsNewFilePublisher } from './new-file-publisher.ts'
 import { HttpOperationError, toHttpError } from './http-errors.ts'
 
-/** 接收器的依赖；授权和清理仍属于各自的适配器，不经请求注入。 */
+/** 上传接收器的依赖。 */
 export interface ReceiverDependencies {
   readonly archive: Pick<WindowsArchiveAdapter, 'receive' | 'retryCleanup'> &
     Partial<Pick<WindowsArchiveAdapter, 'checkReceiveSpace'>>
   readonly publisher: Pick<WindowsNewFilePublisher, 'checkTarget' | 'publish' | 'retryCleanup'>
 }
 
-/** 接收器提交给注册表的最终结果，清理错误与文件结果分开。 */
+/** 一次接收的最终结果，清理错误与文件结果分开。 */
 export interface ReceiverCompletion {
   readonly status: 'succeeded' | 'failed' | 'cancelled' | 'unknown'
   readonly error: OperationError | null
@@ -30,7 +30,7 @@ export interface ReceiverCompletion {
   readonly cleanupError: KnownOperationError | null
 }
 
-/** 注册表提供的接口：注册表持有会话、期限、名额和归档，本模块只驱动接收和按顺序发布。 */
+/** 接收器需要的任务状态读写和归档接口。 */
 export interface ReceiverHost {
   readonly signal: AbortSignal
   readonly state: () => BatchState
@@ -53,7 +53,7 @@ function known(error: unknown): KnownOperationError {
     : value
 }
 
-/** 把清单和目标映射成单文件发布请求；源端引用不会被解析成本机路径。 */
+/** 把清单和目标映射成单文件发布请求。 */
 export function publicationRequests(
   request: ReceiveBatchRequest,
 ): readonly NewFilePublicationRequest[] {
@@ -74,10 +74,8 @@ export function publicationRequests(
 }
 
 /**
- * 执行一次上传 PUT：压缩体确认后，校验和发布不再依赖响应连接，也不会重做。
- * 输入桥隔离 IncomingMessage 与归档流的所有权，原始请求失败时仍能返回 JSON 错误。
- * 整批归档校验成功才逐个发布；第一个非成功结果后停止，保留前面的成功项，其余标为未尝试。
- * 资源、进度和取消规则见桌面 README。
+ * 执行一次上传：压缩体确认后，校验和发布不再依赖连接。
+ * 整批归档校验成功才逐个发布；遇到第一个非成功结果就停止，前面的成功项保留，其余标为未尝试。
  */
 export class WindowsUploadReceiver {
   private readonly request: ReceiveBatchRequest
@@ -110,7 +108,7 @@ export class WindowsUploadReceiver {
     }
   }
 
-  /** 开始接收，返回压缩体检查点 Promise 和完整 worker；202 不等解包和发布完成。 */
+  /** 开始接收，返回压缩体确认的 Promise 和整个任务的 Promise。 */
   receive(
     input: IncomingMessage,
     response: ServerResponse,
@@ -289,7 +287,7 @@ export class WindowsUploadReceiver {
           input.resume()
         }
       })
-    // feed 的拒绝立即转为值，归档 worker 负责收尾，避免另一条并发链出现未处理拒绝。
+    // feed 的 reject 立即转成值，由归档任务收尾，避免另一条并发链出现未处理的 reject。
     const feeding = feed().then(
       () => null,
       (error: unknown) => error,

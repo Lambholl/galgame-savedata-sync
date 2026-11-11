@@ -1,11 +1,9 @@
 import type { ResolvedTheme } from './app-preferences.ts'
 
 /**
- * 原型 v2 的设计变量，双端外观的唯一来源。
- * 样式表通过 --ss-* 变量引用（见 designCssText），antd 主题与原生窗口背景直接读取这里的取值；
- * 组件和样式表里不写颜色、圆角和字体的字面值。
+ * 一种明暗主题下的颜色取值。
  *
- * 语义色：warn = 内容不同/将覆盖，only = 只在一端有，ok = 新建/成功，danger = 失败/备份关闭，img = 图片。
+ * 语义色：warn 表示内容不同或将覆盖，only 表示只在一端有，ok 表示新建或成功，danger 表示失败或备份关闭，img 表示图片。
  */
 export interface Palette {
   /** 页面底色；深色为纯黑。 */
@@ -59,6 +57,7 @@ const COVERS = {
   onCoverLine: 'rgb(255 255 255 / 35%)',
 } as const
 
+/** 浅色和深色主题的颜色取值。 */
 export const PALETTES: Readonly<Record<ResolvedTheme, Palette>> = {
   light: {
     bg: '#e9edf5',
@@ -122,12 +121,10 @@ export const PALETTES: Readonly<Record<ResolvedTheme, Palette>> = {
   },
 }
 
-/**
- * 圆角只用这几档（px）：xs 小图标底，sm 输入框和分段控件，md 分组容器、卡片、文件列和大图标底，
- * lg 弹层，pill 按钮和标签；圆形用 50%，不另设档位。
- */
+/** 圆角档位（px）：xs 小图标底，sm 输入框和分段控件，md 分组容器、卡片、文件列和大图标底，lg 弹层，pill 按钮和标签。 */
 export const RADII = { xs: 6, sm: 10, md: 14, lg: 22, pill: 999 } as const
 
+/** 正文和等宽字体的字体栈。 */
 export const FONTS = {
   body: "'Segoe UI', 'PingFang SC', 'HarmonyOS Sans SC', 'Microsoft YaHei', system-ui, sans-serif",
   mono: "'Cascadia Mono', Consolas, 'SFMono-Regular', monospace",
@@ -143,10 +140,7 @@ function declarations(values: Readonly<Record<string, string>>): string {
     .join('')
 }
 
-/**
- * 生成挂到 <html> 上的 --ss-* 变量：:root 为浅色，[data-theme='dark'] 为深色。
- * 应用在 <html> 上设置已解析主题 data-theme="light|dark"。
- */
+/** 生成定义 --ss-* 变量的 CSS 文本：:root 下为浅色，[data-theme='dark'] 下为深色。 */
 export function designCssText(): string {
   const shared = declarations({
     rXs: `${RADII.xs}px`,

@@ -1,13 +1,14 @@
 import { Radio } from 'antd-mobile'
 import { useT } from '@savedata-sync/shared/ui'
 
+/** 单选列表中的一个选项。 */
 export interface ChoiceOption {
   readonly value: string
   readonly label: string
   readonly isDisabled?: boolean
 }
 
-/** 选项直接显示，整行触控；避免窄屏使用桌面下拉菜单。 */
+/** 单选列表：选项直接显示，点整行选择。 */
 export function ChoiceField({
   label,
   value,

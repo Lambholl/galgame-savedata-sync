@@ -5,6 +5,7 @@ import { TaskStrip, useT } from '@savedata-sync/shared/ui'
 import type { TaskStripInfo } from '@savedata-sync/shared/ui'
 import { GameCard } from './GameCard.tsx'
 
+/** 游戏页：游戏卡片列表、任务横条，以及添加和导入游戏的入口。 */
 export function GamesPage({
   games,
   online,

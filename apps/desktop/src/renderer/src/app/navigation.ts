@@ -1,9 +1,10 @@
 import type { ModalProps } from 'antd'
 import type { MessageKey } from '@savedata-sync/shared'
 
+/** 桌面应用的页面。 */
 export type Page = 'devices' | 'games' | 'settings' | 'edit' | 'transfer' | 'task' | 'backup'
 
-/** 重新显示一个页面需要的上下文，随来源记录保存。连接设备的选择不在其中：返回时沿用最新的选择。 */
+/** 重新显示一个页面需要的上下文。 */
 export interface PageContext {
   readonly gameId: string
   readonly backupRootId: string | null
@@ -12,6 +13,7 @@ export interface PageContext {
   readonly taskRestoreId: string | null
 }
 
+/** 一次确认弹窗的内容和确认后执行的操作。 */
 export interface Confirmation {
   readonly title: string
   readonly text: string
@@ -19,7 +21,7 @@ export interface Confirmation {
   readonly okType?: ModalProps['okType']
 }
 
-/** 各页标题对应的文案键；按钮名与所打开页面的标题一致。 */
+/** 各页标题对应的文案键。 */
 export const PAGE_TITLE_KEYS: Readonly<Record<Page, MessageKey>> = {
   devices: 'nav.devices',
   games: 'nav.games',
@@ -30,6 +32,7 @@ export const PAGE_TITLE_KEYS: Readonly<Record<Page, MessageKey>> = {
   backup: 'page.backup',
 }
 
+/** 判断页面是否是侧边导航里的一级页面。 */
 export function isRootPage(page: Page): boolean {
   return page === 'games' || page === 'devices' || page === 'settings'
 }

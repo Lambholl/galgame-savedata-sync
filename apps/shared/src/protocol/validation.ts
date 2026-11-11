@@ -59,7 +59,7 @@ export function isDeviceDescriptor(value: unknown): value is DeviceDescriptor {
   )
 }
 
-/** 校验目录引用和可选的展示信息；路径只供显示，操作按 rootId 解析。 */
+/** 校验目录引用和可选的展示信息。 */
 export function isDirectoryReference(value: unknown): value is DirectoryReference {
   if (!isRecord(value)) {
     return false
@@ -83,14 +83,14 @@ export function isDirectoryReference(value: unknown): value is DirectoryReferenc
   )
 }
 
-/** 校验根目录内的不透明引用；访问权限和根内真实路径由平台适配器确认。 */
+/** 校验根目录内的不透明条目引用。 */
 export function isEntryReference(value: unknown): value is EntryReference {
   return (
     hasShape(value, ['rootId', 'entryId']) && isOpaqueId(value.rootId) && isOpaqueId(value.entryId)
   )
 }
 
-/** 校验元数据快照：未知值保留 null，目录不能带汇总大小。 */
+/** 校验元数据快照：未知值为 null，文件夹的 sizeBytes 必须为 null。 */
 export function isEntryMetadata(value: unknown): value is EntryMetadata {
   return (
     hasShape(value, [
@@ -115,7 +115,7 @@ export function isEntryMetadata(value: unknown): value is EntryMetadata {
   )
 }
 
-/** 校验一层目录的成功结果：拒绝重复引用和混入其他根或层的条目，空数组合法。 */
+/** 校验一层目录的列表：条目引用互不重复，且都属于同一根目录和同一层；空数组合法。 */
 export function isDirectoryListing(value: unknown): value is DirectoryListing {
   if (
     !hasShape(value, ['rootId', 'parentId', 'observedAt', 'entries']) ||
@@ -133,7 +133,7 @@ export function isDirectoryListing(value: unknown): value is DirectoryListing {
   )
 }
 
-/** 校验错误字段；结果未知时不能声明可直接重试，消息脱敏由生产者负责。 */
+/** 校验错误字段；result-unknown 的 canRetry 必须为 false。 */
 export function isOperationError(value: unknown): value is OperationError {
   return (
     (hasShape(value, ['code', 'message', 'canRetry']) ||
@@ -147,7 +147,11 @@ export function isOperationError(value: unknown): value is OperationError {
   )
 }
 
-/** 用调用者提供的守卫校验 OperationResult；对象不克隆也不冻结，消费方不要修改。 */
+/**
+ * 校验 OperationResult 包络，成功值用 guard 校验。
+ *
+ * @returns 通过校验时，value 是传入的同一个对象。
+ */
 export function isOperationResult<TValue>(
   value: unknown,
   guard: ValueGuard<TValue>,
@@ -160,7 +164,7 @@ export function isOperationResult<TValue>(
   )
 }
 
-/** 校验目录选择结果：取消是单独的结果，不能带目录或错误，已保存目录不受影响。 */
+/** 校验目录选择结果：cancelled 不带目录或错误。 */
 export function isDirectorySelectionResult(value: unknown): value is DirectorySelectionResult {
   return (
     (hasShape(value, ['status', 'directory']) &&

@@ -4,18 +4,20 @@ import { useT } from '../i18n/i18n-context.ts'
 import { errorDetail } from './error-detail.ts'
 import { useLocalDevice } from './local-device-context.ts'
 
-/** ErrorText 的参数。字号与颜色继承所在位置。 */
+/** ErrorText 的参数。 */
 export interface ErrorTextProps {
-  /** 要显示的错误；由 toShownError 从捕获的异常得到，或直接传入任务结果里的错误。 */
+  /** 要显示的错误。 */
   readonly error: ShownError
   /** 出错的操作，例如“读取备份失败”，写在说明前；不需要时为 null。 */
   readonly context: string | null
 }
 
 /**
- * 显示一个错误：有错误码时只显示该错误码的本地化说明，没有错误码时原样显示消息；
- * 知道出错的一端时在说明前写“本机”或“对方设备”，按 LocalDeviceProvider 提供的本机设备种类判断。
- * 界面上不放“详情”开关：原始消息与错误码在电脑上悬停可见，任务详情里写进技术详情卡片。
+ * 显示一个错误：有错误码时显示该错误码的本地化说明，没有错误码时显示原消息。
+ * 知道出错的一端时，按 LocalDeviceProvider 提供的本机设备种类在说明前写“本机”或“对方设备”。
+ * 有错误码时，原消息和错误码放在悬停提示里。字号和颜色继承所在位置。
+ *
+ * @throws Error 组件不在 LocalDeviceProvider 之下时抛出。
  */
 export function ErrorText({ error, context }: ErrorTextProps): ReactElement {
   const t = useT()

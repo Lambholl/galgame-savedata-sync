@@ -23,7 +23,7 @@
     - SummaryJavadoc 按中文注释要求，第一句以“。”结束。
     - EmptyCatchBlock 原来的 \w+ 匹配不到中文，改成任意非空白字符，空 catch 仍要写明原因。
     - MissingJavadocMethod 放过 PluginMethod 和 After：前者是给 JS 调用的入口，接口说明在
-      TypeScript 插件定义里；后者和 Test 一样由 JUnit 调用。
+      TypeScript 的网页接口（*Api）上；后者和 Test 一样由 JUnit 调用。
     - Prettier 不删除未使用的导入，所以增加 UnusedImports。
     - 增加 BooleanNamePrefix，前缀列表和 eslint.config.mjs 的 TypeScript 布尔命名相同。
     - 增加 cacheFile，只重新检查改过的文件。

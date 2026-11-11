@@ -35,9 +35,9 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 /**
- * 复制任务的应用级所有者：只读准备和确认执行分开，流、归档和网络都在原生层。
- * reserve 在启动前台服务前占名额，begin 只在系统接受前台服务后执行一次；进程重启后任务不恢复。
- * 活动任务和未释放的缓存占用同一个 TargetOperation；页面销毁不关闭这个对象。
+ * 复制任务的引擎：prepare 只读准备，reserve 按预览占名额，begin 开始执行。
+ *
+ * <p>任务只保存在内存里。活动任务和未释放的缓存占用同一个进程名额。
  */
 final class SyncTransferEngine implements AutoCloseable {
 
@@ -105,7 +105,7 @@ final class SyncTransferEngine implements AutoCloseable {
   private final ExecutorService worker = Executors.newSingleThreadExecutor();
   private final ScheduledExecutorService watcher = Executors.newSingleThreadScheduledExecutor();
   private final ScheduledExecutorService heartbeats = Executors.newSingleThreadScheduledExecutor();
-  /** 向电脑推送任务摘要、应答读取和取消；放在原生，页面被回收或任务由移动端发起时同样工作。 */
+  /** 向电脑推送任务摘要、应答读取和取消的线程，页面被回收后照常工作。 */
   private final ScheduledExecutorService reports = Executors.newSingleThreadScheduledExecutor();
   private final Map<String, Preparation> preparations = new LinkedHashMap<>();
   private final Map<String, Job> jobs = new LinkedHashMap<>();
@@ -206,7 +206,7 @@ final class SyncTransferEngine implements AutoCloseable {
     transport.controlInterceptor(this::controlRequest);
   }
 
-  /** 有变化就发；进行中没有变化也每秒发一次，电脑靠它判断移动端还在。结束后不再重复。 */
+  /** 推送有变化的任务摘要；进行中的任务没有变化也每秒推送一次，作为在线信号。 */
   private void report() {
     Map<Job, String> pending = new LinkedHashMap<>();
     long now = System.nanoTime();
@@ -422,8 +422,9 @@ final class SyncTransferEngine implements AutoCloseable {
   }
 
   /**
-   * 开始普通只读准备，不占传输名额，也不启动前台服务；返回后按 preparationId 查询。
-   * 后来的准备取代还没结束的准备：之前的结果已经过时，单线程 preparer 让后来的准备等之前的收尾后才开始。
+   * 开始只读准备，进度和结果按返回的 preparationId 查询；准备不占传输名额。
+   *
+   * <p>新的准备会取消还没结束的准备，并等它收尾后才开始。
    */
   Map<String, Object> prepare(Object rawBinding, String direction) throws Exception {
     Preparation preparation;
@@ -762,7 +763,7 @@ final class SyncTransferEngine implements AutoCloseable {
     }
   }
 
-  /** 按同一份预览占名额；调用者之后只能 begin 或 failStart，不能自动重试 execute。 */
+  /** 按预览占用传输名额；之后只能调用一次 begin 或 failStart。 */
   synchronized Map<String, Object> reserve(String id, Object rawPlan) throws Exception {
     Preparation preparation = preparation(id);
     SyncPlanModel.Plan plan = new SyncPlanModel.Plan(rawPlan);
@@ -1293,7 +1294,7 @@ final class SyncTransferEngine implements AutoCloseable {
     );
   }
 
-  /** 核对当前会话、目标项目和根目录以及本机备份设置。接收内容前调用一次，写入器复核目标时经 SafSyncBackend 再调用。 */
+  /** 核对当前会话、目标项目和根目录以及本机备份设置与已确认的任务一致。 */
   synchronized void verifyTargetContext(String project, String root) throws Exception {
     Job job = active;
     if (
@@ -1573,7 +1574,7 @@ final class SyncTransferEngine implements AutoCloseable {
     }
   }
 
-  /** 清理和结束会改写阶段，要在这之前记下任务停在哪里。 */
+  /** 返回任务停下时的阶段；要在清理和结束改写阶段之前调用。 */
   private static Object stoppedAt(Job job) {
     Object stage = job.state.get("stage");
     return stage.equals("cleaning") || stage.equals("done") ? null : stage;
@@ -1677,12 +1678,13 @@ final class SyncTransferEngine implements AutoCloseable {
     return last == null ? null : last.plan.id;
   }
 
-  /** 这个游戏（移动端 projectId）最近一次任务；jobs 有容量上限，遍历是有界的。 */
+  /** 返回这个游戏（移动端 projectId）最近一次任务的 ID；没有时返回 null。 */
   synchronized Object latest(String projectId) throws Exception {
     available();
     id(projectId);
     purge();
     Job last = null;
+    // jobs 有容量上限，遍历是有界的。
     for (Job job : jobs.values()) {
       if (projectId.equals(job.preparation.binding.get("projectId"))) {
         last = job;
@@ -1764,7 +1766,7 @@ final class SyncTransferEngine implements AutoCloseable {
     return active == null ? null : active.plan.id;
   }
 
-  /** 通知只读取小快照，不在系统主线程复制整份计划、清单和结果。 */
+  /** 返回通知用的阶段和进度快照；没有活动任务时返回 null。 */
   synchronized Map<String, Object> notice() {
     if (active == null) {
       return null;
@@ -1799,7 +1801,7 @@ final class SyncTransferEngine implements AutoCloseable {
     return (Map<String, Object>) value;
   }
 
-  /** 关闭引擎：取消进行中的准备和任务，等线程退出后清理并关闭本机写入器。目前没有调用方，引擎随进程结束。 */
+  /** 关闭引擎：取消进行中的准备和任务，等线程退出后清理并关闭本机写入器。 */
   @Override
   public void close() throws Exception {
     synchronized (this) {

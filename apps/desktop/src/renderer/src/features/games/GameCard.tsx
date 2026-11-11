@@ -1,7 +1,7 @@
 import type { LibraryGame } from '@savedata-sync/shared'
 import { GameCard as SharedGameCard } from '@savedata-sync/shared/ui'
 
-/** 共用卡片的桌面包装；右键在本端打开游戏菜单。 */
+/** 桌面端的游戏卡片；右键打开游戏菜单。 */
 export function GameCard({
   game,
   coverIndex,

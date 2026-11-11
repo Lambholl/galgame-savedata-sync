@@ -25,20 +25,21 @@ interface RemoteEntry {
   readonly localRootId: string
   readonly remoteRootId: string
   plan: SyncPlan | null
-  /** 已确认、移动端还没在电脑上登记任务；登记后任务由 WindowsSyncRegistry 负责。 */
+  /** 已确认，但移动端还没在电脑上登记任务。 */
   isAwaitingJob: boolean
   /** 移动端最新的任务摘要。 */
   digest: SyncJobDigest | null
 }
 
+/** 复制请求登记表的依赖。 */
 export interface RemoteSyncRequestOptions {
   readonly library: Pick<DesktopLibrary, 'snapshot' | 'verifyProjectPeer'>
   readonly control: Pick<ControlHub, 'isOpen' | 'request'>
   /** 本机设备 ID，用于核对计划里电脑一侧的快照。 */
   readonly deviceId: string
-  /** 已有网络传输时拒绝新的发起和确认。 */
+  /** 判断是否已有网络传输；有时拒绝新的发起和确认。 */
   readonly isBusy: () => boolean
-  /** 移动端是否已在电脑上登记了这个任务。 */
+  /** 判断移动端是否已在本机登记了这个任务。 */
   readonly hasJob: (jobId: string) => boolean
   readonly now?: () => number
 }
@@ -96,9 +97,8 @@ function pendingLocalState(entry: RemoteEntry, request: SyncJobRequest): SyncJob
 }
 
 /**
- * 电脑发起复制的会话内登记表，同一时间只保留一个请求。
- * 经控制通道请移动端扫描，移动端回报计划；电脑确认后由移动端执行，并回报最终结果。
- * 请求只存内存，服务停止即丢弃。
+ * 本机发起的复制请求登记表，同一时间只保留一个请求，只存在内存中。
+ * 经控制通道请移动端扫描，移动端回报计划；本机确认后由移动端执行，并回报最终结果。
  */
 export class WindowsRemoteSyncRequests {
   private current: RemoteEntry | null = null
@@ -125,9 +125,9 @@ export class WindowsRemoteSyncRequests {
   }
 
   /**
-   * 请已连接移动端扫描。项目必须已关联在线移动端；已确认的请求还没开始或已有网络传输时抛 busy，
-   * 关联失效时抛 session-mismatch。未确认的旧请求被新请求取代，移动端收到新请求时释放旧扫描。
-   * 扫描是否开始由移动端随后回报。
+   * 请已连接的移动端扫描，立即返回；扫描是否开始由移动端随后回报。未确认的旧请求被新请求取代。
+   *
+   * @throws HttpOperationError 已确认的请求还没开始或已有网络传输时抛出 busy，项目没有关联这台在线设备时抛出 session-mismatch。
    */
   start(projectId: string, peerId: string, direction: TransferDirection): DesktopRemoteRequest {
     if (this.current?.value.status === 'starting') {
@@ -214,8 +214,8 @@ export class WindowsRemoteSyncRequests {
   }
 
   /**
-   * 确认移动端回报的计划；只接受可执行的 ready 计划，移动端应答后即视为已开始。
-   * shouldDeleteExtras 是确认时的开关选择：同一份快照按它重新生成计划，移动端也按它执行。
+   * 确认移动端回报的计划，移动端应答后视为已开始；只接受可执行的 ready 计划。
+   * 计划用同一份快照按 shouldDeleteExtras 重新生成，移动端按新计划执行。
    */
   confirm(requestId: string, shouldDeleteExtras: boolean): DesktopRemoteRequest {
     const entry = this.entry(requestId)
@@ -269,7 +269,7 @@ export class WindowsRemoteSyncRequests {
     return { ...entry.value }
   }
 
-  /** 确认前可取消，移动端随即释放本次扫描；已开始的传输到任务列表取消。 */
+  /** 取消还没确认的请求，并通知移动端释放扫描。 */
   cancel(requestId: string): DesktopRemoteRequest {
     const entry = this.entry(requestId)
     if (entry.value.status === 'starting') {
@@ -312,10 +312,7 @@ export class WindowsRemoteSyncRequests {
     }
   }
 
-  /**
-   * 移动端的任务摘要。确认后请求的状态跟随它；之前因断开或应答超时记成失败的请求，
-   * 收到摘要说明移动端确实在执行，也会回到进行中。
-   */
+  /** 应用移动端的任务摘要：已确认的请求状态跟随它，因断开或超时记成失败的请求回到进行中。 */
   observe(peerId: string, digest: SyncJobDigest): void {
     const entry = this.current
     if (
@@ -338,10 +335,7 @@ export class WindowsRemoteSyncRequests {
     }
   }
 
-  /**
-   * 已确认但移动端还没在电脑上登记的任务：详情和列表用它显示等待状态，或开始前的失败。
-   * 移动端登记后返回 null，任务改由 WindowsSyncRegistry 提供。
-   */
+  /** 已确认但移动端还没在本机登记的任务，包括它的摘要、请求和状态；移动端登记后返回 null。 */
   pending(): {
     readonly request: SyncJobRequest
     readonly state: SyncTransferState
@@ -395,7 +389,7 @@ export class WindowsRemoteSyncRequests {
     }
   }
 
-  /** 取消移动端正在开始的任务；移动端还没建立任务时以 not-found 拒绝。 */
+  /** 取消移动端正在开始的任务；移动端还没建立任务时抛出 not-found 错误。 */
   async cancelPending(jobId: string): Promise<void> {
     const entry = this.current
     if (entry?.plan?.planId !== jobId) {
@@ -404,7 +398,7 @@ export class WindowsRemoteSyncRequests {
     await this.options.control.request(entry.value.peerId, 'sync.job.cancel', { jobId })
   }
 
-  /** 控制通道断开：未确认的请求失败；已开始的传输可能仍在进行，结果待确认，重连后由摘要更新。 */
+  /** 处理控制通道断开：未确认的请求记为失败，已开始的请求记为结果待确认。 */
   closed(peerId: string): void {
     const entry = this.current
     if (entry?.value.peerId !== peerId) {

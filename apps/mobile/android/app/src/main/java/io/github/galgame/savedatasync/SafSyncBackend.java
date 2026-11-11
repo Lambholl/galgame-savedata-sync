@@ -28,7 +28,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-/** 复制和恢复写入用的 SAF 后端：URI 留在原生层，rw 打开不截断，写入前后比较常规 FD 的身份。 */
+/** 复制和恢复写入用的 SAF 后端：以 rw 打开，写入前后比较常规文件描述符的身份。 */
 final class SafSyncBackend implements SyncWriter.Backend {
 
   interface Authorization {
@@ -386,7 +386,7 @@ final class SafSyncBackend implements SyncWriter.Backend {
     }
   }
 
-  /** 已到提交点，用独立的控制回读，晚到的取消不影响结果；读不到时为 null，调用方报结果待确认。 */
+  /** 用独立的控制回读条目是否还在，晚到的取消不影响结果；读不到时返回 null。 */
   private Boolean stillExists(
     SafDirectoryStore.PublicationDirectory directory,
     String name,

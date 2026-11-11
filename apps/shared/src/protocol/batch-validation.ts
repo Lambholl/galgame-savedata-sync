@@ -58,7 +58,7 @@ function hasUniqueReferences(entries: readonly EntryReference[]): boolean {
   return new Set(entries.map((entry) => `${entry.rootId}/${entry.entryId}`)).size === entries.length
 }
 
-/** 校验固定上限：每个字段都要精确相等，请求不能放宽。 */
+/** 校验固定上限：每个字段都与 BATCH_LIMITS 相等。 */
 export function isBatchLimits(value: unknown): value is BatchLimits {
   return (
     hasShape(value, Object.keys(BATCH_LIMITS)) &&
@@ -66,7 +66,7 @@ export function isBatchLimits(value: unknown): value is BatchLimits {
   )
 }
 
-/** 校验 HTTP 设备描述；sessionId 只表示当前服务实例，不是认证。 */
+/** 校验 HTTP 设备描述。 */
 export function isBatchDeviceDescriptor(value: unknown): value is BatchDeviceDescriptor {
   return (
     hasShape(value, ['device', 'sessionId', 'limits']) &&
@@ -76,7 +76,7 @@ export function isBatchDeviceDescriptor(value: unknown): value is BatchDeviceDes
   )
 }
 
-/** 校验选择项：只含批内 fileId 和源引用；实际文件类型和根内身份由平台核实。 */
+/** 校验选择项：批内 fileId 和源引用。 */
 export function isSourceSelection(value: unknown): value is SourceSelection {
   return (
     hasShape(value, ['fileId', 'entryId']) &&
@@ -98,7 +98,7 @@ export function isDownloadBatchRequest(value: unknown): value is DownloadBatchRe
   )
 }
 
-/** 校验已准备文件：必须有实测的长度和哈希；未知长度、日期和源路径不做强制转换。 */
+/** 校验已准备文件：长度和哈希必须存在，各字段按原值校验。 */
 export function isPreparedFile(value: unknown): value is PreparedFile {
   return (
     hasShape(value, [
@@ -121,7 +121,7 @@ export function isPreparedFile(value: unknown): value is PreparedFile {
   )
 }
 
-/** 校验归档描述的格式声明和字节上限；不解码，不算哈希，也不推断压缩级别。 */
+/** 校验归档描述的格式声明和字节上限。 */
 export function isArchiveDescriptor(value: unknown): value is ArchiveDescriptor {
   return (
     hasShape(value, ['format', 'compressionLevel', 'sizeBytes', 'tarSizeBytes', 'sha256']) &&
@@ -181,7 +181,7 @@ export function isTargetSelection(value: unknown): value is TargetSelection {
   )
 }
 
-/** 校验接收请求：清单和目标一一对应，没有显式同名冲突；大小写、提供者等价和身份由平台检查。 */
+/** 校验接收请求：清单和目标一一对应，目标名称互不相同。 */
 export function isReceiveBatchRequest(value: unknown): value is ReceiveBatchRequest {
   if (
     !hasShape(value, ['protocolVersion', 'manifest', 'targetRootId', 'targets']) ||
@@ -204,7 +204,7 @@ export function isReceiveBatchRequest(value: unknown): value is ReceiveBatchRequ
   )
 }
 
-/** 校验进度：计数只算对应阶段的实际字节；与前一快照的关系由 isBatchProgressAdvance 比较。 */
+/** 校验单个进度快照的字段和取值范围。 */
 export function isBatchProgress(value: unknown): value is BatchProgress {
   if (
     !hasShape(value, [
@@ -282,7 +282,7 @@ export function isBatchProgressAdvance(previous: unknown, next: unknown): boolea
   )
 }
 
-/** 校验单文件结果的联合类型；实际发布、内容和残留归属由平台验证。 */
+/** 校验单文件结果的字段。 */
 export function isFileOutcome(value: unknown): value is FileOutcome {
   if (!isRecord(value) || !isBatchFileId(value.fileId)) {
     return false
@@ -507,7 +507,7 @@ function hasValidRunningState(value: Record<string, unknown>): boolean {
   )
 }
 
-/** 校验批量任务状态的角色、阶段和结束汇总；清单和目标的关系用 matchesBatchState 校验。 */
+/** 校验批量任务状态的角色、阶段和结束汇总。 */
 export function isBatchState(value: unknown): value is BatchState {
   if (
     !isRecord(value) ||

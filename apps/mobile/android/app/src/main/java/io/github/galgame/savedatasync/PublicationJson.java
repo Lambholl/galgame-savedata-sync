@@ -4,7 +4,7 @@ import com.getcapacitor.JSObject;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-/** 把发布结果转成 shared 的 FileOutcome 和 BatchCleanup 格式；提供者 URI、异常和本地路径不写进去。 */
+/** 把发布结果转成 shared 的 FileOutcome 和 BatchCleanup JSON，条目用不透明 ID 引用。 */
 final class PublicationJson {
 
   private PublicationJson() {}

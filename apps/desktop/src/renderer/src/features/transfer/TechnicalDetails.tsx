@@ -9,7 +9,7 @@ export interface TechnicalDetailsProps {
   readonly text: string
 }
 
-/** 桌面端保存展开状态，并负责写入系统剪贴板；复制不会改变展开状态。 */
+/** 可展开的技术详情卡片，可以把内容复制到系统剪贴板。 */
 export function TechnicalDetails({ text }: TechnicalDetailsProps): React.JSX.Element {
   const t = useT()
   const [isExpanded, setIsExpanded] = useState(false)

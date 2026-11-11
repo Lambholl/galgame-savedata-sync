@@ -3,8 +3,9 @@ import { resolveTheme } from '@savedata-sync/shared'
 import { getAppPreferences, subscribeAppPreferences } from './app-preferences'
 
 /**
- * 按主题偏好与系统明暗设置 <html> 的 data-theme（共用样式）和 data-prefers-color-scheme
- * （antd-mobile 官方暗色属性）；返回清理函数供热更新或页面所有者释放监听。
+ * 按主题偏好与系统明暗设置 <html> 的 data-theme 和 data-prefers-color-scheme，并跟随变化。
+ *
+ * @returns 停止跟随的函数。
  */
 export function startSystemTheme(): () => void {
   const preference = window.matchMedia('(prefers-color-scheme: dark)')

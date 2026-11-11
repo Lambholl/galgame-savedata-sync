@@ -5,13 +5,13 @@ import type { DeviceDescriptor } from '@savedata-sync/shared'
 
 /** 局域网里搜到的一台监听方设备。同一设备 ID 出现在多个实例名下时合并成一项。 */
 export interface DiscoveredDevice {
-  /** TXT 记录里的设备 ID；连接后仍要用 /v1/device 核对，不一致时不替换已保存的设备。 */
+  /** TXT 记录里的设备 ID，未经连接核实。 */
   readonly deviceId: string
   readonly platform: DeviceDescriptor['platform']
   /** DNS-SD 实例名，即对方的显示名；局域网里重名时广播方会加序号。 */
   readonly name: string
   readonly port: number
-  /** 对方的 IPv4 地址，至少一个，按系统给出的顺序；用 createConnectionCandidates 转成连接地址。 */
+  /** 对方的 IPv4 地址，至少一个，按系统给出的顺序。 */
   readonly addresses: readonly string[]
 }
 
@@ -27,18 +27,18 @@ export interface DeviceDiscoverySnapshot {
   readonly incompatibleNames: readonly string[]
 }
 
-/** 网页使用的局域网设备搜索。只在有订阅者时搜索，最后一个订阅者取消后原生搜索停止。 */
+/** 局域网设备搜索。只在有订阅者时搜索，最后一个订阅者取消后停止。 */
 export interface DeviceDiscoveryApi {
   /**
    * 开始搜索并订阅结果。listener 先收到一次当前结果（还没有结果时为空的 searching），之后每次变化收到完整结果。
-   * 返回的函数取消订阅，页面离开时调用；重复调用没有效果。
+   * 返回的函数取消订阅，重复调用没有效果。
    */
   watch(listener: (snapshot: DeviceDiscoverySnapshot) => void): () => void
   /** 搜索失败后重新开始；没有订阅者时不做任何事。 */
   retry(): void
 }
 
-/** Capacitor 原生插件 DeviceDiscovery；返回值和事件都未经校验。 */
+/** 局域网搜索的原生插件；返回值和事件都未经校验。 */
 export interface DeviceDiscoveryNativePlugin {
   start(): Promise<unknown>
   stop(): Promise<unknown>
@@ -85,8 +85,9 @@ function isNativeService(value: unknown): value is NativeService {
 
 /**
  * 把原生快照转成发现列表。TXT 不合法的服务被丢弃；协议版本不同的服务只留实例名。
- * 原生 paused（Activity 在后台）和 stopped（停止请求的结果先于下一次开始到达）都显示为没有结果的 searching。
- * 快照格式不对时返回 null，调用方保留上一次的结果。
+ * 原生的 paused 和 stopped 状态都转成没有结果的 searching。
+ *
+ * @returns 发现列表；快照格式不对时返回 null。
  */
 export function parseDiscoverySnapshot(value: unknown): DeviceDiscoverySnapshot | null {
   if (!isRecord(value) || !Array.isArray(value.services)) {
@@ -130,7 +131,7 @@ export function parseDiscoverySnapshot(value: unknown): DeviceDiscoverySnapshot 
   return { status: 'searching', devices: [...devices.values()], incompatibleNames }
 }
 
-/** 按订阅者数量开始和停止原生搜索；plugin 为 null 时（浏览器预览）只回报 unavailable。 */
+/** 用原生插件创建 DeviceDiscoveryApi，按订阅者数量开始和停止搜索；plugin 为 null 时只回报 unavailable。 */
 export function createDeviceDiscovery(
   plugin: DeviceDiscoveryNativePlugin | null,
 ): DeviceDiscoveryApi {
@@ -191,10 +192,10 @@ export function createDeviceDiscovery(
 }
 
 /**
- * 在局域网里按设备 ID 查找一台监听方设备，用于在已保存设备的原地址连不上时找它的当前地址。
- * 查找期间订阅 discovery 的搜索结果：结果里出现这个设备 ID 时 resolve 为该设备；
- * 等满 timeoutMs 仍没有、signal 中止、系统拒绝搜索或没有局域网搜索（浏览器预览）时 resolve 为 null，不会 reject。
- * 结束时取消订阅，没有其他订阅者时原生搜索随之停止。
+ * 在局域网里按设备 ID 查找一台监听方设备，查找期间订阅 discovery，结束时取消订阅。
+ *
+ * @returns 搜索结果里出现这个设备 ID 时 resolve 为该设备；等满 timeoutMs 仍没有、signal 中止、
+ *   系统拒绝搜索或没有局域网搜索时 resolve 为 null。不会 reject。
  */
 export function findDevice(
   discovery: DeviceDiscoveryApi,

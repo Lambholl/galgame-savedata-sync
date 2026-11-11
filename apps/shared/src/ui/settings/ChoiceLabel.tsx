@@ -10,7 +10,7 @@ export interface ChoiceLabelProps {
   readonly isSelected: boolean
 }
 
-/** 双端选择菜单使用相同的文本和勾选排版。 */
+/** 选择菜单的一项：文字和选中标记。 */
 export function ChoiceLabel({ text, isSelected }: ChoiceLabelProps): ReactElement {
   return (
     <span className="ss-choice-label">

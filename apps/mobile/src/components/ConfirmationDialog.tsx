@@ -3,6 +3,7 @@ import { useT } from '@savedata-sync/shared/ui'
 import type { Confirmation } from '../app/navigation-types'
 import { Sheet } from './Sheet'
 
+/** 确认弹层；confirmation 为 null 时关闭。 */
 export function ConfirmationDialog({
   confirmation,
   isBusy,

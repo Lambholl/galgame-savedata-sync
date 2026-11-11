@@ -8,8 +8,9 @@ import { HttpOperationError, toHttpError } from './http-errors.ts'
 import { hasTargetOperation } from './target-operation.ts'
 
 /**
- * 注册备份相关的 IPC：查询摘要、修改设置、显式清理残留、打开备份文件夹，都校验主窗口来源。恢复写入由恢复模块提供。
- * openPath 用系统文件管理器打开路径，失败时返回错误文字，成功时返回空字符串。
+ * 注册备份接口的 IPC 处理函数；isTrusted 不通过的调用返回错误。
+ *
+ * @param openPath 用系统文件管理器打开路径；失败时返回错误文字，成功时返回空字符串。
  */
 export function registerBackupIpc(
   ipc: Pick<IpcMain, 'handle' | 'removeHandler'>,

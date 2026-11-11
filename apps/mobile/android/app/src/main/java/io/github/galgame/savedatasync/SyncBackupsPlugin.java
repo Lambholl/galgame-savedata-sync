@@ -17,7 +17,7 @@ import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-/** 本机备份的 Capacitor 插件：设置、摘要和显式清理；创建备份和恢复的文件流由原生编排器调用。 */
+/** 本机备份的原生插件：读写备份设置、查看备份和清理备份。 */
 @CapacitorPlugin(name = "SyncBackups")
 public class SyncBackupsPlugin extends Plugin {
 
@@ -28,8 +28,9 @@ public class SyncBackupsPlugin extends Plugin {
     Object run(BackupStore store) throws Exception;
   }
 
-  /** 修改设置和显式维护时占用与传输、恢复相同的名额，避免确认后备份设置被改。 */
+  /** 占用与传输、恢复相同的进程名额后执行修改；名额被占时抛出 busy。 */
   private Object mutate(BackupStore store, Work work) throws Exception {
+    // 任务确认后备份设置不能再变，所以修改和任务共用名额。
     Object owner = new Object();
     if (!TargetOperation.acquire(owner)) {
       throw new ArchiveFailure(

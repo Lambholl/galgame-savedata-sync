@@ -100,10 +100,10 @@ function parseRegistryQuery(output: string): RegistryValue[] {
 
 /**
  * 从网卡设备类和 TCP/IP 设置的注册表查询结果中找出物理网卡上的 IPv4 地址。
- * classOutput 是 ADAPTER_CLASS_KEY 下 NetCfgInstanceId 和 Characteristics 两次查询的输出拼在一起，
- * tcpipOutput 是 TCPIP_INTERFACES_KEY 下按名称搜索 IPAddress 的输出。
- * 只取网卡 GUID 子键本身的地址：其下按无线网络分开的子键保存的是以前连过的网络分到的地址。
- * 停用或断开的网卡也可能留着上次的地址，调用方要再用 os.networkInterfaces 核对。
+ * 停用或断开的网卡也可能留着上次的地址，结果不代表地址当前可用。
+ *
+ * @param classOutput ADAPTER_CLASS_KEY 下 NetCfgInstanceId 和 Characteristics 两次查询的输出拼在一起。
+ * @param tcpipOutput TCPIP_INTERFACES_KEY 下按名称搜索 IPAddress 的输出。
  */
 export function parsePhysicalAddresses(classOutput: string, tcpipOutput: string): Set<string> {
   const adapters = new Map<string, { id?: string; characteristics?: number }>()
@@ -159,14 +159,16 @@ function byMetric(a: NetworkAddressCandidate, b: NetworkAddressCandidate): numbe
   )
 }
 
+// 虚拟机、Hyper-V、Docker、VPN 和代理的虚拟网卡上的地址其他设备访问不到，列出来既暴露本机的内部网络，
+// 又会让扫码的设备去连它所在网络里碰巧用同一地址的其他主机，所以优先选物理网卡。
+// Hyper-V 外部交换机会把本机地址移到虚拟网卡上，所以物理网卡没有地址时退到任意有默认路由的网卡。
+// 两台设备用网线直连、手动配置地址时没有默认路由，最后退回全部可用地址，免得没有地址可试。
 /**
  * 选出其他设备可能访问到的地址并排序，返回新数组；没有合适地址时返回空数组。
- * 虚拟机、Hyper-V、Docker、VPN 和代理的虚拟网卡不选：其他设备访问不到，列出来既暴露本机的内部网络，
- * 又会让扫码的设备去连它所在网络里碰巧用同一地址的其他主机。按下面的顺序取第一组非空的局域网地址：
- * 1. 物理网卡且有默认路由。VPN、代理即使接管了默认路由也是虚拟网卡，不会选上。
- * 2. 任意有默认路由的网卡。Hyper-V 外部交换机会把本机地址移到虚拟网卡上，此时只能退到这一组。
- * 局域网地址之后再加上 Windows 移动热点地址。两组都没有地址时：有热点只给热点，
- * 否则（例如两台设备用网线直连、手动配置地址）退回全部可用地址，免得没有地址可试。
+ * 按下面的顺序取第一组非空的局域网地址：
+ * 1. 物理网卡且有默认路由。
+ * 2. 任意有默认路由的网卡。
+ * 局域网地址之后再加上 Windows 移动热点地址。两组都没有地址时：有热点只给热点，否则返回全部可用地址。
  * 组内先比较 metric，再用接口名称和地址稳定排序。
  */
 export function rankNetworkAddresses(
@@ -197,7 +199,7 @@ async function runSystemTool(file: string, args: readonly string[]): Promise<str
   return stdout
 }
 
-/** 注册表查询失败时（如键不存在、没有匹配项时 reg 以非零退出）按没有物理网卡处理，地址选择退到默认路由。 */
+/** 运行 reg 查询；失败时（如键不存在、没有匹配项）返回空字符串。 */
 async function readRegistry(args: readonly string[]): Promise<string> {
   try {
     return await runSystemTool('reg.exe', ['query', ...args])
@@ -208,10 +210,9 @@ async function readRegistry(args: readonly string[]): Promise<string> {
 }
 
 /**
- * 读取本机非回环 IPv4 地址（os.networkInterfaces），用 `route print -4` 查默认路由和 metric，
- * 用 `reg query` 查网卡是不是物理网卡，返回 rankNetworkAddresses 选出并排序的地址。
- * 四个系统命令并行运行、隐藏窗口，每个最长等 10 秒，通常共约 0.2–0.3 秒。
- * 路由表读取失败或非 Windows 平台时 reject；注册表读取失败只记录警告。
+ * 读取本机非回环 IPv4 地址，查询路由表和注册表，返回按 rankNetworkAddresses 选出并排序的地址。
+ * 系统命令在隐藏窗口里运行，每个最长等 10 秒。
+ * 路由表读取失败或不是 Windows 时 reject；注册表读取失败时按没有物理网卡处理。
  */
 export async function queryNetworkAddresses(): Promise<NetworkAddressCandidate[]> {
   if (process.platform !== 'win32') {
@@ -243,7 +244,7 @@ export async function queryNetworkAddresses(): Promise<NetworkAddressCandidate[]
   )
 }
 
-/** 服务快照用的本机 IPv4 地址读取器，见 createNetworkAddressReader。 */
+/** 带缓存的本机 IPv4 地址读取器。 */
 export interface NetworkAddressReader {
   /**
    * 立即返回缓存的地址，按推荐顺序排列，第一个是推荐地址，最多 MAX_CANDIDATE_ADDRESSES 个；

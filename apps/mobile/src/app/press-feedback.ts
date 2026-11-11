@@ -8,10 +8,11 @@ const PRESSABLE = [
 /** 按下动画的时长，与 mobile.css 里的按下过渡一致。 */
 const PRESS_IN_MS = 200
 
+// 轻点时也等按下动画走完再褪去，否则 :active 一闪而过几乎看不到。
 /**
- * 给按钮和可点的行加按下反馈：按下时加 is-pressed，渐变出一层遮罩；松开后再褪去。
- * 轻点时也等按下动画走完再褪去，否则 :active 一闪而过几乎看不到。
- * 滑动列表时浏览器会取消指针，遮罩随之褪去。返回停止函数。
+ * 给按钮和可点的行加按下反馈：按下时加 is-pressed，渐变出一层遮罩，松开或指针被取消后褪去。
+ *
+ * @returns 停止按下反馈的函数。
  */
 export function startPressFeedback(): () => void {
   let pressed: { readonly row: Element; readonly at: number } | null = null

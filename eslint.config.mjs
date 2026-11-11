@@ -2,6 +2,7 @@ import js from '@eslint/js'
 import { builtinModules } from 'node:module'
 import prettierConfig from 'eslint-config-prettier/flat'
 import globals from 'globals'
+import jsdoc from 'eslint-plugin-jsdoc'
 import reactHooks from 'eslint-plugin-react-hooks'
 import reactRefresh from 'eslint-plugin-react-refresh'
 import tseslint from 'typescript-eslint'
@@ -89,6 +90,34 @@ export default tseslint.config(
             namedFrom: true,
             namespaceFrom: true,
           },
+        },
+      ],
+    },
+  },
+  {
+    // 模块外可见的函数、类、公共方法、类型和常量必须有文档注释。
+    files: ['**/*.{js,mjs,cjs,ts,tsx}'],
+    plugins: { jsdoc },
+    rules: {
+      'jsdoc/require-jsdoc': [
+        'error',
+        {
+          publicOnly: true,
+          checkConstructors: false,
+          require: {
+            FunctionDeclaration: true,
+            ClassDeclaration: true,
+            MethodDefinition: true,
+          },
+          // 导出的箭头函数和函数表达式由所在的导出声明检查；对象字面量里的函数属性按接口的文档说明。
+          contexts: [
+            'TSInterfaceDeclaration',
+            'TSTypeAliasDeclaration',
+            'TSEnumDeclaration',
+            // 原生插件接口的方法与同文件网页接口的同名方法对应，文档写在网页接口上。
+            'TSMethodSignature:not(TSInterfaceDeclaration[id.name=/NativePlugin$/] *)',
+            'ExportNamedDeclaration > VariableDeclaration',
+          ],
         },
       ],
     },

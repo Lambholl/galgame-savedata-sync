@@ -53,7 +53,7 @@ function rowsAt(files: readonly SyncBackupFile[], path: readonly string[]): Pane
   ]
 }
 
-/** 一份备份里的文件，与传输页的文件列样式相同，可以进入文件夹浏览。 */
+/** 用文件列显示一份备份里的文件，可以进入文件夹浏览。 */
 export function BackupFiles({ rootName, files, failure }: BackupFilesProps): ReactElement {
   const t = useT()
   const [path, setPath] = useState<readonly string[]>([])

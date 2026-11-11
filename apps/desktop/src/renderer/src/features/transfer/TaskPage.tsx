@@ -9,6 +9,7 @@ import { syncTaskPreview, useT } from '@savedata-sync/shared/ui'
 import { restoreStateTitle } from './sync-display.ts'
 import { formatShortDateTime } from '@savedata-sync/shared'
 
+/** 一个游戏的传输详情页：显示所选或最近一次复制、恢复或批量传输，以及历史记录。 */
 export function TaskPage({
   initialCopyId,
   initialRestoreId,
@@ -54,7 +55,7 @@ export function TaskPage({
     onOpenBackup(projectId, rootId, copy?.jobId ?? null)
   }
   return (
-    // 详情放在居中的窄栏里，与移动端共用同一结构。
+    // 详情放在居中的窄栏里，结构与移动端相同。
     <div className="task-page">
       {!tasks.length && !copies.length && !restores.length && (
         <Empty

@@ -34,15 +34,15 @@ interface RegisteredEntry {
   readonly identity: FileIdentity
 }
 
-/** 打开文件的结果：读流由调用者读完或 destroy，文件句柄自动关闭；内容和句柄不经 IPC 发送。 */
+/** 打开文件的结果：读流由调用方读完或 destroy，文件句柄随流关闭。 */
 export interface DirectoryFileRead {
   readonly metadata: FileMetadata
   readonly stream: Readable
-  /** 读完后重新核对身份、大小和修改时间，不重新读取内容；这不是原子快照，检查之后文件仍可能变化。 */
+  /** 读完后重新核对文件的身份、大小和修改时间；结果只反映检查那一刻的状态。 */
   readonly verifyUnchanged: () => Promise<void>
 }
 
-/** 目录快照，只在主进程内持有，不授予写权限；校验和元数据方法都只读。 */
+/** 一个已登记父目录的定位结果，方法都只读。 */
 export interface NativeDirectoryLocation {
   readonly rootId: string
   readonly parentId: string | null
@@ -52,10 +52,7 @@ export interface NativeDirectoryLocation {
   readonly describeFile: (name: string, identity: FileIdentity) => Promise<FileMetadata>
 }
 
-/**
- * Windows 本地只读目录适配器。配置保存在单独的应用目录，对源目录只做读取。
- * 条目引用只在当前进程有效，重启后要重新列目录。
- */
+/** Windows 本地目录的只读访问：登记、列出和读取目录。条目引用只在当前进程有效。 */
 export class WindowsDirectoryAdapter {
   private readonly configPath: string
   private registry: DirectoryRegistry
@@ -69,12 +66,12 @@ export class WindowsDirectoryAdapter {
     this.registry = registry
   }
 
-  /** 这次安装的稳定设备 ID，与 IP 和目录读取结果无关。 */
+  /** 这次安装的稳定设备 ID。 */
   get deviceId(): string {
     return this.registry.deviceId
   }
 
-  /** 检查私有缓存与所有已登记根互不包含；由主进程调用，不创建目录。 */
+  /** 检查缓存目录与所有已登记的根目录互不包含，有包含关系时抛错。 */
   assertCacheIsolated(cachePath: string): void {
     if (
       !isAbsolute(cachePath) ||
@@ -90,7 +87,7 @@ export class WindowsDirectoryAdapter {
     }
   }
 
-  /** 登记私有持久目录，此后它和它的父子目录都不能选为同步根。 */
+  /** 登记应用私有目录；此后它和它的父子目录都不能登记为根目录。 */
   excludePrivateDirectory(path: string): void {
     this.assertCacheIsolated(path)
     this.privateDirectories.add(path)
@@ -110,8 +107,8 @@ export class WindowsDirectoryAdapter {
   }
 
   /**
-   * 登记系统选择器选中的绝对路径，只由主进程调用，渲染进程传不了路径。
-   * 配置原子保存后才更新内存；重新选择同一路径时保留 rootId 并重新核实身份。
+   * 把绝对路径登记为根目录，配置保存成功后才生效。
+   * 重新登记同一路径时保留 rootId，并让这个根下的旧条目引用失效。
    */
   async registerDirectory(path: string): Promise<OperationResult<DirectoryReference>> {
     const operation = this.mutation.then(() =>
@@ -151,7 +148,7 @@ export class WindowsDirectoryAdapter {
         }
         await saveDirectoryRegistry(this.configPath, registry)
         this.registry = registry
-        // 显式重新选择会使旧条目引用失效，防止替换后的对象沿用旧引用。
+        // 目录可能已被替换，旧条目引用不能沿用到新对象上。
         for (const [entryId, entry] of this.entries) {
           if (entry.rootId === root.rootId) {
             this.entries.delete(entryId)
@@ -168,7 +165,7 @@ export class WindowsDirectoryAdapter {
     return operation
   }
 
-  /** 返回公开的根目录描述并重新核对身份；失效的目录标为 unavailable，已保存的配置保留。 */
+  /** 列出已登记的根目录并重新核对身份；身份不符或无法访问的标为 unavailable。 */
   async listRoots(): Promise<OperationResult<readonly DirectoryReference[]>> {
     return runDirectoryOperation(async () => {
       const roots: DirectoryReference[] = []
@@ -184,7 +181,7 @@ export class WindowsDirectoryAdapter {
     })
   }
 
-  /** 列出当前一层；失败时返回错误，只有空目录才返回成功的空数组。文件夹大小恒为 null。 */
+  /** 列出目录的一层；文件夹的大小为 null。 */
   async listDirectory(
     rootId: string,
     parentId: string | null = null,
@@ -230,10 +227,7 @@ export class WindowsDirectoryAdapter {
     })
   }
 
-  /**
-   * 打开已登记条目的只读流，并核对路径与句柄的身份；参数是条目引用，不是文件路径。
-   * 成功后流归调用者；读取中的流错误由调用者处理，内容变化由传输层校验。
-   */
+  /** 打开条目的只读流，并核对路径与句柄是同一个文件；读取中的流错误由调用方处理。 */
   async openFile(reference: EntryReference): Promise<OperationResult<DirectoryFileRead>> {
     return runDirectoryOperation(async () => {
       const root = await this.inspectRoot(reference.rootId)
@@ -289,9 +283,8 @@ export class WindowsDirectoryAdapter {
   }
 
   /**
-   * 定位已登记的父目录，供主进程内的发布适配器使用；路径不经 IPC 公开，这里也不授予写权限。
-   * 捕获根和父目录的身份；verify 不依赖临时条目表，所以关闭或失败后也能安全清理自己的候选文件。
-   * describeFile 只登记身份匹配的普通文件，调用者仍要回读校验内容。
+   * 定位已登记的父目录，记录根和父目录的身份。
+   * 返回结果的 verify 在适配器关闭后仍可用；describeFile 只登记身份匹配的普通文件，不校验内容。
    */
   async locateNativeDirectory(
     rootId: string,
@@ -466,7 +459,7 @@ export class WindowsDirectoryAdapter {
   }
 }
 
-/** 读取应用目录配置；只有配置不存在时才创建设备身份，损坏或版本未知时失败，不重置。 */
+/** 读取目录配置并创建适配器；配置不存在时生成新的设备 ID，配置损坏或版本未知时抛错。 */
 export async function createDirectoryAdapter(configPath: string): Promise<WindowsDirectoryAdapter> {
   if (!isAbsolute(configPath)) {
     throw new DirectoryAccessError('invalid-request', 'The configuration path must be absolute.')

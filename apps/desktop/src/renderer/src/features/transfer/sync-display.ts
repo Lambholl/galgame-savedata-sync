@@ -8,6 +8,7 @@ const RESTORE_STATUS = {
   unknown: 'task.unknown',
 } as const
 
+/** 恢复任务当前状态的标题。 */
 export function restoreStateTitle(t: Translate, state: DesktopRestoreSummary): string {
   if (state.status === 'preparing' || state.status === 'ready') {
     return t(`backup.status.${state.status}`)

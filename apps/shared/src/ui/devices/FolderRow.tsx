@@ -16,7 +16,7 @@ export interface FolderRowProps {
   readonly onChange: (() => void) | null
 }
 
-/** 本机存档目录一行：目录名与路径，末尾操作打开系统选择器；目录失效时换成警告样式并说明原因。 */
+/** 本机存档目录一行：目录名和路径，行尾是更换按钮；目录失效时用警告样式并说明原因。 */
 export function FolderRow({ name, path, isLost, onChange }: FolderRowProps): ReactElement {
   const t = useT()
   const body = (

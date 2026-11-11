@@ -1,7 +1,7 @@
 import { isOperationError } from '@savedata-sync/shared'
 import type { OperationError } from '@savedata-sync/shared'
 
-/** HTTP 服务内部的错误：保留 cause，对外只返回稳定且脱敏的 operationError。 */
+/** HTTP 服务的错误：operationError 是脱敏后的错误，原始错误在 cause。 */
 export class HttpOperationError extends Error {
   readonly operationError: OperationError
 
@@ -12,7 +12,7 @@ export class HttpOperationError extends Error {
   }
 }
 
-/** 把任意错误转成 HttpOperationError；只信任适配层明确给出的错误结果，Node 原始消息、堆栈和路径不发给对方。 */
+/** 把任意错误转成 HttpOperationError；已知的适配层错误保留错误码，其余错误换成通用的脱敏错误。 */
 export function toHttpError(error: unknown): HttpOperationError {
   if (error instanceof HttpOperationError) {
     return error

@@ -6,9 +6,9 @@ import './devices.css'
 
 /** 关联到当前游戏的一台设备。 */
 export interface LinkedDevice {
-  /** 设备 ID，传回 actions。 */
+  /** 设备 ID。 */
   readonly deviceId: string
-  /** 设备名；设备已移除时由调用方传入“设备已移除”。 */
+  /** 设备名；设备已移除时是“设备已移除”的本地化文字。 */
   readonly name: string
   /** 设备类型，决定图标。 */
   readonly kind: 'pc' | 'mobile'
@@ -26,7 +26,7 @@ export interface LinkedDevice {
 export interface LinkedDeviceListProps {
   /** 要列出的关联设备，按显示顺序。 */
   readonly items: readonly LinkedDevice[]
-  /** 每行末尾的操作（传输按钮、菜单按钮等），由平台用自己的控件渲染。 */
+  /** 渲染每行末尾的操作，如传输按钮和菜单按钮。 */
   readonly actions: (item: LinkedDevice) => ReactNode
 }
 
@@ -41,7 +41,7 @@ function caption(item: LinkedDevice, t: ReturnType<typeof useT>): ReactNode {
   return item.path ? <PathText path={prefix + item.path} /> : prefix + t('game.noRemoteFolder')
 }
 
-/** 游戏设置里的关联设备：状态点、对方的游戏名和目录在同一行；未连接时说明连接后才显示目录。 */
+/** 关联设备列表：每行是状态点、对方的游戏名和目录；未连接的设备说明连接后才显示目录。 */
 export function LinkedDeviceList({ items, actions }: LinkedDeviceListProps): ReactElement {
   const t = useT()
   if (!items.length) {

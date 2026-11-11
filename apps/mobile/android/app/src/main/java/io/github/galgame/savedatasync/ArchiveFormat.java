@@ -14,7 +14,7 @@ import java.util.zip.DataFormatException;
 import java.util.zip.GZIPOutputStream;
 import java.util.zip.Inflater;
 
-/** 读写受限的 USTAR 和单 member gzip；所有显式缓冲最多 64 KiB，归档路径不会展开。 */
+/** 读写受限的 USTAR 和单 member gzip；显式缓冲最多 64 KiB。 */
 final class ArchiveFormat {
 
   private ArchiveFormat() {}
@@ -100,10 +100,8 @@ final class ArchiveFormat {
     }
   }
 
-  /**
-   * 读取 gzip 的输入流。GZIPInputStream 默许拼接多个 member，所以这里直接持有 inflater，结束时回收未消费的输入，
-   * 精确校验 CRC、ISIZE 和物理 EOF。调用者必须读到 EOF 才能接受结果，并且必须 close。
-   */
+  // GZIPInputStream 默许拼接多个 member，所以这里直接持有 inflater，结束时回收未消费的输入。
+  /** 读取单 member gzip 的输入流，校验 CRC、ISIZE 和物理 EOF。读到 EOF 后结果才有效，用完必须 close。 */
   static final class GzipReader extends InputStream {
 
     private final PushbackInputStream input;

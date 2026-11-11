@@ -27,13 +27,13 @@ export interface PlanEndpoint {
 
 /** SyncPlanSummary 的参数。 */
 export interface SyncPlanSummaryProps {
-  /** 要展示的固定计划；只读，执行仍使用原计划。 */
+  /** 要展示的计划。 */
   readonly plan: SyncPlan
   /** 写出内容的一端。 */
   readonly source: PlanEndpoint
   /** 被写入的一端。 */
   readonly target: PlanEndpoint
-  /** 被写入一端开启写入前备份时保留的份数；对端的份数读不到时为 null，只说明会备份。 */
+  /** 被写入一端开启写入前备份时保留的份数；为 null 时只说明会备份。 */
   readonly backupKeepCount: number | null
 }
 
@@ -62,9 +62,9 @@ function issueText(plan: SyncPlan, t: Translate): string | null {
 }
 
 /**
- * 传输或恢复计划的摘要：路线、新建/覆盖/保留（或删除）三个数字、备份与大小，
- * 再按动作分组列出文件；相同的文件只给数量，问题以一条横幅出现。
- * 删除目标多出的条目时第三个数字和第三组变红，这一页就是删除预览；来源目录为空时再加一条横幅。
+ * 传输或恢复计划的摘要：路线，新建、覆盖、保留或删除三个数字，备份和大小，再按动作分组列出文件。
+ * 相同的文件只给数量，问题显示成一条横幅。删除只在目标有的条目时，第三个数字和第三组用红色；
+ * 来源目录为空时多一条横幅。
  */
 export function SyncPlanSummary({
   plan,

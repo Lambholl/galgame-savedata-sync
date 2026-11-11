@@ -43,7 +43,7 @@ Promise.all([loadAppPreferences(), loadAppStorage()])
     finishStartup()
   })
   .catch((error: unknown) => {
-    // 读不到原生配置时不挂载应用，避免以空配置启动后覆盖已保存的数据。
+    // 读不到已保存的配置时不挂载应用，避免以空配置启动后覆盖已保存的数据。
     console.error('Failed to start mobile app', error)
     const t = createTranslator(resolveLocale(getAppPreferences().locale, navigator.languages))
     document.title = t('app.name')

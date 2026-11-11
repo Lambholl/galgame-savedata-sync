@@ -9,25 +9,27 @@ export interface FileIdentity {
   readonly ino: string
 }
 
-/** bigint 文件身份转为可持久化的字符串，避免 Windows 文件 ID 的整数精度损失。 */
+/** 把 bigint 形式的文件身份转成可保存的字符串，保留完整精度。 */
 export function getFileIdentity(stats: BigIntStats): FileIdentity {
   return { dev: stats.dev.toString(), ino: stats.ino.toString() }
 }
 
-/** 比较两个文件对象是否同一个；只看身份，内容相同与否要另外校验。 */
+/** 判断 stats 与 identity 是否是同一个文件对象；只比较身份。 */
 export function hasSameIdentity(stats: BigIntStats, identity: FileIdentity): boolean {
   return stats.dev.toString() === identity.dev && stats.ino.toString() === identity.ino
 }
 
-/** 判断目标路径是否在根目录内，按当前平台规则比较；前缀相同的兄弟目录不算在内。 */
+/** 按当前平台的路径规则判断目标路径是否在根目录内，根目录本身也算。 */
 export function isWithinDirectory(rootPath: string, targetPath: string): boolean {
   const child = relative(rootPath, targetPath)
   return child === '' || (!isAbsolute(child) && child !== '..' && !child.startsWith(`..${sep}`))
 }
 
 /**
- * 逐段 lstat 并核对 realpath，遇到 symlink、junction 或路径越界时拒绝；不遍历目录后代。
- * 这是操作前的检查，检查之后路径仍可能被外部进程替换。
+ * 逐段检查路径并核对 realpath，路径上有 symlink、junction 或越界时抛错。
+ * 结果只反映检查那一刻的状态。
+ *
+ * @returns 路径最后一段的 lstat 结果。
  */
 export async function inspectLocalPath(path: string): Promise<BigIntStats> {
   if (!isAbsolute(path)) {

@@ -10,7 +10,7 @@ import { useRestoreDetails } from '../transfer/use-sync-details.ts'
 import { PlanDrawer } from '../transfer/PlanDrawer.tsx'
 import type { PlanDrawerAction } from '../transfer/PlanDrawer.tsx'
 
-/** 取消准备中或待确认的恢复并释放；原生仍在收尾时稍等。 */
+/** 取消准备中或待确认的恢复，等它停止后释放；清理失败时抛错。 */
 async function discardRestore(restoreId: string): Promise<void> {
   const api = desktopSync()
   let state = unwrap(await api.cancelRestore(restoreId))
@@ -24,10 +24,7 @@ async function discardRestore(restoreId: string): Promise<void> {
   unwrap(await api.releaseRestore(restoreId))
 }
 
-/**
- * 一次本机恢复，放在与传输计划相同的确认抽屉里：待确认时显示恢复预览（与传输计划同一套数字与列表），
- * 确认后在抽屉里显示进度和结果。关闭抽屉不取消原生已经接纳的恢复。
- */
+/** 一次本机恢复的抽屉：待确认时显示恢复预览，确认后显示进度和结果。关闭抽屉不取消已开始的恢复。 */
 export function RestoreDetails({
   restoreId,
   gameName,

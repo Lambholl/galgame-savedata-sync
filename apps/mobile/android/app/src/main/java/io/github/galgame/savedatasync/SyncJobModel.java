@@ -29,7 +29,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-/** 复制任务的数据校验；网络输入必须在原生层通过，不能依赖页面里的 shared 校验。 */
+/** 复制任务收发数据的校验。 */
 final class SyncJobModel {
 
   /** 与 shared 的 SYNC_CAPABILITIES_VERSION、SYNC_JOB_SCHEMA_VERSION 保持一致。 */
@@ -123,7 +123,7 @@ final class SyncJobModel {
     }
   }
 
-  /** 解析原始路径。原始扫描名称保留冲突供页面展示；可执行计划再用更严格的 SyncPlanModel 检查。 */
+  /** 解析扫描结果里的原始路径，名称冲突保留。 */
   private static List<String> rawPath(Object raw) throws Exception {
     List<Object> values = list(raw);
     require(!values.isEmpty() && values.size() <= 64);
@@ -277,7 +277,7 @@ final class SyncJobModel {
     return (Boolean) value.get("shouldBackup");
   }
 
-  /** 已由 backup 校验过的项目描述里的保留份数。 */
+  /** 返回项目描述里的备份保留份数；描述要先经过 backup 校验。 */
   static long backupKeepCount(Object raw) throws Exception {
     return number(map(raw).get("backupKeepCount"), BackupModel.KEEP_MIN, BackupModel.KEEP_MAX);
   }
@@ -337,7 +337,11 @@ final class SyncJobModel {
     }
   }
 
-  /** 核对这次完整结果的顺序、实际成功指纹和保护备份；返回已确认成功的文件数量和字节数。 */
+  /**
+   * 核对完整结果的顺序、成功文件的指纹和保护备份。
+   *
+   * @return 已确认成功的文件数量和字节数，依次放在数组里。
+   */
   static long[] result(Object raw, SyncPlanModel.Plan plan) throws Exception {
     Map<String, Object> result = shape(
       raw,

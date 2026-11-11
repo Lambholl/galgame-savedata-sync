@@ -1,6 +1,6 @@
 import type { ShownError } from '../../result.ts'
 
-/** 错误的原始消息与错误码，写进技术详情；没有错误码时就是原始消息。 */
+/** 把错误写成原消息加错误码的一行文字；没有错误码时只有原消息。 */
 export function errorDetail(error: ShownError): string {
   if (!error.code) {
     return error.message

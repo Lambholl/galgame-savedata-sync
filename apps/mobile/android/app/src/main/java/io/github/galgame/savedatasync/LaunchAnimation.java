@@ -25,9 +25,9 @@ import androidx.appcompat.content.res.AppCompatResources;
 import androidx.core.splashscreen.SplashScreenViewProvider;
 
 /**
- * 接管系统图标的位置和尺寸，眨眼时扩大圆形遮罩露出立绘，再淡出背景并让角色保持不透明滑出。
- * 只在 Activity 的主线程使用；每个实例只播放一次，stop 释放动画、延迟任务和开屏 View，
- * 再次播放时由 MainActivity 创建新实例。
+ * 开屏动画：从系统图标的位置和尺寸开始，眨眼时扩大圆形遮罩露出立绘，再淡出背景，角色保持不透明滑出。
+ *
+ * <p>只能在 Activity 的主线程使用。每个实例只播放一次；stop 释放动画、延迟任务和开屏 View。
  */
 final class LaunchAnimation {
 
@@ -80,7 +80,7 @@ final class LaunchAnimation {
   private boolean hasExitStarted;
   private boolean hasBlinkStarted;
 
-  /** 在 Activity 首帧之前准备覆盖层，使系统开屏移除后，同一位置已经显示睁眼头像。 */
+  /** 准备覆盖层，在系统开屏图标的位置显示睁眼头像；要在 Activity 首帧之前调用。 */
   void prepare(ViewGroup decor) {
     if (isStopped) {
       return;
@@ -203,9 +203,9 @@ final class LaunchAnimation {
   }
 
   /**
-   * 从后台返回或 Activity 重建时准备并播放开屏动画。系统开屏不一定出现，所以直接按它已退出处理，
-   * 头像使用 prepare 算出的图标尺寸；动画在 contentReady 后的第一次绘制开始，与系统的窗口切换动画同时进行。
-   * 系统关闭动画效果时不显示覆盖层。
+   * 直接准备并播放开屏动画；系统关闭了动画效果时不显示覆盖层。
+   *
+   * <p>头像使用 prepare 算出的图标尺寸，动画在 contentReady 之后的第一次绘制开始。
    */
   void replay(ViewGroup decor) {
     if (!ValueAnimator.areAnimatorsEnabled()) {
@@ -213,10 +213,11 @@ final class LaunchAnimation {
       return;
     }
     prepare(decor);
+    // 系统开屏不一定出现，直接按它已退出处理。
     hasExitStarted = true;
   }
 
-  /** 处理系统开屏退出，立即移除会随状态栏重排移动的系统副本。 */
+  /** 接手退出中的系统开屏：沿用它的图标尺寸并移除它，网页内容就绪后播放动画。 */
   void start(SplashScreenViewProvider splash) {
     if (isStopped) {
       splash.remove();
@@ -228,6 +229,7 @@ final class LaunchAnimation {
       iconHeight = icon.getHeight();
     }
     hasExitStarted = true;
+    // 系统副本会随状态栏重排移动，所以立即移除。
     splash.remove();
     handler.removeCallbacks(timeout);
     handler.postDelayed(timeout, MAX_WAIT_MS);
@@ -237,7 +239,7 @@ final class LaunchAnimation {
     continueWhenReady();
   }
 
-  /** 网页首屏或启动错误提示可先于系统开屏退出到达。收到通知后等待 WebView 完成绘制，重复调用无副作用。 */
+  /** 标记网页内容已就绪，系统开屏也已退出时开始播放；可以先于 start 调用，重复调用没有效果。 */
   void contentReady() {
     isContentReady = true;
     continueWhenReady();
@@ -267,7 +269,7 @@ final class LaunchAnimation {
       : (2f * progress - acceleration) / (2f - acceleration);
   }
 
-  /** Activity 退出、转后台或等待超过 5 秒时移除覆盖层；之后这个实例再收到回调也不会播放。 */
+  /** 停止播放，移除覆盖层并恢复窗口边距；之后这个实例收到的回调都不再播放。 */
   void stop() {
     isStopped = true;
     handler.removeCallbacks(timeout);

@@ -54,27 +54,27 @@ import {
 } from './sync-target-files.ts'
 import type { SyncCandidate, SyncTargetIO } from './sync-target-files.ts'
 
-/** 写入用的输入，已完整校验，可重复读取；快照必须与确认的计划相符，流由 writer 关闭。 */
+/** 写入用的输入，已完整校验，可以重复读取；快照必须与确认的计划相符，打开的流由写入器关闭。 */
 export interface WindowsSyncMaterial {
   readonly snapshot: SyncSnapshot
   readonly openFile: (
     entryId: string,
   ) => Promise<{ stream: Readable; verifyUnchanged: () => Promise<void> }>
 }
-/** writer 的依赖：authorize 每次核对计划的项目和目标根目录仍与本机配置一致；会话和对端由 verifyContext 核实。 */
+/** 写入器的依赖：authorize 核对计划的项目和目标根目录仍与本机配置一致。 */
 export interface WindowsSyncWriterOptions {
   readonly authorize: (plan: SyncPlan) => void | Promise<void>
-  /** 留写入标记；不传时不记录，只用于不走真实应用的集成验证。 */
+  /** 写入标记的存储；不传时不记录写入标记。 */
   readonly interruptedWrites?: Pick<InterruptedWriteStore, 'begin' | 'end'>
   readonly io?: Partial<SyncTargetIO>
   readonly timeoutMs?: number
 }
-/** apply 的选项。阶段通知只用于观察，回调错误不会打断已经完成的写入。 */
+/** apply 的选项。阶段回调抛出的错误被忽略。 */
 export interface WindowsSyncWriteOptions {
   readonly signal?: AbortSignal
-  /** 编排器借用已经取得的名额；编排器在缓存和写入清理后自行释放。 */
+  /** 调用方已取得的写入名额；给出时写入器借用它，不负责释放。 */
   readonly lease?: { readonly token: symbol; readonly acceptedAt: number }
-  /** 每次发布前重新核实连接、项目关联及目标备份设置；失败中止后续写入。 */
+  /** 每次发布前调用；抛错时中止后续写入。 */
   readonly verifyContext?: () => void | Promise<void>
   readonly onOutcome?: (outcome: SyncWriteOutcome) => void
   readonly onStage?: (
@@ -82,7 +82,7 @@ export interface WindowsSyncWriteOptions {
     path: readonly string[] | null,
   ) => void
 }
-/** 恢复预览，只在主进程内持有；apply 和 close 二选一，释放前保持对输入轮次的引用。 */
+/** 恢复预览：apply 和 close 二选一，调用前一直持有备份的引用。 */
 export interface WindowsRestorePreparation {
   readonly plan: SyncPlan
   readonly apply: (options?: WindowsSyncWriteOptions) => Promise<SyncApplyResult>
@@ -169,8 +169,7 @@ function outcome(
 
 /**
  * 执行已确认的计划：整批复核和备份后逐个文件发布，结果只记录实际观察到的情况。
- * 与批量传输和恢复共用 TargetOperation 名额；输入、流和候选文件都不跨 IPC。清理失败时保留名额，由 retryCleanup 释放。
- * 本机恢复入口和调用示例见桌面 README。
+ * 执行期间占用写入名额；清理失败时保留名额，由 retryCleanup 释放。
  */
 export class WindowsSyncWriter {
   private readonly io: SyncTargetIO
@@ -381,10 +380,7 @@ export class WindowsSyncWriter {
     await this.checkSpace(job.plan)
     await this.check(job)
   }
-  /**
-   * 合并检查目标卷和备份卷的空间：新文件、完整备份，以及调用方传入的私有缓存，同卷的相加。
-   * 编排器在接收归档前调用，写入器在写入前再查一次。不创建目录，也不删旧备份腾空间。
-   */
+  /** 检查目标卷和备份卷能否放下新文件、完整备份和传入的私有缓存，同卷的空间相加；不够时抛错。 */
   async checkSpace(
     plan: SyncPlan,
     privateSpace?: { readonly device: string; readonly requiredBytes: number },
@@ -735,7 +731,7 @@ export class WindowsSyncWriter {
       releaseTargetOperation(job.token)
     }
   }
-  /** 重试清理本进程仍持有的候选文件，不重做写入。 */
+  /** 重试清理仍持有的候选文件。 */
   async retryCleanup(): Promise<void> {
     const job = this.job
     if (!job) {
@@ -747,7 +743,7 @@ export class WindowsSyncWriter {
     await this.clean(job)
     this.release(job)
   }
-  /** 取得已校验并保持引用的备份材料，生成恢复预览；同步目录不变。 */
+  /** 用已取得引用的备份生成恢复预览；同步目录不变。 */
   async prepareRestore(
     projectId: string,
     rootId: string,

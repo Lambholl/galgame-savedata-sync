@@ -5,7 +5,7 @@ import { useT } from '../i18n/i18n-context.ts'
 import { incompleteBackupText } from './backup-leftover.ts'
 import './backup.css'
 
-/** 未完成备份的提示条：一行写份数和占用大小，行尾是清理。 */
+/** 未完成备份的提示条：一行写份数和占用大小，行尾是清理按钮。 */
 export function BackupLeftoverNotice({
   items,
   isDisabled,

@@ -28,7 +28,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
-/** 测试归档：用独立的 Python 格式期望、实际 IO 和受控故障验证，writer 和 reader 自身往返不足以证明格式。 */
+/** 归档测试：格式按独立的 Python 期望核对，并覆盖实际 IO 和受控故障。 */
 public class ArchiveAdapterTest {
 
   @Rule

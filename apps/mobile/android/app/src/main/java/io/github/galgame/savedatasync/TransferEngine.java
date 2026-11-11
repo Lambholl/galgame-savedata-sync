@@ -40,9 +40,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * 批量传输的原生任务所有者，负责两个方向。用户发起 start，任务由持续通知服务持有，Activity 暂停时不取消。
- * query 只读快照，失败响应不代表可以重发 POST 或 PUT。
- * 下载清单准备好之前 query 返回 task-conflict；此时取消或失败仍生成全部未尝试的本地结束状态。
+ * 批量传输的引擎，负责上传和下载两个方向；任务在 Activity 暂停时继续。
+ *
+ * <p>下载清单准备好之前 query 返回 task-conflict；此时取消或失败仍为每个文件生成未尝试的结束状态。
  */
 final class TransferEngine {
 
@@ -56,7 +56,7 @@ final class TransferEngine {
     void state(Map<String, Object> value);
   }
 
-  /** 控制通道的消息和连接状态；网页层按方法校验并决定是否断开。 */
+  /** 接收控制通道的消息和连接状态，消息未经校验。 */
   interface ControlListener {
     void message(String deviceId, String text);
 
@@ -448,8 +448,9 @@ final class TransferEngine {
     controlInterceptor = interceptor;
   }
 
-  /** Activity 重建时新的订阅可能先到，只清除自己的订阅。 */
+  /** 当前订阅是 listener 时清除它。 */
   synchronized void releaseControlListener(ControlListener listener) {
+    // Activity 重建时新的订阅可能先到，所以只清除自己的订阅。
     if (controlListener == listener) {
       controlListener = null;
     }
@@ -527,8 +528,9 @@ final class TransferEngine {
     }
   }
 
-  /** 摘下控制通道并返回，由调用者在引擎锁外关闭：读线程持有 WebSocket 的锁回调 onClose，再等引擎锁，持锁关闭会死锁。 */
+  /** 摘下控制通道并返回；返回的通道要在引擎锁外关闭。 */
   private static ControlClient detachControl(Connection value) {
+    // 读线程持有 WebSocket 的锁回调 onClose，再等引擎锁；持着引擎锁关闭会死锁。
     if (value == null || value.control == null) {
       return null;
     }
@@ -565,7 +567,7 @@ final class TransferEngine {
     }
   }
 
-  /** 复制任务使用的连接身份，固定当前已交换目录表的连接；文件材料仍由同一个归档适配器持有。 */
+  /** 复制任务使用的连接身份，固定为当前已交换目录表的连接。 */
   static final class SyncConnection {
 
     final TransferHttp http;
@@ -718,7 +720,7 @@ final class TransferEngine {
     return map(copy(listing));
   }
 
-  /** 开始传输，参数只含 ID 和单文件名，只返回 transferId；原生流不交给调用方。 */
+  /** 开始传输，参数只含 ID 和单文件名，返回 transferId。 */
   synchronized Map<String, Object> start(Object options, boolean isUpload) throws Exception {
     available();
     connected();
@@ -1238,7 +1240,7 @@ final class TransferEngine {
     }
   }
 
-  /** 通知上的显式操作与系统服务期限使用此入口，不依赖 Activity 是否可见。 */
+  /** 取消正在运行的任务；expectedId 不为 null 时只取消这个 ID 的任务，isTimeout 表示系统服务期限已到。 */
   void cancelActive(String expectedId, boolean isTimeout) {
     Job job;
     synchronized (this) {
@@ -1261,7 +1263,7 @@ final class TransferEngine {
     return active == null ? null : active.id;
   }
 
-  /** 界面重建后重新取得这次任务的上下文，不会发起网络操作。 */
+  /** 返回当前任务的上下文，只读内存。 */
   synchronized Object current() throws Exception {
     available();
     Job last = active;
@@ -1284,7 +1286,7 @@ final class TransferEngine {
         );
   }
 
-  /** 通知只取阶段和计数快照，避免在主线程复制完整清单或文件结果。 */
+  /** 返回通知用的阶段和计数快照。 */
   synchronized Map<String, Object> notice() {
     if (active == null) {
       return null;
@@ -1540,7 +1542,7 @@ final class TransferEngine {
     return true;
   }
 
-  /** 销毁引擎：只请求取消；工作线程在平台调用返回并清理后关闭，UI 线程不等待。 */
+  /** 销毁引擎：请求取消后立即返回，工作线程在平台调用返回并清理后退出。 */
   void close() {
     List<ControlClient> clients = new ArrayList<>();
     synchronized (this) {

@@ -9,8 +9,8 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 /**
- * 局域网设备搜索的原生桥：网页调用 start 和 stop 控制 {@link DiscoveryBrowser}，结果变化时发 discoveryState 事件。
- * start、stop 和事件的内容都是 {@link DiscoveryBrowser#snapshot()}；TXT 字段的校验由网页的 shared 函数完成。
+ * 局域网设备搜索的原生插件：start 和 stop 开始和停止搜索，结果变化时发 discoveryState 事件。
+ * start、stop 的返回值和事件内容都是 {@link DiscoveryBrowser#snapshot()}，TXT 字段未经校验。
  * Activity 停止时暂停搜索，回到前台时继续，销毁时结束。
  */
 @CapacitorPlugin(name = "DeviceDiscovery")

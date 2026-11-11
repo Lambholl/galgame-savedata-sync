@@ -31,7 +31,7 @@ export interface OutcomeListProps {
   readonly onRetryCleanup: (() => void) | null
 }
 
-/** 传输与恢复共用的结果列表：先列需要处理的文件和清理问题，再折叠列出已写入的文件。 */
+/** 写入结果列表：先列需要处理的文件和清理问题，再在折叠行里列出已写入的文件。 */
 export function OutcomeList({
   outcomes,
   cleanupError,

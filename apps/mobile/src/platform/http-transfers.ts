@@ -7,7 +7,7 @@ import type { AndroidTransferApi, HttpTransferNativePlugin } from './http-transf
 const plugin = registerPlugin<HttpTransferNativePlugin>('HttpTransfers')
 const isAndroid = (): boolean => Capacitor.getPlatform() === 'android'
 
-/** Android 原生批量传输入口；网页预览只返回不支持，文件内容不经过 JS。 */
+/** 应用使用的设备连接和批量传输接口；不在 Android 上运行时返回 unsupported-operation。 */
 export const androidTransfers: AndroidTransferApi = createHttpTransferBridge(plugin, isAndroid)
-/** 与已连接设备的控制通道；网页预览中没有连接。 */
+/** 应用使用的控制通道；不在 Android 上运行时没有连接。 */
 export const androidControl: AndroidControlApi = createControlChannel(plugin, isAndroid)

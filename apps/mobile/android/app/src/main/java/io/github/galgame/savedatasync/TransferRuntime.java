@@ -21,7 +21,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
-/** 由应用进程持有批量传输；Activity 只订阅，持续通知服务持有运行期，任务不保存到磁盘。 */
+/** 进程内共享的批量传输引擎；任务只保存在内存里。 */
 final class TransferRuntime {
 
   private static TransferRuntime instance;

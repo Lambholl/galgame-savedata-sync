@@ -2,7 +2,7 @@ import type { PreparedFile } from '@savedata-sync/shared'
 import { BATCH_RESOURCES } from '@savedata-sync/shared'
 import { ArchiveError, checkArchiveAbort } from './archive-errors.ts'
 
-/** 生成规范化的 USTAR 头；属主、真实名称、路径、时间和扩展字段都不写入。 */
+/** 生成规范化的 USTAR 头：成员名是文件 ID，权限固定为 0600，属主和时间都是 0。 */
 export function createArchiveHeader(file: PreparedFile): Buffer {
   const header = Buffer.alloc(512)
   header.write(file.fileId, 0, 'ascii')
@@ -34,22 +34,24 @@ for (let value = 0; value < 256; value++) {
   CRC_TABLE.push(crc >>> 0)
 }
 
-/** 流式累加 gzip 的 CRC32。清单的 SHA-256 另外校验。 */
+/** 流式计算 gzip 使用的 CRC32。 */
 export class ArchiveCrc32 {
   private state = 0xffffffff
 
+  /** 累加一段数据。 */
   update(chunk: Buffer): void {
     for (const byte of chunk) {
       this.state = (this.state >>> 8) ^ (CRC_TABLE[(this.state ^ byte) & 255] ?? 0)
     }
   }
 
+  /** 已累加数据的 CRC32。 */
   get value(): number {
     return (this.state ^ 0xffffffff) >>> 0
   }
 }
 
-/** 用单个缓冲区顺序读取 tar，显式分配最多 64 KiB；调用者必须检查 EOF、填充和额外内容。 */
+/** 按字节数顺序读取 tar 流。 */
 export class ArchiveReader {
   private readonly iterator: AsyncIterator<unknown>
   private chunk: Buffer = Buffer.alloc(0)
@@ -61,6 +63,11 @@ export class ArchiveReader {
     this.signal = signal
   }
 
+  /**
+   * 读取恰好 size 字节，size 不超过 BATCH_RESOURCES.maxBufferBytes。
+   *
+   * @throws ArchiveError 流提前结束、含非二进制数据或 size 无效时抛出。
+   */
   async read(size: number): Promise<Buffer> {
     if (!Number.isSafeInteger(size) || size < 0 || size > BATCH_RESOURCES.maxBufferBytes) {
       throw new ArchiveError('invalid-request', 'The archive read buffer size is invalid.')
@@ -91,6 +98,11 @@ export class ArchiveReader {
     return result
   }
 
+  /**
+   * 读完流并确认没有剩余数据。
+   *
+   * @throws ArchiveError 流里还有数据时抛出。
+   */
   async expectEnd(): Promise<void> {
     if (this.offset !== this.chunk.length) {
       throw new ArchiveError('invalid-archive', 'Extra content follows the end of the tar archive.')

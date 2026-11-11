@@ -64,7 +64,8 @@ final class DirectoryDisplay {
     return parts.length == 2 && !parts[1].isEmpty() ? new File(base, parts[1]) : base;
   }
 
-  /** Android 10 还能选中存储根或 Android/data；同步根不能和备份目录互相包含。 */
+  // Android 10 还能选中存储根或 Android/data，同步根可能包含备份目录。
+  /** 判断目录与备份目录是否互相包含。 */
   static boolean overlapsBackups(Context context, Uri tree) {
     File selected = location(context, tree);
     File external = context.getExternalFilesDir(null);

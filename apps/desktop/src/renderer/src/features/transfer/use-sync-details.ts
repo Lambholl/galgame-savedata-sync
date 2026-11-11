@@ -48,7 +48,7 @@ function restoreContinues(value: RestoreDetails): boolean {
   return value.state.isWorking
 }
 
-/** 读取一次任务的详情：卸载只停止页面轮询，主进程任务继续；同一次计划不变，重新进入可按 ID 恢复。 */
+/** 按 ID 读取任务详情，shouldPoll 返回 true 时继续轮询；卸载时停止轮询。 */
 function useResource<T>(
   id: string,
   load: (id: string, previous: T | null) => Promise<T>,
@@ -110,9 +110,11 @@ function useResource<T>(
   }, [id, load, shouldPoll, version])
   return { data, error, isLoading, reload }
 }
+/** 读取复制任务的详情，任务没有结论前持续轮询。 */
 export function useCopyDetails(id: string): Resource<CopyDetails> {
   return useResource(id, readCopy, copyContinues)
 }
+/** 读取恢复任务的详情，任务没有结论前持续轮询。 */
 export function useRestoreDetails(id: string): Resource<RestoreDetails> {
   return useResource(id, readRestore, restoreContinues)
 }

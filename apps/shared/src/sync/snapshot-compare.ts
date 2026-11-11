@@ -1,7 +1,7 @@
 import type { SyncEntry, SyncSnapshot } from './sync-contracts.ts'
 import { syncPathKey } from './sync-paths.ts'
 
-/** 两端位置固定：左边电脑，右边移动端，与传输方向无关。 */
+/** 比较的一端：pc 是电脑，mobile 是移动端。 */
 export type CompareSide = 'pc' | 'mobile'
 
 /** 显示用的条目类型；图片指 png/jpg/jpeg/bmp/webp/gif。 */
@@ -14,6 +14,7 @@ export type FileKind = 'directory' | 'image' | 'file'
  */
 export type CompareState = 'same' | 'differs' | 'only' | 'contains-differences'
 
+/** 比较列表里的一个条目。 */
 export interface CompareItem {
   readonly path: readonly string[]
   readonly name: string
@@ -25,6 +26,7 @@ export interface CompareItem {
   readonly differingCount: number
 }
 
+/** 两端快照的比较结果。 */
 export interface SnapshotComparison {
   /** 两端都有、内容不同的文件数。 */
   readonly differingFiles: number
@@ -36,6 +38,7 @@ export interface SnapshotComparison {
 const IMAGE = /\.(?:png|jpe?g|bmp|webp|gif)$/i
 const COLLATOR = new Intl.Collator('en', { numeric: true, sensitivity: 'base' })
 
+/** 按条目类型和扩展名得出显示用的类型。 */
 export function fileKindOf(name: string, kind: SyncEntry['kind']): FileKind {
   if (kind === 'directory') {
     return 'directory'
@@ -67,8 +70,9 @@ function compareItems(left: CompareItem, right: CompareItem): number {
 }
 
 /**
- * 比较两端本次扫描的完整快照，生成每一层的显示列表。
- * 路径按原始名称精确匹配（与传输计划一致）；内容以 SHA-256 与大小判断，任一端哈希未知视为不同。
+ * 比较两端扫描的完整快照。
+ *
+ * 路径按原始名称精确匹配；内容按 SHA-256 和大小判断，任一端哈希未知时按不同处理。
  */
 export function compareSnapshots(pc: SyncSnapshot, mobile: SyncSnapshot): SnapshotComparison {
   const sides: Record<CompareSide, Map<string, SyncEntry>> = {
@@ -143,7 +147,7 @@ export function compareSnapshots(pc: SyncSnapshot, mobile: SyncSnapshot): Snapsh
   return { differingFiles, onlyFiles, children }
 }
 
-/** 某一端某一层的条目，文件夹在前；层不存在时返回空列表。 */
+/** 列出某一端某一层的条目，文件夹在前；这一层不存在时返回空数组。 */
 export function comparisonChildren(
   comparison: SnapshotComparison,
   side: CompareSide,

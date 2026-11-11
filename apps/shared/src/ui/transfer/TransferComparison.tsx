@@ -20,11 +20,11 @@ import './transfer-comparison.css'
 
 /** 方向条上一端的显示信息。 */
 export interface TransferEndpoint {
-  /** 主标题：本机写“本机”，对端写设备名。 */
+  /** 主标题。 */
   readonly name: string
-  /** 副标题：本机写本机设备名；对端不需要时传空字符串，由连接状态代替。 */
+  /** 副标题；为空字符串时显示连接状态。 */
   readonly caption: string
-  /** 对端是否在线，显示状态点；本机传 null。 */
+  /** 是否在线，用状态点显示；为 null 时不显示状态点。 */
   readonly isOnline: boolean | null
   /** 该端存档目录的显示名，作为该列路径的起点。 */
   readonly rootName: string
@@ -35,7 +35,6 @@ export interface TransferEndpoint {
  * waiting：已发出请求，对端还没开始扫描；scanning：正在扫描两端；ready：比较完成；
  * cancelled：扫描已取消；failed：扫描失败，error 为 null 表示没有拿到原因；
  * unavailable：缺少设备、连接或目录等前提，reason 是给用户看的说明。
- * 文件列只按种类显示加载或空白；说明文字和错误写在文件列上方的摘要行，比较完成后换成差异数。
  */
 export type ComparisonStatus =
   | { readonly kind: 'waiting' }
@@ -61,7 +60,7 @@ export interface TransferComparisonProps {
   readonly isLocked: boolean
   /** 点中间的交换按钮：交换来源与目标。 */
   readonly onFlip: () => void
-  /** 点对端名称：由各端弹出设备选择。 */
+  /** 点按对端名称。 */
   readonly onPickPeer: () => void
   /** 重新扫描两端。 */
   readonly onRefresh: () => void
@@ -229,13 +228,14 @@ function ComparePane({
 }
 
 /**
- * 传输存档页主体：方向条（左边来源、右边目标，中间按钮交换两端）、摘要行与两端文件列。
- * 摘要行在比较完成后用彩色标签写差异数：~ 内容不同，+ 只在来源有，− 只在目标有，
- * 标签、文件行底色与图标状态点同色；比较前写“正在比较两端”、取消或失败的说明，扫描中可取消。
- * 目标有多出的条目时摘要行多一个开关：蓝色“− 保留”，点一下变红色“− 删除”，这些条目随之标红。
- * 文件夹始终排在文件前。文件列按自身宽度在两行小字与表格三列之间切换，两端规则相同。
+ * 两端比较视图：方向条（左边来源、右边目标，中间按钮交换两端）、摘要行和两端文件列。
+ *
+ * 摘要行在比较完成后用彩色标签写差异数：~ 内容不同，+ 只在来源有，− 只在目标有；
+ * 比较完成前写进度、取消或失败的说明，扫描中可以取消。目标有多出的条目时，摘要行多一个开关：
+ * 蓝色“− 保留”，点按后变红色“− 删除”，这些条目随之标红。
+ *
  * 放进限高的纵向 flex 容器时铺满剩余高度，两列各自滚动，列头固定在列顶；
- * 列末留出 --ss-pane-end-space（由各端按悬浮按钮设置）的空白，最后几行可以滚到按钮上方。
+ * 列末留出 --ss-pane-end-space 的空白。
  */
 export function TransferComparison({
   pc,

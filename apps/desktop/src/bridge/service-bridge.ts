@@ -18,11 +18,11 @@ import type {
   SyncScanState,
 } from '@savedata-sync/shared'
 
-/** HTTP 服务快照，只含公开元数据；地址和设备 ID 供其他设备连接，写授权只在当前进程内有效。 */
+/** 本机 HTTP 服务的状态快照。 */
 export interface DesktopServiceSnapshot {
-  /** 本机稳定设备 ID，写进连接二维码。 */
+  /** 本机稳定设备 ID。 */
   readonly deviceId: string
-  /** 本机系统名称；读取失败时为 null，界面留空。 */
+  /** 本机系统名称；读取失败时为 null。 */
   readonly deviceName: string | null
   readonly configuredPort: number
   readonly listener: {
@@ -30,8 +30,7 @@ export interface DesktopServiceSnapshot {
     readonly port: number
     /**
      * 本机 IPv4 地址（不含端口），按推荐顺序排列，第一个是推荐地址；最多 MAX_CANDIDATE_ADDRESSES 个。
-     * 设备页显示第一个，连接二维码带全部。服务启动后还没读到时为 null（通常不到半秒），
-     * 查询网卡失败或没有可用网卡时为空数组。
+     * 服务启动后还没读到时为 null，查询网卡失败或没有可用网卡时为空数组。
      */
     readonly ipv4Addresses: readonly string[] | null
     /** 开始监听的时间（Unix 毫秒）。 */
@@ -48,12 +47,11 @@ export interface DesktopDiscoveryState {
   /**
    * off：服务未运行，没有广播。
    * starting：正在探测名称并宣告。
-   * advertising：已在本机各网卡宣告；网卡增减或地址变化后自动重新宣告。
-   * 这只说明本机已发出宣告，防火墙拦截 UDP 5353 时其他设备仍然搜不到。
+   * advertising：已在本机各网卡发出宣告；网卡增减或地址变化后自动重新宣告。
    * failed：注册失败；服务运行期间每 30 秒重新注册一次，成功后变为 advertising。
    */
   readonly status: 'off' | 'starting' | 'advertising' | 'failed'
-  /** 正在广播的 DNS-SD 实例名；局域网里重名时会加序号，因此可能和设备名不同。不在 advertising 时为 null。 */
+  /** 正在广播的 DNS-SD 实例名，局域网里重名时带序号；不在 advertising 时为 null。 */
   readonly instanceName: string | null
   /** 最近一次注册失败的脱敏错误；只在 failed 时有值。 */
   readonly error: OperationError | null
@@ -79,6 +77,7 @@ function isDiscoveryState(value: unknown): value is DesktopDiscoveryState {
   )
 }
 
+/** 服务接口的 IPC 通道名。 */
 export const SERVICE_CHANNELS = {
   status: 'service:status',
   start: 'service:start',
@@ -93,18 +92,29 @@ export const SERVICE_CHANNELS = {
   scanCancel: 'service:scan-cancel',
 } as const
 
-/** 渲染进程使用的服务控制接口；所有失败都 resolve 为脱敏错误。 */
+/** 本机 HTTP 服务的控制接口。所有方法的失败都以错误结果返回。 */
 export interface DesktopServiceApi {
+  /** 读取服务状态。 */
   status(): Promise<OperationResult<DesktopServiceSnapshot>>
+  /** 在指定端口启动服务。 */
   start(port: number): Promise<OperationResult<DesktopServiceSnapshot>>
+  /** 换一个随机端口；服务运行时返回 busy。 */
   randomizePort(): Promise<OperationResult<DesktopServiceSnapshot>>
+  /** 停止服务。 */
   stop(): Promise<OperationResult<DesktopServiceSnapshot>>
+  /** 打开系统目录选择器，把所选目录登记为接收目标。 */
   chooseTarget(): Promise<DirectorySelectionResult>
+  /** 撤销一个接收目标的登记。 */
   revokeTarget(rootId: string): Promise<OperationResult<DesktopServiceSnapshot>>
+  /** 取消一次批量传输。 */
   cancel(transferId: string): Promise<OperationResult<DesktopServiceSnapshot>>
+  /** 重试失败的缓存清理。 */
   retryCleanup(): Promise<OperationResult<DesktopServiceSnapshot>>
+  /** 开始扫描一个本机根目录。 */
   startScan(rootId: string): Promise<OperationResult<SyncScanState>>
+  /** 读取扫描状态。 */
   queryScan(scanId: string): Promise<OperationResult<SyncScanState>>
+  /** 取消扫描。 */
   cancelScan(scanId: string): Promise<OperationResult<SyncScanState>>
 }
 
@@ -158,7 +168,11 @@ function isSnapshot(value: unknown): value is DesktopServiceSnapshot {
   )
 }
 
-/** 在 preload 内创建冻结的服务桥；界面离开时自行停止轮询。 */
+/**
+ * 用 invoke 创建冻结的 DesktopServiceApi。
+ *
+ * @returns invoke 失败或返回格式不对时，对应方法返回 io-failure 错误结果。
+ */
 export function createServiceBridge(
   invoke: (channel: string, ...args: unknown[]) => Promise<unknown>,
 ): DesktopServiceApi {

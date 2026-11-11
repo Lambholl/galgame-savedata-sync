@@ -56,13 +56,11 @@ public class MainActivity extends BridgeActivity {
     }
   }
 
-  /**
-   * 记录应用自己打开了系统界面（文件夹选择器），从那里返回时 onRestart 不播放开屏动画。
-   * Capacitor 插件的 startActivityForResult 最终都经过这个方法。
-   */
+  /** 记录应用打开了系统界面（如文件夹选择器），从那里返回时不播放开屏动画。 */
   @Override
   @SuppressWarnings("deprecation")
   public void startActivityForResult(Intent intent, int requestCode, Bundle options) {
+    // Capacitor 插件的 startActivityForResult 最终都经过这个方法。
     isSystemPickerOpen = true;
     try {
       super.startActivityForResult(intent, requestCode, options);
@@ -73,11 +71,12 @@ public class MainActivity extends BridgeActivity {
     }
   }
 
-  /** 由首屏就绪插件调用；WebView 确认可绘制后再让开屏淡出，避免露出尚未渲染的背景。 */
+  /** 标记网页首屏已就绪，WebView 完成绘制后让开屏动画继续。 */
   void onStartupContentReady() {
     if (getBridge() == null) {
       return;
     }
+    // 等 WebView 确认可绘制后再通知，避免开屏淡出时露出尚未渲染的背景。
     getBridge().getWebView().postVisualStateCallback(
       0,
       new WebView.VisualStateCallback() {
@@ -124,7 +123,7 @@ public class MainActivity extends BridgeActivity {
     super.onDestroy();
   }
 
-  /** 按屏幕最短边决定是否允许旋转；折叠屏展开或合上时最短边会变，配置变化时要重新判断。 */
+  /** 按屏幕最短边决定是否允许旋转。 */
   private void applyOrientationPolicy(Configuration configuration) {
     setRequestedOrientation(
       configuration.smallestScreenWidthDp >= ROTATABLE_SMALLEST_WIDTH_DP
@@ -133,14 +132,13 @@ public class MainActivity extends BridgeActivity {
     );
   }
 
-  /**
-   * 重新判断是否允许旋转，并把原生配置的明暗状态通知页面。
-   * Capacitor 保留 Activity 处理 uiMode，部分 WebView 不刷新媒体查询，所以由这里发事件，事件只含布尔值。
-   */
+  /** 重新判断是否允许旋转，并向页面发送只含明暗布尔值的 savedata:theme-change 事件。 */
   @Override
   public void onConfigurationChanged(Configuration configuration) {
     super.onConfigurationChanged(configuration);
+    // 折叠屏展开或合上时最短边会变。
     applyOrientationPolicy(configuration);
+    // Capacitor 让 Activity 自己处理 uiMode，部分 WebView 不刷新媒体查询，所以由原生发事件。
     if (getBridge() != null) {
       boolean isDark =
         (configuration.uiMode & Configuration.UI_MODE_NIGHT_MASK) ==

@@ -5,7 +5,7 @@ import android.os.Environment;
 import java.io.File;
 import java.nio.file.Path;
 
-/** 同一原生进程共享的 SAF 目录引用和扫描、备份、恢复实例；不持有 Activity。 */
+/** 进程内共享的 SAF 目录登记表和扫描、备份、恢复实例，只持有应用 Context。 */
 final class SafRuntime {
 
   private static SafDirectoryStore store;
@@ -22,7 +22,7 @@ final class SafRuntime {
     return store;
   }
 
-  /** 同一原生进程共享扫描器及内存中的本次结果。 */
+  /** 返回进程内共享的扫描器，扫描结果保存在其中。 */
   static synchronized SyncScanner scanner(Context context) throws SafFailure {
     if (scanner == null) {
       scanner = new SyncScanner(new SafSyncSource(store(context)));
@@ -30,7 +30,7 @@ final class SafRuntime {
     return scanner;
   }
 
-  /** 备份放应用专属外部目录，用户可以直接管理；设置留在内部目录。每次重新取得目录，用户删掉后系统才会重建。 */
+  /** 返回进程内共享的备份存储：备份放在应用专属外部目录，设置放在内部目录。 */
   static synchronized BackupStore backups(Context context) throws Exception {
     if (backups == null) {
       Context application = context.getApplicationContext();
@@ -39,6 +39,7 @@ final class SafRuntime {
         new BackupStore.Location() {
           @Override
           public Path directory() throws Exception {
+            // 每次重新取得目录：用户删掉目录后，系统在这次调用时重建。
             File directory = application.getExternalFilesDir(null);
             if (
               directory == null ||
@@ -61,7 +62,7 @@ final class SafRuntime {
     return backups;
   }
 
-  /** 本机恢复由应用 Context 持有；Activity 重建后继续查询原任务。 */
+  /** 返回进程内共享的写入运行时，Activity 重建后仍能查询原来的任务。 */
   static synchronized SyncWriteRuntime writes(Context context) throws Exception {
     if (writes == null) {
       writes = new SyncWriteRuntime(

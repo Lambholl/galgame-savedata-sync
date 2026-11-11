@@ -34,7 +34,7 @@ const SCANNING: readonly DesktopRemoteRequest['status'][] = ['waiting', 'prepari
 const UNCONFIRMED: readonly DesktopRemoteRequest['status'][] = ['waiting', 'preparing', 'ready']
 
 /**
- * 电脑传输页：进入即请求移动端扫描两端，比较结果与计划来自移动端返回的同一份计划；
+ * 传输页：进入即请移动端扫描两端，显示移动端返回的比较结果和计划。
  * 翻转方向、切换设备或刷新时取代旧请求，离开页面时取消未确认的请求。
  */
 export function TransferPage({
@@ -212,7 +212,7 @@ export function TransferPage({
       ? compareSnapshots(reported.source, reported.target)
       : compareSnapshots(reported.target, reported.source)
   }, [reported])
-  // 移动端回报的计划一律保留；开关只改变这里生成的计划，确认时把选择交给主进程和移动端。
+  // 移动端回报的计划保持原样；开关只改变这里生成的计划，确认时把选择一并提交。
   const current = useMemo(
     () => reported && withDeleteExtras(reported, !isKeepingExtras),
     [reported, isKeepingExtras],

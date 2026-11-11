@@ -12,13 +12,13 @@ export interface BackupPolicyBlockProps {
   readonly keepCount: number
   /** 这个游戏单独设置；false 表示跟随全局设置。 */
   readonly isCustom: boolean
-  /** 备份保存位置；不在这里显示时为 null（移动端放在页脚）。 */
+  /** 备份保存位置；为 null 时不显示。 */
   readonly location: string | null
   /** 点开修改策略；不能修改时为 null。 */
   readonly onEdit: (() => void) | null
 }
 
-/** 备份页顶部的策略状态块：是否开启、保留几份、保存在哪里，点开修改。 */
+/** 备份策略状态块：是否开启、保留几份、保存在哪里，点按后修改。 */
 export function BackupPolicyBlock({
   isEnabled,
   keepCount,

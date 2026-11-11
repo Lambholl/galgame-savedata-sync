@@ -3,7 +3,7 @@ import { BATCH_LIMITS, HTTP_ERROR_STATUS, isOpaqueId } from '@savedata-sync/shar
 import type { OperationResult } from '@savedata-sync/shared'
 import { HttpOperationError, toHttpError } from './http-errors.ts'
 
-/** 解码一次后的固定路由；不用 URL 路径解析，因为它会归一化点段。 */
+/** 解析后的路由，路径段只解码一次。 */
 export interface HttpRoute {
   readonly kind:
     | 'device'
@@ -31,7 +31,11 @@ function invalid(): never {
   throw new HttpOperationError('invalid-request', 'The HTTP request format is invalid.')
 }
 
-/** 检查请求头并解析路由：头名不区分大小写，不能重复；拒绝 Content-Encoding、Range，以及 Content-Length 和 chunked 同时出现的请求。 */
+/**
+ * 检查请求头并解析路由；头名不区分大小写。
+ *
+ * @throws HttpOperationError 头名重复，带 Content-Encoding 或 Range，或同时带 Content-Length 和 chunked 时抛出。
+ */
 export function inspectHttpRequest(request: IncomingMessage): HttpRoute {
   const names = new Set<string>()
   for (let index = 0; index < request.rawHeaders.length; index += 2) {
@@ -201,7 +205,11 @@ export function inspectHttpRequest(request: IncomingMessage): HttpRoute {
   }
 }
 
-// JSON.parse 负责完整语法；第二遍只核对所有层级的解码键和深度，结果核对前不交给业务。
+/**
+ * 检查 JSON 文本各层对象的键和嵌套深度；text 已通过 JSON.parse。
+ *
+ * @throws HttpOperationError 有重复键或嵌套超过 128 层时抛出，错误码为 invalid-request。
+ */
 export function inspectJsonKeys(text: string): void {
   let position = 0
   const skip = (): void => {
@@ -335,7 +343,7 @@ export function sendHttpJson(
   response.end(body)
 }
 
-/** 发送失败响应。归档响应开始后只能关闭连接，错误 JSON 不能混进 gzip 数据体。 */
+/** 发送失败响应；响应头已经发出时直接关闭连接。 */
 export function sendHttpFailure(response: ServerResponse, error: unknown): void {
   if (response.destroyed) {
     return

@@ -2,10 +2,7 @@ import { createPortal } from 'react-dom'
 import type { ReactNode, ReactPortal } from 'react'
 import { Button } from 'antd-mobile'
 
-/**
- * 页面唯一的主操作：右下角悬浮的胶囊按钮，没有底栏和说明文字。
- * 放在页面动画容器之外，固定定位不随页面位移；页面按 app-main-with-action 在末尾留出它的高度。
- */
+/** 页面唯一的主操作：右下角固定悬浮的胶囊按钮。页面要用 app-main-with-action 在末尾留出它的高度。 */
 export function FloatingAction({
   color,
   icon,

@@ -5,11 +5,11 @@ import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
 
-/** 网页提交首屏后调用 ready，重复调用安全。 */
+/** 开屏动画的原生插件。 */
 @CapacitorPlugin(name = "LaunchAnimation")
 public class LaunchAnimationPlugin extends Plugin {
 
-  /** 切到 UI 线程，等 WebView 已提交的内容可绘制后允许开屏淡出；Activity 销毁后忽略通知。 */
+  /** 通知网页首屏已提交，WebView 完成绘制后开屏动画淡出；可以重复调用，Activity 销毁后忽略。 */
   @PluginMethod
   public void ready(PluginCall call) {
     getActivity().runOnUiThread(() -> {

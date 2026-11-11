@@ -11,10 +11,7 @@ import org.java_websocket.drafts.Draft_6455;
 import org.java_websocket.handshake.ServerHandshake;
 import org.java_websocket.protocols.Protocol;
 
-/**
- * 控制通道拨号端：沿用目录表交换后的会话和设备头连上监听方，只收发文本 JSON。
- * 收到的消息只核对是严格 JSON 对象，按方法的校验由网页层完成；断开后由引擎决定是否重连。
- */
+/** 控制通道的客户端：用目录表交换后的会话连接监听方，收发文本 JSON；收到的消息只核对是严格的 JSON 对象。 */
 final class ControlClient extends WebSocketClient {
 
   interface Events {
@@ -57,7 +54,7 @@ final class ControlClient extends WebSocketClient {
     return result;
   }
 
-  /** 发出前核对外层格式，避免把格式错误的数据交给对端。 */
+  /** 核对要发出的消息的外层格式，不符时抛错。 */
   static void check(String text) throws Exception {
     if (text == null || text.getBytes(StandardCharsets.UTF_8).length > MAX_BYTES) {
       throw TransferJson.fail("resource-limit");

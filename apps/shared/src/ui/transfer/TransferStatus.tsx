@@ -10,10 +10,7 @@ interface TransferStatusProps {
   readonly status: ComparisonStatus
 }
 
-/**
- * 比较完成前摘要行的说明：等待、扫描中、取消、失败和无法比较的原因；比较完成后摘要行改写差异数。
- * 等待与扫描两端统一写“正在比较两端”，不区分由哪一端扫描。
- */
+/** 比较完成前摘要行的说明：等待和扫描中都写“正在比较两端”，另有取消、失败和无法比较的原因。 */
 export function TransferStatus({ status }: TransferStatusProps): ReactElement {
   const t = useT()
   switch (status.kind) {

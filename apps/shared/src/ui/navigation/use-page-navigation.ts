@@ -23,26 +23,26 @@ export interface PageNavigationOptions<P, C> {
   readonly onRestore: (context: C) => void
 }
 
-/** 当前页和切页操作，两端的返回按钮和 Android 返回键都走这里。 */
+/** 当前页和切页操作。 */
 export interface PageNavigation<P, C> {
   readonly page: P
-  /** 返回按钮回到的页面；没有来源记录时为 null，此时不显示返回按钮。 */
+  /** 返回时回到的页面；没有来源记录时为 null。 */
   readonly backTarget: P | null
   readonly direction: NavigationDirection
   /**
-   * 从当前页打开目标页，并记下当前页为来源。目标已在来源记录里时退回它，不新开一层。
-   * sourceContext 用于当前页有未记入 context 的状态时。
+   * 从当前页打开目标页，并把当前页记为来源。目标已在来源记录里时退回到它。
+   * 传入 sourceContext 时，用它代替 context 记录当前页。
    */
   readonly open: (target: P, sourceContext?: C) => void
-  /** 回到最近的来源页；没有来源记录时什么也不做。 */
+  /** 回到最近的来源页；没有来源记录时状态不变。 */
   readonly back: () => void
   /** 切到主导航页并清空来源记录。 */
   readonly openMain: (target: P) => void
-  /** 结束当前流程并打开目标页：之前的来源记录作废，返回时回主页。 */
+  /** 结束当前流程并打开目标页：清空来源记录，返回时回到 homePage。 */
   readonly finishFlow: (target: P) => void
 }
 
-/** 按来源记录决定返回目标；页面的跳转关系由调用方用这些操作表达。 */
+/** 管理页面导航状态：记录来源，返回时恢复来源页的上下文。 */
 export function usePageNavigation<P, C>({
   initialPage,
   homePage,

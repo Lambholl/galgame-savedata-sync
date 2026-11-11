@@ -19,8 +19,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import org.json.JSONObject;
 
 /**
- * SAF 目录元数据的 Capacitor 插件；URI、路径、文件字节和写入方法都不暴露给网页。
- * 提供者 I/O 在 UI 线程之外串行执行；插件销毁时释放它持有的查询。
+ * SAF 目录的原生插件：选择根目录和列出目录，网页只拿到不透明 ID 和元数据。
+ *
+ * <p>提供者 I/O 在 UI 线程之外串行执行；插件销毁时释放它持有的查询。
  */
 @CapacitorPlugin(name = "SafDirectories")
 public class SafDirectoriesPlugin extends Plugin {
@@ -123,7 +124,7 @@ public class SafDirectoriesPlugin extends Plugin {
     });
   }
 
-  /** 接收系统 Activity 返回的结果；JS 调用丢失时不算选择成功。 */
+  /** 登记系统选择器返回的目录；JS 调用已丢失时忽略结果。 */
   @ActivityCallback
   private void onDirectoryChosen(PluginCall call, ActivityResult activityResult) {
     choosing.set(false);
@@ -165,7 +166,7 @@ public class SafDirectoriesPlugin extends Plugin {
     }
   }
 
-  /** 列出一层目录，只接受 rootId 和可为 null 的 parentId；未知 ID 不会转换成提供者 URI。 */
+  /** 列出一层目录；参数只能是 rootId 和可为 null 的 parentId。 */
   @PluginMethod
   public void listDirectory(PluginCall call) {
     JSObject data = call.getData();

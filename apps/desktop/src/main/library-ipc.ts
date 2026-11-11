@@ -6,7 +6,7 @@ import type { DesktopLibrary } from './library-store.ts'
 import type { WindowsHttpService } from './http-service.ts'
 import { HttpOperationError, toHttpError } from './http-errors.ts'
 
-/** 注册本机页面使用的游戏配置和元数据 IPC，退出时移除；目录内容留在主进程。 */
+/** 注册游戏库接口的 IPC 处理函数。 */
 export function registerLibraryIpc(
   ipc: Pick<IpcMain, 'handle' | 'removeHandler'>,
   library: DesktopLibrary,
@@ -40,7 +40,7 @@ export function registerLibraryIpc(
           ) {
             throw new HttpOperationError('invalid-request', 'The game configuration is invalid.')
           }
-          // store 在落盘前用完整 LibraryConfig 守卫校验每一项。
+          // 每一项的格式由 store 在落盘前校验。
           if (service.hasWork()) {
             throw new HttpOperationError(
               'busy',

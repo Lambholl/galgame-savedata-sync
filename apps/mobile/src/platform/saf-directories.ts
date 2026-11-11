@@ -4,7 +4,7 @@ import type { AndroidDirectoryApi, SafNativePlugin } from './saf-directory-bridg
 
 const native = registerPlugin<SafNativePlugin>('SafDirectories')
 
-/** Android SAF 元数据入口；浏览器预览返回 unsupported-operation。 */
+/** 应用使用的本机目录接口；不在 Android 上运行时返回 unsupported-operation。 */
 export const androidDirectories: AndroidDirectoryApi = createSafDirectoryBridge(
   native,
   () => Capacitor.getPlatform() === 'android',

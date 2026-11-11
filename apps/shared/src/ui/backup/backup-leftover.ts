@@ -2,7 +2,7 @@ import { formatBytes } from '../../i18n/format.ts'
 import type { SyncIncompleteBackup } from '../../sync/sync-contracts.ts'
 import type { Translate } from '../../i18n/translate.ts'
 
-/** 残留提示：份数和占用大小。有一份读不到就不报总数，避免把未知算成 0。 */
+/** 生成残留备份的提示文字：份数和占用大小；有一份读不到占用大小时只写份数。 */
 export function incompleteBackupText(items: readonly SyncIncompleteBackup[], t: Translate): string {
   let total: number | null = 0
   for (const item of items) {
@@ -15,7 +15,11 @@ export function incompleteBackupText(items: readonly SyncIncompleteBackup[], t: 
   }`
 }
 
-/** 依次清理残留：一份失败不影响其他份，结束后抛出第一个错误。 */
+/**
+ * 依次清理每一份残留备份，一份失败后继续清理其余的。
+ *
+ * @throws Error 有清理失败时，全部清理完后抛出第一个错误。
+ */
 export async function cleanupIncompleteBackups(
   items: readonly SyncIncompleteBackup[],
   cleanup: (backupId: string) => Promise<void>,

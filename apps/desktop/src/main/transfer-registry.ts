@@ -42,7 +42,7 @@ type TransferTimeouts = Pick<
   'ready' | 'awaitingContent' | 'total' | 'networkIdle' | 'terminalRetention'
 >
 
-/** 注册表选项：时钟和更小的限额只由主进程和测试注入，HTTP 请求不能配置。 */
+/** 批量传输登记表的选项：时钟和更小的限额。 */
 export interface TransferRegistryOptions {
   readonly now?: () => number
   readonly timeouts?: { readonly [Key in keyof TransferTimeouts]?: number }
@@ -75,10 +75,8 @@ function clone<T>(value: T): T {
 }
 
 /**
- * 当前会话内批量传输任务的注册、单次领取和取消。
- * 一个活动任务从准备占到清理；结束后到期删除清单和结果，用过的 ID 保留到 stop。
- * stop 必须等待文件和 HTTP worker 收尾；清理失败时保留互斥，可以 retryCleanup。
- * API 示例和调用顺序见桌面 README 的 HTTP 节。
+ * 当前服务会话内批量传输任务的登记、单次领取和取消。
+ * 活动任务从准备到清理一直占用名额；结束后到期删除清单和结果，用过的 ID 保留到 stop。
  */
 export class WindowsTransferRegistry {
   private readonly ownership = Symbol('transfer-registry')
@@ -190,7 +188,7 @@ export class WindowsTransferRegistry {
     return clone(state)
   }
 
-  /** 登记上传：先只读预检全部目标，预检期间占进程名额；被拒绝时不占用已用 ID。 */
+  /** 登记上传：先预检全部目标，预检期间占用名额；被拒绝时任务 ID 可以再用。 */
   registerUpload(value: unknown): Promise<BatchState> {
     if (!isReceiveBatchRequest(value)) {
       const mismatch =
@@ -305,7 +303,7 @@ export class WindowsTransferRegistry {
     return clone(state)
   }
 
-  /** 领取唯一一次 PUT：请求头与登记的清单匹配后同步领取；重复或方向错误时不消耗输入。 */
+  /** 领取任务唯一一次的上传：请求头与登记的清单相符后领取；重复领取或方向不对时抛错，输入不读取。 */
   receiveContent(
     id: string,
     request: IncomingMessage,
@@ -376,17 +374,17 @@ export class WindowsTransferRegistry {
     }
   }
 
-  /** 返回状态的独立快照，不改变期限；任务不存在或已到期都不能说明远端没有写入。 */
+  /** 返回任务状态的副本；读取不改变期限。 */
   getState(id: string): BatchState {
     return clone(this.find(id).state)
   }
 
-  /** 返回当前会话的状态快照，供本机界面读取；到期任务照常清理，保留期不延长。 */
+  /** 返回当前会话所有任务的状态；读取时清理到期任务，不延长保留期。 */
   getStates(): readonly BatchState[] {
     this.sweep()
     return [...this.tasks.values()].map((task) => clone(task.state))
   }
-  /** 是否有运行中的传输；已结束但清理失败的任务不算，这时备份管理仍可手动清理残留。 */
+  /** 判断是否有运行中的传输；已结束但清理失败的任务不算。 */
   hasRunningWork(): boolean {
     return (
       this.pendingRegistration !== null ||
@@ -403,14 +401,14 @@ export class WindowsTransferRegistry {
     return clone(task.manifest)
   }
 
-  /** 请求取消，正在执行的 IO 不会被提前判定结束；清理完成后才释放活动名额。 */
+  /** 请求取消任务；正在执行的 IO 结束、清理完成后才释放名额。 */
   cancel(id: string): BatchState {
     const task = this.find(id)
     this.abort(task, null)
     return clone(task.state)
   }
 
-  /** 发送归档内容：原子领取后打开流；响应归调用者，Promise 覆盖发送和缓存清理。 */
+  /** 发送任务的归档内容，每个任务只能领取一次；Promise 在发送和缓存清理都结束后 resolve。 */
   sendContent(id: string, response: ServerResponse): Promise<void> {
     const task = this.find(id)
     if (
@@ -430,7 +428,7 @@ export class WindowsTransferRegistry {
     return task.worker
   }
 
-  /** 清理到期任务：真实时钟和测试时钟共用这个期限检查；轮询不会刷新 acceptedAt、stageAt、networkAt。 */
+  /** 按注入的时钟清理到期任务。 */
   sweep(): void {
     const now = this.now()
     for (const [id, task] of this.tasks) {
@@ -483,7 +481,7 @@ export class WindowsTransferRegistry {
     releaseTargetOperation(this.ownership)
   }
 
-  /** 停止接受任务，取消并等待当前 worker，最后释放缓存；失败由主进程处理。 */
+  /** 停止接受任务，取消并等待当前任务，最后释放缓存。 */
   async stop(): Promise<void> {
     this.isStopped = true
     clearInterval(this.timer)
@@ -677,7 +675,7 @@ export class WindowsTransferRegistry {
                 ),
           ),
       })
-      // 本地流失败会连带关闭响应，必须先保留原错误，避免被 close 误归为网络故障。
+      // 本地流失败会连带关闭响应，先记下原错误，避免 close 把它记成网络故障。
       input.once('error', rememberFailure)
       counter.once('error', rememberFailure)
       removeErrorListeners = () => {

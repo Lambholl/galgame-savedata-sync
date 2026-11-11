@@ -5,13 +5,13 @@ import { i18nContext } from './i18n-context.ts'
 
 /** I18nProvider 的参数。 */
 export interface I18nProviderProps {
-  /** 已解析的界面语言；由各端按偏好与系统语言决定。 */
+  /** 界面语言。 */
   readonly locale: AppLocale
   /** 使用这种语言显示的界面。 */
   readonly children: ReactNode
 }
 
-/** 为其下的共用组件与两端页面提供当前语言。 */
+/** 向子组件提供界面语言和对应的 Translate 函数。 */
 export function I18nProvider({ locale, children }: I18nProviderProps): ReactElement {
   const value = useMemo(() => ({ locale, t: createTranslator(locale) }), [locale])
   return <i18nContext.Provider value={value}>{children}</i18nContext.Provider>

@@ -12,8 +12,7 @@ export interface ChoiceOption<Value extends string> {
 
 /**
  * 设置列表里的选择行：右侧显示当前项，点整行从右侧弹出菜单，当前项高亮。
- * 按下时整行变色，菜单打开期间保持这个颜色。
- * 菜单打开时通过 onOverlayChange 登记关闭函数，Android 返回键先关菜单，再按才返回页面。
+ * 按下时整行变色，菜单打开期间保持这个颜色。菜单打开时用 onOverlayChange 登记关闭函数，关闭后传 null。
  */
 export function ChoiceItem<Value extends string>({
   title,

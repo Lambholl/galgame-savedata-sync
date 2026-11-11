@@ -60,17 +60,17 @@ interface BackupRound {
   readonly manifest: SyncBackupManifest
   readonly isComplete: boolean
 }
-/** 备份查询结果：当前项目的清单和需要显式清理的轮次，不含文件路径。 */
+/** 备份查询结果：已提交备份的清单和需要清理的残留备份。 */
 export interface WindowsBackupListing {
   readonly backups: readonly SyncBackupManifest[]
   readonly incomplete: readonly SyncIncompleteBackup[]
 }
-/** 创建备份的结果：清单提交成功后的轮换错误单独报告，调用方仍可使用这份有效备份保护写入。 */
+/** 创建备份的结果。manifest 为 null 表示没有创建备份；提交后轮换旧备份失败时错误在 cleanupError，这份备份仍然有效。 */
 export interface WindowsBackupCommit {
   readonly manifest: SyncBackupManifest | null
   readonly cleanupError: KnownOperationError | null
 }
-/** 创建备份的选项，可以提供取消和更短的期限；备份参数不能由网络或渲染进程指定。 */
+/** 创建备份的选项：取消信号和更短的期限。 */
 export interface WindowsBackupOptions {
   readonly signal?: AbortSignal
   readonly timeoutMs?: number
@@ -171,7 +171,7 @@ async function isIntact(roundPath: string, manifest: SyncBackupManifest): Promis
   }
   return true
 }
-/** 一轮文件夹占用的字节数；读取失败时未知，由界面单独显示。 */
+/** 一份备份的文件夹占用的字节数；读取失败时为 null。 */
 async function occupiedBytes(round: BackupRound): Promise<number | null> {
   try {
     let total = 0
@@ -187,10 +187,7 @@ async function occupiedBytes(round: BackupRound): Promise<number | null> {
   }
 }
 
-/**
- * 已完整校验的恢复材料。持有引用期间这一轮不参加轮换，内容只通过主进程内的流返回。
- * 消费者关闭全部读流后调用 release；snapshot 只为这次恢复建立临时目录树。
- */
+/** 已完整校验、用于恢复的一份备份。release 前这份备份不参加轮换；关闭全部读流后才能 release。 */
 export class WindowsBackupHandle {
   private readonly readers = new Set<Readable>()
   private isReleased = false
@@ -198,9 +195,15 @@ export class WindowsBackupHandle {
     private readonly store: WindowsBackupStore,
     private readonly round: BackupRound,
   ) {}
+  /** 备份清单的副本。 */
   get manifest(): SyncBackupManifest {
     return structuredClone(this.round.manifest)
   }
+  /**
+   * 按清单建立这份备份的目录树快照。
+   *
+   * @throws ArchiveError 已 release 时抛出，错误码为 not-found。
+   */
   snapshot(): SyncSnapshot {
     if (this.isReleased) {
       throw new ArchiveError('not-found', 'The backup material has been released.')
@@ -259,7 +262,11 @@ export class WindowsBackupHandle {
     }
     return snapshot
   }
-  /** 打开备份里的文件，返回的流归消费者所有；实际写回时还要按清单校验内容。 */
+  /**
+   * 打开备份里的文件。流的内容没有校验，由调用方按清单核对。
+   *
+   * @returns 读流，由调用方关闭；verifyUnchanged 在流关闭后确认文件和这份备份都没有变化。
+   */
   async openFile(
     fileId: string,
   ): Promise<{ stream: Readable; verifyUnchanged: () => Promise<void> }> {
@@ -287,7 +294,12 @@ export class WindowsBackupHandle {
       },
     }
   }
-  /** 释放引用后重新尝试轮换；清理错误不改变备份或恢复的结果。 */
+  /**
+   * 释放引用并轮换旧备份；重复调用直接返回 null。
+   *
+   * @returns 轮换失败时返回错误，否则返回 null。
+   * @throws ArchiveError 还有读流没关闭时抛出，错误码为 busy。
+   */
   async release(): Promise<KnownOperationError | null> {
     if (this.readers.size) {
       throw new ArchiveError('busy', 'Close backup read streams first.')
@@ -298,7 +310,7 @@ export class WindowsBackupHandle {
     this.isReleased = true
     return this.store.release(this, this.round.manifest.projectId, this.round.manifest.rootId)
   }
-  /** 应用退出时关闭所持读流；正常释放仍要求消费者先读完。 */
+  /** 关闭这份备份打开的全部读流。 */
   async close(): Promise<void> {
     const readers = [...this.readers]
     for (const reader of readers) {
@@ -311,10 +323,8 @@ export class WindowsBackupHandle {
 }
 
 /**
- * 持久备份，放在用户能直接管理的文件夹：backups/游戏名/时间/，内含 backup.json 和按原路径保存的 files/，和移动端相同。
- * 用户可以随时删除或改名其中任何内容，所以每次都按实际目录重新读取，一份备份出问题不影响其他备份。
- * 元数据操作、创建和轮换串行执行，恢复材料通过引用保护；设置放在备份区外，删掉备份文件夹不丢设置。
- * 只读同步根；用法及错误和清理语义见桌面 README，通过工厂函数初始化。
+ * 持久备份的存储，目录结构为 backups/游戏名/时间/，内含 backup.json 和按原路径保存的 files/。
+ * 每次操作都按磁盘上的实际目录重新读取，一份备份损坏不影响其他备份；元数据操作、创建和轮换串行执行。
  */
 export class WindowsBackupStore {
   private queue: Promise<void> = Promise.resolve()
@@ -349,7 +359,7 @@ export class WindowsBackupStore {
     )
     return next
   }
-  /** 备份根目录；不存在就重新建立，所以用户可以把整个文件夹删掉。 */
+  /** 返回备份根目录，不存在时重新创建。 */
   async root(): Promise<string> {
     this.source.assertCacheIsolated(this.path)
     await mkdir(this.path, { recursive: true })
@@ -358,13 +368,13 @@ export class WindowsBackupStore {
     }
     return this.path
   }
-  /** 读取前核对这一轮的文件夹还是同一个；同包的恢复句柄每次读取前都调用。 */
+  /** 核对这份备份的文件夹没有被替换。 */
   async inspectRound(round: BackupRound): Promise<void> {
     if (!hasSameIdentity(await inspectLocalPath(round.path), round.identity)) {
       throw new ArchiveError('source-changed', 'The backup folder changed.')
     }
   }
-  /** 读一个备份文件夹；不是本机备份或读不懂的返回 null，留给用户自己处理。 */
+  /** 读一个备份文件夹；不是本机备份或无法解析时返回 null。 */
   private async read(path: string): Promise<BackupRound | null> {
     try {
       const stats = await inspectLocalPath(path)
@@ -417,7 +427,7 @@ export class WindowsBackupStore {
     }
     return result
   }
-  /** 列出已提交的备份清单；恢复前 acquire 会重新核对每个文件。 */
+  /** 列出这个游戏目录的已提交备份和残留备份。 */
   list(projectId: string, rootId: string): Promise<WindowsBackupListing> {
     group(projectId, rootId)
     return this.exclusive(async () => {
@@ -440,7 +450,7 @@ export class WindowsBackupStore {
       }
     })
   }
-  /** 读取备份设置。缺少文件时用默认全局设置；坏设置不会被默认值覆盖。 */
+  /** 读取备份设置；设置文件不存在时返回默认设置，文件损坏时抛错。 */
   settings(): Promise<SyncBackupSettings> {
     return this.exclusive(() => this.readSettings())
   }
@@ -454,7 +464,7 @@ export class WindowsBackupStore {
     }
     return value
   }
-  /** 单独设置某个游戏目录；null 改回跟随全局。关闭备份只影响普通复制，恢复时计划器强制开启保护。 */
+  /** 单独设置某个游戏目录；policy 为 null 时改回跟随全局设置。 */
   setPreference(
     projectId: string,
     rootId: string,
@@ -495,7 +505,11 @@ export class WindowsBackupStore {
     }
     return settings
   }
-  /** 比较备份目录的可用空间和调用方给出的字节数，不够时报 insufficient-space；可用空间未知时放行。不删除旧备份腾空间。 */
+  /**
+   * 检查备份目录的可用空间能否放下 requiredBytes；可用空间未知时视为足够。
+   *
+   * @throws ArchiveError 空间不够时抛出，错误码为 insufficient-space。
+   */
   async capacity(
     requiredBytes: number,
   ): Promise<{ requiredBytes: number; availableBytes: number | null }> {
@@ -593,7 +607,7 @@ export class WindowsBackupStore {
     }
     throw new ArchiveError('io-failure', 'The backup folder could not be created.')
   }
-  /** 写入前保存目标目录的全部文件；没有备份轮次时返回 null，且不会写入同步目标。 */
+  /** 备份计划会覆盖或删除的目标文件；计划不要求备份或没有这类文件时，结果的 manifest 为 null。 */
   create(plan: SyncPlan, options: WindowsBackupOptions = {}): Promise<WindowsBackupCommit> {
     if (!isSyncPlan(plan) || !plan.canExecute || plan.target.deviceId !== this.source.deviceId) {
       throw new ArchiveError(
@@ -733,7 +747,7 @@ export class WindowsBackupStore {
       throw new ArchiveError('checksum-mismatch', 'Backup content verification failed.')
     }
   }
-  /** 先把备份改回未完成状态再删文件，中途失败时它显示为可清理；标记最后删，游戏文件夹空了也一起删。 */
+  /** 删除一份备份，游戏文件夹空了一起删除；中途失败时这份备份变成残留备份。 */
   private async remove(round: BackupRound): Promise<void> {
     if ([...this.handles.values()].includes(round.manifest.backupId)) {
       throw new ArchiveError('busy', 'The backup is being used for a restore.')
@@ -754,7 +768,7 @@ export class WindowsBackupStore {
       /* 游戏文件夹里还有其他备份。 */
     })
   }
-  /** 按保留份数删除多余的旧备份；只统计完整的备份，用户删掉或弄坏的不计入保留份数，不会因此多删。 */
+  /** 按保留份数删除多余的旧备份；只有完整的备份计入份数。 */
   private async prune(projectId: string, rootId: string): Promise<void> {
     const rounds = (await this.rounds())
       .filter((round) => round.isComplete && isInGroup(round, projectId, rootId))
@@ -766,7 +780,7 @@ export class WindowsBackupStore {
       }
     }
   }
-  /** 恢复前完整复核这一轮并取得引用，取得后才允许轮换其他轮次；目标文件此时还没有改动。 */
+  /** 完整复核一份备份并取得引用；引用释放前这份备份不参加轮换。 */
   acquire(
     projectId: string,
     rootId: string,
@@ -813,7 +827,11 @@ export class WindowsBackupStore {
       (round) => isInGroup(round, projectId, rootId) && round.manifest.backupId === backupId,
     )
   }
-  /** 同包的句柄释放引用后轮换；主错误与轮换错误由调用方分别显示。 */
+  /**
+   * 去掉句柄的引用，再轮换这个游戏目录的旧备份。
+   *
+   * @returns 轮换失败时返回错误，否则返回 null。
+   */
   async release(
     handle: WindowsBackupHandle,
     projectId: string,
@@ -830,12 +848,16 @@ export class WindowsBackupStore {
       return cleanupFailure(error)
     }
   }
-  /** 重试轮换；有引用保护或不完整的轮次不会被删除。 */
+  /** 按保留份数删除多余的旧备份；正在使用或不完整的备份保留。 */
   rotate(projectId: string, rootId: string): Promise<void> {
     group(projectId, rootId)
     return this.exclusive(() => this.prune(projectId, rootId))
   }
-  /** 清理未完成或文件已缺失的备份；已经不存在就算清理完成。有效备份由 deleteBackup 删除。 */
+  /**
+   * 删除一份残留备份；备份已不存在时视为成功。
+   *
+   * @throws ArchiveError 这份备份完整时抛出，错误码为 permission-denied。
+   */
   cleanupIncomplete(projectId: string, rootId: string, backupId: string): Promise<void> {
     group(projectId, rootId)
     return this.exclusive(async () => {
@@ -852,7 +874,7 @@ export class WindowsBackupStore {
       await this.remove(round)
     })
   }
-  /** 用户在应用里删除一份备份；正在用于恢复的由 remove 拒绝，已被手动删除的算删除成功。删到一半失败时变成不完整，可再清理。 */
+  /** 删除一份备份；备份已不存在时视为成功，正在用于恢复时抛错。中途失败时这份备份变成残留备份。 */
   deleteBackup(projectId: string, rootId: string, backupId: string): Promise<void> {
     group(projectId, rootId)
     return this.exclusive(async () => {
@@ -862,7 +884,7 @@ export class WindowsBackupStore {
       }
     })
   }
-  /** 移除游戏时删除它在所有目录下的备份和单独设置；中途失败时游戏保留，可以重试。 */
+  /** 删除一个游戏在所有目录下的备份和单独设置。 */
   deleteGameBackups(projectId: string): Promise<void> {
     if (!isOpaqueId(projectId)) {
       throw new ArchiveError('invalid-request', 'The game reference is invalid.')
@@ -876,7 +898,7 @@ export class WindowsBackupStore {
       await this.writeSettings(withoutGameBackups(await this.readSettings(), projectId))
     })
   }
-  /** 应用退出时取消创建并关闭恢复流；备份目录和已提交轮次保留，供下次启动查询。 */
+  /** 取消正在创建的备份并关闭恢复读流，之后的操作都会失败；已提交的备份保留。 */
   stop(): Promise<void> {
     if (this.stopping) {
       return this.stopping
@@ -896,8 +918,10 @@ export class WindowsBackupStore {
 }
 
 /**
- * 初始化 userData/backups，要求应用私有路径已解析。
- * gameName 返回游戏当前名称，只决定新备份的文件夹名；找不到时返回 null。
+ * 在 privateDirectory 下初始化备份存储。
+ *
+ * @param privateDirectory 应用私有目录的绝对路径。
+ * @param gameName 返回游戏的当前名称，用作新备份的文件夹名；找不到游戏时返回 null。
  */
 export async function createWindowsBackupStore(
   source: BackupSource,

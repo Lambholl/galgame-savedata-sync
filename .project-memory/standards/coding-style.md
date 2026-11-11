@@ -1,7 +1,7 @@
 ---
 doc_type: coding-style
 status: active
-updated: 2026-11-10
+updated: 2026-11-11
 tags: [编码规范]
 related_files: []
 ---
@@ -71,10 +71,12 @@ related_files: []
 
 ## 6. 代码注释
 
-注释规则见 Skill `references/general-standards/common-rules.md` 的“注释原则”，这里只写项目差异。
+注释规则见 Skill `references/general-standards/common-rules.md` 的“文档注释”“行内注释”和“注释写法”，这里只写项目差异。
 
 | 场景 | 项目差异 |
 | --- | --- |
+| 架构说明的位置 | 进程分工、preload 与 IPC 边界、双端协议和数据流写在[架构总览](../architecture/overview.md)和[接口约定](../architecture/api-contracts.md)，实现层面的取舍写在[实现细节](../development/implementation-notes.md)，不写进文档注释 |
+| shared/ui 组件参数 | Props 的每个参数都写 TSDoc 用途说明，名称已经说清楚的也写（见第 3 节“共用界面组件参数”），其余字段按通用规则 |
 | 工单号 | 本项目的工作包和变更编号形如 `M-002`、`CR-001`，同样不写进注释 |
 | 术语 | 注释里的术语以代码和[项目术语表](../project/glossary.md)为准 |
 
@@ -84,14 +86,15 @@ related_files: []
 | --- | --- |
 | 手写 JS/MJS/CJS/TS/TSX 的统一格式；不使用行尾分号，保留必要的 ASI 防护分号 | `.prettierrc.json`、`.editorconfig`；`pnpm format` 先执行 `eslint . --fix`，再执行 `prettier . --write`；`pnpm format:check` 检查排版，`pnpm lint` 检查 ESLint 规则 |
 | `apps/mobile/android/app/src` 的 Java 统一排版。Prettier 的续行缩进和换行位置与 Google Java Style 不同，和全项目一致优先 | `.prettierrc.json` 的 `prettier-plugin-java`；入口同上 |
-| Java 命名、导入、大括号、Javadoc 和布尔前缀。基于 Checkstyle 的 `google_checks.xml`，差异写在 `checkstyle.xml` 开头：去掉排版规则，空 catch 接受中文原因，`@PluginMethod`（接口说明在 TypeScript 插件定义）和 `@After` 不要求 Javadoc，增加未使用导入和布尔前缀检查 | `apps/mobile/android/checkstyle.xml`、`checkstyle.gradle`；`pnpm lint` 通过 `scripts/android-build.mjs --checkstyle` 运行，只要 JDK，不要 Android SDK；只重新检查改过的文件，违规时非零退出 |
+| Java 命名、导入、大括号、Javadoc 和布尔前缀。基于 Checkstyle 的 `google_checks.xml`，差异写在 `checkstyle.xml` 开头：去掉排版规则，空 catch 接受中文原因，`@PluginMethod`（接口说明写在 TypeScript 的网页接口 `*Api` 上）和 `@After` 不要求 Javadoc，增加未使用导入和布尔前缀检查 | `apps/mobile/android/checkstyle.xml`、`checkstyle.gradle`；`pnpm lint` 通过 `scripts/android-build.mjs --checkstyle` 运行，只要 JDK，不要 Android SDK；只重新检查改过的文件，违规时非零退出 |
 | 全部 Markdown（含 MDX、Prettier 支持的其他 Markdown 扩展名与无扩展名 README）人工维护 | `.prettierignore`；Prettier 排除文件及其中的代码块，编码检查仍由 `pnpm check:text` 覆盖 |
 | 手写 JS/TS 的声明、严格比较、动态执行、错误对象与命名导出约束；TS 另检查类型安全、模块边界类型和未处理 Promise | `eslint.config.mjs`；JS 使用语法检查，TS 使用类型感知规则；生成目录不纳入检查 |
+| 模块导出的函数、类、公共方法、接口、类型别名、枚举、接口方法和导出常量都有文档注释 | `eslint.config.mjs` 的 `jsdoc/require-jsdoc`（`publicOnly`）。对象字面量里的函数属性按所属接口的文档说明；名称以 `NativePlugin` 结尾的原生插件接口，方法文档写在同文件网页接口的同名方法上。文档注释内容是否只写接口契约由人工评审 |
 | TypeScript 命名遵循语言规则；TSX 允许 PascalCase 组件；外部对象字面量键与导入名保留兼容性 | `eslint.config.mjs`；默认导出仅对当前四个 ESLint、Vite、Capacitor 配置文件豁免 |
 | TypeScript 布尔变量、参数和属性使用语义前缀；主体保持 PascalCase，保证整体名称符合 lowerCamelCase | `eslint.config.mjs` 的 `@typescript-eslint/naming-convention`；已在协议中发布的 `blocked`、`cancelRequested`、`dark`、`upload`、`refresh` 保留原名，改协议时再迁移 |
 | Android 同一 Maven 模块在运行、测试和构建工具里只解析一个版本 | `apps/mobile/android/dependency-security.json` 的 `singleVersionModules`，由 `settings.gradle` 应用；`pnpm security:android` 发现多版本时失败。这一步要联网并重新解析依赖，不在 `pnpm check` 里 |
 | 编码、BOM、换行与严格类型 | `scripts/check-text.mjs`、`tsconfig.base.json`；`pnpm check:text`、`pnpm typecheck` |
 | 界面检查 | 通过实际运行、设备操作和浏览器交互，按常规字号及常用移动设备尺寸检查；不验证极端字体大小。按钮、文案、DOM、CSS、颜色、布局和快照不进入长期自动化测试；测试准入见[测试规范](testing-style.md) |
 | 全量测试 | `pnpm test:all`；用于发布前、大范围高风险改动或维护者明确要求时，`pnpm check` 和普通 CI 不运行它 |
-| shared/ui 组件参数不透传样式（禁止 `style`、`className`、`styles`、`classNames` 与剩余属性展开）、主入口不导入 ui 入口 | `eslint.config.mjs` 按 `apps/shared/src/ui` 目录用 `no-restricted-syntax` 禁止这些参数名、继承 `HTMLAttributes`/`ComponentProps`/`CSSProperties`、JSX 展开与剩余参数，并用 `no-restricted-imports` 限制导入；Props 命名导出与 TSDoc 用途说明由人工评审 |
+| shared/ui 组件参数不透传样式（禁止 `style`、`className`、`styles`、`classNames` 与剩余属性展开）、主入口不导入 ui 入口 | `eslint.config.mjs` 按 `apps/shared/src/ui` 目录用 `no-restricted-syntax` 禁止这些参数名、继承 `HTMLAttributes`/`ComponentProps`/`CSSProperties`、JSX 展开与剩余参数，并用 `no-restricted-imports` 限制导入；Props 命名导出与每个参数的 TSDoc 用途说明由人工评审 |
 | 文件与目录命名、JavaScript 布尔变量业务命名、文档语义完整性、日志脱敏、事件生命周期及 JS Promise 失败处理 | 由人工评审；JavaScript 无类型信息，ESLint 只检查其 lowerCamelCase 基础命名 |

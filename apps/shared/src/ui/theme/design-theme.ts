@@ -3,20 +3,18 @@ import type { ThemeConfig } from 'antd'
 import type { ResolvedTheme } from '../../preferences/app-preferences.ts'
 import { FONTS, PALETTES, RADII, designCssText } from '../../preferences/design-tokens.ts'
 
-/** 传给两端 ConfigProvider 的 button：不在两个汉字的按钮文字中间加空格。 */
+/** ConfigProvider 的 button 配置：关闭两个汉字之间自动插入的空格。 */
 export const DESIGN_BUTTON = { autoInsertSpace: false } as const
 
-/** 两端 antd 的组件密度不同，其余主题取值相同。 */
+/** 两端各自的 antd 组件密度。 */
 const COMPONENTS = {
   desktop: { Card: { bodyPadding: 20 } },
   // 选择菜单按触控尺寸放大。
   mobile: { Dropdown: { paddingBlock: 12, fontSize: 15 } },
 } as const satisfies Record<'desktop' | 'mobile', ThemeConfig['components']>
 
-/**
- * 由设计变量生成两端 ConfigProvider 的主题；antd 需要实际色值推算悬停、浅色背景等派生色，
- * 所以这里读取 design-tokens 里的取值，而不是 CSS 变量。
- */
+// antd 要用实际色值推算悬停、浅色背景等派生色，所以读 design-tokens 的取值，没有用 CSS 变量。
+/** 按主题和平台生成 antd ConfigProvider 的主题配置。 */
 export function designTheme(resolved: ResolvedTheme, platform: 'desktop' | 'mobile'): ThemeConfig {
   const palette = PALETTES[resolved]
   return {
@@ -59,7 +57,7 @@ export function designTheme(resolved: ResolvedTheme, platform: 'desktop' | 'mobi
   }
 }
 
-/** 把 --ss-* 设计变量挂到页面上；应用入口在渲染前调用一次。 */
+/** 在 document.head 开头插入定义 --ss-* 变量的样式表；已经插入过时不再插入。 */
 export function installDesignTokens(): void {
   const id = 'ss-design-tokens'
   if (document.getElementById(id)) {

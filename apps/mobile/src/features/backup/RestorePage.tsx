@@ -7,10 +7,7 @@ import type { MobileRestoreDetails, MobileSyncAdapter } from '../../platform/syn
 import { FloatingAction } from '../../components/FloatingAction'
 import { PlanConfirm } from '../transfer/PlanConfirm'
 
-/**
- * 恢复预览：与传输计划共用确认页，确认后在同一页显示进度和结果。
- * 返回或点“查看备份”时由应用释放这次恢复；进行中的恢复不会因离开而中断。
- */
+/** 恢复页：待确认时显示恢复预览，确认后在同一页显示进度和结果。 */
 export function RestorePage({
   sync,
   restore,

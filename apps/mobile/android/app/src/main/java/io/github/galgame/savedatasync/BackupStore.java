@@ -44,17 +44,16 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 /**
- * 持久备份，放在用户能直接管理的应用专属外部目录：backups/游戏名/时间/，内含 backup.json 和按原路径保存的 files/。
- * 用户可以随时删除或改名其中任何内容，所以每次都按实际目录重新读取，一份备份出问题不影响其他备份。
- * 修改操作串行，恢复材料按引用保留；设置放内部目录，删掉备份文件夹不丢设置。SAF 同步根只读。
+ * 持久备份的存储，目录结构为 backups/游戏名/时间/，内含 backup.json 和按原路径保存的 files/。
+ * 每次操作都按磁盘上的实际目录重新读取，一份备份损坏不影响其他备份；修改操作串行执行。
  */
 final class BackupStore implements AutoCloseable {
 
-  /** 平台提供的位置和名称；目录被用户删除后由实现重新取得。 */
+  /** 备份的位置和游戏名称。 */
   interface Location {
     Path directory() throws Exception;
 
-    /** 游戏当前名称，只决定新备份的文件夹名；找不到时返回 null。 */
+    /** 游戏的当前名称，用作新备份的文件夹名；找不到时返回 null。 */
     String gameName(String projectId);
   }
 
@@ -177,7 +176,7 @@ final class BackupStore implements AutoCloseable {
     }
   }
 
-  /** 备份根目录；不存在就重新建立，所以用户可以把整个文件夹删掉。外部存储不可用时报错，写入随之被挡住。 */
+  /** 返回备份根目录，不存在时重新创建；外部存储不可用时抛错。 */
   synchronized Path root() throws Exception {
     alive();
     Path parent = location.directory().toAbsolutePath().normalize();
@@ -219,7 +218,7 @@ final class BackupStore implements AutoCloseable {
     return result;
   }
 
-  /** 读一个备份文件夹；不是本机备份或读不懂的返回 null，留给用户自己处理。 */
+  /** 读一个备份文件夹；不是本机备份或无法解析时返回 null。 */
   private Round read(Path path) {
     try {
       if (!Files.isDirectory(path, LinkOption.NOFOLLOW_LINKS)) {
@@ -240,10 +239,7 @@ final class BackupStore implements AutoCloseable {
     }
   }
 
-  /**
-   * 备份是否可以恢复：已提交，文件都在且大小对；内容在恢复前完整校验。
-   * 其余情况按不完整显示，可以清理但不能恢复，轮换时最先删除。
-   */
+  /** 判断备份是否完整：已提交，文件都在且大小相符。 */
   private boolean isComplete(Round round) {
     if (!round.isCommitted) {
       return false;
@@ -283,7 +279,7 @@ final class BackupStore implements AutoCloseable {
     id(root);
   }
 
-  /** 列出备份摘要，不带文件路径；详情按单轮读取，以保持 8 MiB 控制响应限制。 */
+  /** 列出这个游戏目录的备份摘要和残留备份。 */
   synchronized Map<String, Object> list(String projectId, String rootId) throws Exception {
     ids(projectId, rootId);
     List<Round> rounds = rounds();
@@ -324,7 +320,7 @@ final class BackupStore implements AutoCloseable {
     return object("backups", backups, "incomplete", incomplete);
   }
 
-  /** 一轮文件夹占用的字节数；读取失败时未知，由界面单独显示。 */
+  /** 一份备份的文件夹占用的字节数；读取失败时返回 null。 */
   private Long occupied(Round round) {
     try (java.util.stream.Stream<Path> paths = Files.walk(round.path)) {
       long total = 0;
@@ -372,7 +368,7 @@ final class BackupStore implements AutoCloseable {
     return map(copy(find(projectId, rootId, backupId).manifest));
   }
 
-  /** 读取备份设置。缺少文件时用默认全局设置，坏设置不被默认值覆盖；格式与游戏配置无关。 */
+  /** 读取备份设置；设置文件不存在时返回默认设置，文件损坏时抛错。 */
   synchronized Map<String, Object> settings() throws Exception {
     alive();
     return exists(settingsFile)
@@ -480,7 +476,7 @@ final class BackupStore implements AutoCloseable {
     throw BackupFiles.failure("io-failure");
   }
 
-  /** 保存编排器选定的全部目标文件；关闭备份或集合为空时返回 null，SAF 目标不变。恢复时必须开启保护备份。 */
+  /** 备份选定的全部目标文件；不要求备份或没有文件时返回 null。 */
   synchronized Map<String, Object> create(
     String projectId,
     String rootId,
@@ -735,7 +731,7 @@ final class BackupStore implements AutoCloseable {
     prune(projectId, rootId);
   }
 
-  /** 清理未完成或文件已缺失的备份；已经不存在就算清理完成。 */
+  /** 删除一份残留备份；备份已不存在时视为成功。 */
   synchronized void cleanupIncomplete(String projectId, String rootId, String backupId)
     throws Exception {
     Round round = lookup(projectId, rootId, backupId);
@@ -748,7 +744,7 @@ final class BackupStore implements AutoCloseable {
     remove(round);
   }
 
-  /** 用户在应用里删除一份备份；正在用于恢复的由 remove 拒绝，已被手动删除的算删除成功。删到一半失败时变成未完成，可再清理。 */
+  /** 删除一份备份；备份已不存在时视为成功，正在用于恢复时抛错。中途失败时这份备份变成残留备份。 */
   synchronized void deleteBackup(String projectId, String rootId, String backupId)
     throws Exception {
     Round round = lookup(projectId, rootId, backupId);
@@ -757,7 +753,7 @@ final class BackupStore implements AutoCloseable {
     }
   }
 
-  /** 移除游戏时删除它在所有目录下的备份和单独设置；中途失败时游戏保留，可以重试。 */
+  /** 删除一个游戏在所有目录下的备份和单独设置。 */
   synchronized void deleteGameBackups(String projectId) throws Exception {
     id(projectId);
     for (Round round : rounds()) {
@@ -775,7 +771,7 @@ final class BackupStore implements AutoCloseable {
     );
   }
 
-  /** 先把备份改回未完成状态再删文件，中途失败时它显示为可清理；标记最后删，游戏文件夹空了也一起删。 */
+  /** 删除一份备份，游戏文件夹空了一起删除；中途失败时这份备份变成残留备份。 */
   private void remove(Round round) throws Exception {
     if (handles.containsValue(round.id())) {
       throw BackupFiles.failure("busy");
@@ -855,7 +851,7 @@ final class BackupStore implements AutoCloseable {
     return object("code", failure.code, "message", failure.getMessage(), "canRetry", false);
   }
 
-  /** 校验完整材料后取得引用；使用期间保留这一轮，文件流只交给恢复编排器。 */
+  /** 完整校验一份备份并取得引用；引用释放前这份备份不参加轮换。 */
   synchronized Handle acquire(
     String projectId,
     String rootId,
@@ -1033,7 +1029,7 @@ final class BackupStore implements AutoCloseable {
     }
   }
 
-  /** 关闭存储时释放任务和读流，只由原生所有者调用；已提交的轮次保留。 */
+  /** 关闭存储：取消进行中的任务并关闭读流；已提交的备份保留。 */
   @Override
   public void close() throws Exception {
     isClosed = true;

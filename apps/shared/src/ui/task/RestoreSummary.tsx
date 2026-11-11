@@ -9,7 +9,7 @@ import { unsettledOutcomes } from './outcomes.ts'
 import { ProgressRing, Verdict } from './TaskHero.tsx'
 import './sync-task-summary.css'
 
-/** 恢复任务所处阶段；等待确认（ready）时页面显示恢复预览，不用本组件。 */
+/** 恢复任务在确认之后所处的阶段。 */
 export type RestorePhase =
   'preparing' | 'running' | 'succeeded' | 'failed' | 'cancelled' | 'unknown'
 
@@ -17,7 +17,7 @@ export type RestorePhase =
 export interface RestoreSummaryProps {
   /** 恢复任务所处阶段。 */
   readonly phase: RestorePhase
-  /** 已写入与总文件数；平台不提供进度时为 null。 */
+  /** 已写入和总文件数；没有进度时为 null。 */
   readonly progress: { readonly done: number; readonly total: number } | null
   /** 本机回读得到的写入结果；还没有结果时为 null。 */
   readonly result: SyncApplyResult | null
@@ -29,7 +29,7 @@ export interface RestoreSummaryProps {
   readonly onRetryCleanup: (() => void) | null
 }
 
-/** 恢复进度与结果：进行中显示进度环，结束后先给结论，再列需要处理和已恢复的文件。 */
+/** 恢复进度和结果：进行中显示进度环，结束后先给结论，再列需要处理和已恢复的文件。 */
 export function RestoreSummary({
   phase,
   progress,

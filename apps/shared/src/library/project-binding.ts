@@ -18,7 +18,7 @@ export interface SyncProjectBinding {
   readonly localRootId: string
   readonly remoteRootId: string
 }
-/** 校验绑定只含稳定 ID；实际配置、授权和连接由两端原生层核实。 */
+/** 校验项目绑定的字段。 */
 export function isSyncProjectBinding(value: unknown): value is SyncProjectBinding {
   return (
     hasShape(value, [
@@ -41,8 +41,9 @@ function fail<TValue>(code: OperationErrorCode, message: string): OperationResul
 }
 
 /**
- * 从已登记的本机目录和当前对端目录表确定项目映射；只按关联记录匹配，不按名称或 IP 猜。
- * 授权失效、设备离线或目录错位时返回具体错误，成功值只含 ID。调用前后由平台刷新真实目录。
+ * 按关联记录，从本机配置和对端目录表确定一次任务的项目绑定。
+ *
+ * @returns 授权失效、设备离线或目录错位时返回对应的错误。
  */
 export function resolveSyncProjectBinding(
   config: LibraryConfig,
@@ -99,7 +100,7 @@ export function resolveSyncProjectBinding(
   }
 }
 
-/** 对照新读取的配置和目录表复核已确认的绑定；改别名或 IP 不影响匹配。 */
+/** 判断已确认的绑定是否仍与当前配置和目录表一致；只比较 ID。 */
 export function matchesSyncProjectBinding(
   expected: SyncProjectBinding,
   current: SyncProjectBinding,

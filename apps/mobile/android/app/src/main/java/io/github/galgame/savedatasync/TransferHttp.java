@@ -23,15 +23,15 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
-/** 可注入的 HTTP 接口：文件走有限的原生流，控制 JSON 单独限额，有副作用的请求都不自动重发。 */
+/** 传输用的 HTTP 接口：文件走有限长度的原生流，控制 JSON 单独限额；有副作用的请求只发一次。 */
 interface TransferHttp {
-  /** 返回复制任务用的客户端：地址相同，但带设备头，网络期限是 60 秒；注入的测试传输可以返回自身。 */
+  /** 返回复制任务用的客户端：地址相同，带设备头，网络期限 60 秒；默认实现返回自身。 */
   default TransferHttp forSync(String localDeviceId) throws Exception {
     TransferSchema.id(localDeviceId);
     return this;
   }
 
-  /** 控制通道连接的地址；注入的测试传输没有实际地址时返回 null。 */
+  /** 返回控制通道连接的地址；没有实际地址时返回 null。 */
   default String origin() {
     return null;
   }
@@ -74,7 +74,7 @@ interface TransferHttp {
     ArchiveModel.Progress progress
   ) throws Exception;
 
-  /** 真实的 HTTP 客户端：无代理、无缓存、无重定向，Accept-Encoding 为 identity；固定长度写流禁止认证和重定向时重发。 */
+  /** HTTP 客户端：直连，关闭缓存和重定向，Accept-Encoding 为 identity；请求体用固定长度流发送，只发一次。 */
   final class Client implements TransferHttp {
 
     private static final ScheduledExecutorService WATCH =

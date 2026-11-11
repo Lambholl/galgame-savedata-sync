@@ -23,12 +23,14 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * 写入标记：开始写目标目录前落盘，写入结束时删除。上一个进程留下的标记说明那次写入被中断。
- * 本进程正在写的标记不算中断，用静态集合排除，因为复制和恢复各有一个 SyncWriter。
+ * 目标目录写入的中断标记：begin 创建标记并落盘，end 删除标记，list 返回被中断的写入。
+ *
+ * <p>本进程所有实例共享正在写的标记集合，list 不返回这些标记。
  */
 final class InterruptedWrites {
 
   private static final int LIMIT = 16;
+  // 复制和恢复各有一个实例，正在写的标记要在实例之间共享。
   private static final Set<String> active = ConcurrentHashMap.newKeySet();
   private final File directory;
 
@@ -40,7 +42,11 @@ final class InterruptedWrites {
     return new File(directory, id(writeId) + ".json");
   }
 
-  /** 落盘失败时抛出，调用者不再写目标，避免写入中断后没有提示。 */
+  /**
+   * 为一次写入创建标记并落盘。
+   *
+   * @throws Exception 标记没能落盘。
+   */
   void begin(String writeId, String projectId, String rootId, Object backupId) throws Exception {
     if (!directory.isDirectory() && !directory.mkdirs()) {
       throw new ArchiveFailure("io-failure", "The write marker directory could not be created.");
@@ -71,7 +77,7 @@ final class InterruptedWrites {
     }
   }
 
-  /** 写入结束时调用。删除失败只会多提示一次，不影响已核实的写入结果。 */
+  /** 删除一次写入的标记；删除失败时忽略。 */
   void end(String writeId) {
     try {
       Files.deleteIfExists(file(writeId).toPath());
@@ -81,7 +87,7 @@ final class InterruptedWrites {
     active.remove(writeId);
   }
 
-  /** 上个进程留下的标记，最早的在前；读不懂的文件直接删除。 */
+  /** 返回之前进程留下的标记，最早的在前；读不懂的标记文件会被删除。 */
   List<Object> list() {
     File[] files = directory.listFiles();
     if (files == null) {

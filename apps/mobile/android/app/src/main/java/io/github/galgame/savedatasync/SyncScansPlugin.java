@@ -18,7 +18,7 @@ import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-/** 扫描的 Capacitor 插件，返回扫描状态；URI、平台路径和文件字节都不经过这里。 */
+/** 只读扫描的原生插件：查询扫描能力，开始、查询和取消扫描。 */
 @CapacitorPlugin(name = "SyncScans")
 public class SyncScansPlugin extends Plugin {
 

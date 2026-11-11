@@ -1,6 +1,6 @@
 const EMPTY_HASH = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'
 
-/** 构造纯数据清单；归档哈希是占位值，没有对应的归档文件。 */
+/** 构造清单；归档哈希是占位值。 */
 export function createManifest(sizes = [0]) {
   return {
     protocolVersion: 1,
@@ -27,7 +27,7 @@ export function createManifest(sizes = [0]) {
   }
 }
 
-/** 构造目标：测试根下已有的目录，不访问真实磁盘或设备。 */
+/** 构造接收请求，目标是测试根下已有的目录。 */
 export function createReceiveRequest(sizes = [0]) {
   const manifest = createManifest(sizes)
   return {
@@ -42,7 +42,7 @@ export function createReceiveRequest(sizes = [0]) {
   }
 }
 
-/** 构造符合清单的成功结果，供篡改字段与聚合状态的拒绝用例使用。 */
+/** 构造与请求相符的接收端成功状态。 */
 export function createReceiverState(request = createReceiveRequest()) {
   return {
     transferId: request.manifest.transferId,
@@ -81,7 +81,7 @@ export function createReceiverState(request = createReceiveRequest()) {
   }
 }
 
-/** 已准备好的发送端状态，还没有目标发布结果。 */
+/** 构造已准备好、还没有发布结果的发送端状态。 */
 export function createSenderState(manifest = createManifest()) {
   return {
     transferId: manifest.transferId,
@@ -106,7 +106,7 @@ export function createSenderState(manifest = createManifest()) {
   }
 }
 
-/** 归档和全部原文已校验、还没发布目标的状态。 */
+/** 构造归档和全部原文已校验、还没发布的接收端状态。 */
 export function createReceiverRunning(request = createReceiveRequest()) {
   const manifest = request.manifest
   return {

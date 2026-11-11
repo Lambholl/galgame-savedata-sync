@@ -83,7 +83,7 @@ function shouldLookUpDevice(cause: unknown): boolean {
   return code === 'network-failure' || code === 'timeout' || code === 'session-mismatch'
 }
 
-/** 移动应用的根组件，持有应用状态和页面导航；传输在原生层，切页不影响任务。 */
+/** 移动应用的主界面：页面导航、弹层和状态轮询。 */
 export function MobileApp({
   adapter,
   sync,

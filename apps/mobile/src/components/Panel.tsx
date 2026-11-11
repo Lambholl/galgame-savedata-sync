@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 
+/** 带可选标题的内容区块。 */
 export function Panel({
   title,
   children,

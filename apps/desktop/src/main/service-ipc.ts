@@ -12,16 +12,16 @@ import { toHttpError } from './http-errors.ts'
 import type { ServicePortSettings } from './service-port-settings.ts'
 import { createNetworkAddressReader } from './recommended-address.ts'
 
-/** 注册服务 IPC 的选项：存档目录选择器由主进程执行，null 表示取消，已有目录权限不变。 */
+/** 注册服务 IPC 的选项：choosePath 返回 null 表示取消选择。 */
 interface ServiceIpcOptions {
   readonly portSettings: ServicePortSettings
-  /** 服务开始监听后在局域网广播，停止服务后停止广播；应用退出时由主进程入口另行停止。 */
+  /** 服务开始监听后在局域网广播，停止服务后停止广播。 */
   readonly advertiser: Pick<WindowsDiscoveryAdvertiser, 'start' | 'stop' | 'getState'>
   readonly isTrustedSender: (event: IpcMainInvokeEvent) => boolean
   readonly chooseTargetPath: () => Promise<string | null>
 }
 
-/** 与发给移动端的设备名同一取值；系统读不到时留空，不改用其他名称。 */
+/** 本机设备名，与发给移动端的名称相同；系统读不到时返回 null。 */
 function localDeviceName(): string | null {
   try {
     return hostname() || null
@@ -30,7 +30,11 @@ function localDeviceName(): string | null {
   }
 }
 
-/** 注册服务控制 IPC，校验窗口、主 frame 和参数；写授权只来自本机系统选择器。退出时移除。 */
+/**
+ * 注册服务接口的 IPC 处理函数；isTrusted 不通过或参数无效的调用返回错误。
+ *
+ * @returns 移除这些处理函数的函数。
+ */
 export function registerServiceIpc(
   ipc: Pick<IpcMain, 'handle' | 'removeHandler'>,
   adapter: WindowsDirectoryAdapter,
@@ -41,7 +45,7 @@ export function registerServiceIpc(
   const targets = new Map<string, DirectoryReference>()
   const networkAddresses = createNetworkAddressReader()
   let isMutating = false
-  // 快照不等待网卡查询：服务运行时带上缓存的地址，还没读到时为 null，界面显示读取中并加快轮询。
+  // 快照不等待网卡查询：服务运行时带上缓存的地址，还没读到时为 null，状态读取保持即时。
   function snapshot(): OperationResult<DesktopServiceSnapshot> {
     const address = service.getAddress()
     return {

@@ -20,7 +20,7 @@ import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-/** 复制任务的 Capacitor 插件：准备和预览、确认、状态和清单、取消和释放；路径、内容和句柄都不经过这里。 */
+/** 复制任务的原生插件：准备和预览、确认、状态和清单、取消和释放。 */
 @CapacitorPlugin(name = "SyncTransfers")
 public class SyncTransfersPlugin extends Plugin {
 

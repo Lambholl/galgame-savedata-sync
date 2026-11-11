@@ -29,10 +29,7 @@ function wait(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
-/**
- * 电脑发起的复制：经控制通道收到请求后在移动端扫描并回报计划，电脑确认后由移动端执行。
- * 执行进度和结果由原生推送给电脑。电脑取消或断开时释放本机扫描；已开始的传输交给任务页。
- */
+/** 响应电脑发起的复制：收到请求后扫描并回报计划，电脑确认后执行；电脑取消或断开时释放本机扫描。 */
 export function useRemoteSync(
   sync: MobileSyncAdapter,
   control: AndroidControlApi,
@@ -123,7 +120,7 @@ export function useRemoteSync(
         await release(item)
       }
     }
-    /** 每秒读取一次当前复制，结束后才接受下一次请求；页面卸载即停止，不影响原生任务。 */
+    /** 每秒读取一次当前复制，结束后才接受下一次请求；卸载时停止读取，任务继续。 */
     async function watch(item: ActiveRequest, jobId: string): Promise<void> {
       for (;;) {
         await wait(JOB_MS)

@@ -4,7 +4,7 @@ import { I18nProvider, LocalDeviceProvider } from '@savedata-sync/shared/ui'
 import { DesktopApp } from './DesktopApp.tsx'
 import { useAppPreferences } from './use-app-preferences.ts'
 
-/** 读取界面偏好，提供语言和本机设备种类，页面与弹窗都在其下渲染。 */
+/** 桌面应用的根组件：读取界面偏好，提供语言和本机设备种类。 */
 export function DesktopRoot(): React.JSX.Element {
   const appPreferences = useAppPreferences()
   useEffect(() => {

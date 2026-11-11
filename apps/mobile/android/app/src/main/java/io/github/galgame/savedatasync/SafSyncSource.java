@@ -8,7 +8,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 
-/** 扫描用的 SAF 枚举和读流；提供者 URI 和文件内容不进入扫描的公开模型。 */
+/** 扫描用的 SAF 来源：枚举目录和打开读流。 */
 final class SafSyncSource implements SyncScanner.Source {
 
   private final SafDirectoryStore store;

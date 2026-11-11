@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { Modal } from 'antd'
 
+/** 以游戏名为标题的操作弹窗。 */
 export function GameActionDialog({
   isOpen,
   gameName,

@@ -23,7 +23,7 @@ import type {
   TransferDirection,
 } from '@savedata-sync/shared'
 
-/** 复制任务的原生插件接口。原生实例属于应用进程，插件或页面销毁只关闭控制入口；文件内容不经过这里。 */
+/** 复制任务的原生插件；方法与 AndroidSyncTransferApi 的同名方法对应，返回值未经校验。任务属于应用进程，不随页面销毁。 */
 export interface SyncTransferNativePlugin {
   prepare(options: { binding: SyncProjectBinding; direction: TransferDirection }): Promise<unknown>
   queryPreparation(options: { preparationId: string }): Promise<unknown>
@@ -38,23 +38,34 @@ export interface SyncTransferNativePlugin {
   release(options: { preparationId: string }): Promise<unknown>
   retryCleanup(): Promise<unknown>
 }
-/** 网页使用的复制接口。平台先核对保存的项目关联；prepare 是普通扫描，execute 前由平台请求传输通知权限。 */
+/** 复制任务接口。所有方法的失败都以错误结果返回。 */
 export interface AndroidSyncTransferApi {
+  /** 开始扫描两端，准备一次复制。 */
   prepare(
     binding: SyncProjectBinding,
     direction: TransferDirection,
   ): Promise<OperationResult<SyncPreparationState>>
+  /** 读取准备的状态。 */
   queryPreparation(preparationId: string): Promise<OperationResult<SyncPreparationState>>
+  /** 读取准备好的预览。 */
   preview(preparationId: string): Promise<OperationResult<SyncPreparationPreview>>
+  /** 取消准备。 */
   cancelPreparation(preparationId: string): Promise<OperationResult<SyncPreparationState>>
+  /** 按计划执行；plan 必须由这次预览生成。 */
   execute(preparationId: string, plan: SyncPlan): Promise<OperationResult<SyncTransferState>>
+  /** 读取复制任务两个角色的状态；shouldRefresh 为 true 时先向对方查询。 */
   query(jobId: string, shouldRefresh?: boolean): Promise<OperationResult<SyncTransferState>>
+  /** 读取复制任务的清单；还没提交时为 null。 */
   manifest(jobId: string): Promise<OperationResult<BatchManifest | null>>
+  /** 读取当前复制任务的 ID；没有时为 null。 */
   current(): Promise<OperationResult<string | null>>
   /** 这个本机项目最近一次任务的 ID；只查进程内登记表，不跨项目。 */
   latest(projectId: string): Promise<OperationResult<string | null>>
+  /** 取消复制任务。 */
   cancel(jobId: string): Promise<OperationResult<SyncTransferState>>
+  /** 释放准备。 */
   release(preparationId: string): Promise<OperationResult<null>>
+  /** 重试复制任务的缓存清理。 */
   retryCleanup(): Promise<OperationResult<null>>
 }
 function failure(
@@ -82,7 +93,11 @@ function request(preview: SyncPreparationPreview): SyncJobRequest {
     plan: syncPlanFromPreview(preview),
   }
 }
-/** 创建复制桥：用原生预览恢复同一次的上下文，逐项核对计划、清单和两个角色的结果；缓存最多 32 次。 */
+/**
+ * 用原生插件创建 AndroidSyncTransferApi。
+ *
+ * @returns 参数无效、返回格式不对，或计划、清单和结果不属于同一次任务时，对应方法返回错误结果。
+ */
 export function createSyncTransferBridge(
   plugin: SyncTransferNativePlugin,
   isAndroid: () => boolean,

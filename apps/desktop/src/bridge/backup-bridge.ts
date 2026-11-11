@@ -16,7 +16,7 @@ import type {
   SyncIncompleteBackup,
 } from '@savedata-sync/shared'
 
-/** 备份列表的一行，只含这一轮的摘要；详情按单轮读取，避免多份大清单占满控制 JSON。 */
+/** 备份列表的一行：一份备份的摘要。 */
 export interface DesktopBackupSummary {
   readonly backupId: string
   readonly projectId: string
@@ -26,18 +26,23 @@ export interface DesktopBackupSummary {
   readonly fileCount: number
   readonly totalFileBytes: number
 }
+/** 一个游戏目录的已提交备份和残留备份。 */
 export interface DesktopBackupList {
   readonly backups: readonly DesktopBackupSummary[]
   readonly incomplete: readonly SyncIncompleteBackup[]
 }
+/** 备份位置的显示路径和备份设置。 */
 export interface DesktopBackupInfo {
   readonly displayPath: string
   readonly settings: SyncBackupSettings
 }
-/** 渲染进程使用的本机备份接口。备份位置只供显示；创建备份和读取文件内容都在主进程。 */
+/** 本机备份接口。所有方法的失败都以错误结果返回。 */
 export interface DesktopBackupApi {
+  /** 读取备份位置和备份设置。 */
   read(): Promise<OperationResult<DesktopBackupInfo>>
+  /** 根据项目和目录列出本机备份。 */
   list(projectId: string, rootId: string): Promise<OperationResult<DesktopBackupList>>
+  /** 读取一份备份的清单。 */
   manifest(
     projectId: string,
     rootId: string,
@@ -51,7 +56,9 @@ export interface DesktopBackupApi {
   ): Promise<OperationResult<SyncBackupSettings>>
   /** 修改全局设置。 */
   setDefaults(policy: SyncBackupPolicy): Promise<OperationResult<SyncBackupSettings>>
+  /** 按保留份数删除这个游戏目录多余的旧备份；正在使用或不完整的备份保留。 */
   rotate(projectId: string, rootId: string): Promise<OperationResult<null>>
+  /** 删除一份残留备份。 */
   cleanupIncomplete(
     projectId: string,
     rootId: string,
@@ -59,11 +66,12 @@ export interface DesktopBackupApi {
   ): Promise<OperationResult<null>>
   /** 删除一份已提交的备份。 */
   deleteBackup(projectId: string, rootId: string, backupId: string): Promise<OperationResult<null>>
-  /** 移除游戏时删除它的全部备份和单独设置。 */
+  /** 删除一个游戏的全部备份和单独设置。 */
   deleteGameBackups(projectId: string): Promise<OperationResult<null>>
-  /** 在系统文件管理器里打开备份文件夹；路径由主进程决定。 */
+  /** 在系统文件管理器里打开备份文件夹。 */
   openFolder(): Promise<OperationResult<null>>
 }
+/** 备份接口的 IPC 通道名。 */
 export const BACKUP_CHANNELS = {
   read: 'backup:read',
   list: 'backup:list',
@@ -132,7 +140,11 @@ function invalid(): OperationResult<never> {
     error: { code: 'invalid-request', message: '备份参数或响应无效。', canRetry: false },
   }
 }
-/** 创建备份桥：校验 IPC 返回的数据及其项目和目录，失败时只返回脱敏后的错误结果。 */
+/**
+ * 用 invoke 创建冻结的 DesktopBackupApi。
+ *
+ * @returns 返回值的格式、项目或目录与请求不符时，对应方法返回 io-failure 错误结果。
+ */
 export function createBackupBridge(
   invoke: (channel: string, ...args: unknown[]) => Promise<unknown>,
 ): DesktopBackupApi {

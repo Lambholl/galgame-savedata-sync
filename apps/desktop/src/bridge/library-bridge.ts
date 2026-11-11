@@ -13,25 +13,31 @@ import type {
   OperationResult,
 } from '@savedata-sync/shared'
 
+/** 游戏库配置和已保存的对端设备。 */
 export interface LibrarySnapshot {
   readonly config: LibraryConfig
   readonly peers: readonly LibraryPeer[]
 }
-/** 渲染进程使用的游戏库接口：保存本机游戏配置和公开设备信息，参数不含路径、URI 或文件内容。 */
+/** 游戏库接口：读取和保存游戏，管理已保存的设备，浏览对端目录。 */
 export interface DesktopLibraryApi {
+  /** 读取游戏库。 */
   read(): Promise<OperationResult<LibrarySnapshot>>
+  /** 用 games 替换全部本机游戏。 */
   saveGames(games: readonly LibraryGame[]): Promise<OperationResult<LibrarySnapshot>>
+  /** 断开、重命名或忘记一台设备；rename 时 name 是新名称。 */
   device(
     id: string,
     action: 'disconnect' | 'rename' | 'forget',
     name?: string,
   ): Promise<OperationResult<LibrarySnapshot>>
+  /** 列出已连接对端设备上一个目录的一层。 */
   directory(
     deviceId: string,
     rootId: string,
     parentId: string | null,
   ): Promise<OperationResult<DirectoryListing>>
 }
+/** 游戏库接口的 IPC 通道名。 */
 export const LIBRARY_CHANNELS = {
   read: 'library:read',
   saveGames: 'library:games',
@@ -49,7 +55,11 @@ function isSnapshot(value: unknown): value is LibrarySnapshot {
     value.peers.every(isLibraryPeer)
   )
 }
-/** 创建冻结的游戏库 IPC 客户端；响应无效时 resolve 为脱敏错误。 */
+/**
+ * 用 invoke 创建冻结的 DesktopLibraryApi。
+ *
+ * @returns invoke 失败或返回格式不对时，对应方法返回 io-failure 错误结果。
+ */
 export function createLibraryBridge(
   invoke: (channel: string, ...args: unknown[]) => Promise<unknown>,
 ): DesktopLibraryApi {

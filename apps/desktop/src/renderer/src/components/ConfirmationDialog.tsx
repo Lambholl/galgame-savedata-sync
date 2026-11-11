@@ -2,6 +2,7 @@ import { Modal } from 'antd'
 import { useT } from '@savedata-sync/shared/ui'
 import type { Confirmation } from '../app/navigation.ts'
 
+/** 确认弹窗；confirmation 为 null 时关闭。 */
 export function ConfirmationDialog({
   confirmation,
   isBusy,

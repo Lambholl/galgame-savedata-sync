@@ -2,10 +2,8 @@ import type { OperationErrorCode, TransferDirection } from '../protocol/contract
 import type { ShownError } from '../result.ts'
 import type { SyncFailureStage, SyncJobState } from './sync-job-contracts.ts'
 
-/**
- * 能归到某一端的错误码，都是文件和目录访问失败；网络、版本和任务状态类错误与端无关。
- * Android 的 SyncTransferEngine.DEVICE_ERRORS 是同一份清单。
- */
+// Android 的 SyncTransferEngine.DEVICE_ERRORS 是同一份清单，两边要一起改。
+/** 能归到某一端的错误码，都是文件和目录访问失败。 */
 const DEVICE_ERRORS: ReadonlySet<OperationErrorCode> = new Set<OperationErrorCode>([
   'authorization-expired',
   'permission-denied',
@@ -19,8 +17,9 @@ const DEVICE_ERRORS: ReadonlySet<OperationErrorCode> = new Set<OperationErrorCod
 ])
 
 /**
- * 按任务中断的阶段标出错误所在的一端：打包只读来源，校验、备份和写入都在目标。
- * 打包阶段的授权失效来自开始时对两端的核对，分不出是哪一端；其他阶段与具体一端无关。
+ * 按任务中断的阶段给错误标出所在的一端：打包阶段是来源，校验、备份和写入阶段是目标。
+ *
+ * @returns 错误已带 device、错误码与文件访问无关、打包阶段的授权失效或处于其他阶段时，返回原错误。
  */
 export function locateSyncError(
   error: ShownError,
@@ -41,7 +40,7 @@ export function locateSyncError(
   return error
 }
 
-/** 一次传输的总体状态；成功依据接收端实际结果。 */
+/** 一次传输的总体状态，按接收端的实际结果判断成功。 */
 export type SyncTaskPhase = 'running' | 'done' | 'partial' | 'failed' | 'cancelled' | 'unknown'
 
 /** 当前阶段的计数；不适用或还不知道的项为 null。 */
@@ -54,17 +53,14 @@ export interface SyncJobCounters {
   readonly totalBytes: number | null
 }
 
-/**
- * 把两个角色的状态合成一份结论：详情、进度横条、历史摘要和完成提示都读它，
- * 电脑主进程和两端页面算出的结果一致。
- */
+/** 由两个角色的状态合成的任务结论。 */
 export interface SyncJobObservation {
   readonly phase: SyncTaskPhase
   /** 进行中是走在最前面的阶段，结束后是 done。 */
   readonly stage: SyncJobState['stage']
   /** 五段流程的零起点索引，5 表示全部完成；null 表示没有记录到具体位置。 */
   readonly step: number | null
-  /** 当前段的完成百分比，不是总进度；缺少计数时为 null。 */
+  /** 当前段的完成百分比；缺少计数时为 null。 */
   readonly percent: number | null
   /** 任务中断时所处的阶段；没有记录时为 null。 */
   readonly failureStage: SyncFailureStage | null
@@ -129,8 +125,9 @@ function terminalPhase(
 }
 
 /**
- * 合成两个角色的状态。hasRemoteError 为 true 时读到的 remote 已不可信，
- * 本机也结束后按待确认处理，不会一直显示进行中。
+ * 合成两个角色的状态。
+ *
+ * @param hasRemoteError 为 true 时 remote 按失效处理，本机结束后结论为 unknown。
  */
 export function observeSyncJob(
   local: SyncJobState,
@@ -195,7 +192,7 @@ export function observeSyncJob(
               completedBytes: totals.fileBytesPublished,
               totalBytes: totals.totalFileBytes,
             }
-  // 打包进度只有发送端知道；还没收到时显示未知，不显示 0%。
+  // 打包进度只有发送端知道，还没收到时按未知处理，避免显示成 0%。
   const fraction =
     step === 0 && !sender
       ? null

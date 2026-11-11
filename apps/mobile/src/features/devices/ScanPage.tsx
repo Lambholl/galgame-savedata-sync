@@ -13,8 +13,8 @@ type ScanStatus = 'starting' | 'live' | 'denied' | 'failed'
 const CAMERA_LIVE_CLASS = 'camera-live'
 
 /**
- * 扫码页：页面打开期间相机一直开着，离开页面即关闭。扫到有效的连接二维码时调用 onScanned，由调用方离开本页并连接。
- * 协议版本不同时提示更新两台设备，其他二维码调用 onInvalidCode，都继续扫描。
+ * 扫码页：页面打开期间相机一直开着，离开页面即关闭。扫到有效的连接二维码时调用 onScanned。
+ * 协议版本不同时提示更新两台设备，其他二维码调用 onInvalidCode，之后都继续扫描。
  * 没有相机权限或相机打不开时显示说明，并提供手动输入地址的入口。
  */
 export function ScanPage({
@@ -27,7 +27,7 @@ export function ScanPage({
   /** 扫到的不是本应用的连接二维码；相机对着它时每 2 秒调用一次。 */
   readonly onInvalidCode: () => void
   readonly onManualInput: () => void
-  /** 提示打开时登记关闭函数，Android 返回键先关提示，再按才离开本页。 */
+  /** 提示打开时登记关闭函数，关闭后传 null。 */
   readonly onOverlayChange: (close: (() => void) | null) => void
 }): React.JSX.Element {
   const t = useT()

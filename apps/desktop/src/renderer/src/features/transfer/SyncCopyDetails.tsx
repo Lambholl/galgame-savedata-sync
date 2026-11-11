@@ -12,8 +12,8 @@ import { useCopyDetails } from './use-sync-details.ts'
 import { TechnicalDetails } from './TechnicalDetails.tsx'
 
 /**
- * 两个角色的状态都显示；进行中与否按两端状态合成，发送完成而移动端还在写入时仍是进行中。
- * 右下角只放当下能做的一件事：进行中取消传输，结束后重新扫描；查看备份是技术详情上方的一行。
+ * 一次复制任务的详情，显示两个角色的状态；发送完成而移动端还在写入时仍算进行中。
+ * 进行中时可以取消传输，结束后可以重新扫描。
  */
 export function SyncCopyDetails({
   task,
@@ -85,7 +85,7 @@ export function SyncCopyDetails({
           remote={state.remote}
           remoteError={state.remoteError}
           onRetryCleanup={state.local.cleanupError && !isRunning ? () => act('cleanup') : null}
-          // 备份建在被写入的一端；电脑发送时备份在移动端上，这里不提供入口。
+          // 备份建在被写入的一端；本机发送时备份在移动端上，这里不提供入口。
           onViewBackup={
             state.local.role === 'receiver' && plan
               ? () => onOpenBackup(task.projectId, plan.target.rootId)

@@ -12,11 +12,10 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * Java 原生归档入口，生成和接收 tar.gz。prepare 和 receive 在单一后台 I/O 线程调用，生命周期线程可以调用 cancel。
- * 缓存参数只能由应用私有路径构造；输入是已选择的只读源或已校验结构的清单。
- * 返回的句柄占用进程任务名额，调用者必须关闭所有读流并 dispose；失败时会清理，
- * 清理失败时通过 cleanupFailure 单独报告并继续占名额，要调用 retryCleanup。
- * 固定格式示例和用法见 ArchiveAdapterTest、ArchiveSafTest 及 apps/mobile/README.md。
+ * 生成和接收 tar.gz 归档。prepare 和 receive 要在同一个后台 I/O 线程调用，cancel 可以在其他线程调用。
+ *
+ * <p>返回的句柄占用进程任务名额，关闭所有读流并 dispose 后释放；操作失败时会清理，
+ * 清理失败时通过 cleanupFailure 报告并继续占名额，要调用 retryCleanup。
  */
 final class ArchiveAdapter {
 
@@ -34,12 +33,12 @@ final class ArchiveAdapter {
     this.limits = limits;
   }
 
-  /** 清单确定后、打开 HTTP 内容流前检查压缩体与解包原文所需空间。 */
+  /** 检查接收压缩体和解包原文所需的空间。 */
   void checkReceiveSpace(ArchiveModel.Manifest manifest) throws Exception {
     checkReceiveSpace(manifest, 0);
   }
 
-  /** 接收内容前检查空间，extraPrivateBytes 由调用者合并同卷的目标增量和备份峰值。 */
+  /** 检查接收所需的空间；extraPrivateBytes 是同一个卷上另外需要的字节数。 */
   void checkReceiveSpace(ArchiveModel.Manifest manifest, long extraPrivateBytes) throws Exception {
     manifest.validate(limits);
     if (
@@ -56,7 +55,7 @@ final class ArchiveAdapter {
     return cache.root;
   }
 
-  /** 读取一次源形成快照；未知长度通过实际流计数，之后只从私有快照生成和发送归档。 */
+  /** 读取一次源文件，生成私有快照和归档；长度未知的文件按实际读到的字节计数。 */
   Artifact prepare(
     String transferId,
     String deviceId,
@@ -308,7 +307,7 @@ final class ArchiveAdapter {
     }
   }
 
-  /** 停止当前归档的读流和 SAF 查询；工作线程结束后负责清理，生命周期线程不删缓存。 */
+  /** 关闭当前归档的读流并取消 SAF 查询；缓存在工作线程结束后清理。 */
   void cancel() {
     ArchiveControl control = current;
     if (control != null) {
@@ -355,7 +354,7 @@ final class ArchiveAdapter {
     );
   }
 
-  /** 归档句柄，不含路径；清单不可变，读流归调用者，dispose 失败后可以再次调用。 */
+  /** 归档句柄：清单不可变，读流由调用方关闭，dispose 失败后可以再次调用。 */
   final class Artifact implements AutoCloseable {
 
     final ArchiveModel.Manifest manifest;

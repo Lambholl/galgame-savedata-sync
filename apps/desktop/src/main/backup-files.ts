@@ -8,11 +8,14 @@ import { ArchiveError, checkArchiveAbort } from './archive-errors.ts'
 import { getFileIdentity, hasSameIdentity, inspectLocalPath } from './directory-paths.ts'
 import type { FileIdentity } from './directory-paths.ts'
 
-/** 备份用到的磁盘操作，只有主进程可以替换，用来验证容量不足和落盘失败。 */
+/** 备份用到的磁盘操作。 */
 export interface BackupDiskIO {
+  /** 读取 path 所在磁盘的可用字节数；无法得知时为 null。 */
   readonly availableBytes: (path: string) => Promise<bigint | null>
+  /** 把文件内容同步写入磁盘。 */
   readonly sync: (handle: FileHandle) => Promise<void>
 }
+/** 使用真实文件系统的备份磁盘操作。 */
 export const BACKUP_DISK_IO: BackupDiskIO = {
   availableBytes: async (path) => {
     const value = await statfs(path, { bigint: true })
@@ -40,13 +43,13 @@ export function backupFolderName(gameName: string | null, projectId: string): st
   return isPortableFileName(name) ? name : projectId
 }
 
-/** 一份备份的文件夹名：UTC 时间，与设备时区无关，按名字排序即按时间排序。 */
+/** 一份备份的文件夹名：UTC 时间，按名字排序就是按时间排序。 */
 export function backupRoundName(createdAt: number): string {
   const time = new Date(createdAt).toISOString()
   return `${time.slice(0, 10)}_${time.slice(11, 19).replaceAll(':', '-')}Z`
 }
 
-/** 检查备份文件是否为无链接的普通文件并返回身份；同一文件有额外硬链接时停止读取。 */
+/** 确认备份文件是没有额外硬链接、不超过 maxBytes 的普通文件，并返回它的身份；不符合时抛错。 */
 export async function inspectBackupFile(path: string, maxBytes: number): Promise<FileIdentity> {
   const value = await inspectLocalPath(path)
   if (!value.isFile() || value.nlink !== 1n || value.size > BigInt(maxBytes)) {
@@ -55,7 +58,12 @@ export async function inspectBackupFile(path: string, maxBytes: number): Promise
   return getFileIdentity(value)
 }
 
-/** 打开备份文件的读流，同时返回关闭后的变化检查。流归调用方，文件句柄随流关闭。 */
+/**
+ * 打开备份文件的读流。流由调用方关闭，文件句柄随流关闭。
+ *
+ * @param expected 给出时，文件身份不同就抛出 source-changed 错误。
+ * @returns 读流，以及在流关闭后确认文件没有变化的 verify。
+ */
 export async function openBackupFile(
   path: string,
   maxBytes: number,
@@ -93,7 +101,7 @@ export async function openBackupFile(
   }
 }
 
-/** 流式计算 SHA-256。取消时关闭阻塞的输入，总是等输入释放后才返回。 */
+/** 流式计算 SHA-256。取消时关闭输入流，等输入流释放后才返回。 */
 export async function hashBackupStream(
   input: Readable,
   maxBytes: number,
@@ -152,7 +160,7 @@ export async function readBackupJson(path: string): Promise<unknown> {
   }
 }
 
-/** 独占创建固定名称的 JSON 文件，同步落盘后关闭；失败时由外层持有这一轮备份的代码清理。 */
+/** 以独占方式创建 JSON 文件，同步落盘后关闭；失败时已创建的文件保留。 */
 export async function writeBackupJson(
   path: string,
   value: unknown,

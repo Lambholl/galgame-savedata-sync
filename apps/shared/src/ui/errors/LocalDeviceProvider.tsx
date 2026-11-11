@@ -10,7 +10,7 @@ export interface LocalDeviceProviderProps {
   readonly children: ReactNode
 }
 
-/** 告诉其下的共用组件本机是哪种设备，ErrorText 据此把错误所在的一端写成“本机”或“对方设备”。 */
+/** 向子组件提供本机的设备种类。 */
 export function LocalDeviceProvider({ device, children }: LocalDeviceProviderProps): ReactElement {
   return <localDeviceContext.Provider value={device}>{children}</localDeviceContext.Provider>
 }

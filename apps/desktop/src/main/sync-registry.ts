@@ -48,7 +48,7 @@ import { acquireTargetOperation, releaseTargetOperation } from './target-operati
 import { openUploadBody } from './upload-body.ts'
 import type { DesktopCopySummary } from '../bridge/sync-bridge.ts'
 
-/** 注册表的依赖，固定到当前服务会话；网络请求不能指定路径、容量策略或执行器。 */
+/** 复制任务登记表的依赖，固定到当前服务会话。 */
 export interface WindowsSyncRegistryOptions {
   readonly archive: Pick<
     WindowsArchiveAdapter,
@@ -147,10 +147,10 @@ export function emptyResult(
   }
 }
 /**
- * 管理当前会话内移动端登记的复制任务，电脑可以是接收端或发送端。
- * 电脑接收时接受一次清单和一次内容，再写入目录；电脑发送时准备归档，内容只能读取一次。查询不会重做 IO。
- * 整个任务占用同一个进程名额，直到写入和缓存清理结束；停止时等待 worker，残留通过 retryCleanup 重试。
- * 用过的任务 ID 保留到会话结束；结果保留 10 分钟，最多 32 份，进程重启后不恢复。
+ * 当前服务会话内由移动端登记的复制任务，本机可以是接收端或发送端。
+ * 本机接收时接受一次清单和一次内容，再写入目录；本机发送时准备归档，内容只能读取一次。
+ * 任务从登记到写入和缓存清理结束一直占用写入名额。
+ * 用过的任务 ID 保留到会话结束；结果保留 10 分钟，最多 32 份，只存在内存中。
  */
 export class WindowsSyncRegistry {
   private readonly options: WindowsSyncRegistryOptions
@@ -178,12 +178,12 @@ export class WindowsSyncRegistry {
     this.timer = setInterval(() => this.sweep(), Math.min(1000, ...Object.values(this.timeouts)))
     this.timer.unref()
   }
-  /** 返回所有任务状态，只供本机查询；其他设备的 HTTP 查询要核对任务所有者。 */
+  /** 返回所有任务的状态，不核对任务所有者。 */
   getStates(): readonly SyncJobState[] {
     this.sweep()
     return [...this.tasks.values()].map((task) => structuredClone(task.state))
   }
-  /** 返回任务摘要，供本机窗口轮询；计划、清单和完整结果按任务分别查询。 */
+  /** 返回所有任务的摘要。 */
   summaries(): readonly DesktopCopySummary[] {
     this.sweep()
     return [...this.tasks.values()].map((task) => {
@@ -210,24 +210,26 @@ export class WindowsSyncRegistry {
       }
     })
   }
-  /** 返回任务的确认请求，供本机读取；权限由固定的 IPC 通道校验。 */
+  /** 返回任务的登记请求，不核对任务所有者；任务不存在时抛出 not-found 错误。 */
   localRequest(id: string): SyncJobRequest {
     return structuredClone(this.localTask(id).request)
   }
-  /** 两个角色的状态都从这里读；页面重新进入时直接取到当前快照。 */
+  /** 返回任务两个角色的状态，不核对任务所有者；任务不存在时抛出 not-found 错误。 */
   localState(id: string): SyncTransferState {
     return this.transferState(this.localTask(id))
   }
+  /** 返回任务的清单，不核对任务所有者；清单还没提交时为 null，任务不存在时抛错。 */
   localManifest(id: string): BatchManifest | null {
     return structuredClone(this.localTask(id).manifest)
   }
-  /** 当前会话是否有这个任务；还没登记的电脑发起任务由 WindowsRemoteSyncRequests 提供。 */
+  /** 判断当前会话是否登记了这个任务。 */
   has(id: string): boolean {
     return this.tasks.has(id)
   }
   /**
-   * 取消一次传输。先让对端知道是用户取消，再断开本机，否则对端会把断流记成网络失败。
-   * 本机已结束时对端是唯一还在跑的一方，通知失败就把错误抛给调用者；本机还在跑时照常取消。
+   * 取消任务，先通知对端再取消本机这一端。
+   *
+   * @throws HttpOperationError 本机这一端已结束且通知对端失败时抛出。
    */
   async localCancel(id: string): Promise<SyncTransferState> {
     const task = this.localTask(id)
@@ -244,10 +246,7 @@ export class WindowsSyncRegistry {
     this.abort(task)
     return this.transferState(task)
   }
-  /**
-   * 收到对端推送的摘要。不属于当前任务的摘要直接忽略：移动端发起时可能先于登记到达，
-   * 进行中的下一条会补上。接收端结束后才读取一次逐项结果，高频摘要不携带它们。
-   */
+  /** 应用对端推送的任务摘要，不属于已登记任务的摘要忽略；对端作为接收端结束后读取一次逐项结果。 */
   observe(peerId: string, digest: SyncJobDigest): void {
     const task = this.tasks.get(digest.jobId)
     if (task?.peerId !== peerId) {
@@ -339,6 +338,11 @@ export class WindowsSyncRegistry {
         task.isReadingRemote = false
       })
   }
+  /**
+   * 重试任务的缓存清理；本机作为接收端且旧备份轮换失败过时，同时重试轮换。
+   *
+   * @throws HttpOperationError 任务还在运行或其他任务占着名额时抛出 busy，有残留备份时抛出 cleanup-failed。
+   */
   async localCleanup(id: string): Promise<void> {
     const task = this.localTask(id)
     if (task.state.status === 'running' || (this.active !== null && this.active !== task)) {
@@ -384,16 +388,17 @@ export class WindowsSyncRegistry {
     }
     return task
   }
-  /** 是否占着名额，包括失败后的待清理资源。http-service 据此决定是否重试清理，交换目录表时也算作传输中。 */
+  /** 判断是否有任务占着写入名额，包括清理失败后待清理的任务。 */
   hasWork(): boolean {
     return this.active !== null
   }
+  /** 判断是否有任务正在运行，包括对端还在执行的任务。 */
   hasRunningWork(): boolean {
     return [...this.tasks.values()].some(
       (task) => task.isWorking || task.state.status === 'running' || isRemoteLive(task),
     )
   }
-  /** 返回本机项目的描述和备份设置，供移动端查询；要求之前交换的目录表里有这个项目的双向关联。 */
+  /** 返回本机项目的描述和备份设置；之前交换的目录表里没有这个项目与 peerId 的双向关联时抛错。 */
   async project(projectId: string, peerId: string): Promise<SyncProjectDescriptor> {
     const snapshot = this.options.library.snapshot()
     const game = snapshot.config.games.find((item) => item.id === projectId)
@@ -454,7 +459,7 @@ export class WindowsSyncRegistry {
     }
     checkArchiveAbort(task.controller.signal)
   }
-  /** 登记任务：格式正确后同步占用任务 ID 和名额；任务接受后的异步错误留在任务状态里查询。 */
+  /** 登记任务：格式正确后同步占用任务 ID 和名额；之后的异步错误记在任务状态里。 */
   register(value: unknown, peerId: string): Promise<SyncJobState> {
     const isUpload = isSyncJobRequest(value) && value.plan.direction === 'android-to-windows'
     if (
@@ -711,11 +716,11 @@ export class WindowsSyncRegistry {
   get(id: string, peerId: string): SyncJobState {
     return structuredClone(this.require(id, peerId).state)
   }
-  /** 返回任务清单；清单未提交或零文件时为 null。清单与任务结果分开，以控制 JSON 大小。 */
+  /** 返回任务清单；清单未提交或零文件时为 null。 */
   manifest(id: string, peerId: string): BatchManifest | null {
     return structuredClone(this.require(id, peerId).manifest)
   }
-  /** 一次性提交源清单；容量预检失败也算用过这次声明，不自动接受第二次。 */
+  /** 提交源清单，每个任务只接受一次；容量预检失败也算用过这一次。 */
   async declare(id: string, peerId: string, value: unknown): Promise<SyncJobState> {
     const task = this.require(id, peerId)
     if (
@@ -751,7 +756,7 @@ export class WindowsSyncRegistry {
     })
     return structuredClone(task.state)
   }
-  /** 接收定长 gzip，只能领取一次；202 只确认压缩体完整，写入结果通过任务查询。 */
+  /** 接收定长 gzip，每个任务只能领取一次；响应 202 只确认压缩体完整，写入结果在任务状态里。 */
   receive(
     id: string,
     peerId: string,
@@ -794,7 +799,7 @@ export class WindowsSyncRegistry {
     task.worker = this.work(task, () => this.receiveTask(task, input, response, resolve, reject))
     return accepted
   }
-  /** 发送已准备好的内容，只能领取一次；sent 只表示本机发送完成，接收结果由 Android 单独报告。 */
+  /** 发送已准备好的内容，每个任务只能领取一次；状态 sent 只表示本机发送完成。 */
   sendContent(id: string, peerId: string, response: ServerResponse): Promise<void> {
     const task = this.require(id, peerId)
     if (
@@ -1245,7 +1250,7 @@ export class WindowsSyncRegistry {
       result: task.state.result ? { ...task.state.result, cleanupError: null } : null,
     }
   }
-  /** 同步停止接受任务并取消；等待 worker 和清理，失败后可以再次 stop。 */
+  /** 停止接受任务并取消进行中的任务，等待它们结束和清理；失败后可以再次 stop。 */
   async stop(): Promise<void> {
     this.isStopped = true
     clearInterval(this.timer)

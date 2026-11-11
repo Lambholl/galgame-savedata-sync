@@ -22,7 +22,7 @@ export interface ControlState {
   readonly isOpen: boolean
   readonly code: number
 }
-/** 本机断开设备时电脑使用的关闭码；收到后不再等待重连。 */
+/** 对方主动断开时使用的关闭码，表示不要再等待重连。 */
 export const CONTROL_CLOSE_DISCONNECTED = 4001
 
 type RequestHandler<M extends ControlRequestMethod> = (
@@ -34,12 +34,15 @@ type EventHandler<M extends ControlEventMethod> = (
   body: ControlEventBodies[M],
 ) => void
 
-/** 与已连接设备的控制通道；消息由原生转发，这里按共享格式逐项校验后分发。 */
+/** 与已连接设备的控制通道；收到的消息按共享格式校验后分发，格式不对的消息丢弃。 */
 export interface AndroidControlApi {
+  /** 读取与这台设备的连接状态；从没收到过它的状态时为 undefined。 */
   state(deviceId: string): ControlState | undefined
   /** 同一方法只保留最后注册的处理器；返回的函数撤销注册。 */
   onRequest<M extends ControlRequestMethod>(method: M, handler: RequestHandler<M>): () => void
+  /** 订阅一种事件，同一事件可以有多个处理器；返回的函数撤销订阅。 */
   onEvent<M extends ControlEventMethod>(method: M, handler: EventHandler<M>): () => void
+  /** 订阅连接状态变化；返回的函数撤销订阅。 */
   onState(listener: (deviceId: string, state: ControlState) => void): () => void
   /** 通知对方；未连接时失败，事件不保证送达。 */
   emit<M extends ControlEventMethod>(
@@ -53,6 +56,7 @@ function failure(code: 'invalid-request' | 'unsupported-operation', message: str
   return { status: 'error', error: { code, message, canRetry: false } } as const
 }
 
+/** 用传输插件创建控制通道；isAndroid 返回 false 时 emit 失败、不会收到消息。 */
 export function createControlChannel(
   plugin: HttpTransferNativePlugin,
   isAndroid: () => boolean,
@@ -141,7 +145,7 @@ export function createControlChannel(
         }
       })
       .catch(() => undefined)
-    // 网页重载后连接仍由原生持有，先取一次当前状态。
+    // 网页重载后连接仍然存在，先取一次当前状态。
     plugin
       .controlStates()
       .then((result) => {

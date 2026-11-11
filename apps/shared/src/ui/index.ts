@@ -1,5 +1,3 @@
-// 双端共用的界面渲染（ADR-0002）。只放与两端交互差异无关的展示组件和页面导航规则；
-// 主入口 `@savedata-sync/shared` 不得导入本目录。
 import './text-selection.css'
 import './pressable.css'
 import './button-label.css'

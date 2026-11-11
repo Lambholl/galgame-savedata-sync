@@ -1,6 +1,7 @@
 import { Button, Input, Modal, Space } from 'antd'
 import { useT } from '@savedata-sync/shared/ui'
 
+/** 编辑已保存设备的弹窗：重命名或移除设备。 */
 export function DeviceEditorDialog({
   isOpen,
   editingDeviceId,

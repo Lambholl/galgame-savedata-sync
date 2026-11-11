@@ -2,10 +2,7 @@ import type { AppLocale } from '../preferences/app-preferences.ts'
 
 const UNITS = ['B', 'KiB', 'MiB', 'GiB'] as const
 
-/**
- * 字节按二进制单位显示，单位符号各语言通用；小于 1 KiB 显示整数，其余保留一位小数。
- * 未知大小由调用方显示对应文案。
- */
+/** 按二进制单位格式化字节数，单位符号各语言通用；小于 1 KiB 显示整数，其余保留一位小数。 */
 export function formatBytes(value: number): string {
   let amount = value
   let unit = 0
@@ -16,7 +13,7 @@ export function formatBytes(value: number): string {
   return unit === 0 ? `${value} ${UNITS[0]}` : `${amount.toFixed(1)} ${UNITS[unit]}`
 }
 
-/** 带年份的日期与 24 小时制时间，精确到分钟，按界面语言排列。 */
+/** 格式化为带年份的日期和 24 小时制时间，精确到分钟，按界面语言排列。 */
 export function formatDateTime(value: number, locale: AppLocale): string {
   return new Intl.DateTimeFormat(locale, {
     year: 'numeric',
@@ -28,9 +25,7 @@ export function formatDateTime(value: number, locale: AppLocale): string {
   }).format(value)
 }
 
-/**
- * 列表里的短时间，按本地时区固定为 yy-MM-dd HH:mm，各语言相同，上下行可直接对齐比较。
- */
+/** 按本地时区格式化为 yy-MM-dd HH:mm，各语言相同，等宽字体下上下行对齐。 */
 export function formatShortDateTime(value: number): string {
   const date = new Date(value)
   const pad = (part: number): string => String(part).padStart(2, '0')

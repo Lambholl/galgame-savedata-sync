@@ -39,6 +39,7 @@ const ADM_LOCALES = {
   'ja-JP': admJaJP,
 } satisfies Record<AppLocale, unknown>
 
+/** 移动应用的框架：主题和语言、标题栏、主导航和切页动画。 */
 export function LibraryShell({
   page,
   title,

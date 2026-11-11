@@ -13,17 +13,20 @@ import type {
   OperationResult,
 } from '@savedata-sync/shared'
 
-/** 目录功能的固定 IPC 通道名；网页只能调用这些通道，拿不到通用 invoke、文件路径或 Node 句柄。 */
+/** 目录接口的 IPC 通道名。 */
 export const DIRECTORY_CHANNELS = {
   choose: 'directories:choose',
   roots: 'directories:roots',
   list: 'directories:list',
 } as const
 
-/** 渲染进程使用的目录接口：选择、恢复和浏览目录。 */
+/** 本机目录接口：选择、列出和浏览已登记的目录。 */
 export interface DesktopDirectoryApi {
+  /** 打开系统目录选择器并登记所选目录。 */
   chooseDirectory(): Promise<DirectorySelectionResult>
+  /** 列出已登记的根目录。 */
   listRoots(): Promise<OperationResult<readonly DirectoryReference[]>>
+  /** 列出根目录内的一层；parentId 省略或为 null 时列根层。 */
   listDirectory(
     rootId: string,
     parentId?: string | null,
@@ -49,8 +52,9 @@ function isRootList(value: unknown): value is readonly DirectoryReference[] {
 }
 
 /**
- * 创建冻结的目录桥：校验 IPC 返回值和目录引用，传输失败时返回脱敏错误，不抛平台异常。
- * invoke 由 preload 提供，不能暴露给页面。
+ * 用 invoke 创建冻结的 DesktopDirectoryApi。
+ *
+ * @returns invoke 失败或返回格式不对时，对应方法返回 io-failure 错误结果。
  */
 export function createDirectoryBridge(
   invoke: (channel: string, ...args: unknown[]) => Promise<unknown>,

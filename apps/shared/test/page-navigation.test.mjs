@@ -9,7 +9,7 @@ import {
   openPage,
 } from '../src/ui/navigation/page-navigation.ts'
 
-// 页面都用占位名：这里只守来源记录的规则，增删页面或改某页的返回目标都不应该让这些用例失败。
+// 页面用占位名，用例只覆盖来源记录的规则，增删页面或改某页的返回目标时用例保持通过。
 
 /** 从 first 依次打开 rest，每层的上下文是离开的页面名加 -context。 */
 function openedThrough(first, ...rest) {

@@ -5,7 +5,7 @@ import './devices.css'
 
 /** 关联时可选的一台设备。 */
 export interface LinkPickerDevice {
-  /** 设备 ID，传回 onSelectDevice。 */
+  /** 设备 ID，作为 onSelectDevice 的参数。 */
   readonly deviceId: string
   /** 设备名。 */
   readonly name: string
@@ -17,7 +17,7 @@ export interface LinkPickerDevice {
 
 /** 所选设备上的一个游戏。 */
 export interface LinkPickerGame {
-  /** 对方的游戏 ID，传回 onSelectGame。 */
+  /** 对方的游戏 ID，作为 onSelectGame 的参数。 */
   readonly id: string
   /** 对方的游戏名。 */
   readonly name: string
@@ -25,11 +25,11 @@ export interface LinkPickerGame {
   readonly isRecommended: boolean
 }
 
-/** LinkPicker 的参数。弹层标题、说明和确认按钮由平台渲染。 */
+/** LinkPicker 的参数。 */
 export interface LinkPickerProps {
   /** 第一步列出的设备；isDeviceStepShown 为 false 时不显示。 */
   readonly devices: readonly LinkPickerDevice[]
-  /** 是否显示第一步；改为对应其他游戏时设备已确定，只显示第二步。 */
+  /** 是否显示第一步；为 false 时只显示第二步。 */
   readonly isDeviceStepShown: boolean
   /** 已选设备；未选时为 null，此时不显示第二步。 */
   readonly selectedDevice: { readonly deviceId: string; readonly name: string } | null
@@ -41,11 +41,11 @@ export interface LinkPickerProps {
   readonly onSelectDevice: (deviceId: string) => void
   /** 选中一个游戏。 */
   readonly onSelectGame: (gameId: string) => void
-  /** 未连接的设备上点“去连接”，通常打开设备页。 */
+  /** 点按未连接设备上的“去连接”。 */
   readonly onConnect: () => void
 }
 
-/** 关联设备的两步选择：先选设备，再选它上面对应的游戏；同名游戏标为推荐。 */
+/** 关联设备的两步选择：先选设备，再选它上面对应的游戏；推荐的游戏带标记。 */
 export function LinkPicker({
   devices,
   isDeviceStepShown,

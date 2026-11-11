@@ -1,9 +1,9 @@
-/** 两端的 Vite 构建配置把 scripts/app-version.mjs 算出的版本名注入到这里。 */
+// 两端的 Vite 构建配置把 scripts/app-version.mjs 算出的版本名注入到这里。
 declare const SAVEDATA_SYNC_VERSION: string | undefined
 
 /**
- * 界面显示的版本号，由 Git tag 推算：发布版如 0.3.0，开发版如 0.3.0+12.gcfb3753。
- * 用 Node 直接运行共享代码（例如测试）时没有注入，取 0.0.0+unknown。
+ * 应用的版本号，由 Git tag 推算：发布版如 0.3.0，开发版如 0.3.0+12.gcfb3753。
+ * 构建时没有注入版本号的代码（例如直接用 Node 运行的测试）取 0.0.0+unknown。
  */
 export const APP_VERSION: string =
   typeof SAVEDATA_SYNC_VERSION === 'string' ? SAVEDATA_SYNC_VERSION : '0.0.0+unknown'

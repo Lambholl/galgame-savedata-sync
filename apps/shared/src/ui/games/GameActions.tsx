@@ -11,11 +11,11 @@ import {
 import { useT } from '../i18n/i18n-context.ts'
 import './games.css'
 
-/** 双端游戏操作面板的内容与回调。 */
+/** GameActions 的参数。 */
 export interface GameActionsProps {
   /** 本机目录及关联设备的摘要。 */
   readonly caption: string
-  /** 活动任务期间禁用移除游戏。 */
+  /** 为 true 时禁用移除游戏。 */
   readonly isRemoveDisabled: boolean
   /** 打开传输存档。 */
   readonly onTransfer: () => void
@@ -25,11 +25,11 @@ export interface GameActionsProps {
   readonly onBackup: () => void
   /** 打开本游戏的传输详情。 */
   readonly onTasks: () => void
-  /** 请求移除游戏，确认由各端处理。 */
+  /** 点按移除游戏。 */
   readonly onRemove: () => void
 }
 
-/** 主操作传输，下方四项以相同的信息结构呈现；容器由各端提供。 */
+/** 游戏操作面板的内容：主操作“传输存档”，下方是设置、备份、传输详情和移除四项。 */
 export function GameActions({
   caption,
   isRemoveDisabled,

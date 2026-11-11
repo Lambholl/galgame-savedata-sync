@@ -17,7 +17,7 @@ import type {
   SyncPlan,
 } from '@savedata-sync/shared'
 
-/** 本机恢复的状态，与预览分开查询，避免控制 JSON 同时带两份快照和完整结果。 */
+/** 本机恢复任务的状态；恢复计划用 preview 单独读取。 */
 export interface AndroidRestoreState {
   readonly restoreId: string
   readonly projectId: string
@@ -27,6 +27,7 @@ export interface AndroidRestoreState {
   readonly result: SyncApplyResult | null
   readonly error: OperationError | null
 }
+/** 本机写入和恢复的原生插件；方法与 AndroidSyncWriteApi 的同名方法对应，返回值未经校验。 */
 export interface SyncWriteNativePlugin {
   bindProject(options: { projectId: string; rootId: string }): Promise<unknown>
   prepareRestore(options: { projectId: string; rootId: string; backupId: string }): Promise<unknown>
@@ -40,23 +41,33 @@ export interface SyncWriteNativePlugin {
   interrupted(): Promise<unknown>
   dismissInterrupted(options: { id: string }): Promise<unknown>
 }
-/** 网页使用的恢复接口。平台层先核对保存的游戏配置，再 bindProject；执行固定的预览，文件内容和句柄都在原生层。 */
+/** 本机恢复接口。所有方法的失败都以错误结果返回。 */
 export interface AndroidSyncWriteApi {
+  /** 把本机项目绑定到一个已登记的根目录；有任务进行中时返回 busy。 */
   bindProject(projectId: string, rootId: string): Promise<OperationResult<null>>
+  /** 从一份备份创建恢复任务并生成恢复计划。 */
   prepareRestore(
     projectId: string,
     rootId: string,
     backupId: string,
   ): Promise<OperationResult<AndroidRestoreState>>
+  /** 读取恢复任务的状态。 */
   query(restoreId: string): Promise<OperationResult<AndroidRestoreState>>
+  /** 读取当前恢复任务的 ID；没有时为 null。 */
   current(): Promise<OperationResult<string | null>>
+  /** 读取恢复计划。 */
   preview(restoreId: string): Promise<OperationResult<SyncPlan>>
+  /** 按确认的计划执行恢复；plan 必须与 preview 返回的计划相同。 */
   execute(restoreId: string, plan: SyncPlan): Promise<OperationResult<AndroidRestoreState>>
+  /** 取消恢复任务。 */
   cancel(restoreId: string): Promise<OperationResult<AndroidRestoreState>>
+  /** 释放已结束或还没开始的恢复任务。 */
   release(restoreId: string): Promise<OperationResult<null>>
+  /** 重试恢复任务的清理；还有资源没释放时返回 cleanup-failed。 */
   retryCleanup(): Promise<OperationResult<null>>
-  /** 上个进程没写完就结束时留下的写入标记，不含正在进行的写入。 */
+  /** 列出之前的进程没写完就结束时留下的写入标记。 */
   interruptedWrites(): Promise<OperationResult<readonly InterruptedWrite[]>>
+  /** 删除一个写入标记。 */
   dismissInterruptedWrite(id: string): Promise<OperationResult<null>>
 }
 function shape(value: unknown, fields: readonly string[]): value is Record<string, unknown> {
@@ -119,7 +130,11 @@ function isState(value: unknown): value is AndroidRestoreState {
   }
   return value.status === 'failed' && value.error !== null
 }
-/** 创建恢复桥：双重核对 ID、纯比较计划和逐项实际结果；页面重建后按原生 ID 取回预览和结果。 */
+/**
+ * 用原生插件创建 AndroidSyncWriteApi。
+ *
+ * @returns 参数无效、返回格式不对，或 ID、计划和结果与请求不符时，对应方法返回错误结果。
+ */
 export function createSyncWriteBridge(
   plugin: SyncWriteNativePlugin,
   isAndroid: () => boolean,

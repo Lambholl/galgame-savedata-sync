@@ -13,17 +13,20 @@ import type {
   OperationResult,
 } from '@savedata-sync/shared'
 
-/** SAF 原生插件接口，只在桥内部使用；目录地址只供显示，不返回文件字节或平台句柄。 */
+/** SAF 目录的原生插件；方法与 AndroidDirectoryApi 的同名方法对应，返回值未经校验。 */
 export interface SafNativePlugin {
   chooseDirectory(): Promise<unknown>
   listRoots(): Promise<unknown>
   listDirectory(options: { rootId: string; parentId: string | null }): Promise<unknown>
 }
 
-/** 目录元数据接口；Promise 返回脱敏后的结果，包括桥不可用的情况。 */
+/** 本机目录接口：选择、列出和浏览已登记的目录。所有方法的失败都以错误结果返回。 */
 export interface AndroidDirectoryApi {
+  /** 打开系统目录选择器，登记所选目录并申请持久读写权限。 */
   chooseDirectory(): Promise<DirectorySelectionResult>
+  /** 列出已登记的根目录。 */
   listRoots(): Promise<OperationResult<readonly DirectoryReference[]>>
+  /** 列出根目录内的一层；parentId 省略或为 null 时列根层。 */
   listDirectory(
     rootId: string,
     parentId?: string | null,
@@ -46,8 +49,9 @@ function isRootList(value: unknown): value is readonly DirectoryReference[] {
 }
 
 /**
- * 创建冻结的 SAF 目录桥：校验两端数据，并把枚举结果绑定到请求。
- * 提供者 I/O 和取消由插件管理。
+ * 用原生插件创建冻结的 AndroidDirectoryApi。
+ *
+ * @returns 参数无效、返回格式不对或结果与请求不符时，对应方法返回错误结果。
  */
 export function createSafDirectoryBridge(
   plugin: SafNativePlugin,

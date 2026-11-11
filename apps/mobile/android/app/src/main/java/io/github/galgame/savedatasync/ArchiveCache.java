@@ -20,9 +20,8 @@ import java.util.Set;
 import java.util.UUID;
 
 /**
- * 管理私有目录下 transfer-archives-v1 里的任务缓存，根目录带所有者标记；应用传入的私有目录是 Context.getCacheDir。
- * 进程中同时只有一个任务，句柄和未完成的清理都占名额；进程重启后不恢复结果，也不继续之前的任务。
- * 测试钩子只由原生测试注入。两次检查之间目录可能被替换。
+ * 私有目录下 transfer-archives-v1 里的任务缓存，根目录带所有者标记。
+ * 进程中同时只有一个任务，句柄和未完成的清理都占名额；进程重启后不恢复之前的任务。
  */
 final class ArchiveCache {
 
@@ -98,7 +97,7 @@ final class ArchiveCache {
     }
   }
 
-  /** 接收内容前检查这批缓存的峰值空间，不创建任务目录，也不预留空间。 */
+  /** 检查缓存所在的卷能否放下 required 字节。 */
   void checkSpace(long required) throws IOException {
     verifyRoot();
     if (required < 0) {
@@ -146,7 +145,7 @@ final class ArchiveCache {
     }
   }
 
-  /** 启动时的遗留任务清理失败后，重试清理已核实的遗留任务；当前活动调用者的任务不受影响。 */
+  /** 重试清理已核实的遗留任务；当前活动的任务保留。 */
   static void retryOrphanCleanup() throws IOException {
     Job job;
     synchronized (ArchiveCache.class) {
@@ -215,7 +214,7 @@ final class ArchiveCache {
     );
   }
 
-  /** 一个缓存任务的句柄，只通过归档 API 访问；调用者必须关闭读流再 dispose，可以重复调用和重试。 */
+  /** 一个缓存任务。关闭全部读流后才能 dispose，dispose 可以重复调用。 */
   final class Job {
 
     private final Path path;

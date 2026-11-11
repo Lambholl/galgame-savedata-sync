@@ -7,7 +7,7 @@ import {
 } from '@savedata-sync/shared'
 import type { OperationResult, SyncCapabilities, SyncScanState } from '@savedata-sync/shared'
 
-/** 扫描的原生插件接口，参数和结果只有公开 ID 和扫描元数据。 */
+/** 扫描的原生插件；方法与 AndroidSyncScanApi 的同名方法对应，返回值未经校验。 */
 export interface SyncScanNativePlugin {
   capabilities(): Promise<unknown>
   start(options: { schemaVersion: typeof SYNC_SCHEMA_VERSION; rootId: string }): Promise<unknown>
@@ -15,11 +15,15 @@ export interface SyncScanNativePlugin {
   cancel(options: { scanId: string }): Promise<unknown>
 }
 
-/** 网页使用的扫描接口，Promise 都返回脱敏结果；原生层保存本次扫描的状态和结果。 */
+/** 本机目录扫描接口。所有方法的失败都以错误结果返回。 */
 export interface AndroidSyncScanApi {
+  /** 读取本机支持的复制能力。 */
   capabilities(): Promise<OperationResult<SyncCapabilities>>
+  /** 开始扫描一个本机根目录。 */
   start(rootId: string): Promise<OperationResult<SyncScanState>>
+  /** 读取扫描状态。 */
   query(scanId: string): Promise<OperationResult<SyncScanState>>
+  /** 取消扫描。 */
   cancel(scanId: string): Promise<OperationResult<SyncScanState>>
 }
 
@@ -31,8 +35,9 @@ function failure(
 }
 
 /**
- * 创建扫描桥：校验公开参数、原生结果和 Android 平台。
- * start 绑定 rootId，query 和 cancel 绑定 scanId。
+ * 用原生插件创建 AndroidSyncScanApi。
+ *
+ * @returns 不在 Android 上运行、参数无效、返回格式不对，或结果的 rootId、scanId 与请求不符时，对应方法返回错误结果。
  */
 export function createSyncScanBridge(
   plugin: SyncScanNativePlugin,

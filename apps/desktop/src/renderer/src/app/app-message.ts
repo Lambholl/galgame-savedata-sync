@@ -12,18 +12,22 @@ export interface AppMessageOptions {
   readonly slot?: string
 }
 
-/** 应用内所有 Message 的入口；其他文件不直接用 antd 的 message，由 ESLint 检查。 */
+/** 应用内的全局提示。 */
 export interface AppMessage {
+  /** 显示一条提示。 */
   show(options: AppMessageOptions): void
+  /** 关闭 slot 上的提示。 */
   close(slot: string): void
 }
 
 let lastKey = 0
 
+// 每条提示都用新的 key。用同一个 key 重开正在退场的提示时，antd 会复用旧实例，
+// 而它的计时已经结束且不会重启，提示就一直留在屏幕上。
 /**
- * 每条提示都用新的 key。用同一个 key 重开正在退场的提示时，antd 会复用旧实例，
- * 而它的计时已经结束且不会重启，提示就一直留在屏幕上。
- * 返回的元素放进页面，提供 Message 所需的主题与语言上下文。
+ * 创建应用内的全局提示。
+ *
+ * @returns 提示接口，以及需要放进页面的上下文元素。
  */
 export function useAppMessage(): readonly [AppMessage, ReactElement] {
   const [api, holder] = message.useMessage()

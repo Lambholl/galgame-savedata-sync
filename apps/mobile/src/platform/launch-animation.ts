@@ -10,7 +10,7 @@ const NATIVE =
     ? registerPlugin<LaunchAnimationPlugin>('LaunchAnimation')
     : null
 
-/** React 首屏或启动错误提示提交后调用原生接口；浏览器预览时直接返回，插件调用失败会写入控制台。 */
+/** 通知原生层首屏已提交，可以结束开屏动画；不在 Android 上运行时直接返回，失败只写入控制台。 */
 export function finishStartup(): void {
   NATIVE?.ready().catch((error: unknown) => {
     console.error('Failed to finish launch animation', error)

@@ -33,7 +33,7 @@ const expectedRendererUrl = rendererUrl ? new URL(rendererUrl).href : rendererFi
 let preferencesStore: AppPreferencesStore | null = null
 let initializationStage = 'app-data'
 
-/** 取出文件系统错误码用于记录；原始异常中的路径与堆栈留在进程内。 */
+/** 取出文件系统错误码用于记录；没有时返回 null。 */
 function systemErrorCode(error: unknown): string | null {
   let cause = error
   for (let depth = 0; depth < 8 && typeof cause === 'object' && cause !== null; depth++) {
@@ -45,7 +45,7 @@ function systemErrorCode(error: unknown): string | null {
   return null
 }
 
-/** 原生窗口与系统弹窗每次按已保存偏好取文案；配置未读到时跟随系统。 */
+/** 按已保存的语言偏好返回翻译函数；偏好没读到时跟随系统语言。 */
 function getT(): Translate {
   return createTranslator(
     resolveLocale(preferencesStore?.get().locale ?? 'system', app.getPreferredSystemLanguages()),
@@ -109,7 +109,7 @@ if (hasInstanceLock) {
       const adapter = await createDirectoryAdapter(join(privateDirectory, 'directory-config.json'))
       initializationStage = 'archive-cache'
       const archive = await createWindowsArchiveAdapter(adapter, privateDirectory)
-      // 网络监听由本机界面启动；已配置的存档目录在每次接收前重新核实写入权限。
+      // 已配置的存档目录在每次接收前重新核实写入权限。
       const publisher = new WindowsNewFilePublisher(adapter)
       initializationStage = 'library'
       const library = new DesktopLibrary(join(privateDirectory, 'game-library.json'), adapter)
@@ -219,7 +219,7 @@ if (hasInstanceLock) {
         isClosing = true
         httpService
           .stop()
-          // 广播停止只发 goodbye 包并关闭套接字，不会失败；HTTP 服务停止失败时也要先撤下广播。
+          // HTTP 服务停止失败时也要撤下广播；广播的 stop 不会 reject。
           .finally(() => advertiser.stop())
           .then(() => restores.stop())
           .then(() => Promise.allSettled([publisher.stop(), syncWriter.stop()]))

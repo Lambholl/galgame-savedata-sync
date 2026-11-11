@@ -49,6 +49,7 @@ function hasJsonBudget(value: unknown): boolean {
   }
   return true
 }
+/** 校验目标端项目元数据。 */
 export function isSyncProjectDescriptor(value: unknown): value is SyncProjectDescriptor {
   return (
     hasShape(value, [
@@ -65,7 +66,7 @@ export function isSyncProjectDescriptor(value: unknown): value is SyncProjectDes
     isBackupKeepCount(value.backupKeepCount)
   )
 }
-/** 校验复制任务的登记请求：从完整计划重算校验；被过滤过的动作和本机恢复请求都不接受。 */
+/** 校验复制任务的登记请求：计划可以执行、operation 为 copy，planId 等于 jobId，项目 ID 等于目标项目。 */
 export function isSyncJobRequest(value: unknown): value is SyncJobRequest {
   return (
     hasShape(value, ['schemaVersion', 'jobId', 'sourceProjectId', 'targetProjectId', 'plan']) &&
@@ -123,6 +124,7 @@ export function matchesSyncJobManifest(
     )
   })
 }
+/** 校验复制任务进度的字段和计数关系。 */
 export function isSyncJobProgress(value: unknown): value is SyncJobProgress {
   if (
     !hasShape(value, [
@@ -188,7 +190,7 @@ const FAILURE_STAGES = [
   'writing',
 ] as const
 
-/** 摘要的字段和状态关系；逐项结果相关的关系由 isSyncJobState 另外校验。 */
+/** 检查摘要字段之间与状态的关系。 */
 function hasDigestRelations(
   value: Record<string, unknown>,
 ): value is Record<string, unknown> & SyncJobDigest {
@@ -256,10 +258,11 @@ function hasDigestRelations(
   }
   return value.status === 'failed' && value.error !== null && value.error.code !== 'result-unknown'
 }
+/** 校验任务摘要。 */
 export function isSyncJobDigest(value: unknown): value is SyncJobDigest {
   return hasShape(value, DIGEST_FIELDS) && hasDigestRelations(value)
 }
-/** 校验本端任务状态；HTTP 成功、发送端的 sent 和清理状态都不算接收成功。 */
+/** 校验本端任务状态，包括逐项结果与汇总的关系。 */
 export function isSyncJobState(value: unknown): value is SyncJobState {
   if (
     !hasShape(value, [...DIGEST_FIELDS, 'result']) ||
@@ -282,7 +285,7 @@ export function isSyncJobState(value: unknown): value is SyncJobState {
     (value.status !== 'succeeded' || result.outcomes.every((item) => item.status === 'succeeded'))
   )
 }
-/** 对端推送的摘要须属于本次任务：相反角色、同一方向、与计划一致的总量。 */
+/** 判断对端摘要是否属于本次任务：角色相反、方向相同、总量与计划一致。 */
 export function matchesSyncJobDigest(
   value: SyncJobDigest,
   request: SyncJobRequest,
@@ -296,7 +299,7 @@ export function matchesSyncJobDigest(
     value.progress.totalFiles === request.plan.transferFileCount
   )
 }
-/** 校验任务状态属于本次计划和清单：角色和完整的逐项结果都要对上；清单未准备时归档总量为 null。 */
+/** 判断任务状态是否属于本次计划和清单：角色和全部逐项结果都要对上；清单为 null 时归档总量必须为 null。 */
 export function matchesSyncJobState(
   value: unknown,
   request: SyncJobRequest,
@@ -341,6 +344,7 @@ export function matchesSyncJobState(
       published.reduce((sum, item) => sum + (item.sizeBytes ?? 0), 0)
   )
 }
+/** 校验准备阶段状态。 */
 export function isSyncPreparationState(value: unknown): value is SyncPreparationState {
   return (
     hasShape(value, ['schemaVersion', 'preparationId', 'direction', 'status', 'error']) &&
@@ -352,6 +356,7 @@ export function isSyncPreparationState(value: unknown): value is SyncPreparation
       : isOneOf(value.status, ['preparing', 'ready', 'cancelled']) && value.error === null)
   )
 }
+/** 校验准备预览。 */
 export function isSyncPreparationPreview(value: unknown): value is SyncPreparationPreview {
   if (
     !hasShape(value, [
@@ -387,7 +392,7 @@ export function isSyncPreparationPreview(value: unknown): value is SyncPreparati
     value.target.rootId === (upload ? value.binding.remoteRootId : value.binding.localRootId)
   )
 }
-/** 从预览还原计划，纯比较不做 IO；项目 ID 用目标端的本机项目，避免两端不同 ID 混进备份分组。 */
+/** 从预览还原计划；计划的项目 ID 取目标端的本机项目 ID。 */
 export function syncPlanFromPreview(preview: SyncPreparationPreview): SyncPlan {
   if (!isSyncPreparationPreview(preview)) {
     throw new OperationFailure('invalid-request', 'The sync preview context is invalid.')
@@ -406,6 +411,7 @@ export function syncPlanFromPreview(preview: SyncPreparationPreview): SyncPlan {
     target: preview.target,
   })
 }
+/** 校验两个角色的任务状态。 */
 export function isSyncTransferState(value: unknown): value is SyncTransferState {
   return (
     hasShape(value, ['schemaVersion', 'jobId', 'local', 'remote', 'remoteError']) &&

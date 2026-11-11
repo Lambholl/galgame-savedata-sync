@@ -44,7 +44,7 @@ function cleanupError(): OperationError {
   }
 }
 
-/** 管理本机恢复任务，由应用进程持有。准备阶段不占传输名额；已确认的写入不随页面退出取消。 */
+/** 本机恢复任务的登记表。准备阶段不占用写入名额。 */
 export class WindowsRestoreRegistry {
   private readonly options: RestoreOptions
   private readonly jobs = new Map<string, RestoreJob>()
@@ -101,6 +101,7 @@ export class WindowsRestoreRegistry {
     }, BATCH_TIMEOUTS_MS.total)
     job.timeout.unref()
   }
+  /** 列出恢复任务的摘要。 */
   summaries(): readonly DesktopRestoreSummary[] {
     return [...this.jobs.values()].map(({ state, isWorking }) => ({
       restoreId: state.restoreId,
@@ -114,10 +115,12 @@ export class WindowsRestoreRegistry {
       isWorking,
     }))
   }
+  /** 读取恢复任务的状态；任务不存在时抛错。 */
   state(id: string): DesktopRestoreState {
     const job = this.find(id)
     return structuredClone({ ...job.state, isWorking: job.isWorking })
   }
+  /** 读取恢复计划；计划还没生成时抛出 task-conflict 错误。 */
   preview(id: string): SyncPlan {
     const job = this.find(id)
     if (!job.plan) {
@@ -125,7 +128,7 @@ export class WindowsRestoreRegistry {
     }
     return structuredClone(job.plan)
   }
-  /** 开始准备恢复并立即返回任务；目标扫描和备份材料校验在主进程进行，HTTP 服务没启动也能恢复。 */
+  /** 创建恢复任务并立即返回，随后在后台扫描目标并校验备份。 */
   prepare(projectId: string, rootId: string, backupId: string): DesktopRestoreState {
     if (![projectId, rootId, backupId].every(isOpaqueId)) {
       throw new HttpOperationError('invalid-request', 'The restore reference is invalid.')
@@ -253,7 +256,7 @@ export class WindowsRestoreRegistry {
       this.settled(job)
     }
   }
-  /** 按与预览相同的计划开始恢复：先同步占名额，再开始备份保护和写入；重复确认时拒绝。 */
+  /** 按确认的计划开始恢复；计划必须与 preview 返回的相同，重复确认时抛错。 */
   execute(id: string, value: unknown): DesktopRestoreState {
     const job = this.find(id)
     if (
@@ -475,6 +478,7 @@ export class WindowsRestoreRegistry {
       }
     }
   }
+  /** 取消恢复任务；还没开始写入的任务直接结束并清理。 */
   async cancel(id: string): Promise<DesktopRestoreState> {
     const job = this.find(id)
     job.controller.abort(new ArchiveCancelledError())
@@ -485,6 +489,7 @@ export class WindowsRestoreRegistry {
     }
     return this.state(id)
   }
+  /** 重试恢复任务的清理；任务还在运行时抛出 busy 错误。 */
   async retryCleanup(id: string): Promise<DesktopRestoreState> {
     const job = this.find(id)
     if (job.isWorking) {
@@ -494,6 +499,7 @@ export class WindowsRestoreRegistry {
     this.touch(job)
     return this.state(id)
   }
+  /** 清理并移除已结束的恢复任务；任务还在运行时抛出 busy，清理失败时抛出 cleanup-failed。 */
   async release(id: string): Promise<void> {
     const job = this.find(id)
     if (job.isWorking) {
@@ -507,6 +513,7 @@ export class WindowsRestoreRegistry {
     }
     this.jobs.delete(id)
   }
+  /** 判断是否有正在运行的恢复任务。 */
   hasRunningWork(): boolean {
     return [...this.jobs.values()].some((job) => job.isWorking)
   }
@@ -528,11 +535,12 @@ export class WindowsRestoreRegistry {
         }
       }
     } catch {
-      /* 过期资源保留引用，用户可显式重试释放。 */
+      /* 清理失败的任务保留，可以手动重试释放。 */
     } finally {
       this.isExpiring = false
     }
   }
+  /** 停止登记表：取消进行中的任务，等待它们结束并清理。 */
   async stop(): Promise<void> {
     this.isStopped = true
     clearInterval(this.timer)

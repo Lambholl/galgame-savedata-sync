@@ -128,7 +128,12 @@ final class SyncScanner implements AutoCloseable {
     watcher.scheduleAtFixedRate(this::tick, 25, 25, TimeUnit.MILLISECONDS);
   }
 
-  /** 开始扫描已授权的根目录，有扫描在跑时报 busy；返回后用 query 取得真实结束状态。 */
+  /**
+   * 开始扫描已授权的根目录。
+   *
+   * @return 扫描刚开始时的状态，之后的状态用 query 查询。
+   * @throws Exception 已有扫描在进行（busy）。
+   */
   synchronized Map<String, Object> start(String rootId) throws Exception {
     id(rootId);
     if (isClosed || active != null) {
@@ -158,7 +163,7 @@ final class SyncScanner implements AutoCloseable {
     return map(copy(find(scanId).state));
   }
 
-  /** 在调用者的 I/O 线程上重新扫描根目录，供复制和恢复任务使用；取消和期限由传入的 ArchiveControl 控制，结果不登记。 */
+  /** 在当前线程同步扫描根目录并返回快照，取消和期限由 control 控制；结果只返回给调用者。 */
   Map<String, Object> snapshotNow(String rootId, ArchiveControl control) throws Exception {
     id(rootId);
     synchronized (this) {
@@ -547,7 +552,7 @@ final class SyncScanner implements AutoCloseable {
     return object("code", code, "message", message, "canRetry", false);
   }
 
-  /** 关闭扫描器时取消活动读取，等待工作线程释放资源后清空内存结果。 */
+  /** 取消进行中的读取，等工作线程释放资源后清空内存里的结果。 */
   @Override
   public void close() throws Exception {
     Job job;

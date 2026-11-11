@@ -3,19 +3,19 @@ import { Button } from 'antd'
 import { useT } from '../i18n/i18n-context.ts'
 import './game-card.css'
 
-/** 双端游戏卡片的展示参数。 */
+/** GameCard 的参数。 */
 export interface GameCardProps {
-  /** 完整游戏名。接入图片前，封面内显示游戏名；封面下方只显示一行，超出省略。 */
+  /** 完整游戏名，显示在封面内；封面下方只显示一行，超出部分省略。 */
   readonly gameName: string
   /** 已关联设备数，零表示未关联。 */
   readonly linkCount: number
   /** 占位封面的配色序号。 */
   readonly coverIndex: number
-  /** 打开游戏操作面板；长按、右键由平台包装组件处理。 */
+  /** 点按卡片。 */
   readonly onOpen: () => void
 }
 
-/** 竖向封面、独立名称和关联摘要；两端复用同一份渲染。 */
+/** 游戏卡片：竖向封面、名称和关联摘要。 */
 export function GameCard({ gameName, linkCount, coverIndex, onOpen }: GameCardProps): ReactElement {
   const t = useT()
   const subtitle = linkCount ? t('game.cardLinks', { count: linkCount }) : t('game.cardUnlinked')

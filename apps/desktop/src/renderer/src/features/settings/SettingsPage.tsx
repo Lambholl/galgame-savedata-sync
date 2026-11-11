@@ -17,7 +17,7 @@ import { SettingSelect } from './SettingSelect.tsx'
 
 const THEMES: readonly ThemePreference[] = ['system', 'light', 'dark']
 
-/** 应用设置：外观与全局备份设置，改动立即保存。 */
+/** 应用设置页：外观与全局备份设置，改动立即保存。 */
 export function SettingsPage({
   preferences,
   onChange,

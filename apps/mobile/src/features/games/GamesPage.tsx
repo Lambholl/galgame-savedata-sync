@@ -4,6 +4,7 @@ import type { TaskStripInfo } from '@savedata-sync/shared/ui'
 import { EmptyState } from '../../components/EmptyState'
 import { GameCard } from './GameCard'
 
+/** 游戏页：游戏卡片列表、任务横条，以及添加和导入游戏的入口。 */
 export function GamesPage({
   games,
   online,

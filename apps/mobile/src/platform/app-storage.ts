@@ -1,6 +1,6 @@
 import { Capacitor, registerPlugin } from '@capacitor/core'
 
-/** 原生插件把应用配置存在应用私有 SharedPreferences，只接受登记过的键。 */
+/** 应用配置存储的原生插件，只接受登记过的键。 */
 interface AppStoragePlugin {
   read(options: { key: string }): Promise<{ value: string | null }>
   write(options: { key: string; value: string }): Promise<void>
@@ -13,10 +13,7 @@ const NATIVE =
   Capacitor.getPlatform() === 'android' ? registerPlugin<AppStoragePlugin>('AppStorage') : null
 const cache = new Map<string, string>()
 
-/**
- * 首次渲染前把配置读进内存；存在 WebView localStorage 的旧版配置不迁移。
- * 读取失败时抛出，避免以空配置启动后覆盖原生已保存的数据。
- */
+/** 把已保存的配置读进内存；读取失败时 reject。 */
 export async function loadAppStorage(): Promise<void> {
   if (!NATIVE) {
     return
@@ -29,10 +26,7 @@ export async function loadAppStorage(): Promise<void> {
   }
 }
 
-/**
- * 同步读写接口，供游戏库适配器使用：读内存，写入内存后按顺序交给原生保存。
- * 浏览器预览没有原生插件，直接使用 localStorage。
- */
+/** 同步读写的配置存储：读内存，写入内存后按顺序保存；没有原生插件时使用 localStorage。 */
 export const appStorage: Pick<Storage, 'getItem' | 'setItem'> = {
   getItem(key) {
     return NATIVE ? (cache.get(key) ?? null) : localStorage.getItem(key)

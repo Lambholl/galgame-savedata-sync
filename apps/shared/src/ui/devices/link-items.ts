@@ -2,7 +2,7 @@ import type { LibraryGame, LibraryPeer } from '../../library/library.ts'
 import type { LinkedDevice } from './LinkedDeviceList.tsx'
 import type { LinkPickerDevice, LinkPickerGame } from './LinkPicker.tsx'
 
-/** 游戏的关联记录转为关联设备列表；peerKind 是对端设备类型（移动端上为 pc，电脑上为 mobile）。 */
+/** 把游戏的关联记录转成关联设备列表；peerKind 是对端的设备类型。 */
 export function linkedDevices(
   game: LibraryGame,
   peers: readonly LibraryPeer[],
@@ -24,7 +24,7 @@ export function linkedDevices(
   })
 }
 
-/** 关联选择第一步的设备：已关联的不可再选，未连接的读不到游戏列表。 */
+/** 生成关联选择第一步的设备列表，每台设备标出 available、linked 或 offline。 */
 export function linkPickerDevices(
   game: LibraryGame,
   peers: readonly LibraryPeer[],
@@ -42,7 +42,7 @@ export function linkPickerDevices(
   }))
 }
 
-/** 关联选择第二步的游戏：与本机游戏同名的排在前面并标为推荐。 */
+/** 生成关联选择第二步的游戏列表：与本机游戏同名的排在前面并标为推荐。 */
 export function linkPickerGames(
   game: LibraryGame,
   peer: LibraryPeer | undefined,

@@ -80,7 +80,7 @@ final class DiscoveryBrowser {
     this.listener = listener;
   }
 
-  /** 页面要求开始搜索；已在搜索时保持当前结果，上一轮失败时重新搜索。完成后在 worker 线程回调当前结果。 */
+  /** 要求开始搜索；已在搜索时保持当前结果，上一轮失败时重新搜索。完成后在 worker 线程回调当前结果。 */
   void start(Listener done) {
     post(() -> {
       isRequested = true;
@@ -89,7 +89,7 @@ final class DiscoveryBrowser {
     });
   }
 
-  /** 页面不再需要搜索：停止搜索并清空结果。完成后在 worker 线程回调当前结果。 */
+  /** 不再要求搜索：停止搜索并清空结果。完成后在 worker 线程回调当前结果。 */
   void stop(Listener done) {
     post(() -> {
       isRequested = false;
@@ -98,7 +98,7 @@ final class DiscoveryBrowser {
     });
   }
 
-  /** 由 Activity 的 onStart 和 onStop 调用；回到前台时如果页面仍要求搜索，就重新开始一轮。 */
+  /** 设置 Activity 是否在前台；回到前台时如果仍要求搜索，就重新开始一轮。 */
   void setForeground(boolean isForeground) {
     post(() -> {
       this.isForeground = isForeground;
@@ -106,7 +106,7 @@ final class DiscoveryBrowser {
     });
   }
 
-  /** 停止搜索并结束 worker 线程，之后的调用都被忽略。由插件在 Activity 销毁时调用。 */
+  /** 停止搜索并结束 worker 线程，之后的调用都被忽略。 */
   void close() {
     post(() -> {
       isRequested = false;
@@ -144,8 +144,8 @@ final class DiscoveryBrowser {
   /**
    * 当前搜索状态和已解析的服务。
    *
-   * <p>status 取值：searching 正在搜索；stopped 页面没有要求搜索；paused Activity 在后台；failed 系统拒绝开始搜索，
-   * 页面再次调用 start 或 Activity 回到前台时重试。services 只包含已解析出端口和至少一个 IPv4 地址的服务，每项为
+   * <p>status 取值：searching 正在搜索；stopped 没有要求搜索；paused Activity 在后台；failed 系统拒绝开始搜索，
+   * 再次调用 start 或 Activity 回到前台时重试。services 只包含已解析出端口和至少一个 IPv4 地址的服务，每项为
    * name（实例名）、port、addresses（IPv4 字符串）和 txt（键到 UTF-8 文本值，没有值或值不是合法 UTF-8 的键被省略）。
    */
   JSONObject snapshot() {

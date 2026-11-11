@@ -21,7 +21,7 @@ import type {
 import { HttpOperationError, toHttpError } from './http-errors.ts'
 import { inspectJsonKeys } from './http-wire.ts'
 
-/** 本机主动断开设备时的关闭码；拨号方收到后不再重连。 */
+/** 本机主动断开设备时的关闭码，表示对方不要重连。 */
 export const CONTROL_CLOSE_DISCONNECTED = 4001
 /** 同一设备的新连接取代旧连接。 */
 const CONTROL_CLOSE_REPLACED = 4002
@@ -37,6 +37,7 @@ interface Peer {
   readonly pending: Map<string, Pending>
   isAlive: boolean
 }
+/** 控制通道的监听器。 */
 export interface ControlListener {
   readonly event?: <M extends ControlEventMethod>(
     peerId: string,
@@ -47,8 +48,8 @@ export interface ControlListener {
 }
 
 /**
- * 控制通道的监听端：身份由 HTTP 服务在升级前核实，这里只管消息收发、应答期限和心跳。
- * 收到的消息按共享格式严格校验，格式错误即关闭连接；对方发来的请求目前一律答复不支持。
+ * 控制通道的服务端：收发消息，管理应答期限和心跳。
+ * 收到格式错误的消息时关闭连接；对方发来的请求都答复不支持。
  */
 export class ControlHub {
   private readonly server = new WebSocketServer({
@@ -65,16 +66,22 @@ export class ControlHub {
     this.heartbeat.unref()
   }
 
+  /**
+   * 添加监听器。
+   *
+   * @returns 移除这个监听器的函数。
+   */
   subscribe(listener: ControlListener): () => void {
     this.listeners.add(listener)
     return () => this.listeners.delete(listener)
   }
 
-  /** 接管已核实身份的升级请求。 */
+  /** 接管 WebSocket 升级请求；peerId 是已核实的对方设备 ID，同一设备的旧连接被取代。 */
   accept(request: IncomingMessage, socket: Duplex, head: Buffer, peerId: string): void {
     this.server.handleUpgrade(request, socket, head, (ws) => this.attach(peerId, ws))
   }
 
+  /** 判断与这台设备的控制连接是否打开。 */
   isOpen(peerId: string): boolean {
     return this.peers.has(peerId)
   }
@@ -133,11 +140,12 @@ export class ControlHub {
     }
   }
 
-  /** 本机断开设备；拨号方收到关闭码后不再重连。 */
+  /** 用 CONTROL_CLOSE_DISCONNECTED 关闭与这台设备的连接。 */
   disconnect(peerId: string): void {
     this.peers.get(peerId)?.socket.close(CONTROL_CLOSE_DISCONNECTED, 'disconnected')
   }
 
+  /** 停止心跳并终止全部连接。 */
   stop(): void {
     clearInterval(this.heartbeat)
     for (const peer of this.peers.values()) {

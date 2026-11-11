@@ -1,7 +1,7 @@
 import { isOperationError } from '@savedata-sync/shared'
 import type { KnownOperationError } from '@savedata-sync/shared'
 
-/** 发布错误：只把稳定的错误结果交给调用者，路径和原始错误留在 cause。 */
+/** 发布错误：operationError 是脱敏后的错误，原始错误在 cause。 */
 export class PublicationError extends Error {
   readonly operationError: KnownOperationError
 
@@ -12,7 +12,7 @@ export class PublicationError extends Error {
   }
 }
 
-/** 内部取消信号；成功发布与取消竞争时，以实际回读结果为准。 */
+/** 表示发布被取消。 */
 export class PublicationCancelledError extends Error {
   constructor() {
     super('New file publication was cancelled.')
@@ -20,7 +20,8 @@ export class PublicationCancelledError extends Error {
   }
 }
 
-/** 转换发布错误；文件系统不支持硬链接时明确拒绝，因为 rename 和复制都可能覆盖目标。 */
+// 文件系统不支持硬链接时直接报错，不退回 rename 或复制：这两种方式都可能覆盖目标。
+/** 把任意错误转成 PublicationError；文件系统不支持硬链接时错误码为 unsupported-operation。 */
 export function toPublicationError(error: unknown): PublicationError {
   if (error instanceof PublicationError) {
     return error

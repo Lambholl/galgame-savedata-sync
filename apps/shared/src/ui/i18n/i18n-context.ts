@@ -9,6 +9,7 @@ export interface I18nValue {
   readonly t: Translate
 }
 
+/** 界面语言的 React 上下文；不在 I18nProvider 之下时为 zh-CN。 */
 export const i18nContext = createContext<I18nValue>({
   locale: 'zh-CN',
   t: createTranslator('zh-CN'),
@@ -19,7 +20,7 @@ export function useT(): Translate {
   return useContext(i18nContext).t
 }
 
-/** 取当前界面语言，用于日期与数字格式化。 */
+/** 取当前界面语言。 */
 export function useLocale(): AppLocale {
   return useContext(i18nContext).locale
 }

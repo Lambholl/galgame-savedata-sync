@@ -8,9 +8,9 @@ import java.io.IOException;
 import java.io.InputStream;
 
 /**
- * 把已枚举的 SAF 引用接入归档模块；参数不含 URI 和路径，也不申请新授权。
- * 查询和打开必须在后台工作线程调用。控制器取消时同时取消提供者查询并关闭读流；
- * 流关闭后注销信号，所有权由 prepare 的工作线程回收。
+ * 以已枚举的 SAF 文件作为归档的读取源，只使用已有授权；查询和打开必须在后台工作线程调用。
+ *
+ * <p>控制器取消时同时取消提供者查询并关闭读流。
  */
 final class SafArchiveSource implements ArchiveModel.Source {
 
@@ -25,7 +25,11 @@ final class SafArchiveSource implements ArchiveModel.Source {
     this.entryId = entryId;
   }
 
-  /** 创建使用应用私有缓存的归档适配器；文件字节都留在原生层。 */
+  /**
+   * 创建以应用私有缓存目录为缓存的归档适配器。
+   *
+   * @throws IOException 缓存目录的真实路径解析失败。
+   */
   static ArchiveAdapter createAdapter(Context context) throws IOException {
     // Android 的 /data/user/0 可能是系统别名，所以先解析真实路径；
     // 缓存管理器仍拒绝真实根以下的链接和归属变化。

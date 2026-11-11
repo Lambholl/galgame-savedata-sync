@@ -10,7 +10,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
-/** 由应用 Context 持有复制引擎，页面只是控制入口；确认执行后才启动传输通知。 */
+/** 进程内共享的复制引擎，确认执行后启动传输通知。 */
 final class SyncTransferRuntime {
 
   private static SyncTransferRuntime instance;

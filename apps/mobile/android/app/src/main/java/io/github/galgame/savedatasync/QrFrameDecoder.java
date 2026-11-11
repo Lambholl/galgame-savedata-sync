@@ -14,7 +14,7 @@ import java.util.Map;
 
 /**
  * 从相机帧的亮度数据里识别二维码，正常的深色码和监听方深色主题显示的反色码（深底浅色）都能读出。
- * 实例不是线程安全的，由 {@link QrCameraSession} 的分析线程独占使用。
+ * 实例不是线程安全的。
  */
 final class QrFrameDecoder {
 

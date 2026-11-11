@@ -13,20 +13,17 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-/**
- * 应用配置（游戏、目录引用、设备关联）保存在应用私有 SharedPreferences，不随 WebView 数据清除。
- * 只接受登记过的键；值为网页校验过的 JSON 文本，原生端只限制长度。
- */
+/** 应用配置的原生插件：配置保存在应用私有 SharedPreferences，只接受登记过的键，值只限制长度。 */
 @CapacitorPlugin(name = "AppStorage")
 public class AppStoragePlugin extends Plugin {
 
   private static final String FILE = "app-storage";
   private static final String LIBRARY = "savedata-sync:library:1";
   private static final Set<String> KEYS = Collections.singleton(LIBRARY);
-  /** 配置只含 ID、名称和目录引用，正常远小于此上限。 */
+  /** 一个值的最大长度；配置只含 ID、名称和目录引用，正常远小于此上限。 */
   private static final int MAX_LENGTH = 4 * 1024 * 1024;
 
-  /** 原生任务不经过网页，直接读游戏名；找不到或配置不可读时返回 null。 */
+  /** 从已保存的配置读取游戏名；找不到或配置不可读时返回 null。 */
   static String gameName(Context context, String projectId) {
     try {
       String saved = context

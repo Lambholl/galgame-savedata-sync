@@ -1,4 +1,4 @@
-/** 切到当前页的方式，决定切页方向：forward 打开新页，back 回到来源，lateral 主导航之间切换。 */
+/** 切到当前页的方式：forward 打开新页，back 回到来源，lateral 在主导航之间切换。 */
 export type NavigationDirection = 'forward' | 'back' | 'lateral'
 
 /** 来源记录的一层：离开时的页面，以及重新显示它需要的上下文。 */
@@ -7,19 +7,19 @@ export interface PageSource<P, C> {
   readonly context: C
 }
 
-/** 当前页、来源记录和切到当前页的方式；下面的函数都返回新状态，不修改传入的状态。 */
+/** 当前页、来源记录和切到当前页的方式。本文件的函数都返回新状态，传入的状态保持不变。 */
 export interface PageNavigationState<P, C> {
   readonly page: P
   readonly sources: readonly PageSource<P, C>[]
   readonly direction: NavigationDirection
 }
 
-/** 冷启动的状态：显示 page，没有来源记录。 */
+/** 创建显示 page、没有来源记录的状态。 */
 export function createNavigationState<P, C>(page: P): PageNavigationState<P, C> {
   return { page, sources: [], direction: 'lateral' }
 }
 
-/** 返回时要回到的来源；没有来源记录时为 null。 */
+/** 取返回时要回到的来源；没有来源记录时返回 null。 */
 export function backSource<P, C>(state: PageNavigationState<P, C>): PageSource<P, C> | null {
   return state.sources.at(-1) ?? null
 }
@@ -59,7 +59,7 @@ export function openMainPage<P, C>(target: P): PageNavigationState<P, C> {
   return { page: target, sources: [], direction: 'lateral' }
 }
 
-/** 结束当前流程并打开 target：之前的来源记录作废，返回时只回 homePage，并带上 homeContext。 */
+/** 结束当前流程并打开 target：清空来源记录，只留 homePage 和 homeContext 作为返回目标。 */
 export function finishPageFlow<P, C>(
   target: P,
   homePage: P,

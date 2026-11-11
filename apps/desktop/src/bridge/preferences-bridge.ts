@@ -1,12 +1,15 @@
 import { isAppPreferences, isOperationResult } from '@savedata-sync/shared'
 import type { AppPreferences, OperationResult } from '@savedata-sync/shared'
 
-/** 本机界面偏好（主题、语言）；主进程保存，并据此设置原生窗口主题。 */
+/** 本机界面偏好接口。 */
 export interface DesktopPreferencesApi {
+  /** 读取界面偏好。 */
   read(): Promise<OperationResult<AppPreferences>>
+  /** 保存界面偏好，并按新主题设置窗口的明暗。 */
   save(preferences: AppPreferences): Promise<OperationResult<AppPreferences>>
 }
 
+/** 界面偏好接口的 IPC 通道名。 */
 export const PREFERENCES_CHANNELS = {
   read: 'preferences:read',
   save: 'preferences:save',
@@ -19,6 +22,11 @@ function invalid(): OperationResult<never> {
   }
 }
 
+/**
+ * 用 invoke 创建冻结的 DesktopPreferencesApi。
+ *
+ * @returns invoke 失败或返回格式不对时，对应方法返回 io-failure 错误结果。
+ */
 export function createPreferencesBridge(
   invoke: (channel: string, ...args: unknown[]) => Promise<unknown>,
 ): DesktopPreferencesApi {

@@ -23,9 +23,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * SAF 的发布后端，只支持能核实为常规文件的描述符。rw 打开不截断，先比较设备和 inode 再写入。
- * 文档 ID 不转成路径，清理时不遍历目录，也不重命名或覆盖。SAF 没有比较后删除的操作，
- * 元数据和描述符复核只能发现可观察的竞争，恶意提供者仍可能在两次检查之间替换文件。
+ * SAF 的发布后端，只写能核实为常规文件的描述符：以 rw 打开，比较设备号和 inode 后再写入。
+ *
+ * <p>SAF 没有比较后删除的操作，元数据和描述符复核只能发现可观察的竞争，提供者仍可能在两次检查之间替换文件。
  */
 final class SafPublicationBackend implements NewFilePublisher.Backend {
 
@@ -88,7 +88,7 @@ final class SafPublicationBackend implements NewFilePublisher.Backend {
     return directory;
   }
 
-  /** 通过提供者根和子文档关系查询可用容量；容量未知时不当作零。 */
+  /** 通过提供者根和子文档关系查询可用容量；未知时返回 null。 */
   @Override
   public Long availableBytes(NewFilePublisher.Directory reference, ArchiveControl control)
     throws Exception {

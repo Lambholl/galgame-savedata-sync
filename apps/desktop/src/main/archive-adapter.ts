@@ -19,7 +19,7 @@ import { inspectLocalPath } from './directory-paths.ts'
 
 type ArchiveSource = Pick<WindowsDirectoryAdapter, 'deviceId' | 'openFile' | 'assertCacheIsolated'>
 
-/** 准备和校验阶段的本次计数。已暂存的归档字节不算网络传输进度。 */
+/** 准备和校验阶段的计数；已暂存的归档字节不计入网络传输进度。 */
 export interface ArchiveCounters {
   readonly sourceBytesRead: number
   readonly archiveBytesStored: number
@@ -34,18 +34,18 @@ interface MutableArchiveCounters {
   verifiedFiles: number
 }
 
-/** 归档操作的选项：signal 的期限由调用者管理，回调只收到只读的数值快照。 */
+/** 归档操作的选项：signal 用于取消和超时，回调收到只读的计数快照。 */
 export interface ArchiveOperationOptions {
   readonly signal?: AbortSignal
   readonly onProgress?: (counters: ArchiveCounters) => void
 }
 
-/** 接收归档的选项，含一个检查点回调：压缩体完整落盘并核对长度和 SHA 后触发，此时 tar 和原文还没校验。 */
+/** 接收归档的选项。检查点回调在压缩体完整落盘并核对长度和 SHA 后调用，此时 tar 和原文还没校验。 */
 export interface ArchiveReceiveOptions extends ArchiveOperationOptions {
   readonly onArchiveStored?: () => void
 }
 
-/** 归档缓存的句柄，只由主进程持有，不经 IPC 传递。读流必须关闭；dispose 后所有方法失效。 */
+/** 归档缓存的句柄。打开的读流用完要关闭；dispose 后所有方法失效。 */
 export interface WindowsArchive {
   readonly manifest: BatchManifest
   readonly openArchive: () => Promise<Readable>
@@ -199,7 +199,7 @@ export class WindowsArchiveAdapter {
     this.cache = cache
   }
 
-  /** 接收前检查压缩体和解包后原文所需的磁盘空间；只读，不创建任务，也不预留磁盘。 */
+  /** 检查接收压缩体和解包后原文所需的磁盘空间。 */
   async checkReceiveSpace(
     manifest: BatchManifest,
   ): Promise<{ device: string; requiredBytes: number }> {
@@ -220,7 +220,11 @@ export class WindowsArchiveAdapter {
     }
   }
 
-  /** 读取源文件，生成快照和 gzip level 1 归档。失败或取消时清理本次缓存；成功后清理由返回的句柄负责。 */
+  /**
+   * 读取源文件，生成快照和 gzip 归档。失败或取消时清理本次缓存。
+   *
+   * @returns 归档句柄，用完后 dispose。
+   */
   async prepare(request: unknown, options: ArchiveOperationOptions = {}): Promise<WindowsArchive> {
     if (!isDownloadBatchRequest(request)) {
       throw new ArchiveError('invalid-request', 'The batch download request is invalid.')
@@ -281,7 +285,7 @@ export class WindowsArchiveAdapter {
     }, options)
   }
 
-  /** 接管输入流，先完整暂存并校验压缩体，再解包到私有文件。 */
+  /** 接管输入流，完整暂存并校验压缩体后解包。 */
   async receive(
     manifest: unknown,
     input: Readable,
@@ -351,7 +355,7 @@ export class WindowsArchiveAdapter {
     }
   }
 
-  /** 重试本缓存根中失败的清理；其他缓存根和正在使用的文件不受影响。 */
+  /** 重试本缓存根中失败的清理；正在使用的文件保留。 */
   async retryCleanup(): Promise<void> {
     await this.cache.retryCleanup()
   }
@@ -609,7 +613,7 @@ export class WindowsArchiveAdapter {
   }
 }
 
-/** 在已有的应用私有目录里创建归档缓存；初始化时只清理带匹配标记的遗留任务。 */
+/** 在已有的应用私有目录里创建归档编解码器，并清理带本应用标记的遗留缓存任务。 */
 export async function createWindowsArchiveAdapter(
   source: ArchiveSource,
   privateDirectory: string,

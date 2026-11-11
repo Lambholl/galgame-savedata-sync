@@ -5,7 +5,7 @@ import android.system.Os;
 import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
 
-/** 查询 Android 备份卷的容量和真实硬链接计数；只由原生工厂创建。 */
+/** 查询 Android 备份卷的可用容量和文件的硬链接计数。 */
 final class AndroidBackupIo implements BackupFiles.Io {
 
   @Override

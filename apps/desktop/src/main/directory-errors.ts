@@ -1,6 +1,6 @@
 import type { OperationError, OperationErrorCode, OperationResult } from '@savedata-sync/shared'
 
-/** 目录访问错误：内部保留 cause，跨 IPC 只发送脱敏后的 operationError。 */
+/** 目录访问错误：operationError 是脱敏后的错误，原始错误在 cause。 */
 export class DirectoryAccessError extends Error {
   readonly operationError: OperationError
 
@@ -15,7 +15,7 @@ export class DirectoryAccessError extends Error {
   }
 }
 
-/** 把文件系统错误映射为错误码稳定、不含主机路径的错误，并保留内部 cause。 */
+/** 把文件系统错误转成错误码稳定、消息不含路径的 DirectoryAccessError，原始错误放在 cause。 */
 export function toDirectoryError(error: unknown): DirectoryAccessError {
   if (error instanceof DirectoryAccessError) {
     return error
@@ -42,7 +42,7 @@ export function toDirectoryError(error: unknown): DirectoryAccessError {
   )
 }
 
-/** 执行本地操作，失败时转成 OperationResult 错误；原始错误只留在进程内。 */
+/** 执行本地操作，失败时返回脱敏后的错误结果。 */
 export async function runDirectoryOperation<TValue>(
   operation: () => Promise<TValue>,
 ): Promise<OperationResult<TValue>> {

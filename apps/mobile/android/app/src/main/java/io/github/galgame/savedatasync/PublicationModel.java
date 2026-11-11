@@ -5,7 +5,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 
-/** 单文件发布的值对象，不持有路径、URI 或文件字节。 */
+/** 单文件发布的值对象。 */
 final class PublicationModel {
 
   static final int MAX_DIRECTORY_ENTRIES = 32768;
@@ -83,7 +83,7 @@ final class PublicationModel {
     }
   }
 
-  /** 条目的公开引用；提供者文档 ID 不进入结果。 */
+  /** 发布出的条目，用不透明 ID 引用。 */
   static final class Entry {
 
     final String rootId;
@@ -156,7 +156,7 @@ final class PublicationModel {
       .matches("(?:CON|PRN|AUX|NUL|COM[1-9¹²³]|LPT[1-9¹²³]|CONIN\\$|CONOUT\\$)(?:\\..*)?");
   }
 
-  /** 生成名称的比较键，用来拒绝常见的等价名称，提供者特有的规则覆盖不到；请求名不会被改写。 */
+  /** 返回名称的比较键：NFC 规范化后转大写，大小写或 Unicode 组合方式不同的名称得到同一个键。 */
   static String nameKey(String value) {
     return Normalizer.normalize(value, Normalizer.Form.NFC).toUpperCase(Locale.ROOT);
   }

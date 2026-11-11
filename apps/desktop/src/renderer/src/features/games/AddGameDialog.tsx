@@ -3,7 +3,7 @@ import { FolderOpenOutlined, RightOutlined } from '@ant-design/icons'
 import type { DirectoryReference } from '@savedata-sync/shared'
 import { PathText, useT } from '@savedata-sync/shared/ui'
 
-/** 选择目录后才保存游戏；取消弹窗保留现有游戏列表。 */
+/** 添加游戏的弹窗：输入名称并选择本机目录。 */
 export function AddGameDialog({
   isOpen,
   directory,

@@ -8,14 +8,14 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
-/** 归档格式 v1 的进程内不可变模型；不解码 JSON，也不跨 JS 桥。 */
+/** 归档格式 v1 的不可变模型。 */
 final class ArchiveModel {
 
   static final int BUFFER = 65536;
 
   private ArchiveModel() {}
 
-  /** 归档的字节上限，单位都是字节；测试和可信的原生调用者只能收紧，不能放宽协议。 */
+  /** 归档的字节上限，取值不大于协议的上限。 */
   static final class Limits {
 
     final int files;
@@ -55,7 +55,7 @@ final class ArchiveModel {
     }
   }
 
-  /** 源文件的身份和可观察属性；长度或时间未知时为 null，identity 只在原生层比较。 */
+  /** 源文件的身份和可观察属性；长度或时间未知时为 null。 */
   static final class Observation {
 
     final String identity;
@@ -106,9 +106,9 @@ final class ArchiveModel {
     }
   }
 
-  /** 只读源接口；每次打开的流交给归档所有者关闭，observe 必须重新检查授权和身份。 */
+  /** 只读的源文件。打开的流由调用方关闭；observe 每次都重新检查授权和身份。 */
   interface Source {
-    /** 校验源属于这批的根目录，SAF 源必须实现；纯 IO 的合成源可以用默认实现。 */
+    /** 校验源属于 rootId 这个根目录，不属于时抛错；默认实现接受任何根目录。 */
     default void validateRoot(String rootId) throws ArchiveFailure {}
 
     Observation observe(ArchiveControl control) throws Exception;

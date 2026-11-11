@@ -2,6 +2,7 @@ import { Button, Input } from 'antd-mobile'
 import { useT } from '@savedata-sync/shared/ui'
 import { Sheet } from './Sheet'
 
+/** 编辑已保存设备的弹层：修改名称和地址，或移除设备。 */
 export function DeviceEditorDialog({
   isOpen,
   editingDeviceId,

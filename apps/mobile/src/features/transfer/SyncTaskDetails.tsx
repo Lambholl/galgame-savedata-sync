@@ -25,8 +25,8 @@ const RESTORE_STATUS = {
 } as const
 
 /**
- * 先给结论再给细节；目标是否写入成功只依据接收端回读的结果。
- * 右下角只悬浮当下能做的一件事：进行中取消传输，结束后重新扫描；查看备份是技术详情上方的一行。
+ * 一次复制任务的详情：先给结论再给细节，写入是否成功以接收端回读的结果为准。
+ * 进行中时可以取消传输，结束后可以重新扫描。
  */
 export function SyncTaskDetails({
   projectId,
@@ -124,7 +124,7 @@ export function SyncTaskDetails({
             onRetryCleanup={
               isRunning || !state.local.cleanupError ? null : () => act(() => sync.cleanupCopy())
             }
-            // 备份建在被写入的一端；移动端发送时备份在电脑上，这里不提供入口。
+            // 备份建在被写入的一端；本机发送时备份在电脑上，这里不提供入口。
             onViewBackup={
               state.local.role === 'receiver' ? () => onBackup(binding.projectId) : null
             }

@@ -16,7 +16,7 @@ import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-/** 本机恢复的 Capacitor 插件；原文、FD、URI 和任意路径都留在原生层。 */
+/** 本机恢复的原生插件：绑定项目、准备和执行恢复、查询和清理任务、处理中断的写入。 */
 @CapacitorPlugin(name = "SyncWrites")
 public class SyncWritesPlugin extends Plugin {
 

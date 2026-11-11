@@ -1,6 +1,11 @@
 import type { CatalogGame, LibraryGame } from './library.ts'
 
-/** 追加已选的对端游戏关联并恢复该设备的反向合并；调用端应先筛除已有的关联设备。 */
+/**
+ * 追加一条对端游戏关联，并把该设备移出排除列表。
+ *
+ * @param game 不能已经有该设备的关联。
+ * @returns 新的游戏配置，game 本身不变。
+ */
 export function withGameLink(game: LibraryGame, deviceId: string, gameId: string): LibraryGame {
   return {
     ...game,
@@ -9,7 +14,11 @@ export function withGameLink(game: LibraryGame, deviceId: string, gameId: string
   }
 }
 
-/** 解除该设备的关联，并记录排除项以阻止对端自动恢复；返回新配置，由调用端保存。 */
+/**
+ * 解除与该设备的关联，并把设备加入排除列表，使对端的关联不再合并进来。
+ *
+ * @returns 新的游戏配置，game 本身不变。
+ */
 export function withoutGameLink(game: LibraryGame, deviceId: string): LibraryGame {
   return {
     ...game,
@@ -18,7 +27,11 @@ export function withoutGameLink(game: LibraryGame, deviceId: string): LibraryGam
   }
 }
 
-/** 用调用端生成的 ID 导入对端游戏名称与关联；本机目录留空，由调用端选择并保存。 */
+/**
+ * 按对端游戏创建本机游戏：使用对端的名称并关联对端游戏，本机目录为空。
+ *
+ * @param id 新游戏的 ID。
+ */
 export function createImportedGame(id: string, game: CatalogGame, deviceId: string): LibraryGame {
   return {
     id,

@@ -15,8 +15,9 @@ import com.getcapacitor.annotation.Permission;
 import com.getcapacitor.annotation.PermissionCallback;
 
 /**
- * 扫码的原生桥：网页调用 start 和 stop 控制 {@link QrCameraSession}，识别出文本时发 qrDetected 事件。
- * 文本的校验由网页的 shared 函数完成。相机权限用 Capacitor 内置的 checkPermissions 查询，别名是 camera。
+ * 扫码的原生插件：start 打开后置相机并开始识别，stop 关闭相机，识别出文本时发 qrDetected 事件。
+ *
+ * <p>事件里的文本未经校验。相机权限的别名是 camera。
  */
 @CapacitorPlugin(
   name = "QrScanner",

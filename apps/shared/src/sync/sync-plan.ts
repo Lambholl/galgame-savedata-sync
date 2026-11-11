@@ -58,7 +58,7 @@ function inspectSnapshot(
   return names
 }
 
-/** 这一项是否会改动目标。 */
+/** 判断这一项是否会改动目标。 */
 export function isSyncWriteEntry(entry: SyncPlanEntry): boolean {
   return (
     entry.action === 'create-directory' ||
@@ -69,7 +69,7 @@ export function isSyncWriteEntry(entry: SyncPlanEntry): boolean {
   )
 }
 
-/** 这个动作是否写入文件内容；只有这些动作需要来源文件，也只有这些结果带指纹。 */
+/** 判断这个动作是否写入文件内容。 */
 export function isSyncFileWrite(action: SyncAction): boolean {
   return action === 'create-file' || action === 'replace-file'
 }
@@ -109,7 +109,8 @@ function operationRank(entry: SyncPlanEntry): number {
   return entry.action === 'delete-file' || entry.action === 'delete-directory' ? 2 : 1
 }
 
-/** 先建文件夹（由浅到深）再写文件；删除排在最后（由深到浅），写入失败时什么都还没删。 */
+// 删除排在最后，写入失败时还没有删除任何条目。
+/** 排序规则：先建文件夹（由浅到深），再写文件，最后删除（由深到浅）。 */
 function compareOperations(a: SyncPlanEntry, b: SyncPlanEntry): number {
   const rank = operationRank(a) - operationRank(b)
   if (rank !== 0) {
@@ -143,8 +144,9 @@ function jsonByteLength(value: unknown): number {
 }
 
 /**
- * 从已校验计划选出写入前要备份的全部目标文件，包括未变化和只在目标有的文件。
- * 关闭备份、没有写入或目标没有文件时返回空集合。
+ * 选出写入前要备份的全部目标文件，包括未变化和只在目标有的文件。
+ *
+ * @returns 关闭备份、没有写入或目标没有文件时返回空数组。
  */
 export function selectSyncBackupFiles(
   plan: Pick<SyncPlan, 'shouldBackup' | 'entries' | 'target'>,
@@ -156,9 +158,11 @@ export function selectSyncBackupFiles(
 }
 
 /**
- * 根据当前快照和用户给的方向生成确定的计划，输入不变。
- * DTO 非法时抛 Error；业务冲突返回 canExecute=false；总量未知或溢出时为 null。
- * 输出复制了快照，调用方之后修改输入不影响计划；会话和权限由平台复核。
+ * 根据两端快照和方向生成计划，相同输入得到相同计划。
+ *
+ * @param input 不会被修改；计划保存的是快照的副本。
+ * @returns 有冲突时 canExecute 为 false；总量未知或溢出时对应统计为 null。
+ * @throws Error 输入格式不合法时抛出。
  */
 export function createSyncPlan(input: SyncPlanInput): SyncPlan {
   if (!isSyncPlanInput(input)) {
@@ -266,7 +270,7 @@ export function createSyncPlan(input: SyncPlanInput): SyncPlan {
   return result
 }
 
-/** 用同一份快照重新生成计划，只改变目标多出条目的处理方式；不读取文件，也不需要重新扫描。 */
+/** 用同一份快照重新生成计划，只改变只在目标有的条目的处理方式。 */
 export function withDeleteExtras(plan: SyncPlan, shouldDeleteExtras: boolean): SyncPlan {
   return createSyncPlan({
     planId: plan.planId,

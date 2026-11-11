@@ -23,7 +23,7 @@ import {
   toPublicationError,
 } from './publication-errors.ts'
 
-/** 发布一个已校验原文的请求，目标用本机 ID 和单文件名表示，不含路径。 */
+/** 发布一个已校验原文的请求，目标用本机 ID 和单文件名表示。 */
 export interface NewFilePublicationRequest {
   readonly fileId: string
   readonly rootId: string
@@ -33,10 +33,10 @@ export interface NewFilePublicationRequest {
   readonly sha256: string
 }
 
-/** 发布结果：文件结果与候选文件清理分开，清理失败不改变已回读确认的成功。 */
+/** 发布结果：文件结果与候选文件的清理结果分开报告。 */
 export type NewFilePublicationResult = { readonly outcome: FileOutcome } & BatchCleanup
 
-/** 发布器依赖，由主进程注入，不经 HTTP 或 IPC 配置；文件系统不支持硬链接时发布失败。 */
+/** 发布器的依赖。 */
 export interface NewFilePublisherOptions {
   readonly maxFileBytes?: number
   readonly io?: {
@@ -47,7 +47,7 @@ export interface NewFilePublisherOptions {
   }
 }
 
-/** 发布进度的同步快照；回读成功前 publishedBytes 为 0，不能用来算批次校验计数。 */
+/** 发布进度的快照；回读成功前 publishedBytes 为 0。 */
 export interface PublicationProgress {
   readonly stage: 'staging' | 'publishing' | 'verifying'
   readonly stagedBytes: number
@@ -55,7 +55,7 @@ export interface PublicationProgress {
   readonly publishedBytes: number
 }
 
-/** 发布选项：输入流从调用起由适配器持有并最终关闭；signal 取消时，已到发布点的最终文件保留。 */
+/** 发布选项。signal 取消时，已到发布点的文件保留。 */
 export interface PublicationOptions {
   readonly signal?: AbortSignal
   readonly onProgress?: (value: PublicationProgress) => void
@@ -124,10 +124,9 @@ function checkAbort(job: PublicationJob): void {
 }
 
 /**
- * Windows 上发布新文件：候选文件独占创建在目标父目录，校验原文并 sync 后用硬链接发布，已有的名字不会被覆盖。
- * 读取登记不会自动授予写权限，grant 只在当前进程内有效。输入、候选和回读都用有限缓冲。
- * 最终回读成功才报告 succeeded；取消竞争和结果不确定时不自动重试。
- * stop 撤销授权并等待资源释放，清理失败时可以 retryCleanup。用法和边界见桌面 README。
+ * 在已授权的根目录里发布新文件：候选文件独占创建在目标父目录，校验原文并落盘后用硬链接发布，
+ * 已有的同名文件保留，文件系统不支持硬链接时发布失败。最终回读成功才报告 succeeded。
+ * 写授权由 grant 给出，只在当前进程内有效。
  */
 export class WindowsNewFilePublisher {
   private readonly source: Pick<WindowsDirectoryAdapter, 'locateNativeDirectory'>
@@ -154,7 +153,7 @@ export class WindowsNewFilePublisher {
     }
   }
 
-  /** 核实已选目录的身份和写权限；游戏配置在接收前调用它恢复进程内的授权。 */
+  /** 核实已登记目录的身份和写权限，并授予写授权。 */
   async grant(rootId: string): Promise<void> {
     if (this.isStopped) {
       throw new PublicationError('busy', 'The publication adapter has stopped.')
@@ -180,7 +179,7 @@ export class WindowsNewFilePublisher {
     this.grants.set(rootId, location)
   }
 
-  /** 撤销根目录的写授权，之后不再接受它的写入；进行中的操作在发布点前取消，过了发布点的返回实际结果。 */
+  /** 撤销根目录的写授权；进行中的操作在发布点前取消，过了发布点的返回实际结果。 */
   async revoke(rootId: string): Promise<void> {
     this.grants.delete(rootId)
     if (this.job?.request.rootId === rootId) {
@@ -191,10 +190,11 @@ export class WindowsNewFilePublisher {
   }
 
   /**
-   * 接收归档前的只读预检：核对授权、父目录、容量和当前的同名冲突。
-   * requiredBytes 默认是单个文件，可以传本批原文总量；privateSpace 与缓存同卷时合计峰值。
-   * 返回物理父目录和大小写比较键，只在主进程内用来给本批目标去重；名称和任务名额都不预留。
-   * publish 在实际写入和发布点还会重查，预检成功后仍可能出现竞争。
+   * 预检一个发布目标：授权、父目录、容量和当前的同名冲突。结果只反映检查那一刻的状态，名称和容量都不预留。
+   *
+   * @param requiredBytes 需要的字节数，缺省时取单个文件大小。
+   * @param privateSpace 私有缓存所在卷；与目标同卷时合计所需空间。
+   * @returns 物理父目录和不区分大小写的名称键，可用来给一批目标去重。
    */
   async checkTarget(
     value: unknown,
@@ -254,8 +254,10 @@ export class WindowsNewFilePublisher {
   }
 
   /**
-   * 发布一个文件。请求有效时返回文件结果，字段非法时抛 PublicationError；任何退出都关闭输入流。
-   * 调用方要先校验整批归档，见 WindowsUploadReceiver。
+   * 发布一个文件，接管并最终关闭输入流。
+   *
+   * @returns 文件结果。
+   * @throws PublicationError 请求字段非法时抛出。
    */
   async publish(
     value: unknown,
@@ -358,7 +360,7 @@ export class WindowsNewFilePublisher {
     this.release(job)
   }
 
-  /** 停止发布器：等待进行中的操作并重试候选文件清理；失败时保留所有权，可以再次 stop。 */
+  /** 停止发布器：撤销全部授权，等待进行中的操作并清理候选文件；清理失败时可以再次 stop。 */
   stop(): Promise<void> {
     this.isStopped = true
     this.grants.clear()

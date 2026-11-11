@@ -15,10 +15,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 
-/**
- * 界面偏好（主题、语言）保存在应用私有 SharedPreferences，不随 WebView 数据清除。
- * 主题同时设置 AppCompat 夜间模式，使启动画面与窗口背景和界面一致。
- */
+/** 界面偏好（主题、语言）的原生插件：偏好保存在应用私有 SharedPreferences，主题同时设置 AppCompat 夜间模式。 */
 @CapacitorPlugin(name = "AppPreferences")
 public class AppPreferencesPlugin extends Plugin {
 
@@ -41,7 +38,7 @@ public class AppPreferencesPlugin extends Plugin {
     return allowed.contains(value) ? value : "system";
   }
 
-  /** 原生文案使用与界面相同的语言存储；每次读取以响应运行中的语言切换。 */
+  /** 返回按已保存的界面语言本地化的 Context；每次调用都重新读取语言。 */
   static Context localizedContext(Context context) {
     String locale = stored(store(context), "locale", LOCALES);
     Configuration configuration = new Configuration(context.getResources().getConfiguration());
@@ -53,7 +50,7 @@ public class AppPreferencesPlugin extends Plugin {
     return context.createConfigurationContext(configuration);
   }
 
-  /** Activity 创建前调用，按已保存主题设置夜间模式；未保存时跟随系统。 */
+  /** 按已保存的主题设置夜间模式；没有保存时跟随系统。 */
   static void applyStoredTheme(Context context) {
     applyTheme(stored(store(context), "theme", THEMES));
   }

@@ -32,10 +32,7 @@ import { RestoreDetails } from './RestoreDetails.tsx'
 
 type PolicyMode = 'follow' | 'custom'
 
-/**
- * 备份与恢复：从游戏进入，顶部一条备份策略；左侧备份时间线，右侧显示所选备份里的文件，
- * “恢复此备份”在右侧原地切换为恢复预览，确认后在原处显示结果。
- */
+/** 一个游戏的备份与恢复页：顶部是备份设置，左侧是备份时间线，右侧是所选备份的文件和恢复入口。 */
 export function BackupPage({
   roots,
   game,

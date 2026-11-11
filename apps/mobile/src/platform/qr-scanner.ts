@@ -5,7 +5,7 @@ import type { PluginListenerHandle } from '@capacitor/core'
 /** 打开相机的结果：started 表示取景画面已在 WebView 下面，denied 表示没有相机权限，failed 表示相机打不开或不是 Android 应用。 */
 export type QrScannerStartStatus = 'started' | 'denied' | 'failed'
 
-/** 网页使用的二维码扫描。取景画面由原生层放在透明的 WebView 下面，页面要让出背景才看得见。 */
+/** 二维码扫描。取景画面在透明的 WebView 下面，页面背景透明时才看得见。 */
 export interface QrScannerApi {
   /** 需要时申请相机权限，然后打开后置相机并开始识别。不会 reject，失败时 resolve `failed`。 */
   start(): Promise<QrScannerStartStatus>
@@ -13,19 +13,19 @@ export interface QrScannerApi {
   stop(): void
   /**
    * 订阅识别结果。listener 收到二维码的原始文本，同一段文本每 2 秒最多一次，内容未经校验。
-   * 返回的函数取消订阅，页面离开时调用。
+   * 返回的函数取消订阅。
    */
   watchDetected(listener: (text: string) => void): () => void
   /**
-   * 应用回到前台时检查相机权限，已授权就调用 listener。用于用户从系统设置授权后返回的情况。
-   * 返回的函数取消监听，页面离开时调用。
+   * 应用回到前台时检查相机权限，已授权就调用 listener。
+   * 返回的函数取消监听。
    */
   watchPermissionGranted(listener: () => void): () => void
   /** 打开本应用的系统设置页。 */
   openAppSettings(): void
 }
 
-/** Capacitor 原生插件 QrScanner；返回值和事件都未经校验。 */
+/** 二维码扫描的原生插件；返回值和事件都未经校验。 */
 export interface QrScannerNativePlugin {
   start(): Promise<unknown>
   stop(): Promise<unknown>
@@ -58,7 +58,7 @@ function removeWhenReady(handle: Promise<PluginListenerHandle>, purpose: string)
   }
 }
 
-/** 包装原生插件；plugin 为 null 时（浏览器预览）start 回报 failed，其余方法不做任何事。 */
+/** 用原生插件创建 QrScannerApi；plugin 为 null 时 start 回报 failed，其余方法不做任何事。 */
 export function createQrScanner(plugin: QrScannerNativePlugin | null): QrScannerApi {
   return {
     async start() {

@@ -17,7 +17,7 @@ import './service-hero.css'
 /** 本机服务的状态。starting 和 stopping 是按下开关后到服务真正启动或停止之间的过渡。 */
 export type ServiceHeroState = 'stopped' | 'starting' | 'running' | 'stopping'
 
-/** 本机服务在局域网里的广播状态，取值和含义同电脑端服务快照的 discovery.status。 */
+/** 本机服务在局域网里的广播状态。 */
 export type ServiceDiscoveryStatus = 'off' | 'starting' | 'advertising' | 'failed'
 
 /** ServiceHero 的参数。 */
@@ -40,13 +40,13 @@ export interface ServiceHeroProps {
   readonly isCopied: boolean
   /** 正在执行其他操作，开关暂不可按。 */
   readonly isToggleDisabled: boolean
-  /** 服务停止时显示在地址位置的端口设置，由平台用自己的输入控件渲染。 */
+  /** 服务停止时显示在地址位置的端口设置。 */
   readonly portEditor: ReactNode
   /** 按下主开关：服务停止时启动，运行时停止。 */
   readonly onToggle: () => void
   /** 复制推荐地址。 */
   readonly onCopy: () => void
-  /** 卡片太窄放不下二维码时，地址旁出现二维码按钮，点按后由平台打开放大的二维码。 */
+  /** 点按二维码按钮；卡片太窄放不下二维码时，这个按钮显示在地址旁。 */
   readonly onShowQr: () => void
 }
 
@@ -105,8 +105,7 @@ function useUptime(startedAt: number | null): string | null {
 
 /**
  * 本机服务卡片：标题和状态胶囊、推荐地址、运行时长、连着的设备和局域网广播状态，右侧是二维码和主开关。
- * 服务停止时地址换成平台传入的端口设置。排版按卡片自身宽度切换三档，见 service-hero.css。
- * 主开关是只放图标的波浪圆按钮，状态的文字说明在标题旁的胶囊里。
+ * 服务停止时地址换成端口设置。排版按卡片宽度切换三档。
  */
 export function ServiceHero({
   state,

@@ -3,10 +3,7 @@ import { join } from 'node:path'
 import { isInterruptedWrite, MAX_INTERRUPTED_WRITES } from '@savedata-sync/shared'
 import type { InterruptedWrite, SyncPlan } from '@savedata-sync/shared'
 
-/**
- * 写入标记：开始写目标目录前落盘，写入结束时删除。上一个进程留下的标记说明那次写入被中断。
- * 标记只放应用私有目录，不含路径和文件内容。
- */
+/** 写入标记的存储。标记在开始写目标目录前落盘，写入结束时删除；上一个进程留下的标记说明那次写入被中断。 */
 export class InterruptedWriteStore {
   private readonly directory: string
   private readonly active = new Set<string>()
@@ -16,7 +13,7 @@ export class InterruptedWriteStore {
   private file(id: string): string {
     return join(this.directory, `${id}.json`)
   }
-  /** 落盘失败时 reject，调用者不再写目标，避免写入中断后没有提示。 */
+  /** 为一次写入落盘标记；落盘失败时 reject。 */
   async begin(plan: SyncPlan, backupId: string | null): Promise<void> {
     const write: InterruptedWrite = {
       id: plan.planId,
@@ -35,12 +32,12 @@ export class InterruptedWriteStore {
       await handle.close()
     }
   }
-  /** 写入结束时调用，不会 reject；删除失败只会多提示一次，不影响已核实的写入结果。 */
+  /** 删除一次写入的标记；删除失败时忽略，不会 reject。 */
   async end(id: string): Promise<void> {
     await rm(this.file(id), { force: true }).catch(() => undefined)
     this.active.delete(id)
   }
-  /** 上个进程留下的标记，最早的在前；读不懂的文件直接删除。 */
+  /** 列出之前的进程留下的标记，最早的在前；无法解析的标记文件会被删除。 */
   async list(): Promise<readonly InterruptedWrite[]> {
     const names = await readdir(this.directory).catch(() => [])
     const writes: InterruptedWrite[] = []
@@ -61,6 +58,7 @@ export class InterruptedWriteStore {
     }
     return writes.sort((a, b) => a.startedAt - b.startedAt).slice(0, MAX_INTERRUPTED_WRITES)
   }
+  /** 删除一个之前的进程留下的标记；正在进行的写入的标记保留。 */
   async dismiss(id: string): Promise<void> {
     if (!this.active.has(id)) {
       await rm(this.file(id), { force: true })

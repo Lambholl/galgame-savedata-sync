@@ -3,7 +3,7 @@ import { Popup, Button } from 'antd-mobile'
 import { CloseOutlined } from '@ant-design/icons'
 import { useT } from '@savedata-sync/shared/ui'
 
-/** 受控底部弹层，返回键由应用按层级协调。 */
+/** 受控的底部弹层。 */
 export function Sheet({
   isOpen,
   title,

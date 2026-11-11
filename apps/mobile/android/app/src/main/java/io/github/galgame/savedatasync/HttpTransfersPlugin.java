@@ -37,7 +37,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-/** 批量传输的 Capacitor 插件；Activity 只订阅事件，进行中的传输由持续通知服务持有。 */
+/** 批量传输的原生插件：传输在持续通知服务里进行，Activity 销毁后继续。 */
 @CapacitorPlugin(
   name = "HttpTransfers",
   permissions = @Permission(
@@ -107,7 +107,7 @@ public class HttpTransfersPlugin extends Plugin {
     return new JSObject(new String(bytes(value), StandardCharsets.UTF_8));
   }
 
-  /** 连接错误直接显示 HTTP/协议码、系统 errno 或原始异常类型，不推测原因。 */
+  /** 把连接异常转成错误结果，附带 HTTP/协议码、系统 errno 或原始异常类型。 */
   private static Map<String, Object> connectionError(Exception cause) {
     ArchiveFailure failure = NewFilePublisher.failure(cause);
     Map<String, Object> result = error(failure.code);
@@ -332,7 +332,7 @@ public class HttpTransfersPlugin extends Plugin {
     });
   }
 
-  /** 请求通知权限；未允许持续通知时不开始传输。 */
+  /** 请求通知权限，返回是否允许发持续通知。 */
   @PluginMethod
   public void requestNotifications(PluginCall call) {
     try {
@@ -386,7 +386,7 @@ public class HttpTransfersPlugin extends Plugin {
     }
   }
 
-  /** 选择存档目录时保存系统读写权限；以后接收会重新核实已有持久权限。 */
+  /** 让用户选择存档目录，并保存系统读写权限。 */
   @PluginMethod
   public void chooseTarget(PluginCall call) {
     try {

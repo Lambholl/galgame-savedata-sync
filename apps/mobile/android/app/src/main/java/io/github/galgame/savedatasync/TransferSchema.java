@@ -14,7 +14,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-/** 批量传输 v1 的字段校验和任务上下文校验，都在原生层执行，不能依赖 JS 校验网络输入。 */
+/** 批量传输 v1 的字段校验和任务上下文校验。 */
 final class TransferSchema {
 
   static final String ERROR_CODES =

@@ -27,11 +27,8 @@ export interface PageSlideProps {
   readonly children: ReactNode
 }
 
-/**
- * 应用的页面容器：切页时旧页面和新页面一起平移，不做淡入。
- * 旧页面已经卸载，所以平移的是切页前克隆的 DOM，它不响应操作。
- * 只有类组件的 getSnapshotBeforeUpdate 能在 React 改 DOM 之前读到旧页面。
- */
+// 只有类组件的 getSnapshotBeforeUpdate 能在 React 改 DOM 之前读到旧页面，所以这里用类组件。
+/** 页面容器：切页时旧页面和新页面一起平移。平移的旧页面是切页前克隆的 DOM，不响应操作。 */
 export class PageSlide extends Component<PageSlideProps> {
   private readonly pageRef = createRef<HTMLDivElement>()
   private slide: {
@@ -39,6 +36,7 @@ export class PageSlide extends Component<PageSlideProps> {
     readonly animations: readonly Animation[]
   } | null = null
 
+  /** 切页时克隆旧页面并记下滚动位置；没有切页或用户要求减少动画时返回 null。 */
   override getSnapshotBeforeUpdate(previous: PageSlideProps): OutgoingPage | null {
     const page = this.pageRef.current
     if (
@@ -63,6 +61,7 @@ export class PageSlide extends Component<PageSlideProps> {
     return { element, scrolls }
   }
 
+  /** 有旧页面的克隆时，让它和新页面一起平移。 */
   override componentDidUpdate(
     previous: PageSlideProps,
     _state: unknown,
@@ -93,6 +92,7 @@ export class PageSlide extends Component<PageSlideProps> {
     animations[0]?.addEventListener('finish', () => this.stopSlide())
   }
 
+  /** 结束正在进行的平移。 */
   override componentWillUnmount(): void {
     this.stopSlide()
   }
@@ -113,6 +113,7 @@ export class PageSlide extends Component<PageSlideProps> {
     this.slide = null
   }
 
+  /** 渲染页面和主导航。 */
   override render(): ReactNode {
     return (
       <div className="mobile-app">

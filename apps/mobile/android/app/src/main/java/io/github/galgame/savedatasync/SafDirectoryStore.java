@@ -28,8 +28,8 @@ import org.json.JSONObject;
 
 /**
  * SAF 目录的只读登记表，必须在 I/O 工作线程调用。
- * 只持久化根目录授权；条目 ID 和元数据只保留在当前实例中。
- * 文件操作都用不透明的提供者 ID；完整路径和父目录名由 DirectoryDisplay 生成。
+ *
+ * <p>根目录授权持久保存，条目 ID 和元数据只在当前实例中有效；文件操作都用不透明的提供者 ID。
  */
 final class SafDirectoryStore {
 
@@ -59,7 +59,7 @@ final class SafDirectoryStore {
     this(context, PREFERENCES);
   }
 
-  /** 使用单独的偏好设置名称，将仪器测试夹具与用户设置隔离。 */
+  /** 创建登记表，根目录授权保存在名为 preferencesName 的 SharedPreferences。 */
   SafDirectoryStore(Context context, String preferencesName) throws SafFailure {
     this.context = context.getApplicationContext();
     resolver = this.context.getContentResolver();
@@ -186,7 +186,7 @@ final class SafDirectoryStore {
     return value;
   }
 
-  /** 登记系统选择器的结果，持久化其中的 READ 权限；已有授权不会被撤销。 */
+  /** 登记系统选择器选中的目录，持久化其中的 READ 权限；已有授权保持不变。 */
   synchronized JSObject register(Uri selected, int flags, CancellationSignal signal)
     throws SafFailure {
     Root candidate = null;
@@ -277,7 +277,11 @@ final class SafDirectoryStore {
     }
   }
 
-  /** 列出当前一层；未知属性保留为 null，提供者失败时报错，不返回空列表。 */
+  /**
+   * 列出一层目录；提供者没有报告的属性为 null。
+   *
+   * @throws SafFailure 提供者查询失败。
+   */
   synchronized JSObject listDirectory(String rootId, String parentId, CancellationSignal signal)
     throws SafFailure {
     try {
@@ -339,7 +343,7 @@ final class SafDirectoryStore {
     return entry;
   }
 
-  /** 发布器用的目录定位，只在原生层使用；只读的 JS 桥不调用，其中的 URI 也不导出。 */
+  /** 发布目录的位置，含提供者 URI，只在原生层使用。 */
   static final class PublicationDirectory implements NewFilePublisher.Directory {
 
     final String rootId;
@@ -367,7 +371,7 @@ final class SafDirectoryStore {
     return publicationDirectory(rootId, parentId, signal, true);
   }
 
-  /** 定位发布目录。覆盖已有文件不要求父目录支持新建；创建目录和文件时才核实创建能力。 */
+  /** 定位发布目录；requireCreate 为 true 时同时核实父目录支持新建。 */
   synchronized PublicationDirectory publicationDirectory(
     String rootId,
     String parentId,
@@ -437,8 +441,9 @@ final class SafDirectoryStore {
   }
 
   /**
-   * 归档读取前后重新查询授权、身份、类型和可观察属性，返回 Observation。
-   * 未知长度保留 null；不能用新查询覆盖枚举时的基线后继续读取已变化的源。
+   * 重新查询条目的授权、身份、类型和可观察属性，返回当前的观测结果；未知长度为 null。
+   *
+   * @throws SafFailure 条目不是常规文件，或属性与枚举时不同（source-changed）。
    */
   synchronized ArchiveModel.Observation archiveObservation(
     String rootId,
@@ -481,9 +486,12 @@ final class SafDirectoryStore {
   }
 
   /**
-   * 以 r 模式打开当前已枚举的文件；返回的流归调用者所有，调用者必须关闭。
-   * 每次读取都检查取消状态；生命周期管理方还必须关闭阻塞中的流。
-   * 字节不经过 JS 桥；大小和日期检查只能发现可观察的源变化，读取期间文件仍可能被替换。
+   * 以 r 模式打开已枚举的文件，打开前确认名称、大小和修改时间与枚举时相同。
+   *
+   * <p>每次读取前检查取消状态，阻塞中的读取要关闭流才能结束。打开前的检查只能发现可观察的变化，读取期间文件仍可能被替换。
+   *
+   * @return 文件的读流，由调用者关闭。
+   * @throws SafFailure 条目不是常规文件，或属性与枚举时不同（source-changed）。
    */
   synchronized InputStream openFile(String rootId, String entryId, CancellationSignal signal)
     throws SafFailure {

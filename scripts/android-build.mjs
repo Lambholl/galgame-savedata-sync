@@ -49,7 +49,7 @@ const gradleArgs = isInventory
         // 检查前可能还没执行 android:sync，:app 缺少生成的文件时无法配置，所以只配置根项目。
         ['--configure-on-demand', ':javaCheckstyle', '--console=plain']
       : ['--no-daemon', isRelease ? ':app:assembleRelease' : ':app:assembleDebug']
-// 显式相对路径：设置 NoDefaultCurrentDirectoryInExePath 时，cmd 不在当前目录查找裸名
+// 显式相对路径：设置 NoDefaultCurrentDirectoryInExePath 时，cmd 不在当前目录查找裸名。
 const args = isWindows ? ['/d', '/c', '.\\gradlew.bat', ...gradleArgs] : gradleArgs
 const proxyOptions = gradleProxy
   ? `-Dhttp.proxyHost=${gradleProxy.host} -Dhttp.proxyPort=${gradleProxy.port} -Dhttps.proxyHost=${gradleProxy.host} -Dhttps.proxyPort=${gradleProxy.port}`

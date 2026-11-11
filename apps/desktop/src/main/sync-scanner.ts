@@ -26,7 +26,7 @@ export type WindowsScanSource = Pick<
   'deviceId' | 'listDirectory' | 'openFile'
 >
 
-/** 扫描选项，主进程验证时可以收紧上限；网络请求不能修改。 */
+/** 扫描选项：收紧上限。 */
 export interface WindowsScanOptions {
   readonly maxEntries?: number
   readonly timeoutMs?: number
@@ -55,9 +55,8 @@ function listingKey(value: DirectoryListing): string {
 }
 
 /**
- * 当前会话内的异步只读扫描，真实哈希在 Node 流中计算，目录大小保持 null。
- * 同一时间只有一个扫描；查询只复制公开快照，取消和 stop 等待 worker 关闭文件流。
- * 完成的结果到期清除；用法见桌面 README 的扫描接口。
+ * 当前会话内的异步只读扫描，计算文件的 SHA-256，目录大小为 null。
+ * 同一时间只有一个扫描；完成的结果到期清除。
  */
 export class WindowsSyncScanner {
   private readonly source: WindowsScanSource
@@ -84,7 +83,7 @@ export class WindowsSyncScanner {
     }
   }
 
-  /** 登记扫描任务后异步读取；根目录非法时由目录适配器返回具体错误。 */
+  /** 登记扫描任务并立即返回，随后在后台读取；根目录无效时错误记在扫描状态里。 */
   start(rootId: string): SyncScanState {
     if (!isOpaqueId(rootId)) {
       throw new HttpOperationError('invalid-request', 'The scan directory reference is invalid.')
@@ -133,14 +132,14 @@ export class WindowsSyncScanner {
     return structuredClone(this.find(scanId).state)
   }
 
-  /** 等待这次扫描结束，不发起新扫描，也不延长结果保留期。 */
+  /** 等待这次扫描结束；等待不延长结果保留期。 */
   async wait(scanId: string): Promise<SyncScanState> {
     this.get(scanId)
     await this.jobs.get(scanId)?.worker
     return this.get(scanId)
   }
 
-  /** 取消当前扫描，worker 释放文件流后才给出最终状态。 */
+  /** 取消当前扫描；扫描线程释放文件后状态才是最终状态。 */
   cancel(scanId: string): SyncScanState {
     const job = this.find(scanId)
     if (job.state.status === 'running') {
@@ -166,7 +165,8 @@ export class WindowsSyncScanner {
     this.jobs.clear()
   }
 
-  /** 结果数量到上限时丢掉最旧的结果：调用时没有活动扫描，最旧的一定已结束，只有最新一次比较的结果才可能被确认。 */
+  // 调用时没有活动扫描，最旧的一定已结束；只有最新一次比较的结果才可能被确认，丢掉旧的不影响确认。
+  /** 结果数量到上限时丢掉最旧的结果。 */
   private evictOldest(): void {
     const [oldest] = this.jobs.values()
     if (oldest) {
@@ -225,7 +225,7 @@ export class WindowsSyncScanner {
       } else {
         const error = toHttpError(cause).operationError
         const snapshot = this.snapshot(job, error)
-        // 失败仍须能通过控制响应返回；保留进度计数，以根级错误表示未完成。
+        // 失败也要能通过控制响应返回；保留进度计数，用根级错误表示未完成。
         job.state = {
           ...job.state,
           status: 'failed',

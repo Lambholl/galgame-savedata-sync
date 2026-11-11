@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import { dirname, isAbsolute, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-/** 仓库检出根目录的绝对路径；调用者必须将生成的项目文件保留在此目录内。 */
+/** 仓库根目录的绝对路径，以路径分隔符结尾。 */
 export const REPO_ROOT = fileURLToPath(new URL('../', import.meta.url))
 
 function readLocalSettings() {
@@ -29,10 +29,11 @@ function readLocalSettings() {
 }
 
 /**
- * 解析本机 Android 路径，以及供 Gradle 使用的可选无认证 HTTP 代理。
- * 不修改系统环境变量，也不接受本地文件中的代理凭据。
- * 本地设置优先于环境变量；返回路径可能不存在，调用者必须校验实际使用的工具。
- * dev.local.json 格式错误时抛出异常。
+ * 从 dev.local.json 和环境变量解析本机 Android 路径，以及供 Gradle 使用的 HTTP 代理（可选）。
+ * dev.local.json 的设置优先于环境变量。
+ * @returns {{ sdkRoot?: string, javaHome?: string, studioPath?: string, gradleProxy?: { host: string, port: number } }}
+ *   sdkRoot 和 javaHome 未经存在性检查。
+ * @throws {Error} dev.local.json 格式错误，或 gradleProxy 不是不带凭据的 HTTP 地址。
  */
 export function getAndroidEnvironment() {
   const settings = readLocalSettings()

@@ -10,7 +10,7 @@ import type { DesktopDiscoveryState } from '../bridge/service-bridge.ts'
 
 /** 注册失败后，服务仍在运行时隔多久重新注册。 */
 const RETRY_DELAY_MS = 30_000
-/** 停止广播时最多等多久发完 goodbye 包，超时后不再等待，避免拖住停止服务和退出应用。 */
+/** 停止广播时最多等多久发完 goodbye 包；超时后不再等待，停止服务和退出应用不会被拖住。 */
 const RELEASE_TIMEOUT_MS = 3_000
 /** DNS 主机名的一个标签最多 63 个字节。 */
 const MAX_HOST_LABEL_LENGTH = 63
@@ -31,11 +31,9 @@ export interface DiscoveryAdvertisement {
 
 const OFF_STATE: DesktopDiscoveryState = { status: 'off', instanceName: null, error: null }
 
-/**
- * 由设备 ID 生成 SRV 记录指向的主机名标签。
- * ciao 默认用实例名当主机名，而实例名是设备显示名，可能含中文或空格；设备 ID 只含字母、数字、`_` 和 `-`，
- * 把 `_` 换成 `-` 后是合法的 DNS 主机名标签，各设备之间也不会重名。
- */
+// ciao 默认用实例名当主机名，而实例名是设备显示名，可能含中文或空格。
+// 设备 ID 只含字母、数字、`_` 和 `-`，把 `_` 换成 `-` 后是合法的 DNS 主机名标签，各设备之间也不会重名。
+/** 由设备 ID 生成 SRV 记录指向的主机名标签。 */
 function createHostLabel(deviceId: string): string {
   return `${DISCOVERY_SERVICE.name}-${deviceId}`
     .toLowerCase()
@@ -55,13 +53,8 @@ function delay(ms: number): Promise<void> {
 }
 
 /**
- * 在局域网用 mDNS 广播本机 HTTP 服务（DNS-SD 服务类型 `_savedata-sync._tcp`，TXT 格式见 shared 的 discovery.ts），
- * 让其他设备不输入 IP 也能找到本机。
- *
- * 服务 IPC 在 HTTP 服务开始监听后调用 start，停止服务后调用 stop；应用退出前必须 await stop，
- * 让局域网里的设备收到 goodbye 包后从发现列表移除本机。
- * 广播失败不影响 HTTP 服务：状态变为 failed 并定时重试，其他设备仍可扫码或手动输入 IP 连接。
- * 每次 start 新建一个 ciao Responder，stop 时关闭它，因此服务停止期间不占用 UDP 5353。
+ * 在局域网用 mDNS 广播本机 HTTP 服务，DNS-SD 服务类型是 `_savedata-sync._tcp`。
+ * 注册失败时状态变为 failed 并定时重试；停止后释放 UDP 5353。
  */
 export class WindowsDiscoveryAdvertiser {
   private responder: Responder | null = null
@@ -80,7 +73,7 @@ export class WindowsDiscoveryAdvertiser {
 
   /**
    * 开始广播给定的服务，立即返回；注册结果通过 getState 读取。
-   * 正在广播时调用会先关闭当前广播，再按新的端口和名称注册。
+   * 正在广播时先关闭当前广播，再按新的端口和名称注册。
    */
   start(advertisement: DiscoveryAdvertisement): void {
     this.advertisement = advertisement
@@ -93,7 +86,7 @@ export class WindowsDiscoveryAdvertiser {
 
   /**
    * 停止广播：取消重试，发送 goodbye 包并关闭 Responder。
-   * 关闭失败只记录日志；Promise 总是 resolve，最多等待 3 秒。
+   * 关闭失败只记录日志；Promise 总是 resolve，最多等待 RELEASE_TIMEOUT_MS。
    */
   async stop(): Promise<void> {
     this.advertisement = null
@@ -164,7 +157,7 @@ export class WindowsDiscoveryAdvertiser {
 
   /**
    * 关闭当前 Responder：已宣告的服务发送 goodbye 包，正在探测的服务取消，随后关闭套接字。
-   * 关闭排在上一次关闭之后执行，进度记在 releasing，需要等待关闭完成的调用者 await 它。
+   * 关闭排在上一次关闭之后执行，进度记在 releasing。
    */
   private release(): void {
     const responder = this.responder

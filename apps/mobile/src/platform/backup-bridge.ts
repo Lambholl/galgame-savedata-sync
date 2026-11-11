@@ -16,7 +16,7 @@ import type {
   SyncIncompleteBackup,
 } from '@savedata-sync/shared'
 
-/** 备份列表的一行，只含这一轮的摘要；完整清单按单轮读取。 */
+/** 备份列表的一行：一份备份的摘要。 */
 export interface AndroidBackupSummary {
   readonly backupId: string
   readonly projectId: string
@@ -26,14 +26,17 @@ export interface AndroidBackupSummary {
   readonly fileCount: number
   readonly totalFileBytes: number
 }
+/** 一个游戏目录的已提交备份和残留备份。 */
 export interface AndroidBackupList {
   readonly backups: readonly AndroidBackupSummary[]
   readonly incomplete: readonly SyncIncompleteBackup[]
 }
+/** 备份位置的显示路径和备份设置。 */
 export interface AndroidBackupInfo {
   readonly displayPath: string
   readonly settings: SyncBackupSettings
 }
+/** 备份的原生插件；方法与 AndroidBackupApi 的同名方法对应，返回值未经校验。 */
 export interface BackupNativePlugin {
   read(): Promise<unknown>
   list(options: { projectId: string; rootId: string }): Promise<unknown>
@@ -53,10 +56,13 @@ export interface BackupNativePlugin {
   deleteBackup(options: { projectId: string; rootId: string; backupId: string }): Promise<unknown>
   deleteGameBackups(options: { projectId: string }): Promise<unknown>
 }
-/** 网页使用的本机备份接口，参数只有 ID 和开关；创建备份和恢复的文件流不经过网页。 */
+/** 本机备份接口。所有方法的失败都以错误结果返回。 */
 export interface AndroidBackupApi {
+  /** 读取备份位置和备份设置。 */
   read(): Promise<OperationResult<AndroidBackupInfo>>
+  /** 根据项目和目录列出本机备份。 */
   list(projectId: string, rootId: string): Promise<OperationResult<AndroidBackupList>>
+  /** 读取一份备份的清单。 */
   manifest(
     projectId: string,
     rootId: string,
@@ -70,7 +76,9 @@ export interface AndroidBackupApi {
   ): Promise<OperationResult<SyncBackupSettings>>
   /** 修改全局设置。 */
   setDefaults(policy: SyncBackupPolicy): Promise<OperationResult<SyncBackupSettings>>
+  /** 按保留份数删除这个游戏目录多余的旧备份；正在使用或不完整的备份保留。 */
   rotate(projectId: string, rootId: string): Promise<OperationResult<null>>
+  /** 删除一份残留备份。 */
   cleanupIncomplete(
     projectId: string,
     rootId: string,
@@ -78,7 +86,7 @@ export interface AndroidBackupApi {
   ): Promise<OperationResult<null>>
   /** 删除一份已提交的备份。 */
   deleteBackup(projectId: string, rootId: string, backupId: string): Promise<OperationResult<null>>
-  /** 移除游戏时删除它的全部备份和单独设置。 */
+  /** 删除一个游戏的全部备份和单独设置。 */
   deleteGameBackups(projectId: string): Promise<OperationResult<null>>
 }
 function shape(value: unknown, fields: readonly string[]): value is Record<string, unknown> {
@@ -145,7 +153,11 @@ function failure(
     },
   }
 }
-/** 创建备份桥：校验原生返回的数据及其项目、目录和轮次。 */
+/**
+ * 用原生插件创建 AndroidBackupApi。
+ *
+ * @returns 返回值的格式、项目、目录或备份与请求不符时，对应方法返回 io-failure 错误结果。
+ */
 export function createBackupBridge(
   plugin: BackupNativePlugin,
   isAndroid: () => boolean,

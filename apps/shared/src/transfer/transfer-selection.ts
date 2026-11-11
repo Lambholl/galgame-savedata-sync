@@ -1,7 +1,7 @@
 import { isPortableFileName } from '../protocol/protocol.ts'
 import type { DirectoryLocation } from './transfer.ts'
 
-/** 按预检顺序返回的首个问题；由各端选择提示文案。 */
+/** 传输选择的预检问题。 */
 export type TransferProblem =
   | 'peer-disconnected'
   | 'directories-missing'
@@ -11,7 +11,7 @@ export type TransferProblem =
   | 'target-exists'
   | 'receive-not-authorized'
 
-/** 当前预览所需数据；不需要接收授权的传输应传入 isReceiveAuthorized: true。 */
+/** 预检所需的选择和目标数据；isReceiveAuthorized 为 false 时预检报告缺少接收授权。 */
 export interface TransferSelection {
   readonly isPeerConnected: boolean
   readonly source: DirectoryLocation | null
@@ -21,8 +21,9 @@ export interface TransferSelection {
 }
 
 /**
- * 检查当前选择，返回第一个问题或 null。
- * 文件名沿用协议校验，批内重名和目标冲突都忽略大小写；实际传输时调用端还要校验。
+ * 按固定顺序检查传输选择。
+ *
+ * @returns 第一个问题；没有问题时返回 null。文件名按协议规则校验，批内重名和目标冲突都忽略大小写。
  */
 export function validateTransferSelection({
   isPeerConnected,

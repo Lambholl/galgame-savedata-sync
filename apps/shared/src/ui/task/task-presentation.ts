@@ -20,7 +20,7 @@ export interface TaskStepProgress {
   readonly percent: number | null
 }
 
-/** 游戏面板和列表横条所需的短状态。 */
+/** 任务的短状态。 */
 export interface TaskPreview {
   /** 本地化后的当前阶段或结果。 */
   readonly status: string
@@ -32,7 +32,7 @@ export interface TaskPreview {
   readonly steps: TaskStepProgress | null
 }
 
-/** 任务观察结果生成横条和历史用的短状态；清理失败优先提示。 */
+/** 由复制任务的观察结果生成短状态；清理失败时 status 写清理失败。 */
 export function syncTaskPreview(
   observation: Pick<SyncJobObservation, 'phase' | 'stage' | 'step' | 'percent' | 'hasCleanupError'>,
   t: Translate,
@@ -55,11 +55,11 @@ export function syncTaskPreview(
   return { status: t(key[phase]), percent: phase === 'done' ? 100 : null, phase, steps }
 }
 
-/** 恢复任务的可见状态；两端的摘要都能映射到这个类型。 */
+/** 恢复任务的状态。 */
 export type RestoreTaskStatus =
   'preparing' | 'ready' | 'running' | 'succeeded' | 'failed' | 'cancelled' | 'unknown'
 
-/** 恢复没有复制流程的五阶段，不推算百分比；清理错误优先提示。 */
+/** 由恢复任务的状态生成短状态；steps 和 percent 为 null，清理失败时 status 写清理失败。 */
 export function restoreTaskPreview(
   status: RestoreTaskStatus,
   hasCleanupError: boolean,
@@ -91,7 +91,7 @@ export function restoreTaskPreview(
   }
 }
 
-/** 批量传输的短状态：它没有项目绑定和完整五阶段，只显示确知的状态。 */
+/** 由批量传输任务生成短状态；steps 和 percent 为 null。 */
 export function legacyTaskPreview(task: TransferTask, t: Translate): TaskPreview {
   const state = task.remote?.role === 'receiver' ? task.remote : task.local
   const isRunning = taskIsActive(task)

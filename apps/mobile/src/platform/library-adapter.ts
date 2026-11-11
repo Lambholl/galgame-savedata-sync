@@ -37,7 +37,7 @@ import type {
 } from './http-transfer-bridge'
 import { appStorage } from './app-storage'
 
-/** 平台依赖，默认用真实原生桥和本机持久存储，集成验证可以替换。 */
+/** 游戏库适配器的依赖。 */
 export interface MobileLibraryDependencies {
   readonly directories: AndroidDirectoryApi
   readonly transfers: AndroidTransferApi
@@ -50,8 +50,8 @@ const CONFIG_KEY = 'savedata-sync:library:1'
 /** 控制通道断开超过这个时长且没有任务时，本机断开这台设备。 */
 const CONTROL_GRACE_MS = 10000
 /**
- * 创建移动游戏库适配器。只持久化公开 ID 和配置；连接和任务在原生层，网页重载后重新查询。
- * 在线以控制通道为准；目录表只在本机或对方变化时重新交换，对方的目录读取经控制通道应答。
+ * 创建移动游戏库适配器。设备是否在线以控制通道是否打开为准；
+ * 目录表只在本机或对方变化时重新交换；控制通道断开超过 CONTROL_GRACE_MS 且没有任务时断开这台设备。
  */
 export function createMobileLibraryAdapter(
   dependencies?: Partial<MobileLibraryDependencies>,
@@ -135,7 +135,7 @@ export function createMobileLibraryAdapter(
     }
     return androidDirectories.listDirectory(query.rootId, query.parentId)
   })
-  /** 交换目录表并合并对方的关联；失败原样返回，由调用者决定是否断开。 */
+  /** 交换目录表并合并对方的关联；失败时返回错误结果。 */
   async function exchange(
     id: string,
     roots: readonly DirectoryReference[],
@@ -201,12 +201,9 @@ export function createMobileLibraryAdapter(
     unwrap(await androidTransfers.disconnectDevice(id))
     forgetSession(id)
   }
-  /**
-   * 用户主动连接设备之前，释放控制通道已断开、还在宽限期内的本机会话。
-   * 控制通道异常断开后，会话保留 CONTROL_GRACE_MS 等对方恢复，这期间界面已显示未连接，点“连接”时不再等。
-   * 用原生 disconnect 只释放本机会话：对方已经断开，向它发告别请求只会等到超时。
-   * 控制通道还开着或有进行中的任务时保留会话，之后的连接照常因 busy 失败。
-   */
+  // 控制通道异常断开后，会话保留 CONTROL_GRACE_MS 等对方恢复；这期间界面已显示未连接，用户再次连接时不再等。
+  // 只释放本机会话：对方已经断开，向它发告别请求只会等到超时。
+  /** 释放控制通道已断开、还在宽限期内的本机会话；控制通道还开着或有进行中的任务时保留。 */
   async function releaseClosedSession(): Promise<void> {
     const ids = descriptors.map((item) => item.device.deviceId)
     if (!ids.length || ids.some((id) => control.state(id)?.isOpen) || (await hasWork())) {
@@ -217,7 +214,7 @@ export function createMobileLibraryAdapter(
       forgetSession(id)
     }
   }
-  /** 清掉本机为这台设备记录的会话、目录交换和控制通道状态；原生会话由调用方先释放。 */
+  /** 清掉本机为这台设备记录的目录交换和控制通道状态；原生会话不在这里释放。 */
   function forgetSession(id: string): void {
     descriptors = descriptors.filter((item) => item.device.deviceId !== id)
     pushed.delete(id)

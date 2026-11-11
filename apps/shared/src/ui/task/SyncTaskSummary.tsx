@@ -31,18 +31,15 @@ export interface SyncTaskSummaryProps {
   readonly remoteError: ShownError | null
   /** 重试清理临时文件；本端不能重试时为 null。 */
   readonly onRetryCleanup: (() => void) | null
-  /**
-   * 打开被写入一端的备份；本机不是被写入的一端（备份不在本机）时为 null。
-   * 传输结束后显示为技术详情上方可点的一行，进行中不显示。
-   */
+  /** 点按“查看备份”；为 null 时不显示这一行。这一行在传输结束后显示在技术详情上方。 */
   readonly onViewBackup: (() => void) | null
-  /** 由平台包装的技术详情卡片，负责复制、长按和展开状态。 */
+  /** 渲染技术详情卡片。 */
   readonly renderTechnicalDetails: (text: string) => ReactNode
 }
 
 /**
- * 传输详情：先给结论（进度环或成功/部分完成/失败），再给五步进度和需要处理的文件；
- * 两端角色的内部状态只放在折叠的“技术详情”里。
+ * 传输详情：先给结论（进度环，或成功、部分完成、失败），再给五步进度和需要处理的文件；
+ * 两端角色的内部状态放在折叠的“技术详情”里。
  */
 export function SyncTaskSummary({
   gameName,
@@ -119,7 +116,7 @@ export function SyncTaskSummary({
         (item) => item.action === 'delete-file' || item.action === 'delete-directory',
       ).length
       const written = succeeded.length - deleted
-      // 数量读不到时仍说已备份，这是确知的。
+      // 数量读不到时仍然写已备份，备份确实发生了。
       const backedUp =
         typeof result?.backupFileCount === 'number'
           ? t('task.backedUpCount', { count: result.backupFileCount })

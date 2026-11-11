@@ -11,7 +11,7 @@ import './file-pane.css'
 export interface PaneRow {
   readonly name: string
   readonly kind: FileKind
-  /** 从列根目录起的完整路径，点文件夹时传给 onOpen。 */
+  /** 从列根目录起的完整路径，点按文件夹时作为 onOpen 的参数。 */
   readonly path: readonly string[]
   readonly sizeBytes: number | null
   readonly modifiedAt: number | null
@@ -21,9 +21,8 @@ export interface PaneRow {
 }
 
 /**
- * 一列文件：列头写路径，文件夹排在文件前，点文件夹进入、“..”返回上一层。
- * 窄列名称最多两行、下方小字写时间与大小，宽列为名称 / 大小 / 修改时间三列。
- * 传输页两端和备份文件共用，行的样式完全相同。
+ * 一列文件：列头写路径，文件夹排在文件前，点按文件夹进入，点按“..”返回上一层。
+ * 窄列的名称最多两行，下方小字写时间和大小；宽列分名称、大小、修改时间三列。
  */
 export function FilePane({
   label,
@@ -81,7 +80,7 @@ export function FilePane({
             </button>
           )}
           {rows.map((row) => {
-            // 同一份内容：窄列显示名称下方的小字，宽列显示右侧两格，由样式按列宽选择。
+            // 窄列和宽列共用这份内容，由样式按列宽决定显示成名称下方的小字还是右侧两格。
             const body = (
               <>
                 <FileIcon kind={row.kind} marker={row.marker} />

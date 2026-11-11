@@ -4,6 +4,7 @@ import { Sheet } from './Sheet'
 import { ChoiceField } from './ChoiceField'
 import type { ChoiceOption } from './ChoiceField'
 
+/** 从对端设备导入游戏的弹层。 */
 export function ImportGameDialog({
   isOpen,
   importKey,

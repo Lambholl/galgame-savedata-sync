@@ -15,7 +15,7 @@ export interface TaskStepsProps {
   readonly percent: number | null
 }
 
-/** 双端共用的只读阶段条；实际阶段由任务状态提供。 */
+/** 带编号的五段阶段条。 */
 export function TaskSteps({ step, phase, percent }: TaskStepsProps): ReactElement {
   const t = useT()
   const hasError = phase === 'failed' || phase === 'partial'

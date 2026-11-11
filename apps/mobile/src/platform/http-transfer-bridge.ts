@@ -28,25 +28,28 @@ import type {
   CatalogReply,
 } from '@savedata-sync/shared'
 
-/** 开始批量传输的参数：同一批内 source 和 target 分开；实际方向由方法决定，参数不含路径、URI 或字节。 */
+/** 开始批量传输的参数；方向由调用的方法决定。 */
 export interface TransferStartOptions {
   readonly request: DownloadBatchRequest
   readonly targetRootId: string
   readonly targets: readonly TargetSelection[]
 }
+/** 一次批量传输的引用。 */
 export interface TransferHandle {
   readonly transferId: string
 }
-/** Activity 重建后取回的当前任务元数据；不会启动传输。 */
+/** 当前批量传输的参数和对端设备。 */
 export interface CurrentTransfer {
   readonly options: TransferStartOptions
   readonly upload: boolean
   readonly device: BatchDeviceDescriptor
 }
+/** 一个原生事件订阅。 */
 export interface TransferSubscription {
+  /** 取消订阅。 */
   remove(): Promise<void>
 }
-/** Capacitor 的原生插件接口；未知响应必须先经过校验并匹配本次上下文。 */
+/** 连接和批量传输的原生插件；方法与 AndroidTransferApi 的同名方法对应，返回值未经校验。 */
 export interface HttpTransferNativePlugin {
   connections(): Promise<unknown>
   deviceName(): Promise<unknown>
@@ -74,31 +77,50 @@ export interface HttpTransferNativePlugin {
     callback: (state: unknown) => void,
   ): Promise<TransferSubscription>
 }
-/** 网页使用的批量传输接口。所有 Promise 都 resolve 脱敏结果；任务 ID 只用一次，取消和查询不会自动重发网络请求。 */
+/** 设备连接和批量传输接口。所有方法的失败都以错误结果返回；取消和查询不会重发网络请求。 */
 export interface AndroidTransferApi {
+  /** 列出已连接的设备。 */
   connections(): Promise<OperationResult<readonly BatchDeviceDescriptor[]>>
-  /** 本机系统名称，取值规则与发给电脑的相同；只读。 */
+  /** 读取本机系统名称，与发给对方的设备名相同。 */
   deviceName(): Promise<OperationResult<string>>
+  /** 把一台已连接的设备设为传输对象；有任务进行中时只能选当前设备，否则返回 busy。 */
   selectDevice(deviceId: string): Promise<OperationResult<BatchDeviceDescriptor>>
+  /** 通知对方后断开一台设备。 */
   disconnectDevice(deviceId: string): Promise<OperationResult<null>>
+  /** 与对方交换目录表，返回对方的游戏表和关联。 */
   exchangeCatalog(deviceId: string, catalog: CatalogPush): Promise<OperationResult<CatalogReply>>
+  /** 连接 address 上的监听方设备。 */
   connect(address: string): Promise<OperationResult<BatchDeviceDescriptor>>
+  /** 释放本机的连接会话，不通知对方。 */
   disconnect(): Promise<OperationResult<null>>
+  /** 打开系统目录选择器，把所选目录登记为接收目标。 */
   chooseTarget(): Promise<DirectorySelectionResult>
+  /** 需要时申请通知权限；value 表示是否允许通知。 */
   requestNotifications(): Promise<OperationResult<boolean>>
+  /** 读取当前批量传输的参数；没有时为 null。 */
   current(): Promise<OperationResult<CurrentTransfer | null>>
+  /** 列出对方的根目录。 */
   listRemoteRoots(): Promise<OperationResult<readonly DirectoryReference[]>>
+  /** 列出对方目录的一层；parentId 省略或为 null 时列根层。 */
   listRemoteDirectory(
     rootId: string,
     parentId?: string | null,
   ): Promise<OperationResult<DirectoryListing>>
+  /** 开始从对方下载一批文件。 */
   startDownload(options: TransferStartOptions): Promise<OperationResult<TransferHandle>>
+  /** 开始向对方上传一批文件。 */
   startUpload(options: TransferStartOptions): Promise<OperationResult<TransferHandle>>
+  /** 读取本机这一端的状态；下载还在对方准备时返回 task-conflict。 */
   query(transferId: string): Promise<OperationResult<BatchState>>
+  /** 读取对方这一端的状态；shouldRefresh 为 true 时先向对方查询。还没有对方状态时返回 task-conflict。 */
   queryRemote(transferId: string, shouldRefresh?: boolean): Promise<OperationResult<BatchState>>
+  /** 读取传输的清单。 */
   getManifest(transferId: string): Promise<OperationResult<BatchManifest>>
+  /** 取消批量传输。 */
   cancel(transferId: string): Promise<OperationResult<null>>
+  /** 重试失败的缓存清理；value 表示是否已全部清理。 */
   retryCleanup(): Promise<OperationResult<boolean>>
+  /** 订阅本机传输状态的推送；用完后 remove。 */
   subscribe(
     listener: (state: OperationResult<BatchState>) => void,
   ): Promise<OperationResult<TransferSubscription>>
@@ -170,8 +192,9 @@ interface TransferContext {
 }
 
 /**
- * 创建批量传输桥，只传元数据和任务 DTO；上下文只在当前进程保留。subscribe 返回的句柄必须 remove。
- * query 返回 task-conflict 可能表示下载还在远端准备，此时用 queryRemote 查看发送端状态。
+ * 用原生插件创建 AndroidTransferApi；isAndroid 返回 false 时所有方法返回 unsupported-operation。
+ *
+ * @returns 返回值格式不对或与本次任务不符时，对应方法返回错误结果。
  */
 export function createHttpTransferBridge(
   plugin: HttpTransferNativePlugin,
@@ -534,7 +557,7 @@ export function createHttpTransferBridge(
           try {
             listener(state)
           } catch {
-            // 订阅者异常不改写原生任务结果；调用者仍可 query 核实。
+            // 订阅者的异常不影响任务结果，状态仍可以用 query 核实。
           }
         }
         const handle = await plugin.addListener('transferState', (state) => {

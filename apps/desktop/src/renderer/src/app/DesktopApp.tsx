@@ -55,7 +55,6 @@ import { AddGameDialog } from '../features/games/AddGameDialog'
 const EMPTY = emptyLibrary()
 const ADAPTER = createDesktopLibraryAdapter()
 
-/** 桌面应用的根组件，持有页面、弹窗和轮询；切页不影响主进程里的任务。 */
 const COPY_MESSAGE_TYPES = {
   done: 'success',
   partial: 'warning',
@@ -64,6 +63,7 @@ const COPY_MESSAGE_TYPES = {
   unknown: 'warning',
 } as const
 
+/** 桌面应用的主界面：页面导航、弹窗和状态轮询。 */
 export function DesktopApp({
   appPreferences,
 }: {
@@ -185,7 +185,7 @@ export function DesktopApp({
       clearTimeout(timer)
     }
   }, [refresh, invalidate, showError])
-  // 服务刚启动时主进程还在读取本机地址（通常不到半秒）。这期间每 250 毫秒再读一次快照，
+  // 服务刚启动时还在读取本机地址（通常不到半秒）。这期间每 250 毫秒再读一次快照，
   // 不等 1.8 秒的常规轮询，地址读到后尽快显示。
   const isAddressLoading =
     Boolean(snapshot?.service?.listener) && snapshot?.service?.ipv4Addresses === null

@@ -7,7 +7,7 @@ import './backup.css'
 
 /** 一份完整的备份。 */
 export interface BackupItem {
-  /** 备份 ID，传回选择或恢复回调。 */
+  /** 备份 ID，作为选择、恢复和删除回调的参数。 */
   readonly id: string
   /** 创建时间（毫秒）。 */
   readonly createdAt: number
@@ -20,8 +20,7 @@ export interface BackupItem {
 }
 
 /**
- * 行的交互方式。select：整行可选（电脑，右侧显示所选备份）；
- * restore：每行“恢复”“删除”两个按钮（移动端）。
+ * 行的交互方式。select：整行可选；restore：每行有“恢复”“删除”两个按钮。
  */
 export type BackupTimelineAction =
   | {
@@ -46,7 +45,7 @@ export interface BackupTimelineProps {
   readonly action: BackupTimelineAction
 }
 
-/** 备份时间线：每行写明日期时间、由什么触发、文件数与大小。 */
+/** 备份时间线：每行写明日期时间、由什么触发、文件数和大小。 */
 export function BackupTimeline({ backups, action }: BackupTimelineProps): ReactElement {
   const t = useT()
   const locale = useLocale()

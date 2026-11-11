@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { FolderOutlined } from '@ant-design/icons'
 
+/** 空状态：图标、说明和下方的操作。 */
 export function EmptyState({
   description,
   children,

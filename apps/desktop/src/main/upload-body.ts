@@ -11,14 +11,14 @@ interface UploadBodyHost {
   readonly progress: (bytes: number) => void
   readonly abort: (error: KnownOperationError) => void
 }
-/** 上传输入：请求和归档流各有生命周期，接收方要在 finally 里 destroy 并等待 settled 和 close。 */
+/** 上传输入：用完后要 destroy，并等待 settled 和 close。 */
 export interface UploadBody {
   readonly stream: PassThrough
   readonly isComplete: () => boolean
   readonly settled: Promise<unknown>
   readonly close: () => void
 }
-/** 打开上传输入。定长消息收齐后，响应断开不再中止归档校验和写入；没收齐则取消本次任务。 */
+/** 打开上传输入。定长请求体收齐后，连接断开不再中止归档校验和写入；没收齐时取消本次任务。 */
 export function openUploadBody(
   input: IncomingMessage,
   response: ServerResponse,
@@ -75,7 +75,7 @@ export function openUploadBody(
       )
     }
     stream.destroy(cause instanceof Error ? cause : new Error('Reading the upload message failed.'))
-    // 所有错误先转成值；归档消费者负责判定根错误，feed 不产生独立未处理拒绝。
+    // 错误转成值交给归档消费者判定根错误，feed 自身不产生未处理的 reject。
     resolveFeed(cause)
   }
   const aborted = (): void =>

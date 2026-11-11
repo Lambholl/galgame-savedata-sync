@@ -6,21 +6,21 @@ import { Expand, ExpandChevron } from '../expand/Expand.tsx'
 import './sync-task-summary.css'
 import './task-technical-details.css'
 
-/** 技术详情的展示和平台回调。 */
+/** TaskTechnicalDetails 的参数。 */
 export interface TaskTechnicalDetailsProps {
   /** 完整技术信息，展示与复制使用同一份文字。 */
   readonly text: string
-  /** 是否展开；展开状态由平台组件保存。 */
+  /** 是否展开。 */
   readonly isExpanded: boolean
-  /** 触控模式点击内容收起，指针模式保留文字选择和复制按钮。 */
+  /** touch 时点按内容收起；pointer 时可以选择文字，并显示复制按钮。 */
   readonly interaction: 'touch' | 'pointer'
   /** 标题或内容请求展开、收起。 */
   readonly onExpandedChange: (isExpanded: boolean) => void
-  /** 复制全部内容；剪贴板及反馈由平台处理。 */
+  /** 点按复制按钮。 */
   readonly onCopy: () => void
 }
 
-/** 与“已写入 N 个文件”同一种可展开行；触控长按由移动端包装组件处理。 */
+/** 可展开的技术详情行，外观与“已写入 N 个文件”行相同。 */
 export function TaskTechnicalDetails({
   text,
   isExpanded,

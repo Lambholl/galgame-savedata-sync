@@ -9,7 +9,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/** 严格且有大小上限的 JSON 解析；不用 Android 的宽松解析器，重复键和坏 UTF-8、代理项都拒绝。 */
+/** 严格且有大小上限的 JSON 解析：重复键、非法 UTF-8 和孤立代理项都报错。 */
 final class TransferJson {
 
   static final int MAX_BYTES = 8388608;

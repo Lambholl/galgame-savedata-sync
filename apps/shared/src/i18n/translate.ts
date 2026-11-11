@@ -12,7 +12,7 @@ const CATALOGS: Readonly<Record<AppLocale, Messages>> = {
   'ja-JP': jaJP,
 }
 
-/** 语言选项名用各自的语言书写，不随界面语言变化。 */
+/** 各语言的名称，用该语言自己书写。 */
 export const LOCALE_NAMES: Readonly<Record<AppLocale, string>> = {
   'zh-CN': '简体中文',
   'zh-TW': '繁體中文',
@@ -23,6 +23,7 @@ export const LOCALE_NAMES: Readonly<Record<AppLocale, string>> = {
 /** 按键取文案并带入参数。 */
 export type Translate = <K extends MessageKey>(key: K, ...args: MessageArgs<K>) => string
 
+/** 创建指定语言的 Translate 函数。 */
 export function createTranslator(locale: AppLocale): Translate {
   const messages = CATALOGS[locale]
   return <K extends MessageKey>(key: K, ...args: MessageArgs<K>): string => {

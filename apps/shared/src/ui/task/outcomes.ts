@@ -5,7 +5,7 @@ export type UnsettledOutcome = SyncWriteOutcome & {
   readonly status: Exclude<SyncWriteOutcome['status'], 'succeeded'>
 }
 
-/** 写入结果里未成功的条目。 */
+/** 取出写入结果里没有成功的条目。 */
 export function unsettledOutcomes(
   outcomes: readonly SyncWriteOutcome[],
 ): readonly UnsettledOutcome[] {

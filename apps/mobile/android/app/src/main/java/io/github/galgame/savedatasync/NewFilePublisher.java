@@ -17,9 +17,9 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * 同步发布单个新文件，只能在 I/O 工作线程使用；批次校验、HTTP 和界面由调用方编排。
- * SAF 创建不是排他操作：不用覆盖或重命名，创建返回后必须先确认新文档的身份和父目录。
- * 发布名额独立于归档名额；流关闭且残留清理完成后才释放。
+ * 发布单个新文件：创建文档、写入并核实，只能在 I/O 工作线程使用。
+ *
+ * <p>发布名额独立于归档名额，流关闭且残留清理完成后才释放。
  */
 final class NewFilePublisher {
 
@@ -50,7 +50,7 @@ final class NewFilePublisher {
 
     Owned claim(Directory directory, Document document) throws Exception;
 
-    /** 提供者能报告容量时返回可用字节；未知为 null。 */
+    /** 返回可用字节；提供者报告不了容量时返回 null。 */
     default Long availableBytes(Directory directory, ArchiveControl control) throws Exception {
       return null;
     }
@@ -84,7 +84,11 @@ final class NewFilePublisher {
     this.backend = backend;
   }
 
-  /** 选择目录及接收前调用，核实持久系统写权限并恢复本进程的发布授权。 */
+  /**
+   * 核实根目录的持久系统写权限，并恢复本进程对它的发布授权。
+   *
+   * @throws Exception 发布器已停止、ID 无效、没有写权限，或核实期间授权被撤销。
+   */
   void grant(String rootId) throws Exception {
     final long version;
     synchronized (this) {
@@ -122,12 +126,16 @@ final class NewFilePublisher {
     }
   }
 
-  /** 接受批次前逐项调用的只读检查；不创建目录或文件，也不授予写权限。 */
+  /** 只读地检查请求能否发布：授权、目标目录、可用空间和重名。 */
   void preflight(Request request, ArchiveControl control) throws Exception {
     preflight(request, request.sizeBytes, control);
   }
 
-  /** 接受批次前的只读检查，requiredBytes 是这批原文的总量；每个目标都按整批检查，因为同卷下可能有不同父目录。 */
+  /**
+   * 只读地检查请求能否发布：授权、目标目录、可用空间和重名。
+   *
+   * @param requiredBytes 可用空间至少要有的字节数，不小于请求文件的大小。
+   */
   void preflight(Request request, long requiredBytes, ArchiveControl control) throws Exception {
     request.validate();
     if (requiredBytes < request.sizeBytes || requiredBytes > new ArchiveModel.Limits().total) {
@@ -146,6 +154,7 @@ final class NewFilePublisher {
     }
     control.check();
     Directory directory = backend.locate(request.rootId, request.parentId, control);
+    // 同一卷下可能有不同父目录，所以每个目标都按整批的总量检查空间。
     Long available = backend.availableBytes(directory, control);
     if (available != null && available < requiredBytes) {
       throw new ArchiveFailure(
@@ -191,6 +200,7 @@ final class NewFilePublisher {
       control.check();
       wasCreateAttempted = true;
       String id = backend.create(directory, request.name);
+      // SAF 创建不是排他操作，创建返回后先核实新文档的身份和父目录。
       // createDocument 没有取消参数；取消后也要等它返回并核实归属，不能按文件名猜测清理。
       ArchiveControl inspection = new ArchiveControl();
       List<Document> after = backend.children(directory, inspection);
@@ -297,7 +307,11 @@ final class NewFilePublisher {
     return new Result(request, status, error, success, job.residual, cleanup, cleanupError);
   }
 
-  /** 重试已知句柄的清理，不重做创建和写入；成功的文件只关闭句柄。 */
+  /**
+   * 重试残留清理：未成功的文件删除后关闭句柄，已成功的文件只关闭句柄。
+   *
+   * @return 没有待清理的发布或清理完成时为 true；发布仍在进行或清理失败时为 false。
+   */
   synchronized boolean retryCleanup() {
     Job job = active;
     if (job == null) {
@@ -323,7 +337,11 @@ final class NewFilePublisher {
     return true;
   }
 
-  /** 停止发布器：生命周期先取消，工作线程 join 后再次调用以确认释放；阻塞中的平台调用不会被抢占。 */
+  /**
+   * 停止发布器：撤销所有授权，取消进行中的发布并重试清理；阻塞中的平台调用要等它返回。
+   *
+   * @return 资源已释放时为 true；发布线程仍在运行或清理失败时为 false，可以再次调用。
+   */
   synchronized boolean stop() {
     isStopped = true;
     authorizationVersion++;

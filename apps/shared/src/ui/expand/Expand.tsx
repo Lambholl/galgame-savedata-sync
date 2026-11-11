@@ -2,10 +2,7 @@ import type { ReactElement, ReactNode } from 'react'
 import { DownOutlined } from '@ant-design/icons'
 import './expand.css'
 
-/**
- * 可展开行下方的内容：高度随展开、收起平滑过渡；收起后内容不可见、也不能聚焦。
- * 内容一直挂载，收起动画才有东西可以收。
- */
+/** 可展开行下方的内容：高度随展开和收起平滑过渡；收起后内容隐藏，不能获得焦点，但保持挂载。 */
 export function Expand({
   isOpen,
   children,

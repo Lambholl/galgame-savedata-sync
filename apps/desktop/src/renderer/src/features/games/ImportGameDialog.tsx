@@ -1,11 +1,13 @@
 import { Modal, Select } from 'antd'
 import { useT } from '@savedata-sync/shared/ui'
 
+/** 可导入游戏下拉框中的一个选项。 */
 export interface ImportGameOption {
   readonly value: string
   readonly label: string
 }
 
+/** 从对端设备导入游戏的弹窗。 */
 export function ImportGameDialog({
   isOpen,
   importKey,

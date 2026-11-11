@@ -32,6 +32,7 @@ const ANTD_LOCALES: Readonly<Record<AppLocale, Locale>> = {
   'ja-JP': antdJaJP,
 }
 
+/** 桌面窗口的框架：主题和语言、侧边导航、标题栏和页面内容区。 */
 export function DesktopShell({
   theme: resolvedTheme,
   page,

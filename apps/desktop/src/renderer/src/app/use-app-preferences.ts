@@ -19,10 +19,8 @@ export interface AppPreferencesState {
   readonly save: (next: AppPreferences) => Promise<ShownError | null>
 }
 
-/**
- * 主进程按偏好设置 nativeTheme.themeSource，渲染页的 prefers-color-scheme 随之变化，
- * 因此主题直接读媒体查询；同时把解析结果写到 <html data-theme> 供共用样式使用。
- */
+// 主进程按偏好设置 nativeTheme.themeSource，prefers-color-scheme 随之变化，所以主题直接读媒体查询。
+/** 读取和保存界面偏好，并把解析出的主题写到 <html data-theme>。 */
 export function useAppPreferences(): AppPreferencesState {
   const [preferences, setPreferences] = useState(DEFAULT_APP_PREFERENCES)
   const [isDark, setIsDark] = useState(() => window.matchMedia(DARK_QUERY).matches)

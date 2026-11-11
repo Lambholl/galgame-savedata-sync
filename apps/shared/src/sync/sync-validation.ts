@@ -22,7 +22,7 @@ import type {
 } from './sync-contracts.ts'
 import { isSyncPath, syncNameKey, syncPathKey } from './sync-paths.ts'
 
-/** 校验已解析的条目；文件指纹可以未知，但计划器会阻止执行。 */
+/** 校验扫描条目；文件的哈希可以是 null。 */
 export function isSyncEntry(value: unknown): value is SyncEntry {
   return (
     hasShape(value, ['entryId', 'path', 'kind', 'sizeBytes', 'modifiedAt', 'sha256', 'error']) &&
@@ -53,7 +53,7 @@ function hasValidTree(entries: readonly SyncEntry[], hasScanError: boolean): boo
       return true
     }
     const parent = paths.get(syncPathKey(entry.path.slice(0, -1)))
-    // 扫描失败允许不完整父链，以展示已读取的部分条目；仍不能执行。
+    // 扫描失败时允许父链不完整，用来展示已读取的部分条目。
     return parent ? parent.kind === 'directory' : hasScanError
   })
 }
@@ -83,7 +83,7 @@ export function isSyncSnapshot(value: unknown): value is SyncSnapshot {
   )
 }
 
-/** 校验计划输入：方向必须显式给出；结构合法不表示快照可执行或会话仍有效。 */
+/** 校验计划输入的字段。 */
 export function isSyncPlanInput(value: unknown): value is SyncPlanInput {
   return (
     hasShape(value, [
@@ -111,7 +111,7 @@ export function isSyncPlanInput(value: unknown): value is SyncPlanInput {
   )
 }
 
-/** 校验扫描状态及其与句柄的绑定；已读字节是文件进度，不是目录汇总大小。 */
+/** 校验扫描状态。 */
 export function isSyncScanState(value: unknown): value is SyncScanState {
   if (
     !hasShape(value, [
@@ -174,7 +174,7 @@ export function isSyncScanState(value: unknown): value is SyncScanState {
   )
 }
 
-/** 校验能力声明：逐项写明已实现的功能；固定的扫描上限不能被远端放宽。 */
+/** 校验能力声明；limits 必须与 SYNC_LIMITS 相同。 */
 export function isSyncCapabilities(value: unknown): value is SyncCapabilities {
   if (
     !hasShape(value, [
@@ -201,7 +201,7 @@ export function isSyncCapabilities(value: unknown): value is SyncCapabilities {
   )
 }
 
-/** 校验扫描请求；上限固定在原生层，未知版本、路径和额外字段都拒绝。 */
+/** 校验扫描请求；版本未知或有额外字段时拒绝。 */
 export function isSyncScanRequest(value: unknown): value is SyncScanRequest {
   return (
     hasShape(value, ['schemaVersion', 'rootId']) &&
@@ -223,6 +223,7 @@ function isBackupFile(value: unknown): value is SyncBackupFile {
   )
 }
 
+/** 校验残留备份的描述。 */
 export function isSyncIncompleteBackup(value: unknown): value is SyncIncompleteBackup {
   return (
     hasShape(value, ['backupId', 'occupiedBytes']) &&
@@ -232,7 +233,7 @@ export function isSyncIncompleteBackup(value: unknown): value is SyncIncompleteB
   )
 }
 
-/** 校验备份清单（独立的持久格式）：私有 fileId 连续，路径不重复，不超过上限。 */
+/** 校验备份清单：fileId 连续，路径互不相同，文件数在上限以内。 */
 export function isSyncBackupManifest(value: unknown): value is SyncBackupManifest {
   if (
     !hasShape(value, [
