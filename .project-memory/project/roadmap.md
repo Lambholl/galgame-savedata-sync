@@ -22,7 +22,7 @@ related_files: []
 
 | 里程碑 | 目标 | 计划时间 | 状态 |
 | --- | --- | --- | --- |
-| M-004 | 完整首版：补齐预览体验和完整回归 | 待安排 | planned |
+| M-004 | 完整首版：修复已知问题、补备份阶段进度、统一文案，用真实存档完整回归。工作包见[工作包登记](../development/work-packages.md) | 待安排 | planned |
 | M-005 | 任意两台设备传输（REQ-022）：Android 监听、电脑拨号，Android/Android 与电脑/电脑互传。M-003 已按对称角色设计协议和设备页 | 待安排 | planned |
 
 ## 2. 当前计划
@@ -30,6 +30,7 @@ related_files: []
 | 优先级 | 事项 | 依赖 | 状态 |
 | --- | --- | --- | --- |
 | P0 | 保持 Android 用户发起传输由持续通知保持、当前状态独立、目录不汇总大小的边界 | [项目约束](../requirements/constraints.md)、[验收标准](../testing/acceptance.md) | active |
+| P1 | 完整首版，即 M-004：WP-039～WP-043 | M-003 已完成 | planned |
 | P2 | 任意两台设备传输（REQ-022），即 M-005 | 对称控制通道；Android 监听和电脑拨号；M-003 的对称协议与设备页 | planned，未排期 |
 
 ## 3. 真实存档开放

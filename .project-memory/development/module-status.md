@@ -1,7 +1,7 @@
 ---
 doc_type: module-status
 status: active
-updated: 2026-11-10
+updated: 2026-11-11
 tags: [模块状态, 开发进度]
 related_files: []
 ---
@@ -19,14 +19,8 @@ related_files: []
 
 | 模块 | 状态 | 负责人 | 相关文件 | 边界与风险 | 下一步 |
 | --- | --- | --- | --- | --- | --- |
-| 四语言界面、错误与原生通知 | done | 开发 | shared i18n/result/ui、双端 app/features/platform、desktop main、Android Java/res | Android 通知语言切换没有真机复核 | 真机复核通知语言 |
-| Windows 分发包 | done | 开发 | apps/desktop/electron-builder.json、scripts/package-windows.mjs、双层 package.json、pnpm-lock.yaml | 没有配置代码签名；使用已编译资源与隔离的最小应用清单，不带 node_modules，主进程第三方依赖（ws、ciao）由 electron.vite.config.ts 打进 out/main；产物位于 apps/desktop/release | 下次发版前打一次桌面包，确认启动和连接 |
-| Windows 设备页服务控制 | done | 开发 | apps/desktop/src/renderer/src/features/devices、src/bridge/service-bridge.ts、main/service-ipc.ts | 服务启停在设备页显式操作；原生层持有文件路径和内容，界面只读公开快照。设备页显示地址、运行时长、广播状态和连接二维码 | 两台手机先后连接时的排序未测，见 WP-034 |
-| Android 独立备份与轮换 | active | 开发 | BackupStore/Model/Files、AndroidBackupIo、SyncBackupsPlugin、TS backup bridge | 备份移到 `Android/data` 后，备份和恢复已在真机合成目录验证 | 无 |
-| Android 受保护写入与本机恢复 | active | 开发 | SyncPlanModel/Writer、SafSyncBackend、SyncWriteRuntime/Plugin、TargetOperation、TS sync-write bridge | Android 覆盖是原地写入，中断会留下新旧混合的文件，只能靠写入前备份恢复；删除目标多出的条目已在真机合成目录验证，Activity 重建后读回开关选择未跑 | 下次调整传输页时补 Activity 重建 |
-| Windows 局域网广播 | active | 开发 | main/discovery-advertiser.ts、service-ipc.ts、index.ts、bridge/service-bridge.ts | 广播只在服务运行期间进行，失败不影响 HTTP 服务；防火墙拦截 UDP 5353 时本机无法察觉 | 开发版已被手机搜到；Portable 版防火墙未测，见 WP-032 |
-| Android 局域网搜索 | active | 开发 | DeviceDiscoveryPlugin、DiscoveryBrowser、TS `platform/device-discovery.ts` | 只在有订阅时搜索，Activity 停止时暂停；只返回 IPv4；设备页“附近的设备”和改址后的 `findDevice` 查找订阅它 | API 33、35 真机通过；网页重载未测 |
-| Android 扫码 | active | 开发 | QrScannerPlugin、QrCameraSession、QrFrameDecoder、TS `platform/qr-scanner.ts`、`features/devices/ScanPage.tsx` | 打开扫码页时申请相机权限，离开页面即关闭相机；扫到后依次尝试候选地址，设备 ID 不一致时不保存；权限被拒时可去系统设置或手动输入 | 真机通过；设备 ID 不一致、协议版本不同的二维码和平板旋转未测 |
+| 两端目录扫描 | not-started | 开发 | desktop sync-target-files/new-file-publisher 与扫描器、Android 扫描 | 电脑写入途中被结束会在存档目录留下临时文件，扫描不跳过（BUG-009） | WP-039 |
+| 传输进度 | not-started | 开发 | shared `sync-job-contracts.ts`、`sync-job-observation.ts`；desktop backup-store/sync-writer；Android BackupStore/SyncWriter/TransferService | 五段里备份阶段没有百分比，Android 通知在备份阶段显示不确定进度 | WP-042 |
 
 ## 2. 状态说明
 

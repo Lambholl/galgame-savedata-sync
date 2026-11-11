@@ -53,7 +53,7 @@ related_files: []
 | `development/known-issues.md` | 已知问题 | active | 已知问题 |
 | `development/module-status.md` | 模块状态 | active | 模块状态, 开发进度 |
 | `development/risks.md` | 风险登记表 | active | 风险 |
-| `development/work-packages.md` | 工作包登记 | active | 工作包, M-002, M-003, 验收 |
+| `development/work-packages.md` | 工作包登记 | active | 工作包, M-002, M-003, M-004, 验收 |
 | `project/charter.md` | 项目章程 | active | 项目目标, 成功标准 |
 | `project/glossary.md` | 项目术语表 | draft | 术语 |
 | `project/roadmap.md` | 项目路线图 | active | 路线图, 里程碑 |

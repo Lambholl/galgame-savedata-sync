@@ -8,8 +8,6 @@ related_files: []
 
 # 项目级编码规范
 
-这里只写项目相对 Skill 通用规则（`references/general-standards/`）的差异，写明原因和适用范围。规范优先级见 Skill `references/general-standards/language-baseline.md`。
-
 ## 目录
 
 - [1. 规范来源](#1-规范来源)
@@ -19,6 +17,8 @@ related_files: []
 - [5. 版权信息](#5-版权信息)
 - [6. 代码注释](#6-代码注释)
 - [7. 自动化检查与边界](#7-自动化检查与边界)
+
+这里只写项目相对 Skill 通用规则（`references/general-standards/`）的差异，写明原因和适用范围。规范优先级见 Skill `references/general-standards/language-baseline.md`。
 
 ## 1. 规范来源
 

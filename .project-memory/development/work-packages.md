@@ -2,9 +2,9 @@
 doc_type: work-packages
 status: active
 id_prefix: WP
-id_high_water: 38
-updated: 2026-11-10
-tags: [工作包, M-002, M-003, 验收]
+id_high_water: 43
+updated: 2026-11-11
+tags: [工作包, M-002, M-003, M-004, 验收]
 related_files:
   - docs/plans/m002-sync-copy.md
 ---
@@ -30,7 +30,7 @@ M-003（连接与重连）的工作包如下。前提：
 | --- | --- | --- | --- | --- |
 | WP-030 | 对称连接协议 | `apps/shared/src/connection` 定义 DNS-SD 服务类型、实例名（显示名）和 TXT 字段（协议版本、设备 ID、平台），二维码载荷（版本、设备 ID、端口、1–8 个候选 IPv4），以及候选地址转换，由监听方广播和显示，不限定平台。生成和解析函数、长期测试 `apps/shared/test/connection-discovery.test.mjs`，格式见[接口约定](../architecture/api-contracts.md)第 8 节。shared 测试和 `pnpm check` 通过 | — | done |
 | WP-031 | 设备页原型 | 在 `docs/design/` 做双端可交互原型（不进 Git）。两端信息结构相同：本机作为监听方的部分（服务主开关、端口、推荐地址、二维码）和连接其他设备的部分（已保存设备、发现列表、扫码、手动 IP，以及连接、断开和管理；扫码只出现在移动端）。原型要标出 M-005 之前未实现的角色（Android 监听、电脑拨号）怎么呈现。维护者确认原型后才开始 WP-034。原型在 `docs/design/device-page-v3/`，用两端真实的外壳、组件和样式表，二维码是占位图。本机服务卡片在 `ServiceHero.tsx` 和 `proto-hero.css`，两端共用，按卡片自身宽度切换三档排版；在仓库根目录运行 `pnpm exec vite --config docs/design/device-page-v3/vite.config.ts`，总览页列出各状态，M-005 的样子单独标出，移动端画框可以切换手机和平板尺寸。依赖靠该目录下指向 `apps/mobile/node_modules` 的目录联接，重新创建原型目录时要补上。设备页的待定问题 [Q-014、Q-015](../requirements/open-questions.md) 已有结论，Q-016 改到 WP-036 开始前回答 | — | done |
-| WP-032 | 电脑端 mDNS 广播 | `apps/desktop/src/main/discovery-advertiser.ts` 用 `@homebridge/ciao` 1.3.12（已审计并登记在[架构依赖](../architecture/dependencies.md)）在服务启动后广播、停止服务和退出应用时发 goodbye 包；端口变化要先停服务，重新启动时按新端口注册；网卡变化由 ciao 重新宣告。广播失败时 HTTP 服务照常运行，快照 `discovery` 显示失败并 30 秒重试。本机已用原始 mDNS 查询核对两块网卡上的 PTR、SRV、TXT、A 记录与 goodbye 包，`pnpm check` 通过。开发版 Electron 里启停服务后手机搜到和消失，见回归记录。未验证：Portable 版 UDP 5353 防火墙放行（没有预置规则）、注册失败后的重试分支 | WP-030 | done |
+| WP-032 | 电脑端 mDNS 广播 | `apps/desktop/src/main/discovery-advertiser.ts` 用 `@homebridge/ciao` 1.3.12（已审计并登记在[架构依赖](../architecture/dependencies.md)）在服务启动后广播、停止服务和退出应用时发 goodbye 包；端口变化要先停服务，重新启动时按新端口注册；网卡变化由 ciao 重新宣告。广播失败时 HTTP 服务照常运行，快照 `discovery` 显示失败并 30 秒重试。本机已用原始 mDNS 查询核对两块网卡上的 PTR、SRV、TXT、A 记录与 goodbye 包，`pnpm check` 通过。开发版 Electron 里启停服务后手机搜到和消失，见回归记录。Portable 版首次运行时 UDP 5353 放行，手机能搜到。未验证：注册失败后的重试分支 | WP-030 | done |
 | WP-033 | Android NSD 搜索 | Java 插件封装 `NsdManager` 搜索和解析（API 34 以下逐个解析），通过 TS 桥返回设备 ID、名称和地址；只在需要时搜索，离开页面即停止。实现为 `DeviceDiscoveryPlugin`、`DiscoveryBrowser` 和 `src/platform/device-discovery.ts` 的 `deviceDiscovery.watch`，说明见移动 README“局域网设备搜索”。`pnpm check`、`pnpm android:test`（含 Android lint）通过。API 35 真机上搜到本机用 ciao 广播的三个测试服务：中文实例名、端口、IPv4、TXT 正确，goodbye 和广播结束后约 2 秒移除，回到桌面时暂停、回到前台后重新搜到，停止后系统 NsdService 的监听全部注销；桥用真机快照核对了合并、协议版本不同和订阅计数。API 34 以下的 resolveService 路径和桌面应用本身的广播由 WP-034 的 Android 13（API 33）真机测试覆盖：发现列表搜到开发版 Electron 并连上。未验证：网页重载时的停止 | WP-030 | done |
 | WP-034 | 设备页实现 | 按 WP-031 原型改造双端设备页：电脑端显示服务、推荐地址、二维码和广播状态；Android 端提供发现列表和手动 IP；发现列表只列未保存的设备，已保存的设备在附近搜到、且搜到的地址里有保存的地址时，在“已保存的设备”里标“在附近”（WP-036 起地址变了也标，并显示搜到的地址）。设备页文案按 M-005 角色对称后的说法写，不说“电脑”“手机”“移动端”，说“设备”“另一台设备”，M-005 之前读起来也不会错：`device.addPc` 改为“添加设备”，`device.emptyMobile` 改为“扫码或添加设备后连接”，`device.emptyPc` 改为“连接过的设备会出现在这里”，`device.waitingMobile` 改为“等待其他设备连接”；扫码提示“对准另一台设备上的二维码”，二维码弹窗标题“用另一台设备扫码连接”；电脑的添加按钮和游戏页一样放在“已保存的设备”标题右边。en-US 对应改写。移动端不显示本机服务部分（Q-014）；二维码按原型在卡片够宽时常驻、窄时收进按钮（Q-015）。二维码用 `qrcode.react` 4.2.0（ISC，无运行时依赖），已审计并登记在架构依赖。实现：服务卡片 `ServiceHero` 和 `ConnectionQr` 放在 shared/ui，桌面服务快照补了设备 ID、IPv4 候选地址和开始监听时间；电脑端“添加设备”按原型等 M-005 电脑能主动连接后再显示。两端已保存的设备按最近连接排序：每次新连接把设备移到列表开头，顺序随配置保存。Android 端设备名不能选中，长按已保存设备和点按一样打开管理（与游戏卡片共用 `components/use-long-press.ts`）。验证：`pnpm check`、test:desktop、test:shared 通过，`antd lint` 无问题；Android 13 手机连开发版 Electron 跑通搜索、连接、先断开提示、“在附近”标记、排序、长按和两端断开，详见回归记录。二维码底色用卡片色、模块用正文色：浅色主题白底深色码，深色主题深底浅色码（反色）。没有测：电脑端两台手机先后连接时的排序、协议版本不同的真实设备、电脑端深色主题的其余部分 | WP-031、WP-032、WP-033 | done |
 | WP-035 | Android 扫码 | 申请相机权限、扫描页、解析载荷、依次尝试候选地址，设备 ID 一致才保存；拒绝相机权限时可去系统设置或手动输入。扫码库用 ZXing core 3.5.4 加 CameraX 1.5.3，选型原因见[架构依赖](../architecture/dependencies.md)，说明见移动 README“扫码连接”。监听方在深色主题下显示深底浅色码（反色），由 ZXing 的 `ALSO_INVERTED` 翻转重读。`pnpm check`、`pnpm android:test`（含 Android lint）、`pnpm security:android` 通过；解码类用生成的帧核对过正常码和反色码，浏览器预览核对了页面状态，真机通过相机取景、权限流程、电脑浅色和深色主题的二维码、扫码连接，详见回归记录。没有测：设备 ID 不一致时不保存、协议版本不同的二维码、平板旋转 | WP-030、WP-034 | done |
@@ -40,10 +40,22 @@ M-003（连接与重连）的工作包如下。前提：
 
 建议顺序：WP-030、WP-031 → WP-032、WP-033 → WP-034 → WP-035、WP-036、WP-038 → WP-037。
 
+M-004（完整首版）的工作包如下。范围只含已经复现的问题、缺少的备份进度、文案和一次真实存档回归；只为覆盖边缘场景的未测项不列入。Android 10 不列入回归，见[项目约束](../requirements/constraints.md)。
+
+| ID | 工作包 | 内容与完成标准 | 依赖 | 状态 |
+| --- | --- | --- | --- | --- |
+| WP-039 | 写入残留的临时文件 | 修复 [BUG-009](known-issues.md)：两端扫描跳过 `.savedata-copy-*.tmp` 和 `.savedata-new-*.tmp`，不列入比较和计划。残留文件不自动删除：发布候选的所有权只在写入进程内有效，进程结束后无法确认残留属于本应用。完成标准：长期测试覆盖跳过规则；电脑写入途中结束进程后再比较，残留文件不出现在两端计划里 | — | planned |
+| WP-040 | 已知交互问题 | 修复 [BUG-010～BUG-015](known-issues.md)；[BUG-016](known-issues.md) 先由维护者决定改不改，要改就并入本包。顺带查清两条控制台警告：`TaskStrip.tsx` 的 Progress `rounding` 被传到 div 上，桌面 `message-holder` 重复 key。完成标准：每个问题按记录的复现步骤在真机或电脑上不再出现，`pnpm check` 通过 | — | planned |
+| WP-041 | 传输与备份文案 | 改以下文案，四种语言一起改：文件夹被算进“N 个文件已写入”；`error.code.source-changed` 也用于目标目录和备份目录变化，文案却写成来源文件变化；传输失败又清理失败时，任务条只显示“临时文件未清理”；详情页里的错误还提示“请查看任务详情”；删除确认按钮移动端写“确认”、电脑写“删除”，统一为一种；取消时没开始传的文件被算成失败；有成功项、但结果未知时显示“部分完成”；读取结果时显示“正在清理”；等待对方设备建任务时没有专门的文案；任务开始后，打包阶段的授权失效错误不写是哪一端。完成标准：用翻译函数核对四种语言，界面上能触发的状态各看一次 | — | planned |
+| WP-042 | 备份阶段进度 | 五段进度里只有备份没有百分比：两端备份逐块复制并计算 SHA-256（电脑 `backup-store.ts` 的 `hashBackupStream`，Android `BackupStore` 的读写循环），却不上报进度；`SyncJobProgress` 没有备份字段，`sync-job-observation.ts` 对备份阶段返回 null，Android 通知在 `backing-up` 时显示不确定进度。备份复制目标目录的全部文件，目录大、改动小时它是最慢的一段。改法：`SyncJobProgress` 加备份已完成字节数和总字节数（总量是本次备份文件大小之和），两端备份写入时上报，共用代码算出备份阶段百分比，Android 通知去掉对 `backing-up` 的排除。任务状态经控制通道传给对方，两端格式一起改，不兼容旧格式。恢复任务没有阶段和百分比，不在本包。完成标准：shared 测试覆盖备份阶段百分比；大目录小改动的真实传输中，两端界面和 Android 通知在备份阶段都显示递增的百分比 | — | planned |
+| WP-043 | 完整首版回归 | 用真实存档回归：双向传输；删除目标多出的条目；备份和从备份恢复；打开大目录看预览，文件夹不汇总大小（通过后验收标准“不统计文件夹大小”改为通过）；传输中断网；写入途中结束进程，两端各一次（同时验证 WP-039）。完成标准：以上都通过，更新验收标准和回归状态，删除已闭环的记录 | WP-039～WP-042 | planned |
+
+建议顺序：WP-039、WP-042 → WP-040、WP-041 → WP-043。
+
 ## 2. 执行与拆分规则
 
 - 一包承担一个主要能力边界。跨平台协议变更、提供者差异、无法独立验证或新增依赖/配置迁移使范围扩大时先拆包；保留原包交接，同一交付物只写在一个包。
 - 实现前读取目标路径实际存在且适用的 `AGENTS.md`、项目编码规范和目标语言规则；桌面应用规则位于 `apps/desktop/AGENTS.md`，要求完整读取 `antd` skill。设计授权不包含实现或提交权限。
 - 工作包完成以针对性检查、受影响工程检查和明确剩余缺口为证据；没有真机证据的项保持未完成。完成、阻塞和下一步同步 INDEX、模块状态、用例和回归状态。
-- M-002 不做 Android 10 实测；M-003 每个工作包开始前、M-004 进入时重新读取记忆并细化。
+- 每个工作包开始前重新读取记忆并细化。
 - 不授权并行 Agent。
