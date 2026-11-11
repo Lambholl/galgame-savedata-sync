@@ -9,6 +9,7 @@ import {
   isOpaqueId,
   isSyncPath,
   isSyncSnapshot,
+  isWriteCandidateName,
 } from '@savedata-sync/shared'
 import type {
   DirectoryListing,
@@ -46,9 +47,15 @@ interface ScanJob {
   hasCancelled: boolean
 }
 
+// 写入途中进程被结束时，候选文件会留在目标文件旁边。扫描跳过它们，避免残留被比较和复制到另一台设备。
+// 残留不在这里删除：进程结束后无法确认它属于本应用。
+function savedEntries(value: DirectoryListing): EntryMetadata[] {
+  return value.entries.filter((entry) => entry.kind !== 'file' || !isWriteCandidateName(entry.name))
+}
+
 function listingKey(value: DirectoryListing): string {
   return JSON.stringify(
-    value.entries
+    savedEntries(value)
       .map((entry) => [entry.entryId, entry.name, entry.kind, entry.sizeBytes, entry.modifiedAt])
       .sort((a, b) => (String(a[0]) < String(b[0]) ? -1 : String(a[0]) > String(b[0]) ? 1 : 0)),
   )
@@ -255,7 +262,7 @@ export class WindowsSyncScanner {
       throw new HttpOperationError(before.error.code, before.error.message)
     }
     this.check(job)
-    for (const entry of [...before.value.entries].sort((a, b) =>
+    for (const entry of savedEntries(before.value).sort((a, b) =>
       a.name < b.name ? -1 : a.name > b.name ? 1 : 0,
     )) {
       this.check(job)

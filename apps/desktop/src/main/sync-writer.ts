@@ -49,6 +49,7 @@ import {
   checkTargetName,
   cleanupCandidate,
   createCandidate,
+  removeLeftoverCandidates,
   stageCandidate,
   verifyTargetFile,
 } from './sync-target-files.ts'
@@ -651,6 +652,13 @@ export class WindowsSyncWriter {
       }
       if (operations.length > 0) {
         await this.options.interruptedWrites?.begin(job.plan, backupId)
+        // 写入名额和单实例锁保证此刻没有其他写入，目标里的候选文件都是之前中断写入的残留。
+        // 先删掉它们，计划里要删除的目录才是空的。
+        await removeLeftoverCandidates(
+          required(job.locations.get(syncPathKey([]))),
+          this.io,
+          job.signal,
+        )
       }
       for (const [position, operation] of operations.entries()) {
         index = position

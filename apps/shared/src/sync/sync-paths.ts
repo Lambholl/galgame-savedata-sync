@@ -23,6 +23,30 @@ export function isSyncPath(value: unknown): value is readonly string[] {
   )
 }
 
+/** 写入候选文件的种类：copy 是覆盖或新建的同步写入，new 是新文件发布。 */
+export type WriteCandidateKind = 'copy' | 'new'
+
+const WRITE_CANDIDATE_NAME =
+  /^\.savedata-(?:copy|new)-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.tmp$/u
+
+/**
+ * 生成写入候选文件名 `.savedata-<kind>-<uuid>.tmp`。
+ *
+ * @param uuid 小写的随机 UUID；其他格式生成的名称不会被 isWriteCandidateName 识别，因此抛 TypeError。
+ */
+export function writeCandidateName(kind: WriteCandidateKind, uuid: string): string {
+  const name = `.savedata-${kind}-${uuid}.tmp`
+  if (!WRITE_CANDIDATE_NAME.test(name)) {
+    throw new TypeError('The write candidate ID must be a lowercase UUID.')
+  }
+  return name
+}
+
+/** 判断名称是否为 writeCandidateName 生成的写入候选文件名；只做精确匹配，大小写不同的名称不算。 */
+export function isWriteCandidateName(name: string): boolean {
+  return WRITE_CANDIDATE_NAME.test(name)
+}
+
 /** 生成路径的比较键：用 JSON 数组编码，名称含分隔符时也不会碰撞。 */
 export function syncPathKey(path: readonly string[]): string {
   return JSON.stringify(path)

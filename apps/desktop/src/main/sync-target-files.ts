@@ -4,7 +4,7 @@ import type { FileHandle } from 'node:fs/promises'
 import type { BigIntStats } from 'node:fs'
 import { join } from 'node:path'
 import type { Readable } from 'node:stream'
-import { syncNameKey } from '@savedata-sync/shared'
+import { isWriteCandidateName, syncNameKey, writeCandidateName } from '@savedata-sync/shared'
 import type { SyncEntry } from '@savedata-sync/shared'
 import type { NativeDirectoryLocation } from './directory-adapter.ts'
 import { getFileIdentity, hasSameIdentity, inspectLocalPath } from './directory-paths.ts'
@@ -134,10 +134,37 @@ export async function verifyTargetFile(
   }
 }
 
+/**
+ * 删除 root 及其子目录里名称符合 isWriteCandidateName 的普通文件，不进入链接指向的目录。
+ * 调用方必须持有写入名额，否则可能删掉正在写入的候选文件。
+ * 单个文件删不掉时跳过它；读不到目录或 signal 中止时抛错。
+ */
+export async function removeLeftoverCandidates(
+  root: NativeDirectoryLocation,
+  io: SyncTargetIO,
+  signal: AbortSignal,
+): Promise<void> {
+  await root.verify()
+  const directories = [root.path]
+  for (let directory = directories.pop(); directory; directory = directories.pop()) {
+    checkArchiveAbort(signal)
+    for (const entry of await readdir(directory, { withFileTypes: true })) {
+      const path = join(directory, entry.name)
+      if (entry.isDirectory()) {
+        directories.push(path)
+      } else if (entry.isFile() && isWriteCandidateName(entry.name)) {
+        await io.unlink(path).catch(() => {
+          /* 删不掉的残留不影响写入：扫描会跳过它，下一次写入再删。 */
+        })
+      }
+    }
+  }
+}
+
 /** 创建候选文件；之后无论成败都要 cleanupCandidate。 */
 export async function createCandidate(parent: NativeDirectoryLocation): Promise<SyncCandidate> {
   await parent.verify()
-  const path = join(parent.path, `.savedata-copy-${randomUUID()}.tmp`)
+  const path = join(parent.path, writeCandidateName('copy', randomUUID()))
   const handle = await open(path, 'wx', 0o600)
   return {
     parent,

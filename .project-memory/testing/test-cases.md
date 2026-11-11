@@ -2,7 +2,7 @@
 doc_type: test-cases
 status: active
 id_prefix: TC
-id_high_water: 48
+id_high_water: 49
 updated: 2026-11-11
 tags: [测试用例]
 related_files: []
@@ -38,5 +38,6 @@ related_files: []
 | TC-046 | 组播不可用时退回 | 开着防火墙的 Windows 电脑屏蔽组播并换地址，手机点“连接” | 约 5 秒后提示连接失败；在管理里手动改址或扫码后连上，游戏关联保留 | passed |
 | TC-047 | 多网卡电脑扫码 | 同时有物理网卡和代理虚拟网卡的 Windows 电脑显示二维码，手机扫码 | 推荐地址连不上时换下一个候选地址连上 | passed |
 | TC-048 | 控制通道断开后的宽限期内重连 | 手机连着电脑时停止电脑服务，在设备行变回“连接”后 10 秒内点按 | 先释放本机残留会话再连接，不提示“正在执行其他任务”；服务停止时约 5 秒后提示网络连接中断 | passed |
+| TC-049 | 电脑写入候选文件残留 | `pnpm test:shared` 的 sync-paths、`pnpm test:desktop` 的 sync-scanner 和 sync-target-files | `.savedata-copy-<UUID>.tmp`、`.savedata-new-<UUID>.tmp` 不进入快照，写入前删除目标各层的这类文件；UUID 大写等相近名称照常扫描、不删除，不进入链接指向的目录 | passed |
 
 `partial` 表示已有证据但仍有场景未覆盖。`pnpm check` 不运行这些自动化测试；完整回归使用 `pnpm test:all`。

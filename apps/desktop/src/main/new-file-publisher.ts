@@ -12,6 +12,7 @@ import {
   isOpaqueId,
   isPortableFileName,
   isSha256,
+  writeCandidateName,
 } from '@savedata-sync/shared'
 import type { BatchCleanup, EntryReference, FileOutcome } from '@savedata-sync/shared'
 import type { NativeDirectoryLocation, WindowsDirectoryAdapter } from './directory-adapter.ts'
@@ -312,7 +313,7 @@ export class WindowsNewFilePublisher {
         input,
         controller,
         options,
-        candidateName: `.savedata-new-${randomUUID()}.tmp`,
+        candidateName: writeCandidateName('new', randomUUID()),
         handles: new Set(),
         location: null,
         identity: null,

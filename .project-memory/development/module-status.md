@@ -19,7 +19,6 @@ related_files: []
 
 | 模块 | 状态 | 负责人 | 相关文件 | 边界与风险 | 下一步 |
 | --- | --- | --- | --- | --- | --- |
-| 两端目录扫描 | not-started | 开发 | desktop sync-target-files/new-file-publisher 与扫描器、Android 扫描 | 电脑写入途中被结束会在存档目录留下临时文件，扫描不跳过（BUG-009） | WP-039 |
 | 传输进度 | not-started | 开发 | shared `sync-job-contracts.ts`、`sync-job-observation.ts`；desktop backup-store/sync-writer；Android BackupStore/SyncWriter/TransferService | 五段里备份阶段没有百分比，Android 通知在备份阶段显示不确定进度 | WP-042 |
 
 ## 2. 状态说明
