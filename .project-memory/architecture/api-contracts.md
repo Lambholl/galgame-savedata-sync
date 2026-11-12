@@ -1,7 +1,7 @@
 ---
 doc_type: api-contracts
 status: active
-updated: 2026-11-12
+updated: 2026-11-13
 tags: [API, 接口约定]
 related_files: []
 ---
@@ -157,7 +157,7 @@ Windows 目录与 IPC 回归包含真实 8.3 短路径环境。真实目录只�
 
 ## 7. 游戏设备元数据与界面
 
-传输发起的 `TransferRequest` 需要本机 `projectId`。共享 `resolveSyncProjectBinding` 固定本机/远端项目、设备与目录 ID；Android 在通知授权后重新交换目录表并复核，变化时要求重新预览。双端保存游戏只接受已登记本机目录，活动传输中阻止修改游戏目录/关联。HTTP 与 LibraryConfig 均为 v1。
+传输发起的 `TransferRequest` 需要本机 `projectId`。共享 `resolveSyncProjectBinding` 固定本机/远端项目、设备与目录 ID；Android 在通知授权后重新交换目录表并复核，变化时要求重新预览。Android 开始比较时先只核对会话，重新交换目录表后才核对两端目录是否可用：存着的目录表可能是目录失效时交换的，先核对会挡住刷新，电脑目录恢复后也一直报授权失效。双端保存游戏只接受已登记本机目录，活动传输中阻止修改游戏目录/关联。HTTP 与 LibraryConfig 均为 v1。
 
 `apps/shared/src/library/library.ts` 定义本机 `LibraryConfig`、公开 `CatalogGame`、游戏关联和目录表交换格式。一个游戏在每台设备对应一个目录，关联多个稳定设备 ID；首期同时连接一个对端，开始后的传输固定原连接。配置不保存文件清单、哈希或平台路径。
 

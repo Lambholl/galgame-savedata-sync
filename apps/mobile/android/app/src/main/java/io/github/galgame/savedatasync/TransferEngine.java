@@ -600,12 +600,22 @@ final class TransferEngine {
       throw fail("session-mismatch");
     }
     SyncConnection result = new SyncConnection(connection, local.deviceId());
-    verifySync(result, binding);
+    // 这里只核对会话：存着的电脑目录表可能已过期，准备时 refreshSync 重新交换后再核对目录绑定。
+    verifySession(result, binding);
     return result;
   }
 
   synchronized void verifySync(SyncConnection connection, Map<String, Object> binding)
     throws Exception {
+    Connection current = verifySession(connection, binding);
+    SyncJobModel.catalogBinding(current.hello, current.reply, binding);
+  }
+
+  /** 核对 connection 仍是当前会话、binding 的两端设备与它一致，返回当前连接。 */
+  private synchronized Connection verifySession(
+    SyncConnection connection,
+    Map<String, Object> binding
+  ) throws Exception {
     available();
     Connection current = connections.get(connection.deviceId);
     if (
@@ -621,14 +631,15 @@ final class TransferEngine {
       local.deviceId().equals(binding.get("localDeviceId")) &&
         connection.deviceId.equals(binding.get("remoteDeviceId"))
     );
-    SyncJobModel.catalogBinding(current.hello, current.reply, binding);
+    return current;
   }
 
   void refreshSync(SyncConnection connection, Map<String, Object> binding, ArchiveControl control)
     throws Exception {
     Map<String, Object> hello;
     synchronized (this) {
-      verifySync(connection, binding);
+      // 交换前不核对目录绑定：上次交换存下的“不可用”会挡住这次刷新，目录恢复后也一直失败。
+      verifySession(connection, binding);
       hello = map(copy(connection.identity.hello));
     }
     exchangeCatalog(
