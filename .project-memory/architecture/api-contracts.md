@@ -66,7 +66,7 @@ Windows 提供 `/v1/sync/capabilities`、`POST /v1/sync/scans` 和 `GET/DELETE /
 | 请求 `sync.job.read {jobId}` | 电脑 → 移动端原生 | 完整 `SyncJobState`。只在接收端结束后读一次，取得逐项结果 | 任务不存在或属于别的设备返回 not-found；失败时每 5 秒重试，其间显示结果待确认 |
 | 请求 `sync.job.cancel {jobId}` | 电脑 → 移动端原生 | null。移动端记录为用户取消，而不是网络失败；已结束的任务不受影响 | 移动端还没建立任务时返回 not-found，电脑报告操作失败 |
 
-这三项由 `SyncTransferEngine` 处理，不经页面，页面被回收或任务由移动端发起时同样工作。角色状态互相独立，成功只看接收端的读回结果：`observeSyncJob(local, remote, hasRemoteError)` 合成阶段、当前段百分比、失败阶段和计数，发送端结束而接收端未结束时仍是进行中。结束后的结论依次判断：接收端成功为 done；接收端待确认为 unknown，有成功项也一样，没确认的条目可能已写入；其余有成功项为 partial。界面的部分完成说明只列不为 0 的成功、失败、待确认、未执行，取消和未尝试的条目算未执行；完成说明把文件、新建文件夹和删除分开计数。清理失败时，任务条在传输成功时只写清理失败，其他结论后面接着写清理失败。对端状态不可信（控制通道断开、60 秒没有摘要、结果读取失败）时 `remoteError` 为 result-unknown，本机也结束后显示待确认，新的摘要或结果会清除它。
+这三项由 `SyncTransferEngine` 处理，不经页面，页面被回收或任务由移动端发起时同样工作。角色状态互相独立，成功只看接收端的读回结果：`observeSyncJob(local, remote, hasRemoteError)` 合成阶段、当前段百分比、失败阶段和计数，发送端结束而接收端未结束时仍是进行中。结束后的结论依次判断：接收端成功为 done；接收端待确认为 unknown，有成功项也一样，没确认的条目可能已写入；其余有成功项为 partial。界面的部分完成说明只列不为 0 的成功、失败、待确认、未执行，取消和未尝试的条目算未执行；完成说明把文件、新建文件夹和删除分开计数。清理失败时，任务条在传输成功时只写清理失败，其他结论后面接着写清理失败。对端状态不可信（控制通道断开、60 秒没有摘要、结果读取失败）时 `remoteError` 为 result-unknown，本机也结束后显示待确认，新的摘要或结果会清除它。电脑作为接收端还没收到内容时，移动端摘要报失败或取消就取消电脑这一端；在准备阶段 60 秒没有摘要，按超时结束。
 
 电脑侧 `copyState`、`cancelCopy` 返回 `SyncTransferState`，`DesktopCopySummary` 用 phase、stage、step、percent 表示进度，由主进程计算，详情、游戏进度条、历史和完成提示读同一份，高频更新不携带逐项结果。已确认但移动端还没登记任务时，`remote-sync-requests.ts` 用同一个 jobId 提供占位的摘要、计划和状态，摘要的 `isAwaitingPeer` 为 true，详情和任务条写“等待对方设备开始”；登记后改由 `WindowsSyncRegistry` 提供。对端未结束的任务不会被留存清理，也算作有运行中的工作。
 

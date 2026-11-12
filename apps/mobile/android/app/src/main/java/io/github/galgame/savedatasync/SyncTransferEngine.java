@@ -1571,9 +1571,6 @@ final class SyncTransferEngine implements AutoCloseable {
       synchronized (this) {
         shouldCancel =
           !job.wasCancelSent && (job.remote == null || job.remote.get("status").equals("running"));
-        if (shouldCancel) {
-          job.wasCancelSent = true;
-        }
       }
       try {
         if (shouldCancel) {
@@ -1589,8 +1586,11 @@ final class SyncTransferEngine implements AutoCloseable {
                 control
               )
             );
+            synchronized (this) {
+              job.wasCancelSent = true;
+            }
           } catch (Exception lost) {
-            /* 只查询实际结果，DELETE 也不自动重发。 */
+            /* 这里只查询实际结果；电脑没有回应时不记为已发，用户再点取消时重发。 */
           }
         }
         refresh(job, control);

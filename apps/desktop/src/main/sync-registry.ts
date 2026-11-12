@@ -248,7 +248,10 @@ export class WindowsSyncRegistry {
     this.abort(task)
     return this.transferState(task)
   }
-  /** 应用对端推送的任务摘要，不属于已登记任务的摘要忽略；对端作为接收端结束后读取一次逐项结果。 */
+  /**
+   * 应用对端推送的任务摘要，不属于已登记任务的摘要忽略；对端作为接收端结束后读取一次逐项结果。
+   * 本机作为接收端还没收到内容时，发送端报告失败或取消，本机任务随之取消。
+   */
   observe(peerId: string, digest: SyncJobDigest): void {
     const task = this.tasks.get(digest.jobId)
     if (task?.peerId !== peerId) {
@@ -268,6 +271,14 @@ export class WindowsSyncRegistry {
     if (digest.role !== 'receiver' || digest.status === 'running') {
       task.remote = { ...digest, result: null }
       this.remoteChanged(task, previous)
+      // 发送端在交出内容前就结束了，内容不会再来；和收到它的取消请求一样处理，不等总期限。
+      if (
+        task.state.role === 'receiver' &&
+        !task.isContentClaimed &&
+        (digest.status === 'failed' || digest.status === 'cancelled')
+      ) {
+        this.abort(task)
+      }
     } else if (previous?.result) {
       task.remote = {
         ...previous,
@@ -1209,7 +1220,12 @@ export class WindowsSyncRegistry {
           (task.state.stage === 'awaiting-content' &&
             now - task.stageAt >= this.timeouts.awaitingContent) ||
           (task.state.stage === 'ready' && now - task.stageAt >= this.timeouts.ready) ||
-          (task.state.stage === 'transferring' && now - task.networkAt >= this.timeouts.networkIdle)
+          (task.state.stage === 'transferring' &&
+            now - task.networkAt >= this.timeouts.networkIdle) ||
+          // 发送端打包期间每秒推送摘要；这么久没收到，说明它已经不在，清单和内容都等不到。
+          (task.state.role === 'receiver' &&
+            task.state.stage === 'preparing' &&
+            now - task.remoteSeenAt >= this.timeouts.networkIdle)
         ) {
           this.abort(task, {
             code: 'timeout',
