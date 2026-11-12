@@ -1,7 +1,6 @@
 import { randomUUID } from 'node:crypto'
-import { lstat, mkdir, open, readdir, rename, rm, rmdir, unlink } from 'node:fs/promises'
+import { lstat, mkdir, readdir, rename, rm, rmdir, unlink } from 'node:fs/promises'
 import type { Dirent } from 'node:fs'
-import type { FileHandle } from 'node:fs/promises'
 import { dirname, isAbsolute, join } from 'node:path'
 import type { Readable } from 'node:stream'
 import { finished } from 'node:stream/promises'
@@ -34,7 +33,7 @@ import type {
   SyncPlan,
   SyncSnapshot,
 } from '@savedata-sync/shared'
-import type { DirectoryFileRead, WindowsDirectoryAdapter } from './directory-adapter.ts'
+import type { WindowsDirectoryAdapter } from './directory-adapter.ts'
 import type { FileIdentity } from './directory-paths.ts'
 import { getFileIdentity, hasSameIdentity, inspectLocalPath } from './directory-paths.ts'
 import { ArchiveError, checkArchiveAbort, toArchiveError } from './archive-errors.ts'
@@ -42,7 +41,7 @@ import {
   BACKUP_DISK_IO,
   backupFolderName,
   backupRoundName,
-  hashBackupStream,
+  copyFileHashed,
   inspectBackupFile,
   openBackupFile,
   readBackupJson,
@@ -52,7 +51,7 @@ import type { BackupDiskIO } from './backup-files.ts'
 
 type BackupSource = Pick<
   WindowsDirectoryAdapter,
-  'deviceId' | 'assertCacheIsolated' | 'excludePrivateDirectory' | 'listDirectory' | 'openFile'
+  'deviceId' | 'assertCacheIsolated' | 'excludePrivateDirectory' | 'locateNativeDirectory'
 >
 /** 磁盘上的一轮备份。isComplete 表示已提交且文件齐全；其余情况按不完整显示，可以清理但不能恢复。 */
 interface BackupRound {
@@ -530,60 +529,6 @@ export class WindowsBackupStore {
             ),
     }
   }
-  private async sourceFile(
-    plan: SyncPlan,
-    entry: SyncEntry,
-    signal: AbortSignal,
-  ): Promise<DirectoryFileRead> {
-    let parentId: string | null = null
-    for (const [index, name] of entry.path.entries()) {
-      checkArchiveAbort(signal)
-      const listed = await this.source.listDirectory(plan.target.rootId, parentId)
-      if (listed.status === 'error') {
-        throw toArchiveError({ operationError: listed.error })
-      }
-      const matches = listed.value.entries.filter((item) => item.name === name)
-      if (matches.length !== 1) {
-        throw new ArchiveError(
-          'source-changed',
-          'The directory or name of a file to be backed up changed.',
-        )
-      }
-      const current = required(matches[0])
-      if (index < entry.path.length - 1) {
-        if (current.kind !== 'directory') {
-          throw new ArchiveError(
-            'source-changed',
-            'The parent directory of a file to be backed up changed.',
-          )
-        }
-        parentId = current.entryId
-      } else if (current.entryId !== entry.entryId || current.kind !== 'file') {
-        throw new ArchiveError('source-changed', 'The identity of a file to be backed up changed.')
-      }
-    }
-    const opened = await this.source.openFile({
-      rootId: plan.target.rootId,
-      entryId: entry.entryId,
-    })
-    if (opened.status === 'error') {
-      throw toArchiveError({ operationError: opened.error })
-    }
-    const { stream, metadata } = opened.value
-    try {
-      if (metadata.sizeBytes !== entry.sizeBytes || metadata.modifiedAt !== entry.modifiedAt) {
-        throw new ArchiveError(
-          'source-changed',
-          'The attributes of a file to be backed up changed.',
-        )
-      }
-      return opened.value
-    } catch (error) {
-      stream.destroy()
-      await finished(stream).catch(() => {})
-      throw error
-    }
-  }
   /** 新备份的文件夹：游戏名/时间；同一秒已有同名文件夹时加序号。 */
   private async createRoundDirectory(projectId: string, createdAt: number): Promise<string> {
     const game = join(await this.root(), backupFolderName(this.gameName(projectId), projectId))
@@ -666,49 +611,36 @@ export class WindowsBackupStore {
           isComplete: false,
         }
         await writeBackupJson(join(path, UNFINISHED), manifest, this.io)
+        const root = await this.source.locateNativeDirectory(fixed.target.rootId)
+        const directories = new Set<string>()
         let bytesCopied = 0
-        for (const [index, file] of files.entries()) {
-          const target = required(targets[index])
-          await this.inspectRound(round)
-          checkArchiveAbort(signal)
+        for (const file of files) {
           const destination = contentPath(path, file)
-          await mkdir(dirname(destination), { recursive: true })
-          const source = await this.sourceFile(fixed, target, signal),
-            input = source.stream
-          let output: FileHandle | undefined
-          try {
-            const handle = await open(destination, 'wx', 0o600)
-            output = handle
-            const value = await hashBackupStream(input, file.sizeBytes, signal, async (chunk) => {
-              for (let offset = 0; offset < chunk.length;) {
-                checkArchiveAbort(signal)
-                const written = await handle.write(chunk, offset, chunk.length - offset)
-                if (written.bytesWritten === 0) {
-                  throw new ArchiveError('io-failure', 'The backup write made no progress.')
-                }
-                offset += written.bytesWritten
-              }
-              bytesCopied += chunk.length
+          if (!directories.has(dirname(destination))) {
+            await mkdir(dirname(destination), { recursive: true })
+            directories.add(dirname(destination))
+          }
+          const value = await copyFileHashed(
+            join(root.path, ...file.path),
+            destination,
+            file.sizeBytes,
+            signal,
+            (bytes) => {
+              bytesCopied += bytes
               try {
                 options.onProgress?.(bytesCopied)
               } catch {
                 /* 进度观察者失败不影响备份。 */
               }
-            })
-            if (value.sizeBytes !== file.sizeBytes || value.sha256 !== file.sha256) {
-              throw new ArchiveError(
-                'source-changed',
-                'The content of a file to be backed up changed.',
-              )
-            }
-            await source.verifyUnchanged()
-            await this.io.sync(output)
-          } finally {
-            input.destroy()
-            await finished(input).catch(() => {})
-            await output?.close()
+            },
+          )
+          // 扫描后文件被改过时，备份的就不是计划确认的内容，写入会覆盖用户新的改动。
+          if (value.sizeBytes !== file.sizeBytes || value.sha256 !== file.sha256) {
+            throw new ArchiveError(
+              'source-changed',
+              'The content of a file to be backed up changed.',
+            )
           }
-          await this.verifyFile(round, file, signal)
         }
         checkArchiveAbort(signal)
         await this.inspectRound(round)
@@ -735,19 +667,6 @@ export class WindowsBackupStore {
         this.active = null
       }
     })
-  }
-  private async verifyFile(
-    round: BackupRound,
-    file: SyncBackupFile,
-    signal?: AbortSignal,
-  ): Promise<void> {
-    await this.inspectRound(round)
-    const input = await openBackupFile(contentPath(round.path, file), BATCH_LIMITS.maxFileBytes)
-    const value = await hashBackupStream(input.stream, file.sizeBytes, signal)
-    await input.verify()
-    if (value.sizeBytes !== file.sizeBytes || value.sha256 !== file.sha256) {
-      throw new ArchiveError('checksum-mismatch', 'Backup content verification failed.')
-    }
   }
   /** 删除一份备份，游戏文件夹空了一起删除；中途失败时这份备份变成残留备份。 */
   private async remove(round: BackupRound): Promise<void> {
@@ -807,9 +726,6 @@ export class WindowsBackupStore {
       this.active = controller
       try {
         handle.snapshot()
-        for (const file of round.manifest.files) {
-          await this.verifyFile(round, file, signal)
-        }
         return handle
       } catch (error) {
         this.handles.delete(handle)

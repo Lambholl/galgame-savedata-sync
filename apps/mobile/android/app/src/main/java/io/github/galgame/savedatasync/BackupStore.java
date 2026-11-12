@@ -39,9 +39,14 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * 持久备份的存储，目录结构为 backups/游戏名/时间/，内含 backup.json 和按原路径保存的 files/。
@@ -61,6 +66,7 @@ final class BackupStore implements AutoCloseable {
   private static final String COMMITTED = "backup.json";
   private static final String UNFINISHED = "in-progress.json";
   private static final String CONTENT = "files";
+  private static final int COPY_THREADS = 8;
   private final Path settingsDirectory;
   private final Path settingsFile;
   private final Location location;
@@ -565,70 +571,16 @@ final class BackupStore implements AutoCloseable {
       Path path = createRoundDirectory(projectId, created);
       round = new Round(path, files.directory(path), manifest, false);
       files.writeJson(path.resolve(UNFINISHED), manifest);
-      long copied = 0;
+      List<Path> destinations = new ArrayList<>();
+      Set<Path> directories = new HashSet<>();
       for (int i = 0; i < sources.size(); i++) {
-        verifyRound(round);
-        check(work);
-        BackupModel.SourceFile file = sources.get(i);
-        ArchiveModel.Source input = resolve(rootId, file, work);
-        input.validateRoot(rootId);
-        ArchiveModel.Observation before = input.observe(control);
-        before.validate();
-        if (
-          !before.entryId.equals(file.entryId) ||
-          !before.name.equals(file.path.get(file.path.size() - 1)) ||
-          (before.size != null && before.size != file.size) ||
-          !Objects.equals(before.modified, file.modified)
-        ) {
-          throw BackupFiles.failure("source-changed");
-        }
         Path destination = content(path, map(values.get(i)));
-        Files.createDirectories(destination.getParent());
-        InputStream reader = control.track(input.open(control));
-        FileChannel output = null;
-        try {
-          output = control.track(files.writer(destination));
-          MessageDigest hash = MessageDigest.getInstance("SHA-256");
-          long size = 0;
-          byte[] buffer = new byte[65536];
-          for (int count; (count = reader.read(buffer)) != -1; ) {
-            check(work);
-            size += count;
-            if (size > file.size) {
-              throw BackupFiles.failure("source-changed");
-            }
-            files.write(output, destination, buffer, count);
-            hash.update(buffer, 0, count);
-            copied += count;
-            if (progress != null) {
-              progress.copied(copied);
-            }
-          }
-          check(work);
-          if (
-            size != file.size ||
-            !ArchiveFormat.hex(hash.digest()).equals(file.sha256) ||
-            !before.same(input.observe(control))
-          ) {
-            throw BackupFiles.failure("source-changed");
-          }
-          files.sync(output);
-        } finally {
-          try {
-            reader.close();
-          } finally {
-            control.untrack(reader);
-            if (output != null) {
-              try {
-                output.close();
-              } finally {
-                control.untrack(output);
-              }
-            }
-          }
+        if (directories.add(destination.getParent())) {
+          Files.createDirectories(destination.getParent());
         }
-        verifyFile(round, map(values.get(i)), work);
+        destinations.add(destination);
       }
+      copyAll(work, rootId, sources, destinations, progress);
       verifyRound(round);
       check(work);
       files.move(path.resolve(UNFINISHED), path.resolve(COMMITTED), false);
@@ -656,67 +608,125 @@ final class BackupStore implements AutoCloseable {
     }
   }
 
-  private ArchiveModel.Source resolve(String rootId, BackupModel.SourceFile file, Active work)
-    throws Exception {
-    String parentId = null;
-    for (int i = 0; i < file.path.size(); i++) {
-      check(work);
-      List<Object> listing = source.list(rootId, parentId, work.control);
-      Map<String, Object> selected = null;
-      for (Object raw : listing) {
-        Map<String, Object> entry = metadata(raw);
-        require(
-          rootId.equals(entry.get("rootId")) && Objects.equals(parentId, entry.get("parentId"))
+  /**
+   * 把 sources 逐个复制到对应的 destinations，几个文件同时复制，全部结束后返回。
+   *
+   * <p>progress 只在调用线程收到累计字节数。任一个文件失败或 progress 抛错时，没开始的文件不再复制，
+   * 等已开始的结束后抛出最先的异常。
+   */
+  private void copyAll(
+    Active work,
+    String rootId,
+    List<BackupModel.SourceFile> sources,
+    List<Path> destinations,
+    Progress progress
+  ) throws Exception {
+    // 经 SAF 打开一个文件要几十毫秒，主要在等提供者；同时打开几个，几百个文件的备份能快几倍。
+    ExecutorService copiers = Executors.newFixedThreadPool(COPY_THREADS);
+    AtomicLong copied = new AtomicLong();
+    AtomicReference<Exception> failure = new AtomicReference<>();
+    try {
+      List<Future<Object>> tasks = new ArrayList<>();
+      for (int i = 0; i < sources.size(); i++) {
+        BackupModel.SourceFile file = sources.get(i);
+        Path destination = destinations.get(i);
+        tasks.add(
+          copiers.submit(() -> {
+            if (failure.get() == null) {
+              try {
+                copyFile(work, rootId, file, destination, copied);
+              } catch (Exception cause) {
+                failure.compareAndSet(null, cause);
+              }
+            }
+            return null;
+          })
         );
-        if (file.path.get(i).equals(entry.get("name"))) {
-          if (selected != null) {
-            throw BackupFiles.failure("name-conflict");
+      }
+      long reported = 0;
+      for (Future<Object> task : tasks) {
+        for (boolean isDone = false; !isDone; ) {
+          try {
+            task.get(100, TimeUnit.MILLISECONDS);
+            isDone = true;
+          } catch (TimeoutException waiting) {
+            // 大文件复制期间也要更新进度。
           }
-          selected = entry;
+          reported = report(progress, copied, reported, failure);
         }
       }
-      if (selected == null) {
-        throw BackupFiles.failure("source-changed");
-      }
-      if (i < file.path.size() - 1) {
-        if (!"directory".equals(selected.get("kind"))) {
-          throw BackupFiles.failure("source-changed");
-        }
-        parentId = id(selected.get("entryId"));
-      } else if (
-        !"file".equals(selected.get("kind")) || !file.entryId.equals(selected.get("entryId"))
-      ) {
-        throw BackupFiles.failure("source-changed");
-      }
+    } finally {
+      copiers.shutdownNow();
     }
-    return source.file(rootId, file.entryId);
+    if (failure.get() != null) {
+      throw failure.get();
+    }
   }
 
-  private void verifyFile(Round round, Map<String, Object> file, Active work) throws Exception {
-    verifyRound(round);
-    Path path = content(round.path, file);
-    long expected = number(file.get("sizeBytes"), 0, BackupModel.MAX_FILE);
-    BasicFileAttributes before = files.regular(path, BackupModel.MAX_FILE);
-    MessageDigest hash = MessageDigest.getInstance("SHA-256");
-    long size = 0;
-    byte[] buffer = new byte[65536];
-    InputStream input = work.control.track(files.reader(path, BackupModel.MAX_FILE));
-    try (InputStream reader = input) {
+  private static long report(
+    Progress progress,
+    AtomicLong copied,
+    long reported,
+    AtomicReference<Exception> failure
+  ) {
+    long current = copied.get();
+    if (progress != null && current != reported && failure.get() == null) {
+      try {
+        progress.copied(current);
+      } catch (Exception cause) {
+        failure.compareAndSet(null, cause);
+      }
+    }
+    return current;
+  }
+
+  /** 把一个源文件复制成 destination，同时比对大小和 SHA-256；可以在多个线程同时调用。 */
+  private void copyFile(
+    Active work,
+    String rootId,
+    BackupModel.SourceFile file,
+    Path destination,
+    AtomicLong copied
+  ) throws Exception {
+    check(work);
+    ArchiveControl control = work.control;
+    ArchiveModel.Source input = source.file(rootId, file.entryId);
+    input.validateRoot(rootId);
+    InputStream reader = control.track(input.open(control));
+    FileChannel output = null;
+    try {
+      output = control.track(files.writer(destination));
+      MessageDigest hash = MessageDigest.getInstance("SHA-256");
+      long size = 0;
+      byte[] buffer = new byte[65536];
       for (int count; (count = reader.read(buffer)) != -1; ) {
         check(work);
         size += count;
-        if (size > expected) {
-          throw BackupFiles.failure("checksum-mismatch");
+        if (size > file.size) {
+          throw BackupFiles.failure("source-changed");
         }
+        files.write(output, destination, buffer, count);
         hash.update(buffer, 0, count);
+        copied.addAndGet(count);
+      }
+      check(work);
+      // 扫描后文件被改过时，备份的就不是计划确认的内容，写入会覆盖用户新的改动。
+      if (size != file.size || !ArchiveFormat.hex(hash.digest()).equals(file.sha256)) {
+        throw BackupFiles.failure("source-changed");
       }
     } finally {
-      work.control.untrack(input);
-    }
-    check(work);
-    files.same(path, before, BackupModel.MAX_FILE);
-    if (size != expected || !ArchiveFormat.hex(hash.digest()).equals(file.get("sha256"))) {
-      throw BackupFiles.failure("checksum-mismatch");
+      try {
+        reader.close();
+      } finally {
+        control.untrack(reader);
+        if (output != null) {
+          try {
+            output.close();
+          } finally {
+            control.untrack(output);
+          }
+        }
+      }
     }
   }
 
@@ -875,7 +885,7 @@ final class BackupStore implements AutoCloseable {
     return object("code", failure.code, "message", failure.getMessage(), "canRetry", false);
   }
 
-  /** 完整校验一份备份并取得引用；引用释放前这份备份不参加轮换。 */
+  /** 校验一份备份的清单并取得引用，不读文件内容；引用释放前这份备份不参加轮换。 */
   synchronized Handle acquire(String projectId, String backupId, ArchiveControl control)
     throws Exception {
     if (handles.size() >= 32) {
@@ -888,9 +898,7 @@ final class BackupStore implements AutoCloseable {
     handles.put(handle, round.id());
     try {
       BackupModel.snapshot(round.manifest);
-      for (Object file : TransferJson.list(round.manifest.get("files"))) {
-        verifyFile(round, map(file), work);
-      }
+      check(work);
       return handle;
     } catch (Exception failure) {
       handles.remove(handle);

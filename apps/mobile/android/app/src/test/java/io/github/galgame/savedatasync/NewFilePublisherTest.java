@@ -15,7 +15,6 @@ import static org.junit.Assert.assertTrue;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -61,7 +60,6 @@ public class NewFilePublisherTest {
     boolean shouldChangeIdentity;
     boolean shouldFailCleanup;
     boolean shouldFailClose;
-    boolean shouldCorrupt;
     boolean isClosed;
     String createError;
     String writeError;
@@ -69,11 +67,9 @@ public class NewFilePublisherTest {
     int writes;
     int deletes;
     int opens;
-    int reads;
     long modified = 123L;
     Runnable creating;
     Runnable closing;
-    Runnable reading;
 
     Node add(String id, String name, byte[] bytes) {
       Node node = new Node(id, name);
@@ -112,12 +108,32 @@ public class NewFilePublisherTest {
       if (creating != null) {
         creating.run();
       }
-      Node node = add("new-" + creates, shouldRename ? name + " (1)" : name, new byte[0]);
+      // 和 SAF 提供者一样，已有同名或等价名称时换个名字创建。
+      boolean isTaken = false;
+      for (Node n : nodes.values()) {
+        isTaken |= nameKey(n.name).equals(nameKey(name));
+      }
+      Node node = add(
+        "new-" + creates,
+        shouldRename || isTaken ? name + " (1)" : name,
+        new byte[0]
+      );
       node.isDirectory = useWrongType;
       if (createError != null) {
         throw new ArchiveFailure(createError, "模拟创建结果丢失");
       }
       return useExistingId ? "existing" : isMissing ? "absent" : node.id;
+    }
+
+    @Override
+    public Document document(
+      NewFilePublisher.Directory directory,
+      String id,
+      ArchiveControl control
+    ) throws Exception {
+      control.check();
+      Node node = nodes.get(id);
+      return node == null ? null : node.document();
     }
 
     @Override
@@ -147,20 +163,6 @@ public class NewFilePublisherTest {
               }
             }
           };
-        }
-
-        @Override
-        public InputStream openRead(ArchiveControl control) throws Exception {
-          reads++;
-          verify(control);
-          if (reading != null) {
-            reading.run();
-          }
-          byte[] bytes = node.bytes.clone();
-          if (shouldCorrupt && bytes.length > 0) {
-            bytes[0] ^= 1;
-          }
-          return new ByteArrayInputStream(bytes);
         }
 
         @Override
@@ -236,6 +238,18 @@ public class NewFilePublisherTest {
     );
   }
 
+  /** 输入内容与请求的哈希不同。 */
+  private Result runMismatch(NewFilePublisher p) throws Exception {
+    byte[] other = BYTES.clone();
+    other[0] ^= 1;
+    return p.publish(
+      request("存档 😀.sav", BYTES),
+      () -> new ByteArrayInputStream(other),
+      null,
+      new ArchiveControl()
+    );
+  }
+
   @After
   public void cleanup() {
     for (Fake b : backends) {
@@ -251,7 +265,7 @@ public class NewFilePublisherTest {
   }
 
   @Test
-  public void succeedsOnlyAfterWriteCloseAndFullReadback() throws Exception {
+  public void succeedsAfterWriteCloseAndMatchingHash() throws Exception {
     Fake b = new Fake();
     NewFilePublisher p = publisher(b);
     List<String> stages = new ArrayList<>();
@@ -272,7 +286,7 @@ public class NewFilePublisherTest {
     assertTrue(result.residualEntries.isEmpty());
     assertArrayEquals(BYTES, b.nodes.get("new-1").bytes);
     assertEquals(0, b.deletes);
-    assertEquals(Arrays.asList("writing", "verifying"), stages);
+    assertEquals(Arrays.asList("writing"), stages);
     assertTrue(b.isClosed);
   }
 
@@ -325,31 +339,42 @@ public class NewFilePublisherTest {
   }
 
   @Test
-  public void refusesSameOrEquivalentNameWithoutOpeningExistingFile() throws Exception {
+  public void renamedCreationIsRemovedWithoutTouchingExistingFile() throws Exception {
     for (String name : new String[] { "存档 😀.sav", "存档 😀.SAV" }) {
       Fake b = new Fake();
       b.add("existing", name, BYTES);
       NewFilePublisher p = publisher(b);
       assertEquals("name-conflict", run(p, BYTES).errorCode);
-      assertEquals(0, b.creates);
       assertEquals(0, b.opens);
+      assertEquals(1, b.deletes);
+      assertEquals(1, b.nodes.size());
       assertArrayEquals(BYTES, b.nodes.get("existing").bytes);
     }
     assertEquals(nameKey("é.sav"), nameKey("e\u0301.SAV")); // 右边是 e 加组合重音的分解形式。
   }
 
   @Test
-  public void readbackCorruptionCannotSucceed() throws Exception {
+  public void inputHashMismatchCannotSucceed() throws Exception {
     Fake b = new Fake();
-    b.shouldCorrupt = true;
     NewFilePublisher p = publisher(b);
-    assertEquals("checksum-mismatch", run(p, BYTES).errorCode);
+    assertEquals("checksum-mismatch", runMismatch(p).errorCode);
     assertTrue(b.nodes.isEmpty());
   }
 
   @Test
-  public void cancellationDuringWriteAndReadbackClosesStreamsAndCleans() throws Exception {
-    for (String phase : new String[] { "writing", "verifying" }) {
+  public void existingContentReturnedByCreateIsNotClaimed() throws Exception {
+    Fake b = new Fake();
+    b.add("existing", "其他.sav", BYTES);
+    b.useExistingId = true;
+    NewFilePublisher p = publisher(b);
+    assertEquals("unknown", run(p, BYTES).status);
+    assertArrayEquals(BYTES, b.nodes.get("existing").bytes);
+    assertEquals(0, b.deletes);
+  }
+
+  @Test
+  public void cancellationDuringWriteClosesStreamsAndCleans() throws Exception {
+    for (String phase : new String[] { "writing" }) {
       Fake b = new Fake();
       NewFilePublisher p = publisher(b);
       Result r = p.publish(
@@ -371,10 +396,9 @@ public class NewFilePublisherTest {
   @Test
   public void cleanupFailureRetainsGlobalSlotUntilExplicitRetry() throws Exception {
     Fake b = new Fake();
-    b.shouldCorrupt = true;
     b.shouldFailCleanup = true;
     NewFilePublisher p = publisher(b);
-    Result r = run(p, BYTES);
+    Result r = runMismatch(p);
     assertEquals("failed", r.status);
     assertEquals("incomplete", r.cleanup);
     assertEquals("cleanup-failed", r.cleanupError);

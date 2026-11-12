@@ -151,14 +151,14 @@ final class SafDirectoryStore {
   }
 
   private Root requireRoot(String rootId) throws SafFailure {
+    Root root = findRoot(rootId);
+    requireGrant(root);
+    return root;
+  }
+
+  private Root findRoot(String rootId) throws SafFailure {
     for (Root root : roots) {
       if (root.id.equals(rootId)) {
-        if (!hasGrant(root)) {
-          throw new SafFailure(
-            "authorization-expired",
-            "Directory authorization expired. Select the directory again."
-          );
-        }
         return root;
       }
     }
@@ -166,6 +166,15 @@ final class SafDirectoryStore {
       "not-found",
       "The directory reference does not exist. Select the directory again."
     );
+  }
+
+  private void requireGrant(Root root) throws SafFailure {
+    if (!hasGrant(root)) {
+      throw new SafFailure(
+        "authorization-expired",
+        "Directory authorization expired. Select the directory again."
+      );
+    }
   }
 
   private JSObject describe(Root root, String authorization) {
@@ -489,15 +498,21 @@ final class SafDirectoryStore {
    * 以 r 模式打开已枚举的文件，打开前确认名称、大小和修改时间与枚举时相同。
    *
    * <p>每次读取前检查取消状态，阻塞中的读取要关闭流才能结束。打开前的检查只能发现可观察的变化，读取期间文件仍可能被替换。
+   * 可以在多个线程同时调用。
    *
    * @return 文件的读流，由调用者关闭。
    * @throws SafFailure 条目不是常规文件，或属性与枚举时不同（source-changed）。
    */
-  synchronized InputStream openFile(String rootId, String entryId, CancellationSignal signal)
-    throws SafFailure {
+  InputStream openFile(String rootId, String entryId, CancellationSignal signal) throws SafFailure {
     try {
-      Root root = requireRoot(rootId);
-      Entry entry = requireEntry(rootId, entryId);
+      Root root;
+      Entry entry;
+      // 只在查登记时持锁：查询和打开要等提供者，持锁会让同时打开的文件排队。
+      synchronized (this) {
+        root = findRoot(rootId);
+        entry = requireEntry(rootId, entryId);
+      }
+      requireGrant(root);
       Snapshot current = query(root, entry.documentId, signal);
       if (current.isDirectory || current.isVirtual) {
         throw new SafFailure(

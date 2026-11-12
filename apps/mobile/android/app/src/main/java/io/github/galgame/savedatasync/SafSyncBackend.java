@@ -607,12 +607,10 @@ final class SafSyncBackend implements SyncWriter.Backend {
     @Override
     public void finish(long size, ArchiveControl control) throws Exception {
       control.check();
-      verify(control);
       if (writable == null) {
         throw new ArchiveFailure("io-failure", "The target write handle is closed.");
       }
       Os.ftruncate(writable.getFileDescriptor(), size);
-      Os.fsync(writable.getFileDescriptor());
     }
 
     @Override

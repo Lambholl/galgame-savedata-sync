@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { open, statfs } from 'node:fs/promises'
+import { open, statfs, writeFile } from 'node:fs/promises'
 import type { FileHandle } from 'node:fs/promises'
 import type { Readable } from 'node:stream'
 import { finished } from 'node:stream/promises'
@@ -133,6 +133,77 @@ export async function hashBackupStream(
     await finished(input).catch(() => {
       /* 主错误由原读取过程报告。 */
     })
+  }
+}
+
+// 不超过这个大小的文件整个读进内存后一次写出：存档多是小文件，分块读写的往返次数占了大部分耗时。
+const WHOLE_FILE_BYTES = 16 * 1024 * 1024
+const COPY_CHUNK_BYTES = 1024 * 1024
+
+/**
+ * 把 source 复制成新文件 destination，同时计算内容的 SHA-256；不调用 fsync。
+ *
+ * @param expectedBytes 文件应有的大小；读到的内容超过它时抛 source-changed。
+ * @param onBytes 每写出一段后收到这段的字节数；抛出的异常让复制失败。
+ * @returns 实际复制的字节数和 SHA-256，由调用方和预期比对。
+ * @throws destination 已存在时抛系统的 EEXIST；失败时可能留下不完整的 destination，由调用方删除。
+ */
+export async function copyFileHashed(
+  source: string,
+  destination: string,
+  expectedBytes: number,
+  signal?: AbortSignal,
+  onBytes?: (bytes: number) => void,
+): Promise<{ sizeBytes: number; sha256: string }> {
+  checkArchiveAbort(signal)
+  const hash = createHash('sha256')
+  const input = await open(source, 'r')
+  try {
+    const { size } = await input.stat()
+    if (size > expectedBytes) {
+      throw new ArchiveError('source-changed', 'The file is larger than the confirmed plan.')
+    }
+    if (size <= WHOLE_FILE_BYTES) {
+      const data = await input.readFile()
+      if (data.length > expectedBytes) {
+        throw new ArchiveError('source-changed', 'The file is larger than the confirmed plan.')
+      }
+      hash.update(data)
+      checkArchiveAbort(signal)
+      await writeFile(destination, data, { flag: 'wx', mode: 0o600 })
+      onBytes?.(data.length)
+      return { sizeBytes: data.length, sha256: hash.digest('hex') }
+    }
+    const output = await open(destination, 'wx', 0o600)
+    try {
+      const buffer = Buffer.allocUnsafe(COPY_CHUNK_BYTES)
+      let sizeBytes = 0
+      for (;;) {
+        checkArchiveAbort(signal)
+        const { bytesRead } = await input.read(buffer, 0, buffer.length, null)
+        if (!bytesRead) {
+          break
+        }
+        sizeBytes += bytesRead
+        if (sizeBytes > expectedBytes) {
+          throw new ArchiveError('source-changed', 'The file is larger than the confirmed plan.')
+        }
+        hash.update(buffer.subarray(0, bytesRead))
+        for (let offset = 0; offset < bytesRead;) {
+          const { bytesWritten } = await output.write(buffer, offset, bytesRead - offset)
+          if (!bytesWritten) {
+            throw new ArchiveError('io-failure', 'The file write made no progress.')
+          }
+          offset += bytesWritten
+        }
+        onBytes?.(bytesRead)
+      }
+      return { sizeBytes, sha256: hash.digest('hex') }
+    } finally {
+      await output.close()
+    }
+  } finally {
+    await input.close()
   }
 }
 

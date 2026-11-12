@@ -32,8 +32,6 @@ final class NewFilePublisher {
   interface Owned extends Closeable {
     OutputStream openOutput(long size, ArchiveControl control) throws Exception;
 
-    InputStream openRead(ArchiveControl control) throws Exception;
-
     void verify(ArchiveControl control) throws Exception;
 
     Entry entry(ArchiveControl control) throws Exception;
@@ -47,6 +45,9 @@ final class NewFilePublisher {
     List<Document> children(Directory directory, ArchiveControl control) throws Exception;
 
     String create(Directory directory, String name) throws Exception;
+
+    /** 按 ID 查询 directory 下的一个文档；不存在时返回 null。 */
+    Document document(Directory directory, String id, ArchiveControl control) throws Exception;
 
     Owned claim(Directory directory, Document document) throws Exception;
 
@@ -194,24 +195,16 @@ final class NewFilePublisher {
     try {
       control.check();
       Directory directory = backend.locate(request.rootId, request.parentId, control);
-      List<Document> before = backend.children(directory, control);
-      final Set<String> ids = ids(before);
-      requireName(before, request.name, null);
       control.check();
       wasCreateAttempted = true;
       String id = backend.create(directory, request.name);
-      // SAF 创建不是排他操作，创建返回后先核实新文档的身份和父目录。
+      // SAF 创建不是排他操作，同名文件已存在时提供者会换个名字创建，所以创建返回后按 ID 查询新文档。
+      // 每个文件都列一次父目录的话，耗时随同一目录的文件数平方增长。
       // createDocument 没有取消参数；取消后也要等它返回并核实归属，不能按文件名猜测清理。
       ArchiveControl inspection = new ArchiveControl();
-      List<Document> after = backend.children(directory, inspection);
-      ids(after);
-      Document created = null;
-      for (Document d : after) {
-        if (d.id.equals(id)) {
-          created = d;
-        }
-      }
-      if (id == null || ids.contains(id) || created == null) {
+      Document created = id == null ? null : backend.document(directory, id, inspection);
+      // 有内容说明提供者返回的是已有文件，认领后清理会删掉它。
+      if (created == null || (created.size != null && created.size != 0)) {
         throw new ArchiveFailure(
           "result-unknown",
           "The provider did not return a verifiable new entry."
@@ -229,24 +222,13 @@ final class NewFilePublisher {
       if (!created.name.equals(request.name)) {
         throw new ArchiveFailure("name-conflict", "The provider changed the new file name.");
       }
-      requireName(after, request.name, id);
       control.check();
-      job.owned.verify(control);
       copy(job, source, job.owned, request, progress, control);
       control.check();
-      job.owned.verify(control);
-      final Entry readBaseline = job.owned.entry(control);
-      checkContents(job, job.owned, request, progress, control);
-      control.check();
-      job.owned.verify(control);
-      requireName(backend.children(directory, control), request.name, id);
       success = job.owned.entry(control);
       if (
         !request.name.equals(success.name) ||
-        (success.size != null && success.size != request.sizeBytes) ||
-        !readBaseline.entryId.equals(success.entryId) ||
-        !java.util.Objects.equals(readBaseline.size, success.size) ||
-        !java.util.Objects.equals(readBaseline.modified, success.modified)
+        (success.size != null && success.size != request.sizeBytes)
       ) {
         throw new ArchiveFailure(
           "result-unknown",
@@ -415,22 +397,6 @@ final class NewFilePublisher {
       } finally {
         close(job, output);
       }
-    } finally {
-      close(job, input);
-    }
-  }
-
-  private static void checkContents(
-    Job job,
-    Owned owned,
-    Request request,
-    ArchiveModel.Progress progress,
-    ArchiveControl control
-  ) throws Exception {
-    MessageDigest digest = MessageDigest.getInstance("SHA-256");
-    InputStream input = track(job, owned.openRead(control));
-    try {
-      transfer(input, null, request, digest, progress, "verifying", control);
     } finally {
       close(job, input);
     }

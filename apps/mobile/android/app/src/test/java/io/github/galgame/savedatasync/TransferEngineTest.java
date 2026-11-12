@@ -96,7 +96,6 @@ public class TransferEngineTest {
 
     final Map<String, byte[]> files = new HashMap<>();
     boolean shouldFailCleanup;
-    boolean shouldCorrupt;
     int creates;
 
     @Override
@@ -135,6 +134,19 @@ public class TransferEngineTest {
     }
 
     @Override
+    public PublicationModel.Document document(
+      NewFilePublisher.Directory d,
+      String id,
+      ArchiveControl c
+    ) throws Exception {
+      c.check();
+      byte[] bytes = files.get(id);
+      return bytes == null
+        ? null
+        : new PublicationModel.Document(id, id, false, false, (long) bytes.length, 123L);
+    }
+
+    @Override
     public NewFilePublisher.Owned claim(
       NewFilePublisher.Directory d,
       PublicationModel.Document document
@@ -149,15 +161,6 @@ public class TransferEngineTest {
               files.put(name, toByteArray());
             }
           };
-        }
-
-        @Override
-        public InputStream openRead(ArchiveControl c) {
-          byte[] bytes = files.get(name).clone();
-          if (shouldCorrupt && bytes.length > 0) {
-            bytes[0] ^= 1;
-          }
-          return new ByteArrayInputStream(bytes);
         }
 
         @Override

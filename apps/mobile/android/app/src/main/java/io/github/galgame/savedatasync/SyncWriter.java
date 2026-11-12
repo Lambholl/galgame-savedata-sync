@@ -7,7 +7,6 @@ import static io.github.galgame.savedatasync.TransferJson.map;
 import static io.github.galgame.savedatasync.TransferJson.object;
 import static io.github.galgame.savedatasync.TransferSchema.error;
 import static io.github.galgame.savedatasync.TransferSchema.id;
-import static io.github.galgame.savedatasync.TransferSchema.nullable;
 import static io.github.galgame.savedatasync.TransferSchema.number;
 import static io.github.galgame.savedatasync.TransferSchema.one;
 import static io.github.galgame.savedatasync.TransferSchema.outcome;
@@ -263,71 +262,39 @@ final class SyncWriter implements AutoCloseable {
     return job.control.track(value);
   }
 
-  private static void digest(
-    InputStream input,
-    Map<String, Object> expected,
-    ArchiveControl control,
-    java.util.function.BooleanSupplier timedOut
-  ) throws Exception {
-    MessageDigest hash = MessageDigest.getInstance("SHA-256");
-    long size = 0;
-    long limit = number(expected.get("sizeBytes"), 0, 9007199254740991L);
-    byte[] buffer = new byte[65536];
-    for (int count; (count = input.read(buffer)) != -1; ) {
-      if (timedOut.getAsBoolean()) {
-        throw new ArchiveFailure("timeout", "The current write operation timed out.");
-      }
-      control.check();
-      size += count;
-      if (size > limit) {
-        throw new ArchiveFailure(
-          "checksum-mismatch",
-          "Actual content exceeds the confirmed length."
-        );
-      }
-      hash.update(buffer, 0, count);
-    }
-    control.check();
-    if (size != limit || !ArchiveFormat.hex(hash.digest()).equals(expected.get("sha256"))) {
-      throw new ArchiveFailure(
-        "checksum-mismatch",
-        "Actual content differs from the confirmed fingerprint."
+  /** 取出快照条目里能从目录列表得到的属性，顺序不变。 */
+  private static List<Object> attributes(Object entries) throws Exception {
+    List<Object> result = new ArrayList<>();
+    for (Object raw : TransferJson.list(entries)) {
+      Map<String, Object> entry = map(raw);
+      result.add(
+        object(
+          "entryId",
+          entry.get("entryId"),
+          "path",
+          entry.get("path"),
+          "kind",
+          entry.get("kind"),
+          "sizeBytes",
+          entry.get("sizeBytes"),
+          "modifiedAt",
+          entry.get("modifiedAt")
+        )
       );
     }
+    return result;
   }
 
-  private ArchiveModel.Observation observe(
-    SyncPlanModel.Plan plan,
-    ArchiveModel.Source source,
-    Map<String, Object> entry,
-    ArchiveControl control
-  ) throws Exception {
-    source.validateRoot(plan.source.root);
-    ArchiveModel.Observation value = source.observe(control);
-    value.validate();
-    List<String> path = BackupModel.path(entry.get("path"));
+  private void preflight(Job job) throws Exception {
+    check(job);
+    // 只按目录列表比对类型、大小和修改时间：游戏改写存档总会改动其中之一，重算哈希要把整个目录再读一遍。
+    Map<String, Object> current = scanner.listNow(job.plan.target.root, job.control);
     if (
-      !value.entryId.equals(entry.get("entryId")) ||
-      !value.name.equals(path.get(path.size() - 1)) ||
-      (value.size != null &&
-        value.size.longValue() != number(entry.get("sizeBytes"), 0, BackupModel.MAX_FILE)) ||
-      !Objects.equals(
-        value.modified,
-        nullable(entry.get("modifiedAt"), -BackupModel.MAX_DATE, BackupModel.MAX_DATE)
+      !SyncPlanModel.same(
+        attributes(current.get("entries")),
+        attributes(job.plan.target.value.get("entries"))
       )
     ) {
-      throw new ArchiveFailure(
-        "source-changed",
-        "Native material differs from the confirmed reference."
-      );
-    }
-    return value;
-  }
-
-  private void preflight(Job job, Material material) throws Exception {
-    check(job);
-    Map<String, Object> current = scanner.snapshotNow(job.plan.target.root, job.control);
-    if (!SyncPlanModel.same(current.get("entries"), job.plan.target.value.get("entries"))) {
       throw new ArchiveFailure(
         "source-changed",
         "The target content differs from confirmation. Scan again."
@@ -340,23 +307,8 @@ final class SyncWriter implements AutoCloseable {
     }
     boolean hasNewFile = false;
     for (Map<String, Object> operation : job.plan.writes) {
-      if (SyncPlanModel.isFileWrite(operation)) {
-        check(job);
-        Map<String, Object> entry = job.plan.source.entry(operation.get("sourceEntryId"));
-        ArchiveModel.Source source = material.file(string(entry.get("entryId")));
-        ArchiveModel.Observation before = observe(job.plan, source, entry, job.control);
-        InputStream input = track(job, source.open(job.control));
-        try {
-          digest(input, entry, job.control, () -> job.hasTimedOut);
-        } finally {
-          close(job, input);
-        }
-        if (!before.same(source.observe(job.control))) {
-          throw new ArchiveFailure("source-changed", "Input material changed while reading.");
-        }
-        if (operation.get("action").equals("create-file")) {
-          hasNewFile = true;
-        }
+      if (operation.get("action").equals("create-file")) {
+        hasNewFile = true;
       }
     }
     if (hasNewFile) {
@@ -517,32 +469,13 @@ final class SyncWriter implements AutoCloseable {
     }
     if (SyncPlanModel.isDelete(operation)) {
       Map<String, Object> old = job.plan.target.entry(operation.get("targetEntryId"));
-      if (operation.get("action").equals("delete-file")) {
-        // 删除前核对完整内容；与确认时不同就不删。
-        Replacement target = track(
-          job,
-          backend.replacement(job.plan.target.root, parent, old, job.control)
-        );
-        try {
-          InputStream original = track(job, target.read(job.control));
-          try {
-            digest(original, old, job.control, () -> job.hasTimedOut);
-          } finally {
-            close(job, original);
-          }
-          target.verify(job.control);
-          check(job);
-        } finally {
-          close(job, target);
-        }
-      }
       backend.delete(job.plan.target.root, parent, old, job.control);
       job.directories.remove(SyncPlanModel.key(path));
       return outcome(operation, "succeeded", null, null);
     }
     Map<String, Object> entry = job.plan.source.entry(operation.get("sourceEntryId"));
     ArchiveModel.Source source = material.file(string(entry.get("entryId")));
-    ArchiveModel.Observation baseline = observe(job.plan, source, entry, job.control);
+    source.validateRoot(job.plan.source.root);
     if (operation.get("action").equals("create-file")) {
       PublicationModel.Request request = new PublicationModel.Request(
         ArchiveModel.id(fileIndex),
@@ -584,13 +517,6 @@ final class SyncWriter implements AutoCloseable {
     );
     boolean hasWritten = false;
     try {
-      InputStream original = track(job, target.read(job.control));
-      try {
-        digest(original, old, job.control, () -> job.hasTimedOut);
-      } finally {
-        close(job, original);
-      }
-      target.verify(job.control);
       check(job);
       InputStream input = track(job, source.open(job.control));
       OutputStream output = null;
@@ -623,9 +549,6 @@ final class SyncWriter implements AutoCloseable {
             "Uncompressed content differs from confirmation."
           );
         }
-        if (!baseline.same(source.observe(job.control))) {
-          throw new ArchiveFailure("source-changed", "Uncompressed content changed while writing.");
-        }
         hasWritten = true;
         target.finish(size, job.control);
       } finally {
@@ -637,17 +560,6 @@ final class SyncWriter implements AutoCloseable {
           }
         }
       }
-      // 已修改的目标即使收到晚到的取消，也用独立的有界回读报告实际结果。
-      ArchiveControl inspection = new ArchiveControl();
-      target.verify(inspection);
-      InputStream readback = trackInspection(job, target.read(inspection));
-      try {
-        digest(readback, entry, inspection, () -> false);
-      } finally {
-        close(job, readback);
-      }
-      // 结果已核实；目标句柄交给外围清理，关闭失败不能改写文件成功。
-      target.verify(inspection);
       return outcome(operation, "succeeded", null, entry);
     } catch (Exception cause) {
       if (hasWritten) {
@@ -664,11 +576,6 @@ final class SyncWriter implements AutoCloseable {
       }
       throw cause;
     }
-  }
-
-  private <T extends Closeable> T trackInspection(Job job, T value) {
-    job.resources.add(value);
-    return value;
   }
 
   /**
@@ -754,7 +661,7 @@ final class SyncWriter implements AutoCloseable {
       if (job.observer != null) {
         job.observer.stage("verifying");
       }
-      preflight(job, material);
+      preflight(job);
       if (job.observer != null) {
         job.observer.stage("backing-up");
       }

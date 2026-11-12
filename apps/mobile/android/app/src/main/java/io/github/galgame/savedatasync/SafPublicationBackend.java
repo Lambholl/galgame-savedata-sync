@@ -17,7 +17,6 @@ import android.system.OsConstants;
 import android.system.StructStat;
 import android.system.StructStatVfs;
 import java.io.Closeable;
-import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.List;
@@ -218,6 +217,45 @@ final class SafPublicationBackend implements NewFilePublisher.Backend {
   }
 
   @Override
+  public PublicationModel.Document document(
+    NewFilePublisher.Directory reference,
+    String id,
+    ArchiveControl control
+  ) throws Exception {
+    SafDirectoryStore.PublicationDirectory directory =
+      (SafDirectoryStore.PublicationDirectory) reference;
+    Signal signal = control.track(new Signal());
+    try (
+      Cursor cursor = resolver.query(
+        DocumentsContract.buildDocumentUriUsingTree(directory.tree, id),
+        COLUMNS,
+        null,
+        null,
+        null,
+        signal.value
+      )
+    ) {
+      if (cursor == null || !cursor.moveToFirst()) {
+        return null;
+      }
+      SafDirectoryStore.Snapshot s = SafDirectoryStore.decode(cursor);
+      if (!id.equals(s.documentId)) {
+        throw new ArchiveFailure("result-unknown", "The provider returned another document.");
+      }
+      return new PublicationModel.Document(
+        s.documentId,
+        s.name,
+        s.isDirectory,
+        s.isVirtual,
+        s.size,
+        s.modified
+      );
+    } finally {
+      control.untrack(signal);
+    }
+  }
+
+  @Override
   public NewFilePublisher.Owned claim(
     NewFilePublisher.Directory reference,
     PublicationModel.Document document
@@ -243,7 +281,6 @@ final class SafPublicationBackend implements NewFilePublisher.Backend {
     }
 
     private SafDirectoryStore.Snapshot snapshot(ArchiveControl control) throws Exception {
-      checked(directory, control);
       Signal signal = control.track(new Signal());
       try (Cursor cursor = resolver.query(uri, COLUMNS, null, null, null, signal.value)) {
         if (cursor == null) {
@@ -255,24 +292,6 @@ final class SafPublicationBackend implements NewFilePublisher.Backend {
         SafDirectoryStore.Snapshot s = SafDirectoryStore.decode(cursor);
         if (!id.equals(s.documentId) || !name.equals(s.name)) {
           throw new ArchiveFailure("result-unknown", "The new entry identity or name changed.");
-        }
-        boolean wasFound = false;
-        for (PublicationModel.Document child : children(directory, control)) {
-          if (child.id.equals(id)) {
-            if (!name.equals(child.name)) {
-              throw new ArchiveFailure(
-                "result-unknown",
-                "The new entry directory name does not match."
-              );
-            }
-            wasFound = true;
-          }
-        }
-        if (!wasFound) {
-          throw new ArchiveFailure(
-            "result-unknown",
-            "The new entry is no longer in the authorized parent directory."
-          );
         }
         return s;
       } finally {
@@ -360,7 +379,7 @@ final class SafPublicationBackend implements NewFilePublisher.Backend {
 
     @Override
     public OutputStream openOutput(long size, ArchiveControl control) throws Exception {
-      verify(control);
+      establish(control);
       ParcelFileDescriptor fd = descriptor("rw", control);
       try {
         StructStat stat = Os.fstat(fd.getFileDescriptor());
@@ -399,11 +418,10 @@ final class SafPublicationBackend implements NewFilePublisher.Backend {
               return;
             }
             try {
-              getFD().sync();
+              super.close();
             } catch (java.io.IOException cause) {
               throw mapped(cause);
             } finally {
-              super.close();
               isClosed = true;
             }
           }
@@ -412,12 +430,6 @@ final class SafPublicationBackend implements NewFilePublisher.Backend {
         fd.close();
         throw cause;
       }
-    }
-
-    @Override
-    public InputStream openRead(ArchiveControl control) throws Exception {
-      verify(control);
-      return new ParcelFileDescriptor.AutoCloseInputStream(descriptor("r", control));
     }
 
     @Override

@@ -25,6 +25,7 @@ related_files: []
 
 | 工作 | 状态 | 相关记忆文档 | 相关代码或配置 | 已完成 | 下一步 |
 | --- | --- | --- | --- | --- | --- |
+| WP-043 完整首版回归，M-004 收尾 | active | `development/work-packages.md`、`testing/regression-notes.md`、`testing/acceptance.md`、`testing/test-cases.md`、`project/roadmap.md` | 开发版 Electron、Android 13 真机上的当前 debug APK | 当前提交的 APK 已装到 Android 13 真机，开发版 Electron 已启动。用 e2e-gss 游戏（手机 `Download/GSS-E2E-20261102` ↔ 电脑 `.reports/wp029-pc-a`）和真实存档大目录（电脑 save_cn，503 个文件、97 MiB ↔ 手机 `Download/gss-sync-test/big-save`）。大目录小改动两个方向都已通过，两端各发起一次：备份阶段两端界面百分比递增，Android 通知是确定进度条并递增；真实存档原有 502 个文件哈希不变。回归中发现的备份慢已修复：大目录小改动的传输，手机备份约 4～6 秒、电脑备份约 1 秒，比较约 7～8 秒；电脑恢复约 4.5 秒，手机恢复准备约 5～6 秒、确认后约 10 秒；备份百分比仍递增，各份新备份、手机目录和真实存档哈希不变。未查：电脑到手机传输里“正在打包”一个 18 B 的改动约 8 秒。未测：一次新建几百个文件的写入 | 继续 WP-043 其余项：删除目标多出的条目、备份和恢复、大目录预览、中途断网、写入途中结束进程、BUG-010～016 复现、WP-041 文案 |
 
 开始产品、代码或文档工作前登记范围、入口和下一步；检查点和阻塞时更新。做完并验证后先更新长期事实，再把状态改为 `in-review`；有新修改时改回 `active`，维护者验收后才删除该行。
 

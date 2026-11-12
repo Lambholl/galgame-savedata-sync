@@ -7,8 +7,10 @@ import { finished } from 'node:stream/promises'
 import {
   SYNC_LIMITS,
   BATCH_TIMEOUTS_MS,
+  compareSyncPaths,
   createSyncPlan,
   isSyncFileWrite,
+  isWriteCandidateName,
   isSyncPlan,
   isSyncWriteEntry,
   matchesSyncPlan,
@@ -35,10 +37,8 @@ import {
   checkArchiveAbort,
   toArchiveError,
 } from './archive-errors.ts'
-import { hashBackupStream } from './backup-files.ts'
 import type { InterruptedWriteStore } from './interrupted-writes.ts'
 import { toPublicationError } from './publication-errors.ts'
-import { WindowsSyncScanner } from './sync-scanner.ts'
 import {
   acquireTargetOperation,
   ownsTargetOperation,
@@ -46,12 +46,11 @@ import {
 } from './target-operation.ts'
 import {
   SYNC_TARGET_IO,
-  checkTargetName,
+  checkTargetFile,
   cleanupCandidate,
   createCandidate,
   removeLeftoverCandidates,
   stageCandidate,
-  verifyTargetFile,
 } from './sync-target-files.ts'
 import type { SyncCandidate, SyncTargetIO } from './sync-target-files.ts'
 
@@ -100,9 +99,25 @@ interface WriteJob {
   readonly plan: SyncPlan
   readonly locations: Map<string, NativeDirectoryLocation>
   readonly candidates: Set<SyncCandidate>
-  readonly scanner: WindowsSyncScanner
   worker: Promise<SyncApplyResult> | null
   isRunning: boolean
+}
+/** 预检时比对目标用的条目属性。 */
+interface TargetEntryKey {
+  readonly entryId: string
+  readonly path: readonly string[]
+  readonly kind: string
+  readonly sizeBytes: number | null
+  readonly modifiedAt: number | null
+}
+function targetEntryKey(entry: TargetEntryKey): TargetEntryKey {
+  const { entryId, path, kind, sizeBytes, modifiedAt } = entry
+  return { entryId, path, kind, sizeBytes, modifiedAt }
+}
+function describeTarget(entries: readonly TargetEntryKey[]): string {
+  return JSON.stringify(
+    [...entries].sort((a, b) => compareSyncPaths(a.path, b.path)).map(targetEntryKey),
+  )
 }
 function required<T>(value: T | null | undefined): T {
   if (value === null || value === undefined) {
@@ -277,7 +292,6 @@ export class WindowsSyncWriter {
       ]),
       locations: new Map(),
       candidates: new Set(),
-      scanner: new WindowsSyncScanner(this.source),
       worker: null,
       isRunning: true,
     }
@@ -304,81 +318,47 @@ export class WindowsSyncWriter {
     checkArchiveAbort(job.signal)
     await required(job.locations.get(syncPathKey([]))).verify()
   }
-  private async preflight(job: WriteJob, material: WindowsSyncMaterial | null): Promise<void> {
+  private async preflight(job: WriteJob): Promise<void> {
     await job.verifyContext()
     await this.options.authorize(structuredClone(job.plan))
     checkArchiveAbort(job.signal)
     const root = await this.source.locateNativeDirectory(job.plan.target.rootId)
     job.locations.set(syncPathKey([]), root)
     await access(root.path, constants.W_OK)
-    const scan = job.scanner.start(job.plan.target.rootId)
-    const abort = (): void => {
-      job.scanner.cancel(scan.scanId)
-    }
-    job.signal.addEventListener('abort', abort, { once: true })
-    try {
-      if (job.signal.aborted) {
-        abort()
-      }
-      const state = await job.scanner.wait(scan.scanId)
+    // 只按目录列表比对类型、大小和修改时间：游戏改写存档总会改动其中之一，重算哈希要把整个目录再读一遍。
+    const listed: TargetEntryKey[] = []
+    const pending: { readonly parentId: string | null; readonly path: readonly string[] }[] = [
+      { parentId: null, path: [] },
+    ]
+    for (let next = pending.pop(); next; next = pending.pop()) {
       checkArchiveAbort(job.signal)
-      if (state.status !== 'succeeded' || !state.snapshot) {
+      const listing = await this.source.listDirectory(job.plan.target.rootId, next.parentId)
+      if (listing.status === 'error') {
         throw new ArchiveError(
-          state.error?.code === 'result-unknown'
-            ? 'io-failure'
-            : (state.error?.code ?? 'io-failure'),
-          state.error?.message ?? 'The target verification scan is incomplete.',
+          listing.error.code === 'result-unknown' ? 'io-failure' : listing.error.code,
+          listing.error.message,
         )
       }
-      const entries = (snapshot: SyncSnapshot): string =>
-        JSON.stringify(
-          snapshot.entries.map(({ entryId, path, kind, sizeBytes, modifiedAt, sha256, error }) => ({
-            entryId,
-            path,
-            kind,
-            sizeBytes,
-            modifiedAt,
-            sha256,
-            error,
-          })),
-        )
-      if (entries(state.snapshot) !== entries(job.plan.target)) {
-        throw new ArchiveError(
-          'source-changed',
-          'The target content differs from confirmation. Scan again.',
-        )
-      }
-      for (const entry of state.snapshot.entries) {
+      for (const entry of listing.value.entries) {
+        if (entry.kind === 'file' && isWriteCandidateName(entry.name)) {
+          continue
+        }
+        const path = [...next.path, entry.name]
+        listed.push(targetEntryKey({ ...entry, path }))
         if (entry.kind === 'directory') {
+          pending.push({ parentId: entry.entryId, path })
           job.locations.set(
-            syncPathKey(entry.path),
+            syncPathKey(path),
             await this.source.locateNativeDirectory(job.plan.target.rootId, entry.entryId),
           )
         }
       }
-    } finally {
-      job.signal.removeEventListener('abort', abort)
     }
-    // 完整输入在任何目录修改前全部重读；逐文件写入还会再次复核。
-    for (const operation of job.plan.entries) {
-      if (isSyncFileWrite(operation.action)) {
-        checkArchiveAbort(job.signal)
-        const entry = fileEntry(job.plan, operation, 'source')
-        const input = await required(material).openFile(entry.entryId)
-        try {
-          const actual = await hashBackupStream(input.stream, entry.sizeBytes ?? -1, job.signal)
-          await input.verifyUnchanged()
-          if (actual.sizeBytes !== entry.sizeBytes || actual.sha256 !== entry.sha256) {
-            throw new ArchiveError(
-              'checksum-mismatch',
-              'The complete input differs from the confirmed plan.',
-            )
-          }
-        } finally {
-          input.stream.destroy()
-          await finished(input.stream).catch(() => {})
-        }
-      }
+    if (describeTarget(listed) !== describeTarget(job.plan.target.entries.map(targetEntryKey))) {
+      throw new ArchiveError(
+        'source-changed',
+        'The target content differs from confirmation. Scan again.',
+      )
     }
     await this.checkSpace(job.plan)
     await this.check(job)
@@ -434,7 +414,6 @@ export class WindowsSyncWriter {
       name = required(operation.path.at(-1)),
       path = join(parent.path, name)
     await this.check(job)
-    await checkTargetName(parent, name, false)
     checkArchiveAbort(job.signal)
     let hasCreated = false
     try {
@@ -488,12 +467,10 @@ export class WindowsSyncWriter {
       name = required(operation.path.at(-1)),
       path = join(parent.path, name)
     const source = fileEntry(job.plan, operation, 'source'),
-      shouldReplace = operation.action === 'replace-file'
+      shouldReplace = operation.action === 'replace-file',
+      target = shouldReplace ? fileEntry(job.plan, operation, 'target') : null
     await this.check(job)
-    await checkTargetName(parent, name, shouldReplace)
-    const old = shouldReplace
-      ? await verifyTargetFile(path, fileEntry(job.plan, operation, 'target'), job.signal)
-      : null
+    const old = target ? await checkTargetFile(path, target) : null
     const candidate = await createCandidate(parent)
     job.candidates.add(candidate)
     let hasPublished = false,
@@ -501,34 +478,14 @@ export class WindowsSyncWriter {
     try {
       const input = await material.openFile(source.entryId)
       try {
-        await stageCandidate(
-          candidate,
-          source,
-          input.stream,
-          input.verifyUnchanged,
-          this.io,
-          job.signal,
-        )
+        await stageCandidate(candidate, source, input.stream, input.verifyUnchanged, job.signal)
       } finally {
         input.stream.destroy()
         await finished(input.stream).catch(() => {})
       }
-      await this.check(job)
-      await checkTargetName(parent, name, shouldReplace)
-      await verifyTargetFile(
-        candidate.path,
-        source,
-        job.signal,
-        required(candidate.identity),
-        false,
-      )
-      if (old) {
-        await verifyTargetFile(
-          path,
-          fileEntry(job.plan, operation, 'target'),
-          job.signal,
-          getFileIdentity(old),
-        )
+      // 写候选文件期间游戏可能改了目标，替换前再比一次属性。
+      if (old && target) {
+        await checkTargetFile(path, target, getFileIdentity(old))
       }
       checkArchiveAbort(job.signal)
       hasAttempted = true
@@ -536,20 +493,11 @@ export class WindowsSyncWriter {
         await this.io.rename(candidate.path, path)
         candidate.hasCandidate = false
       } else {
+        // link 在目标已存在时失败，不会覆盖别处新建的同名文件。
         candidate.linkedPath = path
         await this.io.link(candidate.path, path)
       }
       hasPublished = true
-      // 已到提交点的取消不把修改记成未执行；用独立的有界回读确认实际结果。
-      await verifyTargetFile(
-        path,
-        source,
-        undefined,
-        required(candidate.identity),
-        false,
-        shouldReplace ? 1n : 2n,
-      )
-      await parent.verify()
       return outcome(operation, 'succeeded', null, source)
     } catch (error) {
       let isUncertain = hasPublished
@@ -582,7 +530,6 @@ export class WindowsSyncWriter {
       path = join(parent.path, name),
       isDirectory = operation.action === 'delete-directory'
     await this.check(job)
-    await checkTargetName(parent, name, true)
     let identity: FileIdentity
     if (isDirectory) {
       const location = required(job.locations.get(syncPathKey(operation.path)))
@@ -593,7 +540,7 @@ export class WindowsSyncWriter {
       identity = location.identity
     } else {
       identity = getFileIdentity(
-        await verifyTargetFile(path, fileEntry(job.plan, operation, 'target'), job.signal),
+        await checkTargetFile(path, fileEntry(job.plan, operation, 'target')),
       )
     }
     await this.check(job)
@@ -643,7 +590,7 @@ export class WindowsSyncWriter {
       index = 0
     try {
       this.emit(options, 'checking')
-      await this.preflight(job, material)
+      await this.preflight(job)
       this.emit(options, 'backing-up')
       const backup = await this.backups.create(job.plan, {
         signal: job.signal,
@@ -714,7 +661,6 @@ export class WindowsSyncWriter {
       } catch {
         cleanup = cleanupError()
       }
-      await job.scanner.stop()
       job.isRunning = false
       if (!job.candidates.size) {
         this.release(job)

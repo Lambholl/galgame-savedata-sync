@@ -26,11 +26,14 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * 只读扫描的注册表。单个工作线程处理 I/O，控制线程取消查询和阻塞读；结果只存在内存里。
+ * 只读扫描的注册表。单个工作线程遍历目录，同一层的文件由一组读线程同时计算哈希；
+ * 控制线程取消查询和阻塞读；结果只存在内存里。
  */
 final class SyncScanner implements AutoCloseable {
 
@@ -47,11 +50,14 @@ final class SyncScanner implements AutoCloseable {
   static final int MAX_PATH = 4096;
   static final int MAX_RESULTS = 32;
   private static final long MAX_SAFE = 9007199254740991L;
+  private static final int HASH_THREADS = 8;
   private final Source source;
   private final int maxEntries;
   private final long timeoutMillis;
   private final long retentionMillis;
   private final ExecutorService worker = Executors.newSingleThreadExecutor();
+  // 经 SAF 打开一个文件要几十毫秒，主要在等提供者；同时打开几个，一层几百个文件的扫描能快几倍。
+  private final ExecutorService hashers = Executors.newFixedThreadPool(HASH_THREADS);
   private final ScheduledExecutorService watcher = Executors.newSingleThreadScheduledExecutor();
   private final Map<String, Job> jobs = new LinkedHashMap<>();
   private Job active;
@@ -68,6 +74,7 @@ final class SyncScanner implements AutoCloseable {
     Map<String, Object> state;
     long ended;
     long bytesRead;
+    boolean shouldHash = true;
     volatile boolean isCancelled;
     volatile boolean hasTimedOut;
 
@@ -165,6 +172,16 @@ final class SyncScanner implements AutoCloseable {
 
   /** 在当前线程同步扫描根目录并返回快照，取消和期限由 control 控制；结果只返回给调用者。 */
   Map<String, Object> snapshotNow(String rootId, ArchiveControl control) throws Exception {
+    return scanNow(rootId, control, true);
+  }
+
+  /** 同 snapshotNow，但只列目录、不读文件内容：快照里文件的 sha256 为 null。 */
+  Map<String, Object> listNow(String rootId, ArchiveControl control) throws Exception {
+    return scanNow(rootId, control, false);
+  }
+
+  private Map<String, Object> scanNow(String rootId, ArchiveControl control, boolean shouldHash)
+    throws Exception {
     id(rootId);
     synchronized (this) {
       if (isClosed) {
@@ -172,6 +189,7 @@ final class SyncScanner implements AutoCloseable {
       }
     }
     Job job = new Job(rootId, timeoutMillis, control);
+    job.shouldHash = shouldHash;
     visit(job, null, Collections.emptyList());
     check(job);
     job.entries.sort((a, b) -> comparePath(pathUnchecked(a), pathUnchecked(b)));
@@ -391,6 +409,7 @@ final class SyncScanner implements AutoCloseable {
       ((String) ((Map<?, ?>) a).get("name")).compareTo((String) ((Map<?, ?>) b).get("name"))
     );
     Set<String> names = new HashSet<>();
+    List<Map<String, Object>> files = new ArrayList<>();
     for (Object raw : ordered) {
       check(job);
       Map<String, Object> entry = metadata(raw);
@@ -426,31 +445,35 @@ final class SyncScanner implements AutoCloseable {
       );
       job.entries.add(value);
       progress(job);
-      try {
-        if ("directory".equals(entry.get("kind"))) {
+      if ("directory".equals(entry.get("kind"))) {
+        try {
           visit(job, entryId, path);
-        } else {
-          hash(job, entry, value);
+        } catch (Exception cause) {
+          value.put("error", scanError(errorCode(job, cause)));
+          throw cause;
         }
-      } catch (Exception cause) {
-        value.put(
-          "error",
-          scanError(
-            job.hasTimedOut
-              ? "timeout"
-              : cause instanceof ArchiveFailure
-                ? ((ArchiveFailure) cause).code
-                : "io-failure"
-          )
-        );
-        throw cause;
+      } else {
+        files.add(value);
       }
     }
+    if (!job.shouldHash) {
+      return;
+    }
+    hashFiles(job, files);
+    // 读内容期间文件可能被改名或替换，读完再列一次才能确认哈希对应的还是列出的那个条目。
     String after = listingKey(source.list(job.rootId, parentId, job.control));
     check(job);
     if (!key.equals(after)) {
       throw new ArchiveFailure("source-changed", "The directory changed during the scan.");
     }
+  }
+
+  private synchronized void read(Job job, int count) throws ArchiveFailure {
+    if (job.bytesRead > MAX_SAFE - count) {
+      throw fail("resource-limit");
+    }
+    job.bytesRead += count;
+    progress(job);
   }
 
   private synchronized void progress(Job job) {
@@ -474,24 +497,47 @@ final class SyncScanner implements AutoCloseable {
     );
   }
 
-  private void hash(Job job, Map<String, Object> entry, Map<String, Object> value)
-    throws Exception {
-    ArchiveModel.Source file = source.file(job.rootId, string(entry.get("entryId")));
-    file.validateRoot(job.rootId);
-    ArchiveModel.Observation before = file.observe(job.control);
-    before.validate();
-    if (
-      !Objects.equals(before.entryId, entry.get("entryId")) ||
-      !Objects.equals(before.parentId, entry.get("parentId")) ||
-      !Objects.equals(before.name, entry.get("name")) ||
-      !Objects.equals(before.size, nullable(entry.get("sizeBytes"), 0, MAX_SAFE)) ||
-      !Objects.equals(
-        before.modified,
-        nullable(entry.get("modifiedAt"), -8640000000000000L, 8640000000000000L)
-      )
-    ) {
-      throw fail("source-changed");
+  private static String errorCode(Job job, Exception cause) {
+    return job.hasTimedOut
+      ? "timeout"
+      : cause instanceof ArchiveFailure
+        ? ((ArchiveFailure) cause).code
+        : "io-failure";
+  }
+
+  /** 同时计算 values 里各文件的哈希，全部结束后返回；任一个失败时抛出最先的失败，其余没开始的不再读。 */
+  private void hashFiles(Job job, List<Map<String, Object>> values) throws Exception {
+    AtomicReference<Exception> failure = new AtomicReference<>();
+    List<Future<Object>> tasks = new ArrayList<>();
+    for (Map<String, Object> value : values) {
+      tasks.add(
+        hashers.submit(() -> {
+          if (failure.get() != null) {
+            return null;
+          }
+          try {
+            hash(job, value);
+          } catch (Exception cause) {
+            value.put("error", scanError(errorCode(job, cause)));
+            failure.compareAndSet(null, cause);
+          }
+          return null;
+        })
+      );
     }
+    for (Future<Object> task : tasks) {
+      task.get();
+    }
+    if (failure.get() != null) {
+      throw failure.get();
+    }
+  }
+
+  /** 读完 value 对应的文件，把实际大小和 SHA-256 写回 value；属性和列目录时不同就抛 source-changed。 */
+  private void hash(Job job, Map<String, Object> value) throws Exception {
+    ArchiveModel.Source file = source.file(job.rootId, string(value.get("entryId")));
+    file.validateRoot(job.rootId);
+    Long expected = nullable(value.get("sizeBytes"), 0, MAX_SAFE);
     MessageDigest digest = MessageDigest.getInstance("SHA-256");
     long size = 0;
     byte[] buffer = new byte[65536];
@@ -502,19 +548,19 @@ final class SyncScanner implements AutoCloseable {
         if (count == 0) {
           continue;
         }
-        if (size > MAX_SAFE - count || job.bytesRead > MAX_SAFE - count) {
+        if (size > MAX_SAFE - count) {
           throw fail("resource-limit");
         }
         size += count;
-        job.bytesRead += count;
         digest.update(buffer, 0, count);
-        progress(job);
+        read(job, count);
       }
     } finally {
       job.control.untrack(input);
     }
     check(job);
-    if (!before.same(file.observe(job.control)) || (before.size != null && before.size != size)) {
+    // 打开时已比对过属性；读的过程中被改写由读完整层后再列一次目录发现。
+    if (expected != null && expected != size) {
       throw fail("source-changed");
     }
     value.put("sizeBytes", size);
@@ -570,6 +616,7 @@ final class SyncScanner implements AutoCloseable {
     if (!worker.awaitTermination(30, TimeUnit.SECONDS)) {
       throw new ArchiveFailure("timeout", "Scan reading has not finished.");
     }
+    hashers.shutdown();
     watcher.shutdownNow();
     synchronized (this) {
       jobs.clear();
