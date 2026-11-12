@@ -19,6 +19,7 @@ import {
   matchesSyncPlan,
   observeSyncJob,
   resolveBackupPolicy,
+  syncJobBackupBytes,
 } from '@savedata-sync/shared'
 import type {
   BatchManifest,
@@ -567,6 +568,8 @@ export class WindowsSyncRegistry {
           totalFiles: request.plan.transferFileCount,
           verifiedFiles: 0,
           publishedFiles: 0,
+          backupBytesCopied: 0,
+          totalBackupBytes: syncJobBackupBytes(request.plan),
         },
       },
     }
@@ -1038,6 +1041,9 @@ export class WindowsSyncRegistry {
       lease: { token: task.token, acceptedAt: task.acceptedAt },
       verifyContext: () => this.verify(task),
       onStage: (stage) => this.update(task, stage === 'checking' ? 'verifying' : stage),
+      onBackupProgress: (bytesCopied) => {
+        this.update(task, 'backing-up', { backupBytesCopied: bytesCopied })
+      },
       onOutcome: (outcome) => {
         if (outcome.status === 'succeeded' && isSyncFileWrite(outcome.action)) {
           this.update(task, 'writing', {

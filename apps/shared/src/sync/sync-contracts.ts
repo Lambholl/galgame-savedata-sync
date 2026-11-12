@@ -4,9 +4,9 @@ import type { CapabilityState, OperationError, TransferDirection } from '../prot
 export const SYNC_SCHEMA_VERSION = 1
 /**
  * 能力声明的版本，两端相同才能互传。2 起支持 sync.job 任务观察和 SyncJobState 的 failureStage，
- * 3 起计划可以带 shouldDeleteExtras 和删除动作。
+ * 3 起计划可以带 shouldDeleteExtras 和删除动作，4 起任务进度带备份字节数。
  */
-export const SYNC_CAPABILITIES_VERSION = 3
+export const SYNC_CAPABILITIES_VERSION = 4
 
 /** 单次扫描的上限。 */
 export const SYNC_LIMITS = Object.freeze({

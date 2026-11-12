@@ -121,6 +121,9 @@ final class SyncWriter implements AutoCloseable {
   interface Observer {
     default void stage(String stage) throws Exception {}
 
+    /** 备份阶段每写入一块后收到这次备份累计已复制的字节数；抛出的异常让写入失败。 */
+    default void backup(long bytesCopied) throws Exception {}
+
     default void outcome(Map<String, Object> result) throws Exception {}
   }
 
@@ -761,7 +764,8 @@ final class SyncWriter implements AutoCloseable {
         plan.reason,
         plan.shouldBackup,
         plan.backupFiles,
-        control
+        control,
+        job.observer == null ? null : job.observer::backup
       );
       cleanup = backup.get("cleanupError");
       if (!plan.backupFiles.isEmpty() && backup.get("manifest") == null) {

@@ -1,5 +1,10 @@
 import { randomUUID } from 'node:crypto'
-import { SYNC_JOB_SCHEMA_VERSION, observeSyncJob, withDeleteExtras } from '@savedata-sync/shared'
+import {
+  SYNC_JOB_SCHEMA_VERSION,
+  observeSyncJob,
+  syncJobBackupBytes,
+  withDeleteExtras,
+} from '@savedata-sync/shared'
 import type {
   OperationError,
   RemoteSyncReport,
@@ -78,6 +83,8 @@ function pendingLocalState(entry: RemoteEntry, request: SyncJobRequest): SyncJob
       totalFiles: plan.transferFileCount,
       verifiedFiles: 0,
       publishedFiles: 0,
+      backupBytesCopied: 0,
+      totalBackupBytes: syncJobBackupBytes(plan),
     },
   }
   if (status !== 'failed' && status !== 'cancelled') {

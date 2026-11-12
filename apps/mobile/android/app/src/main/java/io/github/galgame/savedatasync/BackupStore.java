@@ -476,14 +476,25 @@ final class BackupStore implements AutoCloseable {
     throw BackupFiles.failure("io-failure");
   }
 
-  /** 备份选定的全部目标文件；不要求备份或没有文件时返回 null。 */
+  /** 备份复制进度的接收方。 */
+  interface Progress {
+    /** 收到这次备份累计已复制的字节数；抛出的异常让备份失败。 */
+    void copied(long bytesCopied) throws Exception;
+  }
+
+  /**
+   * 备份选定的全部目标文件；不要求备份或没有文件时返回 null。
+   *
+   * @param progress 可以为 null；不为 null 时在调用线程上每写入一块调用一次。
+   */
   synchronized Map<String, Object> create(
     String projectId,
     String rootId,
     String reason,
     boolean shouldBackup,
     List<Object> entries,
-    ArchiveControl control
+    ArchiveControl control,
+    Progress progress
   ) throws Exception {
     ids(projectId, rootId);
     one(reason, "copy", "restore");
@@ -551,6 +562,7 @@ final class BackupStore implements AutoCloseable {
       Path path = createRoundDirectory(projectId, created);
       round = new Round(path, files.directory(path), manifest, false);
       files.writeJson(path.resolve(UNFINISHED), manifest);
+      long copied = 0;
       for (int i = 0; i < sources.size(); i++) {
         verifyRound(round);
         check(work);
@@ -584,6 +596,10 @@ final class BackupStore implements AutoCloseable {
             }
             files.write(output, destination, buffer, count);
             hash.update(buffer, 0, count);
+            copied += count;
+            if (progress != null) {
+              progress.copied(copied);
+            }
           }
           check(work);
           if (

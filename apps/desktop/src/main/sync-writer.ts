@@ -78,6 +78,8 @@ export interface WindowsSyncWriteOptions {
   /** 每次发布前调用；抛错时中止后续写入。 */
   readonly verifyContext?: () => void | Promise<void>
   readonly onOutcome?: (outcome: SyncWriteOutcome) => void
+  /** 备份阶段每写入一块后收到这次备份累计已复制的字节数。 */
+  readonly onBackupProgress?: (bytesCopied: number) => void
   readonly onStage?: (
     stage: 'checking' | 'backing-up' | 'writing',
     path: readonly string[] | null,
@@ -643,7 +645,10 @@ export class WindowsSyncWriter {
       this.emit(options, 'checking')
       await this.preflight(job, material)
       this.emit(options, 'backing-up')
-      const backup = await this.backups.create(job.plan, { signal: job.signal })
+      const backup = await this.backups.create(job.plan, {
+        signal: job.signal,
+        ...(options.onBackupProgress ? { onProgress: options.onBackupProgress } : {}),
+      })
       backupId = backup.manifest?.backupId ?? null
       backupFileCount = backup.manifest?.files.length ?? null
       cleanup = backup.cleanupError

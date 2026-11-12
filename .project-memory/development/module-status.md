@@ -19,7 +19,7 @@ related_files: []
 
 | 模块 | 状态 | 负责人 | 相关文件 | 边界与风险 | 下一步 |
 | --- | --- | --- | --- | --- | --- |
-| 传输进度 | not-started | 开发 | shared `sync-job-contracts.ts`、`sync-job-observation.ts`；desktop backup-store/sync-writer；Android BackupStore/SyncWriter/TransferService | 五段里备份阶段没有百分比，Android 通知在备份阶段显示不确定进度 | WP-042 |
+| 传输进度 | done | 开发 | shared `sync-job-contracts.ts`、`sync-job-observation.ts`、`sync-job-validation.ts`；desktop backup-store/sync-writer/sync-registry；Android BackupStore/SyncWriter/SyncTransferEngine/SyncJobModel/TransferService | 备份阶段百分比已实现，自动检查通过；还没有在真实传输中看过两端界面和 Android 通知 | WP-043 真机验证 |
 
 ## 2. 状态说明
 

@@ -124,6 +124,10 @@ export function matchesSyncJobManifest(
     )
   })
 }
+/** 计划对应的任务进度 totalBackupBytes：计划的 backupFileBytes，为 null 时取 0。 */
+export function syncJobBackupBytes(plan: Pick<SyncPlan, 'backupFileBytes'>): number {
+  return plan.backupFileBytes ?? 0
+}
 /** 校验复制任务进度的字段和计数关系。 */
 export function isSyncJobProgress(value: unknown): value is SyncJobProgress {
   if (
@@ -137,7 +141,11 @@ export function isSyncJobProgress(value: unknown): value is SyncJobProgress {
       'totalFiles',
       'verifiedFiles',
       'publishedFiles',
+      'backupBytesCopied',
+      'totalBackupBytes',
     ]) ||
+    !isBoundedCount(value.totalBackupBytes, BATCH_LIMITS.maxTotalFileBytes) ||
+    !isBoundedCount(value.backupBytesCopied, value.totalBackupBytes) ||
     !isBoundedCount(value.totalFileBytes, BATCH_LIMITS.maxTotalFileBytes) ||
     !isBoundedCount(value.totalFiles, BATCH_LIMITS.maxFiles) ||
     !isBoundedCount(value.sourceBytesRead, value.totalFileBytes) ||
@@ -217,7 +225,9 @@ function hasDigestRelations(
   }
   if (
     value.role === 'sender' &&
-    (value.progress.fileBytesPublished !== 0 || value.progress.publishedFiles !== 0)
+    (value.progress.fileBytesPublished !== 0 ||
+      value.progress.publishedFiles !== 0 ||
+      value.progress.backupBytesCopied !== 0)
   ) {
     return false
   }
@@ -247,7 +257,8 @@ function hasDigestRelations(
       value.role === 'receiver' &&
       value.error === null &&
       value.progress.verifiedFiles === value.progress.totalFiles &&
-      value.progress.publishedFiles === value.progress.totalFiles
+      value.progress.publishedFiles === value.progress.totalFiles &&
+      value.progress.backupBytesCopied === value.progress.totalBackupBytes
     )
   }
   if (value.status === 'cancelled') {
@@ -296,7 +307,8 @@ export function matchesSyncJobDigest(
     value.direction === request.plan.direction &&
     value.role !== localRole &&
     value.progress.totalFileBytes === request.plan.totalFileBytes &&
-    value.progress.totalFiles === request.plan.transferFileCount
+    value.progress.totalFiles === request.plan.transferFileCount &&
+    value.progress.totalBackupBytes === syncJobBackupBytes(request.plan)
   )
 }
 /** 判断任务状态是否属于本次计划和清单：角色和全部逐项结果都要对上；清单为 null 时归档总量必须为 null。 */
@@ -311,7 +323,8 @@ export function matchesSyncJobState(
     value.jobId !== request.jobId ||
     value.direction !== request.plan.direction ||
     value.progress.totalFileBytes !== request.plan.totalFileBytes ||
-    value.progress.totalFiles !== request.plan.transferFileCount
+    value.progress.totalFiles !== request.plan.transferFileCount ||
+    value.progress.totalBackupBytes !== syncJobBackupBytes(request.plan)
   ) {
     return false
   }

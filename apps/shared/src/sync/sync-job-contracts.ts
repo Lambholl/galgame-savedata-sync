@@ -26,7 +26,9 @@ export interface SyncJobRequest {
   readonly plan: SyncPlan
 }
 
-/** 复制任务进度，字段与 BatchProgress 相同；只有目录或计划为空时，文件数和归档字节可以为 0。 */
+/**
+ * 复制任务进度。前九个字段与 BatchProgress 相同；只有目录或计划为空时，文件数和归档字节可以为 0。
+ */
 export interface SyncJobProgress {
   readonly sourceBytesRead: number
   readonly archiveBytesTransferred: number
@@ -37,10 +39,14 @@ export interface SyncJobProgress {
   readonly totalFiles: number
   readonly verifiedFiles: number
   readonly publishedFiles: number
+  /** 接收端已复制进备份的字节数；发送端始终为 0。 */
+  readonly backupBytesCopied: number
+  /** 本次要备份的字节数，等于计划的 backupFileBytes，计划里为 null 时为 0。 */
+  readonly totalBackupBytes: number
 }
 
-/** 任务状态的版本；2 起带 failureStage。 */
-export const SYNC_JOB_SCHEMA_VERSION = 2
+/** 任务状态的版本；2 起带 failureStage，3 起进度带备份字节数。 */
+export const SYNC_JOB_SCHEMA_VERSION = 3
 
 /** 任务的工作阶段；cleaning 和 done 是收尾阶段。 */
 export type SyncFailureStage =

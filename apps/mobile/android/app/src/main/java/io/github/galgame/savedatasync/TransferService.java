@@ -256,22 +256,24 @@ public class TransferService extends Service {
         ? "archiveBytesTransferred"
         : stage.equals("verifying")
           ? "fileBytesVerified"
-          : stage.equals("publishing") || stage.equals("writing")
-            ? "publishedFiles"
-            : "sourceBytesRead";
+          : stage.equals("backing-up")
+            ? "backupBytesCopied"
+            : stage.equals("publishing") || stage.equals("writing")
+              ? "publishedFiles"
+              : "sourceBytesRead";
       String totalKey = stage.equals("transferring")
         ? "totalArchiveBytes"
-        : stage.equals("publishing") || stage.equals("writing")
-          ? "totalFiles"
-          : "totalFileBytes";
+        : stage.equals("backing-up")
+          ? "totalBackupBytes"
+          : stage.equals("publishing") || stage.equals("writing")
+            ? "totalFiles"
+            : "totalFileBytes";
       completed = ((Number) progress.get(doneKey)).longValue();
       if (progress.get(totalKey) instanceof Number) {
         total = ((Number) progress.get(totalKey)).longValue();
       }
     }
-    if (
-      isActive && !stage.equals("backing-up") && total != null && total > 0 && completed != null
-    ) {
+    if (isActive && total != null && total > 0 && completed != null) {
       builder.setProgress(100, (int) Math.min(100, (completed * 100) / total), false);
     } else {
       builder.setProgress(0, 0, isActive);

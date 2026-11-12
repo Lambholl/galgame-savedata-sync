@@ -849,7 +849,11 @@ final class SyncTransferEngine implements AutoCloseable {
         "verifiedFiles",
         0L,
         "publishedFiles",
-        0L
+        0L,
+        "backupBytesCopied",
+        0L,
+        "totalBackupBytes",
+        number(plan.value.get("backupFileBytes"), 0, BackupModel.MAX_TOTAL)
       )
     );
     // 页面重建后靠预览读回计划，这里记下这次确认的选择。
@@ -1275,6 +1279,17 @@ final class SyncTransferEngine implements AutoCloseable {
         }
 
         @Override
+        public void backup(long bytesCopied) throws Exception {
+          synchronized (SyncTransferEngine.this) {
+            if (!job.state.get("status").equals("running")) {
+              return;
+            }
+            map(job.state.get("progress")).put("backupBytesCopied", bytesCopied);
+            job.state.put("updatedAt", System.currentTimeMillis());
+          }
+        }
+
+        @Override
         public void outcome(Map<String, Object> result) throws Exception {
           if (!result.get("status").equals("succeeded") || !SyncPlanModel.isFileWrite(result)) {
             return;
@@ -1497,6 +1512,7 @@ final class SyncTransferEngine implements AutoCloseable {
         "fileBytesPublished",
         "verifiedFiles",
         "publishedFiles",
+        "backupBytesCopied",
       }) {
         require(number(next.get(key), 0, 1140850688) >= number(previous.get(key), 0, 1140850688));
       }

@@ -33,8 +33,8 @@ import java.util.Set;
 final class SyncJobModel {
 
   /** 与 shared 的 SYNC_CAPABILITIES_VERSION、SYNC_JOB_SCHEMA_VERSION 保持一致。 */
-  static final int CAPABILITIES_VERSION = 3;
-  static final int JOB_SCHEMA_VERSION = 2;
+  static final int CAPABILITIES_VERSION = 4;
+  static final int JOB_SCHEMA_VERSION = 3;
 
   private SyncJobModel() {}
 
@@ -487,7 +487,9 @@ final class SyncJobModel {
       "totalArchiveBytes",
       "totalFiles",
       "verifiedFiles",
-      "publishedFiles"
+      "publishedFiles",
+      "backupBytesCopied",
+      "totalBackupBytes"
     );
     long count = number(plan.value.get("transferFileCount"), 0, 1024);
     long total = number(plan.value.get("totalFileBytes"), 0, BackupModel.MAX_TOTAL);
@@ -506,8 +508,11 @@ final class SyncJobModel {
     long published = number(progress.get("fileBytesPublished"), 0, verified);
     long vf = number(progress.get("verifiedFiles"), 0, count);
     long pf = number(progress.get("publishedFiles"), 0, vf);
+    long backupTotal = number(plan.value.get("backupFileBytes"), 0, BackupModel.MAX_TOTAL);
+    require(number(progress.get("totalBackupBytes"), 0, BackupModel.MAX_TOTAL) == backupTotal);
+    long copied = number(progress.get("backupBytesCopied"), 0, backupTotal);
     if (isSender) {
-      require(state.get("result") == null && pf == 0 && published == 0);
+      require(state.get("result") == null && pf == 0 && published == 0 && copied == 0);
     }
     require(
       count == 0 ? total == 0 && packed != null && packed == 0 : packed == null || packed > 0
@@ -574,7 +579,7 @@ final class SyncJobModel {
         );
       } else if (status.equals("succeeded")) {
         require(!isSender);
-        require(state.get("error") == null && vf == count && pf == count);
+        require(state.get("error") == null && vf == count && pf == count && copied == backupTotal);
         for (Object outcome : list(map(state.get("result")).get("outcomes"))) {
           require(map(outcome).get("status").equals("succeeded"));
         }

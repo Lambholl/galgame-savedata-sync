@@ -56,7 +56,9 @@ Windows 提供 `/v1/sync/capabilities`、`POST /v1/sync/scans` 和 `GET/DELETE /
 
 电脑发起复制复用移动端的扫描与执行，经控制通道传递。电脑 `remote-sync-requests.ts` 同时只保留一个请求：发起时发 `sync.prepare {requestId, projectId, direction}`，移动端应答后开始扫描，用 `sync.report` 回报 preparing、ready（附计划）或 failed。移动端有传输刚结束时最多等 2 秒再判断是否 busy；新扫描取代还没结束的旧扫描，等待期间被取消或被更新请求取代的 `sync.prepare` 只应答、不扫描；ready 计划须是对应项目、方向、设备和根的覆盖复制。`sync.report` 附的计划固定 `shouldDeleteExtras=false`，电脑确认后发 `sync.confirm {requestId, shouldDeleteExtras}`，两端用同一批快照各自算出选定的计划；移动端执行并应答 `{jobId}`，jobId 等于 planId 时记为 running；之后的进度和结果来自下面的任务观察。电脑取消发 `sync.cancel`，移动端取消并释放本机扫描；控制连接断开时未确认的请求记为失败，已确认的请求记为结果待确认，移动端重连后由摘要更新。有限 desktopSync 桥提供 remoteRequest/startRemote/remotePlan/confirmRemote/cancelRemote。
 
-任务观察对两种发起方式、两个方向相同。版本：`/v1/sync/capabilities.schemaVersion` 为 3，是唯一的版本门槛，版本不符的对端在创建任务前得到“请更新两端”；控制消息 `v` 为 1。`SyncJobState.schemaVersion` 为 2，含 `failureStage`（失败、取消或待确认时停在哪个阶段，取值为 cleaning、done 以外的阶段；成功、已发送或没有记录时为 null，清理和终态更新不改写它）。`SyncTransferState` 为 1。
+任务观察对两种发起方式、两个方向相同。版本：`/v1/sync/capabilities.schemaVersion` 为 4，是唯一的版本门槛，版本不符的对端在创建任务前得到“请更新两端”；控制消息 `v` 为 1。`SyncJobState.schemaVersion` 为 3，含 `failureStage`（失败、取消或待确认时停在哪个阶段，取值为 cleaning、done 以外的阶段；成功、已发送或没有记录时为 null，清理和终态更新不改写它）。`SyncTransferState` 为 1。
+
+进度 `SyncJobProgress` 在批量进度的九个字段之外带 `backupBytesCopied` 和 `totalBackupBytes`。`totalBackupBytes` 等于计划的 `backupFileBytes`（由 shared `syncJobBackupBytes` 算出，计划里为 null 时为 0），两端都按计划核对；`backupBytesCopied` 是接收端备份时已写进备份的字节数，每写一块更新一次，只增不减，发送端始终为 0，接收端成功时等于总量。写完后重读核对备份文件和轮换不计入进度。`observeSyncJob` 用这两个字段算备份段的百分比，总量为 0 时百分比未知。Android 通知在备份阶段按同样的字段显示百分比。
 
 | 消息 | 方向 | 内容 | 失败含义 |
 | --- | --- | --- | --- |

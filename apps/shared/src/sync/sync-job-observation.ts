@@ -49,7 +49,7 @@ export interface SyncJobCounters {
   readonly completedFiles: number | null
   readonly totalFiles: number
   readonly completedBytes: number
-  /** 传输阶段是压缩体总量；清单出来之前为 null。 */
+  /** 传输阶段是压缩体总量，清单出来之前为 null；备份阶段是本次要备份的字节数。 */
   readonly totalBytes: number | null
 }
 
@@ -186,17 +186,24 @@ export function observeSyncJob(
               completedBytes: totals.fileBytesVerified,
               totalBytes: totals.totalFileBytes,
             }
-          : {
-              completedFiles: step === 4 ? totals.publishedFiles : null,
-              totalFiles: totals.totalFiles,
-              completedBytes: totals.fileBytesPublished,
-              totalBytes: totals.totalFileBytes,
-            }
+          : step === 3
+            ? {
+                completedFiles: null,
+                totalFiles: totals.totalFiles,
+                completedBytes: totals.backupBytesCopied,
+                totalBytes: totals.totalBackupBytes,
+              }
+            : {
+                completedFiles: step === 4 ? totals.publishedFiles : null,
+                totalFiles: totals.totalFiles,
+                completedBytes: totals.fileBytesPublished,
+                totalBytes: totals.totalFileBytes,
+              }
   // 打包进度只有发送端知道，还没收到时按未知处理，避免显示成 0%。
   const fraction =
     step === 0 && !sender
       ? null
-      : step === 0 || step === 1
+      : step === 0 || step === 1 || step === 3
         ? ratio(counters.completedBytes, counters.totalBytes)
         : step === 2
           ? (ratio(counters.completedBytes, counters.totalBytes) ??

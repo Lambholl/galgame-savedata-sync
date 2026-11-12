@@ -70,10 +70,12 @@ export interface WindowsBackupCommit {
   readonly manifest: SyncBackupManifest | null
   readonly cleanupError: KnownOperationError | null
 }
-/** 创建备份的选项：取消信号和更短的期限。 */
+/** 创建备份的选项：取消信号、更短的期限和复制进度。 */
 export interface WindowsBackupOptions {
   readonly signal?: AbortSignal
   readonly timeoutMs?: number
+  /** 每写入一块后收到这次备份累计已复制的字节数；抛出的错误被忽略。 */
+  readonly onProgress?: (bytesCopied: number) => void
 }
 
 const stores = new Set<string>()
@@ -671,6 +673,7 @@ export class WindowsBackupStore {
           isComplete: false,
         }
         await writeBackupJson(join(path, UNFINISHED), manifest, this.io)
+        let bytesCopied = 0
         for (const [index, file] of files.entries()) {
           const target = required(targets[index])
           await this.inspectRound(round)
@@ -691,6 +694,12 @@ export class WindowsBackupStore {
                   throw new ArchiveError('io-failure', 'The backup write made no progress.')
                 }
                 offset += written.bytesWritten
+              }
+              bytesCopied += chunk.length
+              try {
+                options.onProgress?.(bytesCopied)
+              } catch {
+                /* 进度观察者失败不影响备份。 */
               }
             })
             if (value.sizeBytes !== file.sizeBytes || value.sha256 !== file.sha256) {
