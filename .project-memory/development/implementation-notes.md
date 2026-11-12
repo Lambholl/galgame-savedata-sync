@@ -1,7 +1,7 @@
 ---
 doc_type: implementation-notes
 status: active
-updated: 2026-11-12
+updated: 2026-11-13
 tags: [实现细节]
 related_files: []
 ---
@@ -66,8 +66,8 @@ related_files: []
 | 发布恢复与平台边界 | 文件系统不支持安全 link 时失败；候选所有权/写授权仅存本进程，正常退出等待停止，强杀后不自动删除目标卷候选；不恢复旧任务。验证缺口见覆盖缺口 | apps/desktop/README.md；testing/coverage-gaps.md |
 | 有限 Electron 桥 | 目录桥暴露 chooseDirectory/listRoots/listDirectory；独立服务桥提供 status/start/randomizePort/stop/chooseTarget/revokeTarget/cancel/retryCleanup；主窗口、主 frame、精确 URL 和参数/返回 DTO 均校验；系统选择目录后授予本进程写入权限，路径/内容由原生持有。workspace 共享包在 main/preload 构建内联，preload 仅需 Electron require | apps/desktop/src/bridge/directory-bridge.ts、src/bridge/service-bridge.ts、src/main/directory-ipc.ts、src/main/service-ipc.ts、src/preload/index.ts、electron.vite.config.ts |
 | Java SAF 读取 | 提供只读系统选择器、稳定根/设备 ID 与权限恢复、当前层元数据和原生 InputStream；URI 不出原生层，不保存历史条目/哈希 | apps/mobile/README.md、apps/mobile/src/platform/saf-*、Android Java 源码及测试 |
-| Java 私有归档 | 从实际流建立原文快照，统计未知长度并在读取后复核 SAF 观察值，再生成规范 USTAR/gzip1；显式原始 inflater 消耗边界及 CRC/ISIZE/物理 EOF，全部逐文件 SHA 和精确 tar 结束通过才返回句柄。固定 v1 原生不可变模型不承担网络 JSON 解码 | ArchiveAdapter.java、ArchiveModel.java、ArchiveFormat.java、SafArchiveSource.java；apps/mobile/README.md |
-| Java 缓存 | 可信 Context 先解析系统私有路径别名；其下缓存标记/随机任务/链接及未知条目失败关闭；进程任务独占直到句柄释放或清理成功，主错误和清理错误分别报告，可重试和启动孤儿恢复；64 KiB 实际流预算，取消关闭源/查询 | ArchiveCache.java、ArchiveControl.java、ArchiveFailure.java、ArchiveAdapterTest.java、ArchiveSafTest.java、scripts/verify-archive-interop.mjs |
+| Java 私有归档 | 从实际流建立原文快照，统计未知长度并在读取后复核 SAF 观察值，再生成规范 USTAR/gzip1；建立快照时同时读 8 个文件（经 SAF 打开一个文件要几十毫秒），进度只在调用线程报告；建立快照时同时读 8 个文件（经 SAF 打开一个文件要几十毫秒），进度只在调用线程报告；显式原始 inflater 消耗边界及 CRC/ISIZE/物理 EOF，全部逐文件 SHA 和精确 tar 结束通过才返回句柄。固定 v1 原生不可变模型不承担网络 JSON 解码 | ArchiveAdapter.java、ArchiveModel.java、ArchiveFormat.java、SafArchiveSource.java；apps/mobile/README.md |
+| Java 缓存 | 可信 Context 先解析系统私有路径别名；其下缓存标记/随机任务/链接及未知条目失败关闭；进程任务独占直到句柄释放或清理成功，主错误和清理错误分别报告，可重试和启动孤儿恢复；64 KiB 实际流预算，取消关闭源/查询；缓存文件不单独 fsync，进程中断后任务本来就要重来 | ArchiveCache.java、ArchiveControl.java、ArchiveFailure.java、ArchiveAdapterTest.java、ArchiveSafTest.java、scripts/verify-archive-interop.mjs |
 | Java SAF 单文件发布 | 系统 WRITE 与本次进程 grant 是两道授权；preflight 无写入；创建前后枚举/名称等价/新 ID/父目录核实，提供者改名时停止；保持空新文件 FD 身份，以 rw 不截断打开并再次核实设备/inode/零长度；64 KiB 计数/SHA 写流，关闭同步后完整回读、EOF、身份/名称/元数据前后检查后成功 | NewFilePublisher.java、SafPublicationBackend.java、PublicationModel.java；apps/mobile/README.md |
 | Java 发布结果与清理 | 原生 PublicationJson 对齐共享 FileOutcome/BatchCleanup，错误脱敏、unknown 不自动重放；失败/取消仅清理确知新建且身份匹配条目，关闭流/删除失败保留资源与进程名额至 retryCleanup；已确认成功不因晚取消或关闭失败删除；归档和发布名额独立 | PublicationJson.java、NewFilePublisherTest.java；TC-008 |
 | Android 原生 HTTP/通知 | TransferJson 严格 UTF-8/重复键/安全整数及有界 JSON，TransferSchema 独立核对任务/清单/角色/结果；无代理/缓存/重定向/自动解压，64 KiB、固定长度/SHA、连接和默认网络无进展等待 5 秒、初次握手总期限 5 秒及传输总期限 30 分钟；丢失 POST/PUT 回执只查询。应用级 Runtime 持有任务，dataSync 服务持续通知保持传输；Activity 暂停或销毁不取消，完成/显式取消与清理后停止 | Transfer*.java、HttpTransfersPlugin、SafRuntime、TS 桥；移动 README |

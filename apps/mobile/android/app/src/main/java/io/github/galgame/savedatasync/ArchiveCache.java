@@ -283,7 +283,7 @@ final class ArchiveCache {
       return result;
     }
 
-    void space(long required) throws IOException {
+    synchronized void space(long required) throws IOException {
       alive();
       ArchiveModel.limit(required <= maximum - bytes);
       if (io.usable(path) < required) {
@@ -315,11 +315,14 @@ final class ArchiveCache {
           }
           control.check();
           ArchiveModel.limit(length <= ArchiveModel.BUFFER && count <= limit - length);
-          space(length);
+          // 打包时多个线程同时写各自的缓存文件，任务总量要在锁内先记账再写。
+          synchronized (Job.this) {
+            space(length);
+            bytes += length;
+          }
           io.beforeWrite(target, length);
           out.write(buffer, offset, length);
           count += length;
-          bytes += length;
         }
 
         @Override
@@ -328,11 +331,8 @@ final class ArchiveCache {
             return;
           }
           isClosed = true;
-          try {
-            out.getFD().sync();
-          } finally {
-            out.close();
-          }
+          // 缓存文件只在本进程的这次任务里用，不单独落盘：进程或系统中断后任务本来就要重来。
+          out.close();
         }
       };
     }

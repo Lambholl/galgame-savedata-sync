@@ -10,6 +10,13 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * 生成和接收 tar.gz 归档。prepare 和 receive 要在同一个后台 I/O 线程调用，cancel 可以在其他线程调用。
@@ -19,6 +26,7 @@ import java.util.Set;
  */
 final class ArchiveAdapter {
 
+  private static final int READ_THREADS = 8;
   private final ArchiveCache cache;
   private final ArchiveModel.Limits limits;
   private volatile ArchiveControl current;
@@ -75,54 +83,19 @@ final class ArchiveAdapter {
     ArchiveModel.limit(sources.size() <= limits.files);
     ArchiveCache.Job job = begin(control);
     try {
-      Set<String> entries = new HashSet<>();
-      List<ArchiveModel.PreparedFile> files = new ArrayList<>();
-      long total = 0;
-      long tarSize = 1024;
-      emit(progress, "preparing", 0, null, control);
-      for (int index = 0; index < sources.size(); index++) {
-        control.check();
-        ArchiveModel.Source source = sources.get(index);
+      for (ArchiveModel.Source source : sources) {
         ArchiveModel.require(source != null);
         source.validateRoot(rootId);
-        ArchiveModel.Observation before = source.observe(control);
-        ArchiveModel.require(before != null);
-        before.validate();
-        ArchiveModel.require(entries.add(before.entryId));
-        if (before.size != null) {
-          ArchiveModel.limit(before.size <= limits.file && before.size <= limits.total - total);
-          job.space(before.size);
-        }
-        String id = ArchiveModel.id(index);
-        MessageDigest hash = ArchiveFormat.sha256();
-        long size = 0;
-        InputStream input = control.track(source.open(control));
-        try (InputStream stream = input; OutputStream out = job.create(id, limits.file, control)) {
-          byte[] buffer = new byte[ArchiveModel.BUFFER];
-          int n;
-          while ((n = read(stream, buffer, control)) != -1) {
-            ArchiveModel.limit(size <= limits.file - n && total <= limits.total - n);
-            out.write(buffer, 0, n);
-            hash.update(buffer, 0, n);
-            size += n;
-            total += n;
-            emit(progress, "preparing", total, null, control);
-          }
-        } finally {
-          control.untrack(input);
-        }
-        ArchiveModel.Observation after = source.observe(control);
-        if (!before.same(after) || (before.size != null && before.size != size)) {
-          throw new ArchiveFailure(
-            "source-changed",
-            "The source file changed during archive preparation."
-          );
-        }
-        tarSize += 512 + ArchiveModel.padded(size);
+      }
+      emit(progress, "preparing", 0, null, control);
+      AtomicLong copied = new AtomicLong();
+      List<ArchiveModel.PreparedFile> files = readSources(job, sources, copied, control, progress);
+      Set<String> entries = new HashSet<>();
+      long tarSize = 1024;
+      for (ArchiveModel.PreparedFile file : files) {
+        ArchiveModel.require(entries.add(file.sourceEntryId));
+        tarSize += 512 + ArchiveModel.padded(file.sizeBytes);
         ArchiveModel.limit(tarSize <= limits.tar);
-        files.add(
-          new ArchiveModel.PreparedFile(id, before, size, ArchiveFormat.hex(hash.digest()))
-        );
       }
       // 预检包含压缩体可能与原文重叠的实际容量；之后每次写入仍执行硬计数和空间检查。
       emit(progress, "archiving", 0, tarSize, control);
@@ -167,7 +140,7 @@ final class ArchiveAdapter {
         deviceId,
         rootId,
         files,
-        total,
+        copied.get(),
         new ArchiveModel.Descriptor(packed.count, tarSize, packed.digest())
       );
       manifest.validate(limits);
@@ -320,6 +293,115 @@ final class ArchiveAdapter {
     if (owned != null) {
       dispose(owned);
     }
+  }
+
+  /**
+   * 把每个源文件读进缓存，最多同时读 READ_THREADS 个；按 sources 的顺序返回结果。
+   *
+   * <p>进度只在调用线程报告。任一文件失败后不再开始新的文件，等已开始的结束后抛出第一个失败。
+   */
+  private List<ArchiveModel.PreparedFile> readSources(
+    ArchiveCache.Job job,
+    List<ArchiveModel.Source> sources,
+    AtomicLong copied,
+    ArchiveControl control,
+    ArchiveModel.Progress progress
+  ) throws Exception {
+    // 经 SAF 打开一个文件要几十毫秒，主要在等提供者；同时读几个，几百个文件的打包能快几倍。
+    ArchiveModel.PreparedFile[] files = new ArchiveModel.PreparedFile[sources.size()];
+    AtomicReference<Exception> failure = new AtomicReference<>();
+    ExecutorService readers = Executors.newFixedThreadPool(Math.min(READ_THREADS, sources.size()));
+    try {
+      List<Future<Object>> tasks = new ArrayList<>();
+      for (int i = 0; i < sources.size(); i++) {
+        int index = i;
+        tasks.add(
+          readers.submit(() -> {
+            if (failure.get() == null) {
+              try {
+                files[index] = readSource(
+                  job,
+                  sources.get(index),
+                  ArchiveModel.id(index),
+                  copied,
+                  control
+                );
+              } catch (Exception cause) {
+                failure.compareAndSet(null, cause);
+              }
+            }
+            return null;
+          })
+        );
+      }
+      long reported = 0;
+      for (Future<Object> task : tasks) {
+        for (boolean isDone = false; !isDone; ) {
+          try {
+            task.get(100, TimeUnit.MILLISECONDS);
+            isDone = true;
+          } catch (TimeoutException waiting) {
+            // 大文件读取期间也要更新进度。
+          }
+          long current = copied.get();
+          if (current != reported && failure.get() == null) {
+            try {
+              emit(progress, "preparing", current, null, control);
+            } catch (Exception cause) {
+              failure.compareAndSet(null, cause);
+            }
+            reported = current;
+          }
+        }
+      }
+    } finally {
+      readers.shutdownNow();
+    }
+    if (failure.get() != null) {
+      throw failure.get();
+    }
+    return Arrays.asList(files);
+  }
+
+  /** 把一个源文件读进缓存文件 id，同时计算 SHA-256；可以在多个线程同时调用。 */
+  private ArchiveModel.PreparedFile readSource(
+    ArchiveCache.Job job,
+    ArchiveModel.Source source,
+    String id,
+    AtomicLong copied,
+    ArchiveControl control
+  ) throws Exception {
+    control.check();
+    ArchiveModel.Observation before = source.observe(control);
+    ArchiveModel.require(before != null);
+    before.validate();
+    if (before.size != null) {
+      ArchiveModel.limit(before.size <= limits.file && before.size <= limits.total - copied.get());
+      job.space(before.size);
+    }
+    MessageDigest hash = ArchiveFormat.sha256();
+    long size = 0;
+    InputStream input = control.track(source.open(control));
+    try (InputStream stream = input; OutputStream out = job.create(id, limits.file, control)) {
+      byte[] buffer = new byte[ArchiveModel.BUFFER];
+      int n;
+      while ((n = read(stream, buffer, control)) != -1) {
+        ArchiveModel.limit(size <= limits.file - n && copied.addAndGet(n) <= limits.total);
+        out.write(buffer, 0, n);
+        hash.update(buffer, 0, n);
+        size += n;
+      }
+    } finally {
+      control.untrack(input);
+    }
+    ArchiveModel.Observation after = source.observe(control);
+    if (!before.same(after) || (before.size != null && before.size != size)) {
+      throw new ArchiveFailure(
+        "source-changed",
+        "The source file changed during archive preparation."
+      );
+    }
+    return new ArchiveModel.PreparedFile(id, before, size, ArchiveFormat.hex(hash.digest()));
   }
 
   private static int read(InputStream stream, byte[] buffer, ArchiveControl control)

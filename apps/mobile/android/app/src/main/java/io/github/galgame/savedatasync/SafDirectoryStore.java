@@ -454,14 +454,20 @@ final class SafDirectoryStore {
    *
    * @throws SafFailure 条目不是常规文件，或属性与枚举时不同（source-changed）。
    */
-  synchronized ArchiveModel.Observation archiveObservation(
+  ArchiveModel.Observation archiveObservation(
     String rootId,
     String entryId,
     CancellationSignal signal
   ) throws SafFailure {
     try {
-      Root root = requireRoot(rootId);
-      Entry entry = requireEntry(rootId, entryId);
+      Root root;
+      Entry entry;
+      // 查询要等提供者，持锁会让同时打包的文件排队，所以只在读登记时持锁。
+      synchronized (this) {
+        root = findRoot(rootId);
+        entry = requireEntry(rootId, entryId);
+      }
+      requireGrant(root);
       Snapshot current = query(root, entry.documentId, signal);
       if (current.isDirectory || current.isVirtual) {
         throw new SafFailure(
@@ -469,8 +475,12 @@ final class SafDirectoryStore {
           "This entry does not support raw file archiving."
         );
       }
-      ArchiveModel.Observation baseline = observation(entry, entry.snapshot);
-      ArchiveModel.Observation observed = observation(entry, current);
+      ArchiveModel.Observation baseline;
+      ArchiveModel.Observation observed;
+      synchronized (this) {
+        baseline = observation(entry, entry.snapshot);
+        observed = observation(entry, current);
+      }
       if (!baseline.same(observed)) {
         throw new SafFailure(
           "source-changed",
