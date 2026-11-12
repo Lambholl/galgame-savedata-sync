@@ -105,33 +105,24 @@ public class SyncBackupsPlugin extends Plugin {
 
   @PluginMethod
   public void list(PluginCall call) {
-    submit(call, store -> {
-      Map<String, Object> value = arguments(call, "projectId", "rootId");
-      return store.list(id(value.get("projectId")), id(value.get("rootId")));
-    });
+    submit(call, store -> store.list(id(arguments(call, "projectId").get("projectId"))));
   }
 
   @PluginMethod
   public void manifest(PluginCall call) {
     submit(call, store -> {
-      Map<String, Object> value = arguments(call, "projectId", "rootId", "backupId");
-      return store.manifest(
-        id(value.get("projectId")),
-        id(value.get("rootId")),
-        id(value.get("backupId"))
-      );
+      Map<String, Object> value = arguments(call, "projectId", "backupId");
+      return store.manifest(id(value.get("projectId")), id(value.get("backupId")));
     });
   }
 
   @PluginMethod
   public void setPreference(PluginCall call) {
     submit(call, store -> {
-      Map<String, Object> value = arguments(call, "projectId", "rootId", "policy");
+      Map<String, Object> value = arguments(call, "projectId", "policy");
       Map<String, Object> policy =
         value.get("policy") == null ? null : BackupModel.policy(value.get("policy"));
-      return mutate(store, target ->
-        target.setPreference(id(value.get("projectId")), id(value.get("rootId")), policy)
-      );
+      return mutate(store, target -> target.setPreference(id(value.get("projectId")), policy));
     });
   }
 
@@ -146,9 +137,9 @@ public class SyncBackupsPlugin extends Plugin {
   @PluginMethod
   public void rotate(PluginCall call) {
     submit(call, store -> {
-      Map<String, Object> value = arguments(call, "projectId", "rootId");
+      String projectId = id(arguments(call, "projectId").get("projectId"));
       return mutate(store, target -> {
-        target.rotate(id(value.get("projectId")), id(value.get("rootId")));
+        target.rotate(projectId);
         return null;
       });
     });
@@ -157,13 +148,9 @@ public class SyncBackupsPlugin extends Plugin {
   @PluginMethod
   public void cleanupIncomplete(PluginCall call) {
     submit(call, store -> {
-      Map<String, Object> value = arguments(call, "projectId", "rootId", "backupId");
+      Map<String, Object> value = arguments(call, "projectId", "backupId");
       return mutate(store, target -> {
-        target.cleanupIncomplete(
-          id(value.get("projectId")),
-          id(value.get("rootId")),
-          id(value.get("backupId"))
-        );
+        target.cleanupIncomplete(id(value.get("projectId")), id(value.get("backupId")));
         return null;
       });
     });
@@ -172,13 +159,9 @@ public class SyncBackupsPlugin extends Plugin {
   @PluginMethod
   public void deleteBackup(PluginCall call) {
     submit(call, store -> {
-      Map<String, Object> value = arguments(call, "projectId", "rootId", "backupId");
+      Map<String, Object> value = arguments(call, "projectId", "backupId");
       return mutate(store, target -> {
-        target.deleteBackup(
-          id(value.get("projectId")),
-          id(value.get("rootId")),
-          id(value.get("backupId"))
-        );
+        target.deleteBackup(id(value.get("projectId")), id(value.get("backupId")));
         return null;
       });
     });

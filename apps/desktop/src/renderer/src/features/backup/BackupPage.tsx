@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Alert, Button, Empty, Form, Modal, Switch } from 'antd'
+import { Button, Empty, Form, Modal, Switch } from 'antd'
 import { DeleteOutlined, FolderOpenOutlined, HistoryOutlined } from '@ant-design/icons'
 import {
   formatBytes,
@@ -36,7 +36,6 @@ type PolicyMode = 'follow' | 'custom'
 export function BackupPage({
   roots,
   game,
-  rootId,
   isActive,
   hasRunningWork,
   onOpenSettings,
@@ -45,8 +44,6 @@ export function BackupPage({
 }: {
   readonly roots: readonly DirectoryReference[]
   readonly game: LibraryGame | null
-  /** 要查看的目录；可能是游戏之前用过的目录。 */
-  readonly rootId: string | null
   readonly isActive: boolean
   readonly hasRunningWork: boolean
   readonly onOpenSettings: () => void
@@ -92,7 +89,7 @@ export function BackupPage({
   useEffect(() => {
     showFailure(failure?.error ?? null, failure?.context ?? null)
   }, [failure, showFailure])
-  const isCurrentRoot = Boolean(game && rootId && game.rootId === rootId)
+  const rootId = game?.rootId ?? null
   const projectId = game?.id ?? null
   useEffect(() => {
     let hasResult = true
@@ -100,7 +97,7 @@ export function BackupPage({
     async function read(): Promise<void> {
       const api = desktopBackups()
       const details = unwrap(await api.read())
-      const values = projectId && rootId ? unwrap(await api.list(projectId, rootId)) : null
+      const values = projectId ? unwrap(await api.list(projectId)) : null
       if (hasResult) {
         setInfo(details)
         setListing(values)
@@ -121,7 +118,15 @@ export function BackupPage({
     return () => {
       hasResult = false
     }
-  }, [projectId, rootId, version, t])
+  }, [projectId, version, t])
+  // 对方传入或恢复结束时可能新建或轮换了备份，页面开着也要重新读一次列表。
+  const wasRunning = useRef(hasRunningWork)
+  useEffect(() => {
+    if (wasRunning.current && !hasRunningWork) {
+      setVersion((value) => value + 1)
+    }
+    wasRunning.current = hasRunningWork
+  }, [hasRunningWork])
   const backups = listing?.backups ?? []
   const selected = backups.find((item) => item.backupId === selectedId) ?? backups[0] ?? null
   // 所选备份变化时读取它的文件清单；切换得快时只保留最后一次的结果。
@@ -138,9 +143,7 @@ export function BackupPage({
       if (!selected) {
         return
       }
-      const value = unwrap(
-        await desktopBackups().manifest(selected.projectId, selected.rootId, selected.backupId),
-      )
+      const value = unwrap(await desktopBackups().manifest(selected.projectId, selected.backupId))
       if (isCurrent.current && current === manifestVersion.current) {
         setManifest(value)
       }
@@ -191,7 +194,7 @@ export function BackupPage({
     )
   }
   const settings = info?.settings ?? null
-  const policy = settings && resolveBackupPolicy(settings, game.id, rootId)
+  const policy = settings && resolveBackupPolicy(settings, game.id)
   function openPolicy(): void {
     if (!policy) {
       return
@@ -202,18 +205,17 @@ export function BackupPage({
   }
   /** 弹窗里的改动立即保存，依次写入；跟随全局时删掉单独设置。 */
   function savePolicy(nextMode: PolicyMode, nextDraft: SyncBackupPolicy): void {
-    if (!rootId || !game) {
+    if (!game) {
       return
     }
     const projectId = game.id
-    const root = rootId
     setMode(nextMode)
     setDraft(nextDraft)
     setError(null)
     const next = nextMode === 'custom' ? nextDraft : null
     saving.current = saving.current
       .then(async () => {
-        unwrap(await desktopBackups().setPreference(projectId, root, next))
+        unwrap(await desktopBackups().setPreference(projectId, next))
       })
       .catch((cause: unknown) => {
         if (isCurrent.current) {
@@ -227,14 +229,14 @@ export function BackupPage({
       })
   }
   function prepare(): void {
-    if (!selected) {
+    if (!selected || !rootId) {
       return
     }
     const item = selected
+    const target = rootId
+    // 备份可能来自游戏之前用过的目录，恢复总是写进游戏当前的目录。
     run(async () => {
-      const next = unwrap(
-        await desktopSync().prepareRestore(item.projectId, item.rootId, item.backupId),
-      )
+      const next = unwrap(await desktopSync().prepareRestore(item.projectId, target, item.backupId))
       if (isCurrent.current) {
         setRestoreId(next.restoreId)
       }
@@ -248,14 +250,16 @@ export function BackupPage({
     const item = selected
     setSelectedId(null)
     run(async () => {
-      unwrap(await desktopBackups().deleteBackup(item.projectId, item.rootId, item.backupId))
+      unwrap(await desktopBackups().deleteBackup(item.projectId, item.backupId))
     })
   }
   const incomplete = listing?.incomplete ?? []
   const when = (value: number): string => formatShortDateTime(value)
-  const root = roots.find((item) => item.rootId === rootId)
   let detail: React.ReactNode
   if (selected) {
+    const root =
+      roots.find((item) => item.rootId === selected.rootId) ??
+      roots.find((item) => item.rootId === rootId)
     detail = (
       <>
         <div className="backup-detail-head">
@@ -273,7 +277,7 @@ export function BackupPage({
               type="primary"
               icon={<HistoryOutlined />}
               loading={isBusy}
-              disabled={!isCurrentRoot || isActive || hasRunningWork}
+              disabled={isActive || hasRunningWork}
               onClick={prepare}
             >
               {t('backup.restore')}
@@ -306,20 +310,7 @@ export function BackupPage({
           keepCount={policy.keepCount}
           isCustom={policy.isCustom}
           location={info?.displayPath ?? null}
-          onEdit={isCurrentRoot && !isActive ? openPolicy : null}
-        />
-      )}
-      {!isCurrentRoot && (
-        <Alert
-          showIcon
-          type="info"
-          title={t('backup.oldFolder')}
-          description={root?.displayPath ?? root?.displayName}
-          action={
-            <Button size="small" onClick={onOpenSettings}>
-              {t('page.gameSettings')}
-            </Button>
-          }
+          onEdit={isActive ? null : openPolicy}
         />
       )}
       {failureHolder}
@@ -351,7 +342,7 @@ export function BackupPage({
           onCleanup={() =>
             run(() =>
               cleanupIncompleteBackups(incomplete, async (id) => {
-                unwrap(await desktopBackups().cleanupIncomplete(game.id, rootId, id))
+                unwrap(await desktopBackups().cleanupIncomplete(game.id, id))
               }),
             )
           }

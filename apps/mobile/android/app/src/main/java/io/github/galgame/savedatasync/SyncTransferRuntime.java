@@ -63,16 +63,14 @@ final class SyncTransferRuntime {
         }
 
         @Override
-        public boolean backup(String projectId, String rootId) throws Exception {
-          return (Boolean) BackupModel.resolve(backups.settings(), projectId, rootId).get(
-            "shouldBackup"
-          );
+        public boolean backup(String projectId) throws Exception {
+          return (Boolean) BackupModel.resolve(backups.settings(), projectId).get("shouldBackup");
         }
 
         @Override
-        public long backupKeep(String projectId, String rootId) throws Exception {
+        public long backupKeep(String projectId) throws Exception {
           return (
-            (Number) BackupModel.resolve(backups.settings(), projectId, rootId).get("keepCount")
+            (Number) BackupModel.resolve(backups.settings(), projectId).get("keepCount")
           ).longValue();
         }
 

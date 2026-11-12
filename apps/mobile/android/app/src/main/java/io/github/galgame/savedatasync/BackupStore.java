@@ -268,10 +268,9 @@ final class BackupStore implements AutoCloseable {
     return path;
   }
 
-  private static boolean group(Round round, String project, String root) {
-    return (
-      round.manifest.get("projectId").equals(project) && round.manifest.get("rootId").equals(root)
-    );
+  // 备份按游戏归组，不看 rootId：游戏换了目录后，旧目录的备份照常列出、轮换和恢复。
+  private static boolean group(Round round, String project) {
+    return round.manifest.get("projectId").equals(project);
   }
 
   private static void ids(String project, String root) throws Exception {
@@ -279,15 +278,15 @@ final class BackupStore implements AutoCloseable {
     id(root);
   }
 
-  /** 列出这个游戏目录的备份摘要和残留备份。 */
-  synchronized Map<String, Object> list(String projectId, String rootId) throws Exception {
-    ids(projectId, rootId);
+  /** 列出这个游戏在本机所有目录下的备份摘要和残留备份。 */
+  synchronized Map<String, Object> list(String projectId) throws Exception {
+    id(projectId);
     List<Round> rounds = rounds();
     sort(rounds);
     List<Object> backups = new ArrayList<>();
     List<Object> incomplete = new ArrayList<>();
     for (Round round : rounds) {
-      if (group(round, projectId, rootId)) {
+      if (group(round, projectId)) {
         if (!isComplete(round)) {
           incomplete.add(object("backupId", round.id(), "occupiedBytes", occupied(round)));
         } else {
@@ -303,7 +302,7 @@ final class BackupStore implements AutoCloseable {
               "projectId",
               projectId,
               "rootId",
-              rootId,
+              round.manifest.get("rootId"),
               "createdAt",
               round.manifest.get("createdAt"),
               "reason",
@@ -344,31 +343,30 @@ final class BackupStore implements AutoCloseable {
     rounds.sort((a, b) -> Long.compare(b.createdAt(), a.createdAt()));
   }
 
-  private Round lookup(String projectId, String rootId, String backupId) throws Exception {
-    ids(projectId, rootId);
+  private Round lookup(String projectId, String backupId) throws Exception {
+    id(projectId);
     id(backupId);
     for (Round round : rounds()) {
-      if (group(round, projectId, rootId) && round.id().equals(backupId)) {
+      if (group(round, projectId) && round.id().equals(backupId)) {
         return round;
       }
     }
     return null;
   }
 
-  private Round find(String projectId, String rootId, String backupId) throws Exception {
-    Round round = lookup(projectId, rootId, backupId);
+  private Round find(String projectId, String backupId) throws Exception {
+    Round round = lookup(projectId, backupId);
     if (round == null || !isComplete(round)) {
       throw BackupFiles.failure("not-found");
     }
     return round;
   }
 
-  synchronized Map<String, Object> manifest(String projectId, String rootId, String backupId)
-    throws Exception {
-    return map(copy(find(projectId, rootId, backupId).manifest));
+  synchronized Map<String, Object> manifest(String projectId, String backupId) throws Exception {
+    return map(copy(find(projectId, backupId).manifest));
   }
 
-  /** 读取备份设置；设置文件不存在时返回默认设置，文件损坏时抛错。 */
+  /** 读取备份设置；设置文件不存在时返回默认设置，旧格式转换为当前格式，文件损坏时抛错。 */
   synchronized Map<String, Object> settings() throws Exception {
     alive();
     return exists(settingsFile)
@@ -376,27 +374,18 @@ final class BackupStore implements AutoCloseable {
       : BackupModel.emptySettings();
   }
 
-  /** 单独设置某个游戏目录；policy 为 null 时改回跟随全局。 */
-  synchronized Map<String, Object> setPreference(
-    String projectId,
-    String rootId,
-    Map<String, Object> policy
-  ) throws Exception {
-    ids(projectId, rootId);
+  /** 单独设置某个游戏；policy 为 null 时改回跟随全局。 */
+  synchronized Map<String, Object> setPreference(String projectId, Map<String, Object> policy)
+    throws Exception {
+    id(projectId);
     Map<String, Object> settings = settings();
     List<Object> values = new ArrayList<>(TransferJson.list(settings.get("projects")));
-    values.removeIf(
-      value ->
-        mapUnchecked(value).get("projectId").equals(projectId) &&
-        mapUnchecked(value).get("rootId").equals(rootId)
-    );
+    values.removeIf(value -> mapUnchecked(value).get("projectId").equals(projectId));
     if (policy != null) {
       values.add(
         object(
           "projectId",
           projectId,
-          "rootId",
-          rootId,
           "shouldBackup",
           policy.get("shouldBackup"),
           "keepCount",
@@ -406,17 +395,31 @@ final class BackupStore implements AutoCloseable {
     }
     return writeSettings(
       BackupModel.settings(
-        object("schemaVersion", 2, "defaults", settings.get("defaults"), "projects", values)
+        object(
+          "schemaVersion",
+          BackupModel.SETTINGS_VERSION,
+          "defaults",
+          settings.get("defaults"),
+          "projects",
+          values
+        )
       )
     );
   }
 
-  /** 修改全局设置；单独设置的游戏目录不受影响。 */
+  /** 修改全局设置；单独设置的游戏不受影响。 */
   synchronized Map<String, Object> setDefaults(Map<String, Object> policy) throws Exception {
     Map<String, Object> settings = settings();
     return writeSettings(
       BackupModel.settings(
-        object("schemaVersion", 2, "defaults", policy, "projects", settings.get("projects"))
+        object(
+          "schemaVersion",
+          BackupModel.SETTINGS_VERSION,
+          "defaults",
+          policy,
+          "projects",
+          settings.get("projects")
+        )
       )
     );
   }
@@ -632,7 +635,7 @@ final class BackupStore implements AutoCloseable {
       isCommitted = true;
       Object cleanup = null;
       try {
-        prune(projectId, rootId);
+        prune(projectId);
       } catch (Exception failure) {
         // 这份备份已经提交，失败只报告；删不掉的备份还在磁盘上，下一次轮换会再删。
         cleanup = error(cleanupFailure(failure));
@@ -718,11 +721,11 @@ final class BackupStore implements AutoCloseable {
   }
 
   /** 按保留份数删除多余的备份；不完整的也占份数，超出时先删它们，再删最旧的完整备份，好备份不会被坏备份挤掉。 */
-  private void prune(String projectId, String rootId) throws Exception {
+  private void prune(String projectId) throws Exception {
     List<Round> rounds = rounds();
-    rounds.removeIf(round -> !group(round, projectId, rootId));
+    rounds.removeIf(round -> !group(round, projectId));
     int keep = (int) (
-      (Number) BackupModel.resolve(settings(), projectId, rootId).get("keepCount")
+      (Number) BackupModel.resolve(settings(), projectId).get("keepCount")
     ).longValue();
     if (rounds.size() <= keep) {
       return;
@@ -741,16 +744,15 @@ final class BackupStore implements AutoCloseable {
     }
   }
 
-  synchronized void rotate(String projectId, String rootId) throws Exception {
-    ids(projectId, rootId);
+  synchronized void rotate(String projectId) throws Exception {
+    id(projectId);
     alive();
-    prune(projectId, rootId);
+    prune(projectId);
   }
 
   /** 删除一份残留备份；备份已不存在时视为成功。 */
-  synchronized void cleanupIncomplete(String projectId, String rootId, String backupId)
-    throws Exception {
-    Round round = lookup(projectId, rootId, backupId);
+  synchronized void cleanupIncomplete(String projectId, String backupId) throws Exception {
+    Round round = lookup(projectId, backupId);
     if (round == null) {
       return;
     }
@@ -761,9 +763,8 @@ final class BackupStore implements AutoCloseable {
   }
 
   /** 删除一份备份；备份已不存在时视为成功，正在用于恢复时抛错。中途失败时这份备份变成残留备份。 */
-  synchronized void deleteBackup(String projectId, String rootId, String backupId)
-    throws Exception {
-    Round round = lookup(projectId, rootId, backupId);
+  synchronized void deleteBackup(String projectId, String backupId) throws Exception {
+    Round round = lookup(projectId, backupId);
     if (round != null) {
       remove(round);
     }
@@ -782,7 +783,14 @@ final class BackupStore implements AutoCloseable {
     values.removeIf(value -> mapUnchecked(value).get("projectId").equals(projectId));
     writeSettings(
       BackupModel.settings(
-        object("schemaVersion", 2, "defaults", settings.get("defaults"), "projects", values)
+        object(
+          "schemaVersion",
+          BackupModel.SETTINGS_VERSION,
+          "defaults",
+          settings.get("defaults"),
+          "projects",
+          values
+        )
       )
     );
   }
@@ -868,16 +876,12 @@ final class BackupStore implements AutoCloseable {
   }
 
   /** 完整校验一份备份并取得引用；引用释放前这份备份不参加轮换。 */
-  synchronized Handle acquire(
-    String projectId,
-    String rootId,
-    String backupId,
-    ArchiveControl control
-  ) throws Exception {
+  synchronized Handle acquire(String projectId, String backupId, ArchiveControl control)
+    throws Exception {
     if (handles.size() >= 32) {
       throw BackupFiles.failure("resource-limit");
     }
-    Round round = find(projectId, rootId, backupId);
+    Round round = find(projectId, backupId);
     Active work = new Active(control);
     active = work;
     Handle handle = new Handle(round);
@@ -1016,7 +1020,7 @@ final class BackupStore implements AutoCloseable {
           return object("cleanupError", null);
         }
         try {
-          rotate(string(round.manifest.get("projectId")), string(round.manifest.get("rootId")));
+          rotate(string(round.manifest.get("projectId")));
           return object("cleanupError", null);
         } catch (Exception failure) {
           return object("cleanupError", error(cleanupFailure(failure)));

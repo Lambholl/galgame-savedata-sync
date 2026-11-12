@@ -68,6 +68,8 @@ export function createMobileLibraryAdapter(
   const stale = new Set<string>()
   const closedSince = new Map<string, number>()
   const dropped = new Set<string>()
+  /** 连上后控制通道还没打开过的设备。 */
+  const opening = new Set<string>()
   let selectedId: string | null = null
   let current: CurrentTransfer | null = null
   let task: TransferTask | null = null
@@ -102,6 +104,7 @@ export function createMobileLibraryAdapter(
     if (state.isOpen) {
       closedSince.delete(id)
       dropped.delete(id)
+      opening.delete(id)
     } else {
       if (!closedSince.has(id)) {
         closedSince.set(id, Date.now())
@@ -203,10 +206,15 @@ export function createMobileLibraryAdapter(
   }
   // 控制通道异常断开后，会话保留 CONTROL_GRACE_MS 等对方恢复；这期间界面已显示未连接，用户再次连接时不再等。
   // 只释放本机会话：对方已经断开，向它发告别请求只会等到超时。
-  /** 释放控制通道已断开、还在宽限期内的本机会话；控制通道还开着或有进行中的任务时保留。 */
+  // 刚连上、控制通道还没打开的会话不算断开：释放它会让连点“连接”断开刚建立的会话再连一次。
+  /** 释放控制通道已断开、还在宽限期内的本机会话；控制通道还开着、还没打开过或有进行中的任务时保留。 */
   async function releaseClosedSession(): Promise<void> {
     const ids = descriptors.map((item) => item.device.deviceId)
-    if (!ids.length || ids.some((id) => control.state(id)?.isOpen) || (await hasWork())) {
+    if (
+      !ids.length ||
+      ids.some((id) => control.state(id)?.isOpen || opening.has(id)) ||
+      (await hasWork())
+    ) {
       return
     }
     unwrap(await androidTransfers.disconnect())
@@ -221,6 +229,7 @@ export function createMobileLibraryAdapter(
     stale.delete(id)
     closedSince.delete(id)
     dropped.delete(id)
+    opening.delete(id)
     if (selectedId === id) {
       selectedId = null
     }
@@ -293,7 +302,12 @@ export function createMobileLibraryAdapter(
           games: libraryCatalog(load(), roots),
           links: libraryLinks(load(), id),
         })
-        if (stale.has(id) || pushed.get(id) !== key) {
+        // 对方的目录变回可用时不会通知本机。目录表里还有不可用的目录时每次都重新交换，
+        // 否则目录恢复后刷新也一直报授权失效，要重连才好。
+        const hasUnavailableRoot =
+          catalogs.get(id)?.some((game) => game.root && game.root.authorization !== 'granted') ??
+          false
+        if (stale.has(id) || hasUnavailableRoot || pushed.get(id) !== key) {
           const result = await exchange(id, roots)
           if (result.status === 'error') {
             if (!(await hasWork())) {
@@ -304,6 +318,7 @@ export function createMobileLibraryAdapter(
         }
         if (control.state(id)?.isOpen) {
           connectedIds.add(id)
+          opening.delete(id)
           continue
         }
         if (!closedSince.has(id)) {
@@ -330,8 +345,15 @@ export function createMobileLibraryAdapter(
           isConnected: connectedIds.has(device.id),
           games: catalogs.get(device.id) ?? [],
         })),
+        connectingId:
+          descriptors
+            .map((item) => item.device.deviceId)
+            .find((id) => opening.has(id) && !connectedIds.has(id)) ?? null,
         tasks: task ? [task] : [],
       }
+    },
+    savedConfig() {
+      return load()
     },
     async saveGames(games): Promise<void> {
       await assertCanEditGames()
@@ -399,6 +421,9 @@ export function createMobileLibraryAdapter(
         save(mergeCatalogLinks(load(), id, reply.links))
         catalogs.set(id, reply.games)
         closedSince.set(id, Date.now())
+        if (!control.state(id)?.isOpen) {
+          opening.add(id)
+        }
         descriptors = [descriptor]
         selectedId = null
         return name

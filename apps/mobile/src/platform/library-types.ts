@@ -17,6 +17,8 @@ export interface MobileSnapshot {
   /** 本机系统名称；读取失败时为 null。 */
   readonly deviceName: string | null
   readonly peers: readonly LibraryPeer[]
+  /** 已经连上、控制通道还没打开过的设备 ID，这台设备在 peers 里还不算在线；没有时为 null。 */
+  readonly connectingId: string | null
   readonly roots: readonly DirectoryReference[]
   readonly tasks: readonly TransferTask[]
 }
@@ -25,6 +27,8 @@ export interface MobileSnapshot {
 export interface MobileLibraryAdapter {
   /** 读取快照，并按需与已连接的设备交换目录表。 */
   read(): Promise<MobileSnapshot>
+  /** 同步读出本机保存的游戏和设备配置，不查目录和连接；配置损坏时抛错。 */
+  savedConfig(): LibraryConfig
   /** 用 games 替换全部本机游戏。 */
   saveGames(games: readonly LibraryGame[]): Promise<void>
   /** 打开系统目录选择器并登记所选目录。 */

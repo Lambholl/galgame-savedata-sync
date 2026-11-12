@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Button, Empty, Skeleton } from 'antd'
 import { ReloadOutlined, StopOutlined } from '@ant-design/icons'
 import { observeSyncJob, toShownError, unwrap } from '@savedata-sync/shared'
-import type { LibraryGame, LibraryPeer, ShownError } from '@savedata-sync/shared'
+import type { LibraryGame, LibraryPeer, ShownError, TransferDirection } from '@savedata-sync/shared'
 import { SyncTaskSummary, useT } from '@savedata-sync/shared/ui'
 import { useFailureMessage } from '../../app/failure-message.ts'
 import type { PlanEndpoint } from '@savedata-sync/shared/ui'
@@ -26,8 +26,9 @@ export function SyncCopyDetails({
   readonly task: DesktopCopySummary
   readonly games: readonly LibraryGame[]
   readonly peers: readonly LibraryPeer[]
-  readonly onOpenBackup: (projectId: string, rootId: string) => void
-  readonly onRescan: (projectId: string, peerId: string) => void
+  readonly onOpenBackup: (projectId: string) => void
+  /** 用这次传输的游戏、设备和方向重新比较。 */
+  readonly onRescan: (projectId: string, peerId: string, direction: TransferDirection) => void
   readonly onChanged: () => void
 }): React.JSX.Element {
   const t = useT()
@@ -87,9 +88,7 @@ export function SyncCopyDetails({
           onRetryCleanup={state.local.cleanupError && !isRunning ? () => act('cleanup') : null}
           // 备份建在被写入的一端；本机发送时备份在移动端上，这里不提供入口。
           onViewBackup={
-            state.local.role === 'receiver' && plan
-              ? () => onOpenBackup(task.projectId, plan.target.rootId)
-              : null
+            state.local.role === 'receiver' && plan ? () => onOpenBackup(task.projectId) : null
           }
           renderTechnicalDetails={(text) => <TechnicalDetails text={text} />}
         />
@@ -119,7 +118,7 @@ export function SyncCopyDetails({
             type="primary"
             size="large"
             icon={<ReloadOutlined />}
-            onClick={() => onRescan(task.projectId, task.peerId)}
+            onClick={() => onRescan(task.projectId, task.peerId, task.direction)}
           >
             {t('task.rescan')}
           </Button>

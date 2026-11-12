@@ -766,7 +766,7 @@ export class WindowsSyncWriter {
     if (this.isStopped || target.rootId !== rootId || target.deviceId !== this.source.deviceId) {
       throw new ArchiveError('invalid-request', 'The restore target is invalid.')
     }
-    const handle = await this.backups.acquire(projectId, rootId, backupId)
+    const handle = await this.backups.acquire(projectId, backupId)
     let plan: SyncPlan
     try {
       plan = createSyncPlan({

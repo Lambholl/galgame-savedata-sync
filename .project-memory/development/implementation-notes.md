@@ -1,7 +1,7 @@
 ---
 doc_type: implementation-notes
 status: active
-updated: 2026-11-07
+updated: 2026-11-12
 tags: [实现细节]
 related_files: []
 ---
@@ -77,7 +77,7 @@ related_files: []
 | Gradle 安全 | Gradle 8.14.6；分发 ZIP 固定官方 SHA-256，Wrapper JAR 按官方 SHA-256 校验 | apps/mobile/android/gradle/wrapper/、gradlew、gradlew.bat |
 | Android 工具依赖 | AGP 8.13.2 与统一补丁策略；审计覆盖全部可解析 Maven 配置（含各变体、测试、lint 和构建工具）与 Gradle Core；包含 Protobuf 3.x 修复且保留 4.x 请求；同一模块全项目只解析一个版本，`security:android` 发现多版本时失败 | apps/mobile/android/dependency-security.json、apps/mobile/android/settings.gradle、scripts/security-android.mjs |
 | 连接状态与短时提示 | 控制连接的 ping 兼作心跳；两端以控制连接是否打开判断在线，移动端控制连接关闭 10 秒且空闲时释放连接，活动任务仍可查询；这 10 秒内点“连接”时，残留会话的控制通道已断开且没有进行中的任务，就先释放本机会话再连（`library-adapter.ts` 的 `releaseClosedSession`）。断连回到未连接，Message 提示一次，不诊断原因；移动端连接失败用同一提示，跟随本端明暗主题 | 双端 App、移动 library-adapter/App、shared library 注释 |
-| Windows 独立备份 | 备份放 `userData/backups/<游戏名>/<UTC 时间>/`，结构、命名和移动端相同，便于迁移（规则见 M-002 文档第 3 节）；用户可随时删改，所以不做所有权校验，每次按实际目录读取，缺文件的备份显示为不完整，读不懂的内容忽略，不完整的备份不挡新备份。逐文件复核源、哈希/落盘/回读后提交；按保留份数轮换（默认 3 份），恢复材料引用保护输入，轮换失败另报；不保存比较基线。设置放 `userData/backup-settings.json`，缺省开启，坏设置保留；启动时登记备份区以阻止选作同步根。备份页有按钮用系统文件管理器打开备份区。只列出 deviceId 是本机、projectId 和 rootId 对得上的备份，所以把另一台设备的备份复制过来不会显示 | backup-store/files/ipc、backup-bridge、directory-adapter、启动/preload |
+| Windows 独立备份 | 备份放 `userData/backups/<游戏名>/<UTC 时间>/`，结构、命名和移动端相同，便于迁移（规则见 M-002 文档第 3 节）；用户可随时删改，所以不做所有权校验，每次按实际目录读取，缺文件的备份显示为不完整，读不懂的内容忽略，不完整的备份不挡新备份。逐文件复核源、哈希/落盘/回读后提交；按保留份数轮换（默认 3 份），恢复材料引用保护输入，轮换失败另报；不保存比较基线。设置放 `userData/backup-settings.json`，缺省开启，坏设置保留；启动时登记备份区以阻止选作同步根。备份页有按钮用系统文件管理器打开备份区。只列出 deviceId 是本机、projectId 对得上的备份，所以把另一台设备的备份复制过来不会显示；不看 rootId，游戏换目录后旧目录的备份照常列出和恢复 | backup-store/files/ipc、backup-bridge、directory-adapter、启动/preload |
 | Windows 受保护写入与恢复 | 先重扫目标和核对全部输入，预检同卷峰值；备份开启且有写入时保存目标目录全部文件，再按计划创建目录和逐文件发布。同卷候选 fsync/回读，覆盖前再核对旧内容和身份，最终回读后才成功。本机恢复引用输入且强制保护当前文件；候选清理失败时继续占用互斥 | sync-writer、sync-target-files、target-operation、directory-adapter、transfer-registry、启动 |
 | Android → Windows 复制 | 确认后先登记完整计划，源归档期间以原生只读心跳确认通信，清单/内容各一次；Windows 绑定缓存扫描和双向项目关联，合计同卷缓存/备份/新文件余量，完整归档校验后备份并写入。sender sent 与实际 receiver 结果是两个状态；短暂查询恢复后继续等原任务，清理完成后才释放名额。普通扫描不保活，确认执行由应用级任务和通知持有，Native/TS 分别核对完整结果 | 复用原生归档与受保护写入 |
 | Windows → Android 复制 | Windows 接纳后复核整个源快照并准备不可变归档，扫描资源释放后进入 ready；移动端核对清单并检查缓存/备份/已知同卷增量后单次 GET，完整校验后借用确认名额执行保护写入。目标备份设置来自移动端本机项目，发送端末次查询与移动端实际结果独立；本机 IO 期间使用原任务心跳，清理失败保留缓存和名额 | 备份清理及轮换失败不占名额，也不挡下一次传输，删不掉的备份下一次轮换再删；传输任务结束时的清理把 `cleanupError` 置空，所以这种失败界面不提示（Q-013）；读写器借用名额时不释放外围所有者 |

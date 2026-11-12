@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Button } from 'antd-mobile'
 import { ReloadOutlined, StopOutlined } from '@ant-design/icons'
 import { observeSyncJob, toShownError } from '@savedata-sync/shared'
-import type { LibraryGame, LibraryPeer, ShownError } from '@savedata-sync/shared'
+import type { LibraryGame, LibraryPeer, ShownError, TransferDirection } from '@savedata-sync/shared'
 import { SyncTaskSummary, useT } from '@savedata-sync/shared/ui'
 import { useFailureMessage } from '../../app/failure-message'
 import type { PlanEndpoint } from '@savedata-sync/shared/ui'
@@ -51,7 +51,8 @@ export function SyncTaskDetails({
   readonly peers: readonly LibraryPeer[]
   readonly errors: readonly ShownError[]
   readonly onChanged: () => void
-  readonly onRescan: (projectId: string, deviceId: string) => void
+  /** 用这次传输的游戏、设备和方向重新比较。 */
+  readonly onRescan: (projectId: string, deviceId: string, direction: TransferDirection) => void
   readonly onBackup: (projectId: string) => void
 }): React.JSX.Element {
   const t = useT()
@@ -149,7 +150,9 @@ export function SyncTaskDetails({
               label={t('task.rescan')}
               isDisabled={isBusy}
               isLoading={false}
-              onClick={() => onRescan(binding.projectId, binding.remoteDeviceId)}
+              onClick={() =>
+                onRescan(binding.projectId, binding.remoteDeviceId, copy.preview.direction)
+              }
             />
           )}
         </>

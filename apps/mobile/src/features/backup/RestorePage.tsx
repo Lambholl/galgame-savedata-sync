@@ -21,7 +21,7 @@ export function RestorePage({
   readonly sync: MobileSyncAdapter
   /** 当前打开的这次恢复；还没查到时为 null，按准备中显示。 */
   readonly restore: MobileRestoreDetails | null
-  /** 游戏当前的目录；与备份所在目录不同时不能恢复。 */
+  /** 游戏当前的目录；与这次恢复准备时的目录不同时不能恢复。 */
   readonly rootId: string | null
   /** 计划里来源一端的名称，通常是备份时间。 */
   readonly sourceName: string
@@ -47,17 +47,19 @@ export function RestorePage({
       })
   }
   if (state?.status === 'ready' && plan) {
-    const isOldFolder = state.rootId !== rootId
+    const hasFolderChanged = state.rootId !== rootId
     return (
       <PlanConfirm
         plan={plan}
         source={{ name: sourceName, kind: 'backup' }}
         target={{ name: t('transfer.local'), kind: 'mobile' }}
         backupKeepCount={null}
-        notice={isOldFolder && <p className="notice notice-warning">{t('backup.oldFolder')}</p>}
+        notice={
+          hasFolderChanged && <p className="notice notice-warning">{t('backup.folderChanged')}</p>
+        }
         action={{
           label: t('backup.confirmRestore'),
-          isDisabled: isDisabled || !plan.canExecute || isOldFolder,
+          isDisabled: isDisabled || !plan.canExecute || hasFolderChanged,
           isLoading: isBusy,
           onClick: () => run(() => sync.executeRestore(state.restoreId)),
         }}

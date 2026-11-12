@@ -78,7 +78,6 @@ export function TaskStrip({ task, onOpen }: TaskStripProps): ReactElement {
             className="ss-task-strip-progress"
             steps={SYNC_TASK_STEPS.length}
             percent={(activeCount / SYNC_TASK_STEPS.length) * 100}
-            rounding={Math.floor}
             showInfo={false}
             size={[14, 4]}
             strokeColor={colors}

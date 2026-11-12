@@ -48,11 +48,11 @@ final class SyncTransferEngine implements AutoCloseable {
 
     List<ArchiveModel.Source> sources(SyncPlanModel.Plan plan) throws Exception;
 
-    default boolean backup(String projectId, String rootId) throws Exception {
+    default boolean backup(String projectId) throws Exception {
       throw fail("unsupported-operation");
     }
 
-    default long backupKeep(String projectId, String rootId) throws Exception {
+    default long backupKeep(String projectId) throws Exception {
       throw fail("unsupported-operation");
     }
 
@@ -598,10 +598,10 @@ final class SyncTransferEngine implements AutoCloseable {
       accessing = null;
       boolean shouldBackup = preparation.upload()
         ? shouldBackupRemote
-        : local.backup(string(binding.get("projectId")), sourceRoot);
+        : local.backup(string(binding.get("projectId")));
       long backupKeepCount = preparation.upload()
         ? SyncJobModel.backupKeepCount(descriptor)
-        : local.backupKeep(string(binding.get("projectId")), sourceRoot);
+        : local.backupKeep(string(binding.get("projectId")));
       transport.verifySync(connection, binding);
       preparation.control.check();
       Map<String, Object> preview = object(
@@ -932,7 +932,7 @@ final class SyncTransferEngine implements AutoCloseable {
       );
       boolean shouldBackup = job.preparation.upload()
         ? shouldBackupRemote
-        : local.backup(job.plan.project, job.plan.target.root);
+        : local.backup(job.plan.project);
       if (shouldBackup != job.plan.shouldBackup) {
         throw new ArchiveFailure(
           "source-changed",
@@ -1323,7 +1323,7 @@ final class SyncTransferEngine implements AutoCloseable {
       throw fail("permission-denied");
     }
     transport.verifySync(job.preparation.connection, job.preparation.binding);
-    if (local.backup(project, root) != job.plan.shouldBackup) {
+    if (local.backup(project) != job.plan.shouldBackup) {
       throw new ArchiveFailure(
         "source-changed",
         "Mobile device backup settings changed. Confirm again."

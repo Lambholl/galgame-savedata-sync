@@ -36,6 +36,7 @@ export function SyncCopyPage({
   localRoot,
   deviceName,
   peerId,
+  initialDirection,
   isPlan,
   isDisabled,
   isTransferActive,
@@ -52,6 +53,8 @@ export function SyncCopyPage({
   readonly localRoot: DirectoryReference | null
   readonly deviceName: string | null
   readonly peerId: string
+  /** 页面打开时的传输方向，之后由页面里的翻转按钮改变。 */
+  readonly initialDirection: TransferDirection
   readonly isPlan: boolean
   readonly isDisabled: boolean
   /** 有传输或恢复在进行时不发起新的扫描。 */
@@ -66,7 +69,7 @@ export function SyncCopyPage({
   readonly onFailure: (error: ShownError) => void
 }): React.JSX.Element {
   const t = useT()
-  const [direction, setDirection] = useState<TransferDirection>('windows-to-android')
+  const [direction, setDirection] = useState<TransferDirection>(initialDirection)
   const [preparation, setPreparation] = useState<SyncPreparationState | null>(null)
   const [preview, setPreview] = useState<SyncPreparationPreview | null>(null)
   /** 扫描失败的原因；null 表示没有失败。 */

@@ -254,8 +254,8 @@ export const jaJP: Messages = {
   'backup.restoreFailed': '復元失敗',
   'backup.restoreCancelled': '復元をキャンセルしました',
   'backup.restoreUnknown': '復元結果未確認',
-  'backup.oldFolder':
-    '以前の保存先のバックアップです。復元する前に、ゲーム設定で保存先を以前のフォルダーに戻してください。',
+  'backup.folderChanged':
+    'この復元を準備した後にゲームの保存先が変わりました。戻ってバックアップを選び直してください。',
   'backup.noGame': 'ゲームから「バックアップと復元」を開いてください。',
   'backup.noFolder': '先にゲーム設定でこの端末の保存先を選んでください。',
   'backup.readFailed': 'バックアップを読み取れません',

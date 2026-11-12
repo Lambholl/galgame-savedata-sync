@@ -22,6 +22,7 @@ import type {
   LibraryGame,
   LibraryPeer,
   ShownError,
+  TransferDirection,
 } from '@savedata-sync/shared'
 import type { MobileLibraryAdapter, MobileSnapshot } from '../platform/library-types'
 import { deviceDiscovery, findDevice } from '../platform/device-discovery'
@@ -134,6 +135,8 @@ export function MobileApp({
     readonly restoreId: string
     readonly sourceName: string
   } | null>(null)
+  // 比较页打开时的方向：从任务详情重新扫描时沿用那次传输的方向，从其它入口打开用默认方向。
+  const [syncDirection, setSyncDirection] = useState<TransferDirection>('windows-to-android')
   // 设备页正在连接的设备 ID，行内显示转圈；只在 isBusy 期间有效。
   const [connectingId, setConnectingId] = useState<string | null>(null)
   useEffect(() => {
@@ -325,7 +328,15 @@ export function MobileApp({
         setIsBusy(false)
       })
   }
-  const config = snapshot?.config ?? EMPTY
+  // 页面重建后第一次读取要等目录和连接查完，这之前先用本机保存的配置，游戏和设备名不会显示成“未知”。
+  const [savedConfig] = useState(() => {
+    try {
+      return adapter.savedConfig()
+    } catch {
+      return EMPTY
+    }
+  })
+  const config = snapshot?.config ?? savedConfig
   const game = config.games.find((item) => item.id === gameId) ?? null
   const interruptedWrite = interruptedWrites[0] ?? null
   function dismissInterruptedWrite(): void {
@@ -337,13 +348,20 @@ export function MobileApp({
       .dismissInterruptedWrite(interruptedWrite.id)
       .catch((cause: unknown) => showError(toShownError(cause)))
   }
-  const peers = snapshot?.peers ?? []
+  const peers =
+    snapshot?.peers ??
+    savedConfig.devices.map((device) => ({ device, isConnected: false, games: [] }))
   const online = peers.find((item) => item.isConnected) ?? null
+  // 连接返回后要等控制通道打开才算在线，这期间仍显示连接中，否则“连接”按钮会再出现一次。
+  const opening = peers.find((item) => item.device.id === snapshot?.connectingId) ?? null
   const localRoot = snapshot?.roots.find((item) => item.rootId === game?.rootId) ?? null
   const isActive = (snapshot?.tasks.some(taskIsActive) ?? false) || syncTasks.isActive
   const isDisabled = isBusy || !snapshot
   const copyProjectId = syncTasks.copy?.preview.binding.projectId ?? null
-  const copyPreview = syncTasks.copy
+  // 游戏移除后，它已结束的传输和恢复不再放进任务条，否则任务条留着一条名为“未知”的记录。
+  const isStripShown = (projectId: string | null, phase: TaskStripInfo['phase']): boolean =>
+    phase === 'running' || config.games.some((item) => item.id === projectId)
+  const copyObserved = syncTasks.copy
     ? syncTaskPreview(
         observeSyncJob(
           syncTasks.copy.state.local,
@@ -355,13 +373,20 @@ export function MobileApp({
     : null
   const openRestore =
     syncTasks.restore?.state.restoreId === restoreTarget?.restoreId ? syncTasks.restore : null
-  const restorePreview = syncTasks.restore
+  const copyPreview =
+    copyObserved && isStripShown(copyProjectId, copyObserved.phase) ? copyObserved : null
+  const restoreObserved = syncTasks.restore
     ? restoreTaskPreview(
         syncTasks.restore.state.status,
         Boolean(syncTasks.restore.state.result?.cleanupError),
         t,
       )
     : null
+  const restorePreview =
+    restoreObserved &&
+    isStripShown(syncTasks.restore?.state.projectId ?? null, restoreObserved.phase)
+      ? restoreObserved
+      : null
   const legacy = snapshot?.tasks.find(taskIsActive) ?? snapshot?.tasks.at(-1) ?? null
   const shouldShowCopy =
     copyPreview && (copyPreview.phase === 'running' || restorePreview?.phase !== 'running')
@@ -642,8 +667,9 @@ export function MobileApp({
     }, showConnectionFailure)
   }
   function openScan(): void {
-    if (online) {
-      showConnectBlocked(online.device.name)
+    const current = online ?? opening
+    if (current) {
+      showConnectBlocked(current.device.name)
     } else {
       navigation.open('scan')
     }
@@ -836,7 +862,7 @@ export function MobileApp({
       <DevicesPage
         peers={peers}
         online={online}
-        connectingId={isBusy ? connectingId : null}
+        connectingId={(isBusy ? connectingId : null) ?? opening?.device.id ?? null}
         isDisabled={isDisabled}
         isActive={isActive}
         onConnect={connectDevice}
@@ -865,6 +891,7 @@ export function MobileApp({
       <GamesPage
         games={config.games}
         online={online}
+        isConnectionKnown={snapshot !== null}
         task={stripTask}
         onOpenGame={openGame}
         onOpenTasks={() =>
@@ -889,6 +916,7 @@ export function MobileApp({
         onUnlink={unlinkGame}
         onTransfer={(deviceId) => {
           setPeerId(deviceId)
+          setSyncDirection('windows-to-android')
           navigation.open('sync')
         }}
         onManageDevices={() => navigation.open('devices')}
@@ -905,6 +933,7 @@ export function MobileApp({
         localRoot={localRoot}
         deviceName={snapshot?.deviceName ?? null}
         peerId={peerId}
+        initialDirection={syncDirection}
         isPlan={page === 'sync-plan'}
         isDisabled={isDisabled || isActive}
         isTransferActive={isActive}
@@ -948,9 +977,10 @@ export function MobileApp({
           peers={peers}
           errors={syncTasks.errors}
           onChanged={syncTasks.reload}
-          onRescan={(projectId, deviceId) => {
+          onRescan={(projectId, deviceId, direction) => {
             setGameId(projectId)
             setPeerId(deviceId)
+            setSyncDirection(direction)
             navigation.open('sync')
           }}
           onBackup={openBackup}
@@ -1039,7 +1069,10 @@ export function MobileApp({
         <GameActions
           caption={`${localRoot?.displayName ?? t('game.noFolder')} · ${t('game.linkCount', { count: game?.links.length ?? 0 })}`}
           isRemoveDisabled={isActive}
-          onTransfer={() => go('sync')}
+          onTransfer={() => {
+            setSyncDirection('windows-to-android')
+            go('sync')
+          }}
           onSettings={() => go('edit')}
           onBackup={() => go('backup')}
           onTasks={() => openTasks(game?.id ?? null)}

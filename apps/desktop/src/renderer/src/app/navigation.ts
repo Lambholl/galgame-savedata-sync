@@ -7,7 +7,6 @@ export type Page = 'devices' | 'games' | 'settings' | 'edit' | 'transfer' | 'tas
 /** 重新显示一个页面需要的上下文。 */
 export interface PageContext {
   readonly gameId: string
-  readonly backupRootId: string | null
   readonly taskProjectId: string | null
   readonly taskCopyId: string | null
   readonly taskRestoreId: string | null

@@ -261,8 +261,8 @@ export const enUS: Messages = {
   'backup.restoreFailed': 'Restore failed',
   'backup.restoreCancelled': 'Restore cancelled',
   'backup.restoreUnknown': 'Restore result not confirmed',
-  'backup.oldFolder':
-    'This backup is from a previous folder. Switch back to that folder in game settings before restoring.',
+  'backup.folderChanged':
+    'The game folder changed after this restore was prepared. Go back and choose the backup again.',
   'backup.noGame': 'Open Backup & restore from a game.',
   'backup.noFolder': 'Choose a save folder on this device in game settings first.',
   'backup.readFailed': 'Could not read backups',

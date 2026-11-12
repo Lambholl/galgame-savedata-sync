@@ -1058,7 +1058,7 @@ final class SyncWriter implements AutoCloseable {
     BackupStore.Handle handle = null;
     try {
       backend.authorizeProject(projectId, rootId, control);
-      handle = backups.acquire(projectId, rootId, backupId, control);
+      handle = backups.acquire(projectId, backupId, control);
       Restore result = new Restore(projectId, rootId, handle, scanner.snapshotNow(rootId, control));
       control.check();
       synchronized (this) {

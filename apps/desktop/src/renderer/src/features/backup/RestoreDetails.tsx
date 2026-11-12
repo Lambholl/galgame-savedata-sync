@@ -44,7 +44,7 @@ export function RestoreDetails({
   readonly onClose: () => void
   readonly onChanged: () => void
   /** 打开这次恢复所在游戏的备份页；已经在备份页时为 null。 */
-  readonly onOpenBackup: ((projectId: string, rootId: string) => void) | null
+  readonly onOpenBackup: ((projectId: string) => void) | null
 }): React.JSX.Element {
   const t = useT()
   const resource = useRestoreDetails(restoreId)
@@ -108,7 +108,7 @@ export function RestoreDetails({
       isDanger: false,
       isLoading: false,
       isDisabled: false,
-      onClick: () => onOpenBackup(state.projectId, state.rootId),
+      onClick: () => onOpenBackup(state.projectId),
     }
   }
   return (

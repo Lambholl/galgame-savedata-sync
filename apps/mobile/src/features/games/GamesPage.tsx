@@ -8,12 +8,15 @@ import { GameCard } from './GameCard'
 export function GamesPage({
   games,
   online,
+  isConnectionKnown,
   task,
   onOpenGame,
   onOpenTasks,
 }: {
   readonly games: readonly LibraryGame[]
   readonly online: LibraryPeer | null
+  /** 还没读到连接状态时连接状态一行留空，不显示未连接。 */
+  readonly isConnectionKnown: boolean
   readonly task: TaskStripInfo | null
   readonly onOpenGame: (game: LibraryGame) => void
   readonly onOpenTasks: () => void
@@ -23,7 +26,11 @@ export function GamesPage({
     <>
       <div className="connection-status">
         <span className={`status-dot ${online ? 'online' : ''}`} />
-        {online ? t('app.connectedTo', { name: online.device.name }) : t('device.noneConnected')}
+        {online
+          ? t('app.connectedTo', { name: online.device.name })
+          : isConnectionKnown
+            ? t('device.noneConnected')
+            : ' '}
       </div>
       {task && <TaskStrip task={task} onOpen={onOpenTasks} />}
       {games.length ? (

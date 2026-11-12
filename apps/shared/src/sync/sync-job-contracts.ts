@@ -13,7 +13,7 @@ export interface SyncProjectDescriptor {
   readonly deviceId: string
   readonly rootId: string
   readonly shouldBackup: boolean
-  /** 目标端这个游戏目录实际生效的保留份数。 */
+  /** 目标端这个游戏实际生效的保留份数。 */
   readonly backupKeepCount: number
 }
 

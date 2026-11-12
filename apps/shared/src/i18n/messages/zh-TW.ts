@@ -245,7 +245,7 @@ export const zhTW: Messages = {
   'backup.restoreFailed': '還原失敗',
   'backup.restoreCancelled': '已取消還原',
   'backup.restoreUnknown': '還原結果待確認',
-  'backup.oldFolder': '這是之前目錄的備份。還原前請在遊戲設定中切回這個目錄。',
+  'backup.folderChanged': '準備還原之後遊戲目錄換了，請返回重新選擇備份。',
   'backup.noGame': '請從遊戲進入備份與還原。',
   'backup.noFolder': '請先在遊戲設定中選擇本機存檔目錄。',
   'backup.readFailed': '讀取備份失敗',

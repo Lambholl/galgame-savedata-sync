@@ -257,7 +257,7 @@ export const zhCN = {
   'backup.restoreFailed': '恢复失败',
   'backup.restoreCancelled': '恢复已取消',
   'backup.restoreUnknown': '恢复结果待确认',
-  'backup.oldFolder': '这是之前目录的备份。恢复前请在游戏设置中切回这个目录。',
+  'backup.folderChanged': '准备恢复之后游戏目录换了，请返回重新选择备份。',
   'backup.noGame': '请从游戏进入备份与恢复。',
   'backup.noFolder': '请先在游戏设置中选择本机存档目录。',
   'backup.readFailed': '读取备份失败',

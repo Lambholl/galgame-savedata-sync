@@ -38,7 +38,7 @@ import {
   useT,
 } from '@savedata-sync/shared/ui'
 import { useAppMessage } from './app-message.ts'
-import { useFailureMessage } from './failure-message.ts'
+import { useShowFailure } from './failure-message.ts'
 import type { TaskStripInfo } from '@savedata-sync/shared/ui'
 import { PAGE_TITLE_KEYS } from './navigation.ts'
 import type { Confirmation, Page, PageContext } from './navigation.ts'
@@ -77,13 +77,11 @@ export function DesktopApp({
   const [taskRestoreId, setTaskRestoreId] = useState<string | null>(null)
   const [snapshot, setSnapshot] = useState<DesktopSnapshot | null>(null)
   // 失败用 Message 提示一次，不在页面里放横幅。
-  const [showError, failureHolder] = useFailureMessage()
+  const showError = useShowFailure(appMessage)
   const [isBusy, setIsBusy] = useState(false)
   const [gameId, setGameId] = useState('')
-  const [backupRootId, setBackupRootId] = useState<string | null>(null)
   const pageContext: PageContext = {
     gameId,
-    backupRootId,
     taskProjectId,
     taskCopyId,
     taskRestoreId,
@@ -94,7 +92,6 @@ export function DesktopApp({
     context: pageContext,
     onRestore: (context) => {
       setGameId(context.gameId)
-      setBackupRootId(context.backupRootId)
       setTaskProjectId(context.taskProjectId)
       setTaskCopyId(context.taskCopyId)
       setTaskRestoreId(context.taskRestoreId)
@@ -287,10 +284,17 @@ export function DesktopApp({
   const hasRunningWork =
     hasRunningNetworkWork || Boolean(snapshot?.restores.some((task) => task.isWorking))
   const isDisabled = isBusy || !snapshot
-  const copiesByRecent = [...(snapshot?.copies ?? [])].sort((a, b) => b.updatedAt - a.updatedAt)
+  // 游戏移除后，它已结束的传输和恢复不再放进任务条，否则任务条留着一条名为“未知”的记录。
+  const isStripShown = (projectId: string, isWorking: boolean): boolean =>
+    isWorking || config.games.some((item) => item.id === projectId)
+  const copiesByRecent = [...(snapshot?.copies ?? [])]
+    .filter((item) => isStripShown(item.projectId, item.phase === 'running'))
+    .sort((a, b) => b.updatedAt - a.updatedAt)
   const copy = copiesByRecent.find((item) => item.phase === 'running') ?? copiesByRecent[0] ?? null
   const gameCopy = copiesByRecent.find((item) => item.projectId === game?.id) ?? null
-  const restoresByRecent = [...(snapshot?.restores ?? [])].sort((a, b) => b.updatedAt - a.updatedAt)
+  const restoresByRecent = [...(snapshot?.restores ?? [])]
+    .filter((item) => isStripShown(item.projectId, item.isWorking))
+    .sort((a, b) => b.updatedAt - a.updatedAt)
   const restore = restoresByRecent.find((item) => item.isWorking) ?? restoresByRecent[0] ?? null
   const copyPreview = copy ? syncTaskPreview(copy, t) : null
   const legacy = snapshot?.tasks.find(taskIsActive) ?? snapshot?.tasks.at(-1) ?? null
@@ -337,7 +341,6 @@ export function DesktopApp({
     )
   function openGame(item: LibraryGame): void {
     setGameId(item.id)
-    setBackupRootId(null)
     // 优先选已连接的设备；都没连接时，只有一台才能替用户定下来。
     const connected = item.links.find((link) =>
       peers.some((peer) => peer.isConnected && peer.device.id === link.deviceId),
@@ -516,9 +519,6 @@ export function DesktopApp({
   }
   function go(value: Page): void {
     setIsGameActionDialogOpen(false)
-    if (value === 'backup') {
-      setBackupRootId(null)
-    }
     navigation.open(value)
   }
   function showTask(
@@ -539,9 +539,8 @@ export function DesktopApp({
     showTask(projectId, copyId, restoreId)
     navigation.open('task')
   }
-  function openBackup(projectId: string, rootId: string, sourceContext?: PageContext): void {
+  function openBackup(projectId: string, sourceContext?: PageContext): void {
     setGameId(projectId)
-    setBackupRootId(rootId)
     navigation.open('backup', sourceContext)
   }
   function dismissInterruptedWrite(): void {
@@ -750,16 +749,17 @@ export function DesktopApp({
         onCancel={(id) => run(() => adapter.cancel(id))}
         onCleanup={() => run(() => adapter.cleanup())}
         onChanged={tasksChanged}
-        onOpenBackup={(projectId, rootId, shownCopyId) =>
-          openBackup(projectId, rootId, {
+        onOpenBackup={(projectId, shownCopyId) =>
+          openBackup(projectId, {
             ...pageContext,
             taskCopyId: shownCopyId,
             taskRestoreId: null,
           })
         }
-        onRescan={(projectId, deviceId, shownCopyId) => {
+        onRescan={(projectId, deviceId, direction, shownCopyId) => {
           setGameId(projectId)
           setPeerId(deviceId)
+          setUpload(direction === 'android-to-windows')
           navigation.open('transfer', {
             ...pageContext,
             taskCopyId: shownCopyId,
@@ -771,10 +771,9 @@ export function DesktopApp({
   } else if (page === 'backup') {
     body = (
       <BackupPage
-        key={`${gameId}/${backupRootId ?? game?.rootId ?? ''}`}
+        key={gameId}
         roots={snapshot?.roots ?? []}
         game={game}
-        rootId={backupRootId ?? game?.rootId ?? null}
         isActive={isActive}
         hasRunningWork={hasRunningWork}
         onOpenSettings={() => navigation.open('edit')}
@@ -807,7 +806,6 @@ export function DesktopApp({
   const dialogs = (
     <>
       {messageContextHolder}
-      {failureHolder}
       <AddGameDialog
         isOpen={isAddGameOpen}
         directory={newDirectory}
@@ -879,7 +877,7 @@ export function DesktopApp({
         hasBackup={Boolean(interruptedWrite?.backupId)}
         onViewBackup={() => {
           if (interruptedWrite) {
-            openBackup(interruptedWrite.projectId, interruptedWrite.rootId)
+            openBackup(interruptedWrite.projectId)
             dismissInterruptedWrite()
           }
         }}

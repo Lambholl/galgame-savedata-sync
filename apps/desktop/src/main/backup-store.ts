@@ -15,6 +15,7 @@ import {
   isSyncBackupSettings,
   isSyncPlan,
   isSyncSnapshot,
+  readSyncBackupSettings,
   resolveBackupPolicy,
   selectSyncBackupFiles,
   syncPathKey,
@@ -124,12 +125,9 @@ function operationSignal(controller: AbortController, options: WindowsBackupOpti
     ...(options.signal ? [options.signal] : []),
   ])
 }
-function group(projectId: string, rootId: string): void {
-  if (!isOpaqueId(projectId) || !isOpaqueId(rootId)) {
-    throw new ArchiveError(
-      'invalid-request',
-      'The backup project or directory reference is invalid.',
-    )
+function group(projectId: string): void {
+  if (!isOpaqueId(projectId)) {
+    throw new ArchiveError('invalid-request', 'The backup game reference is invalid.')
   }
 }
 function hasErrorCode(error: unknown, code: string): boolean {
@@ -146,8 +144,9 @@ async function exists(path: string): Promise<boolean> {
     throw error
   }
 }
-function isInGroup(round: BackupRound, projectId: string, rootId: string): boolean {
-  return round.manifest.projectId === projectId && round.manifest.rootId === rootId
+// 备份按游戏归组，不看 rootId：游戏换了目录后，旧目录的备份照常列出、轮换和恢复。
+function isInGroup(round: BackupRound, projectId: string): boolean {
+  return round.manifest.projectId === projectId
 }
 function contentPath(roundPath: string, file: SyncBackupFile): string {
   return join(roundPath, CONTENT, ...file.path)
@@ -310,7 +309,7 @@ export class WindowsBackupHandle {
       return null
     }
     this.isReleased = true
-    return this.store.release(this, this.round.manifest.projectId, this.round.manifest.rootId)
+    return this.store.release(this, this.round.manifest.projectId)
   }
   /** 关闭这份备份打开的全部读流。 */
   async close(): Promise<void> {
@@ -429,11 +428,11 @@ export class WindowsBackupStore {
     }
     return result
   }
-  /** 列出这个游戏目录的已提交备份和残留备份。 */
-  list(projectId: string, rootId: string): Promise<WindowsBackupListing> {
-    group(projectId, rootId)
+  /** 列出这个游戏在本机所有目录下的已提交备份和残留备份。 */
+  list(projectId: string): Promise<WindowsBackupListing> {
+    group(projectId)
     return this.exclusive(async () => {
-      const rounds = (await this.rounds()).filter((round) => isInGroup(round, projectId, rootId))
+      const rounds = (await this.rounds()).filter((round) => isInGroup(round, projectId))
       const incomplete: SyncIncompleteBackup[] = []
       for (const round of rounds) {
         if (!round.isComplete) {
@@ -452,7 +451,7 @@ export class WindowsBackupStore {
       }
     })
   }
-  /** 读取备份设置；设置文件不存在时返回默认设置，文件损坏时抛错。 */
+  /** 读取备份设置；设置文件不存在时返回默认设置，旧格式转换为当前格式，文件损坏时抛错。 */
   settings(): Promise<SyncBackupSettings> {
     return this.exclusive(() => this.readSettings())
   }
@@ -460,26 +459,20 @@ export class WindowsBackupStore {
     if (!(await exists(this.settingsFile))) {
       return EMPTY_BACKUP_SETTINGS
     }
-    const value = await readBackupJson(this.settingsFile)
-    if (!isSyncBackupSettings(value)) {
+    const value = readSyncBackupSettings(await readBackupJson(this.settingsFile))
+    if (!value) {
       throw new ArchiveError('invalid-request', 'Backup settings are damaged.')
     }
     return value
   }
-  /** 单独设置某个游戏目录；policy 为 null 时改回跟随全局设置。 */
-  setPreference(
-    projectId: string,
-    rootId: string,
-    policy: SyncBackupPolicy | null,
-  ): Promise<SyncBackupSettings> {
-    group(projectId, rootId)
+  /** 单独设置某个游戏；policy 为 null 时改回跟随全局设置。 */
+  setPreference(projectId: string, policy: SyncBackupPolicy | null): Promise<SyncBackupSettings> {
+    group(projectId)
     return this.exclusive(async () =>
-      this.writeSettings(
-        withBackupPreference(await this.readSettings(), projectId, rootId, policy),
-      ),
+      this.writeSettings(withBackupPreference(await this.readSettings(), projectId, policy)),
     )
   }
-  /** 修改全局设置；单独设置的游戏目录不受影响。 */
+  /** 修改全局设置；单独设置的游戏不受影响。 */
   setDefaults(policy: SyncBackupPolicy): Promise<SyncBackupSettings> {
     return this.exclusive(async () =>
       this.writeSettings(withBackupDefaults(await this.readSettings(), policy)),
@@ -723,7 +716,7 @@ export class WindowsBackupStore {
         hasCommitted = true
         let cleanupError: KnownOperationError | null = null
         try {
-          await this.prune(fixed.projectId, fixed.target.rootId)
+          await this.prune(fixed.projectId)
         } catch (error) {
           cleanupError = cleanupFailure(error)
         }
@@ -778,11 +771,11 @@ export class WindowsBackupStore {
     })
   }
   /** 按保留份数删除多余的旧备份；只有完整的备份计入份数。 */
-  private async prune(projectId: string, rootId: string): Promise<void> {
+  private async prune(projectId: string): Promise<void> {
     const rounds = (await this.rounds())
-      .filter((round) => round.isComplete && isInGroup(round, projectId, rootId))
+      .filter((round) => round.isComplete && isInGroup(round, projectId))
       .sort((a, b) => b.manifest.createdAt - a.manifest.createdAt)
-    const { keepCount } = resolveBackupPolicy(await this.readSettings(), projectId, rootId)
+    const { keepCount } = resolveBackupPolicy(await this.readSettings(), projectId)
     for (const round of rounds.slice(keepCount)) {
       if (![...this.handles.values()].includes(round.manifest.backupId)) {
         await this.remove(round)
@@ -792,20 +785,19 @@ export class WindowsBackupStore {
   /** 完整复核一份备份并取得引用；引用释放前这份备份不参加轮换。 */
   acquire(
     projectId: string,
-    rootId: string,
     backupId: string,
     options: WindowsBackupOptions = {},
   ): Promise<WindowsBackupHandle> {
-    group(projectId, rootId)
+    group(projectId)
     return this.exclusive(async () => {
       if (this.handles.size >= 32) {
         throw new ArchiveError('resource-limit', 'Too many backup read references are open.')
       }
-      const round = await this.lookup(projectId, rootId, backupId)
+      const round = await this.lookup(projectId, backupId)
       if (!round?.isComplete) {
         throw new ArchiveError(
           'not-found',
-          'The backup does not exist or does not belong to this project directory.',
+          'The backup does not exist or does not belong to this game.',
         )
       }
       const controller = new AbortController(),
@@ -827,50 +819,45 @@ export class WindowsBackupStore {
       }
     })
   }
-  private async lookup(
-    projectId: string,
-    rootId: string,
-    backupId: string,
-  ): Promise<BackupRound | undefined> {
+  private async lookup(projectId: string, backupId: string): Promise<BackupRound | undefined> {
     return (await this.rounds()).find(
-      (round) => isInGroup(round, projectId, rootId) && round.manifest.backupId === backupId,
+      (round) => isInGroup(round, projectId) && round.manifest.backupId === backupId,
     )
   }
   /**
-   * 去掉句柄的引用，再轮换这个游戏目录的旧备份。
+   * 去掉句柄的引用，再轮换这个游戏的旧备份。
    *
    * @returns 轮换失败时返回错误，否则返回 null。
    */
   async release(
     handle: WindowsBackupHandle,
     projectId: string,
-    rootId: string,
   ): Promise<KnownOperationError | null> {
     this.handles.delete(handle)
     if (this.isClosed) {
       return null
     }
     try {
-      await this.exclusive(() => this.prune(projectId, rootId))
+      await this.exclusive(() => this.prune(projectId))
       return null
     } catch (error) {
       return cleanupFailure(error)
     }
   }
   /** 按保留份数删除多余的旧备份；正在使用或不完整的备份保留。 */
-  rotate(projectId: string, rootId: string): Promise<void> {
-    group(projectId, rootId)
-    return this.exclusive(() => this.prune(projectId, rootId))
+  rotate(projectId: string): Promise<void> {
+    group(projectId)
+    return this.exclusive(() => this.prune(projectId))
   }
   /**
    * 删除一份残留备份；备份已不存在时视为成功。
    *
    * @throws ArchiveError 这份备份完整时抛出，错误码为 permission-denied。
    */
-  cleanupIncomplete(projectId: string, rootId: string, backupId: string): Promise<void> {
-    group(projectId, rootId)
+  cleanupIncomplete(projectId: string, backupId: string): Promise<void> {
+    group(projectId)
     return this.exclusive(async () => {
-      const round = await this.lookup(projectId, rootId, backupId)
+      const round = await this.lookup(projectId, backupId)
       if (!round) {
         return
       }
@@ -884,10 +871,10 @@ export class WindowsBackupStore {
     })
   }
   /** 删除一份备份；备份已不存在时视为成功，正在用于恢复时抛错。中途失败时这份备份变成残留备份。 */
-  deleteBackup(projectId: string, rootId: string, backupId: string): Promise<void> {
-    group(projectId, rootId)
+  deleteBackup(projectId: string, backupId: string): Promise<void> {
+    group(projectId)
     return this.exclusive(async () => {
-      const round = await this.lookup(projectId, rootId, backupId)
+      const round = await this.lookup(projectId, backupId)
       if (round) {
         await this.remove(round)
       }

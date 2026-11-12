@@ -1,6 +1,11 @@
 import { useState } from 'react'
 import { Button, Card, Empty, Space, Tag } from 'antd'
-import type { LibraryGame, LibraryPeer, TransferTask } from '@savedata-sync/shared'
+import type {
+  LibraryGame,
+  LibraryPeer,
+  TransferDirection,
+  TransferTask,
+} from '@savedata-sync/shared'
 import type { DesktopCopySummary, DesktopRestoreSummary } from '../../../../bridge/sync-bridge.ts'
 import { TaskView } from './TaskView.tsx'
 import { SyncCopyDetails } from './SyncCopyDetails.tsx'
@@ -41,18 +46,23 @@ export function TaskPage({
   readonly onCleanup: () => void
   readonly onChanged: () => void
   /** shownCopyId 是页面正在显示的那次传输，返回时回到它。 */
-  readonly onOpenBackup: (projectId: string, rootId: string, shownCopyId: string | null) => void
-  /** shownCopyId 是页面正在显示的那次传输，返回时回到它。 */
-  readonly onRescan: (projectId: string, peerId: string, shownCopyId: string | null) => void
+  readonly onOpenBackup: (projectId: string, shownCopyId: string | null) => void
+  /** 用一次传输的游戏、设备和方向重新比较；shownCopyId 是页面正在显示的那次传输，返回时回到它。 */
+  readonly onRescan: (
+    projectId: string,
+    peerId: string,
+    direction: TransferDirection,
+    shownCopyId: string | null,
+  ) => void
 }): React.JSX.Element {
   const t = useT()
   const [copyId, setCopyId] = useState<string | null>(initialCopyId),
     [restoreId, setRestoreId] = useState<string | null>(initialRestoreId)
   // 默认显示最近一次传输；点历史记录切换。
   const copy = copies.find((item) => item.jobId === copyId) ?? copies[copies.length - 1] ?? null
-  function backup(projectId: string, rootId: string): void {
+  function backup(projectId: string): void {
     setRestoreId(null)
-    onOpenBackup(projectId, rootId, copy?.jobId ?? null)
+    onOpenBackup(projectId, copy?.jobId ?? null)
   }
   return (
     // 详情放在居中的窄栏里，结构与移动端相同。
@@ -73,7 +83,9 @@ export function TaskPage({
           games={games}
           peers={peers}
           onOpenBackup={backup}
-          onRescan={(rescanProjectId, peerId) => onRescan(rescanProjectId, peerId, copy.jobId)}
+          onRescan={(rescanProjectId, peerId, direction) =>
+            onRescan(rescanProjectId, peerId, direction, copy.jobId)
+          }
           onChanged={onChanged}
         />
       )}

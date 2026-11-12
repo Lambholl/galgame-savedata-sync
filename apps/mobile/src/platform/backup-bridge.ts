@@ -26,7 +26,7 @@ export interface AndroidBackupSummary {
   readonly fileCount: number
   readonly totalFileBytes: number
 }
-/** 一个游戏目录的已提交备份和残留备份。 */
+/** 一个游戏的已提交备份和残留备份。 */
 export interface AndroidBackupList {
   readonly backups: readonly AndroidBackupSummary[]
   readonly incomplete: readonly SyncIncompleteBackup[]
@@ -39,53 +39,36 @@ export interface AndroidBackupInfo {
 /** 备份的原生插件；方法与 AndroidBackupApi 的同名方法对应，返回值未经校验。 */
 export interface BackupNativePlugin {
   read(): Promise<unknown>
-  list(options: { projectId: string; rootId: string }): Promise<unknown>
-  manifest(options: { projectId: string; rootId: string; backupId: string }): Promise<unknown>
-  setPreference(options: {
-    projectId: string
-    rootId: string
-    policy: SyncBackupPolicy | null
-  }): Promise<unknown>
+  list(options: { projectId: string }): Promise<unknown>
+  manifest(options: { projectId: string; backupId: string }): Promise<unknown>
+  setPreference(options: { projectId: string; policy: SyncBackupPolicy | null }): Promise<unknown>
   setDefaults(options: { policy: SyncBackupPolicy }): Promise<unknown>
-  rotate(options: { projectId: string; rootId: string }): Promise<unknown>
-  cleanupIncomplete(options: {
-    projectId: string
-    rootId: string
-    backupId: string
-  }): Promise<unknown>
-  deleteBackup(options: { projectId: string; rootId: string; backupId: string }): Promise<unknown>
+  rotate(options: { projectId: string }): Promise<unknown>
+  cleanupIncomplete(options: { projectId: string; backupId: string }): Promise<unknown>
+  deleteBackup(options: { projectId: string; backupId: string }): Promise<unknown>
   deleteGameBackups(options: { projectId: string }): Promise<unknown>
 }
 /** 本机备份接口。所有方法的失败都以错误结果返回。 */
 export interface AndroidBackupApi {
   /** 读取备份位置和备份设置。 */
   read(): Promise<OperationResult<AndroidBackupInfo>>
-  /** 根据项目和目录列出本机备份。 */
-  list(projectId: string, rootId: string): Promise<OperationResult<AndroidBackupList>>
+  /** 列出这个游戏在本机所有目录下的备份。 */
+  list(projectId: string): Promise<OperationResult<AndroidBackupList>>
   /** 读取一份备份的清单。 */
-  manifest(
-    projectId: string,
-    rootId: string,
-    backupId: string,
-  ): Promise<OperationResult<SyncBackupManifest>>
-  /** 单独设置某个游戏目录；policy 为 null 时改回跟随全局。 */
+  manifest(projectId: string, backupId: string): Promise<OperationResult<SyncBackupManifest>>
+  /** 单独设置某个游戏；policy 为 null 时改回跟随全局。 */
   setPreference(
     projectId: string,
-    rootId: string,
     policy: SyncBackupPolicy | null,
   ): Promise<OperationResult<SyncBackupSettings>>
   /** 修改全局设置。 */
   setDefaults(policy: SyncBackupPolicy): Promise<OperationResult<SyncBackupSettings>>
-  /** 按保留份数删除这个游戏目录多余的旧备份；正在使用或不完整的备份保留。 */
-  rotate(projectId: string, rootId: string): Promise<OperationResult<null>>
+  /** 按保留份数删除这个游戏多余的旧备份；正在使用或不完整的备份保留。 */
+  rotate(projectId: string): Promise<OperationResult<null>>
   /** 删除一份残留备份。 */
-  cleanupIncomplete(
-    projectId: string,
-    rootId: string,
-    backupId: string,
-  ): Promise<OperationResult<null>>
+  cleanupIncomplete(projectId: string, backupId: string): Promise<OperationResult<null>>
   /** 删除一份已提交的备份。 */
-  deleteBackup(projectId: string, rootId: string, backupId: string): Promise<OperationResult<null>>
+  deleteBackup(projectId: string, backupId: string): Promise<OperationResult<null>>
   /** 删除一个游戏的全部备份和单独设置。 */
   deleteGameBackups(projectId: string): Promise<OperationResult<null>>
 }
@@ -156,7 +139,7 @@ function failure(
 /**
  * 用原生插件创建 AndroidBackupApi。
  *
- * @returns 返回值的格式、项目、目录或备份与请求不符时，对应方法返回 io-failure 错误结果。
+ * @returns 返回值的格式、游戏或备份与请求不符时，对应方法返回 io-failure 错误结果。
  */
 export function createBackupBridge(
   plugin: BackupNativePlugin,
@@ -186,38 +169,34 @@ export function createBackupBridge(
           value.displayPath.length > 0 &&
           isSyncBackupSettings(value.settings),
       ),
-    list: (projectId: string, rootId: string) =>
-      !isOpaqueId(projectId) || !isOpaqueId(rootId)
+    list: (projectId: string) =>
+      !isOpaqueId(projectId)
         ? Promise.resolve(failure('invalid-request'))
         : invoke(
-            () => plugin.list({ projectId, rootId }),
+            () => plugin.list({ projectId }),
             (value): value is AndroidBackupList =>
-              isListing(value) &&
-              value.backups.every((item) => item.projectId === projectId && item.rootId === rootId),
+              isListing(value) && value.backups.every((item) => item.projectId === projectId),
           ),
-    manifest: (projectId: string, rootId: string, backupId: string) =>
-      ![projectId, rootId, backupId].every(isOpaqueId)
+    manifest: (projectId: string, backupId: string) =>
+      ![projectId, backupId].every(isOpaqueId)
         ? Promise.resolve(failure('invalid-request'))
         : invoke(
-            () => plugin.manifest({ projectId, rootId, backupId }),
+            () => plugin.manifest({ projectId, backupId }),
             (value): value is SyncBackupManifest =>
               isSyncBackupManifest(value) &&
               value.projectId === projectId &&
-              value.rootId === rootId &&
               value.backupId === backupId,
           ),
-    setPreference: (projectId: string, rootId: string, policy: SyncBackupPolicy | null) =>
-      !isOpaqueId(projectId) ||
-      !isOpaqueId(rootId) ||
-      !(policy === null || isSyncBackupPolicy(policy))
+    setPreference: (projectId: string, policy: SyncBackupPolicy | null) =>
+      !isOpaqueId(projectId) || !(policy === null || isSyncBackupPolicy(policy))
         ? Promise.resolve(failure('invalid-request'))
         : invoke(
-            () => plugin.setPreference({ projectId, rootId, policy }),
+            () => plugin.setPreference({ projectId, policy }),
             (value): value is SyncBackupSettings => {
               if (!isSyncBackupSettings(value)) {
                 return false
               }
-              const saved = resolveBackupPolicy(value, projectId, rootId)
+              const saved = resolveBackupPolicy(value, projectId)
               return policy
                 ? saved.isCustom &&
                     saved.shouldBackup === policy.shouldBackup &&
@@ -235,25 +214,25 @@ export function createBackupBridge(
               value.defaults.shouldBackup === policy.shouldBackup &&
               value.defaults.keepCount === policy.keepCount,
           ),
-    rotate: (projectId: string, rootId: string) =>
-      !isOpaqueId(projectId) || !isOpaqueId(rootId)
+    rotate: (projectId: string) =>
+      !isOpaqueId(projectId)
         ? Promise.resolve(failure('invalid-request'))
         : invoke(
-            () => plugin.rotate({ projectId, rootId }),
+            () => plugin.rotate({ projectId }),
             (value): value is null => value === null,
           ),
-    cleanupIncomplete: (projectId: string, rootId: string, backupId: string) =>
-      ![projectId, rootId, backupId].every(isOpaqueId)
+    cleanupIncomplete: (projectId: string, backupId: string) =>
+      ![projectId, backupId].every(isOpaqueId)
         ? Promise.resolve(failure('invalid-request'))
         : invoke(
-            () => plugin.cleanupIncomplete({ projectId, rootId, backupId }),
+            () => plugin.cleanupIncomplete({ projectId, backupId }),
             (value): value is null => value === null,
           ),
-    deleteBackup: (projectId: string, rootId: string, backupId: string) =>
-      ![projectId, rootId, backupId].every(isOpaqueId)
+    deleteBackup: (projectId: string, backupId: string) =>
+      ![projectId, backupId].every(isOpaqueId)
         ? Promise.resolve(failure('invalid-request'))
         : invoke(
-            () => plugin.deleteBackup({ projectId, rootId, backupId }),
+            () => plugin.deleteBackup({ projectId, backupId }),
             (value): value is null => value === null,
           ),
     deleteGameBackups: (projectId: string) =>

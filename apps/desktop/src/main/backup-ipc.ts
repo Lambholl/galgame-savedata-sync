@@ -83,7 +83,6 @@ export function registerBackupIpc(
           const input = args[0]
           const fields = [
             'projectId',
-            'rootId',
             ...(action === 'manifest' || action === 'cleanupIncomplete' || action === 'deleteBackup'
               ? ['backupId']
               : []),
@@ -102,7 +101,6 @@ export function registerBackupIpc(
           const data = input as Record<string, unknown>
           if (
             !isOpaqueId(data.projectId) ||
-            !isOpaqueId(data.rootId) ||
             (fields.includes('backupId') && !isOpaqueId(data.backupId))
           ) {
             throw new HttpOperationError('invalid-request', 'The backup reference is invalid.')
@@ -124,27 +122,25 @@ export function registerBackupIpc(
             if (
               !library
                 .snapshot()
-                .config.games.some(
-                  (game) => game.id === data.projectId && game.rootId === data.rootId,
-                )
+                .config.games.some((game) => game.id === data.projectId && game.rootId !== null)
             ) {
               throw new HttpOperationError(
                 'invalid-request',
                 "Configure this game's local directory first.",
               )
             }
-            value = await store.setPreference(data.projectId, data.rootId, data.policy)
+            value = await store.setPreference(data.projectId, data.policy)
           } else if (action === 'rotate') {
-            await store.rotate(data.projectId, data.rootId)
+            await store.rotate(data.projectId)
             value = null
           } else if (action === 'cleanupIncomplete') {
-            await store.cleanupIncomplete(data.projectId, data.rootId, data.backupId as string)
+            await store.cleanupIncomplete(data.projectId, data.backupId as string)
             value = null
           } else if (action === 'deleteBackup') {
-            await store.deleteBackup(data.projectId, data.rootId, data.backupId as string)
+            await store.deleteBackup(data.projectId, data.backupId as string)
             value = null
           } else {
-            const listing = await store.list(data.projectId, data.rootId)
+            const listing = await store.list(data.projectId)
             if (action === 'manifest') {
               const manifest = listing.backups.find((item) => item.backupId === data.backupId)
               if (!manifest) {

@@ -1,7 +1,7 @@
 ---
 doc_type: api-contracts
 status: active
-updated: 2026-11-09
+updated: 2026-11-12
 tags: [API, 接口约定]
 related_files: []
 ---
@@ -74,11 +74,13 @@ Windows 提供 `/v1/sync/capabilities`、`POST /v1/sync/scans` 和 `GET/DELETE /
 
 | 字段 | 位置 | 含义 | 失败或未知 |
 | --- | --- | --- | --- |
-| `backupKeepCount`（1–10） | `GET /v1/sync/projects/{id}` 的 `SyncProjectDescriptor`、`SyncPreparationPreview`、`sync.report` 的 ready | 被写入端这个游戏目录实际生效的保留份数。移动端发送时取电脑项目描述，电脑发送时取移动端设置；电脑发起时由移动端随 ready 回报 | 必填，越界即校验失败；电脑请求在 ready 之前为 null，计划不显示份数 |
+| `backupKeepCount`（1–10） | `GET /v1/sync/projects/{id}` 的 `SyncProjectDescriptor`、`SyncPreparationPreview`、`sync.report` 的 ready | 被写入端这个游戏实际生效的保留份数。移动端发送时取电脑项目描述，电脑发送时取移动端设置；电脑发起时由移动端随 ready 回报 | 必填，越界即校验失败；电脑请求在 ready 之前为 null，计划不显示份数 |
 | `backupFileCount` | `SyncApplyResult` | 本次已提交备份清单里的文件数，来自实际清单，不用计划数估算 | 没有备份时 null；有 backupId 而为 null 时只说“已备份” |
 | `incomplete: {backupId, occupiedBytes}[]` | 双端备份列表（Windows 与 Android 桥） | 未提交轮次及其占用字节数，还包括文件被用户删除或大小不符的备份 | 读不到为 null，界面显示大小未知，与 0 字节分开 |
 
-删除备份只走本机受限桥，不经网络：电脑 `desktopBackups.deleteBackup(projectId, rootId, backupId)`，移动端 `SyncBackups.deleteBackup` 同参数。已不存在的算删除成功，因为用户可能已在文件管理器里删掉；被恢复引用或有传输、恢复运行时返回 busy；中途失败时轮次变成未完成残留，可用清理入口重试。移除游戏时先调 `deleteGameBackups(projectId)`（两端同名），删掉这个游戏在所有目录下的轮次、残留和单独设置，成功后才保存游戏配置；失败时游戏保留，可以重试。存档文件不动。
+备份按游戏归组：本机备份桥的列出、读清单、单独设置、轮换、清理和删除都只按 `projectId`（加 `backupId`）查找，不带 rootId。游戏换了目录后，旧目录的备份照常列出、参与轮换，恢复写进游戏当前的目录；备份清单里的 rootId 只记录备份时的目录。备份设置 `SyncBackupSettings.schemaVersion` 为 3，每个游戏最多一条单独设置 `{projectId, shouldBackup, keepCount}`；读到 v2 时按游戏合并，同一游戏有多条时保留最后一条，下次保存写成 v3。这是本机文件格式，不影响能力版本。
+
+删除备份只走本机受限桥，不经网络：电脑 `desktopBackups.deleteBackup(projectId, backupId)`，移动端 `SyncBackups.deleteBackup` 同参数。已不存在的算删除成功，因为用户可能已在文件管理器里删掉；被恢复引用或有传输、恢复运行时返回 busy；中途失败时轮次变成未完成残留，可用清理入口重试。移除游戏时先调 `deleteGameBackups(projectId)`（两端同名），删掉这个游戏在所有目录下的轮次、残留和单独设置，成功后才保存游戏配置；失败时游戏保留，可以重试。存档文件不动。
 
 按游戏查询：移动端 `SyncTransfers.latest({projectId})` 只查进程内任务登记表，返回该本机项目最近的 jobId 或 null，之后用 query/preview 读取；留存期和容量与任务登记表相同，进程重启后没有记录。全局活动判断用 `current()`。本机设备名：移动端 `HttpTransfers.deviceName()`，电脑 `DesktopServiceSnapshot.deviceName`，取值规则与发给对端的相同；读取失败为空，界面留空，不用对端保存的名称。
 

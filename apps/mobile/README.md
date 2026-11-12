@@ -207,15 +207,15 @@ Android 行为依据见 [dataSync 前台服务](https://developer.android.com/de
 | 原生接口 | 输入、输出与资源责任 |
 | --- | --- |
 | `BackupStore.create(projectId, rootId, reason, shouldBackup, entries, control)` | 原生编排器传入确认计划中目标目录的全部 SyncEntry 文件项，包括未变化和仅存在于目标的文件；按原相对路径复核本次引用，返回 `{ manifest, cleanupError }`；关闭备份、没有写入或目标没有文件时 manifest 为 null，reason=restore 强制开启保护 |
-| `list` / `manifest` | 按项目/根返回轮次摘要和未完成 ID，或按 backupId 取得单轮清单；清单显示与实际文件复核分开，恢复前必须 acquire |
+| `list` / `manifest` | 按游戏返回轮次摘要（包括游戏之前用过的目录的备份）和未完成 ID，或按 backupId 取得单轮清单；清单显示与实际文件复核分开，恢复前必须 acquire |
 | `settings` / `setPreference` / `capacity` | 独立 SyncBackupSettings，缺少项目设置时使用 true，坏文件保持原样；容量在完整新轮与旧轮共存时预检，未知值为 null，不足返回 insufficient-space |
-| `acquire(projectId, rootId, backupId, control)` | 重新核对全部原文后返回 Handle；manifest 为副本，snapshot 是本次恢复树，source(fileId) 提供原生只读流与身份观察；消费者先关闭流，再 release，引用期间不淘汰该轮 |
+| `acquire(projectId, backupId, control)` | 重新核对全部原文后返回 Handle；manifest 为副本，snapshot 是本次恢复树，source(fileId) 提供原生只读流与身份观察；消费者先关闭流，再 release，引用期间不淘汰该轮 |
 | `rotate` / `cleanupIncomplete` | 明确重试轮换或清理归属已核实的未提交/已淘汰轮次；有效轮次和被恢复引用的材料不会按残留删除 |
 | `deleteBackup` | 用户确认后删除一份有效轮次；先撤下清单，中途失败时变成可清理的残留；被恢复引用时拒绝 |
 | `deleteGameBackups` | 移除游戏时删除它在所有目录下的轮次、残留和单独设置；失败时游戏保留，可以重试 |
 | `close` | 原生所有者关闭存储时取消当前操作、等待文件释放并关闭读取引用；已提交备份持久保留 |
 
-`BackupModel` 与共享备份 v1 清单一致。每个目标文件先校验源属性、流式大小/SHA-256，再同步落盘并独立读回；全部完成后原子提交清单。每个项目/根保留最近 3 次，新轮提交后才轮换，轮换失败单独报告。读取未知长度时按流实测并核对计划的大小与哈希，文件内容不经过 JS。取消、期限或实际失败在提交前结束时不产生有效轮次，清理错误附在主错误之外。预算、位置和恢复规则统一见 [M-002 文档](../../docs/plans/m002-sync-copy.md) 第 3 节。
+`BackupModel` 与共享备份 v1 清单一致。每个目标文件先校验源属性、流式大小/SHA-256，再同步落盘并独立读回；全部完成后原子提交清单。每个游戏保留最近 3 次，不分目录，新轮提交后才轮换，轮换失败单独报告。读取未知长度时按流实测并核对计划的大小与哈希，文件内容不经过 JS。取消、期限或实际失败在提交前结束时不产生有效轮次，清理错误附在主错误之外。预算、位置和恢复规则统一见 [M-002 文档](../../docs/plans/m002-sync-copy.md) 第 3 节。
 
 `BackupFiles` 只访问已核实的私有普通文件，Android 实际身份和链接数由 `Os.lstat` 读取；固定 fileId、所有权记录、根/轮次身份和前后属性共同约束访问与清理。未提交轮次重启后通过明确操作清理，既不恢复旧同步，也不按文件名前缀猜测用户文件归属。
 
@@ -236,7 +236,7 @@ Android 行为依据见 [dataSync 前台服务](https://developer.android.com/de
 | `SyncWrites` / `androidSyncWrites` 方法 | 输入、输出及资源责任 |
 | --- | --- |
 | `bindProject(projectId, rootId)` | 平台层先核对已保存的游戏配置，再绑定已有授权根；原生重新检查持久写权限，活动任务/清理期间拒绝改绑。绑定只存本进程，配置或会话改变后由平台层重新核实 |
-| `prepareRestore(projectId, rootId, backupId)` | 返回 preparing 状态和新 restoreId；工作线程完整验证备份并保持引用，重扫当前目标后进入 ready。本机恢复强制为当前覆盖内容另建保护备份 |
+| `prepareRestore(projectId, rootId, backupId)` | rootId 是游戏当前的目录，备份可以来自游戏之前用过的目录；返回 preparing 状态和新 restoreId；工作线程完整验证备份并保持引用，重扫当前目标后进入 ready。本机恢复强制为当前覆盖内容另建保护备份 |
 | `preview(restoreId)` | 单独取得固定的源/目标快照；TS 生成同一 planId 的本机恢复计划，可显示冲突。预览与结果分开查询，控制 JSON 各限 8 MiB |
 | `execute(restoreId, plan)` | 核对项目/根、原生固定预览及完整计划，再执行一次；ready/终态与活动名额同时提交，重复执行返回 task-conflict |
 | `query(restoreId)` / `cancel(restoreId)` | 查询本机状态与实际结果，或显式取消；查询不延长期限，返回 HTTP/桥成功包络只表示调用成功，恢复是否成功取决于内部状态和结果 |

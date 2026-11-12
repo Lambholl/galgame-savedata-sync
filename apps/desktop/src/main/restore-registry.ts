@@ -442,14 +442,14 @@ export class WindowsRestoreRegistry {
         }
       }
       if (job.hasBackupCleanup) {
-        const listing = await this.options.backups.list(job.projectId, job.rootId)
+        const listing = await this.options.backups.list(job.projectId)
         if (listing.incomplete.length > 0) {
           throw new HttpOperationError(
             'cleanup-failed',
             'Inspect and clean up incomplete backups on the backup page first.',
           )
         }
-        await this.options.backups.rotate(job.projectId, job.rootId)
+        await this.options.backups.rotate(job.projectId)
         job.hasBackupCleanup = false
       }
       job.state = {

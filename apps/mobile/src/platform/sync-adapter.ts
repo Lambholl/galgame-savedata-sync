@@ -253,30 +253,28 @@ export function createMobileSyncAdapter(
       return {
         root,
         info: unwrap(await backups.read()),
-        listing: unwrap(await backups.list(projectId, root.rootId)),
+        listing: unwrap(await backups.list(projectId)),
       }
     },
     async backupSettings() {
       return unwrap(await backups.read()).settings
     },
     async setBackup(projectId, policy) {
-      const root = await local(projectId)
-      unwrap(await backups.setPreference(projectId, root.rootId, policy))
+      // 单独设置只按游戏保存，但游戏要先在本机选好目录。
+      await local(projectId)
+      unwrap(await backups.setPreference(projectId, policy))
     },
     async setBackupDefaults(policy) {
       unwrap(await backups.setDefaults(policy))
     },
     async rotateBackups(projectId) {
-      const root = await local(projectId)
-      unwrap(await backups.rotate(projectId, root.rootId))
+      unwrap(await backups.rotate(projectId))
     },
     async cleanupBackup(projectId, backupId) {
-      const root = await local(projectId)
-      unwrap(await backups.cleanupIncomplete(projectId, root.rootId, backupId))
+      unwrap(await backups.cleanupIncomplete(projectId, backupId))
     },
     async deleteBackup(projectId, backupId) {
-      const root = await local(projectId)
-      unwrap(await backups.deleteBackup(projectId, root.rootId, backupId))
+      unwrap(await backups.deleteBackup(projectId, backupId))
     },
     async deleteGameBackups(projectId) {
       unwrap(await backups.deleteGameBackups(projectId))

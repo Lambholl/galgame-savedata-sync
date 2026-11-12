@@ -107,7 +107,7 @@ export function BackupPage({
     return () => onOverlayChange(null)
   }, [isPolicyOpen, deleting, onOverlayChange])
   const settings = details?.info.settings
-  const policy = details && resolveBackupPolicy(details.info.settings, game.id, details.root.rootId)
+  const policy = details && resolveBackupPolicy(details.info.settings, game.id)
   const isLocked = isDisabled || isBusy
   function reload(): void {
     setVersion((value) => value + 1)

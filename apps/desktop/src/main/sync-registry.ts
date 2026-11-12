@@ -355,15 +355,14 @@ export class WindowsSyncRegistry {
     }
     try {
       if (task.state.role === 'receiver' && task.state.result?.cleanupError) {
-        const project = task.request.targetProjectId,
-          root = task.request.plan.target.rootId
-        if ((await this.options.backups.list(project, root)).incomplete.length > 0) {
+        const project = task.request.targetProjectId
+        if ((await this.options.backups.list(project)).incomplete.length > 0) {
           throw new HttpOperationError(
             'cleanup-failed',
             'Inspect and clean up incomplete backups on the backup page first.',
           )
         }
-        await this.options.backups.rotate(project, root)
+        await this.options.backups.rotate(project)
       }
       await this.clean(task)
       task.state = {
@@ -421,7 +420,7 @@ export class WindowsSyncRegistry {
       remoteRoot.rootId,
     )
     const settings = await this.options.backups.settings()
-    const policy = resolveBackupPolicy(settings, projectId, game.rootId)
+    const policy = resolveBackupPolicy(settings, projectId)
     return {
       schemaVersion: 1,
       projectId,
@@ -447,11 +446,7 @@ export class WindowsSyncRegistry {
       return
     }
     const settings = await this.options.backups.settings()
-    const { shouldBackup } = resolveBackupPolicy(
-      settings,
-      task.request.targetProjectId,
-      plan.target.rootId,
-    )
+    const { shouldBackup } = resolveBackupPolicy(settings, task.request.targetProjectId)
     if (shouldBackup !== plan.shouldBackup) {
       throw new HttpOperationError(
         'source-changed',
