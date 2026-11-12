@@ -9,7 +9,7 @@
     <string name="transfer_stage_verifying">検証中</string>
     <string name="transfer_stage_writing">書き込み中</string>
     <string name="transfer_stage_backing_up">控えを作成中</string>
-    <string name="transfer_stage_cleaning">後片付け中</string>
+    <string name="transfer_stage_cleaning">仕上げ中</string>
     <string name="transfer_stage_done">まもなく完了</string>
     <string name="transfer_stage_sent">送信済み。相手の端末での受け取り結果を確認中</string>
     <string name="transfer_cleanup_pending">一時ファイルが残っています</string>

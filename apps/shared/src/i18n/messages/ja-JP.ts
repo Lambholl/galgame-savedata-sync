@@ -141,15 +141,21 @@ export const jaJP: Messages = {
   'task.stage.verifying': '検証中',
   'task.stage.backing-up': 'バックアップ中',
   'task.stage.writing': '書き込み中',
-  'task.stage.cleaning': 'クリーンアップ中',
+  'task.stage.cleaning': '仕上げ中',
   'task.stage.done': 'まもなく完了',
   'task.files': ({ done, total }) => `${done} / ${total} 件`,
   'task.done': '転送完了',
-  'task.doneDetail': ({ count }) => `${count} 件を書き込みました`,
+  'task.doneDetail': ({ count }) => `ファイル ${count} 件を書き込みました`,
   'task.backedUp': '古いファイルをバックアップ済み',
   'task.backedUpCount': ({ count }) => `${count} 件のファイルをバックアップ済み`,
   'task.partial': '一部完了',
-  'task.partialDetail': ({ ok, failed }) => `成功 ${ok} 件 · 失敗 ${failed} 件`,
+  'task.partialDetail': ({ succeeded, failed, unknown, skipped }) =>
+    [
+      `成功 ${succeeded} 件`,
+      ...(failed ? [`失敗 ${failed} 件`] : []),
+      ...(unknown ? [`未確認 ${unknown} 件`] : []),
+      ...(skipped ? [`未実行 ${skipped} 件`] : []),
+    ].join(' · '),
   'task.failed': '転送失敗',
   'task.cancelled': '転送をキャンセルしました',
   'task.unknown': '結果未確認',
@@ -159,9 +165,12 @@ export const jaJP: Messages = {
   'task.deletedCount': ({ count }) => `${count} 件`,
   'task.deletedDetail': ({ count }) => `${count} 件を削除しました`,
   'task.written': '書き込み済み',
-  'task.fileCount': ({ count }) => `${count} 件`,
+  'task.fileCount': ({ count }) => `ファイル ${count} 件`,
   'task.verified': ({ size }) => `検証済み ${size}`,
   'task.folderCreated': 'フォルダーを作成済み',
+  'task.folderCount': ({ count }) => `フォルダー ${count} 個`,
+  'task.foldersCreatedDetail': ({ count }) => `フォルダーを ${count} 個作成しました`,
+  'task.awaitingPeer': '相手の端末の開始を待っています',
   'task.cleanupFailed': '一時ファイルが残っています',
   'task.outcome.failed': '書き込み失敗',
   'task.outcome.cancelled': 'キャンセル済み',
@@ -394,7 +403,7 @@ export const jaJP: Messages = {
   'error.code.name-conflict': '転送先に同じ名前のファイルまたはフォルダーがあります。',
   'error.code.path-outside-root': 'パスがセーブデータの保存先フォルダーの外を指しています。',
   'error.code.source-changed':
-    '転送中に転送元のファイルが変更されました。転送内容をもう一度確認してください。',
+    '転送中にファイルが変更されました。転送内容をもう一度確認してください。',
   'error.code.checksum-mismatch':
     'ファイルのチェックサムが一致しません。もう一度転送してください。',
   'error.code.network-failure':
@@ -403,5 +412,5 @@ export const jaJP: Messages = {
   'error.code.io-failure':
     'ファイルの読み書きに失敗しました。保存先を利用できるか確認してください。',
   'error.code.cleanup-failed': '一時ファイルが残っています。あとでクリーンアップを再試行できます。',
-  'error.code.result-unknown': '結果はまだ確認できていません。転送の詳細を確認してください。',
+  'error.code.result-unknown': '結果はまだ確認できていません。',
 }

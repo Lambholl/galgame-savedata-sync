@@ -12,7 +12,7 @@ import { formatBytes } from '../../i18n/format.ts'
 import { ErrorText } from '../errors/ErrorText.tsx'
 import { Expand, ExpandChevron } from '../expand/Expand.tsx'
 import { useLocale, useT } from '../i18n/i18n-context.ts'
-import { unsettledOutcomes } from './outcomes.ts'
+import { countOutcomes, isDeleteOutcome, unsettledOutcomes } from './outcomes.ts'
 import './sync-task-summary.css'
 
 function fileName(outcome: SyncWriteOutcome): string {
@@ -42,10 +42,13 @@ export function OutcomeList({
   const locale = useLocale()
   const [isWrittenOpen, setIsWrittenOpen] = useState(false)
   const [isDeletedOpen, setIsDeletedOpen] = useState(false)
-  const isDeleted = (item: SyncWriteOutcome): boolean =>
-    item.action === 'delete-file' || item.action === 'delete-directory'
-  const succeeded = outcomes.filter((item) => item.status === 'succeeded' && !isDeleted(item))
-  const deleted = outcomes.filter((item) => item.status === 'succeeded' && isDeleted(item))
+  const succeeded = outcomes.filter((item) => item.status === 'succeeded' && !isDeleteOutcome(item))
+  const deleted = outcomes.filter((item) => item.status === 'succeeded' && isDeleteOutcome(item))
+  const { files, folders } = countOutcomes(outcomes)
+  const writtenLabel = [
+    ...(files > 0 || folders === 0 ? [t('task.fileCount', { count: files })] : []),
+    ...(folders > 0 ? [t('task.folderCount', { count: folders })] : []),
+  ].join(' · ')
   const unsettled = unsettledOutcomes(outcomes)
   const hasAction = unsettled.length > 0 || cleanupError !== null || remoteError !== null
   return (
@@ -118,7 +121,7 @@ export function OutcomeList({
                 <CheckOutlined />
               </span>
               <span className="ss-task-body">
-                <span>{t('task.fileCount', { count: succeeded.length })}</span>
+                <span>{writtenLabel}</span>
                 <small>
                   {succeeded
                     .slice(0, 2)

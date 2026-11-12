@@ -5,7 +5,7 @@ import type { SyncApplyResult } from '../../sync/sync-contracts.ts'
 import { ErrorText } from '../errors/ErrorText.tsx'
 import { useT } from '../i18n/i18n-context.ts'
 import { OutcomeList } from './OutcomeList.tsx'
-import { unsettledOutcomes } from './outcomes.ts'
+import { countOutcomes, unsettledOutcomes } from './outcomes.ts'
 import { ProgressRing, Verdict } from './TaskHero.tsx'
 import './sync-task-summary.css'
 
@@ -41,7 +41,7 @@ export function RestoreSummary({
   const t = useT()
   const outcomes = result?.outcomes ?? []
   const unsettled = unsettledOutcomes(outcomes)
-  const ok = outcomes.length - unsettled.length
+  const counts = countOutcomes(outcomes)
   let hero: ReactElement
   if (phase === 'preparing') {
     hero = (
@@ -67,23 +67,31 @@ export function RestoreSummary({
       <Verdict
         tone="ok"
         title={t('backup.restored')}
-        detail={t('backup.restoredDetail', { count: ok })}
+        detail={[
+          ...(counts.files > 0 || counts.folders === 0
+            ? [t('backup.restoredDetail', { count: counts.files })]
+            : []),
+          ...(counts.folders > 0
+            ? [t('task.foldersCreatedDetail', { count: counts.folders })]
+            : []),
+        ].join(' · ')}
       />
     )
-  } else if (result && ok > 0) {
+  } else if (phase === 'unknown') {
+    // 结果待确认时已成功的条目不代表部分完成，其余条目可能也已写入。
     hero = (
       <Verdict
         tone="warn"
-        title={t('task.partial')}
-        detail={t('task.partialDetail', { ok, failed: unsettled.length })}
+        title={t('backup.restoreUnknown')}
+        detail={counts.succeeded > 0 ? t('task.partialDetail', counts) : t('task.unknownDetail')}
       />
+    )
+  } else if (result && counts.succeeded > 0) {
+    hero = (
+      <Verdict tone="warn" title={t('task.partial')} detail={t('task.partialDetail', counts)} />
     )
   } else if (phase === 'cancelled') {
     hero = <Verdict tone="muted" title={t('backup.restoreCancelled')} detail={null} />
-  } else if (phase === 'unknown') {
-    hero = (
-      <Verdict tone="warn" title={t('backup.restoreUnknown')} detail={t('task.unknownDetail')} />
-    )
   } else {
     const reason = result?.error ?? error
     hero = (

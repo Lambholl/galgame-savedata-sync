@@ -141,7 +141,7 @@ export const zhCN = {
   'task.stage.verifying': '正在校验',
   'task.stage.backing-up': '正在备份',
   'task.stage.writing': '正在写入',
-  'task.stage.cleaning': '正在清理',
+  'task.stage.cleaning': '正在收尾',
   'task.stage.done': '即将完成',
   'task.files': ({ done, total }: { done: number; total: number }): string =>
     `${done} / ${total} 个文件`,
@@ -150,8 +150,23 @@ export const zhCN = {
   'task.backedUp': '旧文件已备份',
   'task.backedUpCount': ({ count }: { count: number }): string => `已备份 ${count} 个文件`,
   'task.partial': '部分完成',
-  'task.partialDetail': ({ ok, failed }: { ok: number; failed: number }): string =>
-    `${ok} 个成功 · ${failed} 个失败`,
+  'task.partialDetail': ({
+    succeeded,
+    failed,
+    unknown,
+    skipped,
+  }: {
+    succeeded: number
+    failed: number
+    unknown: number
+    skipped: number
+  }): string =>
+    [
+      `${succeeded} 个成功`,
+      ...(failed ? [`${failed} 个失败`] : []),
+      ...(unknown ? [`${unknown} 个待确认`] : []),
+      ...(skipped ? [`${skipped} 个未执行`] : []),
+    ].join(' · '),
   'task.failed': '传输失败',
   'task.cancelled': '传输已取消',
   'task.unknown': '结果待确认',
@@ -164,6 +179,9 @@ export const zhCN = {
   'task.fileCount': ({ count }: { count: number }): string => `${count} 个文件`,
   'task.verified': ({ size }: { size: string }): string => `已校验 ${size}`,
   'task.folderCreated': '已新建文件夹',
+  'task.folderCount': ({ count }: { count: number }): string => `${count} 个文件夹`,
+  'task.foldersCreatedDetail': ({ count }: { count: number }): string => `新建 ${count} 个文件夹`,
+  'task.awaitingPeer': '等待对方设备开始',
   'task.cleanupFailed': '临时文件未清理',
   'task.outcome.failed': '写入失败',
   'task.outcome.cancelled': '已取消',
@@ -387,11 +405,11 @@ export const zhCN = {
   'error.code.unsupported-operation': '当前无法执行这个操作。',
   'error.code.name-conflict': '目标中已有同名的文件或文件夹。',
   'error.code.path-outside-root': '路径超出了存档目录。',
-  'error.code.source-changed': '来源文件在传输期间发生了变化，请重新预览。',
+  'error.code.source-changed': '传输期间有文件发生了变化，请重新预览。',
   'error.code.checksum-mismatch': '文件校验不一致，请重新传输。',
   'error.code.network-failure': '网络连接中断，请确认两端在同一网络后重试。',
   'error.code.insufficient-space': '存储空间不足。',
   'error.code.io-failure': '读写文件失败，请确认目录仍可访问。',
   'error.code.cleanup-failed': '临时文件没有清理干净，可以稍后重试清理。',
-  'error.code.result-unknown': '结果尚未确认，请查看任务详情。',
+  'error.code.result-unknown': '结果尚未确认。',
 }

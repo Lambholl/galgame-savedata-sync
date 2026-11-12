@@ -9,7 +9,7 @@
     <string name="transfer_stage_verifying">正在校驗</string>
     <string name="transfer_stage_writing">正在寫入</string>
     <string name="transfer_stage_backing_up">正在備份</string>
-    <string name="transfer_stage_cleaning">正在清理</string>
+    <string name="transfer_stage_cleaning">正在收尾</string>
     <string name="transfer_stage_done">即將完成</string>
     <string name="transfer_stage_sent">已傳送，正在確認對方裝置接收結果</string>
     <string name="transfer_cleanup_pending">暫存檔案未清理</string>

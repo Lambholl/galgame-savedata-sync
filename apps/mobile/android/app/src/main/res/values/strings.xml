@@ -11,7 +11,7 @@
     <string name="transfer_stage_verifying">正在校验</string>
     <string name="transfer_stage_writing">正在写入</string>
     <string name="transfer_stage_backing_up">正在备份</string>
-    <string name="transfer_stage_cleaning">正在清理</string>
+    <string name="transfer_stage_cleaning">正在收尾</string>
     <string name="transfer_stage_done">即将完成</string>
     <string name="transfer_stage_sent">已发送，正在确认对方设备接收结果</string>
     <string name="transfer_cleanup_pending">临时文件未清理</string>

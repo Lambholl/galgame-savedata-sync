@@ -208,6 +208,7 @@ export class WindowsSyncRegistry {
         percent,
         updatedAt: Math.max(task.state.updatedAt, task.remote?.updatedAt ?? task.state.updatedAt),
         hasCleanupError,
+        isAwaitingPeer: false,
       }
     })
   }

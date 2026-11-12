@@ -91,6 +91,7 @@ export function SyncCopyDetails({
             state.local.role === 'receiver' && plan ? () => onOpenBackup(task.projectId) : null
           }
           renderTechnicalDetails={(text) => <TechnicalDetails text={text} />}
+          isAwaitingPeer={task.isAwaitingPeer}
         />
       ) : (
         (resource.isLoading && <Skeleton active />) ||

@@ -112,6 +112,10 @@ function terminalPhase(
   if (receiver?.status === 'succeeded') {
     return 'done'
   }
+  // 接收端结果待确认时，没确认的条目可能也已写入，有成功项也不能说部分完成。
+  if (receiver?.status === 'unknown') {
+    return 'unknown'
+  }
   if (outcomes.some((item) => item.status === 'succeeded')) {
     return 'partial'
   }

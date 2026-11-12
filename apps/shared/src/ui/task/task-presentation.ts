@@ -32,17 +32,31 @@ export interface TaskPreview {
   readonly steps: TaskStepProgress | null
 }
 
-/** 由复制任务的观察结果生成短状态；清理失败时 status 写清理失败。 */
+/**
+ * 由复制任务的观察结果生成短状态。清理失败时 status 写清理失败：传输成功时只写清理失败、phase 为 partial，
+ * 其他结论后面接着写清理失败、phase 不变。
+ */
 export function syncTaskPreview(
-  observation: Pick<SyncJobObservation, 'phase' | 'stage' | 'step' | 'percent' | 'hasCleanupError'>,
+  observation: Pick<
+    SyncJobObservation,
+    'phase' | 'stage' | 'step' | 'percent' | 'hasCleanupError'
+  > & {
+    /** 已经确认、对方设备还没开始；进行中时 status 写等待对方开始。 */
+    readonly isAwaitingPeer?: boolean
+  },
   t: Translate,
 ): TaskPreview {
-  const { phase, stage, step, percent, hasCleanupError } = observation
+  const { phase, stage, step, percent, hasCleanupError, isAwaitingPeer = false } = observation
   const steps: TaskStepProgress = { current: step, percent }
   if (phase === 'running') {
-    return { status: t(`task.stage.${stage}`), percent, phase, steps }
+    return {
+      status: t(isAwaitingPeer ? 'task.awaitingPeer' : `task.stage.${stage}`),
+      percent,
+      phase,
+      steps,
+    }
   }
-  if (hasCleanupError) {
+  if (hasCleanupError && phase === 'done') {
     return { status: t('task.cleanupFailed'), percent: null, phase: 'partial', steps }
   }
   const key = {
@@ -52,14 +66,24 @@ export function syncTaskPreview(
     cancelled: 'task.cancelled',
     unknown: 'task.unknown',
   } as const
-  return { status: t(key[phase]), percent: phase === 'done' ? 100 : null, phase, steps }
+  return {
+    status: withCleanupFailure(t(key[phase]), hasCleanupError, t),
+    percent: phase === 'done' ? 100 : null,
+    phase,
+    steps,
+  }
+}
+
+// 传输失败又清理失败时只写清理失败，会让人以为传输本身成功了。
+function withCleanupFailure(status: string, hasCleanupError: boolean, t: Translate): string {
+  return hasCleanupError ? `${status} · ${t('task.cleanupFailed')}` : status
 }
 
 /** 恢复任务的状态。 */
 export type RestoreTaskStatus =
   'preparing' | 'ready' | 'running' | 'succeeded' | 'failed' | 'cancelled' | 'unknown'
 
-/** 由恢复任务的状态生成短状态；steps 和 percent 为 null，清理失败时 status 写清理失败。 */
+/** 由恢复任务的状态生成短状态；steps 和 percent 为 null，清理失败的写法同 {@link syncTaskPreview}。 */
 export function restoreTaskPreview(
   status: RestoreTaskStatus,
   hasCleanupError: boolean,
@@ -83,10 +107,13 @@ export function restoreTaskPreview(
     cancelled: 'cancelled',
     unknown: 'unknown',
   } as const
+  if (hasCleanupError && phases[status] === 'done') {
+    return { status: t('task.cleanupFailed'), percent: null, phase: 'partial', steps: null }
+  }
   return {
-    status: t(hasCleanupError ? 'task.cleanupFailed' : titles[status]),
+    status: withCleanupFailure(t(titles[status]), hasCleanupError, t),
     percent: null,
-    phase: hasCleanupError ? 'partial' : phases[status],
+    phase: phases[status],
     steps: null,
   }
 }

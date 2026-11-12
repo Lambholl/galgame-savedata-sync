@@ -257,6 +257,7 @@ export function BackupPage({
                 title: t('backup.deleteTitle'),
                 text: t('backup.deleteText', { time: sourceName(deleting) }),
                 okType: 'danger',
+                okText: t('backup.delete'),
                 work: () => sync.deleteBackup(game.id, deleting),
               }
             : null

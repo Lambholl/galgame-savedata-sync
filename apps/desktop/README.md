@@ -366,7 +366,7 @@ const restored = await preview.apply({ signal })
 | 方法 | 输入与结果 |
 | --- | --- |
 | `activity()` | 无参数；返回进程内目标操作或清理占用状态，用于配置编辑保护 |
-| `copies()` | 无参数；返回最多 32 份 `DesktopCopySummary`，含本机项目、对端、方向、角色、状态、阶段、更新时间和清理标记 |
+| `copies()` | 无参数；返回最多 32 份 `DesktopCopySummary`，含本机项目、对端、方向、角色、状态、阶段、更新时间和清理标记；`isAwaitingPeer` 只在已确认、移动端还没登记任务时为 true，此时 phase 必为 running |
 | `copyPlan(jobId)` / `copyState(jobId)` | 同次任务 ID；分别返回 `SyncJobRequest` 和含本机、对端两个角色的 `SyncTransferState`，桥按原生计划/清单核对上下文与实际结果；已确认但移动端还没登记的任务返回占位状态 |
 | `cancelCopy(jobId)` / `cleanupCopy(jobId)` | 显式取消先通知移动端再停止本机，返回当前 `SyncTransferState`；显式清理成功返回 null；均不重新登记或重放内容 |
 | `restores()` | 无参数；返回最多 32 份 `DesktopRestoreSummary`，固定项目/目录/输入备份，含状态、阶段、清理标记和 `isWorking` |

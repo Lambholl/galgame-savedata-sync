@@ -35,7 +35,7 @@ export function ConfirmationDialog({
           disabled={isBusy}
           onClick={onConfirm}
         >
-          {t('common.confirm')}
+          {confirmation?.okText ?? t('common.confirm')}
         </Button>
       </div>
     </Sheet>

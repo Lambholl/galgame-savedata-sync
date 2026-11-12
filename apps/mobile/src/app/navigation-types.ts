@@ -24,6 +24,8 @@ export interface Confirmation {
   readonly text: string
   readonly work: () => Promise<void>
   readonly okType?: 'danger' | 'primary'
+  /** 确认按钮的文字；不传时写“确认”。 */
+  readonly okText?: string
 }
 
 /** 系统返回键。 */

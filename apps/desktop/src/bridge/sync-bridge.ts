@@ -42,6 +42,8 @@ export interface DesktopCopySummary {
   readonly percent: SyncJobObservation['percent']
   readonly updatedAt: number
   readonly hasCleanupError: boolean
+  /** 已经确认、移动端还没开始这次传输。 */
+  readonly isAwaitingPeer: boolean
 }
 /** 本机恢复任务列表的一行。 */
 export interface DesktopRestoreSummary {
@@ -206,6 +208,7 @@ const COPY_FIELDS = [
   'percent',
   'updatedAt',
   'hasCleanupError',
+  'isAwaitingPeer',
 ]
 const RESTORE_FIELDS = [
   'restoreId',
@@ -243,6 +246,8 @@ export function isDesktopCopySummary(value: unknown): value is DesktopCopySummar
     (value.percent === null || count(value.percent, 100)) &&
     time(value.updatedAt) &&
     typeof value.hasCleanupError === 'boolean' &&
+    typeof value.isAwaitingPeer === 'boolean' &&
+    (!value.isAwaitingPeer || value.phase === 'running') &&
     (value.phase === 'running' ? value.stage !== 'done' : value.stage === 'done')
   )
 }

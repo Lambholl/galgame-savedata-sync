@@ -145,7 +145,7 @@ export const enUS: Messages = {
   'task.stage.verifying': 'Verifying',
   'task.stage.backing-up': 'Backing up',
   'task.stage.writing': 'Writing',
-  'task.stage.cleaning': 'Cleaning up',
+  'task.stage.cleaning': 'Wrapping up',
   'task.stage.done': 'Finishing',
   'task.files': ({ done, total }) => `${done} / ${total} ${total === 1 ? 'file' : 'files'}`,
   'task.done': 'Transfer complete',
@@ -154,7 +154,13 @@ export const enUS: Messages = {
   'task.backedUpCount': ({ count }) =>
     count === 1 ? '1 file backed up' : `${count} files backed up`,
   'task.partial': 'Partly complete',
-  'task.partialDetail': ({ ok, failed }) => `${ok} succeeded · ${failed} failed`,
+  'task.partialDetail': ({ succeeded, failed, unknown, skipped }) =>
+    [
+      `${succeeded} succeeded`,
+      ...(failed ? [`${failed} failed`] : []),
+      ...(unknown ? [`${unknown} not confirmed`] : []),
+      ...(skipped ? [`${skipped} not run`] : []),
+    ].join(' · '),
   'task.failed': 'Transfer failed',
   'task.cancelled': 'Transfer cancelled',
   'task.unknown': 'Result not confirmed',
@@ -167,6 +173,10 @@ export const enUS: Messages = {
   'task.fileCount': ({ count }) => (count === 1 ? '1 file' : `${count} files`),
   'task.verified': ({ size }) => `Verified ${size}`,
   'task.folderCreated': 'Folder created',
+  'task.folderCount': ({ count }) => (count === 1 ? '1 folder' : `${count} folders`),
+  'task.foldersCreatedDetail': ({ count }) =>
+    count === 1 ? '1 folder created' : `${count} folders created`,
+  'task.awaitingPeer': 'Waiting for the other device to start',
   'task.cleanupFailed': 'Temporary files not cleaned up',
   'task.outcome.failed': 'Write failed',
   'task.outcome.cancelled': 'Cancelled',
@@ -393,7 +403,7 @@ export const enUS: Messages = {
   'error.code.unsupported-operation': 'This action is not available right now.',
   'error.code.name-conflict': 'A file or folder with the same name already exists at the target.',
   'error.code.path-outside-root': 'The path is outside the save folder.',
-  'error.code.source-changed': 'Source files changed during the transfer. Preview the plan again.',
+  'error.code.source-changed': 'Files changed during the transfer. Preview the plan again.',
   'error.code.checksum-mismatch': 'File verification failed. Transfer again.',
   'error.code.network-failure':
     'The network connection dropped. Make sure both devices are on the same network and try again.',
@@ -401,6 +411,6 @@ export const enUS: Messages = {
   'error.code.io-failure':
     'Reading or writing files failed. Make sure the folder is still accessible.',
   'error.code.cleanup-failed': 'Temporary files were not fully cleaned up. You can retry later.',
-  'error.code.result-unknown': 'The result is not confirmed yet. Check the transfer details.',
+  'error.code.result-unknown': 'The result is not confirmed yet.',
   'settings.backup': 'Backup',
 }

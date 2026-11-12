@@ -36,7 +36,7 @@ related_files: []
 | EntryMetadata | rootId、entryId、parentId、name、kind、sizeBytes、modifiedAt、capabilities；file/directory 联合；根层 parentId=null，parentId 不指向自身；文件夹大小恒为 null，文件未知大小为 null，空文件为 0 |
 | DirectoryListing | rootId、parentId、observedAt、entries；成功空数组表示空目录；条目须属于同一根/层且 ID 不重复；错误用独立包络 |
 | EntryCapabilities / DeviceCapabilities | 条目能力 canRead/canList/canCreate/canRename/canDelete；设备能力 canListRoots/canReadFiles/canReceiveFiles/canQueryTransfers/canCancelTransfers；各值 supported/unsupported/unknown |
-| OperationError / OperationResult | code、message、canRetry，以及确定是哪一端访问文件或目录失败时才有的 device（phone 表示移动端、pc，移动端准备阶段产生并经 sync.report 转给电脑，HTTP 错误不带）；任务错误由 locateSyncError 按方向和中断阶段标出一端；互斥 success/value 与 error/error 包络；result-unknown 的 canRetry 必须为 false；自有错误原文默认英文并由生产者脱敏。界面按 code 翻译，message 与 code 在电脑上悬停可见，任务详情写进技术详情；unwrap 抛带 code 的 OperationFailure，toShownError 转为 ShownError，缺少 code 时保留原文 |
+| OperationError / OperationResult | code、message、canRetry，以及确定是哪一端访问文件或目录失败时才有的 device（phone 表示移动端、pc，移动端准备阶段产生并经 sync.report 转给电脑，HTTP 错误不带）；Android 任务状态的 error 也带 device：本机文件访问和授权失效是 phone，转抄电脑报来的文件错误是 pc，取消和超时不带；其余任务错误由 locateSyncError 按方向和中断阶段标出一端，打包阶段的授权失效不按阶段推断；互斥 success/value 与 error/error 包络；result-unknown 的 canRetry 必须为 false；自有错误原文默认英文并由生产者脱敏。界面按 code 翻译，message 与 code 在电脑上悬停可见，任务详情写进技术详情；unwrap 抛带 code 的 OperationFailure，toShownError 转为 ShownError，缺少 code 时保留原文 |
 | DirectorySelectionResult | selected 携带 directory，cancelled 不携带目录或错误，error 携带错误；取消不清空既有有效引用 |
 | BatchDeviceDescriptor | 共享模型：包装 device，加 sessionId 和固定 limits；本地目录桥的返回值不含这些字段 |
 | BatchManifest / TargetSelection | 提供 DTO 和关系校验：源引用、连续 fileId、实测长度/哈希及精确 tar 求和；目标在已有父目录以单文件名一一映射，不展开归档路径 |
@@ -66,9 +66,9 @@ Windows 提供 `/v1/sync/capabilities`、`POST /v1/sync/scans` 和 `GET/DELETE /
 | 请求 `sync.job.read {jobId}` | 电脑 → 移动端原生 | 完整 `SyncJobState`。只在接收端结束后读一次，取得逐项结果 | 任务不存在或属于别的设备返回 not-found；失败时每 5 秒重试，其间显示结果待确认 |
 | 请求 `sync.job.cancel {jobId}` | 电脑 → 移动端原生 | null。移动端记录为用户取消，而不是网络失败；已结束的任务不受影响 | 移动端还没建立任务时返回 not-found，电脑报告操作失败 |
 
-这三项由 `SyncTransferEngine` 处理，不经页面，页面被回收或任务由移动端发起时同样工作。角色状态互相独立，成功只看接收端的读回结果：`observeSyncJob(local, remote, hasRemoteError)` 合成阶段、当前段百分比、失败阶段和计数，发送端结束而接收端未结束时仍是进行中。对端状态不可信（控制通道断开、60 秒没有摘要、结果读取失败）时 `remoteError` 为 result-unknown，本机也结束后显示待确认，新的摘要或结果会清除它。
+这三项由 `SyncTransferEngine` 处理，不经页面，页面被回收或任务由移动端发起时同样工作。角色状态互相独立，成功只看接收端的读回结果：`observeSyncJob(local, remote, hasRemoteError)` 合成阶段、当前段百分比、失败阶段和计数，发送端结束而接收端未结束时仍是进行中。结束后的结论依次判断：接收端成功为 done；接收端待确认为 unknown，有成功项也一样，没确认的条目可能已写入；其余有成功项为 partial。界面的部分完成说明只列不为 0 的成功、失败、待确认、未执行，取消和未尝试的条目算未执行；完成说明把文件、新建文件夹和删除分开计数。清理失败时，任务条在传输成功时只写清理失败，其他结论后面接着写清理失败。对端状态不可信（控制通道断开、60 秒没有摘要、结果读取失败）时 `remoteError` 为 result-unknown，本机也结束后显示待确认，新的摘要或结果会清除它。
 
-电脑侧 `copyState`、`cancelCopy` 返回 `SyncTransferState`，`DesktopCopySummary` 用 phase、stage、step、percent 表示进度，由主进程计算，详情、游戏进度条、历史和完成提示读同一份，高频更新不携带逐项结果。已确认但移动端还没登记任务时，`remote-sync-requests.ts` 用同一个 jobId 提供占位的摘要、计划和状态，详情显示准备中；登记后改由 `WindowsSyncRegistry` 提供。对端未结束的任务不会被留存清理，也算作有运行中的工作。
+电脑侧 `copyState`、`cancelCopy` 返回 `SyncTransferState`，`DesktopCopySummary` 用 phase、stage、step、percent 表示进度，由主进程计算，详情、游戏进度条、历史和完成提示读同一份，高频更新不携带逐项结果。已确认但移动端还没登记任务时，`remote-sync-requests.ts` 用同一个 jobId 提供占位的摘要、计划和状态，摘要的 `isAwaitingPeer` 为 true，详情和任务条写“等待对方设备开始”；登记后改由 `WindowsSyncRegistry` 提供。对端未结束的任务不会被留存清理，也算作有运行中的工作。
 
 备份展示字段和计划的 `shouldDeleteExtras`、`delete-file`、`delete-directory` 由同一能力版本 3 覆盖，两端须同版，封闭 DTO 严格校验。计划动作的执行顺序是新建文件夹（由浅到深）、写文件、删除（由深到浅，同深度按路径），两端必须算出相同顺序。恢复计划固定 `shouldDeleteExtras=false`。文件在删除前核对身份和完整内容；文件夹只删空的，Windows 用非递归 `rmdir`，Android 的 `deleteDocument` 会递归，所以先确认文件夹为空。系统已开始删除但结果没能确认时报 result-unknown。
 

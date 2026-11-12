@@ -98,6 +98,17 @@ final class SyncTransferEngine implements AutoCloseable {
       "io-failure"
     )
   );
+
+  // 打包阶段两端都可能报授权失效，界面按阶段推断不出是哪一端，要在这里注明。
+  // 电脑不产生 authorization-expired，转述电脑的错误时已注明 pc，所以没注明的授权失效都是本机目录。
+  /** 返回任务错误该注明的一端（phone 或 pc）；分不出时为 null。 */
+  private static String failedDevice(ArchiveFailure failure) {
+    if (failure.device != null || !DEVICE_ERRORS.contains(failure.code)) {
+      return failure.device;
+    }
+    return failure.code.equals("authorization-expired") ? "phone" : null;
+  }
+
   private final TransferEngine transport;
   private final ArchiveAdapter archives;
   private final Local local;
@@ -885,7 +896,8 @@ final class SyncTransferEngine implements AutoCloseable {
       throw fail("task-conflict");
     }
     if (job.preparation.upload()) {
-      terminal(job, "failed", ArchiveFailure.from(cause).code);
+      ArchiveFailure failure = ArchiveFailure.from(cause);
+      terminal(job, "failed", failure.code, failedDevice(failure));
     } else {
       receiverFailed(job, ArchiveFailure.from(cause));
     }
@@ -963,7 +975,7 @@ final class SyncTransferEngine implements AutoCloseable {
         } else {
           synchronized (this) {
             job.isUploadComplete = true;
-            terminal(job, "sent", null);
+            terminal(job, "sent", null, null);
           }
         }
         awaitRemote(job);
@@ -986,7 +998,8 @@ final class SyncTransferEngine implements AutoCloseable {
           terminal(
             job,
             wasCancelled ? "cancelled" : "failed",
-            wasCancelled ? null : job.hasTimedOut ? "timeout" : failure.code
+            wasCancelled ? null : job.hasTimedOut ? "timeout" : failure.code,
+            wasCancelled || job.hasTimedOut ? null : failedDevice(failure)
           );
         }
       }
@@ -1016,7 +1029,7 @@ final class SyncTransferEngine implements AutoCloseable {
         job.ended = System.nanoTime();
         if (job.state.get("status").equals("running")) {
           if (job.preparation.upload()) {
-            terminal(job, "failed", "io-failure");
+            terminal(job, "failed", "io-failure", null);
           } else {
             receiverFailed(job, fail("io-failure"));
           }
@@ -1137,7 +1150,7 @@ final class SyncTransferEngine implements AutoCloseable {
       );
       map(job.state.get("progress")).put("archiveBytesTransferred", job.manifest.archive.sizeBytes);
       job.isUploadComplete = true;
-      terminal(job, "sent", null);
+      terminal(job, "sent", null, null);
       // 源快照发完后立即释放大缓存；任务名额和通知保留到接收端结果确定。
       cleanup(job);
     }
@@ -1166,10 +1179,14 @@ final class SyncTransferEngine implements AutoCloseable {
     } else {
       if (!isRemoteRunning(job) || !remoteStage(job).equals("ready")) {
         if (job.remote != null && job.remote.get("error") != null) {
-          throw new ArchiveFailure(
+          ArchiveFailure remote = new ArchiveFailure(
             string(map(job.remote.get("error")).get("code")),
             "The PC could not prepare this archive."
           );
+          if (DEVICE_ERRORS.contains(remote.code)) {
+            remote.device = "pc";
+          }
+          throw remote;
         }
         throw fail("task-conflict");
       }
@@ -1341,7 +1358,9 @@ final class SyncTransferEngine implements AutoCloseable {
         : cause.code.equals("result-unknown")
           ? "io-failure"
           : cause.code;
-      Object failure = isCancelled ? null : error(code);
+      Object failure = isCancelled
+        ? null
+        : error(code, job.hasTimedOut ? null : failedDevice(cause));
       List<Object> outcomes = new ArrayList<>();
       for (int i = 0; i < job.plan.writes.size(); i++) {
         Map<String, Object> operation = job.plan.writes.get(i);
@@ -1596,14 +1615,14 @@ final class SyncTransferEngine implements AutoCloseable {
     return stage.equals("cleaning") || stage.equals("done") ? null : stage;
   }
 
-  private synchronized void terminal(Job job, String requested, String code) {
+  private synchronized void terminal(Job job, String requested, String code, String device) {
     // 结果待确认不算失败，两端的校验都要求这两种状态分开。
     String status =
       requested.equals("failed") && "result-unknown".equals(code) ? "unknown" : requested;
     job.state.put("failureStage", status.equals("sent") ? null : stoppedAt(job));
     job.state.put("status", status);
     job.state.put("stage", "done");
-    job.state.put("error", code == null ? null : error(code));
+    job.state.put("error", code == null ? null : error(code, device));
     if (status.equals("cancelled")) {
       job.state.put("cancelRequested", true);
     }

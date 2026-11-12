@@ -9,7 +9,7 @@
     <string name="transfer_stage_verifying">Verifying</string>
     <string name="transfer_stage_writing">Writing</string>
     <string name="transfer_stage_backing_up">Backing up</string>
-    <string name="transfer_stage_cleaning">Cleaning up</string>
+    <string name="transfer_stage_cleaning">Wrapping up</string>
     <string name="transfer_stage_done">Finishing</string>
     <string name="transfer_stage_sent">Sent; confirming the other device received the files</string>
     <string name="transfer_cleanup_pending">Temporary files not cleaned up</string>

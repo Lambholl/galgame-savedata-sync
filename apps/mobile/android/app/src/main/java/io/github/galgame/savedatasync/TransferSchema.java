@@ -307,12 +307,24 @@ final class TransferSchema {
   }
 
   static Map<String, Object> error(Object value) throws ArchiveFailure {
-    Map<String, Object> e = shape(value, "code", "message", "canRetry");
+    Map<String, Object> e = map(value).containsKey("device")
+      ? shape(value, "code", "message", "canRetry", "device")
+      : shape(value, "code", "message", "canRetry");
+    require(!e.containsKey("device") || Arrays.asList("phone", "pc").contains(e.get("device")));
     require(Arrays.asList(ERROR_CODES.split(" ")).contains(e.get("code")));
     text(e.get("message"));
     require(e.get("canRetry") instanceof Boolean);
     if ("result-unknown".equals(e.get("code")) || "session-mismatch".equals(e.get("code"))) {
       require(Boolean.FALSE.equals(e.get("canRetry")));
+    }
+    return e;
+  }
+
+  /** 同 {@link #error(String)}，device 不为 null 时注明出错的目录在哪一端（phone 或 pc）。 */
+  static Map<String, Object> error(String code, String device) {
+    Map<String, Object> e = error(code);
+    if (device != null) {
+      e.put("device", device);
     }
     return e;
   }

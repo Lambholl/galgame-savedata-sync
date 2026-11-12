@@ -8,7 +8,7 @@ import { formatBytes, formatDateTime } from '../../i18n/format.ts'
 import type { PlanEndpoint } from '../plan/SyncPlanSummary.tsx'
 import { useLocale, useT } from '../i18n/i18n-context.ts'
 import { OutcomeList } from './OutcomeList.tsx'
-import { unsettledOutcomes } from './outcomes.ts'
+import { countOutcomes, unsettledOutcomes } from './outcomes.ts'
 import { ProgressRing, Verdict, type VerdictTone } from './TaskHero.tsx'
 import { locateSyncError, observeSyncJob } from '../../sync/sync-job-observation.ts'
 import type { SyncTaskPhase } from '../../sync/sync-job-observation.ts'
@@ -35,6 +35,8 @@ export interface SyncTaskSummaryProps {
   readonly onViewBackup: (() => void) | null
   /** 渲染技术详情卡片。 */
   readonly renderTechnicalDetails: (text: string) => ReactNode
+  /** 已经确认、对方设备还没开始；进行中时进度环写等待对方开始。 */
+  readonly isAwaitingPeer?: boolean
 }
 
 /**
@@ -51,6 +53,7 @@ export function SyncTaskSummary({
   onRetryCleanup,
   onViewBackup,
   renderTechnicalDetails,
+  isAwaitingPeer = false,
 }: SyncTaskSummaryProps): ReactElement {
   const t = useT()
   const locale = useLocale()
@@ -58,7 +61,7 @@ export function SyncTaskSummary({
   const states = remote ? [local, remote] : [local]
   const result = receiver?.result ?? null
   const outcomes = result?.outcomes ?? []
-  const succeeded = outcomes.filter((item) => item.status === 'succeeded')
+  const counts = countOutcomes(outcomes)
   const unsettled = unsettledOutcomes(outcomes)
   const { phase, stage, step, percent, counters, failureStage } = observeSyncJob(
     local,
@@ -84,7 +87,10 @@ export function SyncTaskSummary({
   if (phase === 'running') {
     hero = (
       <>
-        <ProgressRing percent={percent} label={t(`task.stage.${stage}`)} />
+        <ProgressRing
+          percent={percent}
+          label={t(isAwaitingPeer ? 'task.awaitingPeer' : `task.stage.${stage}`)}
+        />
         {percent !== null && counters.totalFiles > 0 && (
           <p>
             {counters.completedFiles !== null && (
@@ -111,23 +117,23 @@ export function SyncTaskSummary({
     }
     const verdict = verdicts[phase]
     let detail: ReactNode = null
+    const { files, folders, deleted } = counts
     if (phase === 'done') {
-      const deleted = succeeded.filter(
-        (item) => item.action === 'delete-file' || item.action === 'delete-directory',
-      ).length
-      const written = succeeded.length - deleted
       // 数量读不到时仍然写已备份，备份确实发生了。
       const backedUp =
         typeof result?.backupFileCount === 'number'
           ? t('task.backedUpCount', { count: result.backupFileCount })
           : t('task.backedUp')
       detail = [
-        ...(written > 0 || deleted === 0 ? [t('task.doneDetail', { count: written })] : []),
+        ...(files > 0 || (folders === 0 && deleted === 0)
+          ? [t('task.doneDetail', { count: files })]
+          : []),
+        ...(folders > 0 ? [t('task.foldersCreatedDetail', { count: folders })] : []),
         ...(deleted > 0 ? [t('task.deletedDetail', { count: deleted })] : []),
         ...(result?.backupId ? [backedUp] : []),
       ].join(' · ')
-    } else if (phase === 'partial') {
-      detail = t('task.partialDetail', { ok: succeeded.length, failed: unsettled.length })
+    } else if (phase === 'partial' || (phase === 'unknown' && counts.succeeded > 0)) {
+      detail = t('task.partialDetail', counts)
     } else if (phase === 'failed') {
       detail = error && (
         <ErrorText error={locateSyncError(error, local.direction, failureStage)} context={null} />
