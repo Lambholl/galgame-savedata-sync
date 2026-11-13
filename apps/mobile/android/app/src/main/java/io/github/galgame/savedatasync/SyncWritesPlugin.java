@@ -38,7 +38,7 @@ public class SyncWritesPlugin extends Plugin {
           if (isDestroyed) {
             throw new ArchiveFailure("unsupported-operation", "The restore bridge is closed.");
           }
-          Object value = work.run(SafRuntime.writes(getContext()));
+          Object value = work.run(DirectoryRuntime.writes(getContext()));
           call.resolve(
             new JSObject(
               new String(bytes(object("status", "success", "value", value)), StandardCharsets.UTF_8)
@@ -71,14 +71,22 @@ public class SyncWritesPlugin extends Plugin {
             );
           } catch (Exception invalid) {
             call.resolve(
-              new SafFailure("io-failure", "The restore response is invalid.", invalid).result()
+              new DirectoryFailure(
+                "io-failure",
+                "The restore response is invalid.",
+                invalid
+              ).result()
             );
           }
         }
       });
     } catch (java.util.concurrent.RejectedExecutionException cause) {
       call.resolve(
-        new SafFailure("unsupported-operation", "The restore bridge is closed.", cause).result()
+        new DirectoryFailure(
+          "unsupported-operation",
+          "The restore bridge is closed.",
+          cause
+        ).result()
       );
     }
   }

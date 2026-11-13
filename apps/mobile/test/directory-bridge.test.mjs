@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { createSafDirectoryBridge } from '../src/platform/saf-directory-bridge.ts'
+import { createDirectoryBridge } from '../src/platform/directory-bridge.ts'
 
 const root = {
   rootId: 'root-1',
@@ -33,7 +33,7 @@ function fixture() {
 
 test('有限桥保留取消与恢复语义，只接受目录引用，不暴露内容/写入接口', async () => {
   const state = fixture()
-  const api = createSafDirectoryBridge(state.plugin, () => true)
+  const api = createDirectoryBridge(state.plugin, () => true)
   assert.deepEqual(await api.chooseDirectory(), { status: 'selected', directory: root })
   state.cancel()
   assert.deepEqual(await api.chooseDirectory(), { status: 'cancelled' })
@@ -46,7 +46,7 @@ test('有限桥保留取消与恢复语义，只接受目录引用，不暴露�
 
 test('路径、URI、非法 parentId 在进入原生层之前拒绝', async () => {
   const state = fixture()
-  const api = createSafDirectoryBridge(state.plugin, () => true)
+  const api = createDirectoryBridge(state.plugin, () => true)
   for (const id of ['../outside', '/storage/save', 'content://provider/root', '', 1]) {
     assert.equal((await api.listDirectory(id)).error.code, 'invalid-request')
     assert.equal((await api.listDirectory(root.rootId, id)).error.code, 'invalid-request')
@@ -56,7 +56,7 @@ test('路径、URI、非法 parentId 在进入原生层之前拒绝', async () =
 
 test('失效授权保持独立错误，空目录保持成功', async () => {
   const state = fixture()
-  const api = createSafDirectoryBridge(state.plugin, () => true)
+  const api = createDirectoryBridge(state.plugin, () => true)
   assert.deepEqual((await api.listDirectory(root.rootId)).value.entries, [])
   const failure = {
     status: 'error',

@@ -37,9 +37,9 @@ final class ArchiveFailure extends IOException {
     if (cause instanceof ArchiveFailure) {
       return (ArchiveFailure) cause;
     }
-    if (cause instanceof SafFailure) {
+    if (cause instanceof DirectoryFailure) {
       return new ArchiveFailure(
-        ((SafFailure) cause).code,
+        ((DirectoryFailure) cause).code,
         "Cannot read the authorized source file.",
         false,
         cause

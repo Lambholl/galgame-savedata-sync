@@ -32,7 +32,8 @@ public class MainActivity extends BridgeActivity {
     registerPlugin(LaunchAnimationPlugin.class);
     registerPlugin(AppPreferencesPlugin.class);
     registerPlugin(AppStoragePlugin.class);
-    registerPlugin(SafDirectoriesPlugin.class);
+    registerPlugin(DirectoriesPlugin.class);
+    registerPlugin(AllFilesAccessPlugin.class);
     registerPlugin(HttpTransfersPlugin.class);
     registerPlugin(SyncScansPlugin.class);
     registerPlugin(SyncBackupsPlugin.class);

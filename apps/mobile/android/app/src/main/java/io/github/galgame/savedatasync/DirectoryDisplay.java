@@ -4,7 +4,6 @@ import android.content.ContentResolver;
 import android.content.Context;
 import android.database.Cursor;
 import android.net.Uri;
-import android.os.Build;
 import android.os.Environment;
 import android.os.storage.StorageManager;
 import android.os.storage.StorageVolume;
@@ -14,7 +13,7 @@ import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 
-/** 生成目录的展示信息；文件操作仍用 SAF 引用，拼接出的路径只用于显示。 */
+/** 生成目录的展示信息，并把系统存储提供者的文档 ID 换算成实际位置。 */
 final class DirectoryDisplay {
 
   static final class Info {
@@ -28,6 +27,9 @@ final class DirectoryDisplay {
     }
   }
 
+  /** 系统存储提供者的 authority；它的文档 ID 是 {@code 卷 ID:相对路径}。 */
+  static final String EXTERNAL_STORAGE = "com.android.externalstorage.documents";
+
   private DirectoryDisplay() {}
 
   @SuppressWarnings("deprecation")
@@ -38,49 +40,41 @@ final class DirectoryDisplay {
     if ("home".equals(volumeId)) {
       return Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS);
     }
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-      StorageManager manager = (StorageManager) context.getSystemService(Context.STORAGE_SERVICE);
-      if (manager != null) {
-        for (StorageVolume volume : manager.getStorageVolumes()) {
-          if (volumeId.equalsIgnoreCase(volume.getUuid()) && volume.getDirectory() != null) {
-            return volume.getDirectory();
-          }
+    StorageManager manager = (StorageManager) context.getSystemService(Context.STORAGE_SERVICE);
+    if (manager != null) {
+      for (StorageVolume volume : manager.getStorageVolumes()) {
+        if (volumeId.equalsIgnoreCase(volume.getUuid()) && volume.getDirectory() != null) {
+          return volume.getDirectory();
         }
       }
     }
     return null;
   }
 
-  /** 系统存储提供者的目录对应的实际位置；其他提供者或未知卷返回 null。 */
-  private static File location(Context context, Uri tree) {
-    if (!"com.android.externalstorage.documents".equals(tree.getAuthority())) {
+  /**
+   * 返回系统存储提供者的文档对应的实际位置。
+   *
+   * @param documentId 形如 {@code 卷 ID:相对路径}，相对路径为空表示卷的根。
+   * @return 其他提供者、未知卷或格式不符时返回 null；不检查路径是否存在。
+   */
+  static File location(Context context, String authority, String documentId) {
+    if (!EXTERNAL_STORAGE.equals(authority)) {
       return null;
     }
-    String[] parts = DocumentsContract.getTreeDocumentId(tree).split(":", 2);
+    String[] parts = documentId.split(":", 2);
+    if (parts.length != 2) {
+      return null;
+    }
     File base = storageRoot(context, parts[0]);
     if (base == null) {
       return null;
     }
-    return parts.length == 2 && !parts[1].isEmpty() ? new File(base, parts[1]) : base;
-  }
-
-  // Android 10 还能选中存储根或 Android/data，同步根可能包含备份目录。
-  /** 判断目录与备份目录是否互相包含。 */
-  static boolean overlapsBackups(Context context, Uri tree) {
-    File selected = location(context, tree);
-    File external = context.getExternalFilesDir(null);
-    if (selected == null || external == null) {
-      return false;
-    }
-    return (
-      selected.toPath().startsWith(external.toPath()) ||
-      external.toPath().startsWith(selected.toPath())
-    );
+    return parts[1].isEmpty() ? base : new File(base, parts[1]);
   }
 
   static Info resolve(Context context, ContentResolver resolver, Uri tree, String name) {
     String id = DocumentsContract.getTreeDocumentId(tree);
-    File directory = location(context, tree);
+    File directory = location(context, tree.getAuthority(), id);
     if (directory != null) {
       File parent = directory.getParentFile();
       String parentName = parent == null || parent.getName().isEmpty() ? name : parent.getName();

@@ -33,6 +33,12 @@ export const zhCN = {
   'settings.language.system': '跟随系统',
   'settings.about': '关于',
   'settings.version': '版本',
+  'settings.storage': '存储',
+  'settings.directAccess': '直接读写文件',
+  'directAccess.openFailed': '无法打开系统授权页',
+  'directAccess.prompt.title': '开启直接读写文件？',
+  'directAccess.prompt.text': '允许“所有文件访问权限”后，扫描、备份和写入会快很多。',
+  'directAccess.prompt.ok': '去开启',
 
   'common.unknown': '未知',
   'common.timeUnknown': '时间未知',

@@ -74,7 +74,7 @@ related_files: []
 | `apps/mobile/src/app`、`features`、`components`、`styles` | 独立移动入口、导航、游戏卡片、底部弹层和 antd-mobile 页面 | 优先移动组件；使用桌面组件也保留触控区域，操作卡片至少 64px；系统返回由移动端协调 |
 | `apps/mobile/src/features/transfer`、`src/platform` | 双端目录比较、手动连接、方向、计划和原生任务显示 | 当前层浏览；两列独立滚动，时间精确到分钟；业务不判断前后台，重载后查询同一原生传输任务；源文件内容不经过网页 |
 | `apps/mobile/src/components/PageSlide.tsx`、`apps/mobile/src/app/press-feedback.ts` | 移动端的切页平移和按下遮罩 | 桌面端的交互效果写在 desktop.css；shared 的 pressable.css 只定义遮罩的形状 |
-| `apps/mobile/src/platform/saf-directory-bridge.ts`、`saf-directories.ts`、`test/`、`README.md` | 受限 TS 桥、原生绑定、数据模型检查与调用说明 | 网页预览不支持；只传公开 DTO/ID，没有内容或写入方法 |
+| `apps/mobile/src/platform/directory-bridge.ts`、`directories.ts`、`test/`、`README.md` | 受限 TS 桥、原生绑定、数据模型检查与调用说明 | 网页预览不支持；只传公开 DTO/ID，没有内容或写入方法 |
 | `apps/mobile/src/platform/http-transfer-bridge.ts`、`http-transfers.ts` | 有限 TS 任务桥与 native 当前上下文/角色/结果校验、顺序事件订阅 | 浏览器不支持；通知和目标授权是显式动作，任务和清单只存本进程；订阅 remove 不取消传输 |
 
 ## 5. Android 原生
@@ -84,14 +84,15 @@ Java 源码都在 `apps/mobile/android/app/src/main/java/io/github/galgame/saved
 | 路径 | 作用 | 重要约定 |
 | --- | --- | --- |
 | `apps/mobile/android/` | Capacitor 生成的原生工程与项目 Wrapper | minSdk 29、compile/target 36；Manifest 允许明文 HTTP；包含用户发起传输使用的 dataSync 前台服务 |
-| `apps/mobile/android/app/src/main/java/io/github/galgame/savedatasync/` | Java SAF 选择、权限/配置恢复、当前层元数据和原生流 | URI 留在原生层，原生流由调用者关闭；配置不保存条目或哈希 |
-| `ArchiveAdapter.java`、`ArchiveModel.java`、`ArchiveFormat.java`、`ArchiveCache.java`、`ArchiveControl.java`、`ArchiveFailure.java`、`SafArchiveSource.java`；`src/test/.../ArchiveAdapterTest.java`、`src/androidTest/.../ArchiveSafTest.java` | Java 私有源快照、严格 USTAR/单 gzip、固定预算/取消/期限与缓存归属/恢复/重试；SAF 读取后复核；格式回归和设备快照 | 不做 JSON/HTTP/目标发布，文件内容不跨桥；句柄关闭读流后 close；进程独占覆盖待清理资源；夹具与 Windows 共用；缺少实际目录授权时测试失败而不是跳过 |
-| `NewFilePublisher.java`、`PublicationModel.java`、`PublicationJson.java`、`SafPublicationBackend.java`、`NewFilePublisherTest.java` | 原生显式写授权/只读预检、创建前后核实、非截断写入/回读、单文件结果及清理重试 | 只操作同根已有父目录中确知的新建条目；常规描述符身份保护已有文件；原文和 URI 不跨桥，清理失败保持进程名额；设备授权只用于合成目标；接口见移动 README |
-| `TransferJson/Schema/Http/Engine.java`、`HttpTransfersPlugin.java`、`TransferRuntime/Service.java`、`SafRuntime.java` | 严格 HTTP/JSON、双向原生编排及应用级任务、持续通知和 Activity 重连 | 文件不跨 JS；用户发起后后台继续，完整校验后逐项发布；服务不导出、不自动重启旧任务；只读桥和传输共享当前 SAF 引用 |
-| `SyncScanner.java`、`SafSyncSource.java`、`SyncScansPlugin.java`；移动 `platform/sync-scan-bridge.ts`、`sync-scans.ts` | 本次 SAF 递归扫描、原生哈希、取消和有限扫描桥 | 普通只读操作，不加保活或前后台处理；结果只存内存并校验 rootId/scanId，内容和 URI 不跨桥 |
+| `apps/mobile/android/app/src/main/java/io/github/galgame/savedatasync/` | Java 目录选择（DirectoriesPlugin、DirectoryStore）、权限/配置恢复、当前层元数据和原生流 | URI 留在原生层，原生流由调用者关闭；配置不保存条目或哈希 |
+| `DocumentAccess.java`、`SafDocumentAccess.java`、`FileDocumentAccess.java`；`AllFilesAccessPlugin.java`、移动 `platform/all-files-access.ts`、设置页 | 统一的目录访问接口及 SAF、按路径两种实现；所有文件访问权限状态与系统授权页入口 | 上层只经 `DirectoryStore.access(tree)` 取实现，见 ADR-0003 |
+| `ArchiveAdapter.java`、`ArchiveModel.java`、`ArchiveFormat.java`、`ArchiveCache.java`、`ArchiveControl.java`、`ArchiveFailure.java`、`DirectoryArchiveSource.java`；`src/test/.../ArchiveAdapterTest.java`、`src/androidTest/.../ArchiveSafTest.java` | Java 私有源快照、严格 USTAR/单 gzip、固定预算/取消/期限与缓存归属/恢复/重试；SAF 读取后复核；格式回归和设备快照 | 不做 JSON/HTTP/目标发布，文件内容不跨桥；句柄关闭读流后 close；进程独占覆盖待清理资源；夹具与 Windows 共用；缺少实际目录授权时测试失败而不是跳过 |
+| `NewFilePublisher.java`、`PublicationModel.java`、`PublicationJson.java`、`DirectoryPublicationBackend.java`、`NewFilePublisherTest.java` | 原生显式写授权/只读预检、创建前后核实、非截断写入/回读、单文件结果及清理重试 | 只操作同根已有父目录中确知的新建条目；常规描述符身份保护已有文件；原文和 URI 不跨桥，清理失败保持进程名额；设备授权只用于合成目标；接口见移动 README |
+| `TransferJson/Schema/Http/Engine.java`、`HttpTransfersPlugin.java`、`TransferRuntime/Service.java`、`DirectoryRuntime.java` | 严格 HTTP/JSON、双向原生编排及应用级任务、持续通知和 Activity 重连 | 文件不跨 JS；用户发起后后台继续，完整校验后逐项发布；服务不导出、不自动重启旧任务；只读桥和传输共享当前 SAF 引用 |
+| `SyncScanner.java`、`DirectorySyncSource.java`、`SyncScansPlugin.java`；移动 `platform/sync-scan-bridge.ts`、`sync-scans.ts` | 本次递归扫描、原生哈希、取消和有限扫描桥 | 普通只读操作，不加保活或前后台处理；结果只存内存并校验 rootId/scanId，内容和 URI 不跨桥 |
 | `BackupStore/Model/Files.java`、`AndroidBackupIo.java`、`SyncBackupsPlugin.java`；移动 `platform/backup-bridge.ts`、`backups.ts` | 用户可手动管理的持久备份、按份数轮换、恢复材料引用和有限本机查询 | 写 `Android/data/<包名>/files/backups`，设置留在内部目录；真实身份和链接数用 Os.lstat 检查；数据不跨桥；供 SyncWriter 复用 |
-| `SyncPlanModel.java`、`SyncWriter.java`、`SafSyncBackend.java`、`SyncWriteRuntime.java`、`SyncWritesPlugin.java`、`TargetOperation.java`；移动 `platform/sync-write-bridge.ts`、`sync-writes.ts` | 确认计划的独立复核、SAF 目录创建/受保护覆盖与本机恢复、应用级任务及有限桥 | 整批复核和备份后写入，常规 FD 身份/rw/最终长度与回读；旧传输共用互斥，恢复预览与结果各有查询入口；应用不判断前后台 |
+| `SyncPlanModel.java`、`SyncWriter.java`、`DirectorySyncBackend.java`、`SyncWriteRuntime.java`、`SyncWritesPlugin.java`、`TargetOperation.java`；移动 `platform/sync-write-bridge.ts`、`sync-writes.ts` | 确认计划的独立复核、SAF 目录创建/受保护覆盖与本机恢复、应用级任务及有限桥 | 整批复核和备份后写入，常规 FD 身份/rw/最终长度与回读；旧传输共用互斥，恢复预览与结果各有查询入口；应用不判断前后台 |
 | `SyncJobModel.java`、`SyncTransferEngine/Runtime.java`、`SyncTransfersPlugin.java`；移动 `platform/sync-transfer-bridge.ts`、`sync-transfers.ts`；Windows `main/sync-registry.ts`、`upload-body.ts` | Android → Windows 的普通扫描准备、同次确认、原生归档/上传、保护后写入及实际结果查询 | 登记、清单和内容各一次，回执丢失只查询；两端任务共用原生名额，只有实际传输保持通知，长源读取通过原生心跳确认通信；页面重建按 ID 查询，不恢复或重放 |
 | `DeviceDiscoveryPlugin.java`、`DiscoveryBrowser.java`；移动 `platform/device-discovery.ts` | 局域网 DNS-SD 搜索：NsdManager 搜索与解析、按订阅者启停的 TS 桥，以及按设备 ID 限时查找的 `findDevice` | 原生只给实例名、端口、IPv4 和 TXT 文本，TXT 在 TS 用 shared 校验；状态在原生单个 worker 线程上 |
 | `QrScannerPlugin.java`、`QrCameraSession.java`、`QrFrameDecoder.java`；移动 `platform/qr-scanner.ts`、`features/devices/ScanPage.tsx` | 扫码：相机权限、取景、逐帧识别二维码，扫到后交给 `connectCandidates` | 原生只给二维码原文，内容在 TS 用 shared 的 `parseConnectionQrText` 校验；相机绑定 Activity 生命周期，取景画面在透明的 WebView 下面，页面用 html 上的 `camera-live` 让出背景 |
-| `apps/mobile/android/app/src/test/`、`src/androidTest/` | Java 纯边界与 3 条设备路径：SAF 读取、归档互通、实际 SAF 快照 | 独立私有夹具与真实选择器授权；真实源只读 |
+| `apps/mobile/android/app/src/test/`、`src/androidTest/` | Java 纯边界与 3 条设备路径：目录读取、归档互通、实际目录快照 | 独立私有夹具与真实选择器授权；真实源只读 |

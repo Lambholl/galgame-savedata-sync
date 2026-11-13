@@ -33,6 +33,13 @@ export const jaJP: Messages = {
   'settings.language.system': 'システム設定に従う',
   'settings.about': 'このアプリについて',
   'settings.version': 'バージョン',
+  'settings.storage': 'ストレージ',
+  'settings.directAccess': 'ファイルを直接読み書き',
+  'directAccess.openFailed': 'システムの許可画面を開けません',
+  'directAccess.prompt.title': 'ファイルの直接読み書きを有効にしますか？',
+  'directAccess.prompt.text':
+    '「全ファイルへのアクセス」を許可すると、スキャン、バックアップ、書き込みが大幅に速くなります。',
+  'directAccess.prompt.ok': '有効にする',
 
   'common.unknown': '不明',
   'common.timeUnknown': '時刻不明',

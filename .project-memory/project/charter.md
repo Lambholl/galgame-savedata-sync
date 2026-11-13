@@ -19,7 +19,7 @@ related_files: []
 
 - 项目目标：在 Windows 电脑与 Android 设备之间，通过局域网手动选择方向同步文件夹，减少游玩 galgame 时手工复制存档的操作。
 - 目标用户：在电脑与 Android 设备之间切换、需要管理多个游戏或文件夹的使用者。
-- 当前阶段：M-004（完整首版）已完成，还没有发布新版本：修复了已知问题，补上备份阶段进度，统一了传输和备份文案，用真实存档完整回归通过，结果见[回归状态](../testing/regression-notes.md)。M-003（连接与重连）随 0.3.1 发布。下一里程碑见[路线图](roadmap.md)。真实存档覆盖在支持范围内开放，范围见仓库根目录的 `docs/plans/m002-sync-copy.md` 第 6 节；Android 10 不在回归范围内，见[项目约束](../requirements/constraints.md)。实现见[实现细节](../development/implementation-notes.md)，1 GiB 传输基线见仓库根目录的 `docs/validation/m001-resources.md`。
+- 当前阶段：M-004（完整首版）已完成，还没有发布新版本：修复了已知问题，补上备份阶段进度，统一了传输和备份文案，用真实存档完整回归通过，结果见[回归状态](../testing/regression-notes.md)。M-003（连接与重连）随 0.3.1 发布。下一里程碑见[路线图](roadmap.md)。真实存档覆盖在支持范围内开放，范围见仓库根目录的 `docs/plans/m002-sync-copy.md` 第 6 节；最低支持 Android 11，见[项目约束](../requirements/constraints.md)。实现见[实现细节](../development/implementation-notes.md)，1 GiB 传输基线见仓库根目录的 `docs/validation/m001-resources.md`。
 - 成功标准：见[验收标准](../testing/acceptance.md)。
 - 当前约束：默认不新增或扩写自动化测试。开发验证写入限明确选定的独立合成目标，真实存档不用于故障注入。
 

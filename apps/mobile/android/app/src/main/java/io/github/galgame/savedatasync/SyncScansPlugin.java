@@ -50,8 +50,8 @@ public class SyncScansPlugin extends Plugin {
           String code =
             cause instanceof ArchiveFailure
               ? ((ArchiveFailure) cause).code
-              : cause instanceof SafFailure
-                ? ((SafFailure) cause).code
+              : cause instanceof DirectoryFailure
+                ? ((DirectoryFailure) cause).code
                 : "io-failure";
           try {
             call.resolve(
@@ -64,14 +64,18 @@ public class SyncScansPlugin extends Plugin {
             );
           } catch (Exception invalid) {
             call.resolve(
-              new SafFailure("io-failure", "The scan service response failed.", invalid).result()
+              new DirectoryFailure(
+                "io-failure",
+                "The scan service response failed.",
+                invalid
+              ).result()
             );
           }
         }
       });
     } catch (java.util.concurrent.RejectedExecutionException cause) {
       call.resolve(
-        new SafFailure("unsupported-operation", "The scan bridge is closed.", cause).result()
+        new DirectoryFailure("unsupported-operation", "The scan bridge is closed.", cause).result()
       );
     }
   }
@@ -84,7 +88,7 @@ public class SyncScansPlugin extends Plugin {
         "schemaVersion",
         SyncJobModel.CAPABILITIES_VERSION,
         "deviceId",
-        SafRuntime.store(getContext()).deviceId(),
+        DirectoryRuntime.store(getContext()).deviceId(),
         "canScan",
         "supported",
         "canCopy",
@@ -121,21 +125,21 @@ public class SyncScansPlugin extends Plugin {
       if (number(value.get("schemaVersion"), 0, 9007199254740991L) != 1) {
         throw fail("protocol-mismatch");
       }
-      return SafRuntime.scanner(getContext()).start(id(value.get("rootId")));
+      return DirectoryRuntime.scanner(getContext()).start(id(value.get("rootId")));
     });
   }
 
   @PluginMethod
   public void query(PluginCall call) {
     submit(call, () ->
-      SafRuntime.scanner(getContext()).query(id(arguments(call, "scanId").get("scanId")))
+      DirectoryRuntime.scanner(getContext()).query(id(arguments(call, "scanId").get("scanId")))
     );
   }
 
   @PluginMethod
   public void cancel(PluginCall call) {
     submit(call, () ->
-      SafRuntime.scanner(getContext()).cancel(id(arguments(call, "scanId").get("scanId")))
+      DirectoryRuntime.scanner(getContext()).cancel(id(arguments(call, "scanId").get("scanId")))
     );
   }
 

@@ -93,7 +93,7 @@ final class NewFilePublisher {
   void grant(String rootId) throws Exception {
     final long version;
     synchronized (this) {
-      if (isStopped || !SafValues.isId(rootId)) {
+      if (isStopped || !DocumentValues.isId(rootId)) {
         throw new ArchiveFailure(
           "invalid-request",
           "The publisher is unavailable or the root reference is invalid."
@@ -484,9 +484,9 @@ final class NewFilePublisher {
   }
 
   static ArchiveFailure failure(Exception cause) {
-    if (cause instanceof SafFailure) {
+    if (cause instanceof DirectoryFailure) {
       return new ArchiveFailure(
-        ((SafFailure) cause).code,
+        ((DirectoryFailure) cause).code,
         "SAF publication access failed.",
         false,
         cause

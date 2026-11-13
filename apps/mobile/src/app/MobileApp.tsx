@@ -63,6 +63,7 @@ import { useRemoteSync } from '../features/transfer/use-remote-sync'
 import { transferFeedback } from '../features/transfer/transfer-feedback'
 import type { MobileSyncAdapter } from '../platform/sync-adapter'
 import { androidControl } from '../platform/http-transfers'
+import { allFilesAccess } from '../platform/all-files-access'
 import '../styles/mobile.css'
 
 import { AddGameDialog } from '../features/games/AddGameDialog'
@@ -565,6 +566,26 @@ export function MobileApp({
       setNewGameName('')
       setImportedGame(null)
       navigation.openMain('games')
+      promptDirectAccess().catch((cause: unknown) => {
+        console.error('Failed to prompt for all-files access', cause)
+      })
+    })
+  }
+  /** 没有所有文件访问权限时，第一次添加游戏后提示开启一次。 */
+  async function promptDirectAccess(): Promise<void> {
+    const state = await allFilesAccess.status()
+    if (!state || state.isGranted || state.wasPrompted) {
+      return
+    }
+    await allFilesAccess.markPrompted()
+    setConfirmation({
+      title: t('directAccess.prompt.title'),
+      text: t('directAccess.prompt.text'),
+      okText: t('directAccess.prompt.ok'),
+      work: async () => {
+        await allFilesAccess.openSettings()
+        setConfirmation(null)
+      },
     })
   }
   function deviceEditor(id: string | null): void {

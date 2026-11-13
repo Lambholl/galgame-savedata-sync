@@ -41,7 +41,7 @@ M-002 支持从移动端或电脑发起两个方向的同步。移动端发起�
 
 ### 3.1 平台入口与备份位置
 
-Windows `WindowsDirectoryAdapter.assertCacheIsolated` 已检查应用存储与已选根互不包含，`openFile` 提供原生流和变化复核，`locateNativeDirectory` 提供根/父身份检查。Android `SafPublicationBackend` 已有父目录/文档 ID/名称核实、`rw` 非预截断打开及 `Os.fstat` 常规 FD 身份检查。两者当前只实现新文件发布；这些入口可复用，覆盖和恢复须分别实现。
+Windows `WindowsDirectoryAdapter.assertCacheIsolated` 已检查应用存储与已选根互不包含，`openFile` 提供原生流和变化复核，`locateNativeDirectory` 提供根/父身份检查。Android `DirectoryPublicationBackend` 已有父目录/文档 ID/名称核实、`rw` 非预截断打开及 `Os.fstat` 常规 FD 身份检查。两者当前只实现新文件发布；这些入口可复用，覆盖和恢复须分别实现。
 
 备份使用目标端持久目录，不用临时缓存。Windows 放在 `userData/backups/`，检查与所选根互不包含，备份页有按钮打开这个文件夹。Android 放在应用专属外部目录 `Android/data/<包名>/files/backups/`，不需要目录授权，用户可以直接管理；Android 10 还能选中存储根或 `Android/data`，所以选择目录时拒绝与备份目录互相包含的同步根。备份页面展示实际位置，并说明可以直接删除，卸载或清除数据会一并删除。
 

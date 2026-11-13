@@ -44,7 +44,7 @@ final class TransferSchema {
   }
 
   static String id(Object value) throws ArchiveFailure {
-    require(SafValues.isId(value));
+    require(DocumentValues.isId(value));
     return (String) value;
   }
 

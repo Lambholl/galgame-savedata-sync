@@ -6,13 +6,9 @@ import static io.github.galgame.savedatasync.TransferSchema.nullable;
 import static io.github.galgame.savedatasync.TransferSchema.number;
 import static io.github.galgame.savedatasync.TransferSchema.string;
 
-import android.content.ContentResolver;
 import android.content.Context;
-import android.database.Cursor;
-import android.net.Uri;
 import android.os.CancellationSignal;
 import android.os.ParcelFileDescriptor;
-import android.provider.DocumentsContract;
 import android.provider.DocumentsContract.Document;
 import android.system.Os;
 import android.system.OsConstants;
@@ -28,36 +24,26 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-/** 复制和恢复写入用的 SAF 后端：以 rw 打开，写入前后比较常规文件描述符的身份。 */
-final class SafSyncBackend implements SyncWriter.Backend {
+/** 复制和恢复写入用的目录后端：以 rw 原地覆盖，写入前后比较常规文件描述符的身份。 */
+final class DirectorySyncBackend implements SyncWriter.Backend {
 
   interface Authorization {
     void check(String projectId, String rootId) throws Exception;
   }
 
-  private static final String[] COLUMNS = {
-    Document.COLUMN_DOCUMENT_ID,
-    Document.COLUMN_DISPLAY_NAME,
-    Document.COLUMN_MIME_TYPE,
-    Document.COLUMN_SIZE,
-    Document.COLUMN_LAST_MODIFIED,
-    Document.COLUMN_FLAGS,
-  };
-  private final ContentResolver resolver;
-  private final SafDirectoryStore store;
-  private final SafSyncSource source;
-  private final SafPublicationBackend publication;
+  private final DirectoryStore store;
+  private final DirectorySyncSource source;
+  private final DirectoryPublicationBackend publication;
   private final NewFilePublisher publisher;
   private final Authorization authorization;
   private final InterruptedWrites interrupted;
 
-  SafSyncBackend(Context context, SafDirectoryStore store, Authorization authorization) {
-    resolver = context.getApplicationContext().getContentResolver();
+  DirectorySyncBackend(Context context, DirectoryStore store, Authorization authorization) {
     this.store = store;
     this.authorization = authorization;
     interrupted = new InterruptedWrites(context);
-    source = new SafSyncSource(store);
-    publication = new SafPublicationBackend(context, store);
+    source = new DirectorySyncSource(store);
+    publication = new DirectoryPublicationBackend(context, store);
     publisher = new NewFilePublisher(publication);
   }
 
@@ -109,7 +95,7 @@ final class SafSyncBackend implements SyncWriter.Backend {
     }
   }
 
-  private SafDirectoryStore.PublicationDirectory locate(
+  private DirectoryStore.PublicationDirectory locate(
     String rootId,
     String parentId,
     boolean shouldCreate,
@@ -123,9 +109,9 @@ final class SafSyncBackend implements SyncWriter.Backend {
     }
   }
 
-  private void checked(SafDirectoryStore.PublicationDirectory directory, ArchiveControl control)
+  private void checked(DirectoryStore.PublicationDirectory directory, ArchiveControl control)
     throws Exception {
-    SafDirectoryStore.PublicationDirectory current = locate(
+    DirectoryStore.PublicationDirectory current = locate(
       directory.rootId,
       directory.parentId,
       false,
@@ -140,30 +126,19 @@ final class SafSyncBackend implements SyncWriter.Backend {
     }
   }
 
-  private List<SafDirectoryStore.Snapshot> children(
-    SafDirectoryStore.PublicationDirectory directory,
+  private List<DirectoryStore.Snapshot> children(
+    DirectoryStore.PublicationDirectory directory,
     ArchiveControl control
   ) throws Exception {
     checked(directory, control);
     Signal signal = control.track(new Signal());
-    List<SafDirectoryStore.Snapshot> result = new ArrayList<>();
+    List<DirectoryStore.Snapshot> result = new ArrayList<>();
     Set<String> ids = new HashSet<>();
-    try (
-      Cursor cursor = resolver.query(
-        DocumentsContract.buildChildDocumentsUriUsingTree(directory.tree, directory.documentId),
-        COLUMNS,
-        null,
-        null,
-        null,
-        signal.value
-      )
-    ) {
-      if (cursor == null) {
-        throw new java.io.IOException("Missing provider cursor");
-      }
-      while (cursor.moveToNext()) {
+    try {
+      for (DirectoryStore.Snapshot value : store
+        .access(directory.tree)
+        .children(directory.tree, directory.documentId, signal.value)) {
         control.check();
-        SafDirectoryStore.Snapshot value = SafDirectoryStore.decode(cursor);
         if (result.size() >= 32768) {
           throw new ArchiveFailure("resource-limit", "Target directory entries exceed the limit.");
         }
@@ -181,14 +156,18 @@ final class SafSyncBackend implements SyncWriter.Backend {
     return result;
   }
 
-  private SafDirectoryStore.Snapshot named(
-    SafDirectoryStore.PublicationDirectory directory,
+  /**
+   * 在子项里核对与 name 等价的条目只有 name 本身且文档 ID 是 expectedId，返回这个条目。
+   *
+   * <p>expectedId 为 null 时要求没有等价的条目，返回 null。核对不通过时抛出 source-changed。
+   */
+  private static DirectoryStore.Snapshot named(
+    List<DirectoryStore.Snapshot> children,
     String name,
-    String expectedId,
-    ArchiveControl control
+    String expectedId
   ) throws Exception {
-    SafDirectoryStore.Snapshot selected = null;
-    for (SafDirectoryStore.Snapshot child : children(directory, control)) {
+    DirectoryStore.Snapshot selected = null;
+    for (DirectoryStore.Snapshot child : children) {
       if (
         BackupModel.key(java.util.Collections.singletonList(child.name)).equals(
           BackupModel.key(java.util.Collections.singletonList(name))
@@ -217,12 +196,27 @@ final class SafSyncBackend implements SyncWriter.Backend {
     return selected;
   }
 
+  /** 在子项里找名称完全相同的条目；没有时返回 null，同名的不止一个时抛出 name-conflict。 */
+  private static DirectoryStore.Snapshot exact(List<DirectoryStore.Snapshot> children, String name)
+    throws ArchiveFailure {
+    DirectoryStore.Snapshot value = null;
+    for (DirectoryStore.Snapshot child : children) {
+      if (child.name.equals(name)) {
+        if (value != null) {
+          throw new ArchiveFailure("name-conflict", "The target contains duplicate names.");
+        }
+        value = child;
+      }
+    }
+    return value;
+  }
+
   @Override
   public Long available(String rootId, String parentId, ArchiveControl control) throws Exception {
     // 复用根查询，未知容量保持 null；它的创建能力检查只用于此可选查询。
     try {
       return publication.availableBytes(locate(rootId, parentId, false, control), control);
-    } catch (SafFailure failure) {
+    } catch (DirectoryFailure failure) {
       if (failure.code.equals("unsupported-operation")) {
         return null;
       }
@@ -233,10 +227,10 @@ final class SafSyncBackend implements SyncWriter.Backend {
   @Override
   public String createDirectory(String rootId, String parentId, String name, ArchiveControl control)
     throws Exception {
-    SafDirectoryStore.PublicationDirectory directory = locate(rootId, parentId, true, control);
-    List<SafDirectoryStore.Snapshot> before = children(directory, control);
+    DirectoryStore.PublicationDirectory directory = locate(rootId, parentId, true, control);
+    List<DirectoryStore.Snapshot> before = children(directory, control);
     Set<String> ids = new HashSet<>();
-    for (SafDirectoryStore.Snapshot child : before) {
+    for (DirectoryStore.Snapshot child : before) {
       ids.add(child.documentId);
       if (
         BackupModel.key(java.util.Collections.singletonList(child.name)).equals(
@@ -253,34 +247,16 @@ final class SafSyncBackend implements SyncWriter.Backend {
     boolean wasAttempted = false;
     try {
       wasAttempted = true;
-      Uri created = DocumentsContract.createDocument(
-        resolver,
-        directory.uri,
-        Document.MIME_TYPE_DIR,
-        name
-      );
-      if (
-        created == null ||
-        !"content".equals(created.getScheme()) ||
-        !Objects.equals(created.getAuthority(), directory.tree.getAuthority()) ||
-        !DocumentsContract.isTreeUri(created) ||
-        !DocumentsContract.getTreeDocumentId(created).equals(
-          DocumentsContract.getTreeDocumentId(directory.tree)
-        )
-      ) {
-        throw new ArchiveFailure(
-          "result-unknown",
-          "Directory creation returned an unknown reference."
-        );
-      }
-      String id = DocumentsContract.getDocumentId(created);
+      String id = store
+        .access(directory.tree)
+        .create(directory.tree, directory.documentId, Document.MIME_TYPE_DIR, name);
       if (ids.contains(id)) {
         throw new ArchiveFailure(
           "result-unknown",
           "Directory creation returned an existing document."
         );
       }
-      SafDirectoryStore.Snapshot value = named(directory, name, id, new ArchiveControl());
+      DirectoryStore.Snapshot value = named(children(directory, new ArchiveControl()), name, id);
       if (value == null || !value.isDirectory || value.isVirtual) {
         throw new ArchiveFailure(
           "result-unknown",
@@ -308,23 +284,16 @@ final class SafSyncBackend implements SyncWriter.Backend {
     Map<String, Object> expected,
     ArchiveControl control
   ) throws Exception {
-    SafDirectoryStore.PublicationDirectory directory = locate(rootId, parentId, false, control);
+    DirectoryStore.PublicationDirectory directory = locate(rootId, parentId, false, control);
     List<String> path = BackupModel.path(expected.get("path"));
     String name = path.get(path.size() - 1);
     final boolean isDirectory = expected.get("kind").equals("directory");
-    SafDirectoryStore.Snapshot value = null;
-    for (SafDirectoryStore.Snapshot child : children(directory, control)) {
-      if (child.name.equals(name)) {
-        if (value != null) {
-          throw new ArchiveFailure("name-conflict", "The target contains duplicate names.");
-        }
-        value = child;
-      }
-    }
+    List<DirectoryStore.Snapshot> siblings = children(directory, control);
+    DirectoryStore.Snapshot value = exact(siblings, name);
     if (value == null) {
       throw new ArchiveFailure("source-changed", "The entry to be deleted no longer exists.");
     }
-    named(directory, name, value.documentId, control);
+    named(siblings, name, value.documentId);
     // 文件夹里的子项刚被删过，它的修改时间已经变了，只核对身份和类型。
     if (
       !store.publicationEntry(directory, value).entryId.equals(expected.get("entryId")) ||
@@ -349,7 +318,7 @@ final class SafSyncBackend implements SyncWriter.Backend {
         "The provider does not allow deleting this entry."
       );
     }
-    // SAF 的 deleteDocument 会递归删除，这里先确认文件夹是空的，只删计划列出的条目。
+    // SAF 的 deleteDocument 会递归删除文件夹，这里先确认文件夹是空的，只删计划列出的条目。
     if (
       isDirectory &&
       !children(locate(rootId, string(expected.get("entryId")), false, control), control).isEmpty()
@@ -357,9 +326,8 @@ final class SafSyncBackend implements SyncWriter.Backend {
       throw new ArchiveFailure("source-changed", "The directory to delete is no longer empty.");
     }
     control.check();
-    Uri uri = DocumentsContract.buildDocumentUriUsingTree(directory.tree, value.documentId);
     try {
-      if (!DocumentsContract.deleteDocument(resolver, uri)) {
+      if (!store.access(directory.tree).delete(directory.tree, value.documentId)) {
         throw new java.io.IOException("The provider did not delete the document");
       }
     } catch (Exception cause) {
@@ -388,12 +356,12 @@ final class SafSyncBackend implements SyncWriter.Backend {
 
   /** 用独立的控制回读条目是否还在，晚到的取消不影响结果；读不到时返回 null。 */
   private Boolean stillExists(
-    SafDirectoryStore.PublicationDirectory directory,
+    DirectoryStore.PublicationDirectory directory,
     String name,
     String documentId
   ) {
     try {
-      for (SafDirectoryStore.Snapshot child : children(directory, new ArchiveControl())) {
+      for (DirectoryStore.Snapshot child : children(directory, new ArchiveControl())) {
         if (child.name.equals(name) && child.documentId.equals(documentId)) {
           return true;
         }
@@ -438,22 +406,15 @@ final class SafSyncBackend implements SyncWriter.Backend {
     ArchiveControl control,
     boolean requireWrite
   ) throws Exception {
-    SafDirectoryStore.PublicationDirectory directory = locate(rootId, parentId, false, control);
+    DirectoryStore.PublicationDirectory directory = locate(rootId, parentId, false, control);
     List<String> path = BackupModel.path(expected.get("path"));
     String name = path.get(path.size() - 1);
-    SafDirectoryStore.Snapshot value = null;
-    for (SafDirectoryStore.Snapshot child : children(directory, control)) {
-      if (child.name.equals(name)) {
-        if (value != null) {
-          throw new ArchiveFailure("name-conflict", "The target contains duplicate names.");
-        }
-        value = child;
-      }
-    }
+    List<DirectoryStore.Snapshot> siblings = children(directory, control);
+    DirectoryStore.Snapshot value = exact(siblings, name);
     if (value == null) {
       throw new ArchiveFailure("source-changed", "The file to be overwritten no longer exists.");
     }
-    named(directory, name, value.documentId, control);
+    named(siblings, name, value.documentId);
     if (
       !store.publicationEntry(directory, value).entryId.equals(expected.get("entryId")) ||
       value.isDirectory ||
@@ -476,26 +437,26 @@ final class SafSyncBackend implements SyncWriter.Backend {
 
   private final class Existing implements SyncWriter.Replacement {
 
-    final SafDirectoryStore.PublicationDirectory directory;
+    final DirectoryStore.PublicationDirectory directory;
     final String id;
     final String name;
-    final Uri uri;
-    final SafDirectoryStore.Snapshot original;
+    final DocumentAccess access;
+    final DirectoryStore.Snapshot original;
     final ParcelFileDescriptor identity;
     final StructStat baseline;
     ParcelFileDescriptor writable;
     boolean isWriting;
 
     Existing(
-      SafDirectoryStore.PublicationDirectory directory,
-      SafDirectoryStore.Snapshot value,
+      DirectoryStore.PublicationDirectory directory,
+      DirectoryStore.Snapshot value,
       ArchiveControl control
     ) throws Exception {
       this.directory = directory;
       id = value.documentId;
       name = value.name;
       original = value;
-      uri = DocumentsContract.buildDocumentUriUsingTree(directory.tree, id);
+      access = store.access(directory.tree);
       identity = descriptor("r", control, null);
       try {
         baseline = Os.fstat(identity.getFileDescriptor());
@@ -513,10 +474,7 @@ final class SafSyncBackend implements SyncWriter.Backend {
       Signal signal = control.track(new Signal());
       ParcelFileDescriptor fd = null;
       try {
-        fd = resolver.openFileDescriptor(uri, mode, signal.value);
-        if (fd == null) {
-          throw new java.io.IOException("Missing provider descriptor");
-        }
+        fd = access.open(directory.tree, id, mode, signal.value);
         StructStat value = Os.fstat(fd.getFileDescriptor());
         if (!OsConstants.S_ISREG(value.st_mode) || value.st_nlink != 1) {
           throw new ArchiveFailure(
@@ -546,7 +504,7 @@ final class SafSyncBackend implements SyncWriter.Backend {
 
     @Override
     public void verify(ArchiveControl control) throws Exception {
-      SafDirectoryStore.Snapshot current = named(directory, name, id, control);
+      DirectoryStore.Snapshot current = named(children(directory, control), name, id);
       if (
         current.isDirectory ||
         current.isVirtual ||

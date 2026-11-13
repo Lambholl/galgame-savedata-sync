@@ -32,9 +32,9 @@ final class SyncTransferRuntime {
 
   private SyncTransferRuntime(Context context) throws Exception {
     this.context = context;
-    SafDirectoryStore store = SafRuntime.store(context);
-    BackupStore backups = SafRuntime.backups(context);
-    writer = new SyncWriter(new SafSyncBackend(context, store, this::authorize), backups);
+    DirectoryStore store = DirectoryRuntime.store(context);
+    BackupStore backups = DirectoryRuntime.backups(context);
+    writer = new SyncWriter(new DirectorySyncBackend(context, store, this::authorize), backups);
     engine = new SyncTransferEngine(
       TransferRuntime.get(context).engine,
       new SyncTransferEngine.Local() {
@@ -46,7 +46,7 @@ final class SyncTransferRuntime {
         @Override
         public Map<String, Object> snapshot(String rootId, ArchiveControl control)
           throws Exception {
-          return SafRuntime.scanner(context).snapshotNow(rootId, control);
+          return DirectoryRuntime.scanner(context).snapshotNow(rootId, control);
         }
 
         @Override
@@ -55,7 +55,11 @@ final class SyncTransferRuntime {
           for (Map<String, Object> operation : plan.writes) {
             if (SyncPlanModel.isFileWrite(operation)) {
               sources.add(
-                new SafArchiveSource(store, plan.source.root, id(operation.get("sourceEntryId")))
+                new DirectoryArchiveSource(
+                  store,
+                  plan.source.root,
+                  id(operation.get("sourceEntryId"))
+                )
               );
             }
           }

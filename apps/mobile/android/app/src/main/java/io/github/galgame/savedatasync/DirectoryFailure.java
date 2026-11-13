@@ -4,17 +4,17 @@ import android.os.OperationCanceledException;
 import com.getcapacitor.JSObject;
 import java.io.FileNotFoundException;
 
-/** SAF 操作的错误，带稳定的错误码和已脱敏的消息；result 只输出错误码和消息，原始异常留作 cause。 */
-final class SafFailure extends Exception {
+/** 目录操作的错误，带稳定的错误码和已脱敏的消息；result 只输出错误码和消息，原始异常留作 cause。 */
+final class DirectoryFailure extends Exception {
 
   final String code;
 
-  SafFailure(String code, String message) {
+  DirectoryFailure(String code, String message) {
     super(message);
     this.code = code;
   }
 
-  SafFailure(String code, String message, Throwable cause) {
+  DirectoryFailure(String code, String message, Throwable cause) {
     super(message, cause);
     this.code = code;
   }
@@ -30,32 +30,32 @@ final class SafFailure extends Exception {
     return result;
   }
 
-  static SafFailure from(Exception cause) {
-    if (cause instanceof SafFailure) {
-      return (SafFailure) cause;
+  static DirectoryFailure from(Exception cause) {
+    if (cause instanceof DirectoryFailure) {
+      return (DirectoryFailure) cause;
     }
     if (cause instanceof SecurityException) {
-      return new SafFailure(
+      return new DirectoryFailure(
         "permission-denied",
         "Directory access was denied. Select the directory again.",
         cause
       );
     }
     if (cause instanceof FileNotFoundException) {
-      return new SafFailure(
+      return new DirectoryFailure(
         "not-found",
         "The directory or file is no longer available. Read it again.",
         cause
       );
     }
     if (cause instanceof OperationCanceledException || cause instanceof InterruptedException) {
-      return new SafFailure(
+      return new DirectoryFailure(
         "io-failure",
         "Reading stopped because of the app lifecycle or cancellation.",
         cause
       );
     }
-    return new SafFailure(
+    return new DirectoryFailure(
       "io-failure",
       "Cannot read the directory provider or local configuration.",
       cause

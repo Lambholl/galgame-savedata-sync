@@ -19,20 +19,20 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import org.json.JSONObject;
 
 /**
- * SAF 目录的原生插件：选择根目录和列出目录，网页只拿到不透明 ID 和元数据。
+ * 目录的原生插件：经系统选择器选择根目录、列出目录，网页只拿到不透明 ID 和元数据。
  *
  * <p>提供者 I/O 在 UI 线程之外串行执行；插件销毁时释放它持有的查询。
  */
-@CapacitorPlugin(name = "SafDirectories")
-public class SafDirectoriesPlugin extends Plugin {
+@CapacitorPlugin(name = "Directories")
+public class DirectoriesPlugin extends Plugin {
 
   private final ExecutorService worker = Executors.newSingleThreadExecutor();
   private final Set<CancellationSignal> signals = ConcurrentHashMap.newKeySet();
   private final AtomicBoolean choosing = new AtomicBoolean();
   private volatile boolean isDestroyed;
 
-  private SafDirectoryStore store() throws SafFailure {
-    return SafRuntime.store(getContext());
+  private DirectoryStore store() throws DirectoryFailure {
+    return DirectoryRuntime.store(getContext());
   }
 
   private interface Work {
@@ -46,7 +46,7 @@ public class SafDirectoriesPlugin extends Plugin {
         signals.add(signal);
         try {
           if (isDestroyed) {
-            throw new SafFailure("unsupported-operation", "The directory service is closed.");
+            throw new DirectoryFailure("unsupported-operation", "The directory service is closed.");
           }
           JSObject result = work.run(signal);
           if (result != null) {
@@ -57,14 +57,14 @@ public class SafDirectoriesPlugin extends Plugin {
           if ("chooseDirectory".equals(call.getMethodName())) {
             choosing.set(false);
           }
-          call.resolve(SafFailure.from(cause).result());
+          call.resolve(DirectoryFailure.from(cause).result());
         } finally {
           signals.remove(signal);
         }
       });
     } catch (RejectedExecutionException cause) {
       call.resolve(
-        new SafFailure("io-failure", "The app is closed. Open it again.", cause).result()
+        new DirectoryFailure("io-failure", "The app is closed. Open it again.", cause).result()
       );
     }
   }
@@ -73,7 +73,9 @@ public class SafDirectoriesPlugin extends Plugin {
     if (call.getData().length() == 0) {
       return true;
     }
-    call.resolve(new SafFailure("invalid-request", "Extra parameters are not accepted.").result());
+    call.resolve(
+      new DirectoryFailure("invalid-request", "Extra parameters are not accepted.").result()
+    );
     return false;
   }
 
@@ -92,7 +94,7 @@ public class SafDirectoriesPlugin extends Plugin {
     }
     if (isDestroyed || !choosing.compareAndSet(false, true)) {
       call.resolve(
-        new SafFailure(
+        new DirectoryFailure(
           "unsupported-operation",
           "Complete the current directory selection first."
         ).result()
@@ -117,7 +119,7 @@ public class SafDirectoriesPlugin extends Plugin {
           startActivityForResult(call, intent, "onDirectoryChosen");
         } catch (Exception cause) {
           choosing.set(false);
-          call.resolve(SafFailure.from(cause).result());
+          call.resolve(DirectoryFailure.from(cause).result());
         }
       });
       return null;
@@ -142,7 +144,7 @@ public class SafDirectoriesPlugin extends Plugin {
       activityResult.getResultCode() != Activity.RESULT_OK || data == null || data.getData() == null
     ) {
       call.resolve(
-        new SafFailure(
+        new DirectoryFailure(
           "permission-denied",
           "The system did not return valid directory authorization."
         ).result()
@@ -174,11 +176,11 @@ public class SafDirectoriesPlugin extends Plugin {
     Object parent = data.opt("parentId");
     if (
       data.length() != 2 ||
-      !SafValues.isId(root) ||
-      (parent != JSONObject.NULL && !SafValues.isId(parent))
+      !DocumentValues.isId(root) ||
+      (parent != JSONObject.NULL && !DocumentValues.isId(parent))
     ) {
       call.resolve(
-        new SafFailure("invalid-request", "Directory read parameters are invalid.").result()
+        new DirectoryFailure("invalid-request", "Directory read parameters are invalid.").result()
       );
       return;
     }

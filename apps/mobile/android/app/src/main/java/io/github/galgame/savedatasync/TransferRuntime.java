@@ -48,10 +48,10 @@ final class TransferRuntime {
 
   private TransferRuntime(Context context) throws Exception {
     this.context = context;
-    SafDirectoryStore store = SafRuntime.store(context);
-    publisher = new NewFilePublisher(new SafPublicationBackend(context, store));
+    DirectoryStore store = DirectoryRuntime.store(context);
+    publisher = new NewFilePublisher(new DirectoryPublicationBackend(context, store));
     engine = new TransferEngine(
-      SafArchiveSource.createAdapter(context),
+      DirectoryArchiveSource.createAdapter(context),
       publisher,
       new TransferEngine.Local() {
         @Override
@@ -64,7 +64,9 @@ final class TransferRuntime {
           throws Exception {
           List<ArchiveModel.Source> result = new ArrayList<>();
           for (Object selection : selections) {
-            result.add(new SafArchiveSource(store, rootId, string(map(selection).get("entryId"))));
+            result.add(
+              new DirectoryArchiveSource(store, rootId, string(map(selection).get("entryId")))
+            );
           }
           return result;
         }

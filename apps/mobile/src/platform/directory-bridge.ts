@@ -14,7 +14,7 @@ import type {
 } from '@savedata-sync/shared'
 
 /** SAF 目录的原生插件；方法与 AndroidDirectoryApi 的同名方法对应，返回值未经校验。 */
-export interface SafNativePlugin {
+export interface DirectoryNativePlugin {
   chooseDirectory(): Promise<unknown>
   listRoots(): Promise<unknown>
   listDirectory(options: { rootId: string; parentId: string | null }): Promise<unknown>
@@ -53,8 +53,8 @@ function isRootList(value: unknown): value is readonly DirectoryReference[] {
  *
  * @returns 参数无效、返回格式不对或结果与请求不符时，对应方法返回错误结果。
  */
-export function createSafDirectoryBridge(
-  plugin: SafNativePlugin,
+export function createDirectoryBridge(
+  plugin: DirectoryNativePlugin,
   isAndroid: () => boolean,
 ): AndroidDirectoryApi {
   return Object.freeze({

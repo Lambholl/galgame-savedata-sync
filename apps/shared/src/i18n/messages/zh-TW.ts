@@ -31,6 +31,12 @@ export const zhTW: Messages = {
   'settings.language.system': '跟隨系統',
   'settings.about': '關於',
   'settings.version': '版本',
+  'settings.storage': '儲存空間',
+  'settings.directAccess': '直接讀寫檔案',
+  'directAccess.openFailed': '無法開啟系統授權頁',
+  'directAccess.prompt.title': '開啟直接讀寫檔案？',
+  'directAccess.prompt.text': '允許「所有檔案存取權」後，掃描、備份和寫入會快很多。',
+  'directAccess.prompt.ok': '前往開啟',
 
   'common.unknown': '未知',
   'common.timeUnknown': '時間未知',

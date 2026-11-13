@@ -32,7 +32,7 @@ import org.junit.runner.RunWith;
  * 所有源访问都只读；报告只含计数，不含源路径、名称或哈希。
  */
 @RunWith(AndroidJUnit4.class)
-public class SafDirectoriesTest {
+public class DirectoriesTest {
 
   private static final String EVIDENCE = "saf-test-read-evidence";
 
@@ -78,7 +78,7 @@ public class SafDirectoriesTest {
   }
 
   private void verifyReadOnly(String rootId) throws Exception {
-    SafDirectoryStore store = new SafDirectoryStore(context());
+    DirectoryStore store = new DirectoryStore(context());
     JSONObject before = store.listDirectory(rootId, null, new CancellationSignal());
     JSONArray entries = before.getJSONArray("entries");
     Map<String, byte[]> hashes = new HashMap<>();
@@ -110,14 +110,14 @@ public class SafDirectoriesTest {
       "Directory metadata changed during read-only validation",
       entries.toString().equals(after.getJSONArray("entries").toString())
     );
-    SafFailure invalid = assertThrows(SafFailure.class, () ->
+    DirectoryFailure invalid = assertThrows(DirectoryFailure.class, () ->
       store.openFile(rootId, "unknown-entry", new CancellationSignal())
     );
     assertEquals("not-found", invalid.code);
     // 重新创建的原生实例没有之前的条目表，必须重新枚举。
     if (entries.length() > 0) {
-      SafDirectoryStore restored = new SafDirectoryStore(context());
-      SafFailure stale = assertThrows(SafFailure.class, () ->
+      DirectoryStore restored = new DirectoryStore(context());
+      DirectoryFailure stale = assertThrows(DirectoryFailure.class, () ->
         restored.openFile(
           rootId,
           entries.getJSONObject(0).getString("entryId"),
@@ -134,7 +134,7 @@ public class SafDirectoriesTest {
     InstrumentationRegistry.getInstrumentation().sendStatus(0, report);
   }
 
-  private byte[] digest(SafDirectoryStore store, String rootId, String entryId) throws Exception {
+  private byte[] digest(DirectoryStore store, String rootId, String entryId) throws Exception {
     MessageDigest digest = MessageDigest.getInstance("SHA-256");
     byte[] buffer = new byte[32768];
     try (InputStream stream = store.openFile(rootId, entryId, new CancellationSignal())) {
@@ -169,7 +169,7 @@ public class SafDirectoriesTest {
   ) throws Exception {
     evaluate(
       scenario,
-      "window.__safResult = null; window.Capacitor.nativePromise('SafDirectories', '" +
+      "window.__safResult = null; window.Capacitor.nativePromise('Directories', '" +
         method +
         "', " +
         arguments +

@@ -69,14 +69,14 @@ public class SyncTransfersPlugin extends Plugin {
             );
           } catch (Exception invalid) {
             call.resolve(
-              new SafFailure("io-failure", "The copy response is invalid.", invalid).result()
+              new DirectoryFailure("io-failure", "The copy response is invalid.", invalid).result()
             );
           }
         }
       });
     } catch (java.util.concurrent.RejectedExecutionException cause) {
       call.resolve(
-        new SafFailure("unsupported-operation", "The copy bridge is closed.", cause).result()
+        new DirectoryFailure("unsupported-operation", "The copy bridge is closed.", cause).result()
       );
     }
   }

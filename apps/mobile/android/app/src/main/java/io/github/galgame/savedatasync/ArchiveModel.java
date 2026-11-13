@@ -97,8 +97,8 @@ final class ArchiveModel {
       require(
         identity != null &&
           !identity.isEmpty() &&
-          SafValues.isId(entryId) &&
-          (parentId == null || (SafValues.isId(parentId) && !parentId.equals(entryId))) &&
+          DocumentValues.isId(entryId) &&
+          (parentId == null || (DocumentValues.isId(parentId) && !parentId.equals(entryId))) &&
           text(name) &&
           (size == null || (size >= 0 && size <= 9007199254740991L)) &&
           (modified == null || (modified >= -8640000000000000L && modified <= 8640000000000000L))
@@ -178,7 +178,9 @@ final class ArchiveModel {
 
     void validate(Limits limits) throws ArchiveFailure {
       require(
-        SafValues.isId(transferId) && SafValues.isId(sourceDeviceId) && SafValues.isId(sourceRootId)
+        DocumentValues.isId(transferId) &&
+          DocumentValues.isId(sourceDeviceId) &&
+          DocumentValues.isId(sourceRootId)
       );
       require(!files.isEmpty() && archive != null);
       limit(files.size() <= limits.files);
@@ -190,10 +192,11 @@ final class ArchiveModel {
         require(
           f != null &&
             id(i).equals(f.fileId) &&
-            SafValues.isId(f.sourceEntryId) &&
+            DocumentValues.isId(f.sourceEntryId) &&
             entries.add(f.sourceEntryId) &&
             (f.sourceParentId == null ||
-              (SafValues.isId(f.sourceParentId) && !f.sourceParentId.equals(f.sourceEntryId))) &&
+              (DocumentValues.isId(f.sourceParentId) &&
+                !f.sourceParentId.equals(f.sourceEntryId))) &&
             text(f.sourceName) &&
             hash(f.sha256) &&
             f.sizeBytes >= 0 &&

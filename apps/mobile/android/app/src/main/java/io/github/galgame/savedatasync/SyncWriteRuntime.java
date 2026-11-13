@@ -26,7 +26,7 @@ final class SyncWriteRuntime implements AutoCloseable {
   private final ExecutorService worker = Executors.newSingleThreadExecutor();
   private final java.util.concurrent.ScheduledExecutorService expiry =
     Executors.newSingleThreadScheduledExecutor();
-  private final SafDirectoryStore store;
+  private final DirectoryStore store;
   final SyncWriter writer;
   private Job active;
   private boolean isClosed;
@@ -76,10 +76,10 @@ final class SyncWriteRuntime implements AutoCloseable {
     }
   }
 
-  SyncWriteRuntime(Context context, SafDirectoryStore store, BackupStore backups) {
+  SyncWriteRuntime(Context context, DirectoryStore store, BackupStore backups) {
     this.store = store;
     writer = new SyncWriter(
-      new SafSyncBackend(context, store, (project, root) -> {
+      new DirectorySyncBackend(context, store, (project, root) -> {
         synchronized (SyncWriteRuntime.this) {
           if (!root.equals(projects.get(project))) {
             throw new ArchiveFailure(

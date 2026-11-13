@@ -8,18 +8,21 @@ import java.io.IOException;
 import java.io.InputStream;
 
 /**
- * 以已枚举的 SAF 文件作为归档的读取源，只使用已有授权；查询和打开必须在后台工作线程调用。
+ * 以已枚举的目录文件作为归档的读取源，只使用已有授权；查询和打开必须在后台工作线程调用。
  *
  * <p>控制器取消时同时取消提供者查询并关闭读流。
  */
-final class SafArchiveSource implements ArchiveModel.Source {
+final class DirectoryArchiveSource implements ArchiveModel.Source {
 
-  private final SafDirectoryStore store;
+  private final DirectoryStore store;
   private final String rootId;
   private final String entryId;
 
-  SafArchiveSource(SafDirectoryStore store, String rootId, String entryId) throws ArchiveFailure {
-    ArchiveModel.require(store != null && SafValues.isId(rootId) && SafValues.isId(entryId));
+  DirectoryArchiveSource(DirectoryStore store, String rootId, String entryId)
+    throws ArchiveFailure {
+    ArchiveModel.require(
+      store != null && DocumentValues.isId(rootId) && DocumentValues.isId(entryId)
+    );
     this.store = store;
     this.rootId = rootId;
     this.entryId = entryId;

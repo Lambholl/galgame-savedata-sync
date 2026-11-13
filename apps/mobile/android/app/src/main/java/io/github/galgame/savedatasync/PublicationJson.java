@@ -19,19 +19,11 @@ final class PublicationJson {
       PublicationModel.Entry e = result.entry;
       outcome.put(
         "entry",
-        SafDirectoryStore.metadata(
+        DirectoryStore.metadata(
           e.rootId,
           e.entryId,
           e.parentId,
-          new SafDirectoryStore.Snapshot(
-            "native-only",
-            e.name,
-            false,
-            true,
-            false,
-            e.size,
-            e.modified
-          )
+          new DirectoryStore.Snapshot("native-only", e.name, false, true, false, e.size, e.modified)
         )
       );
     } else {

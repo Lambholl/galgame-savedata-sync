@@ -3,13 +3,9 @@ package io.github.galgame.savedatasync;
 import static io.github.galgame.savedatasync.PublicationModel.Entry;
 import static io.github.galgame.savedatasync.PublicationModel.MAX_DIRECTORY_ENTRIES;
 
-import android.content.ContentResolver;
 import android.content.Context;
-import android.database.Cursor;
-import android.net.Uri;
 import android.os.CancellationSignal;
 import android.os.ParcelFileDescriptor;
-import android.provider.DocumentsContract;
 import android.provider.DocumentsContract.Document;
 import android.system.ErrnoException;
 import android.system.Os;
@@ -17,30 +13,21 @@ import android.system.OsConstants;
 import android.system.StructStat;
 import android.system.StructStatVfs;
 import java.io.Closeable;
+import java.io.FileNotFoundException;
 import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * SAF 的发布后端，只写能核实为常规文件的描述符：以 rw 打开，比较设备号和 inode 后再写入。
+ * 新文件的发布后端，只写能核实为常规文件的描述符：以 rw 打开，比较设备号和 inode 后再写入。
  *
- * <p>SAF 没有比较后删除的操作，元数据和描述符复核只能发现可观察的竞争，提供者仍可能在两次检查之间替换文件。
+ * <p>没有比较后删除的操作，元数据和描述符复核只能发现可观察的竞争，文件仍可能在两次检查之间被替换。
  */
-final class SafPublicationBackend implements NewFilePublisher.Backend {
+final class DirectoryPublicationBackend implements NewFilePublisher.Backend {
 
-  private static final String[] COLUMNS = {
-    Document.COLUMN_DOCUMENT_ID,
-    Document.COLUMN_DISPLAY_NAME,
-    Document.COLUMN_MIME_TYPE,
-    Document.COLUMN_SIZE,
-    Document.COLUMN_LAST_MODIFIED,
-    Document.COLUMN_FLAGS,
-  };
-  private final ContentResolver resolver;
-  private final SafDirectoryStore store;
+  private final DirectoryStore store;
 
-  SafPublicationBackend(Context context, SafDirectoryStore store) {
-    resolver = context.getApplicationContext().getContentResolver();
+  DirectoryPublicationBackend(Context context, DirectoryStore store) {
     this.store = store;
   }
 
@@ -65,18 +52,16 @@ final class SafPublicationBackend implements NewFilePublisher.Backend {
     }
   }
 
-  private SafDirectoryStore.PublicationDirectory checked(
+  private DirectoryStore.PublicationDirectory checked(
     NewFilePublisher.Directory reference,
     ArchiveControl control
   ) throws Exception {
-    SafDirectoryStore.PublicationDirectory directory =
-      (SafDirectoryStore.PublicationDirectory) reference;
-    SafDirectoryStore.PublicationDirectory current =
-      (SafDirectoryStore.PublicationDirectory) locate(
-        directory.rootId,
-        directory.parentId,
-        control
-      );
+    DirectoryStore.PublicationDirectory directory = (DirectoryStore.PublicationDirectory) reference;
+    DirectoryStore.PublicationDirectory current = (DirectoryStore.PublicationDirectory) locate(
+      directory.rootId,
+      directory.parentId,
+      control
+    );
     if (
       !directory.tree.equals(current.tree) ||
       !directory.documentId.equals(current.documentId) ||
@@ -87,49 +72,28 @@ final class SafPublicationBackend implements NewFilePublisher.Backend {
     return directory;
   }
 
-  /** 通过提供者根和子文档关系查询可用容量；未知时返回 null。 */
+  private static PublicationModel.Document publicationDocument(DirectoryStore.Snapshot s) {
+    return new PublicationModel.Document(
+      s.documentId,
+      s.name,
+      s.isDirectory,
+      s.isVirtual,
+      s.size,
+      s.modified
+    );
+  }
+
+  /** 查询目标目录所在存储的可用容量；未知时返回 null。 */
   @Override
   public Long availableBytes(NewFilePublisher.Directory reference, ArchiveControl control)
     throws Exception {
-    SafDirectoryStore.PublicationDirectory directory = checked(reference, control);
+    DirectoryStore.PublicationDirectory directory = checked(reference, control);
     Signal signal = control.track(new Signal());
-    Long available = null;
-    try (
-      Cursor cursor = resolver.query(
-        DocumentsContract.buildRootsUri(directory.tree.getAuthority()),
-        new String[] {
-          DocumentsContract.Root.COLUMN_DOCUMENT_ID,
-          DocumentsContract.Root.COLUMN_AVAILABLE_BYTES,
-        },
-        null,
-        null,
-        null,
-        signal.value
-      )
-    ) {
-      while (cursor != null && cursor.moveToNext()) {
-        control.check();
-        if (cursor.isNull(0) || cursor.isNull(1) || cursor.getLong(1) < 0) {
-          continue;
-        }
-        String documentId = cursor.getString(0);
-        Uri root = DocumentsContract.buildDocumentUri(directory.tree.getAuthority(), documentId);
-        if (
-          documentId.equals(directory.documentId) ||
-          DocumentsContract.isChildDocument(resolver, root, directory.uri)
-        ) {
-          available = cursor.getLong(1);
-          break;
-        }
-      }
-    } catch (
-      java.lang.SecurityException
-      | java.lang.UnsupportedOperationException
-      | java.lang.IllegalArgumentException
-      | java.io.FileNotFoundException cause
-    ) {
-      // 有些提供者只开放树授权，或没有容量和子文档查询；此时依靠写入时的 FD 检查。
-      available = null;
+    Long available;
+    try {
+      available = store
+        .access(directory.tree)
+        .availableBytes(directory.tree, directory.documentId, signal.value);
     } finally {
       control.untrack(signal);
     }
@@ -142,25 +106,14 @@ final class SafPublicationBackend implements NewFilePublisher.Backend {
     NewFilePublisher.Directory reference,
     ArchiveControl control
   ) throws Exception {
-    SafDirectoryStore.PublicationDirectory directory = checked(reference, control);
+    DirectoryStore.PublicationDirectory directory = checked(reference, control);
     Signal signal = control.track(new Signal());
     List<PublicationModel.Document> result = new ArrayList<>();
-    try (
-      Cursor cursor = resolver.query(
-        DocumentsContract.buildChildDocumentsUriUsingTree(directory.tree, directory.documentId),
-        COLUMNS,
-        null,
-        null,
-        null,
-        signal.value
-      )
-    ) {
-      if (cursor == null) {
-        throw new java.io.IOException("Missing provider cursor");
-      }
-      while (cursor.moveToNext()) {
+    try {
+      for (DirectoryStore.Snapshot s : store
+        .access(directory.tree)
+        .children(directory.tree, directory.documentId, signal.value)) {
         control.check();
-        SafDirectoryStore.Snapshot s = SafDirectoryStore.decode(cursor);
         if (result.size() == MAX_DIRECTORY_ENTRIES) {
           throw new ArchiveFailure(
             "resource-limit",
@@ -173,16 +126,7 @@ final class SafPublicationBackend implements NewFilePublisher.Backend {
             "The provider returned the parent directory itself."
           );
         }
-        result.add(
-          new PublicationModel.Document(
-            s.documentId,
-            s.name,
-            s.isDirectory,
-            s.isVirtual,
-            s.size,
-            s.modified
-          )
-        );
+        result.add(publicationDocument(s));
       }
       return result;
     } finally {
@@ -192,28 +136,10 @@ final class SafPublicationBackend implements NewFilePublisher.Backend {
 
   @Override
   public String create(NewFilePublisher.Directory reference, String name) throws Exception {
-    SafDirectoryStore.PublicationDirectory directory = checked(reference, new ArchiveControl());
-    Uri uri = DocumentsContract.createDocument(
-      resolver,
-      directory.uri,
-      "application/octet-stream",
-      name
-    );
-    if (
-      uri == null ||
-      !"content".equals(uri.getScheme()) ||
-      !directory.tree.getAuthority().equals(uri.getAuthority()) ||
-      !DocumentsContract.isTreeUri(uri) ||
-      !DocumentsContract.getTreeDocumentId(directory.tree).equals(
-        DocumentsContract.getTreeDocumentId(uri)
-      )
-    ) {
-      throw new ArchiveFailure(
-        "result-unknown",
-        "The provider returned an unknown creation reference."
-      );
-    }
-    return DocumentsContract.getDocumentId(uri);
+    DirectoryStore.PublicationDirectory directory = checked(reference, new ArchiveControl());
+    return store
+      .access(directory.tree)
+      .create(directory.tree, directory.documentId, "application/octet-stream", name);
   }
 
   @Override
@@ -222,34 +148,14 @@ final class SafPublicationBackend implements NewFilePublisher.Backend {
     String id,
     ArchiveControl control
   ) throws Exception {
-    SafDirectoryStore.PublicationDirectory directory =
-      (SafDirectoryStore.PublicationDirectory) reference;
+    DirectoryStore.PublicationDirectory directory = (DirectoryStore.PublicationDirectory) reference;
     Signal signal = control.track(new Signal());
-    try (
-      Cursor cursor = resolver.query(
-        DocumentsContract.buildDocumentUriUsingTree(directory.tree, id),
-        COLUMNS,
-        null,
-        null,
-        null,
-        signal.value
-      )
-    ) {
-      if (cursor == null || !cursor.moveToFirst()) {
-        return null;
-      }
-      SafDirectoryStore.Snapshot s = SafDirectoryStore.decode(cursor);
-      if (!id.equals(s.documentId)) {
-        throw new ArchiveFailure("result-unknown", "The provider returned another document.");
-      }
-      return new PublicationModel.Document(
-        s.documentId,
-        s.name,
-        s.isDirectory,
-        s.isVirtual,
-        s.size,
-        s.modified
+    try {
+      return publicationDocument(
+        store.access(directory.tree).query(directory.tree, id, signal.value)
       );
+    } catch (FileNotFoundException missing) {
+      return null;
     } finally {
       control.untrack(signal);
     }
@@ -260,37 +166,31 @@ final class SafPublicationBackend implements NewFilePublisher.Backend {
     NewFilePublisher.Directory reference,
     PublicationModel.Document document
   ) {
-    return new SafOwned((SafDirectoryStore.PublicationDirectory) reference, document);
+    return new OwnedFile((DirectoryStore.PublicationDirectory) reference, document);
   }
 
-  private final class SafOwned implements NewFilePublisher.Owned {
+  private final class OwnedFile implements NewFilePublisher.Owned {
 
-    private final SafDirectoryStore.PublicationDirectory directory;
+    private final DirectoryStore.PublicationDirectory directory;
     private final String id;
     private final String name;
-    private final Uri uri;
+    private final DocumentAccess access;
     private ParcelFileDescriptor identity;
     private StructStat baseline;
     private boolean isDeleted;
 
-    SafOwned(SafDirectoryStore.PublicationDirectory directory, PublicationModel.Document document) {
+    OwnedFile(DirectoryStore.PublicationDirectory directory, PublicationModel.Document document) {
       this.directory = directory;
       id = document.id;
       name = document.name;
-      uri = DocumentsContract.buildDocumentUriUsingTree(directory.tree, id);
+      access = store.access(directory.tree);
     }
 
-    private SafDirectoryStore.Snapshot snapshot(ArchiveControl control) throws Exception {
+    private DirectoryStore.Snapshot snapshot(ArchiveControl control) throws Exception {
       Signal signal = control.track(new Signal());
-      try (Cursor cursor = resolver.query(uri, COLUMNS, null, null, null, signal.value)) {
-        if (cursor == null) {
-          throw new java.io.IOException("Missing provider cursor");
-        }
-        if (!cursor.moveToFirst()) {
-          throw new java.io.FileNotFoundException("Created document missing");
-        }
-        SafDirectoryStore.Snapshot s = SafDirectoryStore.decode(cursor);
-        if (!id.equals(s.documentId) || !name.equals(s.name)) {
+      try {
+        DirectoryStore.Snapshot s = access.query(directory.tree, id, signal.value);
+        if (!name.equals(s.name)) {
           throw new ArchiveFailure("result-unknown", "The new entry identity or name changed.");
         }
         return s;
@@ -303,10 +203,7 @@ final class SafPublicationBackend implements NewFilePublisher.Backend {
       Signal signal = control.track(new Signal());
       ParcelFileDescriptor descriptor = null;
       try {
-        descriptor = resolver.openFileDescriptor(uri, mode, signal.value);
-        if (descriptor == null) {
-          throw new java.io.IOException("Missing provider descriptor");
-        }
+        descriptor = access.open(directory.tree, id, mode, signal.value);
         StructStat stat = Os.fstat(descriptor.getFileDescriptor());
         if (!OsConstants.S_ISREG(stat.st_mode)) {
           throw new ArchiveFailure(
@@ -335,7 +232,7 @@ final class SafPublicationBackend implements NewFilePublisher.Backend {
       if (identity != null) {
         return;
       }
-      SafDirectoryStore.Snapshot s = snapshot(control);
+      DirectoryStore.Snapshot s = snapshot(control);
       if (
         s.isDirectory ||
         s.isVirtual ||
@@ -368,7 +265,7 @@ final class SafPublicationBackend implements NewFilePublisher.Backend {
     @Override
     public void verify(ArchiveControl control) throws Exception {
       establish(control);
-      SafDirectoryStore.Snapshot s = snapshot(control);
+      DirectoryStore.Snapshot s = snapshot(control);
       if (s.isDirectory || s.isVirtual) {
         throw new ArchiveFailure("result-unknown", "The file type changed.");
       }
@@ -444,7 +341,7 @@ final class SafPublicationBackend implements NewFilePublisher.Backend {
       }
       try {
         verify(new ArchiveControl());
-      } catch (java.io.FileNotFoundException missing) {
+      } catch (FileNotFoundException missing) {
         // 删除回执丢失时，重新查询与完整当前层枚举都确认缺失才完成清理。
         for (PublicationModel.Document d : children(directory, new ArchiveControl())) {
           if (d.id.equals(id)) {
@@ -454,7 +351,7 @@ final class SafPublicationBackend implements NewFilePublisher.Backend {
         isDeleted = true;
         return;
       }
-      if (!DocumentsContract.deleteDocument(resolver, uri)) {
+      if (!access.delete(directory.tree, id)) {
         throw new java.io.IOException("Provider refused cleanup");
       }
       for (PublicationModel.Document d : children(directory, new ArchiveControl())) {

@@ -57,7 +57,7 @@ public class SyncBackupsPlugin extends Plugin {
           if (isDestroyed) {
             throw BackupFiles.failure("unsupported-operation");
           }
-          Object value = work.run(SafRuntime.backups(getContext()));
+          Object value = work.run(DirectoryRuntime.backups(getContext()));
           call.resolve(
             new JSObject(
               new String(bytes(object("status", "success", "value", value)), StandardCharsets.UTF_8)
@@ -67,8 +67,8 @@ public class SyncBackupsPlugin extends Plugin {
           String code =
             cause instanceof ArchiveFailure
               ? ((ArchiveFailure) cause).code
-              : cause instanceof SafFailure
-                ? ((SafFailure) cause).code
+              : cause instanceof DirectoryFailure
+                ? ((DirectoryFailure) cause).code
                 : "io-failure";
           try {
             call.resolve(
@@ -83,14 +83,22 @@ public class SyncBackupsPlugin extends Plugin {
             );
           } catch (Exception invalid) {
             call.resolve(
-              new SafFailure("io-failure", "The backup query response failed.", invalid).result()
+              new DirectoryFailure(
+                "io-failure",
+                "The backup query response failed.",
+                invalid
+              ).result()
             );
           }
         }
       });
     } catch (java.util.concurrent.RejectedExecutionException cause) {
       call.resolve(
-        new SafFailure("unsupported-operation", "The backup bridge is closed.", cause).result()
+        new DirectoryFailure(
+          "unsupported-operation",
+          "The backup bridge is closed.",
+          cause
+        ).result()
       );
     }
   }

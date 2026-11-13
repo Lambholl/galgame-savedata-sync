@@ -117,7 +117,7 @@ public class ArchiveSafTest {
   public void androidConsumesPythonAndWindowsNativeArchivesAndExportsJavaArchive()
     throws Exception {
     JSONObject fixture = fixture();
-    ArchiveAdapter adapter = SafArchiveSource.createAdapter(context());
+    ArchiveAdapter adapter = DirectoryArchiveSource.createAdapter(context());
     byte[][] contents = new byte[3][];
     for (int i = 0; i < 3; i++) {
       contents[i] = Base64.getDecoder().decode(fixture.getJSONArray("contentsBase64").getString(i));
@@ -220,7 +220,7 @@ public class ArchiveSafTest {
 
   private final class Selected {
 
-    final SafDirectoryStore store = new SafDirectoryStore(context());
+    final DirectoryStore store = new DirectoryStore(context());
     final String rootId;
     final String deviceId;
     final List<JSONObject> entries = new ArrayList<>();
@@ -271,7 +271,11 @@ public class ArchiveSafTest {
     List<ArchiveModel.Source> sources(boolean isUnknown) throws Exception {
       List<ArchiveModel.Source> sources = new ArrayList<>();
       for (JSONObject entry : entries) {
-        SafArchiveSource source = new SafArchiveSource(store, rootId, entry.getString("entryId"));
+        DirectoryArchiveSource source = new DirectoryArchiveSource(
+          store,
+          rootId,
+          entry.getString("entryId")
+        );
         sources.add(
           isUnknown
             ? new ArchiveModel.Source() {
@@ -322,7 +326,7 @@ public class ArchiveSafTest {
         )
       );
     }
-    ArchiveAdapter adapter = SafArchiveSource.createAdapter(context());
+    ArchiveAdapter adapter = DirectoryArchiveSource.createAdapter(context());
     Path staged = context().getCacheDir().toPath().resolve("archive-saf-roundtrip.gz");
     try {
       for (boolean isUnknown : new boolean[] { false, true }) {

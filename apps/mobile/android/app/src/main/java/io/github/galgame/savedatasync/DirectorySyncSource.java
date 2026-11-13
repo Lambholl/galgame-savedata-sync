@@ -8,12 +8,12 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 
-/** 扫描用的 SAF 来源：枚举目录和打开读流。 */
-final class SafSyncSource implements SyncScanner.Source {
+/** 扫描用的目录来源：枚举目录和打开读流。 */
+final class DirectorySyncSource implements SyncScanner.Source {
 
-  private final SafDirectoryStore store;
+  private final DirectoryStore store;
 
-  SafSyncSource(SafDirectoryStore store) {
+  DirectorySyncSource(DirectoryStore store) {
     this.store = store;
   }
 
@@ -37,7 +37,7 @@ final class SafSyncSource implements SyncScanner.Source {
         parentId
       );
       return TransferJson.list(listing.get("entries"));
-    } catch (SafFailure failure) {
+    } catch (DirectoryFailure failure) {
       throw new ArchiveFailure(
         failure.code,
         "Cannot read the authorized directory.",
@@ -51,7 +51,7 @@ final class SafSyncSource implements SyncScanner.Source {
 
   @Override
   public ArchiveModel.Source file(String rootId, String entryId) throws Exception {
-    ArchiveModel.Source delegate = new SafArchiveSource(store, rootId, entryId);
+    ArchiveModel.Source delegate = new DirectoryArchiveSource(store, rootId, entryId);
     return new ArchiveModel.Source() {
       @Override
       public void validateRoot(String root) throws ArchiveFailure {
@@ -62,7 +62,7 @@ final class SafSyncSource implements SyncScanner.Source {
       public ArchiveModel.Observation observe(ArchiveControl control) throws Exception {
         try {
           return delegate.observe(control);
-        } catch (SafFailure failure) {
+        } catch (DirectoryFailure failure) {
           throw new ArchiveFailure(
             failure.code,
             "Cannot read authorized file attributes.",
@@ -76,7 +76,7 @@ final class SafSyncSource implements SyncScanner.Source {
       public java.io.InputStream open(ArchiveControl control) throws Exception {
         try {
           return delegate.open(control);
-        } catch (SafFailure failure) {
+        } catch (DirectoryFailure failure) {
           throw new ArchiveFailure(
             failure.code,
             "Cannot open the authorized file.",

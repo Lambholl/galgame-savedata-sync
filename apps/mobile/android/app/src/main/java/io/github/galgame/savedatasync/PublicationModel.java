@@ -43,8 +43,8 @@ final class PublicationModel {
         !fileId.matches("f[0-9]{6}") ||
         Integer.parseInt(fileId.substring(1)) < 1 ||
         Integer.parseInt(fileId.substring(1)) > 1024 ||
-        !SafValues.isId(rootId) ||
-        (parentId != null && !SafValues.isId(parentId)) ||
+        !DocumentValues.isId(rootId) ||
+        (parentId != null && !DocumentValues.isId(parentId)) ||
         !portableName(name) ||
         sizeBytes < 0 ||
         !ArchiveModel.hash(sha256)

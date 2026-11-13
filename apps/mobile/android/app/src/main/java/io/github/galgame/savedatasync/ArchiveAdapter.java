@@ -73,9 +73,9 @@ final class ArchiveAdapter {
     ArchiveModel.Progress progress
   ) throws ArchiveFailure {
     ArchiveModel.require(
-      SafValues.isId(transferId) &&
-        SafValues.isId(deviceId) &&
-        SafValues.isId(rootId) &&
+      DocumentValues.isId(transferId) &&
+        DocumentValues.isId(deviceId) &&
+        DocumentValues.isId(rootId) &&
         sources != null &&
         !sources.isEmpty() &&
         control != null

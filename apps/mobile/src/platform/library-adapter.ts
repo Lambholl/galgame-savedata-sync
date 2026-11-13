@@ -22,14 +22,14 @@ import type {
 import { unwrap, taskIsActive } from '@savedata-sync/shared'
 import type { TransferTask, TransferRequest } from '@savedata-sync/shared'
 import type { MobileLibraryAdapter, MobileSnapshot } from './library-types'
-import { androidDirectories as defaultDirectories } from './saf-directories'
+import { androidDirectories as defaultDirectories } from './directories'
 import {
   androidControl as defaultControl,
   androidTransfers as defaultTransfers,
 } from './http-transfers'
 import { CONTROL_CLOSE_DISCONNECTED } from './control-channel'
 import type { AndroidControlApi } from './control-channel'
-import type { AndroidDirectoryApi } from './saf-directory-bridge'
+import type { AndroidDirectoryApi } from './directory-bridge'
 import type {
   AndroidTransferApi,
   CurrentTransfer,

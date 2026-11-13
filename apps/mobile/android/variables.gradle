@@ -1,5 +1,6 @@
 ext {
-    minSdkVersion = 29
+    // 所有文件访问权限从 Android 11 起才有。
+    minSdkVersion = 30
     compileSdkVersion = 36
     targetSdkVersion = 36
     androidxActivityVersion = '1.11.0'

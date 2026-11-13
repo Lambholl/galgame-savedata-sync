@@ -32,6 +32,13 @@ export const enUS: Messages = {
   'settings.language.system': 'System',
   'settings.about': 'About',
   'settings.version': 'Version',
+  'settings.storage': 'Storage',
+  'settings.directAccess': 'Direct file access',
+  'directAccess.openFailed': 'Cannot open the system permission page',
+  'directAccess.prompt.title': 'Turn on direct file access?',
+  'directAccess.prompt.text':
+    'Allowing "All files access" makes scanning, backup, and writing much faster.',
+  'directAccess.prompt.ok': 'Turn on',
 
   'common.unknown': 'Unknown',
   'common.timeUnknown': 'Time unknown',

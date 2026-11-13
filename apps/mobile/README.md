@@ -49,10 +49,10 @@
 
 添加电脑时默认使用对端的系统计算机名称。移动端向电脑报告系统设备名称，读取不到时使用型号；已有自定义设备名称继续保留。
 
-`src/platform/saf-directories.ts` 导出 `androidDirectories`，只提供三个异步方法：
+`src/platform/directories.ts` 导出 `androidDirectories`，只提供三个异步方法：
 
 ```ts
-import { androidDirectories } from './src/platform/saf-directories'
+import { androidDirectories } from './src/platform/directories'
 
 const selected = await androidDirectories.chooseDirectory()
 if (selected.status === 'selected') {
@@ -62,7 +62,7 @@ if (selected.status === 'selected') {
 const roots = await androidDirectories.listRoots()
 ```
 
-`chooseDirectory()` 返回共享 `DirectorySelectionResult`；取消保留既有目录。`listRoots()` 返回 `OperationResult<readonly DirectoryReference[]>`；保存的引用失去权限时仍存在，authorization 为 expired；目录被改名、移动或读取出错时为 unavailable，不影响其他目录，需要重新选择。`listDirectory(rootId, parentId = null)` 返回当前层 `OperationResult<DirectoryListing>`，parentId 必须来自当前原生会话枚举出的目录条目。重建进程后先重新列目录，不复用旧 entryId；同一进程的目录桥和传输模块通过 SafRuntime 共享当前引用。
+`chooseDirectory()` 返回共享 `DirectorySelectionResult`；取消保留既有目录。`listRoots()` 返回 `OperationResult<readonly DirectoryReference[]>`；保存的引用失去权限时仍存在，authorization 为 expired；目录被改名、移动或读取出错时为 unavailable，不影响其他目录，需要重新选择。`listDirectory(rootId, parentId = null)` 返回当前层 `OperationResult<DirectoryListing>`，parentId 必须来自当前原生会话枚举出的目录条目。重建进程后先重新列目录，不复用旧 entryId；同一进程的目录桥和传输模块通过 DirectoryRuntime 共享当前引用。
 
 TS 桥校验请求与响应，拒绝路径/URI、附加字段及跨根/跨层响应；原生插件也独立校验请求。未安装插件、畸形返回和连接异常转为脱敏错误。网页预览返回 unsupported-operation；系统目录与传输操作使用 Android 应用。
 
@@ -104,10 +104,10 @@ Android 的 `drawable-nodpi/app_logo.png` 与仓库根目录 `assets/app-logo.pn
 
 `android/app/src/main/java/io/github/galgame/savedatasync/` 中：
 
-- `SafDirectoriesPlugin` 注册系统目录选择器，后台线程串行访问提供者；不检查 Activity 可见性，不在暂停时取消查询，销毁时释放桥执行器。选择器需要系统确认，只请求并持久化 READ；不使用 root。
-- `SafDirectoryStore` 独立持久化 schema 1、安装内 deviceId、根 rootId/URI/显示名。配置损坏或版本未知时失败，不重建覆盖。文件清单、文件哈希和 entryId 不持久化。
+- `DirectoriesPlugin` 注册系统目录选择器，后台线程串行访问提供者；不检查 Activity 可见性，不在暂停时取消查询，销毁时释放桥执行器。选择器需要系统确认，只请求并持久化 READ；不使用 root。
+- `DirectoryStore` 独立持久化 schema 1、安装内 deviceId、根 rootId/URI/显示名。配置损坏或版本未知时失败，不重建覆盖。文件清单、文件哈希和 entryId 不持久化。
 - 当前层查询不扫描后代；目录 sizeBytes=null，未知文件大小=null，空文件=0。SAF 日期 0 表示未知，映射 null；超出 JS 安全范围的数字拒绝。写入、新建、重命名、删除能力均为 unsupported；未知提供者能力保持 unknown。
-- `openFile(rootId, entryId, signal)` 仅供同包原生代码使用：重查授权、文件类型和已观察到的名称/大小/日期，以 `r` 打开 `InputStream`。调用者拥有并必须关闭流；取消在读取时检查，未来传输生命周期所有者还必须关闭阻塞流。异常为 `SafFailure`，原始 cause 仅留原生层，JS 仅见脱敏码/消息。
+- `openFile(rootId, entryId, signal)` 仅供同包原生代码使用：重查授权、文件类型和已观察到的名称/大小/日期，以 `r` 打开 `InputStream`。调用者拥有并必须关闭流；取消在读取时检查，未来传输生命周期所有者还必须关闭阻塞流。异常为 `DirectoryFailure`，原始 cause 仅留原生层，JS 仅见脱敏码/消息。
 
 URI 与 documentId 不转换为文件系统路径；文件内容不进入 JavaScript/Base64。文件 ID 由提供者维护；属性检查能发现可观察变化，恶意并发修改下的原子内容快照由传输层按实际字节/哈希校验。原生新文件发布使用下述独立入口；HTTP 传输已通过独立原生任务桥连接，只读桥保持三个方法。
 
@@ -116,10 +116,10 @@ URI 与 documentId 不转换为文件系统路径；文件内容不进入 JavaSc
 WP-013 的同包 Java 接口由后台 I/O 线程调用，不向 JS 暴露文件流或私有路径：
 
 ```java
-// 源必须来自当前 SafDirectoryStore 已枚举的文件，rootId 与本次源根一致。
-ArchiveAdapter adapter = SafArchiveSource.createAdapter(context);
+// 源必须来自当前 DirectoryStore 已枚举的文件，rootId 与本次源根一致。
+ArchiveAdapter adapter = DirectoryArchiveSource.createAdapter(context);
 ArchiveControl control = new ArchiveControl();
-List<ArchiveModel.Source> sources = Collections.singletonList(new SafArchiveSource(store, rootId, entryId));
+List<ArchiveModel.Source> sources = Collections.singletonList(new DirectoryArchiveSource(store, rootId, entryId));
 try (ArchiveAdapter.Artifact prepared = adapter.prepare(transferId, deviceId, rootId, sources, control, null)) {
     ArchiveModel.Manifest manifest = prepared.manifest;
     try (InputStream archive = prepared.openArchive()) {
@@ -141,10 +141,10 @@ try (ArchiveAdapter.Artifact prepared = adapter.prepare(transferId, deviceId, ro
 
 ## 原生新文件发布
 
-同包 `NewFilePublisher`/`SafPublicationBackend` 供可信原生 I/O 工作线程调用。系统 WRITE 权限与本次进程显式写授权分别检查；读取登记和 HTTP 接收能力不会顺带获得发布权限。调用方先通过真实系统选择器取得目标根的持久 READ/WRITE，再显式 `grant(rootId)`。这段单文件发布器只用于独立合成目标；应用内的复制与恢复使用受保护写入流程。
+同包 `NewFilePublisher`/`DirectoryPublicationBackend` 供可信原生 I/O 工作线程调用。系统 WRITE 权限与本次进程显式写授权分别检查；读取登记和 HTTP 接收能力不会顺带获得发布权限。调用方先通过真实系统选择器取得目标根的持久 READ/WRITE，再显式 `grant(rootId)`。这段单文件发布器只用于独立合成目标；应用内的复制与恢复使用受保护写入流程。
 
 ```java
-NewFilePublisher publisher = new NewFilePublisher(new SafPublicationBackend(context, store));
+NewFilePublisher publisher = new NewFilePublisher(new DirectoryPublicationBackend(context, store));
 publisher.grant(targetRootId); // 可信原生用户动作，不接受网络自行授权。
 PublicationModel.Request request = new PublicationModel.Request(
     file.fileId, targetRootId, targetParentId, newName, file.sizeBytes, file.sha256);
@@ -192,13 +192,13 @@ SAF 没有通用排他创建或比较后删除原语；这些复核能发现可�
 
 Android 行为依据见 [dataSync 前台服务](https://developer.android.com/develop/background-work/services/fgs/service-types)、[通知权限](https://developer.android.com/develop/ui/compose/notifications/notification-permission)及 [HttpURLConnection](https://developer.android.com/reference/java/net/HttpURLConnection)。
 
-`SyncScanner` 提供当前 SAF 递归扫描、原生 SHA-256、空目录及失败部分结果，复用 `SafArchiveSource` 的权限/身份/属性前后复核。扫描按普通本地操作执行，不加保活或前后台处理。`SyncScansPlugin` 只提供 capabilities/start/query/cancel，参数为 schemaVersion/rootId 或 scanId；没有 URI、平台路径、文件内容及可调预算。结果与 Windows 使用同一 SyncScanState，期限、条目/深度/JSON 限制和 32 份结果保留沿用 [M-002 文档](../../docs/plans/m002-sync-copy.md) 第 3 节；名额满时丢掉最旧的结果。
+`SyncScanner` 提供当前 SAF 递归扫描、原生 SHA-256、空目录及失败部分结果，复用 `DirectoryArchiveSource` 的权限/身份/属性前后复核。扫描按普通本地操作执行，不加保活或前后台处理。`SyncScansPlugin` 只提供 capabilities/start/query/cancel，参数为 schemaVersion/rootId 或 scanId；没有 URI、平台路径、文件内容及可调预算。结果与 Windows 使用同一 SyncScanState，期限、条目/深度/JSON 限制和 32 份结果保留沿用 [M-002 文档](../../docs/plans/m002-sync-copy.md) 第 3 节；名额满时丢掉最旧的结果。
 
 `src/platform/sync-scan-bridge.ts` 核对有限参数、完整结果及 rootId/scanId 上下文；`androidSyncScans` 为平台接入。所有调用返回 OperationResult；query 的成功包络只代表查到任务，扫描是否成功取决于内部 status。显式取消会关闭原生读流和 SAF 查询；未知长度按流实测，源变化和授权失效返回具体错误。扫描、备份和受保护写入已提供原生入口；双向复制编排见下节，界面继续按工作包接入。
 
 ## 独立备份与恢复材料
 
-`SafRuntime.backups(context)` 把持久备份放在 `getExternalFilesDir(null)/backups/`，备份设置放内部的 `getFilesDir()/backup-settings.json`；源文件通过已有 SAF 授权读取，不弹目录选择器。清除应用数据或卸载会一并删除备份。
+`DirectoryRuntime.backups(context)` 把持久备份放在 `getExternalFilesDir(null)/backups/`，备份设置放内部的 `getFilesDir()/backup-settings.json`；源文件通过已有 SAF 授权读取，不弹目录选择器。清除应用数据或卸载会一并删除备份。
 
 每份备份的结构是 `backups/<游戏名>/<yyyy-MM-dd_HH-mm-ss>Z/`，时间用 UTC，内含 `backup.json` 和按原路径保存的 `files/`。文件夹名只用来辨认，归属以 `backup.json` 里的 ID 为准，所以游戏改名、用户改文件夹名都不影响列表；游戏名不能作文件名的字符换成 `_`，超过 60 个字符截断，仍不可用时用游戏 ID。用户可以直接删除文件夹或文件：缺文件的备份显示为不完整，可以清理但不能恢复，也不挡新备份；读不懂的内容被忽略，`backups` 被整个删除后自动重建。轮换时不完整的备份（含未提交的）也占保留份数，超出时先删它们，再删最旧的完整备份，没超出不检查文件。文件是否齐全只看文件在不在和大小；删除备份和移除游戏不查文件；内容哈希只在创建和恢复时校验。同时有 `backup.json` 和 `in-progress.json` 的备份按已提交处理，删除时覆盖 `in-progress.json`。目录选择拒绝与备份目录互相包含的同步根，这只会在 Android 10 上发生。
 
@@ -227,11 +227,11 @@ Android 行为依据见 [dataSync 前台服务](https://developer.android.com/de
 
 写入前以任务自身控制器重扫目标，完整读取本批输入并核对指纹；备份开启且有写入时，先保存目标目录全部文件，包括未变化和仅在目标端存在的文件。没有写入或目标没有文件时不创建备份。Android 原地覆盖按文件增量预检目标空间，并合计已知同卷的备份峰值；备份落盘后再查目标实际余量，覆盖 SAF 与备份目录逻辑设备 ID 不同但共用物理空间的情况。未知余量保持 null，实际读写失败仍返回具体结果。
 
-`SafSyncBackend` 沿用已授权树和父目录引用。创建目录后核实文档 ID、类型、原始名称及父目录，创建竞争或不明回执不会报告成功；新文件复用已有非覆盖发布器。覆盖使用 `r` / `rw` 常规 FD，比较设备/inode、链接数、文档 ID、父目录、日期及旧内容；拒绝虚拟文档、额外硬链接和无法核实的文件。`rw` 打开保留旧内容，完整写入后才设置最终长度、fsync 并独立回读长度/SHA-256。
+`DirectorySyncBackend` 沿用已授权树和父目录引用。创建目录后核实文档 ID、类型、原始名称及父目录，创建竞争或不明回执不会报告成功；新文件复用已有非覆盖发布器。覆盖使用 `r` / `rw` 常规 FD，比较设备/inode、链接数、文档 ID、父目录、日期及旧内容；拒绝虚拟文档、额外硬链接和无法核实的文件。`rw` 打开保留旧内容，完整写入后才设置最终长度、fsync 并独立回读长度/SHA-256。
 
 第一项失败、取消或未知后停止后项，已确认成功的文件和目录保留。删除排在所有写入之后，所以写入失败时目标独有条目保持原样。删除文件前核对完整内容；`deleteDocument` 会递归，文件夹先确认为空再删；提供者拒绝且条目还在时报失败，其余确认不了的情况报 result-unknown。写入中断后目标可能已有部分修改，此时返回 unknown/result-unknown，旧内容仍可从有效备份读取。备份之后、第一次写目标之前，`InterruptedWrites` 在私有目录 `interrupted-writes/<planId>.json` 落盘标记（写不了就报错，目标不变），结束时删除；不在本进程活动集合里的标记说明上个进程写到一半被结束，`SyncWrites.interrupted()` 读取、`dismissInterrupted({ id })` 一次性清除，界面据此提示一次，已移除游戏的标记直接清掉。晚取消与提交竞争时按实际回读结果报告。清理错误独立保存，清理未完成保持 `TargetOperation` 名额；旧传输、新复制和本机恢复共用该进程互斥。总期限 30 分钟，显式控制和读写缓冲沿用 64 KiB 预算；普通本机操作不增加前后台判断或保活服务。
 
-`SyncWriteRuntime` 由应用 Context 持有，`SafRuntime.writes(context)` 取得同一实例；Activity 重建后按 restoreId 查询，插件销毁只关闭自己的控制线程。最多保留 32 份预览/结果，预览和终态保留 10 分钟；到期释放输入材料，不重放任务。原生所有者显式 close 才取消并等待运行中的恢复、释放资源及计时线程。
+`SyncWriteRuntime` 由应用 Context 持有，`DirectoryRuntime.writes(context)` 取得同一实例；Activity 重建后按 restoreId 查询，插件销毁只关闭自己的控制线程。最多保留 32 份预览/结果，预览和终态保留 10 分钟；到期释放输入材料，不重放任务。原生所有者显式 close 才取消并等待运行中的恢复、释放资源及计时线程。
 
 | `SyncWrites` / `androidSyncWrites` 方法 | 输入、输出及资源责任 |
 | --- | --- |
@@ -338,7 +338,7 @@ const running = unwrap(await androidSyncTransfers.execute(preparing.preparationI
 - `pnpm test:all`：依次运行基础设施、共享、桌面、移动桥及 Android 原生测试，用于发布或大范围高风险改动。
 - 设备测试只保留 3 项：1 项 SAF 选择与只读读取，1 项固定归档互通，1 项实际 SAF 两轮快照。界面主题、按钮和具体文案由实际运行与截图验收。
 - 安装两个调试 APK 后，`adb shell am instrument -w -e class io.github.galgame.savedatasync.ArchiveSafTest#androidConsumesPythonAndWindowsNativeArchivesAndExportsJavaArchive io.github.galgame.savedatasync.test/androidx.test.runner.AndroidJUnitRunner` 验证跨端归档固定夹具。
-- SAF 读取先准备 `SaveDataSync-Archive-<随机后缀>` 合成目录，再以 `-e safMode select -e safExpectedName <显示名> -e class io.github.galgame.savedatasync.SafDirectoriesTest#pickerSelectionAndNativeRead` 运行，由用户在系统选择器中授权。测试只输出条目和文件计数。
+- SAF 读取先准备 `SaveDataSync-Archive-<随机后缀>` 合成目录，再以 `-e safMode select -e safExpectedName <显示名> -e class io.github.galgame.savedatasync.DirectoriesTest#pickerSelectionAndNativeRead` 运行，由用户在系统选择器中授权。测试只输出条目和文件计数。
 - 同一合成目录随后以 `-e archiveExpectedName <显示名> -e class io.github.galgame.savedatasync.ArchiveSafTest#actualSafStreamsSnapshotKnownAndUnknownLengthsWithoutChangingSource` 运行，验证已知/未知长度的两轮快照。缺少授权或夹具时直接失败。
 - `scripts/verify-archive-interop.mjs prepare|verify` 已纳入 `pnpm android:test`。设备生成的 `cache/archive-device-java.gz` 可取回 `.reports/wp013-device/java.gz`，再运行 `node --experimental-strip-types scripts/verify-archive-interop.mjs verify-device`，由 Windows 原生解包器复核设备产物。
 - 实际 SAF 专项另外输出私有 `cache/archive-device-saf.gz` 与 `cache/archive-device-saf.json`；二进制取回到 `.reports/wp013-device/saf.gz`、`saf-manifest.json`，保留原本四份上传合成源为 `empty.sav`、`unicode.sav`、`large.sav`、`control.sav` 后，`verify-device-saf` 模式用 Windows 原生接收器逐项核对原文。设备报告副本验证后可删除，受管理归档任务在每项测试结束时已清理。

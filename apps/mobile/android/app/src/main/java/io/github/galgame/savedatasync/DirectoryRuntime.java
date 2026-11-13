@@ -5,27 +5,27 @@ import android.os.Environment;
 import java.io.File;
 import java.nio.file.Path;
 
-/** 进程内共享的 SAF 目录登记表和扫描、备份、恢复实例，只持有应用 Context。 */
-final class SafRuntime {
+/** 进程内共享的目录登记表和扫描、备份、恢复实例，只持有应用 Context。 */
+final class DirectoryRuntime {
 
-  private static SafDirectoryStore store;
+  private static DirectoryStore store;
   private static SyncScanner scanner;
   private static BackupStore backups;
   private static SyncWriteRuntime writes;
 
-  private SafRuntime() {}
+  private DirectoryRuntime() {}
 
-  static synchronized SafDirectoryStore store(Context context) throws SafFailure {
+  static synchronized DirectoryStore store(Context context) throws DirectoryFailure {
     if (store == null) {
-      store = new SafDirectoryStore(context.getApplicationContext());
+      store = new DirectoryStore(context.getApplicationContext());
     }
     return store;
   }
 
   /** 返回进程内共享的扫描器，扫描结果保存在其中。 */
-  static synchronized SyncScanner scanner(Context context) throws SafFailure {
+  static synchronized SyncScanner scanner(Context context) throws DirectoryFailure {
     if (scanner == null) {
-      scanner = new SyncScanner(new SafSyncSource(store(context)));
+      scanner = new SyncScanner(new DirectorySyncSource(store(context)));
     }
     return scanner;
   }
@@ -55,7 +55,7 @@ final class SafRuntime {
             return AppStoragePlugin.gameName(application, projectId);
           }
         },
-        new SafSyncSource(store(context)),
+        new DirectorySyncSource(store(context)),
         new AndroidBackupIo()
       );
     }

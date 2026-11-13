@@ -1,12 +1,12 @@
 package io.github.galgame.savedatasync;
 
 /** ID、文件大小和文档提供者日期的纯函数检查。 */
-final class SafValues {
+final class DocumentValues {
 
   private static final long MAX_SAFE_INTEGER = 9007199254740991L;
   private static final long MAX_DATE = 8640000000000000L;
 
-  private SafValues() {}
+  private DocumentValues() {}
 
   static boolean isId(Object value) {
     return value instanceof String && ((String) value).matches("[A-Za-z0-9][A-Za-z0-9_-]{0,127}");

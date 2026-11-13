@@ -118,7 +118,7 @@ final class SyncScanner implements AutoCloseable {
   SyncScanner(Source source, int maxEntries, long timeoutMillis, long retentionMillis) {
     if (
       source == null ||
-      !SafValues.isId(source.deviceId()) ||
+      !DocumentValues.isId(source.deviceId()) ||
       maxEntries < 1 ||
       maxEntries > MAX_ENTRIES ||
       timeoutMillis < 1 ||

@@ -166,14 +166,16 @@ public class HttpTransfersPlugin extends Plugin {
                 : error(NewFilePublisher.failure(cause).code);
             call.resolve(json(object("status", "error", "error", failure)));
           } catch (Exception invalid) {
-            call.resolve(new SafFailure("io-failure", "The task service is unavailable.").result());
+            call.resolve(
+              new DirectoryFailure("io-failure", "The task service is unavailable.").result()
+            );
           }
         } finally {
           queries.remove(control);
         }
       });
     } catch (java.util.concurrent.RejectedExecutionException cause) {
-      call.resolve(new SafFailure("unsupported-operation", "The app is closed.").result());
+      call.resolve(new DirectoryFailure("unsupported-operation", "The app is closed.").result());
     }
   }
 
@@ -355,7 +357,7 @@ public class HttpTransfersPlugin extends Plugin {
       );
     } catch (Exception cause) {
       call.resolve(
-        new SafFailure(
+        new DirectoryFailure(
           "permission-denied",
           "Cannot request transfer notification permission.",
           cause
@@ -377,7 +379,7 @@ public class HttpTransfersPlugin extends Plugin {
       );
     } catch (Exception cause) {
       call.resolve(
-        new SafFailure(
+        new DirectoryFailure(
           "permission-denied",
           "Transfer notifications are unavailable.",
           cause
@@ -396,7 +398,7 @@ public class HttpTransfersPlugin extends Plugin {
       }
     } catch (Exception cause) {
       call.resolve(
-        new SafFailure(
+        new DirectoryFailure(
           "invalid-request",
           "Complete the current directory selection first."
         ).result()
@@ -422,7 +424,7 @@ public class HttpTransfersPlugin extends Plugin {
           } catch (Exception cause) {
             choosing.set(false);
             call.resolve(
-              new SafFailure(
+              new DirectoryFailure(
                 "permission-denied",
                 "Cannot open the target directory picker."
               ).result()
@@ -432,7 +434,10 @@ public class HttpTransfersPlugin extends Plugin {
       } catch (Exception cause) {
         choosing.set(false);
         call.resolve(
-          new SafFailure("permission-denied", "Cannot open the target directory picker.").result()
+          new DirectoryFailure(
+            "permission-denied",
+            "Cannot open the target directory picker."
+          ).result()
         );
       }
     });
@@ -474,7 +479,7 @@ public class HttpTransfersPlugin extends Plugin {
         }
         try {
           getContext().getContentResolver().takePersistableUriPermission(uri, rights);
-          JSObject directory = SafRuntime.store(getContext()).register(
+          JSObject directory = DirectoryRuntime.store(getContext()).register(
             uri,
             data.getFlags(),
             new CancellationSignal()
@@ -503,7 +508,7 @@ public class HttpTransfersPlugin extends Plugin {
             }
           }
           call.resolve(
-            new SafFailure(
+            new DirectoryFailure(
               "permission-denied",
               "Write authorization for the target directory was not obtained.",
               cause
@@ -513,7 +518,7 @@ public class HttpTransfersPlugin extends Plugin {
       });
     } catch (Exception cause) {
       call.resolve(
-        new SafFailure(
+        new DirectoryFailure(
           "permission-denied",
           "The system did not return valid write authorization.",
           cause
