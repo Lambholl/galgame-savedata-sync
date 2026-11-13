@@ -1,7 +1,7 @@
 ---
 doc_type: api-contracts
 status: active
-updated: 2026-11-13
+updated: 2026-11-14
 tags: [API, 接口约定]
 related_files: []
 ---
@@ -70,7 +70,7 @@ Windows 提供 `/v1/sync/capabilities`、`POST /v1/sync/scans` 和 `GET/DELETE /
 
 电脑侧 `copyState`、`cancelCopy` 返回 `SyncTransferState`，`DesktopCopySummary` 用 phase、stage、step、percent 表示进度，由主进程计算，详情、游戏进度条、历史和完成提示读同一份，高频更新不携带逐项结果。已确认但移动端还没登记任务时，`remote-sync-requests.ts` 用同一个 jobId 提供占位的摘要、计划和状态，摘要的 `isAwaitingPeer` 为 true，详情和任务条写“等待对方设备开始”；登记后改由 `WindowsSyncRegistry` 提供。对端未结束的任务不会被留存清理，也算作有运行中的工作。
 
-备份展示字段和计划的 `shouldDeleteExtras`、`delete-file`、`delete-directory` 由同一能力版本 3 覆盖，两端须同版，封闭 DTO 严格校验。计划动作的执行顺序是新建文件夹（由浅到深）、写文件、删除（由深到浅，同深度按路径），两端必须算出相同顺序。恢复计划固定 `shouldDeleteExtras=false`。文件在删除前核对身份和完整内容；文件夹只删空的，Windows 用非递归 `rmdir`，Android 的 `deleteDocument` 会递归，所以先确认文件夹为空。系统已开始删除但结果没能确认时报 result-unknown。
+备份展示字段和计划的 `shouldDeleteExtras`、`delete-file`、`delete-directory` 由 `/v1/sync/capabilities.schemaVersion` 一起覆盖，两端须同版，封闭 DTO 严格校验。计划动作的执行顺序是新建文件夹（由浅到深）、写文件、删除（由深到浅，同深度按路径），两端必须算出相同顺序。恢复计划固定 `shouldDeleteExtras=false`。文件在删除前核对身份和完整内容；文件夹只删空的，Windows 用非递归 `rmdir`，Android 的 `deleteDocument` 会递归，所以先确认文件夹为空。系统已开始删除但结果没能确认时报 result-unknown。
 
 | 字段 | 位置 | 含义 | 失败或未知 |
 | --- | --- | --- | --- |

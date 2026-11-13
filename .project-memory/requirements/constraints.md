@@ -1,7 +1,7 @@
 ---
 doc_type: constraints
 status: active
-updated: 2026-11-13
+updated: 2026-11-14
 tags: [约束]
 related_files: []
 ---
@@ -10,7 +10,7 @@ related_files: []
 
 | 类型 | 约束 | 影响 | 状态 |
 | --- | --- | --- | --- |
-| 平台 | Windows；Android 最低 Android 10 / API 29，编译和目标 API 36 | 写在原生工程 variables.gradle；SDK 更新时保持最低版本。Android 10 不列入 M-004 回归，由维护者有设备时自测；跑不起来就提高最低版本，不为旧版 WebView 写兼容代码 | active |
+| 平台 | Windows；Android 最低 Android 10 / API 29，编译和目标 API 36 | 写在原生工程 variables.gradle；SDK 更新时保持最低版本。Android 10 不列入回归，由维护者有设备时自测；跑不起来就提高最低版本，不为旧版 WebView 写兼容代码 | active |
 | 网络 | 同一局域网，两端同时在线；明文 HTTP、不加密 | 协议不要求证书；Android 需配置明文访问和目标系统所需的局域网权限 | active |
 | 同步 | 手选方向；每次以两端当前状态为准 | 不从修改日期或历史推断权威端，不建立共同历史基线 | active |
 | 同步期间的目录 | 同步过程中，目标目录不能被游戏或其他程序持续写入 | 工具自身的任务锁拦不住其他程序修改文件，扫描和传输检查只能发现变化；修改中途失败时的处理和产品提示还没验证 | active |

@@ -1,7 +1,7 @@
 ---
 doc_type: module-status
 status: active
-updated: 2026-11-11
+updated: 2026-11-14
 tags: [模块状态, 开发进度]
 related_files: []
 ---
@@ -19,7 +19,8 @@ related_files: []
 
 | 模块 | 状态 | 负责人 | 相关文件 | 边界与风险 | 下一步 |
 | --- | --- | --- | --- | --- | --- |
-| 传输进度 | done | 开发 | shared `sync-job-contracts.ts`、`sync-job-observation.ts`、`sync-job-validation.ts`；desktop backup-store/sync-writer/sync-registry；Android BackupStore/SyncWriter/SyncTransferEngine/SyncJobModel/TransferService | 备份阶段百分比已实现，自动检查通过；还没有在真实传输中看过两端界面和 Android 通知 | WP-043 真机验证 |
+
+当前没有未完成或有遗留事项的模块。
 
 ## 2. 状态说明
 

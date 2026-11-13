@@ -3,7 +3,7 @@ doc_type: test-cases
 status: active
 id_prefix: TC
 id_high_water: 51
-updated: 2026-11-12
+updated: 2026-11-14
 tags: [测试用例]
 related_files: []
 ---
@@ -39,7 +39,7 @@ related_files: []
 | TC-047 | 多网卡电脑扫码 | 同时有物理网卡和代理虚拟网卡的 Windows 电脑显示二维码，手机扫码 | 推荐地址连不上时换下一个候选地址连上 | passed |
 | TC-048 | 控制通道断开后的宽限期内重连 | 手机连着电脑时停止电脑服务，在设备行变回“连接”后 10 秒内点按 | 先释放本机残留会话再连接，不提示“正在执行其他任务”；服务停止时约 5 秒后提示网络连接中断 | passed |
 | TC-049 | 电脑写入候选文件残留 | `pnpm test:shared` 的 sync-paths、`pnpm test:desktop` 的 sync-scanner 和 sync-target-files | `.savedata-copy-<UUID>.tmp`、`.savedata-new-<UUID>.tmp` 不进入快照，写入前删除目标各层的这类文件；UUID 大写等相近名称照常扫描、不删除，不进入链接指向的目录 | passed |
-| TC-050 | 备份阶段进度 | `pnpm test:shared` 的 sync-job-progress；真机在 WP-043 做大目录小改动的传输 | 备份阶段按接收端已复制的备份字节算百分比，总量为 0 时百分比未知；超过总量、发送端有备份字节、缺字段和旧版本任务状态被拒绝；真实传输中两端界面和 Android 通知的备份百分比递增 | partial |
-| TC-051 | 任务结果文案 | `pnpm test:shared` 的 task-text；真机在 WP-043 看各状态 | 文件、文件夹、删除分开计数，取消和未尝试的条目算未执行；接收端待确认时有成功项也是待确认；任务条在传输失败又清理失败时写“传输失败 · 临时文件未清理”，成功但清理失败时只写清理失败；等待对方设备开始时不写正在打包；四种语言的部分完成只列不为 0 的类别，source-changed 不写来源，result-unknown 不指向详情 | partial |
+| TC-050 | 备份阶段进度 | `pnpm test:shared` 的 sync-job-progress；真机上大目录小改动的传输，两个方向各一次 | 备份阶段按接收端已复制的备份字节算百分比，总量为 0 时百分比未知；超过总量、发送端有备份字节、缺字段和旧版本任务状态被拒绝；真实传输中两端界面和 Android 通知的备份百分比递增 | passed |
+| TC-051 | 任务结果文案 | `pnpm test:shared` 的 task-text；真机上两端看过含文件夹的完成说明、取消后的部分完成、打包阶段出错的出错端和删除确认按钮。“等待对方设备开始”和“正在收尾”持续不到一次刷新，失败又清理失败没有触发，这三种只由 task-text 覆盖 | 文件、文件夹、删除分开计数，取消和未尝试的条目算未执行；接收端待确认时有成功项也是待确认；任务条在传输失败又清理失败时写“传输失败 · 临时文件未清理”，成功但清理失败时只写清理失败；等待对方设备开始时不写正在打包；四种语言的部分完成只列不为 0 的类别，source-changed 不写来源，result-unknown 不指向详情 | passed |
 
 `partial` 表示已有证据但仍有场景未覆盖。`pnpm check` 不运行这些自动化测试；完整回归使用 `pnpm test:all`。

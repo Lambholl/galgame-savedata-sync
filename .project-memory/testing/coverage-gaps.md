@@ -1,7 +1,7 @@
 ---
 doc_type: coverage-gaps
 status: active
-updated: 2026-11-11
+updated: 2026-11-14
 tags: [测试缺口]
 related_files: []
 ---
@@ -13,4 +13,4 @@ related_files: []
 | 缺口 | 风险 | 建议补充 | 优先级 | 状态 |
 | --- | --- | --- | --- | --- |
 
-当前没有登记的缺口。在真实应用里写入途中结束进程的回归和 M-004 回归范围见工作包 WP-043。
+当前没有登记的缺口。
