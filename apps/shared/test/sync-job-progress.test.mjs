@@ -10,15 +10,11 @@ import {
 
 function progress(overrides = {}) {
   return {
-    sourceBytesRead: 0,
-    archiveBytesTransferred: 2000,
-    fileBytesVerified: 4000,
-    fileBytesPublished: 0,
+    transferredBytes: 4000,
     totalFileBytes: 4000,
-    totalArchiveBytes: 2000,
     totalFiles: 2,
-    verifiedFiles: 2,
     publishedFiles: 0,
+    fileBytesPublished: 0,
     backupBytesCopied: 0,
     totalBackupBytes: 10000,
     ...overrides,
@@ -35,11 +31,7 @@ function state(role, overrides = {}, progressOverrides = {}) {
     stage: 'backing-up',
     updatedAt: 1,
     cancelRequested: false,
-    progress: progress(
-      role === 'sender'
-        ? { sourceBytesRead: 4000, fileBytesVerified: 0, verifiedFiles: 0, ...progressOverrides }
-        : progressOverrides,
-    ),
+    progress: progress(progressOverrides),
     failureStage: null,
     error: null,
     cleanupError: null,
@@ -57,7 +49,7 @@ test('备份阶段按接收端已复制的备份字节算百分比', () => {
   ]) {
     const observation = observeSyncJob(local, remote, false)
     assert.equal(observation.stage, 'backing-up')
-    assert.equal(observation.step, 3)
+    assert.equal(observation.step, 1)
     assert.equal(observation.percent, 25)
     assert.equal(observation.counters.completedBytes, 2500)
     assert.equal(observation.counters.totalBytes, 10000)

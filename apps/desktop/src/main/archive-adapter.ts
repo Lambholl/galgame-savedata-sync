@@ -1,7 +1,8 @@
 import { createHash } from 'node:crypto'
 import { Readable, Transform } from 'node:stream'
+import type { Writable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
-import { createGzip, createInflateRaw } from 'node:zlib'
+import { createGunzip, createGzip, createInflateRaw } from 'node:zlib'
 import {
   BATCH_ARCHIVE,
   BATCH_RESOURCES,
@@ -51,6 +52,57 @@ export interface WindowsArchive {
   readonly openArchive: () => Promise<Readable>
   readonly openFile: (fileId: string) => Promise<Readable>
   readonly dispose: () => Promise<void>
+}
+
+/** 复制内容里的一个文件：fileId 是 tar 成员名，大小和修改日期是确认时的值。 */
+export interface SyncContentFile {
+  readonly fileId: string
+  readonly entryId: string
+  readonly sizeBytes: number
+  readonly modifiedAt: number | null
+}
+
+/** 收发复制内容的选项：onBytes 收到累计已打包或已解包的文件内容字节数。 */
+export interface SyncContentOptions {
+  readonly signal?: AbortSignal
+  readonly onBytes?: (bytes: number) => void
+}
+
+/** 解包到私有缓存的复制内容。打开的读流用完要关闭；dispose 后所有方法失效。 */
+export interface WindowsStagedFiles {
+  readonly openFile: (fileId: string) => Promise<Readable>
+  readonly dispose: () => Promise<void>
+}
+
+/** 按块计数并占用缓存配额的流，超过 maximum 字节时报 resource-limit。 */
+function createLimiter(
+  job: ArchiveCacheJob,
+  maximum: number,
+  signal: AbortSignal | undefined,
+  onBytes: (chunk: Buffer) => void,
+): Transform {
+  let sizeBytes = 0
+  return new Transform({
+    highWaterMark: BATCH_RESOURCES.maxBufferBytes,
+    transform(chunk: Buffer, encoding, callback) {
+      void encoding
+      if (!Buffer.isBuffer(chunk) || sizeBytes + chunk.length > maximum) {
+        callback(
+          new ArchiveError('resource-limit', 'Archive bytes exceed the local resource budget.'),
+        )
+        return
+      }
+      job
+        .reserve(chunk.length)
+        .then(() => {
+          checkArchiveAbort(signal)
+          sizeBytes += chunk.length
+          onBytes(chunk)
+          callback(null, chunk)
+        })
+        .catch((error: unknown) => callback(toArchiveError(error, signal)))
+    },
+  })
 }
 
 function freezeManifest(manifest: BatchManifest): BatchManifest {
@@ -220,6 +272,201 @@ export class WindowsArchiveAdapter {
     }
   }
 
+  /** 检查私有缓存能否放下 bytes 字节的解包内容，返回缓存所在的卷和需要的字节数。 */
+  async checkStagingSpace(bytes: number): Promise<{ device: string; requiredBytes: number }> {
+    if (!Number.isSafeInteger(bytes) || bytes < 0) {
+      throw new ArchiveError('invalid-request', 'The staging byte count is invalid.')
+    }
+    if (bytes > this.cache.quota.maxTotalFileBytes) {
+      throw new ArchiveError('resource-limit', 'The content exceeds the local resource budget.')
+    }
+    await this.cache.inspect()
+    if ((await this.cache.io.availableBytes(this.cache.path)) < BigInt(bytes)) {
+      throw new ArchiveError(
+        'insufficient-space',
+        'Private cache space is insufficient to receive this content.',
+      )
+    }
+    return {
+      device: (await inspectLocalPath(this.cache.path)).dev.toString(),
+      requiredBytes: bytes,
+    }
+  }
+
+  /**
+   * 按 files 的顺序读取源文件，边读边打包成 tar.gz 写进 destination，写完后结束 destination。
+   *
+   * @throws ArchiveError 文件的大小或修改日期与 files 不同、读取期间被改动时抛 source-changed。
+   */
+  async sendFiles(
+    rootId: string,
+    files: readonly SyncContentFile[],
+    destination: Writable,
+    options: SyncContentOptions = {},
+  ): Promise<void> {
+    checkArchiveAbort(options.signal)
+    const source = this.source
+    let bytes = 0
+    async function* tar(): AsyncGenerator<Buffer> {
+      for (const file of files) {
+        checkArchiveAbort(options.signal)
+        const opened = await source.openFile({ rootId, entryId: file.entryId })
+        if (opened.status === 'error') {
+          throw new ArchiveError(
+            opened.error.code === 'result-unknown' ? 'io-failure' : opened.error.code,
+            opened.error.message,
+          )
+        }
+        const { metadata, stream, verifyUnchanged } = opened.value
+        try {
+          if (
+            !isEntryMetadata(metadata) ||
+            metadata.kind !== 'file' ||
+            metadata.rootId !== rootId ||
+            metadata.entryId !== file.entryId ||
+            metadata.sizeBytes !== file.sizeBytes ||
+            metadata.modifiedAt !== file.modifiedAt
+          ) {
+            throw new ArchiveError('source-changed', 'The source file differs from confirmation.')
+          }
+          yield createArchiveHeader(file)
+          let actual = 0
+          for await (const chunk of binaryChunks(stream)) {
+            checkArchiveAbort(options.signal)
+            actual += chunk.length
+            if (actual > file.sizeBytes) {
+              throw new ArchiveError('source-changed', 'The source file grew while sending.')
+            }
+            bytes += chunk.length
+            options.onBytes?.(bytes)
+            yield chunk
+          }
+          if (actual !== file.sizeBytes) {
+            throw new ArchiveError('source-changed', 'The source file shrank while sending.')
+          }
+          await verifyUnchanged()
+        } finally {
+          stream.destroy()
+        }
+        const padding = (512 - (file.sizeBytes % 512)) % 512
+        if (padding) {
+          yield Buffer.alloc(padding)
+        }
+      }
+      yield Buffer.alloc(1024)
+    }
+    await pipeline(
+      Readable.from(tar(), { objectMode: false, highWaterMark: BATCH_RESOURCES.maxBufferBytes }),
+      createGzip({ level: 1, chunkSize: BATCH_RESOURCES.maxBufferBytes }),
+      destination,
+      { signal: options.signal },
+    )
+  }
+
+  /**
+   * 读完 input，按 files 的顺序把 tar.gz 解包到私有缓存。失败或取消时清理本次缓存。
+   *
+   * @returns 解包后的文件，用完后 dispose。
+   * @throws ArchiveError 成员的名称、大小或顺序与 files 不同，或 gzip 的 CRC、长度不对时抛 invalid-archive。
+   */
+  async receiveFiles(
+    files: readonly SyncContentFile[],
+    input: Readable,
+    options: SyncContentOptions = {},
+  ): Promise<WindowsStagedFiles> {
+    const earlyError: { value: Error | null } = { value: null }
+    const rememberError = (error: Error): void => {
+      earlyError.value ??= error
+    }
+    input.on('error', rememberError)
+    try {
+      const totalBytes = files.reduce((sum, file) => sum + file.sizeBytes, 0)
+      const tarBytes = files.reduce(
+        (sum, file) => sum + 512 + Math.ceil(file.sizeBytes / 512) * 512,
+        1024,
+      )
+      if (
+        totalBytes > this.cache.quota.maxTotalFileBytes ||
+        tarBytes > this.cache.quota.maxTarBytes ||
+        files.some((file) => file.sizeBytes > this.cache.quota.maxFileBytes)
+      ) {
+        throw new ArchiveError('resource-limit', 'The content exceeds the local resource budget.')
+      }
+      await this.checkStagingSpace(totalBytes)
+      return await this.run(async (job) => {
+        if (earlyError.value) {
+          throw earlyError.value
+        }
+        let bytes = 0
+        await pipeline(
+          input,
+          createGunzip({ chunkSize: BATCH_RESOURCES.maxBufferBytes }),
+          async (source: AsyncIterable<unknown>) => {
+            const reader = new ArchiveReader(source, options.signal)
+            for (const file of files) {
+              if (!(await reader.read(512)).equals(createArchiveHeader(file))) {
+                throw new ArchiveError(
+                  'invalid-archive',
+                  'A tar member, order, type, or normalized header is invalid.',
+                )
+              }
+              const body = async function* (): AsyncGenerator<Buffer> {
+                let remaining = file.sizeBytes
+                while (remaining > 0) {
+                  const chunk = await reader.read(
+                    Math.min(remaining, BATCH_RESOURCES.maxBufferBytes),
+                  )
+                  remaining -= chunk.length
+                  yield chunk
+                }
+              }
+              await pipeline(
+                Readable.from(body(), {
+                  objectMode: false,
+                  highWaterMark: BATCH_RESOURCES.maxBufferBytes,
+                }),
+                createLimiter(job, file.sizeBytes, options.signal, (chunk) => {
+                  bytes += chunk.length
+                  options.onBytes?.(bytes)
+                }),
+                await job.writer(`file-${file.fileId}`),
+                { signal: options.signal },
+              )
+              const padding = await reader.read((512 - (file.sizeBytes % 512)) % 512)
+              if (padding.some((byte) => byte !== 0)) {
+                throw new ArchiveError('invalid-archive', 'Tar padding contains nonzero data.')
+              }
+            }
+            if ((await reader.read(1024)).some((byte) => byte !== 0)) {
+              throw new ArchiveError(
+                'invalid-archive',
+                'The tar archive is missing two standard end blocks.',
+              )
+            }
+            await reader.expectEnd()
+          },
+          { signal: options.signal },
+        )
+        return Object.freeze({
+          openFile: async (fileId: string): Promise<Readable> => {
+            if (!files.some((file) => file.fileId === fileId)) {
+              throw new ArchiveError('invalid-request', 'The file does not belong to this content.')
+            }
+            try {
+              return await job.reader(`file-${fileId}`)
+            } catch (error) {
+              throw toArchiveError(error)
+            }
+          },
+          dispose: () => job.dispose(),
+        })
+      }, options)
+    } finally {
+      input.destroy()
+      input.off('error', rememberError)
+    }
+  }
+
   /**
    * 读取源文件，生成快照和 gzip 归档。失败或取消时清理本次缓存。
    *
@@ -360,10 +607,10 @@ export class WindowsArchiveAdapter {
     await this.cache.retryCleanup()
   }
 
-  private async run(
-    operation: (job: ArchiveCacheJob, counters: MutableArchiveCounters) => Promise<WindowsArchive>,
-    options: ArchiveOperationOptions,
-  ): Promise<WindowsArchive> {
+  private async run<T>(
+    operation: (job: ArchiveCacheJob, counters: MutableArchiveCounters) => Promise<T>,
+    options: { readonly signal?: AbortSignal },
+  ): Promise<T> {
     checkArchiveAbort(options.signal)
     let job: ArchiveCacheJob | undefined
     try {

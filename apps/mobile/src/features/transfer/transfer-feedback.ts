@@ -28,7 +28,9 @@ export function transferFeedback(state: SyncTransferState): TransferFeedback | n
     return {
       type: 'error',
       text: 'task.failed',
-      error: failed.error && locateSyncError(failed.error, failed.direction, failed.failureStage),
+      error:
+        failed.error &&
+        locateSyncError(failed.error, failed.direction, failed.failureStage, failed.role),
     }
   }
   if (receiver?.status === 'unknown' || state.local.status === 'unknown') {

@@ -21,7 +21,6 @@ export interface HttpRoute {
     | 'sync-project'
     | 'sync-jobs'
     | 'sync-job'
-    | 'sync-job-manifest'
     | 'sync-job-content'
   readonly id: string | null
   readonly parentId: string | null
@@ -134,10 +133,10 @@ export function inspectHttpRequest(request: IncomingMessage): HttpRoute {
     id === 'jobs' &&
     isOpaqueId(action) &&
     segments.length === 5 &&
-    ((detail === 'manifest' && (method === 'GET' || method === 'PUT')) ||
-      (detail === 'content' && (method === 'GET' || method === 'PUT')))
+    detail === 'content' &&
+    (method === 'GET' || method === 'PUT')
   ) {
-    kind = detail === 'manifest' ? 'sync-job-manifest' : 'sync-job-content'
+    kind = 'sync-job-content'
   } else if (segments.length === 2 && resource === 'catalog' && method === 'POST') {
     kind = 'catalog'
   } else if (segments.length === 2 && resource === 'roots' && method === 'GET') {
@@ -178,11 +177,11 @@ export function inspectHttpRequest(request: IncomingMessage): HttpRoute {
   if (kind !== 'entries' && query.size > 0) {
     invalid()
   }
-  if (
-    method === 'PUT' &&
-    (kind === 'content' || kind === 'sync-job-content') &&
-    (encoding !== undefined || length === undefined)
-  ) {
+  if (method === 'PUT' && kind === 'content' && (encoding !== undefined || length === undefined)) {
+    invalid()
+  }
+  // 复制内容边打包边发送，事先不知道长度。
+  if (method === 'PUT' && kind === 'sync-job-content' && encoding !== 'chunked') {
     invalid()
   }
   if (
@@ -191,7 +190,6 @@ export function inspectHttpRequest(request: IncomingMessage): HttpRoute {
     kind !== 'catalog' &&
     kind !== 'sync-scans' &&
     kind !== 'sync-jobs' &&
-    !(method === 'PUT' && kind === 'sync-job-manifest') &&
     !(method === 'PUT' && kind === 'sync-job-content') &&
     !(method === 'PUT' && kind === 'content') &&
     (encoding !== undefined || (length !== undefined && length !== '0'))

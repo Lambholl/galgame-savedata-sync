@@ -1,6 +1,5 @@
 import { BATCH_LIMITS } from '../protocol/batch-limits.ts'
 import { OperationFailure } from '../result.ts'
-import { isBatchManifest } from '../protocol/batch-validation.ts'
 import { isOpaqueId } from '../protocol/protocol.ts'
 import { isOperationError } from '../protocol/validation.ts'
 import {
@@ -16,9 +15,7 @@ import { isSyncPlan } from './sync-plan-validation.ts'
 import { isSyncApplyResult, matchesSyncApplyResult } from './sync-result-validation.ts'
 import { isSyncSnapshot } from './sync-validation.ts'
 import { createSyncPlan, isSyncFileWrite } from './sync-plan.ts'
-import { syncPathKey } from './sync-paths.ts'
 import type { SyncPlan } from './sync-contracts.ts'
-import type { BatchManifest } from '../protocol/batch-contracts.ts'
 import { SYNC_JOB_SCHEMA_VERSION } from './sync-job-contracts.ts'
 import type {
   SyncFailureStage,
@@ -80,49 +77,6 @@ export function isSyncJobRequest(value: unknown): value is SyncJobRequest {
     hasJsonBudget(value)
   )
 }
-/** 校验清单是否匹配计划：源引用、父目录、名称、原日期和大小逐项一致，归档成员是连续的 fileId。 */
-export function matchesSyncJobManifest(
-  value: unknown,
-  request: SyncJobRequest,
-): value is BatchManifest | null {
-  if (!isSyncJobRequest(request)) {
-    return false
-  }
-  if (request.plan.transferFileCount === 0) {
-    return value === null
-  }
-  if (
-    !isBatchManifest(value) ||
-    value.transferId !== request.jobId ||
-    value.sourceDeviceId !== request.plan.source.deviceId ||
-    value.sourceRootId !== request.plan.source.rootId ||
-    value.totalFileBytes !== request.plan.totalFileBytes ||
-    value.files.length !== request.plan.transferFileCount
-  ) {
-    return false
-  }
-  const operations = request.plan.entries.filter((entry) => isSyncFileWrite(entry.action))
-  const source = new Map(request.plan.source.entries.map((entry) => [entry.entryId, entry]))
-  const paths = new Map(
-    request.plan.source.entries.map((entry) => [syncPathKey(entry.path), entry]),
-  )
-  return value.files.every((file, index) => {
-    const operation = operations[index],
-      entry = source.get(operation?.sourceEntryId ?? '')
-    if (!entry) {
-      return false
-    }
-    const parentId =
-      entry.path.length === 1 ? null : paths.get(syncPathKey(entry.path.slice(0, -1)))?.entryId
-    return (
-      file.sourceEntryId === entry.entryId &&
-      file.sourceParentId === parentId &&
-      file.sourceName === entry.path.at(-1) &&
-      file.sourceModifiedAt === entry.modifiedAt &&
-      file.sizeBytes === entry.sizeBytes
-    )
-  })
-}
 /** 计划对应的任务进度 totalBackupBytes：计划的 backupFileBytes，为 null 时取 0。 */
 export function syncJobBackupBytes(plan: Pick<SyncPlan, 'backupFileBytes'>): number {
   return plan.backupFileBytes ?? 0
@@ -131,15 +85,11 @@ export function syncJobBackupBytes(plan: Pick<SyncPlan, 'backupFileBytes'>): num
 export function isSyncJobProgress(value: unknown): value is SyncJobProgress {
   if (
     !hasShape(value, [
-      'sourceBytesRead',
-      'archiveBytesTransferred',
-      'fileBytesVerified',
-      'fileBytesPublished',
+      'transferredBytes',
       'totalFileBytes',
-      'totalArchiveBytes',
       'totalFiles',
-      'verifiedFiles',
       'publishedFiles',
+      'fileBytesPublished',
       'backupBytesCopied',
       'totalBackupBytes',
     ]) ||
@@ -147,27 +97,14 @@ export function isSyncJobProgress(value: unknown): value is SyncJobProgress {
     !isBoundedCount(value.backupBytesCopied, value.totalBackupBytes) ||
     !isBoundedCount(value.totalFileBytes, BATCH_LIMITS.maxTotalFileBytes) ||
     !isBoundedCount(value.totalFiles, BATCH_LIMITS.maxFiles) ||
-    !isBoundedCount(value.sourceBytesRead, value.totalFileBytes) ||
-    !isBoundedCount(value.fileBytesVerified, value.totalFileBytes) ||
-    !isBoundedCount(value.fileBytesPublished, value.fileBytesVerified) ||
-    !isBoundedCount(value.verifiedFiles, value.totalFiles) ||
-    !isBoundedCount(value.publishedFiles, value.verifiedFiles) ||
-    !isNullable(value.totalArchiveBytes, (item): item is number =>
-      isBoundedCount(item, BATCH_LIMITS.maxArchiveBytes),
-    ) ||
-    !isBoundedCount(
-      value.archiveBytesTransferred,
-      value.totalArchiveBytes ?? BATCH_LIMITS.maxArchiveBytes,
-    )
+    !isBoundedCount(value.transferredBytes, value.totalFileBytes) ||
+    !isBoundedCount(value.fileBytesPublished, value.totalFileBytes) ||
+    !isBoundedCount(value.publishedFiles, value.totalFiles)
   ) {
     return false
   }
   return (
-    (value.totalFiles > 0 || (value.totalFileBytes === 0 && value.totalArchiveBytes === 0)) &&
-    (value.totalArchiveBytes !== 0 || value.totalFiles === 0) &&
-    (value.totalArchiveBytes !== null || value.archiveBytesTransferred === 0) &&
-    (value.verifiedFiles !== value.totalFiles ||
-      value.fileBytesVerified === value.totalFileBytes) &&
+    (value.totalFiles > 0 || value.totalFileBytes === 0) &&
     (value.publishedFiles !== value.totalFiles ||
       value.fileBytesPublished === value.totalFileBytes) &&
     (value.publishedFiles !== 0 || value.fileBytesPublished === 0)
@@ -192,7 +129,6 @@ const FAILURE_STAGES = [
   'ready',
   'awaiting-content',
   'transferring',
-  'verifying',
   'backing-up',
   'writing',
 ] as const
@@ -230,9 +166,6 @@ function hasDigestRelations(
   ) {
     return false
   }
-  if (value.role === 'receiver' && value.progress.sourceBytesRead !== 0) {
-    return false
-  }
   if (value.failureStage !== null && !isOneOf(value.status, ['failed', 'unknown', 'cancelled'])) {
     return false
   }
@@ -246,16 +179,14 @@ function hasDigestRelations(
     return (
       value.role === 'sender' &&
       value.error === null &&
-      value.progress.sourceBytesRead === value.progress.totalFileBytes &&
-      value.progress.totalArchiveBytes !== null &&
-      value.progress.archiveBytesTransferred === value.progress.totalArchiveBytes
+      value.progress.transferredBytes === value.progress.totalFileBytes
     )
   }
   if (value.status === 'succeeded') {
     return (
       value.role === 'receiver' &&
       value.error === null &&
-      value.progress.verifiedFiles === value.progress.totalFiles &&
+      value.progress.transferredBytes === value.progress.totalFileBytes &&
       value.progress.publishedFiles === value.progress.totalFiles &&
       value.progress.backupBytesCopied === value.progress.totalBackupBytes
     )
@@ -310,11 +241,10 @@ export function matchesSyncJobDigest(
     value.progress.totalBackupBytes === syncJobBackupBytes(request.plan)
   )
 }
-/** 判断任务状态是否属于本次计划和清单：角色和全部逐项结果都要对上；清单为 null 时归档总量必须为 null。 */
+/** 判断任务状态是否属于本次计划：总量和全部逐项结果都要对上。 */
 export function matchesSyncJobState(
   value: unknown,
   request: SyncJobRequest,
-  manifest: BatchManifest | null,
 ): value is SyncJobState {
   if (
     !isSyncJobRequest(request) ||
@@ -324,22 +254,6 @@ export function matchesSyncJobState(
     value.progress.totalFileBytes !== request.plan.totalFileBytes ||
     value.progress.totalFiles !== request.plan.transferFileCount ||
     value.progress.totalBackupBytes !== syncJobBackupBytes(request.plan)
-  ) {
-    return false
-  }
-  if (manifest !== null && !matchesSyncJobManifest(manifest, request)) {
-    return false
-  }
-  if (manifest !== null && value.progress.totalArchiveBytes !== manifest.archive.sizeBytes) {
-    return false
-  }
-  if (request.plan.transferFileCount === 0 && value.progress.totalArchiveBytes !== 0) {
-    return false
-  }
-  if (
-    request.plan.transferFileCount > 0 &&
-    manifest === null &&
-    value.progress.totalArchiveBytes !== null
   ) {
     return false
   }

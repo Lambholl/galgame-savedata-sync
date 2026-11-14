@@ -5,16 +5,13 @@ import {
   isSyncPreparationState,
   isSyncProjectBinding,
   isSyncTransferState,
-  matchesSyncJobManifest,
   matchesSyncJobState,
   matchesSyncPlan,
   syncPlanFromPreview,
 } from '@savedata-sync/shared'
 import type {
-  BatchManifest,
   OperationResult,
   SyncJobRequest,
-  SyncJobState,
   SyncPlan,
   SyncPreparationPreview,
   SyncPreparationState,
@@ -31,7 +28,6 @@ export interface SyncTransferNativePlugin {
   cancelPreparation(options: { preparationId: string }): Promise<unknown>
   execute(options: { preparationId: string; plan: SyncPlan }): Promise<unknown>
   query(options: { jobId: string; refresh: boolean }): Promise<unknown>
-  manifest(options: { jobId: string }): Promise<unknown>
   current(): Promise<unknown>
   latest(options: { projectId: string }): Promise<unknown>
   cancel(options: { jobId: string }): Promise<unknown>
@@ -55,8 +51,6 @@ export interface AndroidSyncTransferApi {
   execute(preparationId: string, plan: SyncPlan): Promise<OperationResult<SyncTransferState>>
   /** 读取复制任务两个角色的状态；shouldRefresh 为 true 时先向对方查询。 */
   query(jobId: string, shouldRefresh?: boolean): Promise<OperationResult<SyncTransferState>>
-  /** 读取复制任务的清单；还没提交时为 null。 */
-  manifest(jobId: string): Promise<OperationResult<BatchManifest | null>>
   /** 读取当前复制任务的 ID；没有时为 null。 */
   current(): Promise<OperationResult<string | null>>
   /** 这个本机项目最近一次任务的 ID；只查进程内登记表，不跨项目。 */
@@ -96,14 +90,13 @@ function request(preview: SyncPreparationPreview): SyncJobRequest {
 /**
  * 用原生插件创建 AndroidSyncTransferApi。
  *
- * @returns 参数无效、返回格式不对，或计划、清单和结果不属于同一次任务时，对应方法返回错误结果。
+ * @returns 参数无效、返回格式不对，或计划和结果不属于同一次任务时，对应方法返回错误结果。
  */
 export function createSyncTransferBridge(
   plugin: SyncTransferNativePlugin,
   isAndroid: () => boolean,
 ): AndroidSyncTransferApi {
   const previews = new Map<string, SyncPreparationPreview>()
-  const manifests = new Map<string, BatchManifest>()
   async function invoke<T>(
     work: () => Promise<unknown>,
     guard: (value: unknown) => value is T,
@@ -123,7 +116,6 @@ export function createSyncTransferBridge(
       const oldest = previews.keys().next().value
       if (oldest !== undefined) {
         previews.delete(oldest)
-        manifests.delete(oldest)
       }
     }
     previews.set(value.preparationId, structuredClone(value))
@@ -146,45 +138,6 @@ export function createSyncTransferBridge(
     const cached = previews.get(id)
     return cached ? { status: 'success', value: structuredClone(cached) } : preview(id)
   }
-  async function manifest(jobId: string): Promise<OperationResult<BatchManifest | null>> {
-    if (!isOpaqueId(jobId)) {
-      return failure('invalid-request')
-    }
-    const restored = await context(jobId)
-    if (restored.status === 'error') {
-      return restored
-    }
-    const expected = request(restored.value)
-    const result = await invoke(
-      () => plugin.manifest({ jobId }),
-      (value): value is BatchManifest | null =>
-        value === null || matchesSyncJobManifest(value, expected),
-    )
-    if (result.status === 'success' && result.value !== null) {
-      const previous = manifests.get(jobId)
-      if (
-        previous &&
-        (previous.archive.sha256 !== result.value.archive.sha256 ||
-          previous.archive.sizeBytes !== result.value.archive.sizeBytes)
-      ) {
-        return failure('io-failure')
-      }
-      manifests.set(jobId, structuredClone(result.value))
-    }
-    return result
-  }
-  function hasMatchingState(
-    state: SyncJobState,
-    expected: SyncJobRequest,
-    declared: BatchManifest | null,
-  ): boolean {
-    const needManifest =
-      expected.plan.transferFileCount > 0 && state.progress.totalArchiveBytes !== null
-    return (
-      (!needManifest || declared !== null) &&
-      matchesSyncJobState(state, expected, needManifest ? declared : null)
-    )
-  }
   async function validate(
     jobId: string,
     raw: OperationResult<SyncTransferState>,
@@ -199,23 +152,10 @@ export function createSyncTransferBridge(
     const expected = request(restored.value),
       state = raw.value
     const localRole = restored.value.direction === 'android-to-windows' ? 'sender' : 'receiver'
-    let declared = manifests.get(jobId) ?? null
-    if (
-      expected.plan.transferFileCount > 0 &&
-      (state.local.progress.totalArchiveBytes !== null ||
-        (state.remote !== null && state.remote.progress.totalArchiveBytes !== null)) &&
-      declared === null
-    ) {
-      const result = await manifest(jobId)
-      if (result.status === 'error') {
-        return result
-      }
-      declared = result.value
-    }
     return state.jobId === jobId &&
       state.local.role === localRole &&
-      hasMatchingState(state.local, expected, declared) &&
-      (state.remote === null || hasMatchingState(state.remote, expected, declared))
+      matchesSyncJobState(state.local, expected) &&
+      (state.remote === null || matchesSyncJobState(state.remote, expected))
       ? raw
       : failure('io-failure')
   }
@@ -297,7 +237,6 @@ export function createSyncTransferBridge(
       )
     },
     query,
-    manifest,
     current: () =>
       invoke(
         () => plugin.current(),
@@ -328,7 +267,6 @@ export function createSyncTransferBridge(
       )
       if (result.status === 'success') {
         previews.delete(preparationId)
-        manifests.delete(preparationId)
       }
       return result
     },

@@ -9,7 +9,6 @@ import static io.github.galgame.savedatasync.TransferJson.object;
 import static io.github.galgame.savedatasync.TransferSchema.device;
 import static io.github.galgame.savedatasync.TransferSchema.error;
 import static io.github.galgame.savedatasync.TransferSchema.id;
-import static io.github.galgame.savedatasync.TransferSchema.manifest;
 import static io.github.galgame.savedatasync.TransferSchema.nullable;
 import static io.github.galgame.savedatasync.TransferSchema.number;
 import static io.github.galgame.savedatasync.TransferSchema.one;
@@ -26,15 +25,14 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 
 /** 复制任务收发数据的校验。 */
 final class SyncJobModel {
 
   /** 与 shared 的 SYNC_CAPABILITIES_VERSION、SYNC_JOB_SCHEMA_VERSION 保持一致。 */
-  static final int CAPABILITIES_VERSION = 4;
-  static final int JOB_SCHEMA_VERSION = 3;
+  static final int CAPABILITIES_VERSION = 6;
+  static final int JOB_SCHEMA_VERSION = 4;
 
   private SyncJobModel() {}
 
@@ -269,38 +267,6 @@ final class SyncJobModel {
     return number(map(raw).get("backupKeepCount"), BackupModel.KEEP_MIN, BackupModel.KEEP_MAX);
   }
 
-  static void manifest(ArchiveModel.Manifest manifest, SyncPlanModel.Plan plan) throws Exception {
-    manifest.validate(new ArchiveModel.Limits());
-    require(
-      manifest.transferId.equals(plan.id) &&
-        manifest.sourceDeviceId.equals(plan.source.device) &&
-        manifest.sourceRootId.equals(plan.source.root)
-    );
-    require(
-      manifest.files.size() == number(plan.value.get("transferFileCount"), 0, 1024) &&
-        manifest.totalFileBytes ==
-          number(plan.value.get("totalFileBytes"), 0, BackupModel.MAX_TOTAL)
-    );
-    int index = 0;
-    for (Map<String, Object> operation : plan.writes) {
-      if (SyncPlanModel.isFileWrite(operation)) {
-        Map<String, Object> source = plan.source.entry(operation.get("sourceEntryId"));
-        List<String> path = BackupModel.path(source.get("path"));
-        ArchiveModel.PreparedFile file = manifest.files.get(index++);
-        require(
-          file.sourceEntryId.equals(source.get("entryId")) &&
-            Objects.equals(file.sourceParentId, plan.source.parent(path)) &&
-            file.sourceName.equals(path.get(path.size() - 1)) &&
-            Objects.equals(
-              file.sourceModifiedAt,
-              nullable(source.get("modifiedAt"), -BackupModel.MAX_DATE, BackupModel.MAX_DATE)
-            ) &&
-            file.sizeBytes == number(source.get("sizeBytes"), 0, BackupModel.MAX_FILE)
-        );
-      }
-    }
-  }
-
   static Map<String, Object> request(SyncPlanModel.Plan plan, Map<String, Object> binding) {
     boolean isUpload = plan.value.get("direction").equals("android-to-windows");
     return object(
@@ -411,25 +377,16 @@ final class SyncJobModel {
   }
 
   /** 校验对端状态：对端按方向是接收端或发送端；发送完成与本机实际写入结果分别核对。 */
-  static Map<String, Object> state(
-    Object raw,
-    SyncPlanModel.Plan plan,
-    ArchiveModel.Manifest manifest
-  ) throws Exception {
+  static Map<String, Object> state(Object raw, SyncPlanModel.Plan plan) throws Exception {
     return state(
       raw,
       plan,
-      manifest,
       plan.value.get("direction").equals("android-to-windows") ? "receiver" : "sender"
     );
   }
 
-  static Map<String, Object> state(
-    Object raw,
-    SyncPlanModel.Plan plan,
-    ArchiveModel.Manifest manifest,
-    String role
-  ) throws Exception {
+  static Map<String, Object> state(Object raw, SyncPlanModel.Plan plan, String role)
+    throws Exception {
     Map<String, Object> state = shape(
       copy(raw),
       "schemaVersion",
@@ -461,35 +418,23 @@ final class SyncJobModel {
     cleanup(state.get("cleanupError"));
     Map<String, Object> progress = shape(
       state.get("progress"),
-      "sourceBytesRead",
-      "archiveBytesTransferred",
-      "fileBytesVerified",
-      "fileBytesPublished",
+      "transferredBytes",
       "totalFileBytes",
-      "totalArchiveBytes",
       "totalFiles",
-      "verifiedFiles",
       "publishedFiles",
+      "fileBytesPublished",
       "backupBytesCopied",
       "totalBackupBytes"
     );
     long count = number(plan.value.get("transferFileCount"), 0, 1024);
     long total = number(plan.value.get("totalFileBytes"), 0, BackupModel.MAX_TOTAL);
-    final long read = number(progress.get("sourceBytesRead"), 0, isSender ? total : 0);
     require(
       number(progress.get("totalFiles"), 0, 1024) == count &&
         number(progress.get("totalFileBytes"), 0, BackupModel.MAX_TOTAL) == total
     );
-    Long packed = nullable(progress.get("totalArchiveBytes"), 0, 1140850688);
-    final long transferred = number(
-      progress.get("archiveBytesTransferred"),
-      0,
-      packed == null ? 0 : packed
-    );
-    long verified = number(progress.get("fileBytesVerified"), 0, total);
-    long published = number(progress.get("fileBytesPublished"), 0, verified);
-    long vf = number(progress.get("verifiedFiles"), 0, count);
-    long pf = number(progress.get("publishedFiles"), 0, vf);
+    final long transferred = number(progress.get("transferredBytes"), 0, total);
+    long published = number(progress.get("fileBytesPublished"), 0, total);
+    long pf = number(progress.get("publishedFiles"), 0, count);
     long backupTotal = number(plan.value.get("backupFileBytes"), 0, BackupModel.MAX_TOTAL);
     require(number(progress.get("totalBackupBytes"), 0, BackupModel.MAX_TOTAL) == backupTotal);
     long copied = number(progress.get("backupBytesCopied"), 0, backupTotal);
@@ -497,16 +442,10 @@ final class SyncJobModel {
       require(state.get("result") == null && pf == 0 && published == 0 && copied == 0);
     }
     require(
-      count == 0 ? total == 0 && packed != null && packed == 0 : packed == null || packed > 0
-    );
-    require(
-      (vf != count || verified == total) &&
+      (count > 0 || total == 0) &&
         (pf != count || published == total) &&
         (pf != 0 || published == 0)
     );
-    if (manifest != null && packed != null) {
-      require(packed == manifest.archive.sizeBytes);
-    }
     String status = string(state.get("status"));
     one(status, "running", "sent", "succeeded", "failed", "cancelled", "unknown");
     one(
@@ -515,7 +454,6 @@ final class SyncJobModel {
       "ready",
       "awaiting-content",
       "transferring",
-      "verifying",
       "backing-up",
       "writing",
       "cleaning",
@@ -528,7 +466,6 @@ final class SyncJobModel {
         "ready",
         "awaiting-content",
         "transferring",
-        "verifying",
         "backing-up",
         "writing"
       );
@@ -552,16 +489,12 @@ final class SyncJobModel {
         );
       }
       if (status.equals("sent")) {
-        require(
-          isSender &&
-            state.get("error") == null &&
-            read == total &&
-            packed != null &&
-            transferred == packed
-        );
+        require(isSender && state.get("error") == null && transferred == total);
       } else if (status.equals("succeeded")) {
         require(!isSender);
-        require(state.get("error") == null && vf == count && pf == count && copied == backupTotal);
+        require(
+          state.get("error") == null && transferred == total && pf == count && copied == backupTotal
+        );
         for (Object outcome : list(map(state.get("result")).get("outcomes"))) {
           require(map(outcome).get("status").equals("succeeded"));
         }

@@ -1,4 +1,3 @@
-import type { BatchManifest } from '../protocol/batch-contracts.ts'
 import type { OperationError, TransferDirection } from '../protocol/contracts.ts'
 import type { SyncProjectBinding } from '../library/project-binding.ts'
 import type { SyncApplyResult, SyncPlan, SyncSnapshot } from './sync-contracts.ts'
@@ -26,37 +25,28 @@ export interface SyncJobRequest {
   readonly plan: SyncPlan
 }
 
-/**
- * 复制任务进度。前九个字段与 BatchProgress 相同；只有目录或计划为空时，文件数和归档字节可以为 0。
- */
+/** 复制任务进度。只有计划里没有要传的文件时，文件数和字节数可以为 0。 */
 export interface SyncJobProgress {
-  readonly sourceBytesRead: number
-  readonly archiveBytesTransferred: number
-  readonly fileBytesVerified: number
-  readonly fileBytesPublished: number
+  /** 已打包或已解包的文件内容字节数，不含 tar 头和压缩开销。 */
+  readonly transferredBytes: number
   readonly totalFileBytes: number
-  readonly totalArchiveBytes: number | null
   readonly totalFiles: number
-  readonly verifiedFiles: number
+  /** 接收端已写入目标的文件数；发送端始终为 0。 */
   readonly publishedFiles: number
+  /** 接收端已写入目标的字节数；发送端始终为 0。 */
+  readonly fileBytesPublished: number
   /** 接收端已复制进备份的字节数；发送端始终为 0。 */
   readonly backupBytesCopied: number
   /** 本次要备份的字节数，等于计划的 backupFileBytes，计划里为 null 时为 0。 */
   readonly totalBackupBytes: number
 }
 
-/** 任务状态的版本；2 起带 failureStage，3 起进度带备份字节数。 */
-export const SYNC_JOB_SCHEMA_VERSION = 3
+/** 任务状态结构的版本。 */
+export const SYNC_JOB_SCHEMA_VERSION = 4
 
 /** 任务的工作阶段；cleaning 和 done 是收尾阶段。 */
 export type SyncFailureStage =
-  | 'preparing'
-  | 'ready'
-  | 'awaiting-content'
-  | 'transferring'
-  | 'verifying'
-  | 'backing-up'
-  | 'writing'
+  'preparing' | 'ready' | 'awaiting-content' | 'transferring' | 'backing-up' | 'writing'
 
 /** 任务状态的摘要，不含逐项结果。 */
 export interface SyncJobDigest {
@@ -117,6 +107,3 @@ export interface SyncTransferState {
   readonly remote: SyncJobState | null
   readonly remoteError: OperationError | null
 }
-
-/** 复制任务的清单；计划里没有文件时为 null。 */
-export type SyncJobManifest = BatchManifest | null

@@ -17,25 +17,30 @@ const DEVICE_ERRORS: ReadonlySet<OperationErrorCode> = new Set<OperationErrorCod
 ])
 
 /**
- * 按任务中断的阶段给错误标出所在的一端：打包阶段是来源，校验、备份和写入阶段是目标。
+ * 按任务中断的阶段和报告错误的角色给错误标出所在的一端：准备和传输阶段是报告错误的一端，备份和写入阶段是目标。
  *
- * @returns 错误已带 device、错误码与文件访问无关、打包阶段的授权失效或处于其他阶段时，返回原错误。
+ * @param role 报告这个错误的角色。为 null 时准备阶段的错误标为来源，传输阶段返回原错误。
+ * @returns 错误已带 device、错误码与文件访问无关或分不出是哪一端时，返回原错误。
  */
 export function locateSyncError(
   error: ShownError,
   direction: TransferDirection,
   failureStage: SyncFailureStage | null,
+  role: SyncJobState['role'] | null = null,
 ): ShownError {
   if (error.device !== undefined || error.code === null || !DEVICE_ERRORS.has(error.code)) {
     return error
   }
   const [source, target] =
     direction === 'windows-to-android' ? (['pc', 'phone'] as const) : (['phone', 'pc'] as const)
+  if (failureStage === 'backing-up' || failureStage === 'writing') {
+    return { ...error, device: target }
+  }
+  if (role !== null && failureStage !== null) {
+    return { ...error, device: role === 'sender' ? source : target }
+  }
   if (failureStage === 'preparing' && error.code !== 'authorization-expired') {
     return { ...error, device: source }
-  }
-  if (failureStage === 'verifying' || failureStage === 'backing-up' || failureStage === 'writing') {
-    return { ...error, device: target }
   }
   return error
 }
@@ -43,13 +48,13 @@ export function locateSyncError(
 /** 一次传输的总体状态，按接收端的实际结果判断成功。 */
 export type SyncTaskPhase = 'running' | 'done' | 'partial' | 'failed' | 'cancelled' | 'unknown'
 
-/** 当前阶段的计数；不适用或还不知道的项为 null。 */
+/** 当前阶段的计数；不适用的项为 null。 */
 export interface SyncJobCounters {
-  /** 校验和写入阶段已完成的文件数，其他阶段为 null。 */
+  /** 写入阶段已完成的文件数，其他阶段为 null。 */
   readonly completedFiles: number | null
   readonly totalFiles: number
   readonly completedBytes: number
-  /** 传输阶段是压缩体总量，清单出来之前为 null；备份阶段是本次要备份的字节数。 */
+  /** 传输和写入阶段是文件内容总量，备份阶段是本次要备份的字节数。 */
   readonly totalBytes: number | null
 }
 
@@ -58,7 +63,7 @@ export interface SyncJobObservation {
   readonly phase: SyncTaskPhase
   /** 进行中是走在最前面的阶段，结束后是 done。 */
   readonly stage: SyncJobState['stage']
-  /** 五段流程的零起点索引，5 表示全部完成；null 表示没有记录到具体位置。 */
+  /** 三段流程（传输、备份、写入）的零起点索引，3 表示全部完成；null 表示没有记录到具体位置。 */
   readonly step: number | null
   /** 当前段的完成百分比；缺少计数时为 null。 */
   readonly percent: number | null
@@ -68,12 +73,26 @@ export interface SyncJobObservation {
   readonly hasCleanupError: boolean
 }
 
+/** 三段流程全部完成时的 step。 */
+export const SYNC_STEP_DONE = 3
+
 const STEP_OF: Readonly<Record<SyncJobState['stage'], number>> = {
+  preparing: 0,
+  ready: 0,
+  'awaiting-content': 0,
+  transferring: 0,
+  'backing-up': 1,
+  writing: 2,
+  cleaning: SYNC_STEP_DONE,
+  done: SYNC_STEP_DONE,
+}
+
+/** 阶段的先后，用来挑出走在前面的一端。 */
+const ORDER_OF: Readonly<Record<SyncJobState['stage'], number>> = {
   preparing: 0,
   ready: 1,
   'awaiting-content': 1,
-  transferring: 1,
-  verifying: 2,
+  transferring: 2,
   'backing-up': 3,
   writing: 4,
   cleaning: 5,
@@ -93,12 +112,12 @@ function runningStage(
   if (receiver?.status === 'running') {
     return isSenderRunning &&
       sender.stage !== 'cleaning' &&
-      STEP_OF[sender.stage] > STEP_OF[receiver.stage]
+      ORDER_OF[sender.stage] > ORDER_OF[receiver.stage]
       ? sender.stage
       : receiver.stage
   }
-  // 发送端已结束、还没收到接收端状态时，下一步就是接收端校验。
-  return isSenderRunning ? sender.stage : 'verifying'
+  // 发送端已结束、还没收到接收端状态时，接收端还在收尾这次传输。
+  return isSenderRunning ? sender.stage : 'transferring'
 }
 
 function terminalPhase(
@@ -150,72 +169,50 @@ export function observeSyncJob(
     failed?.failureStage ?? receiver?.failureStage ?? sender?.failureStage ?? null
   let step: number | null = null
   if (phase === 'done') {
-    step = 5
+    step = SYNC_STEP_DONE
   } else if (phase === 'running') {
     step = STEP_OF[stage]
   } else if (phase !== 'cancelled') {
-    // 内容已发完但结果没回来时，停在接收端的校验这一步。
+    // 内容已发完但结果没回来时，停在传输之后的一步。
     step = failureStage
       ? STEP_OF[failureStage]
       : phase === 'unknown' && sender?.status === 'sent'
-        ? 2
+        ? STEP_OF['backing-up']
         : null
   }
   const totals = (receiver ?? local).progress
-  const archived = Math.max(
-    local.progress.archiveBytesTransferred,
-    remote?.progress.archiveBytesTransferred ?? 0,
+  const transferred = Math.max(
+    local.progress.transferredBytes,
+    remote?.progress.transferredBytes ?? 0,
   )
-  const archiveTotal =
-    local.progress.totalArchiveBytes ?? remote?.progress.totalArchiveBytes ?? null
   const counters: SyncJobCounters =
     step === 0
       ? {
           completedFiles: null,
           totalFiles: totals.totalFiles,
-          completedBytes: sender?.progress.sourceBytesRead ?? 0,
+          completedBytes: transferred,
           totalBytes: totals.totalFileBytes,
         }
       : step === 1
         ? {
             completedFiles: null,
             totalFiles: totals.totalFiles,
-            completedBytes: archived,
-            totalBytes: archiveTotal,
+            completedBytes: totals.backupBytesCopied,
+            totalBytes: totals.totalBackupBytes,
           }
-        : step === 2
-          ? {
-              completedFiles: totals.verifiedFiles,
-              totalFiles: totals.totalFiles,
-              completedBytes: totals.fileBytesVerified,
-              totalBytes: totals.totalFileBytes,
-            }
-          : step === 3
-            ? {
-                completedFiles: null,
-                totalFiles: totals.totalFiles,
-                completedBytes: totals.backupBytesCopied,
-                totalBytes: totals.totalBackupBytes,
-              }
-            : {
-                completedFiles: step === 4 ? totals.publishedFiles : null,
-                totalFiles: totals.totalFiles,
-                completedBytes: totals.fileBytesPublished,
-                totalBytes: totals.totalFileBytes,
-              }
-  // 打包进度只有发送端知道，还没收到时按未知处理，避免显示成 0%。
+        : {
+            completedFiles: step === 2 ? totals.publishedFiles : null,
+            totalFiles: totals.totalFiles,
+            completedBytes: totals.fileBytesPublished,
+            totalBytes: totals.totalFileBytes,
+          }
   const fraction =
-    step === 0 && !sender
-      ? null
-      : step === 0 || step === 1 || step === 3
-        ? ratio(counters.completedBytes, counters.totalBytes)
-        : step === 2
-          ? (ratio(counters.completedBytes, counters.totalBytes) ??
-            ratio(totals.verifiedFiles, totals.totalFiles))
-          : step === 4
-            ? (ratio(counters.completedBytes, counters.totalBytes) ??
-              ratio(totals.publishedFiles, totals.totalFiles))
-            : null
+    step === 0 || step === 1
+      ? ratio(counters.completedBytes, counters.totalBytes)
+      : step === 2
+        ? (ratio(counters.completedBytes, counters.totalBytes) ??
+          ratio(totals.publishedFiles, totals.totalFiles))
+        : null
   return {
     phase,
     stage,

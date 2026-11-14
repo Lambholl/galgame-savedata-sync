@@ -7,7 +7,7 @@ import './sync-task-summary.css'
 
 /** TaskSteps 的参数。 */
 export interface TaskStepsProps {
-  /** 五阶段的当前索引，5 表示全部完成，null 表示阶段未记录。 */
+  /** 当前步骤的零起点索引，等于步骤数时表示全部完成，null 表示阶段未记录。 */
   readonly step: number | null
   /** 任务状态；失败和部分完成标记当前阶段出错。 */
   readonly phase: SyncTaskPhase
@@ -15,7 +15,7 @@ export interface TaskStepsProps {
   readonly percent: number | null
 }
 
-/** 带编号的五段阶段条。 */
+/** 带编号的三段阶段条。 */
 export function TaskSteps({ step, phase, percent }: TaskStepsProps): ReactElement {
   const t = useT()
   const hasError = phase === 'failed' || phase === 'partial'

@@ -5,7 +5,7 @@ export const SYNC_SCHEMA_VERSION = 1
 /**
  * 能力声明的版本，两端相同才能互传。
  */
-export const SYNC_CAPABILITIES_VERSION = 5
+export const SYNC_CAPABILITIES_VERSION = 6
 
 /** 两端修改日期相差不超过这个毫秒数时算相同，兼容 FAT 和 exFAT 的 2 秒精度。 */
 export const SYNC_MODIFIED_TOLERANCE_MS = 2000
@@ -29,7 +29,6 @@ export const SYNC_HTTP_ROUTES = {
   project: '/v1/sync/projects/{projectId}',
   jobs: '/v1/sync/jobs',
   job: '/v1/sync/jobs/{jobId}',
-  manifest: '/v1/sync/jobs/{jobId}/manifest',
   content: '/v1/sync/jobs/{jobId}/content',
 } as const
 

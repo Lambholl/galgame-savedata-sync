@@ -139,7 +139,7 @@ export function OutcomeList({
                     <small>
                       {item.action === 'create-directory'
                         ? t('task.folderCreated')
-                        : t('task.verified', {
+                        : t('task.writtenSize', {
                             size:
                               item.sizeBytes === null
                                 ? t('common.sizeUnknown')

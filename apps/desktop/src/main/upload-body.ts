@@ -7,7 +7,8 @@ import { HttpOperationError, toHttpError } from './http-errors.ts'
 
 interface UploadBodyHost {
   readonly signal: AbortSignal
-  readonly length: number
+  /** 请求体的长度上限。 */
+  readonly maxBytes: number
   readonly progress: (bytes: number) => void
   readonly abort: (error: KnownOperationError) => void
 }
@@ -18,7 +19,10 @@ export interface UploadBody {
   readonly settled: Promise<unknown>
   readonly close: () => void
 }
-/** 打开上传输入。定长请求体收齐后，连接断开不再中止归档校验和写入；没收齐时取消本次任务。 */
+/**
+ * 打开上传输入。请求体收齐前连接断开或读取失败时，以 network-failure 调用 host.abort。
+ * 请求体收齐后连接断开，任务照常进行。
+ */
 export function openUploadBody(
   input: IncomingMessage,
   response: ServerResponse,
@@ -34,7 +38,7 @@ export function openUploadBody(
   input.on('error', rememberError)
   input.once('close', () => input.off('error', rememberError))
   const disconnected = (): void => {
-    if (!hasMessage && !(input.complete && bytes === host.length)) {
+    if (!hasMessage && !input.complete) {
       host.abort({
         code: 'network-failure',
         message: 'The upload connection was interrupted before all data was received.',
@@ -84,7 +88,7 @@ export function openUploadBody(
     if (isSettled) {
       return
     }
-    if (!input.complete || input.rawTrailers.length > 0 || bytes !== host.length) {
+    if (!input.complete || input.rawTrailers.length > 0) {
       failed(
         new HttpOperationError(
           'checksum-mismatch',
@@ -109,11 +113,8 @@ export function openUploadBody(
       }
       const part = chunk.subarray(offset, offset + BATCH_RESOURCES.maxBufferBytes)
       bytes += part.length
-      if (bytes > host.length) {
-        throw new HttpOperationError(
-          'checksum-mismatch',
-          'The upload body exceeds the manifest length.',
-        )
+      if (bytes > host.maxBytes) {
+        throw new HttpOperationError('resource-limit', 'The upload body exceeds the limit.')
       }
       host.progress(bytes)
       if (!stream.write(part)) {
@@ -133,7 +134,7 @@ export function openUploadBody(
     pushing.then(finish, failed).catch(failed)
   }
   const closed = (): void => {
-    if (input.complete && bytes === host.length) {
+    if (input.complete) {
       ended()
     } else {
       failed(

@@ -139,13 +139,11 @@ export const enUS: Messages = {
   'plan.issue.resource-limit': 'Exceeds the limit for a single transfer',
   'plan.conflict': 'Name or type conflict between the two sides',
 
-  'task.step.pack': 'Pack',
   'task.failureStageMissing': 'The step where it failed was not recorded',
   'task.step.transfer': 'Transfer',
-  'task.step.verify': 'Verify',
   'task.step.backup': 'Back up',
   'task.step.write': 'Write',
-  'task.stage.preparing': 'Packing',
+  'task.stage.preparing': 'Preparing',
   'task.stage.ready': 'Waiting to receive',
   'task.stage.awaiting-content': 'Waiting for content',
   'task.stage.transferring': 'Transferring',
@@ -178,7 +176,7 @@ export const enUS: Messages = {
   'task.deletedDetail': ({ count }) => (count === 1 ? '1 item deleted' : `${count} items deleted`),
   'task.written': 'Written',
   'task.fileCount': ({ count }) => (count === 1 ? '1 file' : `${count} files`),
-  'task.verified': ({ size }) => `Verified ${size}`,
+  'task.writtenSize': ({ size }) => `Written ${size}`,
   'task.folderCreated': 'Folder created',
   'task.folderCount': ({ count }) => (count === 1 ? '1 folder' : `${count} folders`),
   'task.foldersCreatedDetail': ({ count }) =>

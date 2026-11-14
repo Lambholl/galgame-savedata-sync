@@ -147,7 +147,6 @@ export function registerSyncIpc(
         } else if (
           action === 'copyPlan' ||
           action === 'copyState' ||
-          action === 'copyManifest' ||
           action === 'cancelCopy' ||
           action === 'cleanupCopy'
         ) {
@@ -157,8 +156,6 @@ export function registerSyncIpc(
             value = service.syncCopyRequest(id)
           } else if (action === 'copyState') {
             value = service.syncCopyState(id)
-          } else if (action === 'copyManifest') {
-            value = service.syncCopyManifest(id)
           } else if (action === 'cancelCopy') {
             value = await service.cancelSyncCopy(id)
           } else {

@@ -12,12 +12,11 @@ import {
   isSyncTransferState,
   matchesSyncApplyResult,
   matchesSyncJobDigest,
-  matchesSyncJobManifest,
   matchesSyncJobState,
   matchesSyncPlan,
+  SYNC_STEP_DONE,
 } from '@savedata-sync/shared'
 import type {
-  BatchManifest,
   InterruptedWrite,
   OperationError,
   OperationResult,
@@ -158,7 +157,6 @@ export const SYNC_CHANNELS = {
   copies: 'sync:copies',
   copyPlan: 'sync:copy-plan',
   copyState: 'sync:copy-state',
-  copyManifest: 'sync:copy-manifest',
   cancelCopy: 'sync:copy-cancel',
   cleanupCopy: 'sync:copy-cleanup',
   restores: 'sync:restores',
@@ -242,7 +240,7 @@ export function isDesktopCopySummary(value: unknown): value is DesktopCopySummar
     value.role === (value.direction === 'android-to-windows' ? 'receiver' : 'sender') &&
     member(value.phase, ['running', 'done', 'partial', 'failed', 'cancelled', 'unknown']) &&
     member(value.stage, COPY_STAGES) &&
-    (value.step === null || count(value.step, 5)) &&
+    (value.step === null || count(value.step, SYNC_STEP_DONE)) &&
     (value.percent === null || count(value.percent, 100)) &&
     time(value.updatedAt) &&
     typeof value.hasCleanupError === 'boolean' &&
@@ -398,8 +396,7 @@ export function createSyncBridge(
   invoke: (channel: string, ...args: unknown[]) => Promise<unknown>,
 ): DesktopSyncApi {
   const plans = new Map<string, SyncJobRequest>(),
-    restores = new Map<string, SyncPlan>(),
-    manifests = new Map<string, BatchManifest>()
+    restores = new Map<string, SyncPlan>()
   function failure(): OperationResult<never> {
     return {
       status: 'error',
@@ -415,9 +412,6 @@ export function createSyncBridge(
       const first = cache.keys().next().value
       if (first !== undefined) {
         cache.delete(first)
-        if (cache === plans) {
-          manifests.delete(first)
-        }
       }
     }
     cache.set(id, structuredClone(value))
@@ -470,31 +464,10 @@ export function createSyncBridge(
       return context
     }
     const request = context.value
-    let manifest = manifests.get(jobId) ?? null
-    if (
-      request.plan.transferFileCount > 0 &&
-      local.progress.totalArchiveBytes !== null &&
-      !manifest
-    ) {
-      const declaration = await call(
-        'copyManifest',
-        [{ jobId }],
-        (value): value is BatchManifest => value !== null && matchesSyncJobManifest(value, request),
-      )
-      if (declaration.status === 'error') {
-        return declaration
-      }
-      manifest = declaration.value
-      remember(manifests, jobId, manifest)
-    }
-    // 对端的清单已在主进程核对过，这里只核对它属于本次任务；移动端可能比本机更早知道压缩体大小。
+    // 对端的状态已在主进程核对过，这里只核对它属于本次任务。
     return local.role ===
       (request.plan.direction === 'android-to-windows' ? 'receiver' : 'sender') &&
-      matchesSyncJobState(
-        local,
-        request,
-        local.progress.totalArchiveBytes === null ? null : manifest,
-      ) &&
+      matchesSyncJobState(local, request) &&
       (remote === null ||
         (matchesSyncJobDigest(remote, request, local.role) &&
           (remote.result === null || matchesSyncApplyResult(remote.result, request.plan))))

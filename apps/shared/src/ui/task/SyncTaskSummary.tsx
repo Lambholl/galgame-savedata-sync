@@ -68,7 +68,8 @@ export function SyncTaskSummary({
     remote,
     remoteError !== null,
   )
-  const error = result?.error ?? states.find((item) => item.error)?.error ?? null
+  const reporter = result?.error ? receiver : (states.find((item) => item.error) ?? null)
+  const error = result?.error ?? reporter?.error ?? null
   const cleanupError = result?.cleanupError ?? local.cleanupError ?? remote?.cleanupError ?? null
   const technicalText = [
     `${t('task.techTask')} ${local.jobId}`,
@@ -136,7 +137,10 @@ export function SyncTaskSummary({
       detail = t('task.partialDetail', counts)
     } else if (phase === 'failed') {
       detail = error && (
-        <ErrorText error={locateSyncError(error, local.direction, failureStage)} context={null} />
+        <ErrorText
+          error={locateSyncError(error, local.direction, failureStage, reporter?.role ?? null)}
+          context={null}
+        />
       )
     } else if (phase === 'unknown') {
       detail = t('task.unknownDetail')

@@ -3,7 +3,7 @@ import { BATCH_RESOURCES } from '@savedata-sync/shared'
 import { ArchiveError, checkArchiveAbort } from './archive-errors.ts'
 
 /** 生成规范化的 USTAR 头：成员名是文件 ID，权限固定为 0600，属主和时间都是 0。 */
-export function createArchiveHeader(file: PreparedFile): Buffer {
+export function createArchiveHeader(file: Pick<PreparedFile, 'fileId' | 'sizeBytes'>): Buffer {
   const header = Buffer.alloc(512)
   header.write(file.fileId, 0, 'ascii')
   const octal = (offset: number, width: number, value: number): void => {

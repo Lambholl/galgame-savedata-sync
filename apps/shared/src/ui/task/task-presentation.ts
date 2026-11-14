@@ -3,18 +3,16 @@ import type { SyncJobObservation, SyncTaskPhase } from '../../sync/sync-job-obse
 import type { TransferTask } from '../../transfer/transfer.ts'
 import { taskIsActive } from '../../transfer/transfer.ts'
 
-/** 五段进度的本地化键。 */
+/** 三段进度的本地化键。 */
 export const SYNC_TASK_STEPS = [
-  'task.step.pack',
   'task.step.transfer',
-  'task.step.verify',
   'task.step.backup',
   'task.step.write',
 ] as const
 
 /** 编号步骤条所需的数据。 */
 export interface TaskStepProgress {
-  /** 零起点阶段，5 表示全部完成；null 表示阶段未记录。 */
+  /** 零起点阶段，等于步骤数时表示全部完成；null 表示阶段未记录。 */
   readonly current: number | null
   /** 当前阶段的完成百分比，未知时使用起始刻度。 */
   readonly percent: number | null
@@ -28,7 +26,7 @@ export interface TaskPreview {
   readonly percent: number | null
   /** 决定图标与语义色的任务状态。 */
   readonly phase: SyncTaskPhase
-  /** 复制任务的五段步骤；恢复和批量传输用 null。 */
+  /** 复制任务的三段步骤；恢复和批量传输用 null。 */
   readonly steps: TaskStepProgress | null
 }
 

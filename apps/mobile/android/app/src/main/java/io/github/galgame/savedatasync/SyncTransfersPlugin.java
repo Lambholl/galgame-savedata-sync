@@ -128,11 +128,6 @@ public class SyncTransfersPlugin extends Plugin {
   }
 
   @PluginMethod
-  public void manifest(PluginCall call) {
-    submit(call, runtime -> runtime.engine.manifest(id(arguments(call, "jobId").get("jobId"))));
-  }
-
-  @PluginMethod
   public void current(PluginCall call) {
     submit(call, runtime -> {
       arguments(call);

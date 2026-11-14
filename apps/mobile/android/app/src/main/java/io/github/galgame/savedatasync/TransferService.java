@@ -252,8 +252,12 @@ public class TransferService extends Service {
     Long completed = null;
     Long total = null;
     if (progress != null) {
+      // 复制任务按文件内容字节计传输进度，批量传输按归档字节计。
+      boolean isSync = progress.containsKey("transferredBytes");
       String doneKey = stage.equals("transferring")
-        ? "archiveBytesTransferred"
+        ? isSync
+          ? "transferredBytes"
+          : "archiveBytesTransferred"
         : stage.equals("verifying")
           ? "fileBytesVerified"
           : stage.equals("backing-up")
@@ -262,13 +266,17 @@ public class TransferService extends Service {
               ? "publishedFiles"
               : "sourceBytesRead";
       String totalKey = stage.equals("transferring")
-        ? "totalArchiveBytes"
+        ? isSync
+          ? "totalFileBytes"
+          : "totalArchiveBytes"
         : stage.equals("backing-up")
           ? "totalBackupBytes"
           : stage.equals("publishing") || stage.equals("writing")
             ? "totalFiles"
             : "totalFileBytes";
-      completed = ((Number) progress.get(doneKey)).longValue();
+      if (progress.get(doneKey) instanceof Number) {
+        completed = ((Number) progress.get(doneKey)).longValue();
+      }
       if (progress.get(totalKey) instanceof Number) {
         total = ((Number) progress.get(totalKey)).longValue();
       }

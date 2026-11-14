@@ -668,12 +668,9 @@ final class SyncWriter implements AutoCloseable {
     int fileIndex = 0;
     try {
       if (job.observer != null) {
-        job.observer.stage("verifying");
-      }
-      preflight(job);
-      if (job.observer != null) {
         job.observer.stage("backing-up");
       }
+      preflight(job);
       Map<String, Object> backup = backups.create(
         plan.project,
         plan.target.root,

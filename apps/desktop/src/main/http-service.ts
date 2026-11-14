@@ -78,7 +78,7 @@ export interface WindowsHttpOptions extends Omit<TransferRegistryOptions, 'recei
     readonly backups: WindowsBackupStore
     readonly archive: Pick<
       WindowsArchiveAdapter,
-      'prepare' | 'receive' | 'retryCleanup' | 'checkReceiveSpace'
+      'sendFiles' | 'receiveFiles' | 'retryCleanup' | 'checkStagingSpace'
     >
   }
 }
@@ -215,10 +215,6 @@ export class WindowsHttpService {
   /** 读取复制任务的状态；服务会话已结束时抛出 not-found 错误。 */
   syncCopyState(id: string): SyncTransferState {
     return this.pendingCopy(id)?.state ?? this.localSync().localState(id)
-  }
-  /** 读取复制任务的清单；服务会话已结束时抛出 not-found 错误。 */
-  syncCopyManifest(id: string): ReturnType<WindowsSyncRegistry['localManifest']> {
-    return this.localSync().localManifest(id)
   }
   /** 取消复制任务，包括还没登记的本机发起任务。 */
   async cancelSyncCopy(id: string): Promise<SyncTransferState> {
@@ -539,7 +535,6 @@ export class WindowsHttpService {
       'sync-project',
       'sync-jobs',
       'sync-job',
-      'sync-job-manifest',
       'sync-job-content',
     ].includes(route.kind)
     const peerId = request.headers[SYNC_DEVICE_HEADER]
@@ -571,22 +566,7 @@ export class WindowsHttpService {
           })
         }
       } else if (route.id) {
-        if (route.kind === 'sync-job-manifest') {
-          if (request.method === 'PUT') {
-            const value = await readHttpJson(request)
-            if (request.complete && !response.destroyed) {
-              sendHttpJson(response, 200, {
-                status: 'success',
-                value: await jobs.declare(route.id, peerId, value),
-              })
-            }
-          } else {
-            sendHttpJson(response, 200, {
-              status: 'success',
-              value: jobs.manifest(route.id, peerId),
-            })
-          }
-        } else if (route.kind === 'sync-job-content') {
+        if (route.kind === 'sync-job-content') {
           if (request.method === 'GET') {
             await jobs.sendContent(route.id, peerId, response)
           } else {

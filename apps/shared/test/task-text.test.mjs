@@ -97,13 +97,13 @@ test('任务条：失败又清理失败时两件事都写，成功但清理失�
   assert.deepEqual([restore.status, restore.phase], ['恢复失败 · 临时文件未清理', 'failed'])
 })
 
-test('任务条：等待对方设备开始时不写正在打包', () => {
+test('任务条：等待对方设备开始时不写正在准备', () => {
   const t = createTranslator('zh-CN')
   const running = { phase: 'running', stage: 'preparing', step: 0, percent: null }
   const preview = (isAwaitingPeer) =>
     syncTaskPreview({ ...running, hasCleanupError: false, isAwaitingPeer }, t).status
   assert.equal(preview(true), '等待对方设备开始')
-  assert.equal(preview(false), '正在打包')
+  assert.equal(preview(false), '正在准备')
 })
 
 test('四种语言的部分完成只列不为 0 的类别', () => {

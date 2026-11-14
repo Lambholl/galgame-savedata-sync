@@ -74,6 +74,27 @@ interface TransferHttp {
     ArchiveModel.Progress progress
   ) throws Exception;
 
+  /** 把内容写进请求体的回调。 */
+  interface ContentWriter {
+    void write(OutputStream output) throws Exception;
+  }
+
+  /** GET 长度不定的 application/gzip 内容；返回的流由调用方关闭。 */
+  default InputStream downloadStream(String path, String session, ArchiveControl control)
+    throws Exception {
+    throw fail("unsupported-operation");
+  }
+
+  /** 以 chunked 方式 PUT writer 写出的 application/gzip 内容，返回 202 响应的值。writer 失败时断开连接，接收端收到的请求体不完整。 */
+  default Object uploadStream(
+    String path,
+    String session,
+    ContentWriter writer,
+    ArchiveControl control
+  ) throws Exception {
+    throw fail("unsupported-operation");
+  }
+
   /** HTTP 客户端：直连，关闭缓存和重定向，Accept-Encoding 为 identity；请求体用固定长度流发送，只发一次。 */
   final class Client implements TransferHttp {
 
@@ -315,16 +336,22 @@ interface TransferHttp {
         }
         if (
           transfer != null &&
-          (length != null || !transfer.equalsIgnoreCase("chunked") || hasContent)
+          (length != null ||
+            !transfer.equalsIgnoreCase("chunked") ||
+            (hasContent && archive != null))
         ) {
           throw fail("invalid-request");
         }
         if (hasContent) {
+          if (!"application/gzip".equals(header("Content-Type", true))) {
+            throw fail("invalid-request");
+          }
+          // 复制内容长度不定，完整性由 gzip 的 CRC 和长度保证；批量传输的定长内容还要核对长度和哈希。
           if (
-            !"application/gzip".equals(header("Content-Type", true)) ||
-            length == null ||
-            Long.parseLong(length) != archive.sizeBytes ||
-            !archive.sha256.equals(header("x-archive-sha256", true))
+            archive != null &&
+            (length == null ||
+              Long.parseLong(length) != archive.sizeBytes ||
+              !archive.sha256.equals(header("x-archive-sha256", true)))
           ) {
             throw fail("invalid-request");
           }
@@ -566,6 +593,109 @@ interface TransferHttp {
             source.close();
           } finally {
             control.untrack(source);
+          }
+        }
+        return call.response(202);
+      } catch (Exception cause) {
+        throw call.failure(cause);
+      } finally {
+        call.close();
+      }
+    }
+
+    @Override
+    public InputStream downloadStream(String path, String session, ArchiveControl control)
+      throws Exception {
+      Call call = new Call("GET", path, session, control);
+      try {
+        if (call.connection.getResponseCode() != 200) {
+          call.response(200);
+          throw fail("invalid-request");
+        }
+        call.progressed();
+        call.headers(true, null);
+        InputStream input = call.ownedInput(call.connection.getInputStream());
+        return new FilterInputStream(input) {
+          @Override
+          public int read() throws IOException {
+            byte[] one = new byte[1];
+            int n = read(one, 0, 1);
+            return n < 0 ? -1 : one[0] & 255;
+          }
+
+          @Override
+          public int read(byte[] bytes, int offset, int length) throws IOException {
+            try {
+              control.check();
+              int n = in.read(bytes, offset, Math.min(length, 65536));
+              if (n > 0) {
+                call.progressed();
+              }
+              return n;
+            } catch (Exception cause) {
+              throw call.failure(cause);
+            }
+          }
+
+          @Override
+          public void close() throws IOException {
+            try {
+              super.close();
+            } finally {
+              call.close();
+            }
+          }
+        };
+      } catch (Exception cause) {
+        call.close();
+        throw call.failure(cause);
+      }
+    }
+
+    @Override
+    public Object uploadStream(
+      String path,
+      String session,
+      ContentWriter writer,
+      ArchiveControl control
+    ) throws Exception {
+      Call call = new Call("PUT", path, session, control);
+      try {
+        call.connection.setDoOutput(true);
+        call.connection.setChunkedStreamingMode(65536);
+        call.connection.setRequestProperty("Content-Type", "application/gzip");
+        OutputStream output = control.track(call.ownedOutput(call.connection.getOutputStream()));
+        try {
+          writer.write(
+            new java.io.FilterOutputStream(output) {
+              @Override
+              public void write(byte[] bytes, int offset, int length) throws IOException {
+                try {
+                  control.check();
+                  out.write(bytes, offset, length);
+                  call.progressed();
+                } catch (Exception cause) {
+                  throw call.failure(cause);
+                }
+              }
+
+              @Override
+              public void close() {
+                // writer 关闭输出时只刷新：提前发出结尾的空块会让接收端以为请求体已经完整。
+              }
+            }
+          );
+        } catch (Exception cause) {
+          // 先断开连接再关闭输出，接收端看到的是中断的请求体，而不是提前结束的完整请求。
+          call.close();
+          throw cause;
+        } finally {
+          try {
+            output.close();
+          } catch (IOException ignored) {
+            /* 已断开的连接关闭时可能再报错，原因以上面的异常为准。 */
+          } finally {
+            control.untrack(output);
           }
         }
         return call.response(202);
