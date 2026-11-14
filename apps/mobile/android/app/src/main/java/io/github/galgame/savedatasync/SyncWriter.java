@@ -42,6 +42,15 @@ final class SyncWriter implements AutoCloseable {
     Map<String, Object> snapshot() throws Exception;
 
     ArchiveModel.Source file(String entryId) throws Exception;
+
+    /**
+     * 备份完成后、写入前调用，返回后写入器才读取文件。抛错时所有条目保持未执行，结果带它的错误。
+     *
+     * @return true 表示等过尚未到齐的内容，写入器要重新核对目标后才写入。
+     */
+    default boolean ready(ArchiveControl control) throws Exception {
+      return false;
+    }
   }
 
   interface Replacement extends Closeable {
@@ -288,19 +297,7 @@ final class SyncWriter implements AutoCloseable {
 
   private void preflight(Job job) throws Exception {
     check(job);
-    // 只按目录列表比对类型、大小和修改时间：游戏改写存档总会改动其中之一，重算哈希要把整个目录再读一遍。
-    Map<String, Object> current = scanner.snapshotNow(job.plan.target.root, job.control);
-    if (
-      !SyncPlanModel.same(
-        attributes(current.get("entries")),
-        attributes(job.plan.target.value.get("entries"))
-      )
-    ) {
-      throw new ArchiveFailure(
-        "source-changed",
-        "The target content differs from confirmation. Scan again."
-      );
-    }
+    verifyTarget(job);
     for (Map<String, Object> entry : job.plan.target.paths.values()) {
       if (entry.get("kind").equals("directory")) {
         job.directories.put(SyncPlanModel.key(entry.get("path")), string(entry.get("entryId")));
@@ -317,6 +314,23 @@ final class SyncWriter implements AutoCloseable {
     }
     space(job, null, 0);
     check(job);
+  }
+
+  /** 目标的目录列表与计划不同时抛 source-changed。 */
+  private void verifyTarget(Job job) throws Exception {
+    // 按目录列表比对类型、大小和修改时间，和两端比较的判断方式一致。
+    Map<String, Object> current = scanner.snapshotNow(job.plan.target.root, job.control);
+    if (
+      !SyncPlanModel.same(
+        attributes(current.get("entries")),
+        attributes(job.plan.target.value.get("entries"))
+      )
+    ) {
+      throw new ArchiveFailure(
+        "source-changed",
+        "The target content differs from confirmation. Scan again."
+      );
+    }
   }
 
   private long space(Job job, Path cacheRoot, long cacheBytes) throws Exception {
@@ -699,6 +713,11 @@ final class SyncWriter implements AutoCloseable {
           "Free target space after backup is insufficient " +
             "for the file size increase in this operation."
         );
+      }
+      if (material != null && material.ready(control)) {
+        // 等内容期间目标可能被改动，这些改动不在备份里，要按计划再比对一次才能写入。
+        verifyTarget(job);
+        check(job);
       }
       if (!plan.writes.isEmpty()) {
         backend.writeStarted(plan, backupId);

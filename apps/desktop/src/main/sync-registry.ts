@@ -75,6 +75,15 @@ interface SyncTask {
   /** 计划里要传的文件，按 tar 成员的顺序。 */
   readonly files: readonly SyncContentFile[]
   staged: WindowsStagedFiles | null
+  /** 接收端的内容全部解包后完成，失败或取消时拒绝。 */
+  readonly content: Promise<void>
+  settleContent: (cause?: unknown) => void
+  /** 接收端开始等内容的时间；领取内容后为 null。 */
+  awaitingSince: number | null
+  isContentReceived: boolean
+  isBackupDone: boolean
+  /** 接收内容的过程，内容收完或失败后完成；还没领取内容时为 null。 */
+  receiving: Promise<void> | null
   worker: Promise<void> | null
   finishing: Promise<void> | null
   reason: KnownOperationError | null
@@ -534,6 +543,18 @@ export class WindowsSyncRegistry {
     const files = contentFiles(request)
     const token = Symbol('sync-job')
     acquireTargetOperation(token)
+    let settleContent: (cause?: unknown) => void = () => undefined
+    const content = new Promise<void>((resolve, reject) => {
+      settleContent = (cause) => {
+        if (cause === undefined) {
+          resolve()
+        } else {
+          reject(cause instanceof Error ? cause : new Error('Receiving the content failed.'))
+        }
+      }
+    })
+    // 内容可能在写入器等它之前就失败，先挂上处理，避免成为未处理的拒绝。
+    content.catch(() => undefined)
     const task: SyncTask = {
       request,
       peerId,
@@ -543,6 +564,12 @@ export class WindowsSyncRegistry {
       controller: new AbortController(),
       files,
       staged: null,
+      content,
+      settleContent,
+      awaitingSince: null,
+      isContentReceived: false,
+      isBackupDone: false,
+      receiving: null,
       worker: null,
       finishing: null,
       reason: null,
@@ -589,7 +616,14 @@ export class WindowsSyncRegistry {
       task.worker = this.work(task, () => this.prepareSource(task))
       return Promise.resolve(structuredClone(task.state))
     }
-    return this.work(task, () => this.admit(task)).then(() => structuredClone(task.state))
+    return this.work(task, () => this.admit(task)).then(() => {
+      // 通过容量核对后立即开始备份，同时等发送端上传内容。
+      if (task.state.status === 'running' && request.plan.transferFileCount > 0) {
+        task.awaitingSince = performance.now()
+        task.worker = this.work(task, () => this.apply(task))
+      }
+      return structuredClone(task.state)
+    })
   }
   private async prepareSource(task: SyncTask): Promise<void> {
     const scanner = new WindowsSyncScanner(this.options.source)
@@ -669,7 +703,7 @@ export class WindowsSyncRegistry {
       if (task.request.plan.transferFileCount === 0) {
         await this.apply(task)
       } else {
-        this.update(task, 'awaiting-content')
+        this.update(task, 'backing-up')
       }
     } catch (cause) {
       await this.fail(task, cause)
@@ -690,7 +724,10 @@ export class WindowsSyncRegistry {
   get(id: string, peerId: string): SyncJobState {
     return structuredClone(this.require(id, peerId).state)
   }
-  /** 接收 tar.gz 内容，每个任务只能领取一次；边收边解包，响应 202 表示内容已完整解包，写入结果在任务状态里。 */
+  /**
+   * 接收 tar.gz 内容，每个任务只能领取一次，备份期间也可以开始；边收边解包，响应 202 表示内容已完整解包，
+   * 写入结果在任务状态里。
+   */
   receive(
     id: string,
     peerId: string,
@@ -701,8 +738,7 @@ export class WindowsSyncRegistry {
     if (
       task.state.role !== 'receiver' ||
       task.state.status !== 'running' ||
-      task.state.stage !== 'awaiting-content' ||
-      task.isWorking ||
+      task.awaitingSince === null ||
       task.isContentClaimed
     ) {
       throw new HttpOperationError(
@@ -714,16 +750,22 @@ export class WindowsSyncRegistry {
       throw new HttpOperationError('invalid-request', 'The content type is not gzip.')
     }
     task.isContentClaimed = true
-    this.update(task, 'transferring')
+    task.awaitingSince = null
+    this.update(task, this.contentStage(task))
     task.networkAt = performance.now()
-    let resolve: (state: SyncJobState) => void = () => undefined,
-      reject: (cause: unknown) => void = () => undefined
-    const accepted = new Promise<SyncJobState>((ready, failed) => {
-      resolve = ready
-      reject = failed
+    return new Promise<SyncJobState>((resolve, reject) => {
+      task.receiving = this.receiveTask(task, input, response, resolve, reject)
     })
-    task.worker = this.work(task, () => this.receiveTask(task, input, response, resolve, reject))
-    return accepted
+  }
+  /** 备份完成前是备份阶段，之后按内容的进展是等待内容、传输或写入。 */
+  private contentStage(task: SyncTask): SyncJobState['stage'] {
+    if (!task.isBackupDone) {
+      return 'backing-up'
+    }
+    if (task.isContentReceived) {
+      return 'writing'
+    }
+    return task.isContentClaimed ? 'transferring' : 'awaiting-content'
   }
   /** 边读来源边打包发送，每个任务只能领取一次；状态 sent 只表示本机发送完成。 */
   sendContent(id: string, peerId: string, response: ServerResponse): Promise<void> {
@@ -835,26 +877,34 @@ export class WindowsSyncRegistry {
         this.options.library.touchPeer(task.peerId)
       },
     })
-    let hasAccepted = false
     try {
       await this.verify(task)
       task.staged = await this.options.archive.receiveFiles(task.files, body.stream, {
         signal: task.controller.signal,
-        onBytes: (bytes) => this.update(task, 'transferring', { transferredBytes: bytes }),
+        onBytes: (bytes) => this.update(task, this.contentStage(task), { transferredBytes: bytes }),
       })
       if (!body.isComplete()) {
         throw new HttpOperationError('checksum-mismatch', 'The upload message is incomplete.')
       }
-      hasAccepted = true
+      task.isContentReceived = true
+      this.update(task, this.contentStage(task))
+      task.settleContent()
       accept(structuredClone(task.state))
-      await this.apply(task)
     } catch (cause) {
-      if (!hasAccepted) {
-        reject(toHttpError(cause))
-      }
+      // 任务被取消、超时或写入器先失败时接收被中止。回给发送端的是任务的原因或 task-conflict，发送端再按任务状态里的结果结束。
+      reject(
+        task.controller.signal.aborted
+          ? new HttpOperationError(
+              task.reason?.code ?? 'task-conflict',
+              task.reason?.message ?? 'The task was cancelled or has ended. Query its result.',
+            )
+          : toHttpError(cause),
+      )
       body.close()
       await body.settled
-      await this.fail(task, cause)
+      // 写入器可能还在备份，中止它，任务按内容的错误结束。
+      this.abort(task, known(cause))
+      task.settleContent(cause)
     } finally {
       body.close()
       await body.settled
@@ -880,33 +930,39 @@ export class WindowsSyncRegistry {
   }
   private async apply(task: SyncTask): Promise<void> {
     await this.verify(task)
-    const staged = task.staged
-    const material: WindowsSyncMaterial | null = staged
-      ? {
-          snapshot: task.request.plan.source,
-          openFile: async (entryId) => {
-            const file = task.files.find((entry) => entry.entryId === entryId)
-            if (!file) {
-              throw new HttpOperationError(
-                'invalid-request',
-                'The content is missing a source file for this operation.',
-              )
-            }
-            return {
-              stream: await staged.openFile(file.fileId),
-              verifyUnchanged: () => Promise.resolve(),
-            }
-          },
-        }
-      : null
+    const material: WindowsSyncMaterial | null =
+      task.request.plan.transferFileCount > 0
+        ? {
+            snapshot: task.request.plan.source,
+            openFile: async (entryId) => {
+              const file = task.files.find((entry) => entry.entryId === entryId)
+              if (!file || !task.staged) {
+                throw new HttpOperationError(
+                  'invalid-request',
+                  'The content is missing a source file for this operation.',
+                )
+              }
+              return {
+                stream: await task.staged.openFile(file.fileId),
+                verifyUnchanged: () => Promise.resolve(),
+              }
+            },
+            ready: () => {
+              task.isBackupDone = true
+              this.update(task, this.contentStage(task))
+              return task.content
+            },
+          }
+        : null
     const result = await this.options.writer.apply(task.request.plan, material, {
       signal: task.controller.signal,
       lease: { token: task.token, acceptedAt: task.acceptedAt },
       verifyContext: () => this.verify(task),
       // 写入前核对目标是备份的一部分，备份要按核对过的目录复制。
-      onStage: (stage) => this.update(task, stage === 'checking' ? 'backing-up' : stage),
+      onStage: (stage) =>
+        this.update(task, stage === 'writing' ? 'writing' : this.contentStage(task)),
       onBackupProgress: (bytesCopied) => {
-        this.update(task, 'backing-up', { backupBytesCopied: bytesCopied })
+        this.update(task, this.contentStage(task), { backupBytesCopied: bytesCopied })
       },
       onOutcome: (outcome) => {
         if (outcome.status === 'succeeded' && isSyncFileWrite(outcome.action)) {
@@ -971,6 +1027,11 @@ export class WindowsSyncRegistry {
     }
     task.finishing = (async (): Promise<void> => {
       const stoppedAt = failureStageOf(task.state.stage)
+      // 写入器先失败时内容可能还在接收，停下它再清理缓存。
+      if (task.receiving && !task.isContentReceived) {
+        task.controller.abort()
+      }
+      await task.receiving
       this.update(task, 'cleaning')
       let cleanupError = result.cleanupError
       try {
@@ -1038,6 +1099,7 @@ export class WindowsSyncRegistry {
     task.reason = reason
     task.state = { ...task.state, cancelRequested: reason === null, updatedAt: Date.now() }
     task.controller.abort()
+    task.settleContent(new ArchiveCancelledError())
     if (!task.isWorking) {
       task.worker = this.fail(task, new ArchiveCancelledError())
     }
@@ -1074,10 +1136,11 @@ export class WindowsSyncRegistry {
       if (task.state.status === 'running') {
         if (
           now - task.startedAt >= this.timeouts.total ||
-          (task.state.stage === 'awaiting-content' &&
-            now - task.stageAt >= this.timeouts.awaitingContent) ||
+          (task.awaitingSince !== null &&
+            now - task.awaitingSince >= this.timeouts.awaitingContent) ||
           (task.state.stage === 'ready' && now - task.stageAt >= this.timeouts.ready) ||
-          (task.state.stage === 'transferring' &&
+          ((task.state.stage === 'transferring' ||
+            (task.isContentClaimed && !task.isContentReceived)) &&
             now - task.networkAt >= this.timeouts.networkIdle) ||
           // 发送端打包期间每秒推送摘要；这么久没收到，说明它已经不在，清单和内容都等不到。
           (task.state.role === 'receiver' &&

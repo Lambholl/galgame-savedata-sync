@@ -54,12 +54,17 @@ import {
 } from './sync-target-files.ts'
 import type { SyncCandidate, SyncTargetIO } from './sync-target-files.ts'
 
-/** 写入用的输入，已完整校验，可以重复读取；快照必须与确认的计划相符，打开的流由写入器关闭。 */
+/** 写入用的输入，可以重复读取；快照必须与确认的计划相符，打开的流由写入器关闭。 */
 export interface WindowsSyncMaterial {
   readonly snapshot: SyncSnapshot
   readonly openFile: (
     entryId: string,
   ) => Promise<{ stream: Readable; verifyUnchanged: () => Promise<void> }>
+  /**
+   * 给出时写入器在备份完成后等它完成，之后才读取文件，并在写入前重新核对目标。
+   * 它失败时所有条目保持未执行，结果带它的错误。
+   */
+  readonly ready?: () => Promise<void>
 }
 /** 写入器的依赖：authorize 核对计划的项目和目标根目录仍与本机配置一致。 */
 export interface WindowsSyncWriterOptions {
@@ -151,6 +156,18 @@ function failure(error: unknown, signal?: AbortSignal): ArchiveError | ArchiveCa
         toPublicationError(error).operationError.message,
         error,
       )
+}
+/** 等 promise 的结果；signal 先中止时以 ArchiveCancelledError 拒绝。 */
+function untilAborted(promise: Promise<void>, signal: AbortSignal): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    if (signal.aborted) {
+      reject(new ArchiveCancelledError())
+      return
+    }
+    const stop = (): void => reject(new ArchiveCancelledError())
+    signal.addEventListener('abort', stop, { once: true })
+    void promise.then(resolve, reject).finally(() => signal.removeEventListener('abort', stop))
+  })
 }
 function cleanupError(): KnownOperationError {
   return {
@@ -324,6 +341,12 @@ export class WindowsSyncWriter {
     const root = await this.source.locateNativeDirectory(job.plan.target.rootId)
     job.locations.set(syncPathKey([]), root)
     await access(root.path, constants.W_OK)
+    await this.verifyTarget(job)
+    await this.checkSpace(job.plan)
+    await this.check(job)
+  }
+  /** 目标的目录列表与计划不同时抛 source-changed。 */
+  private async verifyTarget(job: WriteJob): Promise<void> {
     // 按目录列表比对类型、大小和修改时间，和两端比较的判断方式一致。
     const listed: TargetEntryKey[] = []
     const pending: { readonly parentId: string | null; readonly path: readonly string[] }[] = [
@@ -359,8 +382,6 @@ export class WindowsSyncWriter {
         'The target content differs from confirmation. Scan again.',
       )
     }
-    await this.checkSpace(job.plan)
-    await this.check(job)
   }
   /** 检查目标卷和备份卷能否放下新文件、完整备份和传入的私有缓存，同卷的空间相加；不够时抛错。 */
   async checkSpace(
@@ -600,6 +621,12 @@ export class WindowsSyncWriter {
       cleanup = backup.cleanupError
       if (selectSyncBackupFiles(job.plan).length > 0 && !backup.manifest) {
         throw new ArchiveError('io-failure', 'A complete protective backup has not been committed.')
+      }
+      if (material?.ready) {
+        await untilAborted(material.ready(), job.signal)
+        // 等内容期间目标可能被改动，这些改动不在备份里，要按计划再比对一次才能写入。
+        await this.verifyTarget(job)
+        await this.check(job)
       }
       if (operations.length > 0) {
         await this.options.interruptedWrites?.begin(job.plan, backupId)

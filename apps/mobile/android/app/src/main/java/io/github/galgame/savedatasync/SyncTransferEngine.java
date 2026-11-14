@@ -27,10 +27,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -113,6 +117,8 @@ final class SyncTransferEngine implements AutoCloseable {
   private final Local local;
   private final ExecutorService preparer = Executors.newSingleThreadExecutor();
   private final ExecutorService worker = Executors.newSingleThreadExecutor();
+  /** 接收时与下载并行运行写入器的线程。 */
+  private final ExecutorService writers = Executors.newSingleThreadExecutor();
   private final ScheduledExecutorService watcher = Executors.newSingleThreadScheduledExecutor();
   private final ScheduledExecutorService heartbeats = Executors.newSingleThreadScheduledExecutor();
   /** 向电脑推送任务摘要、应答读取和取消的线程，页面被回收后照常工作。 */
@@ -182,6 +188,13 @@ final class SyncTransferEngine implements AutoCloseable {
     Map<String, Object> remote;
     Map<String, Object> remoteError;
     ArchiveAdapter.Staged staged;
+    /** 接收的内容全部解包后完成，失败时带着原因异常完成。 */
+    final CompletableFuture<Void> content = new CompletableFuture<>();
+    volatile boolean isBackupDone;
+    volatile boolean isContentClaimed;
+    volatile boolean isContentReceived;
+    /** 写入器在内容到齐前就结束了；由 job 的锁保护。 */
+    boolean hasWriterStopped;
     volatile boolean isRunning = true;
     boolean hasStarted;
     boolean wasRemoteAttempted;
@@ -1074,7 +1087,11 @@ final class SyncTransferEngine implements AutoCloseable {
       refresh(job, job.control);
     }
     synchronized (this) {
-      if (!isRemoteRunning(job) || !remoteStage(job).equals("awaiting-content")) {
+      // 电脑通过核对后立即开始备份，备份期间就可以上传。
+      if (
+        !isRemoteRunning(job) ||
+        !java.util.Arrays.asList("backing-up", "awaiting-content").contains(remoteStage(job))
+      ) {
         throw remoteFailure(job, "The PC could not accept this content.");
       }
     }
@@ -1127,6 +1144,14 @@ final class SyncTransferEngine implements AutoCloseable {
       refresh(job, job.control);
     }
     synchronized (this) {
+      // 电脑的备份或核对先失败时会中止接收，内容没收齐，本机按电脑报告的错误结束。
+      if (
+        job.remote != null &&
+        !isRemoteRunning(job) &&
+        number(map(job.remote.get("progress")).get("transferredBytes"), 0, total) < total
+      ) {
+        throw remoteFailure(job, "The PC stopped receiving this content.");
+      }
       require(
         job.remote != null &&
           number(map(job.remote.get("progress")).get("transferredBytes"), 0, total) == total &&
@@ -1140,8 +1165,8 @@ final class SyncTransferEngine implements AutoCloseable {
     }
   }
 
-  /** 边下载边解包到私有缓存，内容只能认领一次；解包完整后才调用本机写入器。 */
-  private void download(Job job) throws Exception {
+  /** 等电脑核对完来源；查询失败且无法恢复时抛出原错误。 */
+  private void awaitRemotePrepared(Job job) throws Exception {
     while (isRemoteRunning(job) && remoteStage(job).equals("preparing")) {
       job.control.check();
       Thread.sleep(100);
@@ -1157,49 +1182,127 @@ final class SyncTransferEngine implements AutoCloseable {
         }
       }
     }
+  }
+
+  /** 备份完成前是备份阶段，之后按内容的进展是等待内容、传输或写入。 */
+  private static String contentStage(Job job) {
+    if (!job.isBackupDone) {
+      return "backing-up";
+    }
+    if (job.isContentReceived) {
+      return "writing";
+    }
+    return job.isContentClaimed ? "transferring" : "awaiting-content";
+  }
+
+  private static Map<String, Object> awaitWriter(Future<Map<String, Object>> writing)
+    throws Exception {
+    try {
+      return writing.get();
+    } catch (ExecutionException failed) {
+      Throwable cause = failed.getCause();
+      throw cause instanceof Exception ? (Exception) cause : failed;
+    }
+  }
+
+  /**
+   * 边下载边解包到私有缓存，同时由写入器开始备份；内容只能认领一次，全部解包完整后写入器才写入。
+   *
+   * <p>内容先失败时停下写入器，按内容的错误结束；写入器先结束时停下下载，按写入器的结果结束。
+   */
+  private void download(Job job) throws Exception {
     long count = number(job.plan.value.get("transferFileCount"), 0, 1024);
     if (count == 0) {
+      awaitRemotePrepared(job);
       require(job.remote != null && job.remote.get("status").equals("sent"));
-    } else {
+      job.isPreparingArchive = true;
+      Map<String, Object> result = local.apply(job.plan, null, job.control, execution(job));
+      synchronized (this) {
+        receiverResult(job, result);
+      }
+      return;
+    }
+    List<Long> sizes = new ArrayList<>();
+    for (Map<String, Object> entry : contentEntries(job.plan)) {
+      sizes.add(size(entry));
+    }
+    long total = number(job.plan.value.get("totalFileBytes"), 0, BackupModel.MAX_TOTAL);
+    verifyTargetContext(job.plan.project, job.plan.target.root);
+    long extra = local.checkReceiveSpace(
+      job.plan,
+      archives.privateRoot(),
+      total,
+      job.control,
+      execution(job)
+    );
+    archives.checkStagingSpace(total, extra);
+    job.control.check();
+    SyncWriter.Material material = material(job);
+    Future<Map<String, Object>> writing = writers.submit(() -> {
+      try {
+        return local.apply(job.plan, material, job.control, execution(job));
+      } finally {
+        boolean shouldStop;
+        synchronized (job) {
+          shouldStop = !job.content.isDone();
+          job.hasWriterStopped = shouldStop;
+        }
+        if (shouldStop) {
+          job.control.cancel();
+        }
+      }
+    });
+    try {
+      awaitRemotePrepared(job);
       synchronized (this) {
         if (!isRemoteRunning(job) || !remoteStage(job).equals("ready")) {
           throw remoteFailure(job, "The PC could not prepare this content.");
         }
       }
-      List<Long> sizes = new ArrayList<>();
-      for (Map<String, Object> entry : contentEntries(job.plan)) {
-        sizes.add(size(entry));
-      }
-      long total = number(job.plan.value.get("totalFileBytes"), 0, BackupModel.MAX_TOTAL);
-      verifyTargetContext(job.plan.project, job.plan.target.root);
-      long extra = local.checkReceiveSpace(
-        job.plan,
-        archives.privateRoot(),
-        total,
-        job.control,
-        execution(job)
-      );
-      archives.checkStagingSpace(total, extra);
-      job.control.check();
-      progress(job, "transferring", null, 0);
       java.io.InputStream input = job.preparation.connection.http.downloadStream(
         job.path() + "/content",
         job.preparation.connection.session,
         job.control
       );
+      job.isContentClaimed = true;
+      progress(job, contentStage(job), null, 0);
       job.staged = archives.receiveFiles(sizes, input, job.control, (stage, value, ignored) ->
-        progress(job, "transferring", "transferredBytes", value)
+        progress(job, contentStage(job), "transferredBytes", value)
       );
       // 内容已完整解包，本机照常写入。这里只刷新一次电脑的状态，查询失败时把电脑的结果记为待确认。
       recover(job);
+    } catch (Exception cause) {
+      boolean hasWriterStopped;
+      synchronized (job) {
+        hasWriterStopped = job.hasWriterStopped;
+        job.content.completeExceptionally(cause);
+      }
+      if (!hasWriterStopped) {
+        job.control.cancel();
+      }
+      Map<String, Object> result = null;
+      try {
+        result = awaitWriter(writing);
+      } catch (Exception writerFailure) {
+        if (hasWriterStopped) {
+          throw writerFailure;
+        }
+        // 写入器是被下载的失败停下的，任务按下载的原因结束。
+      }
+      // 写入器只是被取消或超时停下时没有自己的错误，按下载的原因结束，保留取消和超时的判断。
+      if (!hasWriterStopped || result == null || result.get("error") == null) {
+        throw cause;
+      }
+      synchronized (this) {
+        receiverResult(job, result);
+      }
+      return;
     }
+    job.isContentReceived = true;
     job.isPreparingArchive = true;
-    Map<String, Object> result = local.apply(
-      job.plan,
-      count == 0 ? null : material(job),
-      job.control,
-      execution(job)
-    );
+    progress(job, contentStage(job), null, 0);
+    job.content.complete(null);
+    Map<String, Object> result = awaitWriter(writing);
     synchronized (this) {
       receiverResult(job, result);
     }
@@ -1211,6 +1314,24 @@ final class SyncTransferEngine implements AutoCloseable {
       @Override
       public Map<String, Object> snapshot() throws Exception {
         return map(copy(job.plan.source.value));
+      }
+
+      @Override
+      public boolean ready(ArchiveControl control) throws Exception {
+        job.isBackupDone = true;
+        progress(job, contentStage(job), null, 0);
+        while (true) {
+          control.check();
+          try {
+            job.content.get(100, TimeUnit.MILLISECONDS);
+            return true;
+          } catch (TimeoutException waiting) {
+            // 内容还在下载，继续等，期间响应取消。
+          } catch (ExecutionException failed) {
+            Throwable cause = failed.getCause();
+            throw cause instanceof Exception ? (Exception) cause : failed;
+          }
+        }
       }
 
       @Override
@@ -1260,7 +1381,7 @@ final class SyncTransferEngine implements AutoCloseable {
       new SyncWriter.Observer() {
         @Override
         public void stage(String stage) throws Exception {
-          progress(job, stage, null, 0);
+          progress(job, stage.equals("writing") ? stage : contentStage(job), null, 0);
         }
 
         @Override
@@ -1788,9 +1909,11 @@ final class SyncTransferEngine implements AutoCloseable {
     reports.shutdownNow();
     preparer.shutdown();
     worker.shutdown();
+    writers.shutdown();
     if (
       !preparer.awaitTermination(30, TimeUnit.SECONDS) ||
       !worker.awaitTermination(30, TimeUnit.SECONDS) ||
+      !writers.awaitTermination(30, TimeUnit.SECONDS) ||
       !heartbeats.awaitTermination(10, TimeUnit.SECONDS)
     ) {
       throw fail("timeout");

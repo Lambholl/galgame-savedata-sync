@@ -224,7 +224,6 @@ const COPY_STAGES = [
   'ready',
   'awaiting-content',
   'transferring',
-  'verifying',
   'backing-up',
   'writing',
   'cleaning',

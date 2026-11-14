@@ -63,7 +63,7 @@ export interface SyncJobObservation {
   readonly phase: SyncTaskPhase
   /** 进行中是走在最前面的阶段，结束后是 done。 */
   readonly stage: SyncJobState['stage']
-  /** 三段流程（传输、备份、写入）的零起点索引，3 表示全部完成；null 表示没有记录到具体位置。 */
+  /** 三段流程（备份、传输、写入）的零起点索引，3 表示全部完成；null 表示没有记录到具体位置。 */
   readonly step: number | null
   /** 当前段的完成百分比；缺少计数时为 null。 */
   readonly percent: number | null
@@ -78,10 +78,10 @@ export const SYNC_STEP_DONE = 3
 
 const STEP_OF: Readonly<Record<SyncJobState['stage'], number>> = {
   preparing: 0,
-  ready: 0,
-  'awaiting-content': 0,
-  transferring: 0,
-  'backing-up': 1,
+  'backing-up': 0,
+  ready: 1,
+  'awaiting-content': 1,
+  transferring: 1,
   writing: 2,
   cleaning: SYNC_STEP_DONE,
   done: SYNC_STEP_DONE,
@@ -90,10 +90,10 @@ const STEP_OF: Readonly<Record<SyncJobState['stage'], number>> = {
 /** 阶段的先后，用来挑出走在前面的一端。 */
 const ORDER_OF: Readonly<Record<SyncJobState['stage'], number>> = {
   preparing: 0,
-  ready: 1,
-  'awaiting-content': 1,
-  transferring: 2,
-  'backing-up': 3,
+  'backing-up': 1,
+  ready: 2,
+  'awaiting-content': 2,
+  transferring: 3,
   writing: 4,
   cleaning: 5,
   done: 5,
@@ -103,7 +103,10 @@ function ratio(done: number, total: number | null): number | null {
   return total ? Math.min(1, Math.max(0, done / total)) : null
 }
 
-/** 两端都在跑时取走得更远的一端；发送端在收尾时以接收端为准。 */
+/**
+ * 两端都在跑时取走得更远的一端；接收端在备份时显示备份，传输进度在备份完成后接着显示。
+ * 发送端在收尾时以接收端为准。
+ */
 function runningStage(
   sender: SyncJobState | null,
   receiver: SyncJobState | null,
@@ -112,6 +115,7 @@ function runningStage(
   if (receiver?.status === 'running') {
     return isSenderRunning &&
       sender.stage !== 'cleaning' &&
+      receiver.stage !== 'backing-up' &&
       ORDER_OF[sender.stage] > ORDER_OF[receiver.stage]
       ? sender.stage
       : receiver.stage
@@ -177,7 +181,7 @@ export function observeSyncJob(
     step = failureStage
       ? STEP_OF[failureStage]
       : phase === 'unknown' && sender?.status === 'sent'
-        ? STEP_OF['backing-up']
+        ? STEP_OF.writing
         : null
   }
   const totals = (receiver ?? local).progress
@@ -190,15 +194,15 @@ export function observeSyncJob(
       ? {
           completedFiles: null,
           totalFiles: totals.totalFiles,
-          completedBytes: transferred,
-          totalBytes: totals.totalFileBytes,
+          completedBytes: totals.backupBytesCopied,
+          totalBytes: totals.totalBackupBytes,
         }
       : step === 1
         ? {
             completedFiles: null,
             totalFiles: totals.totalFiles,
-            completedBytes: totals.backupBytesCopied,
-            totalBytes: totals.totalBackupBytes,
+            completedBytes: transferred,
+            totalBytes: totals.totalFileBytes,
           }
         : {
             completedFiles: step === 2 ? totals.publishedFiles : null,

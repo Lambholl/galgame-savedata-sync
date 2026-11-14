@@ -5,8 +5,8 @@ import { taskIsActive } from '../../transfer/transfer.ts'
 
 /** 三段进度的本地化键。 */
 export const SYNC_TASK_STEPS = [
-  'task.step.transfer',
   'task.step.backup',
+  'task.step.transfer',
   'task.step.write',
 ] as const
 

@@ -49,7 +49,7 @@ test('备份阶段按接收端已复制的备份字节算百分比', () => {
   ]) {
     const observation = observeSyncJob(local, remote, false)
     assert.equal(observation.stage, 'backing-up')
-    assert.equal(observation.step, 1)
+    assert.equal(observation.step, 0)
     assert.equal(observation.percent, 25)
     assert.equal(observation.counters.completedBytes, 2500)
     assert.equal(observation.counters.totalBytes, 10000)
