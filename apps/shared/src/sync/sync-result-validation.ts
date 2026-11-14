@@ -1,5 +1,5 @@
 import type { OperationError } from '../protocol/contracts.ts'
-import { isOpaqueId, isSha256 } from '../protocol/protocol.ts'
+import { isOpaqueId } from '../protocol/protocol.ts'
 import { isOperationError } from '../protocol/validation.ts'
 import { hasShape, isArrayOf, isByteCount, isNullable } from '../validation/data-validation.ts'
 import { SYNC_LIMITS, SYNC_SCHEMA_VERSION } from './sync-contracts.ts'
@@ -12,10 +12,10 @@ function isCleanupError(value: unknown): value is OperationError {
   return isOperationError(value) && value.code === 'cleanup-failed'
 }
 
-/** 校验一项写入结果：写文件成功时带实际文件的字节数和哈希，其余结果的字节数和哈希为 null。 */
+/** 校验一项写入结果：写文件成功时带写入的字节数，其余结果的字节数为 null。 */
 export function isSyncWriteOutcome(value: unknown): value is SyncWriteOutcome {
   if (
-    !hasShape(value, ['path', 'action', 'status', 'sizeBytes', 'sha256', 'error']) ||
+    !hasShape(value, ['path', 'action', 'status', 'sizeBytes', 'error']) ||
     !isSyncPath(value.path) ||
     typeof value.action !== 'string' ||
     ![
@@ -33,11 +33,11 @@ export function isSyncWriteOutcome(value: unknown): value is SyncWriteOutcome {
     return (
       value.error === null &&
       (value.action === 'create-file' || value.action === 'replace-file'
-        ? isByteCount(value.sizeBytes) && isSha256(value.sha256)
-        : value.sizeBytes === null && value.sha256 === null)
+        ? isByteCount(value.sizeBytes)
+        : value.sizeBytes === null)
     )
   }
-  if (value.sizeBytes !== null || value.sha256 !== null) {
+  if (value.sizeBytes !== null) {
     return false
   }
   if (value.status === 'unknown') {
@@ -79,7 +79,7 @@ export function isSyncApplyResult(value: unknown): value is SyncApplyResult {
 }
 
 /**
- * 判断写入结果是否与计划一致：项目集合、顺序和成功项的指纹都要相同。
+ * 判断写入结果是否与计划一致：项目集合、顺序和成功项的字节数都要相同。
  * 第一个失败或取消之后的项必须是未执行。
  */
 export function matchesSyncApplyResult(value: unknown, plan: SyncPlan): value is SyncApplyResult {
@@ -113,7 +113,7 @@ export function matchesSyncApplyResult(value: unknown, plan: SyncPlan): value is
     if (outcome.status === 'succeeded') {
       if (isSyncFileWrite(entry.action)) {
         const file = source.get(entry.sourceEntryId ?? '')
-        if (!file || outcome.sizeBytes !== file.sizeBytes || outcome.sha256 !== file.sha256) {
+        if (!file || outcome.sizeBytes !== file.sizeBytes) {
           return false
         }
       }

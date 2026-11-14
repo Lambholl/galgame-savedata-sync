@@ -18,8 +18,11 @@ final class PublicationModel {
     final String rootId;
     final String parentId;
     final String name;
+    /** 要核对的内容哈希；为 null 时只核对字节数。 */
     final String sha256;
     final long sizeBytes;
+    /** 写完后设置的修改日期（Unix 毫秒）。为 null 时保留写入时的日期。 */
+    final Long modifiedAt;
 
     Request(
       String fileId,
@@ -29,12 +32,25 @@ final class PublicationModel {
       long sizeBytes,
       String sha256
     ) {
+      this(fileId, rootId, parentId, name, sizeBytes, sha256, null);
+    }
+
+    Request(
+      String fileId,
+      String rootId,
+      String parentId,
+      String name,
+      long sizeBytes,
+      String sha256,
+      Long modifiedAt
+    ) {
       this.fileId = fileId;
       this.rootId = rootId;
       this.parentId = parentId;
       this.name = name;
       this.sizeBytes = sizeBytes;
       this.sha256 = sha256;
+      this.modifiedAt = modifiedAt;
     }
 
     void validate() throws ArchiveFailure {
@@ -47,7 +63,7 @@ final class PublicationModel {
         (parentId != null && !DocumentValues.isId(parentId)) ||
         !portableName(name) ||
         sizeBytes < 0 ||
-        !ArchiveModel.hash(sha256)
+        (sha256 != null && !ArchiveModel.hash(sha256))
       ) {
         throw new ArchiveFailure("invalid-request", "New file publication fields are invalid.");
       }

@@ -3,10 +3,12 @@ import type { CapabilityState, OperationError, TransferDirection } from '../prot
 /** 复制功能的 schema 版本，与 PROTOCOL_VERSION 分别计数。 */
 export const SYNC_SCHEMA_VERSION = 1
 /**
- * 能力声明的版本，两端相同才能互传。2 起支持 sync.job 任务观察和 SyncJobState 的 failureStage，
- * 3 起计划可以带 shouldDeleteExtras 和删除动作，4 起任务进度带备份字节数。
+ * 能力声明的版本，两端相同才能互传。
  */
-export const SYNC_CAPABILITIES_VERSION = 4
+export const SYNC_CAPABILITIES_VERSION = 5
+
+/** 两端修改日期相差不超过这个毫秒数时算相同，兼容 FAT 和 exFAT 的 2 秒精度。 */
+export const SYNC_MODIFIED_TOLERANCE_MS = 2000
 
 /** 单次扫描的上限。 */
 export const SYNC_LIMITS = Object.freeze({
@@ -55,7 +57,6 @@ export interface SyncEntry {
   readonly kind: 'file' | 'directory'
   readonly sizeBytes: number | null
   readonly modifiedAt: number | null
-  readonly sha256: string | null
   readonly error: OperationError | null
 }
 
@@ -70,14 +71,13 @@ export interface SyncSnapshot {
   readonly error: OperationError | null
 }
 
-/** 扫描状态；计数是这次扫描的读取进度。 */
+/** 扫描状态；scannedEntries 是这次扫描已读到的条目数。 */
 export interface SyncScanState {
   readonly schemaVersion: typeof SYNC_SCHEMA_VERSION
   readonly scanId: string
   readonly rootId: string
   readonly status: 'running' | 'succeeded' | 'failed' | 'cancelled'
   readonly scannedEntries: number
-  readonly bytesRead: number
   readonly snapshot: SyncSnapshot | null
   readonly error: OperationError | null
 }
@@ -140,7 +140,6 @@ export interface SyncBackupFile {
   readonly fileId: string
   readonly path: readonly string[]
   readonly sizeBytes: number
-  readonly sha256: string
   readonly modifiedAt: number | null
 }
 
@@ -187,8 +186,8 @@ export interface SyncWriteOutcome {
   readonly path: readonly string[]
   readonly action: SyncWriteAction
   readonly status: 'succeeded' | 'failed' | 'cancelled' | 'not-attempted' | 'unknown'
+  /** 写文件成功时是写入的字节数，其余为 null。 */
   readonly sizeBytes: number | null
-  readonly sha256: string | null
   readonly error: OperationError | null
 }
 

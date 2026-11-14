@@ -135,8 +135,8 @@ function fileEntry(plan: SyncPlan, operation: SyncPlanEntry, side: 'source' | 't
         entry.entryId === (side === 'source' ? operation.sourceEntryId : operation.targetEntryId),
     ),
   )
-  if (entry.kind !== 'file' || entry.sizeBytes === null || entry.sha256 === null) {
-    throw new ArchiveError('invalid-request', 'The file lacks a complete content fingerprint.')
+  if (entry.kind !== 'file' || entry.sizeBytes === null) {
+    throw new ArchiveError('invalid-request', 'The file size is unknown.')
   }
   return entry
 }
@@ -181,7 +181,6 @@ function outcome(
     status,
     error,
     sizeBytes: status === 'succeeded' && entry ? entry.sizeBytes : null,
-    sha256: status === 'succeeded' && entry ? entry.sha256 : null,
   }
 }
 
@@ -325,7 +324,7 @@ export class WindowsSyncWriter {
     const root = await this.source.locateNativeDirectory(job.plan.target.rootId)
     job.locations.set(syncPathKey([]), root)
     await access(root.path, constants.W_OK)
-    // 只按目录列表比对类型、大小和修改时间：游戏改写存档总会改动其中之一，重算哈希要把整个目录再读一遍。
+    // 按目录列表比对类型、大小和修改时间，和两端比较的判断方式一致。
     const listed: TargetEntryKey[] = []
     const pending: { readonly parentId: string | null; readonly path: readonly string[] }[] = [
       { parentId: null, path: [] },
@@ -521,7 +520,7 @@ export class WindowsSyncWriter {
     }
   }
   /**
-   * 删除一项目标多出的条目：文件先核对身份和完整内容，目录只删空目录。
+   * 删除一项目标多出的条目：文件先核对身份、大小和修改日期，目录只删空目录。
    * 系统已开始删除但结果没能确认时报 unknown；条目还在且身份未变时按失败抛出。
    */
   private async remove(job: WriteJob, operation: SyncPlanEntry): Promise<SyncWriteOutcome> {

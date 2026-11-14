@@ -10,7 +10,7 @@ import type { NativeDirectoryLocation } from './directory-adapter.ts'
 import { getFileIdentity, hasSameIdentity, inspectLocalPath } from './directory-paths.ts'
 import type { FileIdentity } from './directory-paths.ts'
 import { ArchiveError, checkArchiveAbort } from './archive-errors.ts'
-import { hashBackupStream } from './backup-files.ts'
+import { copyStream } from './backup-files.ts'
 
 /** 写入目标用到的磁盘操作。 */
 export interface SyncTargetIO {
@@ -119,9 +119,10 @@ export async function createCandidate(parent: NativeDirectoryLocation): Promise<
 }
 
 /**
- * 把输入写入候选文件，并和计划比对大小与 SHA-256；不调用 fsync。输入流由本函数读完并关闭。
+ * 把输入写入候选文件，核对写入的字节数等于 entry.sizeBytes，再把候选文件的修改日期设为
+ * entry.modifiedAt（为 null 时保留写入时的日期）。返回时数据可能还在系统缓存里。输入流由本函数读完并关闭。
  *
- * @throws ArchiveError 内容和计划不同时抛 checksum-mismatch。
+ * @throws ArchiveError 字节数和计划不同时抛 checksum-mismatch。
  */
 export async function stageCandidate(
   candidate: SyncCandidate,
@@ -135,7 +136,7 @@ export async function stageCandidate(
   if (!before.isFile() || before.nlink !== 1n) {
     throw new ArchiveError('source-changed', 'The candidate file identity is invalid.')
   }
-  const actual = await hashBackupStream(input, entry.sizeBytes ?? -1, signal, async (chunk) => {
+  const sizeBytes = await copyStream(input, entry.sizeBytes ?? -1, signal, async (chunk) => {
     for (let offset = 0; offset < chunk.length;) {
       checkArchiveAbort(signal)
       const written = await candidate.handle.write(chunk, offset, chunk.length - offset)
@@ -145,13 +146,14 @@ export async function stageCandidate(
       offset += written.bytesWritten
     }
   })
-  if (actual.sizeBytes !== entry.sizeBytes || actual.sha256 !== entry.sha256) {
-    throw new ArchiveError(
-      'checksum-mismatch',
-      'The input content differs from the confirmed plan.',
-    )
+  if (sizeBytes !== entry.sizeBytes) {
+    throw new ArchiveError('checksum-mismatch', 'The input length differs from the confirmed plan.')
   }
   await verifySource()
+  if (entry.modifiedAt !== null) {
+    // 下次比较按大小和修改日期判断，目标要带上来源的修改日期才会被认为相同。
+    await candidate.handle.utimes(new Date(), new Date(entry.modifiedAt))
+  }
   await candidate.handle.close()
   candidate.isClosed = true
 }

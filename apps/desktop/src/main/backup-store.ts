@@ -11,6 +11,7 @@ import {
   compareSyncPaths,
   isOpaqueId,
   isSyncBackupManifest,
+  readSyncBackupManifest,
   isSyncBackupSettings,
   isSyncPlan,
   isSyncSnapshot,
@@ -41,7 +42,7 @@ import {
   BACKUP_DISK_IO,
   backupFolderName,
   backupRoundName,
-  copyFileHashed,
+  copyFileChecked,
   inspectBackupFile,
   openBackupFile,
   readBackupJson,
@@ -100,18 +101,12 @@ function required<T>(value: T | null | undefined): T {
   }
   return value
 }
-function targetFile(
-  plan: SyncPlan,
-  entryId: string | null,
-): SyncEntry & { sizeBytes: number; sha256: string } {
+function targetFile(plan: SyncPlan, entryId: string | null): SyncEntry & { sizeBytes: number } {
   const entry = required(plan.target.entries.find((item) => item.entryId === entryId))
-  if (entry.kind !== 'file' || entry.sizeBytes === null || entry.sha256 === null) {
-    throw new ArchiveError(
-      'invalid-request',
-      'A file to be backed up lacks a complete content fingerprint.',
-    )
+  if (entry.kind !== 'file' || entry.sizeBytes === null) {
+    throw new ArchiveError('invalid-request', 'A file to be backed up has an unknown size.')
   }
-  return { ...entry, sizeBytes: entry.sizeBytes, sha256: entry.sha256 }
+  return { ...entry, sizeBytes: entry.sizeBytes }
 }
 function operationSignal(controller: AbortController, options: WindowsBackupOptions): AbortSignal {
   const timeoutMs = options.timeoutMs ?? SYNC_LIMITS.scanTimeoutMs
@@ -226,7 +221,6 @@ export class WindowsBackupHandle {
             path,
             kind: 'directory',
             sizeBytes: null,
-            sha256: null,
             modifiedAt: null,
             error: null,
           })
@@ -243,7 +237,6 @@ export class WindowsBackupHandle {
         path: file.path,
         kind: 'file',
         sizeBytes: file.sizeBytes,
-        sha256: file.sha256,
         modifiedAt: file.modifiedAt,
         error: null,
       })
@@ -386,8 +379,8 @@ export class WindowsBackupStore {
       if (!(await exists(marker))) {
         return null
       }
-      const manifest = await readBackupJson(marker)
-      if (!isSyncBackupManifest(manifest) || manifest.deviceId !== this.source.deviceId) {
+      const manifest = readSyncBackupManifest(await readBackupJson(marker))
+      if (!manifest || manifest.deviceId !== this.source.deviceId) {
         return null
       }
       return {
@@ -578,7 +571,6 @@ export class WindowsBackupStore {
           fileId: `f${String(index + 1).padStart(6, '0')}`,
           path: target.path,
           sizeBytes: target.sizeBytes,
-          sha256: target.sha256,
           modifiedAt: target.modifiedAt,
         }))
         const manifest: SyncBackupManifest = {
@@ -620,10 +612,11 @@ export class WindowsBackupStore {
             await mkdir(dirname(destination), { recursive: true })
             directories.add(dirname(destination))
           }
-          const value = await copyFileHashed(
+          // 扫描后文件被改过时，备份的就不是计划确认的内容，之后的写入会覆盖这些改动，备份里也没有它们。
+          await copyFileChecked(
             join(root.path, ...file.path),
             destination,
-            file.sizeBytes,
+            file,
             signal,
             (bytes) => {
               bytesCopied += bytes
@@ -634,13 +627,6 @@ export class WindowsBackupStore {
               }
             },
           )
-          // 扫描后文件被改过时，备份的就不是计划确认的内容，写入会覆盖用户新的改动。
-          if (value.sizeBytes !== file.sizeBytes || value.sha256 !== file.sha256) {
-            throw new ArchiveError(
-              'source-changed',
-              'The content of a file to be backed up changed.',
-            )
-          }
         }
         checkArchiveAbort(signal)
         await this.inspectRound(round)

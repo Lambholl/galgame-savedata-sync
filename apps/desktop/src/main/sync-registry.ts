@@ -143,7 +143,6 @@ export function emptyResult(
       status: index === 0 ? (wasCancelled ? 'cancelled' : 'failed') : 'not-attempted',
       error: index === 0 ? error : null,
       sizeBytes: null,
-      sha256: null,
     })),
   }
 }
@@ -615,13 +614,12 @@ export class WindowsSyncRegistry {
       }
       const entries = (snapshot: SyncSnapshot): string =>
         JSON.stringify(
-          snapshot.entries.map(({ entryId, path, kind, sizeBytes, modifiedAt, sha256, error }) => ({
+          snapshot.entries.map(({ entryId, path, kind, sizeBytes, modifiedAt, error }) => ({
             entryId,
             path,
             kind,
             sizeBytes,
             modifiedAt,
-            sha256,
             error,
           })),
         )

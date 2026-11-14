@@ -3,14 +3,13 @@ import test from 'node:test'
 import { compareSnapshots, comparisonChildren, splitPathAtSeparators } from '../src/index.ts'
 
 let next = 0
-function entry(path, kind, sha256 = null, sizeBytes = 10) {
+function entry(path, kind, modifiedAt = null, sizeBytes = 10) {
   return {
     entryId: String(next++),
     path: path.split('/'),
     kind,
     sizeBytes: kind === 'file' ? sizeBytes : null,
-    modifiedAt: 1,
-    sha256,
+    modifiedAt,
     error: null,
   }
 }
@@ -28,18 +27,18 @@ function snapshot(entries) {
 
 const pc = snapshot([
   entry('save', 'directory'),
-  entry('save/a.sav', 'file', 'a'),
-  entry('save/b.sav', 'file', 'b'),
-  entry('shot 10.png', 'file', 'p'),
-  entry('shot 2.png', 'file', 'q'),
-  entry('same.ini', 'file', 's'),
+  entry('save/a.sav', 'file', 10000),
+  entry('save/b.sav', 'file', 20000),
+  entry('shot 10.png', 'file', 40000),
+  entry('shot 2.png', 'file', 50000),
+  entry('same.ini', 'file', 60000),
 ])
 const mobile = snapshot([
   entry('save', 'directory'),
-  entry('save/a.sav', 'file', 'a'),
-  entry('save/b.sav', 'file', 'B'),
-  entry('save/c.sav', 'file', 'c'),
-  entry('same.ini', 'file', 's'),
+  entry('save/a.sav', 'file', 10000),
+  entry('save/b.sav', 'file', 90000),
+  entry('save/c.sav', 'file', 30000),
+  entry('same.ini', 'file', 60000),
   entry('unknown.dat', 'file', null),
 ])
 
@@ -73,7 +72,7 @@ test('lists folders first in natural order with states', () => {
   )
 })
 
-test('treats files without a hash as not the same', () => {
+test('treats files without a modification date as not the same', () => {
   const only = snapshot([entry('x.dat', 'file', null)])
   const comparison = compareSnapshots(only, snapshot([entry('x.dat', 'file', null)]))
   assert.equal(comparison.differingFiles, 1)

@@ -69,17 +69,10 @@ final class BackupModel {
     return Integer.compare(left.size(), right.size());
   }
 
-  static String hash(Object value) throws ArchiveFailure {
-    String hash = string(value);
-    require(ArchiveModel.hash(hash));
-    return hash;
-  }
-
   /** 写入前要备份的一个目标文件。 */
   static final class SourceFile {
 
     final String entryId;
-    final String sha256;
     final List<String> path;
     final long size;
     final Long modified;
@@ -92,14 +85,12 @@ final class BackupModel {
         "kind",
         "sizeBytes",
         "modifiedAt",
-        "sha256",
         "error"
       );
       require("file".equals(entry.get("kind")) && entry.get("error") == null);
       entryId = id(entry.get("entryId"));
       path = path(entry.get("path"));
       size = number(entry.get("sizeBytes"), 0, MAX_FILE);
-      sha256 = hash(entry.get("sha256"));
       modified = nullable(entry.get("modifiedAt"), -MAX_DATE, MAX_DATE);
     }
   }
@@ -125,8 +116,6 @@ final class BackupModel {
           file.path,
           "sizeBytes",
           file.size,
-          "sha256",
-          file.sha256,
           "modifiedAt",
           file.modified
         )
@@ -143,14 +132,10 @@ final class BackupModel {
     Set<String> paths = new HashSet<>();
     long total = 0;
     for (int i = 0; i < values.size(); i++) {
-      Map<String, Object> file = shape(
-        values.get(i),
-        "fileId",
-        "path",
-        "sizeBytes",
-        "sha256",
-        "modifiedAt"
-      );
+      // 磁盘上已有的备份清单里，文件项可能带 sha256 字段，读取时丢弃。
+      Map<String, Object> file = map(values.get(i)).containsKey("sha256")
+        ? shape(values.get(i), "fileId", "path", "sizeBytes", "sha256", "modifiedAt")
+        : shape(values.get(i), "fileId", "path", "sizeBytes", "modifiedAt");
       fileId(file.get("fileId"), i);
       List<String> path = path(file.get("path"));
       require(paths.add(key(path)));
@@ -165,8 +150,6 @@ final class BackupModel {
           path,
           "sizeBytes",
           size,
-          "sha256",
-          hash(file.get("sha256")),
           "modifiedAt",
           nullable(file.get("modifiedAt"), -MAX_DATE, MAX_DATE)
         )
@@ -367,8 +350,6 @@ final class BackupModel {
               null,
               "modifiedAt",
               null,
-              "sha256",
-              null,
               "error",
               null
             )
@@ -391,8 +372,6 @@ final class BackupModel {
           file.get("sizeBytes"),
           "modifiedAt",
           file.get("modifiedAt"),
-          "sha256",
-          file.get("sha256"),
           "error",
           null
         )

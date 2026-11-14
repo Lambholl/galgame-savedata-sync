@@ -220,6 +220,11 @@ final class FileDocumentAccess implements DocumentAccess {
   }
 
   @Override
+  public boolean setModified(Uri tree, String documentId, long modifiedAt) throws Exception {
+    return file(tree, documentId).setLastModified(modifiedAt);
+  }
+
+  @Override
   public Long availableBytes(Uri tree, String documentId, CancellationSignal signal)
     throws Exception {
     signal.throwIfCanceled();

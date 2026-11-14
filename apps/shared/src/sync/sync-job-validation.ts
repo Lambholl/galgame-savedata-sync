@@ -80,7 +80,7 @@ export function isSyncJobRequest(value: unknown): value is SyncJobRequest {
     hasJsonBudget(value)
   )
 }
-/** 校验清单是否匹配计划：源引用、父目录、名称、原日期和实际指纹逐项一致，归档成员是连续的 fileId。 */
+/** 校验清单是否匹配计划：源引用、父目录、名称、原日期和大小逐项一致，归档成员是连续的 fileId。 */
 export function matchesSyncJobManifest(
   value: unknown,
   request: SyncJobRequest,
@@ -119,8 +119,7 @@ export function matchesSyncJobManifest(
       file.sourceParentId === parentId &&
       file.sourceName === entry.path.at(-1) &&
       file.sourceModifiedAt === entry.modifiedAt &&
-      file.sizeBytes === entry.sizeBytes &&
-      file.sha256 === entry.sha256
+      file.sizeBytes === entry.sizeBytes
     )
   })
 }

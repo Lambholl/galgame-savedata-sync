@@ -1,6 +1,5 @@
-import { createHash, randomUUID } from 'node:crypto'
+import { randomUUID } from 'node:crypto'
 import { performance } from 'node:perf_hooks'
-import { finished } from 'node:stream/promises'
 import {
   BATCH_LIMITS,
   SYNC_LIMITS,
@@ -22,10 +21,7 @@ import type { WindowsDirectoryAdapter } from './directory-adapter.ts'
 import { HttpOperationError, toHttpError } from './http-errors.ts'
 
 /** 扫描用到的只读目录操作。 */
-export type WindowsScanSource = Pick<
-  WindowsDirectoryAdapter,
-  'deviceId' | 'listDirectory' | 'openFile'
->
+export type WindowsScanSource = Pick<WindowsDirectoryAdapter, 'deviceId' | 'listDirectory'>
 
 /** 扫描选项：收紧上限。 */
 export interface WindowsScanOptions {
@@ -62,7 +58,7 @@ function listingKey(value: DirectoryListing): string {
 }
 
 /**
- * 当前会话内的异步只读扫描，计算文件的 SHA-256，目录大小为 null。
+ * 当前会话内的异步只读扫描，只读取目录列表里的类型、大小和修改日期，目录大小为 null。
  * 同一时间只有一个扫描；完成的结果到期清除。
  */
 export class WindowsSyncScanner {
@@ -119,7 +115,6 @@ export class WindowsSyncScanner {
         rootId,
         status: 'running',
         scannedEntries: 0,
-        bytesRead: 0,
         snapshot: null,
         error: null,
       },
@@ -280,23 +275,19 @@ export class WindowsSyncScanner {
         kind: entry.kind,
         sizeBytes: entry.sizeBytes,
         modifiedAt: entry.modifiedAt,
-        sha256: null,
         error: null,
       })
       job.state = { ...job.state, scannedEntries: job.entries.length }
-      try {
-        if (entry.kind === 'directory') {
+      if (entry.kind === 'directory') {
+        try {
           await this.visit(job, entry.entryId, path)
-        } else {
-          const file = await this.hash(job, entry)
-          job.entries[index] = { ...file, path }
+        } catch (cause) {
+          const previous = job.entries[index]
+          if (previous) {
+            job.entries[index] = { ...previous, error: toHttpError(cause).operationError }
+          }
+          throw cause
         }
-      } catch (cause) {
-        const previous = job.entries[index]
-        if (previous) {
-          job.entries[index] = { ...previous, error: toHttpError(cause).operationError }
-        }
-        throw cause
       }
     }
     const after = await this.source.listDirectory(job.rootId, parentId)
@@ -309,79 +300,6 @@ export class WindowsSyncScanner {
         'source-changed',
         'The directory changed during the scan. Scan again.',
       )
-    }
-  }
-
-  private async hash(job: ScanJob, entry: EntryMetadata): Promise<Omit<SyncEntry, 'path'>> {
-    const opened = await this.source.openFile({ rootId: job.rootId, entryId: entry.entryId })
-    if (opened.status === 'error') {
-      throw new HttpOperationError(opened.error.code, opened.error.message)
-    }
-    const { stream, metadata, verifyUnchanged } = opened.value
-    const abort = (): void => {
-      stream.destroy(toHttpError(job.controller.signal.reason))
-    }
-    job.controller.signal.addEventListener('abort', abort, { once: true })
-    let hasFailed = false
-    try {
-      this.check(job)
-      if (
-        metadata.name !== entry.name ||
-        metadata.sizeBytes !== entry.sizeBytes ||
-        metadata.modifiedAt !== entry.modifiedAt
-      ) {
-        throw new HttpOperationError(
-          'source-changed',
-          'The file changed before scanning. Scan again.',
-        )
-      }
-      const hash = createHash('sha256')
-      let sizeBytes = 0
-      for await (const chunk of stream as AsyncIterable<unknown>) {
-        this.check(job)
-        if (!Buffer.isBuffer(chunk)) {
-          throw new HttpOperationError('io-failure', 'The file read stream format is invalid.')
-        }
-        sizeBytes += chunk.length
-        const bytesRead = job.state.bytesRead + chunk.length
-        if (!Number.isSafeInteger(sizeBytes) || !Number.isSafeInteger(bytesRead)) {
-          throw new HttpOperationError(
-            'resource-limit',
-            'The number of bytes read exceeds the representable range.',
-          )
-        }
-        job.state = { ...job.state, bytesRead }
-        hash.update(chunk)
-      }
-      await verifyUnchanged()
-      this.check(job)
-      if (metadata.sizeBytes !== null && metadata.sizeBytes !== sizeBytes) {
-        throw new HttpOperationError(
-          'source-changed',
-          'The measured file length does not match its current attributes.',
-        )
-      }
-      return {
-        entryId: entry.entryId,
-        kind: 'file',
-        sizeBytes,
-        modifiedAt: metadata.modifiedAt,
-        sha256: hash.digest('hex'),
-        error: null,
-      }
-    } catch (cause) {
-      hasFailed = true
-      throw cause
-    } finally {
-      job.controller.signal.removeEventListener('abort', abort)
-      stream.destroy()
-      if (hasFailed) {
-        await finished(stream).catch(() => {
-          /* 主错误由扫描结果保存，等待文件流关闭。 */
-        })
-      } else {
-        await finished(stream)
-      }
     }
   }
 }

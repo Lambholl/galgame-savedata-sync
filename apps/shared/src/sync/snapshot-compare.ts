@@ -1,5 +1,6 @@
 import type { SyncEntry, SyncSnapshot } from './sync-contracts.ts'
 import { syncPathKey } from './sync-paths.ts'
+import { isSameSyncFile } from './sync-plan.ts'
 
 /** 比较的一端：pc 是电脑，mobile 是移动端。 */
 export type CompareSide = 'pc' | 'mobile'
@@ -9,7 +10,7 @@ export type FileKind = 'directory' | 'image' | 'file'
 
 /**
  * 条目相对另一端的状态：
- * same 两端相同；differs 两端都有但内容（或类型）不同，或内容未能读取；
+ * same 两端相同；differs 两端都有但大小、修改日期或类型不同，或属性未能读取；
  * only 只在这一端有；contains-differences 两端都有的文件夹，里面有不一致的文件。
  */
 export type CompareState = 'same' | 'differs' | 'only' | 'contains-differences'
@@ -50,16 +51,6 @@ function childrenKey(side: CompareSide, parent: readonly string[]): string {
   return `${side}:${syncPathKey(parent)}`
 }
 
-function isSameFile(left: SyncEntry, right: SyncEntry): boolean {
-  return (
-    left.kind === 'file' &&
-    right.kind === 'file' &&
-    left.sha256 !== null &&
-    left.sha256 === right.sha256 &&
-    left.sizeBytes === right.sizeBytes
-  )
-}
-
 /** 文件夹在前，其余按名称的自然顺序（数字按数值）排列。 */
 function compareItems(left: CompareItem, right: CompareItem): number {
   const isLeftDirectory = left.kind === 'directory'
@@ -72,7 +63,7 @@ function compareItems(left: CompareItem, right: CompareItem): number {
 /**
  * 比较两端扫描的完整快照。
  *
- * 路径按原始名称精确匹配；内容按 SHA-256 和大小判断，任一端哈希未知时按不同处理。
+ * 路径按原始名称精确匹配；文件按 isSameSyncFile 比较大小和修改日期，任一端未知时按不同处理。
  */
 export function compareSnapshots(pc: SyncSnapshot, mobile: SyncSnapshot): SnapshotComparison {
   const sides: Record<CompareSide, Map<string, SyncEntry>> = {
@@ -95,7 +86,7 @@ export function compareSnapshots(pc: SyncSnapshot, mobile: SyncSnapshot): Snapsh
       if (!counterpart) {
         onlyFiles[side]++
         differing.set(key, entry.path)
-      } else if (!isSameFile(entry, counterpart)) {
+      } else if (!isSameSyncFile(entry, counterpart)) {
         differingFiles++
         differing.set(key, entry.path)
       }
@@ -125,7 +116,7 @@ export function compareSnapshots(pc: SyncSnapshot, mobile: SyncSnapshot): Snapsh
       } else if (entry.kind === 'directory') {
         state = differingCount > 0 ? 'contains-differences' : 'same'
       } else {
-        state = isSameFile(entry, counterpart) ? 'same' : 'differs'
+        state = isSameSyncFile(entry, counterpart) ? 'same' : 'differs'
       }
       const listKey = childrenKey(side, entry.path.slice(0, -1))
       const list = children.get(listKey) ?? []

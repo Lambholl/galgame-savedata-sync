@@ -30,7 +30,6 @@ import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
-import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -537,8 +536,6 @@ final class BackupStore implements AutoCloseable {
             file.path,
             "sizeBytes",
             file.size,
-            "sha256",
-            file.sha256,
             "modifiedAt",
             file.modified
           )
@@ -680,7 +677,13 @@ final class BackupStore implements AutoCloseable {
     return current;
   }
 
-  /** 把一个源文件复制成 destination，同时比对大小和 SHA-256；可以在多个线程同时调用。 */
+  private static boolean matches(ArchiveModel.Observation value, BackupModel.SourceFile file) {
+    return (
+      value.size != null && value.size == file.size && Objects.equals(value.modified, file.modified)
+    );
+  }
+
+  /** 把一个源文件复制成 destination，复制前后都核对源文件的大小和修改日期；可以在多个线程同时调用。 */
   private void copyFile(
     Active work,
     String rootId,
@@ -692,11 +695,15 @@ final class BackupStore implements AutoCloseable {
     ArchiveControl control = work.control;
     ArchiveModel.Source input = source.file(rootId, file.entryId);
     input.validateRoot(rootId);
+    // 扫描后文件被改过时，备份的就不是计划确认的内容，写入会覆盖用户新的改动。
+    ArchiveModel.Observation before = input.observe(control);
+    if (!matches(before, file)) {
+      throw BackupFiles.failure("source-changed");
+    }
     InputStream reader = control.track(input.open(control));
     FileChannel output = null;
     try {
       output = control.track(files.writer(destination));
-      MessageDigest hash = MessageDigest.getInstance("SHA-256");
       long size = 0;
       byte[] buffer = new byte[65536];
       for (int count; (count = reader.read(buffer)) != -1; ) {
@@ -706,12 +713,10 @@ final class BackupStore implements AutoCloseable {
           throw BackupFiles.failure("source-changed");
         }
         files.write(output, destination, buffer, count);
-        hash.update(buffer, 0, count);
         copied.addAndGet(count);
       }
       check(work);
-      // 扫描后文件被改过时，备份的就不是计划确认的内容，写入会覆盖用户新的改动。
-      if (size != file.size || !ArchiveFormat.hex(hash.digest()).equals(file.sha256)) {
+      if (size != file.size || !before.same(input.observe(control))) {
         throw BackupFiles.failure("source-changed");
       }
     } finally {

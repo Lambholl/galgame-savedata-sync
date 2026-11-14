@@ -29,7 +29,27 @@ final class SyncPlanModel {
 
   private static final long MAX_SAFE = 9007199254740991L;
 
+  /** 两端修改日期相差不超过这个毫秒数时算相同。 */
+  // 与 SYNC_MODIFIED_TOLERANCE_MS 取值相同，两边要一起改。
+  static final long MODIFIED_TOLERANCE_MILLIS = 2000;
+
   private SyncPlanModel() {}
+
+  /** 判断两个文件条目是否相同：大小相同，修改日期都已知且相差不超过 MODIFIED_TOLERANCE_MILLIS。 */
+  static boolean isSameFile(Map<String, Object> left, Map<String, Object> right) {
+    Object leftModified = left.get("modifiedAt");
+    Object rightModified = right.get("modifiedAt");
+    return (
+      "file".equals(left.get("kind")) &&
+      "file".equals(right.get("kind")) &&
+      left.get("sizeBytes") != null &&
+      same(left.get("sizeBytes"), right.get("sizeBytes")) &&
+      leftModified instanceof Number &&
+      rightModified instanceof Number &&
+      Math.abs(((Number) leftModified).longValue() - ((Number) rightModified).longValue()) <=
+        MODIFIED_TOLERANCE_MILLIS
+    );
+  }
 
   static String key(Object path) throws Exception {
     return new String(bytes(path), java.nio.charset.StandardCharsets.UTF_8);
@@ -106,7 +126,6 @@ final class SyncPlanModel {
           "kind",
           "sizeBytes",
           "modifiedAt",
-          "sha256",
           "error"
         );
         String entryId = id(entry.get("entryId"));
@@ -122,9 +141,8 @@ final class SyncPlanModel {
         one(entry.get("kind"), "file", "directory");
         if (entry.get("kind").equals("file")) {
           number(entry.get("sizeBytes"), 0, MAX_SAFE);
-          BackupModel.hash(entry.get("sha256"));
         } else {
-          require(entry.get("sizeBytes") == null && entry.get("sha256") == null);
+          require(entry.get("sizeBytes") == null);
         }
         paths.put(key(path), entry);
         ids.put(entryId, entry);
@@ -260,11 +278,7 @@ final class SyncPlanModel {
         } else {
           require(from.get("kind").equals(to.get("kind")));
           action =
-            from.get("kind").equals("directory") ||
-            (same(from.get("sizeBytes"), to.get("sizeBytes")) &&
-              from.get("sha256").equals(to.get("sha256")))
-              ? "skip"
-              : "replace-file";
+            from.get("kind").equals("directory") || isSameFile(from, to) ? "skip" : "replace-file";
         }
         Map<String, Object> operation = object(
           "path",

@@ -170,6 +170,11 @@ final class SafDocumentAccess implements DocumentAccess {
     return DocumentsContract.deleteDocument(resolver, document(tree, documentId));
   }
 
+  @Override
+  public boolean setModified(Uri tree, String documentId, long modifiedAt) {
+    return false;
+  }
+
   /** 通过提供者根和子文档关系查询可用容量；未知时返回 null。 */
   @Override
   public Long availableBytes(Uri tree, String documentId, CancellationSignal signal)

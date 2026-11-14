@@ -1,11 +1,12 @@
 import { BATCH_LIMITS } from '../protocol/batch-limits.ts'
-import { isOpaqueId, isPortableFileName, isSha256 } from '../protocol/protocol.ts'
+import { isOpaqueId, isPortableFileName } from '../protocol/protocol.ts'
 import { isOperationError } from '../protocol/validation.ts'
 import {
   hasShape,
   isArrayOf,
   isByteCount,
   isNullable,
+  isRecord,
   isTimestamp,
 } from '../validation/data-validation.ts'
 import { SYNC_CAPABILITIES_VERSION, SYNC_LIMITS, SYNC_SCHEMA_VERSION } from './sync-contracts.ts'
@@ -22,18 +23,16 @@ import type {
 } from './sync-contracts.ts'
 import { isSyncPath, syncNameKey, syncPathKey } from './sync-paths.ts'
 
-/** 校验扫描条目；文件的哈希可以是 null。 */
+/** 校验扫描条目；文件夹的大小必须是 null。 */
 export function isSyncEntry(value: unknown): value is SyncEntry {
   return (
-    hasShape(value, ['entryId', 'path', 'kind', 'sizeBytes', 'modifiedAt', 'sha256', 'error']) &&
+    hasShape(value, ['entryId', 'path', 'kind', 'sizeBytes', 'modifiedAt', 'error']) &&
     isOpaqueId(value.entryId) &&
     isSyncPath(value.path) &&
     isNullable(value.modifiedAt, isTimestamp) &&
     isNullable(value.error, isOperationError) &&
-    ((value.kind === 'directory' && value.sizeBytes === null && value.sha256 === null) ||
-      (value.kind === 'file' &&
-        isNullable(value.sizeBytes, isByteCount) &&
-        isNullable(value.sha256, isSha256)))
+    ((value.kind === 'directory' && value.sizeBytes === null) ||
+      (value.kind === 'file' && isNullable(value.sizeBytes, isByteCount)))
   )
 }
 
@@ -120,7 +119,6 @@ export function isSyncScanState(value: unknown): value is SyncScanState {
       'rootId',
       'status',
       'scannedEntries',
-      'bytesRead',
       'snapshot',
       'error',
     ]) ||
@@ -128,8 +126,7 @@ export function isSyncScanState(value: unknown): value is SyncScanState {
     !isOpaqueId(value.scanId) ||
     !isOpaqueId(value.rootId) ||
     !isByteCount(value.scannedEntries) ||
-    value.scannedEntries > SYNC_LIMITS.maxEntries ||
-    !isByteCount(value.bytesRead)
+    value.scannedEntries > SYNC_LIMITS.maxEntries
   ) {
     return false
   }
@@ -145,24 +142,13 @@ export function isSyncScanState(value: unknown): value is SyncScanState {
     return false
   }
   if (value.status === 'succeeded') {
-    let bytes = 0
-    for (const entry of value.snapshot.entries) {
-      if (
-        entry.error !== null ||
-        (entry.kind === 'file' && (entry.sizeBytes === null || entry.sha256 === null))
-      ) {
-        return false
-      }
-      if (entry.kind === 'file') {
-        bytes += entry.sizeBytes ?? 0
-      }
-    }
     return (
+      value.snapshot.entries.every(
+        (entry) => entry.error === null && (entry.kind !== 'file' || entry.sizeBytes !== null),
+      ) &&
       value.error === null &&
       value.snapshot.error === null &&
-      value.snapshot.entries.length === value.scannedEntries &&
-      Number.isSafeInteger(bytes) &&
-      bytes === value.bytesRead
+      value.snapshot.entries.length === value.scannedEntries
     )
   }
   return (
@@ -210,17 +196,36 @@ export function isSyncScanRequest(value: unknown): value is SyncScanRequest {
   )
 }
 
+const BACKUP_FILE_KEYS = ['fileId', 'path', 'sizeBytes', 'modifiedAt'] as const
+
 function isBackupFile(value: unknown): value is SyncBackupFile {
   return (
-    hasShape(value, ['fileId', 'path', 'sizeBytes', 'sha256', 'modifiedAt']) &&
+    hasShape(value, BACKUP_FILE_KEYS) &&
     isOpaqueId(value.fileId) &&
     isSyncPath(value.path) &&
     value.path.every(isPortableFileName) &&
     isByteCount(value.sizeBytes) &&
     value.sizeBytes <= BATCH_LIMITS.maxFileBytes &&
-    isSha256(value.sha256) &&
     isNullable(value.modifiedAt, isTimestamp)
   )
+}
+
+/**
+ * 读取保存在磁盘上的备份清单。文件项带 sha256 字段时照常读取，哈希值丢弃。
+ *
+ * @returns 格式不合法时返回 null。
+ */
+export function readSyncBackupManifest(value: unknown): SyncBackupManifest | null {
+  if (!isRecord(value) || !Array.isArray(value.files)) {
+    return null
+  }
+  const files = value.files.map((file: unknown) =>
+    isRecord(file) && hasShape(file, [...BACKUP_FILE_KEYS, 'sha256'])
+      ? Object.fromEntries(BACKUP_FILE_KEYS.map((key) => [key, file[key]]))
+      : file,
+  )
+  const manifest: unknown = { ...value, files }
+  return isSyncBackupManifest(manifest) ? manifest : null
 }
 
 /** 校验残留备份的描述。 */

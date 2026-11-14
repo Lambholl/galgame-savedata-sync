@@ -572,6 +572,12 @@ final class DirectorySyncBackend implements SyncWriter.Backend {
     }
 
     @Override
+    public void setModified(long modifiedAt, ArchiveControl control) throws Exception {
+      control.check();
+      access.setModified(directory.tree, id, modifiedAt);
+    }
+
+    @Override
     public Boolean sharesVolume(Path privateDirectory) throws Exception {
       return baseline.st_dev == Os.stat(privateDirectory.toString()).st_dev;
     }

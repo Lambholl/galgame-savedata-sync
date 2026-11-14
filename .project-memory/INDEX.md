@@ -25,6 +25,7 @@ related_files: []
 
 | 工作 | 状态 | 相关记忆文档 | 相关代码或配置 | 已完成 | 下一步 |
 | --- | --- | --- | --- | --- | --- |
+| 传输流程精简（CR-024）：比较改用大小和修改日期，去掉 SHA-256，备份与传输并行，流式收发后统一替换 | active | `requirements/change-requests.md`（CR-024）、`requirements/product.md`（REQ-015、REQ-018、REQ-020）、`architecture/overview.md`、`architecture/api-contracts.md`、`development/implementation-notes.md`、`docs/plans/m001-tar-gzip-protocol.md` | `apps/shared/src/sync/`、`apps/shared/src/protocol/`、`apps/desktop/src/main/`（sync-scanner、archive-adapter、sync-registry、sync-writer、backup-store）、Android `SyncScanner`、`ArchiveAdapter`、`SyncTransferEngine`、`SyncWriter`、`BackupStore` | 已审视现有各环节的读写和哈希次数；方案已登记为 CR-024 | 维护者同意实施后按三步进行：A 比较改用大小和修改日期、写入后回写日期、计划去掉 SHA-256；B 流式收发、临时文件统一替换、协议升版本；C 备份提前并行、进度改三段，同步需求、架构、接口文档和测试用例 |
 
 开始产品、代码或文档工作前登记范围、入口和下一步；检查点和阻塞时更新。做完并验证后先更新长期事实，再把状态改为 `in-review`；有新修改时改回 `active`，维护者验收后才删除该行。
 

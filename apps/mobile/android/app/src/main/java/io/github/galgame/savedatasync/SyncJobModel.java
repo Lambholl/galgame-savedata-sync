@@ -178,7 +178,6 @@ final class SyncJobModel {
         "kind",
         "sizeBytes",
         "modifiedAt",
-        "sha256",
         "error"
       );
       require(ids.add(id(entry.get("entryId"))) && entry.get("error") == null);
@@ -188,9 +187,8 @@ final class SyncJobModel {
       one(entry.get("kind"), "file", "directory");
       if (entry.get("kind").equals("file")) {
         number(entry.get("sizeBytes"), 0, 9007199254740991L);
-        BackupModel.hash(entry.get("sha256"));
       } else {
-        require(entry.get("sizeBytes") == null && entry.get("sha256") == null);
+        require(entry.get("sizeBytes") == null);
       }
     }
     for (Object item : entries) {
@@ -219,7 +217,6 @@ final class SyncJobModel {
       "rootId",
       "status",
       "scannedEntries",
-      "bytesRead",
       "snapshot",
       "error"
     );
@@ -229,7 +226,6 @@ final class SyncJobModel {
       root.equals(state.get("rootId")) && (scanId == null || scanId.equals(state.get("scanId")))
     );
     long count = number(state.get("scannedEntries"), 0, 10000);
-    long bytes = number(state.get("bytesRead"), 0, 9007199254740991L);
     one(state.get("status"), "running", "succeeded", "failed", "cancelled");
     if (state.get("status").equals("running") || state.get("status").equals("cancelled")) {
       require(state.get("snapshot") == null && state.get("error") == null);
@@ -242,15 +238,6 @@ final class SyncJobModel {
         snapshot.get("scanId").equals(state.get("scanId")) &&
           list(snapshot.get("entries")).size() == count
       );
-      long actual = 0;
-      for (Object item : list(snapshot.get("entries"))) {
-        if (map(item).get("kind").equals("file")) {
-          long size = number(map(item).get("sizeBytes"), 0, 9007199254740991L);
-          require(actual <= 9007199254740991L - size);
-          actual += size;
-        }
-      }
-      require(actual == bytes);
       state.put("snapshot", snapshot);
     }
     return state;
@@ -308,8 +295,7 @@ final class SyncJobModel {
               file.sourceModifiedAt,
               nullable(source.get("modifiedAt"), -BackupModel.MAX_DATE, BackupModel.MAX_DATE)
             ) &&
-            file.sizeBytes == number(source.get("sizeBytes"), 0, BackupModel.MAX_FILE) &&
-            file.sha256.equals(source.get("sha256"))
+            file.sizeBytes == number(source.get("sizeBytes"), 0, BackupModel.MAX_FILE)
         );
       }
     }
@@ -377,7 +363,6 @@ final class SyncJobModel {
         "action",
         "status",
         "sizeBytes",
-        "sha256",
         "error"
       );
       Map<String, Object> operation = plan.writes.get(index);
@@ -396,19 +381,16 @@ final class SyncJobModel {
           require(result.get("backupId") != null);
         }
         if (!SyncPlanModel.isFileWrite(operation)) {
-          require(outcome.get("sizeBytes") == null && outcome.get("sha256") == null);
+          require(outcome.get("sizeBytes") == null);
         } else {
           Map<String, Object> source = plan.source.entry(operation.get("sourceEntryId"));
-          require(
-            SyncPlanModel.same(source.get("sizeBytes"), outcome.get("sizeBytes")) &&
-              source.get("sha256").equals(outcome.get("sha256"))
-          );
+          require(SyncPlanModel.same(source.get("sizeBytes"), outcome.get("sizeBytes")));
           files++;
           bytes += number(outcome.get("sizeBytes"), 0, BackupModel.MAX_FILE);
         }
       } else {
         isStopped = true;
-        require(outcome.get("sizeBytes") == null && outcome.get("sha256") == null);
+        require(outcome.get("sizeBytes") == null);
         if (status.equals("failed") || status.equals("unknown")) {
           Map<String, Object> failure = error(outcome.get("error"));
           require(result.get("error") != null);

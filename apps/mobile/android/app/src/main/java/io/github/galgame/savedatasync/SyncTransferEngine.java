@@ -1374,8 +1374,6 @@ final class SyncTransferEngine implements AutoCloseable {
             i == 0 ? (isCancelled ? "cancelled" : "failed") : "not-attempted",
             "sizeBytes",
             null,
-            "sha256",
-            null,
             "error",
             i == 0 ? failure : null
           )

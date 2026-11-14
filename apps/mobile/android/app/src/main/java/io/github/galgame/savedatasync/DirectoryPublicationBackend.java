@@ -275,6 +275,12 @@ final class DirectoryPublicationBackend implements NewFilePublisher.Backend {
     }
 
     @Override
+    public void setModified(long modifiedAt, ArchiveControl control) throws Exception {
+      control.check();
+      access.setModified(directory.tree, id, modifiedAt);
+    }
+
+    @Override
     public OutputStream openOutput(long size, ArchiveControl control) throws Exception {
       establish(control);
       ParcelFileDescriptor fd = descriptor("rw", control);

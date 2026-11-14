@@ -7,6 +7,7 @@ import static io.github.galgame.savedatasync.TransferJson.map;
 import static io.github.galgame.savedatasync.TransferJson.object;
 import static io.github.galgame.savedatasync.TransferSchema.error;
 import static io.github.galgame.savedatasync.TransferSchema.id;
+import static io.github.galgame.savedatasync.TransferSchema.nullable;
 import static io.github.galgame.savedatasync.TransferSchema.number;
 import static io.github.galgame.savedatasync.TransferSchema.one;
 import static io.github.galgame.savedatasync.TransferSchema.outcome;
@@ -19,7 +20,6 @@ import java.io.Closeable;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Path;
-import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -52,6 +52,9 @@ final class SyncWriter implements AutoCloseable {
     void finish(long size, ArchiveControl control) throws Exception;
 
     void verify(ArchiveControl control) throws Exception;
+
+    /** 写入结束、输出流关闭后，把文件的修改日期设为 modifiedAt（Unix 毫秒）。文件所在位置无法设置时保留原日期。 */
+    default void setModified(long modifiedAt, ArchiveControl control) throws Exception {}
 
     /** 判断私有目录是否与目标同卷；判断不了时返回 null。 */
     Boolean sharesVolume(Path privateDirectory) throws Exception;
@@ -243,8 +246,6 @@ final class SyncWriter implements AutoCloseable {
       status,
       "sizeBytes",
       isFile ? source.get("sizeBytes") : null,
-      "sha256",
-      isFile ? source.get("sha256") : null,
       "error",
       error
     );
@@ -288,7 +289,7 @@ final class SyncWriter implements AutoCloseable {
   private void preflight(Job job) throws Exception {
     check(job);
     // 只按目录列表比对类型、大小和修改时间：游戏改写存档总会改动其中之一，重算哈希要把整个目录再读一遍。
-    Map<String, Object> current = scanner.listNow(job.plan.target.root, job.control);
+    Map<String, Object> current = scanner.snapshotNow(job.plan.target.root, job.control);
     if (
       !SyncPlanModel.same(
         attributes(current.get("entries")),
@@ -483,7 +484,8 @@ final class SyncWriter implements AutoCloseable {
         parent,
         name,
         number(entry.get("sizeBytes"), 0, BackupModel.MAX_FILE),
-        string(entry.get("sha256"))
+        null,
+        nullable(entry.get("modifiedAt"), -BackupModel.MAX_DATE, BackupModel.MAX_DATE)
       );
       PublicationModel.Result result = backend
         .publisher()
@@ -522,7 +524,6 @@ final class SyncWriter implements AutoCloseable {
       OutputStream output = null;
       try {
         output = track(job, target.output(job.control));
-        MessageDigest hash = MessageDigest.getInstance("SHA-256");
         byte[] buffer = new byte[65536];
         long size = 0;
         long expected = number(entry.get("sizeBytes"), 0, BackupModel.MAX_FILE);
@@ -540,13 +541,12 @@ final class SyncWriter implements AutoCloseable {
           }
           hasWritten = true;
           output.write(buffer, 0, count);
-          hash.update(buffer, 0, count);
         }
         check(job);
-        if (size != expected || !ArchiveFormat.hex(hash.digest()).equals(entry.get("sha256"))) {
+        if (size != expected) {
           throw new ArchiveFailure(
             "checksum-mismatch",
-            "Uncompressed content differs from confirmation."
+            "Uncompressed content length differs from confirmation."
           );
         }
         hasWritten = true;
@@ -559,6 +559,15 @@ final class SyncWriter implements AutoCloseable {
             close(job, output);
           }
         }
+      }
+      Long modifiedAt = nullable(
+        entry.get("modifiedAt"),
+        -BackupModel.MAX_DATE,
+        BackupModel.MAX_DATE
+      );
+      if (modifiedAt != null) {
+        // 下次比较按大小和修改日期判断，目标要带上来源的修改日期才会被认为相同。
+        target.setModified(modifiedAt, job.control);
       }
       return outcome(operation, "succeeded", null, entry);
     } catch (Exception cause) {

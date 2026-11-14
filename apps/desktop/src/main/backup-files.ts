@@ -1,6 +1,6 @@
-import { createHash } from 'node:crypto'
-import { open, statfs, writeFile } from 'node:fs/promises'
+import { open, statfs } from 'node:fs/promises'
 import type { FileHandle } from 'node:fs/promises'
+import type { BigIntStats } from 'node:fs'
 import type { Readable } from 'node:stream'
 import { finished } from 'node:stream/promises'
 import { BATCH_LIMITS, isPortableFileName } from '@savedata-sync/shared'
@@ -101,32 +101,34 @@ export async function openBackupFile(
   }
 }
 
-/** 流式计算 SHA-256。取消时关闭输入流，等输入流释放后才返回。 */
-export async function hashBackupStream(
+/**
+ * 读完输入流并统计字节数，每块交给 write。取消时关闭输入流，等输入流释放后才返回。
+ *
+ * @throws ArchiveError 读到的字节超过 maxBytes 时抛 resource-limit。
+ */
+export async function copyStream(
   input: Readable,
   maxBytes: number,
   signal?: AbortSignal,
   write?: (chunk: Buffer) => Promise<void>,
-): Promise<{ sizeBytes: number; sha256: string }> {
+): Promise<number> {
   const abort = (): void => {
     input.destroy(new Error('Backup reading was aborted.'))
   }
   signal?.addEventListener('abort', abort, { once: true })
   try {
     checkArchiveAbort(signal)
-    const hash = createHash('sha256')
     let sizeBytes = 0
     for await (const chunk of input) {
       checkArchiveAbort(signal)
       if (!Buffer.isBuffer(chunk) || chunk.length > 65536 || sizeBytes + chunk.length > maxBytes) {
-        throw new ArchiveError('resource-limit', 'The backup file exceeds the resource budget.')
+        throw new ArchiveError('resource-limit', 'The file exceeds the resource budget.')
       }
       sizeBytes += chunk.length
-      hash.update(chunk)
       await write?.(chunk)
     }
     checkArchiveAbort(signal)
-    return { sizeBytes, sha256: hash.digest('hex') }
+    return sizeBytes
   } finally {
     signal?.removeEventListener('abort', abort)
     input.destroy()
@@ -141,64 +143,70 @@ const WHOLE_FILE_BYTES = 16 * 1024 * 1024
 const COPY_CHUNK_BYTES = 1024 * 1024
 
 /**
- * 把 source 复制成新文件 destination，同时计算内容的 SHA-256；不调用 fsync。
+ * 把 source 复制成新文件 destination，并把 destination 的修改日期设为 source 的。返回时数据可能还在系统缓存里。
+ * 复制前后 source 的大小和修改日期都必须等于 expected，读到的字节数也必须等于 expected.sizeBytes。
  *
- * @param expectedBytes 文件应有的大小；读到的内容超过它时抛 source-changed。
  * @param onBytes 每写出一段后收到这段的字节数；抛出的异常让复制失败。
- * @returns 实际复制的字节数和 SHA-256，由调用方和预期比对。
+ * @throws ArchiveError source 的大小、修改日期或读到的字节数和 expected 不同时抛 source-changed。
  * @throws destination 已存在时抛系统的 EEXIST；失败时可能留下不完整的 destination，由调用方删除。
  */
-export async function copyFileHashed(
+export async function copyFileChecked(
   source: string,
   destination: string,
-  expectedBytes: number,
+  expected: { readonly sizeBytes: number; readonly modifiedAt: number | null },
   signal?: AbortSignal,
   onBytes?: (bytes: number) => void,
-): Promise<{ sizeBytes: number; sha256: string }> {
+): Promise<void> {
   checkArchiveAbort(signal)
-  const hash = createHash('sha256')
   const input = await open(source, 'r')
   try {
-    const { size } = await input.stat()
-    if (size > expectedBytes) {
-      throw new ArchiveError('source-changed', 'The file is larger than the confirmed plan.')
-    }
-    if (size <= WHOLE_FILE_BYTES) {
-      const data = await input.readFile()
-      if (data.length > expectedBytes) {
-        throw new ArchiveError('source-changed', 'The file is larger than the confirmed plan.')
+    const check = async (): Promise<BigIntStats> => {
+      const value = await input.stat({ bigint: true })
+      if (
+        value.size !== BigInt(expected.sizeBytes) ||
+        Number(value.mtimeMs) !== expected.modifiedAt
+      ) {
+        throw new ArchiveError('source-changed', 'The file size or date changed after the scan.')
       }
-      hash.update(data)
-      checkArchiveAbort(signal)
-      await writeFile(destination, data, { flag: 'wx', mode: 0o600 })
-      onBytes?.(data.length)
-      return { sizeBytes: data.length, sha256: hash.digest('hex') }
+      return value
     }
+    const before = await check()
     const output = await open(destination, 'wx', 0o600)
     try {
-      const buffer = Buffer.allocUnsafe(COPY_CHUNK_BYTES)
       let sizeBytes = 0
-      for (;;) {
+      if (expected.sizeBytes <= WHOLE_FILE_BYTES) {
+        const data = await input.readFile()
+        sizeBytes = data.length
         checkArchiveAbort(signal)
-        const { bytesRead } = await input.read(buffer, 0, buffer.length, null)
-        if (!bytesRead) {
-          break
-        }
-        sizeBytes += bytesRead
-        if (sizeBytes > expectedBytes) {
-          throw new ArchiveError('source-changed', 'The file is larger than the confirmed plan.')
-        }
-        hash.update(buffer.subarray(0, bytesRead))
-        for (let offset = 0; offset < bytesRead;) {
-          const { bytesWritten } = await output.write(buffer, offset, bytesRead - offset)
-          if (!bytesWritten) {
-            throw new ArchiveError('io-failure', 'The file write made no progress.')
+        await output.writeFile(data)
+        onBytes?.(data.length)
+      } else {
+        const buffer = Buffer.allocUnsafe(COPY_CHUNK_BYTES)
+        for (;;) {
+          checkArchiveAbort(signal)
+          const { bytesRead } = await input.read(buffer, 0, buffer.length, null)
+          if (!bytesRead) {
+            break
           }
-          offset += bytesWritten
+          sizeBytes += bytesRead
+          if (sizeBytes > expected.sizeBytes) {
+            break
+          }
+          for (let offset = 0; offset < bytesRead;) {
+            const { bytesWritten } = await output.write(buffer, offset, bytesRead - offset)
+            if (!bytesWritten) {
+              throw new ArchiveError('io-failure', 'The file write made no progress.')
+            }
+            offset += bytesWritten
+          }
+          onBytes?.(bytesRead)
         }
-        onBytes?.(bytesRead)
       }
-      return { sizeBytes, sha256: hash.digest('hex') }
+      if (sizeBytes !== expected.sizeBytes) {
+        throw new ArchiveError('source-changed', 'The file length changed while copying.')
+      }
+      await check()
+      await output.utimes(before.atime, before.mtime)
     } finally {
       await output.close()
     }

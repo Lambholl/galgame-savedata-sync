@@ -7,7 +7,7 @@ import { restoreTaskPreview, syncTaskPreview } from '../src/ui/task/task-present
 const LOCALES = ['zh-CN', 'zh-TW', 'en-US', 'ja-JP']
 
 function outcome(path, action, status) {
-  return { path: [path], action, status, sizeBytes: null, sha256: null, error: null }
+  return { path: [path], action, status, sizeBytes: null, error: null }
 }
 
 function state(role, overrides = {}) {

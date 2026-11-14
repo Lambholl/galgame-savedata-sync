@@ -61,6 +61,13 @@ interface DocumentAccess {
    */
   boolean delete(Uri tree, String documentId) throws Exception;
 
+  /**
+   * 把文件的修改日期设为 modifiedAt（Unix 毫秒）。经 SAF 访问的文件无法设置修改日期，保持原样并返回 false。
+   *
+   * @return 修改日期已设置时为 true。
+   */
+  boolean setModified(Uri tree, String documentId, long modifiedAt) throws Exception;
+
   /** 返回文档所在存储的可用字节；报告不了时返回 null。 */
   Long availableBytes(Uri tree, String documentId, CancellationSignal signal) throws Exception;
 }

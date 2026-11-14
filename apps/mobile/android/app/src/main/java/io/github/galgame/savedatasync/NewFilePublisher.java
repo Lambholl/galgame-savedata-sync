@@ -37,6 +37,9 @@ final class NewFilePublisher {
     Entry entry(ArchiveControl control) throws Exception;
 
     void delete() throws Exception;
+
+    /** 把文件的修改日期设为 modifiedAt（Unix 毫秒）。文件所在位置无法设置时保留原日期。 */
+    default void setModified(long modifiedAt, ArchiveControl control) throws Exception {}
   }
 
   interface Backend {
@@ -225,6 +228,10 @@ final class NewFilePublisher {
       control.check();
       copy(job, source, job.owned, request, progress, control);
       control.check();
+      if (request.modifiedAt != null) {
+        // 下次比较按大小和修改日期判断，目标要带上来源的修改日期才会被认为相同。
+        job.owned.setModified(request.modifiedAt, control);
+      }
       success = job.owned.entry(control);
       if (
         !request.name.equals(success.name) ||
@@ -387,7 +394,7 @@ final class NewFilePublisher {
     ArchiveModel.Progress progress,
     ArchiveControl control
   ) throws Exception {
-    MessageDigest digest = MessageDigest.getInstance("SHA-256");
+    MessageDigest digest = request.sha256 == null ? null : MessageDigest.getInstance("SHA-256");
     InputStream input = track(job, source.open());
     try {
       OutputStream output = track(job, owned.openOutput(request.sizeBytes, control));
@@ -460,14 +467,18 @@ final class NewFilePublisher {
       if (output != null) {
         output.write(buffer, 0, read);
       }
-      digest.update(buffer, 0, read);
+      if (digest != null) {
+        digest.update(buffer, 0, read);
+      }
       count += read;
       if (progress != null) {
         progress.update(stage, count, request.sizeBytes);
       }
     }
     control.check();
-    if (count != request.sizeBytes || !hex(digest.digest()).equals(request.sha256)) {
+    if (
+      count != request.sizeBytes || (digest != null && !hex(digest.digest()).equals(request.sha256))
+    ) {
       throw new ArchiveFailure(
         "checksum-mismatch",
         "The actual file length or SHA-256 does not match."

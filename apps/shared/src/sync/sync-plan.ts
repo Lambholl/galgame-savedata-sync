@@ -1,7 +1,7 @@
 import { BATCH_LIMITS } from '../protocol/batch-limits.ts'
 import { OperationFailure } from '../result.ts'
 import { isPortableFileName } from '../protocol/protocol.ts'
-import { SYNC_SCHEMA_VERSION } from './sync-contracts.ts'
+import { SYNC_MODIFIED_TOLERANCE_MS, SYNC_SCHEMA_VERSION } from './sync-contracts.ts'
 import type {
   SyncAction,
   SyncEntry,
@@ -40,7 +40,7 @@ function inspectSnapshot(
   for (const entry of snapshot.entries) {
     if (entry.error !== null) {
       issues.push({ code: 'unreadable-entry', side, path: entry.path })
-    } else if (entry.kind === 'file' && (entry.sizeBytes === null || entry.sha256 === null)) {
+    } else if (entry.kind === 'file' && entry.sizeBytes === null) {
       issues.push({ code: 'unknown-content', side, path: entry.path })
     }
     if (!entry.path.every(isPortableFileName)) {
@@ -69,6 +69,26 @@ export function isSyncWriteEntry(entry: SyncPlanEntry): boolean {
   )
 }
 
+/**
+ * 判断两端的同一路径是否是相同的文件：大小相同，修改日期相差不超过 SYNC_MODIFIED_TOLERANCE_MS。
+ *
+ * @returns 任一端不是文件，或大小、修改日期未知时返回 false。
+ */
+export function isSameSyncFile(
+  left: Pick<SyncEntry, 'kind' | 'sizeBytes' | 'modifiedAt'>,
+  right: Pick<SyncEntry, 'kind' | 'sizeBytes' | 'modifiedAt'>,
+): boolean {
+  return (
+    left.kind === 'file' &&
+    right.kind === 'file' &&
+    left.sizeBytes !== null &&
+    left.sizeBytes === right.sizeBytes &&
+    left.modifiedAt !== null &&
+    right.modifiedAt !== null &&
+    Math.abs(left.modifiedAt - right.modifiedAt) <= SYNC_MODIFIED_TOLERANCE_MS
+  )
+}
+
 /** 判断这个动作是否写入文件内容。 */
 export function isSyncFileWrite(action: SyncAction): boolean {
   return action === 'create-file' || action === 'replace-file'
@@ -94,12 +114,7 @@ function chooseAction(
   if (source.kind === 'directory') {
     return 'skip'
   }
-  return source.sizeBytes !== null &&
-    source.sha256 !== null &&
-    source.sizeBytes === target.sizeBytes &&
-    source.sha256 === target.sha256
-    ? 'skip'
-    : 'replace-file'
+  return isSameSyncFile(source, target) ? 'skip' : 'replace-file'
 }
 
 function operationRank(entry: SyncPlanEntry): number {
