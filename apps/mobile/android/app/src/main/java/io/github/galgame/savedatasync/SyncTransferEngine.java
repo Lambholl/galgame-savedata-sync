@@ -311,7 +311,7 @@ final class SyncTransferEngine implements AutoCloseable {
           value = copy(job.state);
         }
       } else if (job.isRunning) {
-        cancel(jobId, false);
+        cancel(jobId, false, false);
       }
       result = object("status", "success", "value", value);
     } catch (Exception cause) {
@@ -1692,6 +1692,35 @@ final class SyncTransferEngine implements AutoCloseable {
     }
   }
 
+  /** 请电脑取消任务并写入它回复的状态；已经发过时不再发。电脑没有回应时不记为已发，之后还可以重发。 */
+  private void sendCancel(Job job, ArchiveControl control) {
+    synchronized (job) {
+      synchronized (this) {
+        if (job.wasCancelSent) {
+          return;
+        }
+      }
+      try {
+        accept(
+          job,
+          job.preparation.connection.http.json(
+            "DELETE",
+            job.path(),
+            job.preparation.connection.session,
+            null,
+            202,
+            control
+          )
+        );
+        synchronized (this) {
+          job.wasCancelSent = true;
+        }
+      } catch (Exception lost) {
+        /* 电脑的实际结果由之后的查询确认。 */
+      }
+    }
+  }
+
   private void cancelRemote(Job job) {
     synchronized (job) {
       ArchiveControl control = shortControl();
@@ -1702,24 +1731,7 @@ final class SyncTransferEngine implements AutoCloseable {
       }
       try {
         if (shouldCancel) {
-          try {
-            accept(
-              job,
-              job.preparation.connection.http.json(
-                "DELETE",
-                job.path(),
-                job.preparation.connection.session,
-                null,
-                202,
-                control
-              )
-            );
-            synchronized (this) {
-              job.wasCancelSent = true;
-            }
-          } catch (Exception lost) {
-            /* 这里只查询实际结果；电脑没有回应时不记为已发，用户再点取消时重发。 */
-          }
+          sendCancel(job, control);
         }
         refresh(job, control);
         while (isRemoteRunning(job)) {
@@ -1851,16 +1863,50 @@ final class SyncTransferEngine implements AutoCloseable {
     return last == null ? null : last.plan.id;
   }
 
+  /**
+   * 取消任务，返回取消请求后的状态。用户取消时先请电脑取消，再停下本机，电脑没有回应时最多等 5 秒。
+   *
+   * @param isTimeout 为 true 时按超时结束，不请电脑取消，由本机收尾时取消电脑。
+   */
   Map<String, Object> cancel(String id, boolean isTimeout) throws Exception {
+    return cancel(id, isTimeout, !isTimeout);
+  }
+
+  /**
+   * 取消任务，返回取消请求后的状态。
+   *
+   * @param shouldNotifyPc 为 true 且任务在运行时，先请电脑取消，再停下本机。
+   */
+  private Map<String, Object> cancel(String id, boolean isTimeout, boolean shouldNotifyPc)
+    throws Exception {
     Job job;
+    boolean shouldNotify;
     synchronized (this) {
       job = job(id);
       if (isTimeout) {
         job.hasTimedOut = true;
       }
       job.state.put("cancelRequested", !isTimeout);
+      shouldNotify = shouldNotifyPc && job.isRunning && job.wasRemoteAttempted;
     }
-    job.control.cancel();
+    if (shouldNotify) {
+      // 本机先停会关掉内容连接，电脑只看到连接断开，会记成网络中断；先请电脑取消，两端都记成取消。
+      try {
+        watcher.execute(() -> {
+          ArchiveControl control = shortControl();
+          try {
+            sendCancel(job, control);
+          } finally {
+            control.cancel();
+            job.control.cancel();
+          }
+        });
+      } catch (java.util.concurrent.RejectedExecutionException stopped) {
+        job.control.cancel();
+      }
+    } else {
+      job.control.cancel();
+    }
     if (!job.isRunning && job.wasRemoteAttempted) {
       worker.execute(() -> cancelRemote(job));
     }

@@ -87,6 +87,8 @@ interface SyncTask {
   worker: Promise<void> | null
   finishing: Promise<void> | null
   reason: KnownOperationError | null
+  /** 本机发起了取消、正在通知对端；这期间任务因任何原因中止都按取消记录。 */
+  isCancelling: boolean
   stageAt: number
   networkAt: number
   terminalAt: number | null
@@ -256,6 +258,8 @@ export class WindowsSyncRegistry {
     const task = this.localTask(id)
     const isLocalRunning = task.state.status === 'running'
     if (isRemoteUnsettled(task) && this.options.control.isOpen(task.peerId)) {
+      // 对端取消后会关掉内容连接，本机看到的是连接断开；通知期间的中止按取消记录，两端结论一致。
+      task.isCancelling = isLocalRunning
       try {
         await this.options.control.request(task.peerId, 'sync.job.cancel', { jobId: id })
       } catch (cause) {
@@ -576,6 +580,7 @@ export class WindowsSyncRegistry {
       stageAt: performance.now(),
       networkAt: performance.now(),
       terminalAt: null,
+      isCancelling: false,
       isContentClaimed: false,
       hasLease: true,
       isWorking: false,
@@ -1096,8 +1101,8 @@ export class WindowsSyncRegistry {
     if (task.state.status !== 'running' || task.controller.signal.aborted) {
       return
     }
-    task.reason = reason
-    task.state = { ...task.state, cancelRequested: reason === null, updatedAt: Date.now() }
+    task.reason = task.isCancelling ? null : reason
+    task.state = { ...task.state, cancelRequested: task.reason === null, updatedAt: Date.now() }
     task.controller.abort()
     task.settleContent(new ArchiveCancelledError())
     if (!task.isWorking) {
