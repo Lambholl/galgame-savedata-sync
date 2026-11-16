@@ -47,6 +47,8 @@ related_files: []
 | `architecture/api-contracts.md` | 接口约定 | active | API, 接口约定 |
 | `architecture/dependencies.md` | 架构依赖 | draft | 依赖 |
 | `architecture/overview.md` | 架构总览 | active | 架构总览 |
+| `architecture/sync-copy.md` | 复制、备份与恢复约定 | active | 复制, 备份, 恢复 |
+| `architecture/transfer-protocol.md` | tar.gz 批量传输协议 | active | 传输协议, tar.gz, HTTP |
 | `decisions/ADR-0002-ui-library-and-shared-rendering.md` | ADR-0002 维持 antd 系列，抽取双端共用渲染 | accepted | 决策, 界面, 组件库, 共用组件 |
 | `decisions/ADR-0003-android-direct-file-access.md` | ADR-0003 Android 所有文件访问权限与统一的文件访问接口 | accepted | 决策, Android, 文件访问, SAF, 所有文件访问权限 |
 | `development/code-map.md` | 代码地图 | active | 代码地图 |

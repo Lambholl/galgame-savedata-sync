@@ -192,7 +192,7 @@ SAF 没有通用排他创建或比较后删除原语；这些复核能发现可�
 
 Android 行为依据见 [dataSync 前台服务](https://developer.android.com/develop/background-work/services/fgs/service-types)、[通知权限](https://developer.android.com/develop/ui/compose/notifications/notification-permission)及 [HttpURLConnection](https://developer.android.com/reference/java/net/HttpURLConnection)。
 
-`SyncScanner` 提供当前 SAF 递归扫描、原生 SHA-256、空目录及失败部分结果，复用 `DirectoryArchiveSource` 的权限/身份/属性前后复核。扫描按普通本地操作执行，不加保活或前后台处理。`SyncScansPlugin` 只提供 capabilities/start/query/cancel，参数为 schemaVersion/rootId 或 scanId；没有 URI、平台路径、文件内容及可调预算。结果与 Windows 使用同一 SyncScanState，期限、条目/深度/JSON 限制和 32 份结果保留沿用 [M-002 文档](../../docs/plans/m002-sync-copy.md) 第 3 节；名额满时丢掉最旧的结果。
+`SyncScanner` 提供当前 SAF 递归扫描、原生 SHA-256、空目录及失败部分结果，复用 `DirectoryArchiveSource` 的权限/身份/属性前后复核。扫描按普通本地操作执行，不加保活或前后台处理。`SyncScansPlugin` 只提供 capabilities/start/query/cancel，参数为 schemaVersion/rootId 或 scanId；没有 URI、平台路径、文件内容及可调预算。结果与 Windows 使用同一 SyncScanState，期限、条目/深度/JSON 限制和 32 份结果保留沿用 [复制、备份与恢复约定](../../.project-memory/architecture/sync-copy.md)；名额满时丢掉最旧的结果。
 
 `src/platform/sync-scan-bridge.ts` 核对有限参数、完整结果及 rootId/scanId 上下文；`androidSyncScans` 为平台接入。所有调用返回 OperationResult；query 的成功包络只代表查到任务，扫描是否成功取决于内部 status。显式取消会关闭原生读流和 SAF 查询；未知长度按流实测，源变化和授权失效返回具体错误。扫描、备份和受保护写入已提供原生入口；双向复制编排见下节，界面继续按工作包接入。
 
@@ -215,7 +215,7 @@ Android 行为依据见 [dataSync 前台服务](https://developer.android.com/de
 | `deleteGameBackups` | 移除游戏时删除它在所有目录下的轮次、残留和单独设置；失败时游戏保留，可以重试 |
 | `close` | 原生所有者关闭存储时取消当前操作、等待文件释放并关闭读取引用；已提交备份持久保留 |
 
-`BackupModel` 与共享备份 v1 清单一致。每个目标文件先校验源属性、流式大小/SHA-256，再同步落盘并独立读回；全部完成后原子提交清单。每个游戏保留最近 3 次，不分目录，新轮提交后才轮换，轮换失败单独报告。读取未知长度时按流实测并核对计划的大小与哈希，文件内容不经过 JS。取消、期限或实际失败在提交前结束时不产生有效轮次，清理错误附在主错误之外。预算、位置和恢复规则统一见 [M-002 文档](../../docs/plans/m002-sync-copy.md) 第 3 节。
+`BackupModel` 与共享备份 v1 清单一致。每个目标文件先校验源属性、流式大小/SHA-256，再同步落盘并独立读回；全部完成后原子提交清单。每个游戏保留最近 3 次，不分目录，新轮提交后才轮换，轮换失败单独报告。读取未知长度时按流实测并核对计划的大小与哈希，文件内容不经过 JS。取消、期限或实际失败在提交前结束时不产生有效轮次，清理错误附在主错误之外。预算、位置和恢复规则统一见 [复制、备份与恢复约定](../../.project-memory/architecture/sync-copy.md)。
 
 `BackupFiles` 只访问已核实的私有普通文件，Android 实际身份和链接数由 `Os.lstat` 读取；固定 fileId、所有权记录、根/轮次身份和前后属性共同约束访问与清理。未提交轮次重启后通过明确操作清理，既不恢复旧同步，也不按文件名前缀猜测用户文件归属。
 
@@ -257,7 +257,7 @@ const running = unwrap(await androidSyncWrites.execute(task.restoreId, plan))
 
 ## 双向复制编排
 
-`SyncTransferRuntime` 由应用 Context 持有 `SyncTransferEngine`；复用同一原生连接和归档缓存。`SyncJobModel` 核对目录表中的双向项目关联、当前快照、源清单和 receiver 的完整逐项结果。`SyncPlanModel` 支持两种复制方向，实际 `SyncWriter` 仍只接受本机目标。新增协议集中在 [M-002 文档第 3.6/3.7 节](../../docs/plans/m002-sync-copy.md#36-http-与本地桥)。
+`SyncTransferRuntime` 由应用 Context 持有 `SyncTransferEngine`；复用同一原生连接和归档缓存。`SyncJobModel` 核对目录表中的双向项目关联、当前快照、源清单和 receiver 的完整逐项结果。`SyncPlanModel` 支持两种复制方向，实际 `SyncWriter` 仍只接受本机目标。新增协议集中在 [复制、备份与恢复约定](../../.project-memory/architecture/sync-copy.md)第 6、7 节。
 
 | `SyncTransfers` / `androidSyncTransfers` 方法 | 输入、输出与资源责任 |
 | --- | --- |
@@ -345,4 +345,4 @@ const running = unwrap(await androidSyncTransfers.execute(preparing.preparationI
 
 WP-006 的 API 33 实测通过 ADB 开发者控制台操作正式原生桥，文件数据走真实 LAN HTTP，调试通道不承载传输体。双向各 3 文件（空/UTF-8/131073 字节）及 2 轮后台 1 MiB 接收，共 8 份输出与原文逐字节一致；6 份原生/远端状态及 10 份进度快照通过共享守卫匹配。返回桌面后持续通知/dataSync 服务仍在，Activity 重建后 current 可取回同一任务，后台完成后通知和服务结束；显式取消没有目标残留，私有缓存只留下根所有权。两端原文件的内容、大小、mtime 和身份保持不变，测试目录权限与临时服务均已回收。通知截图及原始回执只保留在忽略的本地报告中。
 
-上述 SAF 读取、归档和新文件发布测试使用独立合成目标；应用内的复制与恢复已有受保护写入和本机恢复验收，真实存档覆盖按 [M-002 第 6 节](../../docs/plans/m002-sync-copy.md)的范围开放。损坏配置和失效权限夹具使用独立的应用私有配置，不改真实根授权。Android 10 及较新系统、SAF、正式 LAN HTTP、通知保持传输和独立界面已通过真机验收；空文件/中文名双向内容、子目录刷新后传输、准备前取消、同名冲突、页面重载与 64 MiB 后台上传已核对 SHA-256。满额 1 GiB 双向往返、进程内存及每次传输容量预检见[规模验收](../../docs/validation/m001-resources.md)。
+上述 SAF 读取、归档和新文件发布测试使用独立合成目标；应用内的复制与恢复已有受保护写入和本机恢复验收，真实存档覆盖按[验收标准](../../.project-memory/testing/acceptance.md)的范围开放。损坏配置和失效权限夹具使用独立的应用私有配置，不改真实根授权。Android 10 及较新系统、SAF、正式 LAN HTTP、通知保持传输和独立界面已通过真机验收；空文件/中文名双向内容、子目录刷新后传输、准备前取消、同名冲突、页面重载与 64 MiB 后台上传已核对 SHA-256。满额 1 GiB 双向往返、进程内存及每次传输容量预检见[验收标准](../../.project-memory/testing/acceptance.md)。

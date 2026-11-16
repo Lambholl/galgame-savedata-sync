@@ -1,26 +1,36 @@
-# M-001 tar.gz 批量传输协议
+---
+doc_type: architecture
+status: active
+updated: 2026-11-17
+tags: [传输协议, tar.gz, HTTP]
+related_files:
+  - apps/shared/src/protocol/
+  - apps/desktop/src/main/archive-adapter.ts
+  - apps/mobile/android/app/src/main/java/io/github/galgame/savedatasync/TransferEngine.java
+---
+
+# tar.gz 批量传输协议
 
 ## 目录
 
-- [1. 状态与适用范围](#1-状态与适用范围)
+- [1. 适用范围](#1-适用范围)
 - [2. 数据结构与校验](#2-数据结构与校验)
 - [3. 归档格式与资源限制](#3-归档格式与资源限制)
 - [4. HTTP 路由与会话](#4-http-路由与会话)
 - [5. 双向流程与发布](#5-双向流程与发布)
+  - [Android → Windows](#android--windows)
+  - [Windows → Android](#windows--android)
 - [6. 进度、结果与取消](#6-进度结果与取消)
 - [7. 错误与资源所有权](#7-错误与资源所有权)
-- [8. 验证场景与工作包交接](#8-验证场景与工作包交接)
-- [9. 依据与设计取舍](#9-依据与设计取舍)
+- [8. 依据与设计取舍](#8-依据与设计取舍)
 
-## 1. 状态与适用范围
+## 1. 适用范围
 
-更新日期：2026-10-27。协议使用 `protocolVersion=1` 及 `/v1`；v1 共享模型、双端私有归档、Windows HTTP sender/receiver 及批次非覆盖发布可用；Java 归档、实际 SAF 读取、原生跨端互通、lint 与双 APK 已通过。Android SAF 单文件发布、HTTP、任务编排、持续通知保持传输和独立界面均已完成，完整平台组合已通过真机验收。
+本文规定 `/v1/transfers/*` 批量传输的数据结构、归档格式、HTTP 路由、进度与错误，协议版本 `protocolVersion=1`。双向数据格式都是 tar.gz，Windows 提供服务，Android 原生层主动请求。批量传输只在目标已有的父目录下创建新文件：不创建目录、不覆盖、不删除、不备份；可以从不同子目录选择文件，但归档不展开目录树。
 
-双向唯一数据格式为 tar.gz，Windows 提供服务，Android Java 原生层主动请求。M-001 只在独立测试目录创建新文件；目标父目录必须已经存在，当前流程不创建目录、不覆盖、不镜像删除、不备份。可以从已有不同子目录中选择文件，但归档不展开目录树。完整同步目录映射和新建目录在 M-002 另行设计。
+复制任务（`/v1/sync/*`）沿用第 3 节的归档成员格式和资源限制，但边读边打包发送、边收边解包，不提交清单，也不带压缩体长度和哈希头；复制、备份与恢复见[复制与备份约定](sync-copy.md)。
 
-本文的清单、缓存、哈希、结果和已用任务 ID 都属于当前会话，只用于本次传输。目录浏览只列当前层，不为文件夹大小递归扫描。没有待传文件时，本地显示无需传输，空批次不会建立。超出单批限制时明确拒绝；自动拆批和跨批重试不在 M-001 内。
-
-双端归档及 Windows HTTP sender/receiver 与批次发布已通过原生验证；WP-013 连同实际 SAF 读流和设备测试一起完成。Android 原生构建与 JVM/Windows 互通可无设备执行；实际 SAF 归档使用系统 READ 选择器与独立合成源，发布使用系统 WRITE 选择器与另一独立合成目标，控制文件前后核对；实际 API 33 正式 LAN 双向、通知保持后台传输与 Activity 重连已由 WP-006 完成。归档故障测试仅使用独立合成夹具与私有缓存。
+本文的清单、缓存、哈希、结果和已用任务 ID 都属于当前会话，只用于本次传输。目录浏览只列当前层，不为文件夹大小递归扫描。没有待传文件时本地显示无需传输，空批次不会建立。超出单批限制时明确拒绝，不自动拆批，也不跨批重试。
 
 ## 2. 数据结构与校验
 
@@ -50,7 +60,7 @@
 
 ## 3. 归档格式与资源限制
 
-| 限制 | M-001 固定值 | 执行位置 |
+| 限制 | 固定值 | 执行位置 |
 | --- | --- | --- |
 | maxFiles | 1,024；实际 files 长度必须为 1–1,024 | 准备、清单守卫、解包 |
 | maxFileBytes | 256 MiB = 268435456 | 源实测、清单、tar 头和实际解包计数 |
@@ -63,7 +73,7 @@
 | 暂存空间 | 每端任务拥有的文件实际总量最多 3 GiB = 3221225472；全部阶段累计约束 | 原生缓存计数及磁盘空间检查 |
 | 缓冲与并发 | 应用显式文件读写缓冲每条最多 64 KiB，逐文件处理；按文件流式读写，不把整批或整文件收进内存 | 双端归档与 HTTP 适配；库内部开销另测，64 KiB 不包含库的内存占用 |
 
-首轮实现采用这些保守技术预算，产品规模上限还没定。满额 1 GiB 双向和进程内存实测见[规模验收](../validation/m001-resources.md)，不做功耗计算，本轮也不做磁盘耗尽注入。发送端先在私有目录按流暂存每个源文件并计算实际长度与 SHA-256，再从只读暂存构造归档；接收端保存压缩体后流式解包至私有文件。每次接收在内容流开始前检查缓存与可取得的整批目标余量；Windows 缓存与目标同卷时合计峰值，SAF 未报告容量时保留未知。gzip 的 ISIZE 只作格式校验，超限判断使用实际计数；传输期间继续检查余量并按实际 IO 错误处理。
+这些是保守的技术预算，产品规模上限还没定。满额 1 GiB 双向和进程内存的实测基线见[验收标准](../testing/acceptance.md)。发送端先在私有目录按流暂存每个源文件并计算实际长度与 SHA-256，再从只读暂存构造归档；接收端保存压缩体后流式解包至私有文件。每次接收在内容流开始前检查缓存与可取得的整批目标余量；Windows 缓存与目标同卷时合计峰值，SAF 未报告容量时保留未知。gzip 的 ISIZE 只作格式校验，超限判断使用实际计数；传输期间继续检查余量并按实际 IO 错误处理。
 
 归档采用受限 USTAR 格式，不接受任意用户 tar 文件：
 
@@ -79,18 +89,18 @@
 
 服务启动时生成新的不透明 sessionId；与稳定 deviceId 分离。除 GET /v1/device 外，所有请求都必须且只提供一个 `x-sync-session-id`，值精确匹配当前会话；这是重启检测标识，不是认证凭据。只允许本机用户已经登记的根目录；接收必须另具显式写授权，读取登记不自动变成写授权。
 
-| 方法和路径 | 输入 | 成功响应及含义 | 负责包 |
-| --- | --- | --- | --- |
-| GET /v1/device | 无 | 200，OperationResult<BatchDeviceDescriptor>；device.protocolVersion 必须为数字 1 | WP-004 |
-| GET /v1/roots | 会话头 | 200，现有根目录列表包络 | WP-004 |
-| GET /v1/roots/{rootId}/entries | 会话头；可选 parentId，省略为 null | 200，现有 DirectoryListing 包络，仅当前层 | WP-004 |
-| POST /v1/transfers/downloads | 会话头；DownloadBatchRequest JSON | 202，OperationResult<BatchState>；任务已登记并异步准备，归档是否就绪看后续查询 | WP-004 |
-| GET /v1/transfers/{transferId}/manifest | 会话头 | 200，OperationResult<BatchManifest>，只在准备好后或尚保留清单的终态可取；未 ready 返回 task-conflict | WP-004 |
-| GET /v1/transfers/{transferId}/content | 会话头；只允许 sender ready 的任务 | 200，application/gzip 原始体；表示 sender 开始发送，发布结果看 receiver 状态 | WP-004 |
-| POST /v1/transfers/uploads | 会话头；ReceiveBatchRequest JSON | 201，OperationResult<BatchState>；接收任务已进入 awaiting-content，文件是否发布看后续查询 | WP-005 |
-| PUT /v1/transfers/{transferId}/content | 会话头；只允许 receiver awaiting-content；application/gzip 原始体 | 202，OperationResult<BatchState>，完整压缩体已收齐并通过压缩体长度/哈希检查，异步解包及发布；须查询实际终态 | WP-005 |
-| GET /v1/transfers/{transferId} | 会话头 | 200，OperationResult<BatchState>；查询请求成功，文件结果看 BatchState | WP-004 建立通用注册表，WP-005 处理接收状态 |
-| DELETE /v1/transfers/{transferId} | 会话头 | 活动任务请求取消返回 202，终态返回 200；均返回实际 BatchState，已经发布的文件保留 | WP-004 建立通用取消，WP-005 处理接收取消 |
+| 方法和路径 | 输入 | 成功响应及含义 |
+| --- | --- | --- |
+| GET /v1/device | 无 | 200，OperationResult<BatchDeviceDescriptor>；device.protocolVersion 必须为数字 1 |
+| GET /v1/roots | 会话头 | 200，现有根目录列表包络 |
+| GET /v1/roots/{rootId}/entries | 会话头；可选 parentId，省略为 null | 200，现有 DirectoryListing 包络，仅当前层 |
+| POST /v1/transfers/downloads | 会话头；DownloadBatchRequest JSON | 202，OperationResult<BatchState>；任务已登记并异步准备，归档是否就绪看后续查询 |
+| GET /v1/transfers/{transferId}/manifest | 会话头 | 200，OperationResult<BatchManifest>，只在准备好后或尚保留清单的终态可取；未 ready 返回 task-conflict |
+| GET /v1/transfers/{transferId}/content | 会话头；只允许 sender ready 的任务 | 200，application/gzip 原始体；表示 sender 开始发送，发布结果看 receiver 状态 |
+| POST /v1/transfers/uploads | 会话头；ReceiveBatchRequest JSON | 201，OperationResult<BatchState>；接收任务已进入 awaiting-content，文件是否发布看后续查询 |
+| PUT /v1/transfers/{transferId}/content | 会话头；只允许 receiver awaiting-content；application/gzip 原始体 | 202，OperationResult<BatchState>，完整压缩体已收齐并通过压缩体长度/哈希检查，异步解包及发布；须查询实际终态 |
+| GET /v1/transfers/{transferId} | 会话头 | 200，OperationResult<BatchState>；查询请求成功，文件结果看 BatchState |
+| DELETE /v1/transfers/{transferId} | 会话头 | 活动任务请求取消返回 202，终态返回 200；均返回实际 BatchState，已经发布的文件保留 |
 
 JSON 使用 application/json，成功与错误均遵循现有互斥包络。数据体的 gzip 是传输的文件表示，不设置 `Content-Encoding: gzip`；原生 HTTP 客户端不得自动解压或跟随重定向。不接受 Range、续传或 multipart。控制/状态/归档响应设置 `Cache-Control: no-store`。
 
@@ -110,14 +120,14 @@ GET content 响应及 PUT content 请求均须提供唯一的 Content-Length 和
 2. 从私有原文暂存生成 tar.gz 缓存并计算归档长度/哈希，再形成完整清单。源元数据未知时允许实际计数；不先相信未知长度来分配内存。准备后不再重新打开原源文件发送另一份内容。
 3. POST uploads 登记任务，Windows 校验清单及全部目标，获取该目标根的接收互斥，确认写授权与当前冲突；任务进入 awaiting-content。拒绝前不触碰目标。
 4. PUT content 上传唯一归档。Windows 在私有目录保存并验证整个压缩体，然后解包、验证所有成员及原文。任何归档或原文校验错误都在目标发布前终止，所有文件记为未尝试。
-5. 全部校验成功后按清单顺序通过 WP-009 发布，每次发布前重查父目录、授权及目标冲突。逐项回读目标内容，确认实际名称、字节数、EOF 和 SHA-256；成功后才记录文件成功。首次发布失败即停止后续文件，保留已成功文件，反馈失败/未尝试/残留。
+5. 全部校验成功后按清单顺序经 Windows 新文件发布器发布，每次发布前重查父目录、授权及目标冲突。逐项回读目标内容，确认实际名称、字节数、EOF 和 SHA-256；成功后才记录文件成功。首次发布失败即停止后续文件，保留已成功文件，反馈失败/未尝试/残留。
 6. Android 查询直到 Windows 终态；响应丢失时只查询，不重发 POST/PUT。查询结果不确定时，重读当前目标并提示用户核实，不自动重试写入。
 
 ### Windows → Android
 
 1. Android POST downloads 指定 Windows 已登记根内的显式文件引用，Windows 异步准备私有原文快照及 tar.gz，执行与上行相同的计数/源变化检查；返回 ready 后 Android GET manifest。
 2. Android 验证清单及全部本地 TargetSelection、写授权、空间和当前冲突，才 GET content。Windows 只发送已准备归档；源文件之后的变化不改变这份任务快照。
-3. Android 在私有目录保存、完整校验压缩体及所有原文，再使用 WP-010 对 SAF 逐项新建、写入、关闭并回读；校验实际名称、内容和实际元数据后报告各文件结果。
+3. Android 在私有目录保存、完整校验压缩体及所有原文，再经 SAF 逐项新建、写入、关闭并回读；校验实际名称、内容和实际元数据后报告各文件结果。
 4. Windows 只记录 sender 的 sent/failed/cancelled/unknown，不推断移动端已发布。最终文件结果由 Android receiver 的本地 BatchState 提供；本期不增加回传成功确认或 Windows 发起任务通道。
 
 准备阶段复制的是本次所选文件的内容快照。读取前后的可观察属性变化会导致失败；同大小且 mtime 不变的改写可能漏过，多个文件也可能来自不同时刻。测试夹具保持静止；后续产品要提示同步时退出游戏。哈希匹配只证明文件内容与本次清单一致，不构成跨文件原子快照。
@@ -170,27 +180,11 @@ sourceBytesRead 只计从源拷贝到私有原文快照的字节，不计压缩�
 
 共享错误联合与映射包含 session-mismatch、task-conflict、invalid-archive、resource-limit、busy、timeout。统一 canRetry 语义是“核实当前状态后由用户建立新操作”，自动重放不在范围内；取消使用任务状态，不新增 499。已登记的任务失败由查询返回 200 的实际 failed 状态；HTTP 控制请求错误使用 error 包络，与文件结果分开检查。
 
-平台原生层拥有文件句柄、压缩器、HTTP 流、私有缓存和任务注册表；WP-012/WP-013 仅提供归档与缓存能力，WP-004/WP-005/WP-006 编排网络和任务。IO 在主 UI 线程外执行；批次状态由单一任务所有者串行更新，查询返回只读快照。取消信号跨层传播，每层释放自己持有的资源，不把 InputStream/Readable、缓冲区、URI 或本机路径跨 JS 桥传递。
+平台原生层拥有文件句柄、压缩器、HTTP 流、私有缓存和任务注册表；归档和缓存只提供能力，网络和任务由 HTTP 与任务编排层负责。IO 在主 UI 线程外执行；批次状态由单一任务所有者串行更新，查询返回只读快照。取消信号跨层传播，每层释放自己持有的资源，不把 InputStream/Readable、缓冲区、URI 或本机路径跨 JS 桥传递。
 
 每个任务缓存带内部所有权标记并位于固定应用私有缓存根；完成/失败/取消/超时都尝试清理。重启只清理可验证为本应用所有的孤儿缓存，不依据外部归档路径或旧 ID 删除任意文件；不重建旧任务结果、不继续传输。无法清理时阻止超出暂存预算的新任务并报告缓存问题。目标残留仅通过本次确知新建的引用清理；归属不确定时不删除，报告待确认。
 
-## 8. 验证场景与工作包交接
-
-| 场景 | 核心断言 | 主要工作包 |
-| --- | --- | --- |
-| DTO、封闭联合与字段关系 | 非法/额外/缺失字段；清单求和、边界整数、fileId 连续性、目标一一对应、角色终态和计数约束；本地目录 DTO 继续通过 | 共享模型 |
-| 跨平台固定归档夹具 | 空文件、中文/空格/非 BMP 目标名、同名源分属不同已有目录、超过缓冲的内容；两端消费同一独立期望夹具，不只做各自 writer/reader 自我往返 | WP-012、WP-013 |
-| 归档畸形 | 穿越/绝对路径/重复/遗漏/乱序/额外成员、链接和扩展、坏头/填充、额外结束块、gzip 拼接/尾随/CRC 错误/截断 | WP-012、WP-013 |
-| 资源上限 | 每个上限恰好等于及超过 1；未知源长度实际超限；高压缩比但合法的文件允许；解压绝对超限或超时中断；空间不足与缓存清理失败 | WP-012、WP-013，HTTP 包补网络限流 |
-| HTTP 状态与防重 | 重复 JSON 键/请求头/参数、错误会话、同 ID 并发 POST、重复 content、状态到期和 ID 不复用、重启、端口冲突、错误方向、响应丢失 | WP-004、WP-005 |
-| 发布和取消 | 全部校验前无目标写入；同名竞争不改原有文件；第 k 项失败/取消保留前项成功并标明后项未尝试；SAF 改名/歧义/残留；取消请求丢失时标为待确认 | WP-009、WP-010、WP-005、WP-006 |
-| 真机/前台/实际 LAN | Android API 29 和较新系统，真正 SAF 新建及写后回读，通知保持后台继续与显式取消及长文件/多个文件往返；用实际 LAN 验证，ADB 只负责部署和检查状态 | WP-006、WP-008 |
-
-共享批量模型、双端私有归档、Windows HTTP sender/receiver 和原生新文件发布已完成。Windows/Java 共用独立 Python 格式夹具，执行失败场景与原生双向互通；WP-013 的 API 33 设备还验证实际 SAF 四文件快照、子目录/同名/未知长度、取消/复用及源保护，并由 Windows 独立解包比对上传原文。API/缓存释放说明见[桌面说明](../../apps/desktop/README.md)与[移动说明](../../apps/mobile/README.md)。WP-004/005/006 编排归档，WP-009/010 负责目标发布；网络与 SAF 发布分别验收。
-
-WP-008 已完成满额双向、进程内存与每次传输容量预检，M-001 已收尾；结果见[规模验收](../validation/m001-resources.md)，完整依赖与代码范围见[工作包登记](../../.project-memory/development/work-packages.md)。
-
-## 9. 依据与设计取舍
+## 8. 依据与设计取舍
 
 gzip 格式的 header、DEFLATE、CRC32 和 ISIZE 依据 [RFC 1952](https://www.rfc-editor.org/rfc/rfc1952)。本协议主动限制为单 member、无可选头和无尾随内容，严格于通用 gzip 接收能力。HTTP 202 表示已接纳、处理还在进行，413 表示内容超出接收限制，依据 [RFC 9110](https://www.rfc-editor.org/rfc/rfc9110.html)；具体路由、错误联合、预算及任务状态均为本项目设计。
 

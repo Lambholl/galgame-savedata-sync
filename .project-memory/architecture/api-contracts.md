@@ -25,7 +25,7 @@ related_files: []
 
 已接入：游戏与设备配置、三页导航、并列目录视图、受保护覆盖、可选的目标多余条目删除、写入前全量备份、本机恢复和两端发起。发现与连接二维码的格式在 `apps/shared` 定义（第 8 节）：电脑端广播并显示二维码，Android 端搜索和扫码；改址自动重连的安排见[路线图](../project/roadmap.md)。
 
-文件传输双向统一采用 tar.gz（[Q-008](../requirements/open-questions.md)），完整设计见 `docs/plans/m001-tar-gzip-protocol.md`。Windows 提供 v1 读取、sender 和上传 receiver 端点；受保护复制接口见第 3 节。
+文件传输双向统一采用 tar.gz（[Q-008](../requirements/open-questions.md)），完整设计见[传输协议](transfer-protocol.md)。Windows 提供 v1 读取、sender 和上传 receiver 端点；受保护复制接口见第 3 节。
 
 ## 2. 共用数据语义
 
@@ -46,11 +46,11 @@ related_files: []
 
 ## 3. Windows HTTP 接口约定
 
-`apps/shared/src/sync` 提供独立 schema 1 的当前扫描、复制/本机恢复计划、备份清单/设置和逐项结果。`createSyncPlan` 只处理本次快照；`isSyncPlan` 重新推导动作与计数，执行方以 `matchesSyncPlan` 对照持有的当前输入，以 `matchesSyncApplyResult` 核对完整结果和实际指纹。规则统一见仓库根目录的 `docs/plans/m002-sync-copy.md` 第 3 节。
+`apps/shared/src/sync` 提供独立 schema 1 的当前扫描、复制/本机恢复计划、备份清单/设置和逐项结果。`createSyncPlan` 只处理本次快照；`isSyncPlan` 重新推导动作与计数，执行方以 `matchesSyncPlan` 对照持有的当前输入，以 `matchesSyncApplyResult` 核对完整结果和实际指纹。规则统一见[复制、备份与恢复约定](sync-copy.md)。
 
 Windows 提供 `/v1/sync/capabilities`、`POST /v1/sync/scans` 和 `GET/DELETE /v1/sync/scans/{scanId}`，使用会话头和严格 JSON；登记仅接收 schemaVersion/rootId，202 后查询 SyncScanState。有限 desktopService 桥提供 startScan/queryScan/cancelScan，校验本机来源、参数和返回引用。扫描只读，完整指纹、空目录和失败的部分结果分开；取消时关流，结果会到期，每端最多保留 32 份，满时丢掉最旧的，停止或重启后更换会话。电脑同时只跑一个扫描，移动端发起时遇到 busy 会重试最多 5 秒。电脑写入时把候选文件放在目标文件的同一目录，名称由 shared `writeCandidateName` 生成，形如 `.savedata-copy-<UUID>.tmp`、`.savedata-new-<UUID>.tmp`，UUID 小写。写入途中进程被结束会留下这些候选文件，处理分两步：电脑扫描按 `isWriteCandidateName` 精确匹配后跳过它们，所以它们不进入快照、比较和计划，扫描仍然只读；`WindowsSyncWriter` 开始写目标目录时，先删除目标根目录下所有候选文件，不进入链接指向的目录，删不掉的跳过，下次写入再删。这时持有写入名额，且电脑端有单实例锁，所以目标里的候选文件都是残留。Android 不写候选文件，电脑扫描又跳过残留，不会把它们传给 Android，所以 Android 扫描不做这项处理。
 
-双向复制协议：Windows 提供只读项目设置、任务登记、单次内容上传（chunked PUT）及源准备/单次内容 GET、查询/取消；内容是按计划写文件顺序排列的 tar.gz 流，发送端边读边打包，接收端边收边解包到私有目录。接收端登记任务后立即开始备份，备份与传输同时进行，备份完成且内容收齐后重新核对目标再写入：Android → Windows 由电脑完成，Windows → Android 由移动端完成。电脑在备份或等待内容阶段接收上传；内容没收齐时任务失败，一项都不写；备份或核对先失败时电脑中止接收，上传方得到 task-conflict。一端停下会关掉内容连接，另一端只能看到连接断开，所以用户取消时先通知对端取消再停下本机：移动端发起时先 DELETE 电脑的任务（电脑无回应时最多等 5 秒），电脑发起时在等待移动端回应期间，本机任务因连接断开中止也记为取消。移动端上传连接断开后最多等 5 秒，让电脑自己按连接断开结束，仍在等内容才按网络中断结束并取消电脑的任务。任务固定当前会话扫描、双向项目关联、设备/根及目标备份设置；实际同步通信更新既有设备在线时间。Windows 源准备异步返回 preparing，扫描资源释放后发布 ready，发送完成只报告 sent。Android 下载前合计缓存/备份/已知同卷增量，原生写入器借用确认时的名额和时间并重新扫描目标；完整 receiver 结果与发送状态分开。全任务保持进程互斥至清理结束，回执丢失只查询，内容不重放，零文件没有归档。SyncTransfers 有限桥分开普通扫描准备、同次确认、状态及取消/释放，只有确认执行启动传输通知；页面重建后可取回原生预览核对结果。本机恢复经本地桥提供，没有远端恢复入口。完整字段与期限统一见 `docs/plans/m002-sync-copy.md` 第 3.6/3.7 节。
+双向复制协议：Windows 提供只读项目设置、任务登记、单次内容上传（chunked PUT）及源准备/单次内容 GET、查询/取消；内容是按计划写文件顺序排列的 tar.gz 流，发送端边读边打包，接收端边收边解包到私有目录。接收端登记任务后立即开始备份，备份与传输同时进行，备份完成且内容收齐后重新核对目标再写入：Android → Windows 由电脑完成，Windows → Android 由移动端完成。电脑在备份或等待内容阶段接收上传；内容没收齐时任务失败，一项都不写；备份或核对先失败时电脑中止接收，上传方得到 task-conflict。一端停下会关掉内容连接，另一端只能看到连接断开，所以用户取消时先通知对端取消再停下本机：移动端发起时先 DELETE 电脑的任务（电脑无回应时最多等 5 秒），电脑发起时在等待移动端回应期间，本机任务因连接断开中止也记为取消。移动端上传连接断开后最多等 5 秒，让电脑自己按连接断开结束，仍在等内容才按网络中断结束并取消电脑的任务。任务固定当前会话扫描、双向项目关联、设备/根及目标备份设置；实际同步通信更新既有设备在线时间。Windows 源准备异步返回 preparing，扫描资源释放后发布 ready，发送完成只报告 sent。Android 下载前合计缓存/备份/已知同卷增量，原生写入器借用确认时的名额和时间并重新扫描目标；完整 receiver 结果与发送状态分开。全任务保持进程互斥至清理结束，回执丢失只查询，内容不重放，零文件没有归档。SyncTransfers 有限桥分开普通扫描准备、同次确认、状态及取消/释放，只有确认执行启动传输通知；页面重建后可取回原生预览核对结果。本机恢复经本地桥提供，没有远端恢复入口。完整字段与期限见[复制、备份与恢复约定](sync-copy.md)第 6、7 节。
 
 设备间控制走 WebSocket `/v1/control`，文件内容走 HTTP 路由。拨号方先完成 `POST /v1/catalog` 交换，再带 `x-sync-session-id` 和 `x-sync-device-id` 升级；监听方核对会话、设备已交换目录表、未停用、未被断开且没有另一台设备在线，不满足返回 403。消息格式对称，双方都能发请求、回应答、推事件：`{v:1, type:request|response|event, id?, method, body|result}`，单条最多 8 MiB，只收文本帧，JSON 严格解析（重复键、非法 UTF-8 关闭 1007，格式不符关闭 1008）。请求方法有 `directory.list`、`sync.prepare`、`sync.confirm`、`sync.cancel`、`sync.job.read`、`sync.job.cancel`，事件有 `catalog.changed`、`sync.report` 和 `sync.job`；请求 8 秒无应答即失败。监听方每 15 秒 ping，一个周期无 pong 就断开。关闭码 4001 表示监听方断开了这台设备，拨号方不再重连；4002 表示同一设备的新连接取代旧连接；其他关闭时拨号方 2 秒后重连。格式和守卫在 `apps/shared/src/control`，电脑 `control-hub.ts`（ws）监听，移动端 `ControlClient.java`（Java-WebSocket）拨号，网页经 `platform/control-channel.ts` 收发。两端须同版，没有轮询回退。目前只有电脑监听、移动端拨号，任意两台设备互传见 REQ-022。
 
@@ -84,7 +84,7 @@ Windows 提供 `/v1/sync/capabilities`、`POST /v1/sync/scans` 和 `GET/DELETE /
 
 按游戏查询：移动端 `SyncTransfers.latest({projectId})` 只查进程内任务登记表，返回该本机项目最近的 jobId 或 null，之后用 query/preview 读取；留存期和容量与任务登记表相同，进程重启后没有记录。全局活动判断用 `current()`。本机设备名：移动端 `HttpTransfers.deviceName()`，电脑 `DesktopServiceSnapshot.deviceName`，取值规则与发给对端的相同；读取失败为空，界面留空，不用对端保存的名称。
 
-共享包导出以下 v1 路由常量和 DTO，Windows 提供对应端点；完整字段、状态码和例外以仓库根目录的 `docs/plans/m001-tar-gzip-protocol.md` 为准。归档由双端归档模块负责，网络层只负责编排。
+共享包导出以下 v1 路由常量和 DTO，Windows 提供对应端点；完整字段、状态码和例外以[传输协议](transfer-protocol.md)为准。归档由双端归档模块负责，网络层只负责编排。
 
 | API | 方法 | 请求 | 响应 | 错误边界 |
 | --- | --- | --- | --- | --- |
@@ -147,7 +147,7 @@ transferId 只属于当前会话，不是历史同步基线。服务以每次启
 
 apps/shared 保留本地目录/设备/错误/选择结果守卫，并提供批量描述、选择/清单/目标请求、归档声明、进度/文件结果/批次状态守卫及 isBatchProgressAdvance。matchesBatchState(value, manifest, direction, receiver?) 对照本次清单和明确方向；receiver 必须提供完整 ReceiveBatchRequest，核对结果覆盖、字节/哈希、目标根/父目录/名称与重复最终条目。sender 只传 manifest 和方向。清单比较按内容，不按 JSON 键顺序，也没有历史存储。
 
-长期自动化测试只保留共享数据关系、目录/IPC、归档、HTTP、原生发布和桥接边界。桌面与移动测试使用独立合成夹具，验证公开输入输出、文件安全、非覆盖发布、取消、结果未知和清理重试；不测试按钮、文案、DOM、颜色或内部调用顺序。Java 设备测试保留 SAF 只读读取、固定归档互通和实际 SAF 快照三条路径。真机结论和支持范围见 `docs/plans/m002-sync-copy.md` 第 6 节。
+长期自动化测试只保留共享数据关系、目录/IPC、归档、HTTP、原生发布和桥接边界。桌面与移动测试使用独立合成夹具，验证公开输入输出、文件安全、非覆盖发布、取消、结果未知和清理重试；不测试按钮、文案、DOM、颜色或内部调用顺序。Java 设备测试保留 SAF 只读读取、固定归档互通和实际 SAF 快照三条路径。真机结论和支持范围见[验收标准](../testing/acceptance.md)。
 
 守卫校验已解析 JSON/plain data，处理范围是数据结构和关系；文件、网络、哈希计算、生命周期控制、脱敏由平台负责。守卫不改变、克隆或冻结输入；资源所有权、释放、线程隔离及原生异常到错误码的映射也在平台层。跨 Java/JS 的超范围整数在原生侧拒绝，未知属性显式输出 null；SAF 日期 0 依提供者约定转换为未知。调用示例及桥生命周期说明见 `apps/shared/README.md`、`apps/mobile/README.md`。
 

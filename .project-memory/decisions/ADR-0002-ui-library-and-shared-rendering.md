@@ -1,7 +1,7 @@
 ---
 doc_type: adr
 status: accepted
-updated: 2026-11-05
+updated: 2026-11-17
 tags: [决策, 界面, 组件库, 共用组件]
 related_files: [eslint.config.mjs, apps/shared]
 ---
@@ -32,6 +32,8 @@ accepted。2026-11-01 确定：组件库维持 antd + antd-mobile；与两端交
 | 无 | 无 | 新决策；修订“两端各自维护完整界面”的约定（architecture/overview.md、requirements/constraints.md、standards/coding-style.md 平台边界） |
 
 ## 背景
+
+2026-10-27 之前两端共用 `packages/ui` 的 `LibraryApp`：一个根组件同时持有页面、弹层、主题、表单、轮询和传输状态，靠 `isMobile` 分支处理两端差异，平台适配器反过来依赖 UI 包；移动端靠压缩桌面组件的尺寸适配窄屏，按钮和文字偏小。当时把源码分为 `apps/mobile`、`apps/desktop`、`apps/shared`：两端各自维护页面、导航、弹层和页面状态，任务判断、传输预检等纯规则放 shared，两端只通过 shared 共用代码、互不导入源码；包名 `@savedata-sync/shared`、协议、存储格式和原生传输保持不变。移动端改为优先 antd-mobile，使用 antd 时也设置触控尺寸。下面的决策在这个划分上把与交互无关的渲染放回 shared，不恢复共同的根组件。
 
 界面重设计原型 v2（本地 docs/design/ui-redesign-v2/ 不进 Git）让两端同一页面采用相同的信息结构：方向条、差异着色的文件行、计划摘要、阶段条、备份时间线、路径显示等在两端只差尺寸与容器。现有约定要求两端界面各自维护，apps/shared 禁止引入 React、组件库与 DOM，因此这些渲染只能写两份。评估过改用 Base UI 等无样式组件库以便两端共用页面。
 

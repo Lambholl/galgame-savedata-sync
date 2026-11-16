@@ -1,7 +1,7 @@
 ---
 doc_type: coding-style
 status: active
-updated: 2026-11-11
+updated: 2026-11-17
 tags: [编码规范]
 related_files: []
 ---
@@ -53,6 +53,7 @@ related_files: []
 | 检查入口 | `pnpm check` 执行文本、格式、lint（ESLint 和 Checkstyle，后者需要 JDK）、类型检查和双端构建；`pnpm test:all` 单独运行全量测试；`security:check` / `security:android` 分别审计 Node 工具链及 Maven |
 | Windows 交付 | 默认只编译桌面运行资源，不重新生成安装版或免安装版；完整打包须有维护者新的明确要求。Android 按原入口生成 APK |
 | 版本控制边界 | 忽略清单以 `.gitignore` 为准，生成产物与临时报告不进入 Git；界面原型只留在本地（`docs/design/`、`.reports/`，都已忽略） |
+| 文档位置 | `docs/` 只放给维护者和外部引用者看的文档，如开发指南。设计、计划、工作包、验收记录和协议细节写进项目记忆对应目录，跟随记忆的维护规则更新和删除；工具或 Skill 生成的设计稿、计划和临时文件不放 `docs/`，有用的结论并入项目记忆后删除。放在 `docs/` 的内部文档不受记忆维护规则约束，完成后不会被收口或删除，容易与当前实现不一致 |
 
 ## 4. 错误处理与日志
 

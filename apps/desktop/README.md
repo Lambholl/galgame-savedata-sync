@@ -171,11 +171,11 @@ Windows 短路径检查通过 PowerShell 调用 GetShortPathName，生成真实 
 
 ## 7. 缓存与格式边界
 
-默认执行共享包的每文件/总原文/tar/压缩体上限、64 KiB 显式 IO 缓冲及 3 GiB 私有缓存预算。options.quota 可以进一步收紧本机预算，上限仍沿用协议值；options.io 仅供受信任主进程注入磁盘空间检查和删除能力。接收登记前检查压缩体、解包原文和整批目标文件的可用空间，缓存与目标同卷时合计峰值，不足返回 `insufficient-space`。每次写入继续计数和检查余量，写入失败按实际 IO 错误处理。满额 1 GiB 双向传输和进程内存实测见[规模验收](../../docs/validation/m001-resources.md)。
+默认执行共享包的每文件/总原文/tar/压缩体上限、64 KiB 显式 IO 缓冲及 3 GiB 私有缓存预算。options.quota 可以进一步收紧本机预算，上限仍沿用协议值；options.io 仅供受信任主进程注入磁盘空间检查和删除能力。接收登记前检查压缩体、解包原文和整批目标文件的可用空间，缓存与目标同卷时合计峰值，不足返回 `insufficient-space`。每次写入继续计数和检查余量，写入失败按实际 IO 错误处理。满额 1 GiB 双向传输和进程内存实测见[验收标准](../../.project-memory/testing/acceptance.md)。
 
 源快照和解包只写到随机任务目录。根/任务都有所有权标记并检查目录身份，进程内一份活动缓存，成功句柄未释放也会占用名额。清理先核实所有成员，再逐个 unlink 普通文件并 rmdir 空任务目录；拒绝陌生文件、子目录、链接和多重硬链接，不递归展开归档路径。所有权或初始化身份无法确认时停止操作；外部恶意并发重排私有命名空间不在防护范围。
 
-归档严格按[批量协议](../../docs/plans/m001-tar-gzip-protocol.md)的规范化 USTAR 头、顺序 fileId、零填充和两个结束块生成/校验。gzip 限制固定头和单 member，使用原始 DEFLATE 解码并核对实际消耗字节、CRC32/ISIZE、完整 tar 长度及每文件 SHA-256；拒绝拼接、尾随、损坏、截断、链接及扩展头。全体验证通过后才返回私有句柄。目标新文件发布及 HTTP receiver 编排已经可用，双端实际 LAN 的结果见移动说明。
+归档严格按[传输协议](../../.project-memory/architecture/transfer-protocol.md)的规范化 USTAR 头、顺序 fileId、零填充和两个结束块生成/校验。gzip 限制固定头和单 member，使用原始 DEFLATE 解码并核对实际消耗字节、CRC32/ISIZE、完整 tar 长度及每文件 SHA-256；拒绝拼接、尾随、损坏、截断、链接及扩展头。全体验证通过后才返回私有句柄。目标新文件发布及 HTTP receiver 编排已经可用，双端实际 LAN 的结果见移动说明。
 
 `test/fixtures/archive-v1.json` 由 Python 标准库独立生成，包含三份合成原文、规范 tar 和 gzip；测试验证 Node 编码的 tar 精确匹配独立预期，也验证 Node 解码 Python gzip，后续 Java 包复用这份夹具。测试中的完整 Buffer/gunzipSync 仅用于小夹具，产品路径使用有限缓冲流式 IO。
 
@@ -201,7 +201,7 @@ console.log(listening.port)
 await service.stop()
 ```
 
-HTTP 已实现设备、根/当前层、POST downloads、GET manifest/content、GET/DELETE transfer；注入 publisher 后另支持 POST uploads 和单次 PUT content；路由和包络见[批量协议](../../docs/plans/m001-tar-gzip-protocol.md#4-http-路由与会话)。除了 device 均核对唯一会话头。JSON 严格 UTF-8、无 BOM/重复解码键、深度不超过 128，按实际 UTF-8 字节执行 8 MiB 请求及响应预算；拒绝编码体、trailer、重复头、歧义 CL/TE、非法/重复查询、错误方法和 Range。JSON 可固定长度或 chunked；gzip 响应固定长度及 SHA-256，无 Content-Encoding，不缓存。
+HTTP 已实现设备、根/当前层、POST downloads、GET manifest/content、GET/DELETE transfer；注入 publisher 后另支持 POST uploads 和单次 PUT content；路由和包络见[传输协议](../../.project-memory/architecture/transfer-protocol.md#4-http-路由与会话)。除了 device 均核对唯一会话头。JSON 严格 UTF-8、无 BOM/重复解码键、深度不超过 128，按实际 UTF-8 字节执行 8 MiB 请求及响应预算；拒绝编码体、trailer、重复头、歧义 CL/TE、非法/重复查询、错误方法和 Range。JSON 可固定长度或 chunked；gzip 响应固定长度及 SHA-256，无 Content-Encoding，不缓存。
 
 `transfer-registry.ts` 原子接纳后占用单次 ID；下载内容仅 sender ready 可原子领取一次；上传内容只允许 receiver awaiting-content，见第 11 节。每个进程仅一个活动批次，覆盖准备、ready、发送、取消和清理；即使构造多个监听实例也共享名额。ready 10 分钟、总期限 30 分钟、发送无进展 60 秒，查询不续期；另有限制请求/响应无进展 60 秒、整个 HTTP 请求 30 分钟、请求头 15 秒及 16 KiB 头预算。终态保留 10 分钟，随后删除状态与清单/哈希，已用 ID 保留到服务停止；最多 4096 个，不淘汰防重记录。
 
@@ -285,7 +285,7 @@ receiver 的 sourceBytesRead 始终为 0，接收/原文校验/最终发布字�
 
 `test/http-receiver.test.mjs` 使用独立格式夹具、真实回环 HTTP/TCP 和自有源/目标/缓存，覆盖两阶段确认、单次 PUT、全部校验前零发布、部分失败/取消/unknown、响应丢失、停止与重启。sender 相关回归继续通过，源内容和属性逐项复验。
 
-双端正式 LAN、独立界面以及满额 1 GiB 双向传输和峰值内存已通过验收，见[规模验收](../../docs/validation/m001-resources.md)。其他文件系统、特殊名称等价和跨进程候选恢复仍有缺口。上一段的新文件发布路径只用于测试根；应用内的复制与恢复使用受保护写入。
+双端正式 LAN、独立界面以及满额 1 GiB 双向传输和峰值内存已通过验收，见[验收标准](../../.project-memory/testing/acceptance.md)。其他文件系统、特殊名称等价和跨进程候选恢复仍有缺口。上一段的新文件发布路径只用于测试根；应用内的复制与恢复使用受保护写入。
 
 ## 12. 独立备份与恢复材料
 
@@ -303,7 +303,7 @@ receiver 的 sourceBytesRead 始终为 0，接收/原文校验/最终发布字�
 | `deleteGameBackups(projectId)` | 移除游戏时删除它在所有目录下的备份、残留和单独设置；失败时游戏保留，可以重试 |
 | `stop()` | 应用退出时取消正在创建/校验的备份并等待资源释放，关闭持有的恢复流；持久备份留到下次启动 |
 
-创建时清单先写成 `in-progress.json`，每个文件执行源属性检查、流式大小/SHA-256、落盘和独立回读，再原子改名为 `backup.json`；提交前失败或取消不产生有效轮次。失败抛 `ArchiveError` 或独立 `ArchiveCancelledError`，原始 cause 留在主进程，未清理成功的轮次另附 cleanupError。默认期限 30 分钟，原生 options 可通过 signal 取消或收紧 timeoutMs，读取使用 64 KiB 缓冲。预算、清单和恢复规则见 [M-002 文档](../../docs/plans/m002-sync-copy.md) 第 3 节。
+创建时清单先写成 `in-progress.json`，每个文件执行源属性检查、流式大小/SHA-256、落盘和独立回读，再原子改名为 `backup.json`；提交前失败或取消不产生有效轮次。失败抛 `ArchiveError` 或独立 `ArchiveCancelledError`，原始 cause 留在主进程，未清理成功的轮次另附 cleanupError。默认期限 30 分钟，原生 options 可通过 signal 取消或收紧 timeoutMs，读取使用 64 KiB 缓冲。预算、清单和恢复规则见[复制、备份与恢复约定](../../.project-memory/architecture/sync-copy.md)。
 
 每个游戏默认保留最近 3 次，不分目录，只统计完整的备份。新轮可读后才轮换；活动恢复句柄保护输入轮次，release 后再轮换。淘汰先把 `backup.json` 改回 `in-progress.json` 再删文件；失败返回独立 cleanupError，保留可重试的残留或暂时多留的轮次。文件缺失或大小不符的备份和未提交的一样显示为不完整，不能恢复，不挡新备份，须明确清理；读不懂的内容直接忽略，不自动删除。
 
@@ -324,7 +324,7 @@ try {
 
 ## 13. 受保护目标写入与本机恢复
 
-`WindowsSyncWriter(adapter, backups, options)` 执行完整确认计划。主进程的 `authorize(plan)` 每次核对本机项目和目标根；启动实例检查游戏 ID 与 rootId。`WindowsSyncRegistry` 已接入 Android → Windows 的 HTTP 接收、缓存和实际结果查询，以及 Windows → Android 的原生源准备和单次下载。源端 POST 接纳后异步重新扫描并核对当前源、形成不可变归档；准备完成且扫描资源释放后才发布 ready。GET 内容只领取一次，传输校验和清理后报告 sender sent；Android 的实际写入结果独立查询。无文件的源计划直接报告发送完成，不生成归档。清理失败保留名额，查询不延长等待或网络期限，重复 GET 和任务 ID 均拒绝。旧 `/v1/transfers/*` 保持只新建语义，新增协议统一见 [M-002 文档第 3.6 节](../../docs/plans/m002-sync-copy.md#36-http-与本地桥)。
+`WindowsSyncWriter(adapter, backups, options)` 执行完整确认计划。主进程的 `authorize(plan)` 每次核对本机项目和目标根；启动实例检查游戏 ID 与 rootId。`WindowsSyncRegistry` 已接入 Android → Windows 的 HTTP 接收、缓存和实际结果查询，以及 Windows → Android 的原生源准备和单次下载。源端 POST 接纳后异步重新扫描并核对当前源、形成不可变归档；准备完成且扫描资源释放后才发布 ready。GET 内容只领取一次，传输校验和清理后报告 sender sent；Android 的实际写入结果独立查询。无文件的源计划直接报告发送完成，不生成归档。清理失败保留名额，查询不延长等待或网络期限，重复 GET 和任务 ID 均拒绝。旧 `/v1/transfers/*` 保持只新建语义，新增协议统一见 [复制、备份与恢复约定](../../.project-memory/architecture/sync-copy.md#6-http-与本地桥)。
 
 | 原生方法 | 输入、输出与资源责任 |
 | --- | --- |

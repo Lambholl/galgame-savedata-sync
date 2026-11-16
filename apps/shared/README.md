@@ -22,7 +22,7 @@
 
 传输使用 BatchProgress/BatchState/FileOutcome、DownloadBatchRequest/ReceiveBatchRequest、BatchResponse/ManifestResponse，以及批量路由和归档校验头。接收成功前必须执行上下文匹配。当前只有 v1 批量端点，没有单文件别名。v1 是在尚无 HTTP 消费者的阶段修订的；现在开始按正式兼容要求维护。
 
-详细目标行为见[批量协议设计](../../docs/plans/m001-tar-gzip-protocol.md)；共享包负责数据与关系约束，Windows 私有归档、HTTP sender/receiver、批次非覆盖发布、Java 归档、SAF 发布及 Android 原生网络均已实现。
+详细目标行为见[传输协议](../../.project-memory/architecture/transfer-protocol.md)；共享包负责数据与关系约束，Windows 私有归档、HTTP sender/receiver、批次非覆盖发布、Java 归档、SAF 发布及 Android 原生网络均已实现。
 
 ## 2. 本地目录与批量模型
 
@@ -122,7 +122,7 @@ withGameLink、withoutGameLink、createImportedGame 返回新的游戏配置，�
 
 ## 8. 当前扫描与覆盖计划
 
-`src/sync/` 提供独立 `SYNC_SCHEMA_VERSION=1` 的当前快照、覆盖计划、备份清单/设置和逐项发布结果，不改变原有批量 v1 的非覆盖行为。完整规则和预算统一见 [M-002 文档第 3 节](../../docs/plans/m002-sync-copy.md#3-复制备份与恢复约定)。
+`src/sync/` 提供独立 `SYNC_SCHEMA_VERSION=1` 的当前快照、覆盖计划、备份清单/设置和逐项发布结果，不改变原有批量 v1 的非覆盖行为。完整规则和预算统一见 [复制、备份与恢复约定](../../.project-memory/architecture/sync-copy.md)。
 
 `isSyncSnapshot` 校验封闭字段、实测文件属性、目录大小恒为 null、路径/ID 唯一性和父目录链。扫描失败可以带部分条目供说明，规划仍会阻止执行。路径使用原始名称段，`isSyncPath` 检查结构和长度，计划器另检查可移植创建名及保守的名称等价冲突。
 
@@ -136,7 +136,7 @@ withGameLink、withoutGameLink、createImportedGame 返回新的游戏配置，�
 
 `isSyncApplyResult` 校验逐项结果、备份 ID 和独立清理错误。`matchesSyncApplyResult(result, plan)` 核对完整写入集合、顺序、成功项长度/哈希及默认保护；失败/取消后只允许未执行项。目录成功不携带文件字节，未知结果必须使用 result-unknown。权限、实际内容、备份有效性、会话期限、资源释放和真实写入仍由平台模块处理。
 
-`SyncJobRequest` 固定两端项目及完整计划；`matchesSyncJobManifest` 核对源引用、原名/父目录/日期和指纹，`matchesSyncJobState` 核对角色、计数及完整实际结果。Windows 源 preparing 完成后以 ready 等待单次内容 GET，零文件计划不提交归档。`SyncPreparationPreview` 通过 `syncPlanFromPreview` 生成同一份计划，plan.projectId 使用目标端本机项目 ID；`SyncTransferState` 分别保存本机及远端状态，sender sent 不表示 receiver 成功。`SyncJobDigest` 是 `SyncJobState` 去掉逐项结果的有界摘要，由 `isSyncJobDigest` 和 `matchesSyncJobDigest` 校验；`observeSyncJob(local, remote, hasRemoteError)` 把两个角色合成总体状态、阶段、当前段百分比、失败阶段和计数，两端的详情、横条、历史和提示都读它。准备、任务、清单和结果分开查询，协议统一见上面的 M-002 文档。
+`SyncJobRequest` 固定两端项目及完整计划；`matchesSyncJobManifest` 核对源引用、原名/父目录/日期和指纹，`matchesSyncJobState` 核对角色、计数及完整实际结果。Windows 源 preparing 完成后以 ready 等待单次内容 GET，零文件计划不提交归档。`SyncPreparationPreview` 通过 `syncPlanFromPreview` 生成同一份计划，plan.projectId 使用目标端本机项目 ID；`SyncTransferState` 分别保存本机及远端状态，sender sent 不表示 receiver 成功。`SyncJobDigest` 是 `SyncJobState` 去掉逐项结果的有界摘要，由 `isSyncJobDigest` 和 `matchesSyncJobDigest` 校验；`observeSyncJob(local, remote, hasRemoteError)` 把两个角色合成总体状态、阶段、当前段百分比、失败阶段和计数，两端的详情、横条、历史和提示都读它。准备、任务、清单和结果分开查询，协议统一见上面的复制、备份与恢复约定。
 
 ## 9. 发现与连接二维码
 

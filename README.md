@@ -84,7 +84,7 @@ docs/               开发指南
 .project-memory/    已确认需求、方案、验收和当前状态
 ```
 
-两端分别在自己的 `app`、`features`、`components`、`platform` 和 `styles` 中维护界面与平台接入。共享包保持纯 TypeScript；移动界面优先使用 antd-mobile，使用桌面组件时也保证触控区域。目录边界与迁移依据见[双端目录设计](docs/superpowers/specs/2026-10-27-app-directory-design.md)。
+两端分别在自己的 `app`、`features`、`components`、`platform` 和 `styles` 中维护界面与平台接入。共享包保持纯 TypeScript；移动界面优先使用 antd-mobile，使用桌面组件时也保证触控区域。目录边界与理由见 [ADR-0002](.project-memory/decisions/ADR-0002-ui-library-and-shared-rendering.md)。
 
 ## 项目记忆
 

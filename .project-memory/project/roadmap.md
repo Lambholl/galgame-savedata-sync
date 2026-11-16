@@ -33,4 +33,4 @@ related_files: []
 
 ## 3. 真实存档开放
 
-M-002 已收口，真实存档覆盖按 `docs/plans/m002-sync-copy.md` 第 6 节的范围开放。
+M-002 已收口，真实存档覆盖按[验收标准](../testing/acceptance.md)第 1 节的范围开放。

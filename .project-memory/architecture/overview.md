@@ -1,7 +1,7 @@
 ---
 doc_type: architecture-overview
 status: active
-updated: 2026-11-11
+updated: 2026-11-17
 tags: [架构总览]
 related_files: []
 ---
@@ -87,6 +87,8 @@ related_files: []
 | 内容比较 | 扫描完成即由大小和修改日期标为相同或不同，修改日期相差不超过 2 秒算相同 |
 | 扫描状态 | 正在读取、读取成功、未知属性、权限失效、读取失败、条目不存在分别展示 |
 
+列目录只查当前层，展开时再查下一层。条目用平台给的不透明 `entryId` 定位，不用显示名称拼路径；文件大小未知用 null，空文件用 0。提供者能力分支持、不支持和未知，以实际操作结果为准。
+
 两端都用共用的并排文件列，列内布局按列宽切换。预览数据来自本次读取，执行前还会重新检查。目录修改时间只描述目录本身，不汇总后代文件。Android 能否保留写入文件的原修改日期由提供者能力决定，同步后展示目标端实际属性。
 
 ## 4. 关键决策
@@ -99,6 +101,6 @@ related_files: []
 | 首次连接入口 | 发现列表、扫码和手动 IP，三个入口都核对设备 ID | accepted |
 | 复制与备份 | 默认覆盖复制并保留目标多出的条目，每次可选择删除。备份可关闭、默认开启，每个游戏保留 1–10 份（默认 3 份） | accepted |
 | Android 生命周期 | 不判断前后台，仅传输保活；普通操作不处理切后台后的成败。任务由用户显式发起，自动调度不在范围内；连接可用时两端均可发起任务 | accepted |
-| 文件传输格式 | 双向唯一 tar.gz，边打包边发送、边收边解包；内容收齐且备份完成后才逐项写入；见仓库根目录的 `docs/plans/m001-tar-gzip-protocol.md` | accepted |
+| 文件传输格式 | 双向唯一 tar.gz，边打包边发送、边收边解包；内容收齐且备份完成后才逐项写入；见[传输协议](transfer-protocol.md) | accepted |
 
 上述结论记录于[开放问题](../requirements/open-questions.md)和[ADR-0002](../decisions/ADR-0002-ui-library-and-shared-rendering.md)。参考：[Ant Design](https://ant.design/docs/react/introduce/)、[Ant Design Mobile](https://github.com/ant-design/ant-design-mobile)、[Capacitor Android](https://capacitorjs.com/docs/android)、[Android NSD](https://developer.android.com/develop/connectivity/wifi/use-nsd)、[SAF 文件属性](https://developer.android.com/reference/android/provider/DocumentsContract.Document)。

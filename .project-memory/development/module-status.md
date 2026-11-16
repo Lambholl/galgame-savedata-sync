@@ -13,7 +13,7 @@ related_files: []
 - [1. 当前模块](#1-当前模块)
 - [2. 状态说明](#2-状态说明)
 
-只记录还没做完、或做完但还有遗留事项的模块。做完且没有遗留的模块删除对应行，模块在哪看[代码地图](code-map.md)，历史由 Git 保存。验收结论和支持范围见 `docs/plans/m002-sync-copy.md` 第 6 节，验证缺口见[测试覆盖缺口](../testing/coverage-gaps.md)，后续顺序见[路线图](../project/roadmap.md)。
+只记录还没做完、或做完但还有遗留事项的模块。做完且没有遗留的模块删除对应行，模块在哪看[代码地图](code-map.md)，历史由 Git 保存。验收结论和支持范围见[验收标准](../testing/acceptance.md)，验证缺口见[测试覆盖缺口](../testing/coverage-gaps.md)，后续顺序见[路线图](../project/roadmap.md)。
 
 ## 1. 当前模块
 
