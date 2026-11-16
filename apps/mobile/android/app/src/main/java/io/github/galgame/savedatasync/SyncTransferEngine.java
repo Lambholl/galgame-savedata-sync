@@ -424,7 +424,7 @@ final class SyncTransferEngine implements AutoCloseable {
         control
       );
       SyncJobModel.state(raw, job.plan);
-      // 心跳只核对通信，不写入远端快照，避免与清单和内容回执的顺序竞争。
+      // 心跳只核对通信，不写入远端快照，避免与内容回执的顺序竞争。
     } catch (Exception ignored) {
       /* 之后的提交或查询由主 worker 判断；心跳不重做写入。 */
     } finally {

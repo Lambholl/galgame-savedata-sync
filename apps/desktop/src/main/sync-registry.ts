@@ -1147,7 +1147,7 @@ export class WindowsSyncRegistry {
           ((task.state.stage === 'transferring' ||
             (task.isContentClaimed && !task.isContentReceived)) &&
             now - task.networkAt >= this.timeouts.networkIdle) ||
-          // 发送端打包期间每秒推送摘要；这么久没收到，说明它已经不在，清单和内容都等不到。
+          // 发送端打包期间每秒推送摘要；这么久没收到，说明它已经不在，内容等不到。
           (task.state.role === 'receiver' &&
             task.state.stage === 'preparing' &&
             now - task.remoteSeenAt >= this.timeouts.networkIdle)

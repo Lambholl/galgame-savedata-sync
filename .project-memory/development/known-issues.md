@@ -2,8 +2,8 @@
 doc_type: known-issues
 status: active
 id_prefix: BUG
-id_high_water: 19
-updated: 2026-11-13
+id_high_water: 22
+updated: 2026-11-16
 tags: [已知问题]
 related_files: []
 ---
