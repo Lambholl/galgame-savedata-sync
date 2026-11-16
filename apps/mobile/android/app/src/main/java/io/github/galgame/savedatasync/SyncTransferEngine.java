@@ -200,6 +200,8 @@ final class SyncTransferEngine implements AutoCloseable {
     boolean wasRemoteAttempted;
     boolean wasCancelSent;
     boolean isUploadComplete;
+    /** 内容正在上传、电脑的回执还没写入快照；由引擎的锁保护。 */
+    boolean isUploading;
     boolean hasLease = true;
     long ended;
     volatile boolean hasTimedOut;
@@ -224,6 +226,7 @@ final class SyncTransferEngine implements AutoCloseable {
     this.local = local;
     watcher.scheduleAtFixedRate(this::tick, 100, 100, TimeUnit.MILLISECONDS);
     heartbeats.scheduleAtFixedRate(this::heartbeat, 3, 3, TimeUnit.SECONDS);
+    heartbeats.scheduleAtFixedRate(this::refreshUploadTarget, 1, 1, TimeUnit.SECONDS);
     reports.scheduleAtFixedRate(this::report, 500, 500, TimeUnit.MILLISECONDS);
     transport.controlInterceptor(this::controlRequest);
   }
@@ -430,6 +433,45 @@ final class SyncTransferEngine implements AutoCloseable {
           heartbeatOwner = null;
         }
       }
+    }
+  }
+
+  /** 上传期间电脑还在备份时，读一次电脑的任务状态并更新本机保存的电脑快照。 */
+  private void refreshUploadTarget() {
+    // 上传线程阻塞在内容流上，不会刷新电脑的快照；界面在接收端备份时显示备份，快照不更新就一直停在备份 0%。
+    Job job;
+    synchronized (this) {
+      job = active;
+      if (
+        isClosed ||
+        job == null ||
+        !job.isUploading ||
+        !isRemoteRunning(job) ||
+        !remoteStage(job).equals("backing-up")
+      ) {
+        return;
+      }
+    }
+    ArchiveControl control = shortControl();
+    try {
+      Object raw = job.preparation.connection.http.json(
+        "GET",
+        job.path(),
+        job.preparation.connection.session,
+        null,
+        200,
+        control
+      );
+      synchronized (this) {
+        // 上传结束后快照改由上传线程按回执写入，晚到的旧状态不能覆盖它。
+        if (job.isUploading) {
+          accept(job, raw);
+        }
+      }
+    } catch (Exception ignored) {
+      /* 读不到时下一秒再读；上传的结果由上传线程判断。 */
+    } finally {
+      control.cancel();
     }
   }
 
@@ -1115,9 +1157,12 @@ final class SyncTransferEngine implements AutoCloseable {
     progress(job, "transferring", null, 0);
     AtomicReference<ArchiveFailure> reading = new AtomicReference<>();
     try {
-      accept(
-        job,
-        job.preparation.connection.http.uploadStream(
+      Object receipt;
+      synchronized (this) {
+        job.isUploading = true;
+      }
+      try {
+        receipt = job.preparation.connection.http.uploadStream(
           job.path() + "/content",
           job.preparation.connection.session,
           output -> {
@@ -1133,8 +1178,13 @@ final class SyncTransferEngine implements AutoCloseable {
             }
           },
           job.control
-        )
-      );
+        );
+      } finally {
+        synchronized (this) {
+          job.isUploading = false;
+        }
+      }
+      accept(job, receipt);
     } catch (Exception lost) {
       // 读取本机来源失败或取消时按本机错误结束；网络中断时以电脑的实际状态为准。
       if (reading.get() != null) {
