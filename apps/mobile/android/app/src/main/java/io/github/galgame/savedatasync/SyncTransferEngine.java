@@ -87,6 +87,8 @@ final class SyncTransferEngine implements AutoCloseable {
 
   private static final long RETENTION = TimeUnit.MINUTES.toNanos(10);
   private static final long REPORT_INTERVAL = TimeUnit.SECONDS.toNanos(1);
+  /** 上传连接断开后等电脑自行结束的最长时间。 */
+  private static final long UPLOAD_SETTLE_WAIT = TimeUnit.SECONDS.toNanos(5);
   /** 能归到某一端的错误码；shared 的 locateSyncError 是同一份清单。 */
   private static final Set<String> DEVICE_ERRORS = new HashSet<>(
     java.util.Arrays.asList(
@@ -1192,6 +1194,16 @@ final class SyncTransferEngine implements AutoCloseable {
       }
       job.control.check();
       refresh(job, job.control);
+      // 连接断开后电脑可能还没察觉，仍在等内容。先等它按连接断开自行结束，否则随后的取消会让电脑记成用户取消。
+      long deadline = System.nanoTime() + UPLOAD_SETTLE_WAIT;
+      while (isAwaitingUpload(job, total) && System.nanoTime() < deadline) {
+        job.control.check();
+        Thread.sleep(100);
+        refresh(job, job.control);
+      }
+      if (isAwaitingUpload(job, total)) {
+        throw ArchiveFailure.from(lost);
+      }
     }
     synchronized (this) {
       // 电脑的备份或核对先失败时会中止接收，内容没收齐，本机按电脑报告的错误结束。
@@ -1213,6 +1225,15 @@ final class SyncTransferEngine implements AutoCloseable {
       job.isUploadComplete = true;
       terminal(job, "sent", null, null);
     }
+  }
+
+  /** 电脑仍在运行，且内容没收齐或还停在等内容、传输阶段时返回 true。 */
+  private synchronized boolean isAwaitingUpload(Job job, long total) throws Exception {
+    return (
+      isRemoteRunning(job) &&
+      (number(map(job.remote.get("progress")).get("transferredBytes"), 0, total) < total ||
+        java.util.Arrays.asList("awaiting-content", "transferring").contains(remoteStage(job)))
+    );
   }
 
   /** 等电脑核对完来源；查询失败且无法恢复时抛出原错误。 */
