@@ -142,20 +142,20 @@ keytool -genkeypair -v -keystore savedata-sync-release.jks -alias savedata-sync 
 
 ### 发布步骤
 
-只发布 main 上的提交。在 main 的最新提交上打 tag，和 main 一起推送：
+只发布 master 上的提交。在 master 的最新提交上打 tag，和 master 一起推送：
 
 ```sh
 git tag -a v0.3.0 -m "0.3.0 Experience Enhancement"
-git push --atomic origin main v0.3.0
+git push --atomic origin master v0.3.0
 ```
 
-`--atomic` 让 main 和 tag 要么都推送成功，要么都不推送，避免 main 被拒绝时 tag 单独触发发布。单独推送 tag 也可以，但 main 要先推送，否则发布工作流的检查会失败；推送 main 后在 Actions 页面重新运行即可。补丁版本同样在 main 上修复后打 tag，不使用发布分支。
+`--atomic` 让 master 和 tag 要么都推送成功，要么都不推送，避免 master 被拒绝时 tag 单独触发发布。单独推送 tag 也可以，但 master 要先推送，否则发布工作流的检查会失败；推送 master 后在 Actions 页面重新运行即可。补丁版本同样在 master 上修复后打 tag，不使用发布分支。
 
 推送 tag 会触发[发布工作流](../.github/workflows/release.yml)。普通分支 push 与 PR 只运行仓库检查，不保存构建产物。
 
 发布工作流依次完成：
 
-1. 核对 tag 格式和当前提交，确认 tag 指向的提交在 `origin/main` 上。
+1. 核对 tag 格式和当前提交，确认 tag 指向的提交在 `origin/master` 上。
 2. 运行 `pnpm check` 与 `pnpm test:all`。
 3. 使用 `pnpm desktop:package:portable` 生成 Windows x64 免安装版，不构建安装版。
 4. 用 Secrets 中的固定密钥构建 Android release APK 并校验签名，生成 `SHA256SUMS.txt`。

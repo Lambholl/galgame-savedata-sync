@@ -31,7 +31,7 @@ related_files: []
 | `scripts/security-check.mjs`、`scripts/toolchain-policy.mjs` | npm 全量审计、pnpm 公告与 Node 安全补丁门禁 | 查询失败即失败；安全基线来自已核实的官方发行记录 |
 | `scripts/android-inventory.gradle`、`scripts/security-android.mjs` | 解析 Maven 实际依赖并查询 OSV | 含运行、测试和构建图；未解析依赖导致失败；临时报告在 .reports/ |
 | `.github/workflows/ci.yml` | Windows 工程检查与 Android 构建 CI | Action 固定 commit SHA；只处理分支 push 与 PR，tag 交给发布流程 |
-| `.github/workflows/release.yml`、`scripts/app-version.mjs` | `vX.Y.Z` tag 的版本推算、完整测试、Portable/APK 构建、SHA-256、artifact 和草稿 Release | 版本只来自 Git tag，`app-version.mjs` 供两端 Vite 配置（注入共享包 `APP_VERSION`）、`package-windows.mjs` 和 Android `build.gradle` 共用；tag 必须指向当前提交且在 `origin/main` 上；只构建 Portable，不构建 NSIS；Release 说明在 GitHub 页面补充，不进 Git |
+| `.github/workflows/release.yml`、`scripts/app-version.mjs` | `vX.Y.Z` tag 的版本推算、完整测试、Portable/APK 构建、SHA-256、artifact 和草稿 Release | 版本只来自 Git tag，`app-version.mjs` 供两端 Vite 配置（注入共享包 `APP_VERSION`）、`package-windows.mjs` 和 Android `build.gradle` 共用；tag 必须指向当前提交且在 `origin/master` 上；只构建 Portable，不构建 NSIS；Release 说明在 GitHub 页面补充，不进 Git |
 
 ## 2. 共享包
 

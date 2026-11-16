@@ -37,7 +37,7 @@ related_files: []
 - `git add`、`commit` 和 `push` 分别需要维护者明确同意；批准计划、实现、做完或收尾不等于同意这些操作，计划或文档里写的提交安排也不算。
 - 提交同意默认只覆盖当前工作的一次提交；范围变化或需要 `commit --amend` 时重新确认。
 - `push` 须明确远端和分支，不 force-push。合并、rebase、cherry-pick、继续冲突中的 Git 操作和清理分支/worktree 均需维护者单独同意。
-- 发布时 main 和 tag 一起推送：`git push --atomic origin main vX.Y.Z`；打 tag 和推送 tag 都要维护者同意，同意里写明 tag 名。只推送 tag、不推送 main 时，发布工作流会因 tag 不在 `origin/main` 上而失败。版本规则见 `docs/development.md` 的“版本号”一节。
+- 发布时 master 和 tag 一起推送：`git push --atomic origin master vX.Y.Z`；打 tag 和推送 tag 都要维护者同意，同意里写明 tag 名。只推送 tag、不推送 master 时，发布工作流会因 tag 不在 `origin/master` 上而失败。版本规则见 `docs/development.md` 的“版本号”一节。
 
 ## 3. 提交信息格式
 
