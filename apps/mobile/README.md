@@ -192,7 +192,7 @@ SAF 没有通用排他创建或比较后删除原语；这些复核能发现可�
 
 Android 行为依据见 [dataSync 前台服务](https://developer.android.com/develop/background-work/services/fgs/service-types)、[通知权限](https://developer.android.com/develop/ui/compose/notifications/notification-permission)及 [HttpURLConnection](https://developer.android.com/reference/java/net/HttpURLConnection)。
 
-`SyncScanner` 提供当前 SAF 递归扫描、原生 SHA-256、空目录及失败部分结果，复用 `DirectoryArchiveSource` 的权限/身份/属性前后复核。扫描按普通本地操作执行，不加保活或前后台处理。`SyncScansPlugin` 只提供 capabilities/start/query/cancel，参数为 schemaVersion/rootId 或 scanId；没有 URI、平台路径、文件内容及可调预算。结果与 Windows 使用同一 SyncScanState，期限、条目/深度/JSON 限制和 32 份结果保留沿用 [复制、备份与恢复约定](../../.project-memory/architecture/sync-copy.md)；名额满时丢掉最旧的结果。
+`SyncScanner` 提供当前 SAF 递归扫描（只读元数据，不读内容）、空目录及失败部分结果，复用 `DirectoryArchiveSource` 的权限/身份/属性前后复核。扫描按普通本地操作执行，不加保活或前后台处理。`SyncScansPlugin` 只提供 capabilities/start/query/cancel，参数为 schemaVersion/rootId 或 scanId；没有 URI、平台路径、文件内容及可调预算。结果与 Windows 使用同一 SyncScanState，期限、条目/深度/JSON 限制和 32 份结果保留沿用 [复制、备份与恢复约定](../../.project-memory/architecture/sync-copy.md)；名额满时丢掉最旧的结果。
 
 `src/platform/sync-scan-bridge.ts` 核对有限参数、完整结果及 rootId/scanId 上下文；`androidSyncScans` 为平台接入。所有调用返回 OperationResult；query 的成功包络只代表查到任务，扫描是否成功取决于内部 status。显式取消会关闭原生读流和 SAF 查询；未知长度按流实测，源变化和授权失效返回具体错误。扫描、备份和受保护写入已提供原生入口；双向复制编排见下节，界面继续按工作包接入。
 
@@ -215,7 +215,7 @@ Android 行为依据见 [dataSync 前台服务](https://developer.android.com/de
 | `deleteGameBackups` | 移除游戏时删除它在所有目录下的轮次、残留和单独设置；失败时游戏保留，可以重试 |
 | `close` | 原生所有者关闭存储时取消当前操作、等待文件释放并关闭读取引用；已提交备份持久保留 |
 
-`BackupModel` 与共享备份 v1 清单一致。每个目标文件先校验源属性、流式大小/SHA-256，再同步落盘并独立读回；全部完成后原子提交清单。每个游戏保留最近 3 次，不分目录，新轮提交后才轮换，轮换失败单独报告。读取未知长度时按流实测并核对计划的大小与哈希，文件内容不经过 JS。取消、期限或实际失败在提交前结束时不产生有效轮次，清理错误附在主错误之外。预算、位置和恢复规则统一见 [复制、备份与恢复约定](../../.project-memory/architecture/sync-copy.md)。
+`BackupModel` 与共享备份 v1 清单一致。多个线程同时复制目标文件，每个文件复制前后核对来源的大小和修改日期、核对复制的字节数；全部完成后原子提交清单。每个游戏保留的份数取备份设置（1–10，默认 3），不分目录，新轮提交后才轮换，轮换失败单独报告。文件内容不经过 JS。取消、期限或实际失败在提交前结束时不产生有效轮次，清理错误附在主错误之外。预算、位置和恢复规则统一见 [复制、备份与恢复约定](../../.project-memory/architecture/sync-copy.md)。
 
 `BackupFiles` 只访问已核实的私有普通文件，Android 实际身份和链接数由 `Os.lstat` 读取；固定 fileId、所有权记录、根/轮次身份和前后属性共同约束访问与清理。未提交轮次重启后通过明确操作清理，既不恢复旧同步，也不按文件名前缀猜测用户文件归属。
 
@@ -225,11 +225,11 @@ Android 行为依据见 [dataSync 前台服务](https://developer.android.com/de
 
 `SyncPlanModel` 从两端完整快照重新推导全部动作、顺序、条目引用和预算；原生执行只接受完整可执行计划。`SyncWriter.apply(plan, material, control)` 供原生复制编排和本机恢复使用，目标必须为本机，方向为 windows-to-android 或 local-restore。material 提供与源快照匹配、可重复读取的原生 Source，调用期间保持其有效；writer 消费并关闭输入流。非法/过期/重复确认或 busy 抛异常，接纳后返回完整 `SyncApplyResult`，逐项成功、失败、取消、未知和未执行分开表示。
 
-写入前以任务自身控制器重扫目标，完整读取本批输入并核对指纹；备份开启且有写入时，先保存目标目录全部文件，包括未变化和仅在目标端存在的文件。没有写入或目标没有文件时不创建备份。Android 原地覆盖按文件增量预检目标空间，并合计已知同卷的备份峰值；备份落盘后再查目标实际余量，覆盖 SAF 与备份目录逻辑设备 ID 不同但共用物理空间的情况。未知余量保持 null，实际读写失败仍返回具体结果。
+写入前以任务自身控制器重扫目标，核对本批计划与目标的大小和修改日期；备份开启且有写入时，先保存目标目录全部文件，包括未变化和仅在目标端存在的文件。没有写入或目标没有文件时不创建备份。Android 原地覆盖按文件增量预检目标空间，并合计已知同卷的备份峰值；备份落盘后再查目标实际余量，覆盖 SAF 与备份目录逻辑设备 ID 不同但共用物理空间的情况。未知余量保持 null，实际读写失败仍返回具体结果。
 
-`DirectorySyncBackend` 沿用已授权树和父目录引用。创建目录后核实文档 ID、类型、原始名称及父目录，创建竞争或不明回执不会报告成功；新文件复用已有非覆盖发布器。覆盖使用 `r` / `rw` 常规 FD，比较设备/inode、链接数、文档 ID、父目录、日期及旧内容；拒绝虚拟文档、额外硬链接和无法核实的文件。`rw` 打开保留旧内容，完整写入后才设置最终长度、fsync 并独立回读长度/SHA-256。
+`DirectorySyncBackend` 沿用已授权树和父目录引用。创建目录后核实文档 ID、类型、原始名称及父目录，创建竞争或不明回执不会报告成功；新文件复用已有非覆盖发布器。覆盖使用 `r` / `rw` 常规 FD，比较设备/inode、链接数、文档 ID、父目录、大小和日期；拒绝虚拟文档、额外硬链接和无法核实的文件。`rw` 打开保留旧内容，完整写入并核对字节数后才设置最终长度，再尽量把修改日期设为来源的（经 SAF 写入时设不了）。
 
-第一项失败、取消或未知后停止后项，已确认成功的文件和目录保留。删除排在所有写入之后，所以写入失败时目标独有条目保持原样。删除文件前核对完整内容；`deleteDocument` 会递归，文件夹先确认为空再删；提供者拒绝且条目还在时报失败，其余确认不了的情况报 result-unknown。写入中断后目标可能已有部分修改，此时返回 unknown/result-unknown，旧内容仍可从有效备份读取。备份之后、第一次写目标之前，`InterruptedWrites` 在私有目录 `interrupted-writes/<planId>.json` 落盘标记（写不了就报错，目标不变），结束时删除；不在本进程活动集合里的标记说明上个进程写到一半被结束，`SyncWrites.interrupted()` 读取、`dismissInterrupted({ id })` 一次性清除，界面据此提示一次，已移除游戏的标记直接清掉。晚取消与提交竞争时按实际回读结果报告。清理错误独立保存，清理未完成保持 `TargetOperation` 名额；旧传输、新复制和本机恢复共用该进程互斥。总期限 30 分钟，显式控制和读写缓冲沿用 64 KiB 预算；普通本机操作不增加前后台判断或保活服务。
+第一项失败、取消或未知后停止后项，已确认成功的文件和目录保留。删除排在所有写入之后，所以写入失败时目标独有条目保持原样。删除文件前核对身份、大小和修改日期；`deleteDocument` 会递归，文件夹先确认为空再删；提供者拒绝且条目还在时报失败，其余确认不了的情况报 result-unknown。写入中断后目标可能已有部分修改，此时返回 unknown/result-unknown，旧内容仍可从有效备份读取。备份之后、第一次写目标之前，`InterruptedWrites` 在私有目录 `interrupted-writes/<planId>.json` 落盘标记（写不了就报错，目标不变），结束时删除；不在本进程活动集合里的标记说明上个进程写到一半被结束，`SyncWrites.interrupted()` 读取、`dismissInterrupted({ id })` 一次性清除，界面据此提示一次，已移除游戏的标记直接清掉。晚取消与提交竞争时按实际回读结果报告。清理错误独立保存，清理未完成保持 `TargetOperation` 名额；旧传输、新复制和本机恢复共用该进程互斥。总期限 30 分钟，显式控制和读写缓冲沿用 64 KiB 预算；普通本机操作不增加前后台判断或保活服务。
 
 `SyncWriteRuntime` 由应用 Context 持有，`DirectoryRuntime.writes(context)` 取得同一实例；Activity 重建后按 restoreId 查询，插件销毁只关闭自己的控制线程。最多保留 32 份预览/结果，预览和终态保留 10 分钟；到期释放输入材料，不重放任务。原生所有者显式 close 才取消并等待运行中的恢复、释放资源及计时线程。
 
@@ -266,7 +266,7 @@ const running = unwrap(await androidSyncWrites.execute(task.restoreId, plan))
 | `query(jobId, shouldRefresh?)`、`manifest(jobId)`、`current()`、`latest(projectId)` | 分别读取两个角色的状态、仅公开元数据的清单、全局最近任务 ID、这个项目最近任务 ID；页面重建可按 ID 取回预览重新校验。refresh 只查询原远端任务，不续期、不重放；运行期间由原生 worker 查询实际进展 |
 | `cancel(jobId)`、`release(preparationId)`、`retryCleanup()` | 显式取消并读取 receiver 实际结果，释放预览/已结束的任务（还在进行的准备先取消），或重试本进程仍持有的缓存清理。清理失败保留名额和通知，重试只释放资源，不重复写入 |
 
-确认后先登记目标任务，再从实际 SAF 流准备源归档，逐文件核对引用、原名、父目录、修改时间、大小和 SHA-256；清单及内容各提交一次。源读取和归档期间每 3 秒查询原任务作为通信心跳，持续通信中的设备保持在线。登记、清单或内容回执丢失时查询同一 ID，查询失败记为待确认。sender sent 只表示已发送，最终是否成功以 receiver 的实际 `SyncApplyResult` 为准；重新查到电脑仍在写入时继续等待同一任务。无文件的计划不生成空归档。
+确认后先登记目标任务，再按计划顺序从 SAF 流边读边打包上传（chunked PUT），逐文件读取前后核对大小和修改日期；内容只上传一次，不另传清单。上传期间每 3 秒查询原任务作为通信心跳，电脑仍在备份时每秒刷新它的进度，持续通信中的设备保持在线。登记或内容回执丢失时查询同一 ID，查询失败记为待确认。sender sent 只表示已发送，最终是否成功以 receiver 的实际 `SyncApplyResult` 为准；重新查到电脑仍在写入时继续等待同一任务。无文件的计划不生成空归档。
 
 Windows → Android 使用移动端目标项目的备份设置；Windows 原生重新核实源目录并准备不可变归档，ready 后移动端核对清单与确认计划，再检查缓存、备份和目标增量的已知同卷峰值。内容 GET 只领取一次；完整压缩体及全部原文通过校验后，`SyncWriter` 借用本次原生名额和确认时间，重新扫描目标、提交保护备份并逐项写入。移动端独立报告实际结果；发送端末次查询失败不会抹掉移动端已核实的成功，也不重取内容。只有目录或无需写入时直接执行无内容分支。备份清理或轮换失败不占名额，也不挡下一次传输；删不掉的备份留在磁盘上，下一次轮换再删。传输任务结束时的清理把 `cleanupError` 置空，所以这种失败界面不提示；恢复流程会提示。
 
