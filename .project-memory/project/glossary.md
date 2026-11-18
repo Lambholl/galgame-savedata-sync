@@ -3,7 +3,6 @@ doc_type: glossary
 status: draft
 updated: 2026-11-14
 tags: [术语]
-related_files: []
 ---
 
 # 项目术语表

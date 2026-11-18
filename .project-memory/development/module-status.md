@@ -3,7 +3,6 @@ doc_type: module-status
 status: active
 updated: 2026-11-14
 tags: [模块状态, 开发进度]
-related_files: []
 ---
 
 # 模块状态

@@ -3,7 +3,6 @@ doc_type: adr
 status: proposed
 updated: 2026-10-25
 tags: [决策]
-related_files: []
 ---
 
 # ADR-0001 决策标题

@@ -5,7 +5,6 @@ id_prefix: Q
 id_high_water: 17
 updated: 2026-11-17
 tags: [开放问题]
-related_files: []
 ---
 
 # 开放问题

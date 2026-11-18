@@ -3,7 +3,6 @@ doc_type: implementation-notes
 status: active
 updated: 2026-11-17
 tags: [实现细节]
-related_files: []
 ---
 
 # 实现细节
@@ -53,25 +52,25 @@ related_files: []
 | Windows 同步与本机恢复界面 | 固定 IPC 分别查询复制摘要、计划或清单和实际结果；本机恢复由进程负责普通准备、固定预览、确认、进度及清理。确认后借用全程名额；刷新页面时用原 ID 找回结果，部分成功、未知状态和清理错误都会保留。备份默认开启，设置改动立即保存；关闭开关时不弹确认，备份已关闭时，传输开始前会确认；本机恢复保护当前内容。目录冲突和失败扫描分别显示；桌面详情、游戏横条、历史和完成提示读取主进程合成的同一份任务观察，移动端写入进度和最终逐项结果由移动端原生经控制通道提供（见接口约定第 3 节）；发送结束而移动端还在写入时显示进行中 | restore-registry、sync-ipc/bridge、备份/任务页面及 platform/sync-adapter |
 | 基础设施 | pnpm 工作区、双端 React 应用、共享入口、严格 TS / ESLint / Prettier、编码检查和 Windows CI | 根目录配置、apps/、apps/shared、scripts/、.github/workflows/ci.yml |
 | 双端明暗主题 | 设置页提供跟随系统、浅色、深色三档，偏好保存在本机并在重启后恢复。桌面主进程用 `nativeTheme.themeSource` 同步原生窗口，Renderer 按媒体查询切换 antd 算法；移动端在挂载前设置 antd-mobile 官方主题属性，运行时同步，热更新释放监听；移动端暗色页面/启动/原生背景统一 #000000，透明 WebView 配合；运行中接收原生 uiMode 通知修正 WebView 缓存的媒体查询，系统栏显式同步图标颜色；空状态说明使用语义文字色 | 双端 app/main/styles、桌面 preferences-store/ipc、移动 system-theme.ts/app-preferences.ts、Android 主题/颜色资源、MainActivity |
-| 共享本地/批量模型 | 数字 v1 同时提供本地设备/目录 DTO 与批量传输模型；批量清单/映射/状态/结果、路由/头/错误/预算常量、封闭守卫及上下文匹配。sender sent 与 receiver succeeded 是两个状态，实际文件哈希/根/父/名需匹配本任务；共享层只校验数据，哈希计算在平台层 | apps/shared/src/protocol/contracts.ts、protocol.ts、validation.ts、batch-*.ts、data-validation.ts；apps/shared/README.md |
-| 共享检查入口 | pnpm test:shared 运行最小稳定数据关系测试；类型约束由 tsc 检查。共享只用 ES2022、无自动平台类型、启用 erasableSyntaxOnly | package.json、tsconfig.base.json、apps/shared/tsconfig.json、apps/shared/test |
-| Windows 目录读取 | schema 1 配置在应用 userData，保存稳定设备/根 ID 与 bigint dev/ino 身份；配置不位于所选根内，未知版本/坏配置不重置。条目映射仅存内存；支持当前层读取、身份重查及原生只读流 | apps/desktop/src/main/directory-adapter.ts、directory-store.ts、directory-paths.ts；完整说明见 apps/desktop/README.md |
-| Windows 私有归档 | 源原文按流建立快照并计算长度/SHA-256，读取后检查身份/大小/mtime/ctime，再按规范 USTAR/gzip1 打包及完整解包；gzip 用原始 DEFLATE 消耗量加 CRC32/ISIZE 与 tar 精确结束检查，拒绝拼接/尾随，逐文件校验后才返回句柄 | apps/desktop/src/main/archive-*.ts；apps/desktop/README.md；architecture/transfer-protocol.md |
+| 共享本地/批量模型 | 数字 v1 同时提供本地设备/目录 DTO 与批量传输模型；批量清单/映射/状态/结果、路由/头/错误/预算常量、封闭守卫及上下文匹配。sender sent 与 receiver succeeded 是两个状态，实际文件哈希/根/父/名需匹配本任务；共享层只校验数据，哈希计算在平台层 | apps/shared/src/protocol/contracts.ts、protocol.ts、validation.ts、batch-*.ts、data-validation.ts；architecture/shared-package.md |
+| 共享检查入口 | pnpm test 运行最小稳定数据关系测试；类型约束由 tsc 检查。共享只用 ES2022、无自动平台类型、启用 erasableSyntaxOnly | package.json、tsconfig.base.json、apps/shared/tsconfig.json、apps/shared/test |
+| Windows 目录读取 | schema 1 配置在应用 userData，保存稳定设备/根 ID 与 bigint dev/ino 身份；配置不位于所选根内，未知版本/坏配置不重置。条目映射仅存内存；支持当前层读取、身份重查及原生只读流 | apps/desktop/src/main/directory-adapter.ts、directory-store.ts、directory-paths.ts；完整说明见 architecture/windows.md |
+| Windows 私有归档 | 源原文按流建立快照并计算长度/SHA-256，读取后检查身份/大小/mtime/ctime，再按规范 USTAR/gzip1 打包及完整解包；gzip 用原始 DEFLATE 消耗量加 CRC32/ISIZE 与 tar 精确结束检查，拒绝拼接/尾随，逐文件校验后才返回句柄 | apps/desktop/src/main/archive-*.ts；architecture/windows.md；architecture/transfer-protocol.md |
 | 私有缓存与取消 | 固定应用私有缓存根和随机任务目录带所有权标记，拒绝与所选源根重叠；一份活动缓存覆盖返回句柄生命周期；显式缓冲不超过 64 KiB，预算可本机收紧，实际写入前计数/空间检查；失败/取消只清理本次缓存，清理失败独立报告并阻止新任务，关闭读流后重试；无源/目标发布写入 | archive-cache.ts、archive-errors.ts；仅内部句柄，不经 IPC；孤儿缓存不恢复历史任务 |
 | Windows HTTP sender | Node 内置 HTTP；只处理登记根、异步准备/清单/单次 gzip、状态与取消；严格 JSON 键/UTF-8/字节及路由/头/会话；注册前同步占用 ID/进程名额；期限和清理失败独立处理；保留有限 ID 防重，重启更换会话 | apps/desktop/src/main/http-*.ts、transfer-registry.ts、test/http-service.test.mjs |
 | Windows HTTP receiver | POST 异步全目标预检，物理父目录/名称去重后 201；PUT 唯一领取，64 KiB 背压桥显式终止停滞等待；压缩体落盘/长度/SHA-256 通过后 202，完整 gzip/tar/原文校验后才顺序发布；部分结果和清理状态分别记录，最后提交可赢得取消竞争；输入完整后响应丢失不终止本机发布 | upload-receiver.ts、transfer-registry.ts、archive-adapter.ts、test/http-receiver.test.mjs |
 | 每次传输容量预检 | Windows 登记接收前检查缓存与整批目标，同卷合计峰值；Android 打开下载内容流前检查缓存及提供者可报告的目标容量，未知容量保留未知；实际写入继续检查，空间不足反馈 insufficient-space。满额双向资源结果见[验收标准](../testing/acceptance.md)第 2 节 | archive-adapter.ts、new-file-publisher.ts、transfer-registry.ts；ArchiveAdapter/Cache、NewFilePublisher、DirectoryPublicationBackend、TransferEngine/Schema.java |
-| 服务启停与退出 | 构造时不监听，可信主进程显式 start，默认回环/动态端口；应用 before-quit 等待 stop，失败保留清理重试；有限 IPC 提供显式 LAN 启停、接收根授权/撤销、任务快照/取消及清理重试，界面轮询卸载时停止 | apps/desktop/src/main/index.ts；apps/desktop/README.md |
+| 服务启停与退出 | 构造时不监听，可信主进程显式 start，默认回环/动态端口；应用 before-quit 等待 stop，失败保留清理重试；有限 IPC 提供显式 LAN 启停、接收根授权/撤销、任务快照/取消及清理重试，界面轮询卸载时停止 | apps/desktop/src/main/index.ts；architecture/windows.md |
 | Windows 新文件发布 | 进程内显式根写授权与只读目标预检；同父目录 wx 候选逐块实测长度/哈希并 sync；link 排他发布后回读最终身份/EOF/SHA-256；成功/取消/unknown 与清理状态分别记录；仅删除身份匹配的自有候选，清理失败占名额至重试成功 | new-file-publisher.ts、publication-errors.ts；目录 locateNativeDirectory 只读 |
-| 发布恢复与平台边界 | 文件系统不支持安全 link 时失败；候选所有权/写授权仅存本进程，正常退出等待停止，强杀后不自动删除目标卷候选；不恢复旧任务。验证缺口见覆盖缺口 | apps/desktop/README.md；testing/coverage-gaps.md |
+| 发布恢复与平台边界 | 文件系统不支持安全 link 时失败；候选所有权/写授权仅存本进程，正常退出等待停止，强杀后不自动删除目标卷候选；不恢复旧任务。验证缺口见覆盖缺口 | architecture/windows.md；testing/coverage-gaps.md |
 | 有限 Electron 桥 | 目录桥暴露 chooseDirectory/listRoots/listDirectory；独立服务桥提供 status/start/randomizePort/stop/chooseTarget/revokeTarget/cancel/retryCleanup；主窗口、主 frame、精确 URL 和参数/返回 DTO 均校验；系统选择目录后授予本进程写入权限，路径/内容由原生持有。workspace 共享包在 main/preload 构建内联，preload 仅需 Electron require | apps/desktop/src/bridge/directory-bridge.ts、src/bridge/service-bridge.ts、src/main/directory-ipc.ts、src/main/service-ipc.ts、src/preload/index.ts、electron.vite.config.ts |
-| Java 目录读取 | 提供只读系统选择器、稳定根/设备 ID 与权限恢复、当前层元数据和原生 InputStream；URI 不出原生层，不保存历史条目/哈希 | apps/mobile/README.md、apps/mobile/src/platform/directories.ts、directory-bridge.ts、Android Java 源码及测试 |
+| Java 目录读取 | 提供只读系统选择器、稳定根/设备 ID 与权限恢复、当前层元数据和原生 InputStream；URI 不出原生层，不保存历史条目/哈希 | architecture/android.md、apps/mobile/src/platform/directories.ts、directory-bridge.ts、Android Java 源码及测试 |
 | Android 直接读写文件 | 目录访问只经 `DocumentAccess`：有所有文件访问权限、目录属于系统存储提供者且不是卷根时用 `FileDocumentAccess` 按路径读写，否则用 `SafDocumentAccess`；卷根经 SAF 显示卷名，按路径给不出相同名称，所以留给 SAF。文档 ID 按提供者格式 `卷 ID:相对路径` 拼出，修改时间截到秒（提供者报告 `File.lastModified()` 只到秒），同一目录两种实现的条目 ID 和扫描快照完全相同。`open` 只接受 r 和 rw，不用 `parseMode`（它让 rw 带上新建）。真机实测（一层 503 个文件、97 MiB）：扫描约 2.2～2.4 秒，SAF 约 4.7～5.0 秒；列出这层目录直接读写约 0.4～0.7 秒，SAF 约 0.5 秒，因为每个条目要 stat 和 access 两次系统调用。覆盖或删除一个已有条目时列两次父目录：确认身份时一次（同一份列表同时核对完全同名和名称等价），写入前核对一次；这层目录覆盖 3 个小文件约 3 秒。授予权限时进程不重启 | DocumentAccess、SafDocumentAccess、FileDocumentAccess、DirectoryStore、AllFilesAccessPlugin；platform/all-files-access.ts |
-| Java 私有归档 | 从实际流建立原文快照，统计未知长度并在读取后复核 SAF 观察值，再生成规范 USTAR/gzip1；建立快照时同时读 8 个文件（经 SAF 打开一个文件要几十毫秒），进度只在调用线程报告；建立快照时同时读 8 个文件（经 SAF 打开一个文件要几十毫秒），进度只在调用线程报告；显式原始 inflater 消耗边界及 CRC/ISIZE/物理 EOF，全部逐文件 SHA 和精确 tar 结束通过才返回句柄。固定 v1 原生不可变模型不承担网络 JSON 解码 | ArchiveAdapter.java、ArchiveModel.java、ArchiveFormat.java、DirectoryArchiveSource.java；apps/mobile/README.md |
+| Java 私有归档 | 从实际流建立原文快照，统计未知长度并在读取后复核 SAF 观察值，再生成规范 USTAR/gzip1；建立快照时同时读 8 个文件（经 SAF 打开一个文件要几十毫秒），进度只在调用线程报告；显式原始 inflater 消耗边界及 CRC/ISIZE/物理 EOF，全部逐文件 SHA 和精确 tar 结束通过才返回句柄。固定 v1 原生不可变模型不承担网络 JSON 解码 | ArchiveAdapter.java、ArchiveModel.java、ArchiveFormat.java、DirectoryArchiveSource.java；architecture/android.md |
 | Java 缓存 | 可信 Context 先解析系统私有路径别名；其下缓存标记/随机任务/链接及未知条目失败关闭；进程任务独占直到句柄释放或清理成功，主错误和清理错误分别报告，可重试和启动孤儿恢复；64 KiB 实际流预算，取消关闭源/查询；缓存文件不单独 fsync，进程中断后任务本来就要重来 | ArchiveCache.java、ArchiveControl.java、ArchiveFailure.java、ArchiveAdapterTest.java、ArchiveSafTest.java、scripts/verify-archive-interop.mjs |
-| Java 单文件发布 | 系统 WRITE 与本次进程 grant 是两道授权；preflight 无写入；创建前后枚举/名称等价/新 ID/父目录核实，提供者改名时停止；保持空新文件 FD 身份，以 rw 不截断打开并再次核实设备/inode/零长度；64 KiB 计数/SHA 写流，关闭同步后完整回读、EOF、身份/名称/元数据前后检查后成功 | NewFilePublisher.java、DirectoryPublicationBackend.java、PublicationModel.java；apps/mobile/README.md |
+| Java 单文件发布 | 系统 WRITE 与本次进程 grant 是两道授权；preflight 无写入；创建前后枚举/名称等价/新 ID/父目录核实，提供者改名时停止；保持空新文件 FD 身份，以 rw 不截断打开并再次核实设备/inode/零长度；64 KiB 计数/SHA 写流，关闭同步后完整回读、EOF、身份/名称/元数据前后检查后成功 | NewFilePublisher.java、DirectoryPublicationBackend.java、PublicationModel.java；architecture/android.md |
 | Java 发布结果与清理 | 原生 PublicationJson 对齐共享 FileOutcome/BatchCleanup，错误脱敏、unknown 不自动重放；失败/取消仅清理确知新建且身份匹配条目，关闭流/删除失败保留资源与进程名额至 retryCleanup；已确认成功不因晚取消或关闭失败删除；归档和发布名额独立 | PublicationJson.java、NewFilePublisherTest.java；TC-008 |
-| Android 原生 HTTP/通知 | TransferJson 严格 UTF-8/重复键/安全整数及有界 JSON，TransferSchema 独立核对任务/清单/角色/结果；无代理/缓存/重定向/自动解压，64 KiB、固定长度/SHA、连接和默认网络无进展等待 5 秒、初次握手总期限 5 秒及传输总期限 30 分钟；丢失 POST/PUT 回执只查询。应用级 Runtime 持有任务，dataSync 服务持续通知保持传输；Activity 暂停或销毁不取消，完成/显式取消与清理后停止 | Transfer*.java、HttpTransfersPlugin、DirectoryRuntime、TS 桥；移动 README |
+| Android 原生 HTTP/通知 | TransferJson 严格 UTF-8/重复键/安全整数及有界 JSON，TransferSchema 独立核对任务/清单/角色/结果；无代理/缓存/重定向/自动解压，64 KiB、固定长度/SHA、连接和默认网络无进展等待 5 秒、初次握手总期限 5 秒及传输总期限 30 分钟；丢失 POST/PUT 回执只查询。应用级 Runtime 持有任务，dataSync 服务持续通知保持传输；Activity 暂停或销毁不取消，完成/显式取消与清理后停止 | Transfer*.java、HttpTransfersPlugin、DirectoryRuntime、TS 桥；architecture/android.md |
 | 重载与清单前终态 | Android 不按前后台状态停止轮询，原生目录/HTTP/扫描不设可见性门禁；重载从 current 查询同一原生任务；清单生成前取消/失败返回全项未尝试终态；系统提供的桌面 userData 先 realpath，再进行私有缓存检查 | apps/mobile/src/app、features、components、platform；apps/desktop/src/renderer/src、bridge、main；TransferEngine.java |
 | 固定依赖 | React 18 / TypeScript 5.9；pnpm 10.34.8；精确锁定版本和 lockfile，保留严格 peer 检查 | package.json、pnpm-lock.yaml、pnpm-workspace.yaml |
 | npm 安全 | xcode 的 uuid 定向修复为 11.1.1；同一主版本的包用 overrides 合成一个版本，跨主版本的留给上游升级。未处理的公告见回归状态 | scripts/security-check.mjs、pnpm-workspace.yaml；testing/regression-notes.md |
@@ -89,4 +88,4 @@ related_files: []
 
 | 事项 | 原因 | 影响 |
 | --- | --- | --- |
-| 依赖策略维护 | Android 模板默认构建依赖可能落后于安全补丁；npm audit 不覆盖 Maven 或包管理器 | security:check 与 security:android 保留为手动审计命令，日常 push/PR CI 只执行工程检查和 Android 构建；依赖升级后复审实际图并构建 |
+| 依赖策略维护 | Android 模板默认构建依赖可能落后于安全补丁；npm audit 不覆盖 Maven 或包管理器 | security:node 与 security:android 保留为手动审计命令，日常 push/PR CI 只执行工程检查和 Android 构建；依赖升级后复审实际图并构建 |

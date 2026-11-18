@@ -3,7 +3,6 @@ doc_type: constraints
 status: active
 updated: 2026-11-14
 tags: [约束]
-related_files: []
 ---
 
 # 项目约束

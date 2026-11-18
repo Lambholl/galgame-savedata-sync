@@ -3,7 +3,6 @@ doc_type: architecture-overview
 status: active
 updated: 2026-11-17
 tags: [架构总览]
-related_files: []
 ---
 
 # 架构总览

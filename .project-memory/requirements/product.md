@@ -5,7 +5,6 @@ id_prefix: REQ
 id_high_water: 22
 updated: 2026-11-14
 tags: [产品需求]
-related_files: []
 ---
 
 # 产品需求

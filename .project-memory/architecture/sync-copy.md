@@ -3,10 +3,6 @@ doc_type: architecture
 status: active
 updated: 2026-11-17
 tags: [复制, 备份, 恢复]
-related_files:
-  - apps/shared/src/sync/
-  - apps/desktop/src/main/sync-registry.ts
-  - apps/mobile/android/app/src/main/java/
 ---
 
 # 复制、备份与恢复约定

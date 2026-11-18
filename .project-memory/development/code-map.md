@@ -3,7 +3,6 @@ doc_type: code-map
 status: active
 updated: 2026-11-10
 tags: [代码地图]
-related_files: []
 ---
 
 # 代码地图
@@ -16,15 +15,15 @@ related_files: []
 - [4. 移动端网页层](#4-移动端网页层)
 - [5. Android 原生](#5-android-原生)
 
-“重要约定”只写改这个路径时不能破坏的边界。测试和检查的运行范围见[测试规范](../standards/testing-style.md)。
+“重要约定”只写改这个路径时不能破坏的边界。测试和检查的运行范围见[测试规范](../standards/testing.md)。
 
 ## 1. 根目录与工具
 
 | 路径 | 作用 | 重要约定 |
 | --- | --- | --- |
 | `package.json`、`pnpm-workspace.yaml`、`pnpm-lock.yaml` | pnpm 工作区、固定版本与工程入口 | 私有工作区；使用指定 pnpm，不依赖系统全局 Gradle |
-| `README.md`、`docs/development.md` | 开发命令、工具要求与检查范围 | 版本约束以工程配置为准 |
-| `scripts/doctor.mjs`、`scripts/local-environment.mjs` | 开发工具入口 | 使用方式见 README |
+| `README.md`、`docs/development.md` | 用户说明；开发命令、工具要求与检查范围 | 版本约束以工程配置为准 |
+| `scripts/doctor.mjs`、`scripts/local-environment.mjs` | 开发工具入口 | 使用方式见 `docs/development.md` |
 | `scripts/check-text.mjs`、`eslint.config.mjs`、`tsconfig.base.json` | 编码、格式、lint 和严格类型检查 | 生成目录不作为手写代码格式化 |
 | `scripts/android-build.mjs`、`scripts/android-open.mjs` | 原生构建、单元/lint/双 APK 检查、依赖清单与 IDE 入口 | 不连接设备；只对子进程传入 SDK/JDK；IDE 不存在时明确失败；Windows 以 `.\gradlew.bat` 显式相对路径调用 Wrapper，兼容设置了 NoDefaultCurrentDirectoryInExePath 的 shell |
 | `scripts/verify-archive-interop.mjs` | 构建前 Windows 准备、构建后 Windows 接收 Java 输出，另支持设备产物及 SAF 原文验证 | 只操作固定报告目录中的合成数据，测试 APK 不包含主机路径配置 |
@@ -44,7 +43,7 @@ related_files: []
 | `apps/shared/src/control`；Windows `main/control-hub.ts`；Java `ControlClient.java`、`TransferEngine.java` 控制部分；移动 `platform/control-channel.ts`、`features/transfer/use-remote-sync.ts` | WebSocket 控制通道 `/v1/control`：目录读取、电脑发起复制、完成回报、目录表变化通知和在线判断 | 消息格式对称，按监听方和拨号方区分；HTTP 服务核实身份后才升级；两端严格校验每条消息；文件内容不走控制通道 |
 | `apps/shared/src/connection` | DNS-SD 服务类型、实例名和 TXT，连接二维码文本，候选连接地址 | 监听方生成、拨号方解析，不按平台区分；解析结果分 valid、unsupported-version、invalid，版本先于其他字段检查；地址只用于连接，身份以 `/v1/device` 为准 |
 | `apps/shared/src/ui/navigation/page-navigation.ts`、`use-page-navigation.ts` | 两端共用的页面导航：前者是来源记录、返回目标和切页方向的纯函数，后者把它接到 React 状态 | 页面名称和上下文由各端定义；跳转关系写在 DesktopApp、MobileApp |
-| `apps/shared/test/`、`apps/shared/README.md` | 运行时数据关系回归、完整线格式与调用示例 | — |
+| `apps/shared/test/` | 运行时数据关系回归；字段和线格式见[共享包](../architecture/shared-package.md) | — |
 
 ## 3. 电脑端
 
@@ -65,7 +64,7 @@ related_files: []
 | `apps/desktop/src/main/sync-writer.ts`、`sync-target-files.ts`、`target-operation.ts`；transfer-registry、directory-adapter、启动 | 确认计划的目标目录创建、同卷候选替换和本机恢复；接收远端内容时等内容收齐再写入；旧批次共用互斥 | 写入前备份目标目录全部文件，内容收齐后重新核对目标，逐项报告实际结果，首次失败停止；同路径对象替换产生新 ID；原生流和候选不跨桥 |
 | `apps/desktop/src/main/restore-registry.ts`、`sync-ipc.ts`、`src/bridge/sync-bridge.ts` | 进程内异步恢复、有限复制与恢复桥、同次原生计划/结果核对 | 普通准备不占目标名额，确认后借用并保留至清理成功；任务和结果可在页面刷新后查询；不接收路径或字节；电脑发起的方法转给 `remote-sync-requests.ts` |
 | `apps/desktop/src/renderer/src/features/backup`、`features/transfer/SyncCopyDetails.tsx`、`use-sync-details.ts`、`platform/sync-adapter.ts` | 备份开关/列表、恢复预览与确认、复制计划/实际结果、普通本机重扫 | 复用原生计划和结果；发送完成和移动端实际写入是两个状态；切页只停止轮询，不取消原生任务 |
-| `apps/desktop/test/`、`apps/desktop/README.md` | Windows 目录、归档、HTTP 与发布的最小长期回归及接口说明 | 测试只用合成数据；真实目录只读验证，机器路径不提交 |
+| `apps/desktop/test/` | Windows 目录、归档、HTTP 与发布的最小长期回归；接口见 [Windows 平台层](../architecture/windows.md) | 测试只用合成数据；真实目录只读验证，机器路径不提交 |
 
 ## 4. 移动端网页层
 
@@ -74,7 +73,7 @@ related_files: []
 | `apps/mobile/src/app`、`features`、`components`、`styles` | 独立移动入口、导航、游戏卡片、底部弹层和 antd-mobile 页面 | 优先移动组件；使用桌面组件也保留触控区域，操作卡片至少 64px；系统返回由移动端协调 |
 | `apps/mobile/src/features/transfer`、`src/platform` | 双端目录比较、手动连接、方向、计划和原生任务显示 | 当前层浏览；两列独立滚动，时间精确到分钟；业务不判断前后台，重载后查询同一原生传输任务；源文件内容不经过网页 |
 | `apps/mobile/src/components/PageSlide.tsx`、`apps/mobile/src/app/press-feedback.ts` | 移动端的切页平移和按下遮罩 | 桌面端的交互效果写在 desktop.css；shared 的 pressable.css 只定义遮罩的形状 |
-| `apps/mobile/src/platform/directory-bridge.ts`、`directories.ts`、`test/`、`README.md` | 受限 TS 桥、原生绑定、数据模型检查与调用说明 | 网页预览不支持；只传公开 DTO/ID，没有内容或写入方法 |
+| `apps/mobile/src/platform/directory-bridge.ts`、`directories.ts`、`test/` | 受限 TS 桥、原生绑定与数据模型检查 | 网页预览不支持；只传公开 DTO/ID，没有内容或写入方法 |
 | `apps/mobile/src/platform/http-transfer-bridge.ts`、`http-transfers.ts` | 有限 TS 任务桥与 native 当前上下文/角色/结果校验、顺序事件订阅 | 浏览器不支持；通知和目标授权是显式动作，任务和清单只存本进程；订阅 remove 不取消传输 |
 
 ## 5. Android 原生
@@ -87,7 +86,7 @@ Java 源码都在 `apps/mobile/android/app/src/main/java/io/github/galgame/saved
 | `apps/mobile/android/app/src/main/java/io/github/galgame/savedatasync/` | Java 目录选择（DirectoriesPlugin、DirectoryStore）、权限/配置恢复、当前层元数据和原生流 | URI 留在原生层，原生流由调用者关闭；配置不保存条目或哈希 |
 | `DocumentAccess.java`、`SafDocumentAccess.java`、`FileDocumentAccess.java`；`AllFilesAccessPlugin.java`、移动 `platform/all-files-access.ts`、设置页 | 统一的目录访问接口及 SAF、按路径两种实现；所有文件访问权限状态与系统授权页入口 | 上层只经 `DirectoryStore.access(tree)` 取实现，见 ADR-0003 |
 | `ArchiveAdapter.java`、`ArchiveModel.java`、`ArchiveFormat.java`、`ArchiveCache.java`、`ArchiveControl.java`、`ArchiveFailure.java`、`DirectoryArchiveSource.java`；`src/test/.../ArchiveAdapterTest.java`、`src/androidTest/.../ArchiveSafTest.java` | Java 私有源快照、严格 USTAR/单 gzip、固定预算/取消/期限与缓存归属/恢复/重试；SAF 读取后复核；格式回归和设备快照 | 不做 JSON/HTTP/目标发布，文件内容不跨桥；句柄关闭读流后 close；进程独占覆盖待清理资源；夹具与 Windows 共用；缺少实际目录授权时测试失败而不是跳过 |
-| `NewFilePublisher.java`、`PublicationModel.java`、`PublicationJson.java`、`DirectoryPublicationBackend.java`、`NewFilePublisherTest.java` | 原生显式写授权/只读预检、创建前后核实、非截断写入/回读、单文件结果及清理重试 | 只操作同根已有父目录中确知的新建条目；常规描述符身份保护已有文件；原文和 URI 不跨桥，清理失败保持进程名额；设备授权只用于合成目标；接口见移动 README |
+| `NewFilePublisher.java`、`PublicationModel.java`、`PublicationJson.java`、`DirectoryPublicationBackend.java`、`NewFilePublisherTest.java` | 原生显式写授权/只读预检、创建前后核实、非截断写入/回读、单文件结果及清理重试 | 只操作同根已有父目录中确知的新建条目；常规描述符身份保护已有文件；原文和 URI 不跨桥，清理失败保持进程名额；设备授权只用于合成目标；接口见 [Android 平台层](../architecture/android.md) |
 | `TransferJson/Schema/Http/Engine.java`、`HttpTransfersPlugin.java`、`TransferRuntime/Service.java`、`DirectoryRuntime.java` | 严格 HTTP/JSON、双向原生编排及应用级任务、持续通知和 Activity 重连 | 文件不跨 JS；用户发起后后台继续，完整校验后逐项发布；服务不导出、不自动重启旧任务；只读桥和传输共享当前 SAF 引用 |
 | `SyncScanner.java`、`DirectorySyncSource.java`、`SyncScansPlugin.java`；移动 `platform/sync-scan-bridge.ts`、`sync-scans.ts` | 本次递归扫描（取大小和修改日期，提供者不报大小时读一遍计数）、取消和有限扫描桥 | 普通只读操作，不加保活或前后台处理；结果只存内存并校验 rootId/scanId，内容和 URI 不跨桥 |
 | `BackupStore/Model/Files.java`、`AndroidBackupIo.java`、`SyncBackupsPlugin.java`；移动 `platform/backup-bridge.ts`、`backups.ts` | 用户可手动管理的持久备份、按份数轮换、恢复材料引用和有限本机查询 | 写 `Android/data/<包名>/files/backups`，设置留在内部目录；真实身份和链接数用 Os.lstat 检查；数据不跨桥；供 SyncWriter 复用 |

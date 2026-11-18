@@ -3,10 +3,6 @@ doc_type: architecture
 status: active
 updated: 2026-11-17
 tags: [传输协议, tar.gz, HTTP]
-related_files:
-  - apps/shared/src/protocol/
-  - apps/desktop/src/main/archive-adapter.ts
-  - apps/mobile/android/app/src/main/java/io/github/galgame/savedatasync/TransferEngine.java
 ---
 
 # tar.gz 批量传输协议
@@ -139,8 +135,8 @@ Windows 发布必须使用不会替换既有目标的原语，并验证“检查
 | 模型 | 字段及约束 |
 | --- | --- |
 | BatchState 基础字段 | `transferId`、`direction: windows-to-android或android-to-windows`、`role: sender或receiver`、`updatedAt: Unix毫秒`；direction 表示实际数据方向，role 表示当前报告端的职责 |
-| running 分支 | 基础字段 + `status: 'running'`、`stage`、`progress: BatchProgress`、`cancelRequested: boolean`、`fileResults`；sender 的 fileResults 固定 null，receiver 为已完成的逐文件结果子集，无重复 fileId |
-| 终态分支 | 基础字段 + `status`、`error`、`fileResults`、`cleanupStatus`、`cleanupError`；不再带 stage/progress/cancelRequested；error/cleanupError 为 OperationError或null，文件结果规则见下文 |
+| running 分支 | 基础字段 + `status: 'running'`、`stage`、`progress: BatchProgress`、`isCancelRequested: boolean`、`fileResults`；sender 的 fileResults 固定 null，receiver 为已完成的逐文件结果子集，无重复 fileId |
+| 终态分支 | 基础字段 + `status`、`error`、`fileResults`、`cleanupStatus`、`cleanupError`；不再带 stage/progress/isCancelRequested；error/cleanupError 为 OperationError或null，文件结果规则见下文 |
 | BatchProgress | `sourceBytesRead`、`archiveBytesTransferred`、`fileBytesVerified`、`fileBytesPublished`、`totalFileBytes: 整数或null`、`totalArchiveBytes: 整数或null`、`totalFiles`、`verifiedFiles`、`publishedFiles`；其余为非负安全整数；本任务内单调递增，计数不得超出已知对应总量 |
 | 文件成功 | `fileId`、`status: 'succeeded'`、`bytesWritten: 实际整数`、`sha256`、`entry: FileMetadata`；entry 是回读确认后的实际目标条目，已知大小必须与 bytesWritten 相符，哈希/字节须与该清单项一致 |
 | 文件失败 | `fileId`、`status: 'failed'`、`error: 非result-unknown错误`、`residualEntries: EntryReference[]`；仅列本次新建但未清理的条目，不指向任务前已有条目 |
@@ -159,7 +155,7 @@ sourceBytesRead 只计从源拷贝到私有原文快照的字节，不计压缩�
 - 若有结果无法确认则批次为 unknown/error=result-unknown；否则存在失败或批次准备/校验失败则 failed/error=实际原因；否则因取消未全部发布则 cancelled/error=null；否则 succeeded。归档整体验证失败时全部文件为 not-attempted/batch-invalid。
 - `cleanupStatus` 为 not-needed、complete、incomplete 或 unknown；cleanupError 在 incomplete 时必有 cleanup-failed，在 unknown 时为 result-unknown，其余为 null。发布成功但私有缓存清理失败时仍保留 succeeded/sent，并明确 cleanupStatus=incomplete。发布状态无法确认时使用 unknown。
 
-取消设置 cancelRequested，关闭网络与可关闭的文件流，阻止新发布；若一次平台发布已不可中断，等待该操作并回读其实际结果，再清理当前未完成的新建项。不得删除已确认成功的最终文件或任何原有文件。Android 切后台或 Activity 销毁不取消已有传输，应用级任务由持续通知/dataSync 前台服务持有；界面返回时查询同一任务，不重新启动。用户显式取消或任务期限到达时关闭本地流并尽力发送远端 DELETE；远端取消回执不确定时须核实，不自动重放。Windows 最终受期限控制，不因界面状态变化就凭空确认取消或发布成功。
+取消设置 isCancelRequested，关闭网络与可关闭的文件流，阻止新发布；若一次平台发布已不可中断，等待该操作并回读其实际结果，再清理当前未完成的新建项。不得删除已确认成功的最终文件或任何原有文件。Android 切后台或 Activity 销毁不取消已有传输，应用级任务由持续通知/dataSync 前台服务持有；界面返回时查询同一任务，不重新启动。用户显式取消或任务期限到达时关闭本地流并尽力发送远端 DELETE；远端取消回执不确定时须核实，不自动重放。Windows 最终受期限控制，不因界面状态变化就凭空确认取消或发布成功。
 
 ## 7. 错误与资源所有权
 

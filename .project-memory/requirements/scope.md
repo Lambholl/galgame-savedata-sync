@@ -3,7 +3,6 @@ doc_type: scope
 status: active
 updated: 2026-11-06
 tags: [范围]
-related_files: []
 ---
 
 # 项目范围

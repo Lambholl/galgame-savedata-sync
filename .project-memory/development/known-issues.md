@@ -5,7 +5,6 @@ id_prefix: BUG
 id_high_water: 22
 updated: 2026-11-16
 tags: [已知问题]
-related_files: []
 ---
 
 # 已知问题

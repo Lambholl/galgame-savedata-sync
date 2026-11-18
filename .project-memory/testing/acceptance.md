@@ -3,7 +3,6 @@ doc_type: acceptance
 status: active
 updated: 2026-11-17
 tags: [验收标准]
-related_files: []
 ---
 
 # 验收标准

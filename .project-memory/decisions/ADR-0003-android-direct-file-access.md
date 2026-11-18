@@ -3,7 +3,6 @@ doc_type: adr
 status: accepted
 updated: 2026-11-14
 tags: [决策, Android, 文件访问, SAF, 所有文件访问权限]
-related_files: [apps/mobile/android/app/src/main/AndroidManifest.xml, apps/mobile/android/variables.gradle, apps/mobile/android/app/src/main/java/io/github/galgame/savedatasync]
 ---
 
 # ADR-0003 Android 所有文件访问权限与统一的文件访问接口

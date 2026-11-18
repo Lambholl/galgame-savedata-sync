@@ -1,91 +1,121 @@
+<div align="center">
+
+<img src="assets/app-logo.png" alt="Galgame SaveData Sync" width="256">
+
 # Galgame SaveData Sync
 
-Windows 与 Android 的局域网文件夹同步工具，正在开发中。现在可以在双端选择和浏览目录，在移动端手动连接电脑；移动端或电脑都能选择方向并发起复制。电脑发起时，移动端需要开着应用并保持连接，传输计划在电脑确认。写入前默认备份，可以手动恢复。镜像同步和自动发现还没做。
+Windows 与 Android 的局域网文件夹同步工具。
 
-## 目录
+[![Release](https://img.shields.io/github/v/release/Lambholl/galgame-savedata-sync?style=flat-square&label=release)](https://github.com/Lambholl/galgame-savedata-sync/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/Lambholl/galgame-savedata-sync/total?style=flat-square&logo=github)](https://github.com/Lambholl/galgame-savedata-sync/releases)
+[![License](https://img.shields.io/github/license/Lambholl/galgame-savedata-sync?style=flat-square)](LICENSE)
 
-- [技术栈与范围](#技术栈与范围)
-- [快速开始](#快速开始)
-- [试用同步](#试用同步)
-- [开发命令](#开发命令)
-- [仓库结构](#仓库结构)
-- [项目记忆](#项目记忆)
+[下载](#下载) · [使用](#使用) · [常见问题](#常见问题) · [从源码构建](#从源码构建) · [开发指南](docs/development.md)
 
-## 技术栈与范围
+</div>
 
-- React 18 + TypeScript + Vite，pnpm workspace 管理双端与共享包。
-- Windows：Electron + Ant Design；Android：Capacitor 8 + Ant Design Mobile。
-- Android 最低 API 29，编译/目标 API 36；用户发起的传输通过持续通知/前台服务保持，切后台继续已有任务。
-- 连接使用明文 HTTP，通过手动 IP 连接；设备发现列表还没做。同步时手选方向，默认覆盖复制，写入前备份。
-- 同步以本次当前目录为准，不保存历史基线；文件夹不递归统计大小。
+## 功能
 
-## 快速开始
+- **两端直连**：电脑和手机在同一个网络里直接互传，不经过云端，不需要注册账号。
+- **文件比较**：传输前比较两端的整个存档目录，列出要新建、覆盖和删除的文件，确认后才写入。
+- **存档备份**：每次写入前自动备份目标目录，失败可回滚。
+- **便捷连接**：自动发现同一网络里的设备，也可以扫二维码或手动输入地址；电脑换了 IP，手机会自动找到新地址。
+- **后台传输**：手机切到后台继续传输，通知栏显示进度。
+- **免费开源**：采用 GNU AGPL v3.0 许可。
 
-使用 Node.js、pnpm、Git。Android 原生开发的 JDK、SDK 与 IDE 设置见[本地开发指南](docs/development.md)。
+应用还是测试版，不同版本之间可能不兼容，两台设备请装同一个版本。
 
-```sh
-pnpm install --frozen-lockfile
-pnpm env:check --desktop
-pnpm dev:desktop
+## 下载
+
+在 [GitHub Releases](https://github.com/Lambholl/galgame-savedata-sync/releases/latest) 下载对应设备的文件。想确认文件没有损坏，可以对照同一页面的 `SHA256SUMS.txt`。
+
+| 平台 | 安装包 | 说明 |
+| --- | --- | --- |
+| Windows 10+ | `SavedataSync-<版本>-Portable-x64.exe` | 64 位，免安装，双击运行 |
+| Android 11+ | `SavedataSync-<版本>-Android.apk` | 安装时系统会要求允许这个来源安装未知应用 |
+
+**Windows 提示“已保护你的电脑”**
+
+程序没有数字签名，点“更多信息”→“仍要运行”即可。
+
+## 使用
+
+**第一次连接**
+
+1. 电脑上打开应用，在“设备”页点“启动本机服务”。Windows 防火墙弹出询问时，允许它在专用网络上通信。
+2. 手机和电脑连同一个 Wi-Fi，或者连接移动热点。
+3. 手机上打开应用，在“设备”页的“附近的设备”里找到电脑，点“连接”。列表里没有电脑时，在电脑设备页点“显示二维码”，用手机设备页右上角的扫码按钮扫它；也可以在扫码页选“手动输入”，填电脑上显示的 IP 地址和端口。
+
+连过一次后，手机会记住这台电脑，下次在“已保存的设备”里点“连接”就行。一台电脑同一时间只连一台手机。
+
+**添加并关联游戏**
+
+1. 电脑和手机各自在“游戏”页添加游戏，点“选择存档目录”，选这部游戏存档所在的文件夹。
+2. 在游戏设置的“关联设备”里先选设备，再选它上面对应的那部游戏。关联一次就行，改设备名或 IP 都不影响。
+
+**同步存档**
+
+1. 先退出游戏，游戏开着时存档可能正在被写入。
+2. 在游戏菜单里选“传输存档”（电脑上是游戏面板里的“传输”），选好对端设备，确认来源和目标。方向反了就点“交换来源与目标”。
+3. 点“下一步”，应用会列出这次要做的事：
+   - **新建**：目标没有的文件。
+   - **覆盖**：两端都有但内容不同的文件，点开可以对比两端的大小和修改时间。
+   - **保留**：只在目标有的文件，默认不动。要让目标和来源完全一致，把“保留”切到“删除”。
+4. 点“开始传输”。
+
+也可以在电脑上发起传输，这时手机要开着应用并保持连接。传输结束后，任务页会显示结果：
+
+| 结果 | 意思 | 怎么办 |
+| --- | --- | --- |
+| 传输完成 | 全部文件已写入并核对过 | - |
+| 部分完成 | 前面的文件已写入，后面的出错或没执行 | 处理出错原因后重新传输，或从备份恢复 |
+| 传输已取消 | 取消前已写入的文件会保留 | 需要的话从备份恢复 |
+| 结果待确认 | 内容已发出，但没确认目标是否写好，常见于中途断网 | 点“重新扫描”查看目标当前的文件 |
+| 上次写入被中断 | 写入时应用被关闭，文件可能不完整 | 从备份恢复 |
+
+**备份与恢复**
+
+写入前备份默认开启，每个游戏保留 3 份，可以在游戏的“备份与恢复”里关闭或改“保留份数”（最多 10 份），超出时自动删除最旧的。
+
+要恢复时，在“备份与恢复”里选一份备份，点“恢复”，确认要改动的文件后才写入。恢复前会把当前文件再备份一份，恢复本身也可以撤回。
+
+备份的位置：电脑上点“备份与恢复”页的“打开文件夹”；手机上在 `Android/data/io.github.galgame.savedatasync/files/backups/`，**卸载应用或清除应用数据会删除这些备份**。每份备份是一个以时间命名的文件夹，可以直接复制出来或删除；被手动删掉文件的备份会显示为“不完整”，不能用来恢复。
+
+**Android 直接读写文件**
+
+在“设置”里打开“直接读写文件”，再在系统页面允许“所有文件访问权限”，***扫描、备份和写入会快很多，存档文件多时差别明显***。不开也能正常使用，应用会通过选择目录时的系统授权读写。
+
+`Android/data` 和 `Android/obb` 里的目录选不了，Android 不允许其他应用访问那里。
+
+## 常见问题
+
+**手机找不到电脑。** 确认电脑的本机服务在运行、两台设备连的是同一个网络。部分路由器的访客网络或“AP 隔离”会阻止设备互相访问，可以换主网络，或让手机连电脑开的移动热点。防火墙拦截时手机也搜不到，可以改用扫码或手动输入地址连接。
+
+**提示版本不同。** 两台设备更新到同一个版本。
+
+**提示存档目录已失效。** 目录被移动、改名，或者授权被收回了，到游戏设置里重新选择目录。
+
+**提示超出单次传输限制。** 一次最多传 1024 个文件、单个文件最大 256 MiB、合计最大 1 GiB；写入前备份也按同样的上限计算目标目录。
+
+**提示空间不足。** 写入需要的空间包括新文件和写入前备份。清理设备空间，或删除旧备份后再试。
+
+**通信安全吗？** 存档只在你的两台设备之间传输，不上传到任何服务器。但设备之间的通信**没有加密，也没有配对密码**，同一网络里的其他设备也能访问电脑的本机服务。请只在家里等你信任的网络里使用，用完可以在电脑上停止本机服务。
+
+## 从源码构建
+
+需要 Node.js 22.13+ 和 pnpm 10.34.8；构建 Android 还需要 JDK 21 和 Android SDK。
+
+```bash
+git clone https://github.com/Lambholl/galgame-savedata-sync.git
+cd galgame-savedata-sync
+pnpm install
+pnpm doctor                     # 检查开发工具是否齐全
+pnpm desktop:package portable   # Windows 免安装版
+pnpm android:build              # Android debug APK
 ```
 
-预览移动端界面：
+Windows 产物在 `apps/desktop/release/`，APK 在 `apps/mobile/android/app/build/outputs/apk/`。开发、测试、签名和发布见[开发指南](docs/development.md)。
 
-```sh
-pnpm dev:mobile
-```
+## 许可证
 
-Windows PowerShell 若限制执行 `.ps1` 启动器，可使用 `pnpm.cmd` 执行同样的命令。开发服务器默认只监听本机；Android 运行本地打包资源，不依赖开发服务器地址。
-
-## 试用同步
-
-1. 电脑到“设备”页启动本机服务，复制显示的完整 HTTP 地址。端口默认随机生成，可在启动前修改或重新随机生成。
-2. 到“游戏”页添加游戏，进入“目录设置”选择电脑上的存档目录。选择目录同时授予该目录的写入权限。
-3. 移动端安装 Android 调试包，到“设备”页添加电脑地址并连接。同一时间连接一台设备，保存的其它设备与游戏关联会保留。
-4. 移动端到“游戏”页导入电脑上的游戏，再在目录设置中选择移动端目录。已有本机游戏也可明确选择对端游戏进行关联；一个游戏可关联多台设备，每端只设置自己的目录。
-5. 从游戏操作面板进入“传输存档”，选择对端设备和方向，两列分别浏览两端当前目录。点右下角箭头扫描两端，进入“同步计划”查看本次新增和覆盖的文件，点“开始”确认后传输，并允许通知。切到后台后，已开始的传输会继续。
-6. “传输详情”分别显示发送状态和目标端的实际写入结果，以目标端结果为准。写入前备份默认开启，每个项目保留最近 3 次，可在游戏操作面板的“备份与恢复”中关闭或手动恢复。
-
-覆盖复制会保留目标端独有的文件。M-002 总体验收完成前，先用存档副本或测试目录试用。目录展开和刷新只读取当前层，文件夹大小显示“—”。
-
-## 开发命令
-
-| 命令                       | 用途                                                              |
-| -------------------------- | ----------------------------------------------------------------- |
-| `pnpm env:check`           | 检查桌面和 Android 工具，输出 OK / WARN / FAIL；FAIL 时退出码为 1 |
-| `pnpm env:check --desktop` | 检查桌面环境与工具，不要求 Android 环境                           |
-| `pnpm dev:desktop`         | 启动 Electron 开发模式                                            |
-| `pnpm desktop:package`     | 构建 Windows x64 安装版与免安装版 exe，输出到 apps/desktop/release |
-| `pnpm desktop:package:portable` | 只构建 Windows x64 免安装版 exe                               |
-| `pnpm dev:mobile`          | 启动移动界面的本机网页预览                                        |
-| `pnpm check`               | 编码/换行、格式、ESLint、Checkstyle（需要 JDK）、类型检查和双端构建 |
-| `pnpm test:all`            | 全量自动化测试及 Android 原生测试；用于发布或高风险改动            |
-| `pnpm security:check`      | 官方 npm 全量审计、固定 pnpm 的 OSV 检查及 Node.js 安全补丁基线   |
-| `pnpm security:npm`        | 审计项目全部 npm 直接和间接依赖，包括开发依赖                     |
-| `pnpm security:android`    | Gradle 解析 Android 运行、测试及构建依赖后通过 OSV 检查 Maven 包  |
-| `pnpm format`              | 先修复 ESLint 问题，再用 Prettier 排版（含手写 Java）；Markdown 与 Android 工程的其他文件单独维护 |
-| `pnpm android:sync`        | 构建移动网页并同步到已纳入仓库的 Android 工程                     |
-| `pnpm android:build`       | 同步资源后使用项目 Gradle Wrapper 构建 debug APK                  |
-| `pnpm android:test`        | Java 单元、跨端原生归档互通、Android lint 及调试/仪器测试 APK 构建，不自动连接设备 |
-| `pnpm android:open`        | 在配置的 Android Studio 中打开原生工程                            |
-
-`pnpm build` 生成运行资源；`pnpm desktop:package` 生成未签名的 Windows 安装版与免安装版，`pnpm desktop:package:portable` 只生成免安装版，`pnpm android:build` 生成 Android 调试 APK。功能改动优先用 lint、类型检查、构建和实际操作验证；`pnpm test:all` 用于发布前或高风险改动。
-
-## 仓库结构
-
-```text
-apps/desktop/       Electron 主进程、受限 preload 与独立 antd 界面
-apps/mobile/        独立移动界面与 Capacitor 配置，优先 antd-mobile
-apps/mobile/android/  Android 原生工程、Gradle Wrapper
-apps/shared/        两端共用的协议、数据模型与业务规则
-scripts/            环境检查、文本检查、Android 构建和 IDE 入口
-docs/               开发指南
-.github/workflows/  Windows 环境下的仓库检查与 tag 发布
-.project-memory/    已确认需求、方案、验收和当前状态
-```
-
-两端分别在自己的 `app`、`features`、`components`、`platform` 和 `styles` 中维护界面与平台接入。共享包保持纯 TypeScript；移动界面优先使用 antd-mobile，使用桌面组件时也保证触控区域。目录边界与理由见 [ADR-0002](.project-memory/decisions/ADR-0002-ui-library-and-shared-rendering.md)。
-
-## 项目记忆
-
-先读取[记忆索引](.project-memory/INDEX.md)，再按任务定位需求、架构、规范与当前工作。目录读取与私有归档接口见[桌面适配](apps/desktop/README.md)和[移动适配](apps/mobile/README.md)。
+本项目采用 [GNU AGPL v3.0](LICENSE) 许可。

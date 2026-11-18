@@ -3,7 +3,6 @@ doc_type: project-charter
 status: active
 updated: 2026-11-14
 tags: [项目目标, 成功标准]
-related_files: []
 ---
 
 # 项目章程

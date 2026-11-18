@@ -3,7 +3,6 @@ doc_type: api-contracts
 status: active
 updated: 2026-11-14
 tags: [API, 接口约定]
-related_files: []
 ---
 
 # 接口约定
@@ -21,7 +20,7 @@ related_files: []
 
 ## 1. 状态与范围
 
-本文记录当前接口。Windows 为 HTTP 服务端，Android 原生层为拨号方和控制客户端。平台说明见 `apps/desktop/README.md`、`apps/mobile/README.md`，共享字段与线格式见 `apps/shared/README.md`。
+本文记录当前接口。Windows 为 HTTP 服务端，Android 原生层为拨号方和控制客户端。平台说明见 [Windows 平台层](windows.md)、[Android 平台层](android.md)，共享字段与线格式见[共享包](shared-package.md)。
 
 已接入：游戏与设备配置、三页导航、并列目录视图、受保护覆盖、可选的目标多余条目删除、写入前全量备份、本机恢复和两端发起。发现与连接二维码的格式在 `apps/shared` 定义（第 8 节）：电脑端广播并显示二维码，Android 端搜索和扫码；改址自动重连的安排见[路线图](../project/roadmap.md)。
 
@@ -109,23 +108,23 @@ transferId 只属于当前会话，不是历史同步基线。服务以每次启
 
 | 边界 | 可传递的内容 | 限制 |
 | --- | --- | --- |
-| Android 复制与恢复界面适配器 | createMobileSyncAdapter 从保存配置固定设备/项目/根，提供准备、固定预览、确认执行、当前任务、取消、备份设置和恢复入口；useSyncTasks 只轮询原生所有者 | 通知授权后重查映射，方向或目录变化后重新扫描确认；sender sent 后目标仍运行时继续只读查询同一 ID；页面卸载不取消任务，重建只查询，不重放执行；`interruptedWrites`/`dismissInterruptedWrite` 读取并一次性清除上个进程留下的写入标记；失败、部分、未知与清理结果分开显示，详细参数和示例见移动 README |
-| Windows 同步与恢复界面桥 | desktopSync 提供复制摘要/计划/状态/取消/清理，以及本机恢复准备/预览/确认/状态/取消/清理/释放；DesktopRestoreState 含固定项目/目录/输入备份、阶段、isWorking、实际文件进度及结果/独立清理错误 | 固定 sync:* 通道、受信任窗口/主 frame/URL、封闭 ID 参数、同次原生计划和 8 MiB 响应校验；摘要最多 33 份（32 份已登记任务加一份待移动端登记的任务），准备不占目标名额，确认后持有到清理成功；刷新可查询本进程任务，重启只保留配置/备份和写入标记；`interruptedWrites`/`dismissInterruptedWrite` 读取并一次性清除上个进程留下的标记；电脑发起的桥方法见第 3 节，没有远端恢复；接口及错误见桌面 README 第 13、14 节 |
+| Android 复制与恢复界面适配器 | createMobileSyncAdapter 从保存配置固定设备/项目/根，提供准备、固定预览、确认执行、当前任务、取消、备份设置和恢复入口；useSyncTasks 只轮询原生所有者 | 通知授权后重查映射，方向或目录变化后重新扫描确认；sender sent 后目标仍运行时继续只读查询同一 ID；页面卸载不取消任务，重建只查询，不重放执行；`interruptedWrites`/`dismissInterruptedWrite` 读取并一次性清除上个进程留下的写入标记；失败、部分、未知与清理结果分开显示，详细参数见 [Android 平台层](android.md) |
+| Windows 同步与恢复界面桥 | desktopSync 提供复制摘要/计划/状态/取消/清理，以及本机恢复准备/预览/确认/状态/取消/清理/释放；DesktopRestoreState 含固定项目/目录/输入备份、阶段、isWorking、实际文件进度及结果/独立清理错误 | 固定 sync:* 通道、受信任窗口/主 frame/URL、封闭 ID 参数、同次原生计划和 8 MiB 响应校验；摘要最多 33 份（32 份已登记任务加一份待移动端登记的任务），准备不占目标名额，确认后持有到清理成功；刷新可查询本进程任务，重启只保留配置/备份和写入标记；`interruptedWrites`/`dismissInterruptedWrite` 读取并一次性清除上个进程留下的标记；电脑发起的桥方法见第 3 节，没有远端恢复；接口及错误见[Windows 平台层](windows.md)第 13、14 节 |
 | Electron preload | chooseDirectory、listRoots、listDirectory；只接受 ID，返回公开 DTO；系统选择器在主进程执行 | 无 fs/shell/Node、绝对路径、内容或写入接口；校验登记窗口、主 frame 与精确 URL；退出移除 handler |
 | Electron 服务桥 | desktopService 的 status/start/randomizePort/stop/chooseTarget/revokeTarget/cancel/retryCleanup；状态含 deviceId、configuredPort、实际端口与 startedAt（Unix 毫秒）、其他设备可能访问到的本机 IPv4 地址 ipv4Addresses（先取物理网卡且有默认网关的地址，没有时取任意有默认网关的地址，再加 Windows 移动热点 192.168.137.1；排除 198.18.0.0/15；一个都没有时退回全部可用地址；按推荐顺序、去重，最多 8 个）、错误、广播状态、已授权接收根和会话任务；服务启动后地址还在读取时 ipv4Addresses 为 null，查询失败或没有候选时为空数组 | 窗口/主 frame/精确 URL 与参数/DTO 校验；start 端口为 1..65535，显式监听 0.0.0.0；首次生成并保存 49152..65535 随机端口，后续读取既有值；randomizePort 排除当前值并保存，运行时拒绝修改；选择目录后 grant；卸载停止轮询，退出移除 handler |
 | Electron 主进程原生读取 | registerDirectory 登记系统选中路径，listDirectory 返回当前层，openFile 返回本进程只读流 | 配置独立存放，没有历史清单；调用者消费或 destroy 流；逐段拒绝 symlink/junction，重查根/条目/句柄身份；恶意并发命名空间不在原子隔离范围内 |
-| Windows 独立备份与本机桥 | createWindowsBackupStore 的 create/list/settings/setPreference/capacity/acquire/rotate/cleanupIncomplete/stop；desktopBackups 提供只读摘要/单轮清单、设置、显式清理和 openFolder，创建与原生恢复流不跨桥 | userData/backups 与同步根隔离，结构和移动端相同（`<游戏名>/<UTC 时间>/` 内含 backup.json 和按原路径保存的 files/）；内容校验、落盘和回读后提交，按保留份数轮换（默认 3 份）并保护恢复材料引用的轮次；失败创建不返回有效轮次，轮换错误独立；位置 displayPath 仅供展示，IPC 无文件路径参数或内容，openFolder 打开的路径由主进程决定；具体参数和资源责任见桌面 README |
-| Windows 受保护写入与恢复 | WindowsSyncWriter.apply/prepareRestore/checkSpace/retryCleanup/stop；材料为匹配快照和可重复原生读流，返回 SyncApplyResult；WindowsSyncScanner.wait 供原生等待同次扫描 | 整批目标/原文复核、峰值容量及完整备份后创建目录/逐文件发布/回读；旧批次与新任务共用互斥，候选清理失败保留名额，恢复强制备份且引用输入；原生 authorize 核对项目/根，HTTP 和本机恢复编排借用全任务名额并反复核实上下文；接口及资源责任见桌面 README 第 13/14 节 |
+| Windows 独立备份与本机桥 | createWindowsBackupStore 的 create/list/settings/setPreference/capacity/acquire/rotate/cleanupIncomplete/stop；desktopBackups 提供只读摘要/单轮清单、设置、显式清理和 openFolder，创建与原生恢复流不跨桥 | userData/backups 与同步根隔离，结构和移动端相同（`<游戏名>/<UTC 时间>/` 内含 backup.json 和按原路径保存的 files/）；内容校验、落盘和回读后提交，按保留份数轮换（默认 3 份）并保护恢复材料引用的轮次；失败创建不返回有效轮次，轮换错误独立；位置 displayPath 仅供展示，IPC 无文件路径参数或内容，openFolder 打开的路径由主进程决定；具体参数和资源责任见[Windows 平台层](windows.md) |
+| Windows 受保护写入与恢复 | WindowsSyncWriter.apply/prepareRestore/checkSpace/retryCleanup/stop；材料为匹配快照和可重复原生读流，返回 SyncApplyResult；WindowsSyncScanner.wait 供原生等待同次扫描 | 整批目标/原文复核、峰值容量及完整备份后创建目录/逐文件发布/回读；旧批次与新任务共用互斥，候选清理失败保留名额，恢复强制备份且引用输入；原生 authorize 核对项目/根，HTTP 和本机恢复编排借用全任务名额并反复核实上下文；接口及资源责任见[Windows 平台层](windows.md)第 13、14 节 |
 | Windows HTTP 原生服务（sender/receiver） | WindowsHttpService 显式 start/stop、地址/错误查询与清理重试；通用注册表负责两角色状态/取消/期限；receiver 完整校验后顺序发布，保留逐项结果 | 注入 publisher 及 archive.receive 才支持接收；能力不授予根写权限；构造及应用启动不监听网络，默认回环；受限 IPC 提供服务控制与任务快照，getStates 不延长期限；应用退出等待 HTTP 与发布模块停止；无文件字节跨桥 |
 | Windows 原生新文件发布 | WindowsNewFilePublisher 的 grant/revoke、checkTarget、publish、retryCleanup/stop；单文件结果与清理分开；只在本机显式授权的专用测试根写入 | HTTP 和 UI 由 receiver 编排；读取登记不会授予写权限，授权/候选所有权只在当前进程内有效；同目录 wx 候选经哈希/sync 后排他 link，最终回读才成功；无法硬链接的卷会失败，未核实发布返回 unknown；输入关闭后返回，没有覆盖、删除或自动恢复 |
 | Windows 私有归档 | createWindowsArchiveAdapter、prepare/receive、不可变清单、openArchive/openFile/dispose/retryCleanup；onArchiveStored 只确认压缩体检查点；source 仍只读；目录流提供 verifyUnchanged 与缓存隔离检查 | 不返回可供 Renderer 使用的路径/句柄；完整 gzip/原文校验后返回私有缓存；HTTP 和目标发布交给上层；调用者关闭流并 dispose，异常用 operationError，清理失败另报 cleanupError |
 | Capacitor Directories 插件 | chooseDirectory/listRoots/listDirectory；系统选择器与 READ 持久授权、当前层元数据和本地 ID；原生读写只经 `DocumentAccess`，有所有文件访问权限且目录属于系统存储提供者时按路径读写，两种实现返回相同的 ID 和属性 | URI/documentId 留在原生层，不接收任意路径；写入能力均不支持；原生只读流由同包调用者消费并关闭，不将内容或 Base64 交给 JS |
-| Android 当前扫描 | SyncScansPlugin 的 capabilities/start/query/cancel；start 接收 schemaVersion=1/rootId，query/cancel 接收 scanId，返回 OperationResult 包络及共享 SyncScanState | 本次递归读取及原生 SHA-256；未知长度按流实测，源变化/权限/预算/取消分别报告；结果限时存内存，不加保活或前后台处理；调用见移动 README |
-| Android 独立备份 | BackupStore/Model/Files、AndroidBackupIo 提供 `Android/data` 中备份的创建、校验、按份数轮换、设置/容量及恢复材料引用；SyncBackupsPlugin 提供 read/list/manifest/setPreference/rotate/cleanupIncomplete/deleteBackup | 创建只由原生确认计划编排调用；设置及显式维护争用与传输/恢复相同的目标名额，实际任务清理前拒绝变更。SAF 读取后校验，按 `backups/游戏名/UTC 时间/` 落盘/回读/提交，用户可直接删除；设置在内部 backup-settings.json；查询仅公开 ID/摘要/清单，displayPath 仅供展示；不跨桥传内容/句柄，不新增备份目录选择；错误与资源责任见移动 README |
-| Android 受保护写入与本机恢复 | SyncPlanModel 重算可执行计划，SyncWriter.apply 与 DirectorySyncBackend 执行原生目标写入；SyncWrites/TS bridge 提供 bindProject/prepareRestore/preview/execute/query/current/cancel/release/retryCleanup | 平台从保存配置绑定项目/根，原生检查持久写权限和固定预览；完整输入/目标复核、容量和有效备份后创建/覆盖/回读，rw 不预截断；本机恢复强制保护当前内容。current 返回活动或最近恢复 ID，页面据此找回预览和结果；清理失败记录继续保留，明确重试后更新清理状态。输入引用/取消/清理与实际结果分开，仅公开 DTO/ID，不公开 URI/路径/流；详见移动 README |
-| Java 私有归档 | ArchiveAdapter.prepare/receive、不可变 ArchiveModel、Artifact.openArchive/openFile/close；DirectoryArchiveSource 从本次 SAF 引用原生读取并前后复核；控制器取消关闭读流/查询，资源、期限与清理错误分别检查 | 固定 v1 原生模型，完整校验后才返回句柄；私有真实缓存路径/所有权与进程独占，清理失败保留名额可重试；无 URI/内容跨桥；JSON 解码/网络、目标发布与前台调度由对应模块负责；用法见移动说明 |
+| Android 当前扫描 | SyncScansPlugin 的 capabilities/start/query/cancel；start 接收 schemaVersion=1/rootId，query/cancel 接收 scanId，返回 OperationResult 包络及共享 SyncScanState | 本次递归读取及原生 SHA-256；未知长度按流实测，源变化/权限/预算/取消分别报告；结果限时存内存，不加保活或前后台处理；调用见[Android 平台层](android.md) |
+| Android 独立备份 | BackupStore/Model/Files、AndroidBackupIo 提供 `Android/data` 中备份的创建、校验、按份数轮换、设置/容量及恢复材料引用；SyncBackupsPlugin 提供 read/list/manifest/setPreference/rotate/cleanupIncomplete/deleteBackup | 创建只由原生确认计划编排调用；设置及显式维护争用与传输/恢复相同的目标名额，实际任务清理前拒绝变更。SAF 读取后校验，按 `backups/游戏名/UTC 时间/` 落盘/回读/提交，用户可直接删除；设置在内部 backup-settings.json；查询仅公开 ID/摘要/清单，displayPath 仅供展示；不跨桥传内容/句柄，不新增备份目录选择；错误与资源责任见[Android 平台层](android.md) |
+| Android 受保护写入与本机恢复 | SyncPlanModel 重算可执行计划，SyncWriter.apply 与 DirectorySyncBackend 执行原生目标写入；SyncWrites/TS bridge 提供 bindProject/prepareRestore/preview/execute/query/current/cancel/release/retryCleanup | 平台从保存配置绑定项目/根，原生检查持久写权限和固定预览；完整输入/目标复核、容量和有效备份后创建/覆盖/回读，rw 不预截断；本机恢复强制保护当前内容。current 返回活动或最近恢复 ID，页面据此找回预览和结果；清理失败记录继续保留，明确重试后更新清理状态。输入引用/取消/清理与实际结果分开，仅公开 DTO/ID，不公开 URI/路径/流；详见[Android 平台层](android.md) |
+| Java 私有归档 | ArchiveAdapter.prepare/receive、不可变 ArchiveModel、Artifact.openArchive/openFile/close；DirectoryArchiveSource 从本次 SAF 引用原生读取并前后复核；控制器取消关闭读流/查询，资源、期限与清理错误分别检查 | 固定 v1 原生模型，完整校验后才返回句柄；私有真实缓存路径/所有权与进程独占，清理失败保留名额可重试；无 URI/内容跨桥；JSON 解码/网络、目标发布与前台调度由对应模块负责；用法见[Android 平台层](android.md) |
 | Java SAF 新文件发布 | NewFilePublisher 的 grant/revoke、preflight/publish、cancel/retryCleanup/stop；DirectoryPublicationBackend 仅定位已有根/父目录，PublicationJson 对齐单文件结果和独立清理 | 系统 WRITE 与本次显式授权分开；创建前后核实 ID/父/名，常规 FD 身份及非截断 rw，关闭后 EOF/SHA-256/元数据回读；仅清理身份匹配的新条目，未知不重放，清理失败保留进程名额；无内容/URI 跨桥，原生流可来自已验证归档 |
-| Android 原生 HTTP/任务 | HttpTransfersPlugin、TransferJson/Schema/Http/Engine、TS 桥；connect、远端当前层、双向 start、query/queryRemote/getManifest/current、cancel/retryCleanup/订阅 | 严格 JSON/头/预算、会话及本次上下文；连接和默认网络无进展等待 5 秒，初次握手总期限 5 秒；单次 ID/内容，回执丢失只查询；完整验证后逐项 SAF 发布；sender sent 与 receiver 成功分开，URI/字节不跨桥；用法见移动 README |
+| Android 原生 HTTP/任务 | HttpTransfersPlugin、TransferJson/Schema/Http/Engine、TS 桥；connect、远端当前层、双向 start、query/queryRemote/getManifest/current、cancel/retryCleanup/订阅 | 严格 JSON/头/预算、会话及本次上下文；连接和默认网络无进展等待 5 秒，初次握手总期限 5 秒；单次 ID/内容，回执丢失只查询；完整验证后逐项 SAF 发布；sender sent 与 receiver 成功分开，URI/字节不跨桥；用法见[Android 平台层](android.md) |
 | 清单前终态 | Android 下载在清单生成前取消/失败，生成逐文件 not-attempted 的接收终态 | TS 桥仅在本地下载终态、缺少清单、文件 ID/顺序/数量和原因均匹配时接纳；任何已写入结果继续要求完整清单/目标校验 |
 | 生命周期 | 业务不判断前后台；普通目录、扫描、连接和查询不处理切后台后的成败。仅传输由 TransferRuntime 应用级持有，使用 dataSync 前台服务与持续通知，Activity 销毁后原传输继续 | 通知权限经用户允许；完成/显式取消和清理后退出；没有自动调度或旧任务重放，current 只重新取得原传输上下文 |
 
@@ -133,7 +132,7 @@ transferId 只属于当前会话，不是历史同步基线。服务以每次启
 
 ## 5. 版本与线格式
 
-数据声明和映射由共享包提供；Windows HTTP 读取使用严格 JSON/路由/头/会话和 UTF-8 字节预算，双端私有归档负责实际流、格式、长度与哈希校验。Windows HTTP receiver 负责上传预检、单次 PUT、完整校验与批次编排，Android 原生层负责单文件发布和网络/批次编排。当前协议使用批量 v1，只有批量端点，没有单文件别名，按正式兼容要求维护。完整声明见 `apps/shared/README.md`。
+数据声明和映射由共享包提供；Windows HTTP 读取使用严格 JSON/路由/头/会话和 UTF-8 字节预算，双端私有归档负责实际流、格式、长度与哈希校验。Windows HTTP receiver 负责上传预检、单次 PUT、完整校验与批次编排，Android 原生层负责单文件发布和网络/批次编排。当前协议使用批量 v1，只有批量端点，没有单文件别名。完整声明见[共享包](shared-package.md)。
 
 - 协议只接受数字版本 1，封闭 DTO 拒绝缺失和额外字段。ID 为 1–128 个 ASCII 字符，首位字母或数字，后续允许字母、数字、下划线和短横线，不接收路径或 URI；批内 fileId 使用受限连续编号。
 - 字节数为非负安全整数；时间是 ±8.64e15 范围内的 Unix 毫秒整数，0 和负数有实际含义，未知修改日期用 null。文本非空白且最长 1024 个 UTF-16 码元。
@@ -149,7 +148,7 @@ apps/shared 保留本地目录/设备/错误/选择结果守卫，并提供批�
 
 长期自动化测试只保留共享数据关系、目录/IPC、归档、HTTP、原生发布和桥接边界。桌面与移动测试使用独立合成夹具，验证公开输入输出、文件安全、非覆盖发布、取消、结果未知和清理重试；不测试按钮、文案、DOM、颜色或内部调用顺序。Java 设备测试保留 SAF 只读读取、固定归档互通和实际 SAF 快照三条路径。真机结论和支持范围见[验收标准](../testing/acceptance.md)。
 
-守卫校验已解析 JSON/plain data，处理范围是数据结构和关系；文件、网络、哈希计算、生命周期控制、脱敏由平台负责。守卫不改变、克隆或冻结输入；资源所有权、释放、线程隔离及原生异常到错误码的映射也在平台层。跨 Java/JS 的超范围整数在原生侧拒绝，未知属性显式输出 null；SAF 日期 0 依提供者约定转换为未知。调用示例及桥生命周期说明见 `apps/shared/README.md`、`apps/mobile/README.md`。
+守卫校验已解析 JSON/plain data，处理范围是数据结构和关系；文件、网络、哈希计算、生命周期控制、脱敏由平台负责。守卫不改变、克隆或冻结输入；资源所有权、释放、线程隔离及原生异常到错误码的映射也在平台层。跨 Java/JS 的超范围整数在原生侧拒绝，未知属性显式输出 null；SAF 日期 0 依提供者约定转换为未知。桥生命周期说明见[共享包](shared-package.md)、[Android 平台层](android.md)。
 
 `pnpm check` 只执行文本、格式、lint、严格类型和双端构建。`pnpm test:all` 运行完整自动化测试与 Android 原生测试，日常检查不运行它。默认不新增或扩写自动化测试；功能验证优先编译、实际运行、ADB 操作和截图。
 
@@ -177,10 +176,10 @@ Android 桥提供 `connections`、`selectDevice`、`disconnectDevice`、`exchang
 
 ## 8. 发现与连接二维码
 
-格式在 `apps/shared/src/connection`，字段和函数见 `apps/shared/README.md` 第 9 节。两种格式都由监听方提供、拨号方读取，不按平台区分；扫码只在移动端提供。拿到的地址只用来连接，连接后仍用 `/v1/device` 核对设备 ID，设备 ID 不一致时不替换已保存的设备。
+格式在 `apps/shared/src/connection`，字段和函数见 [共享包](shared-package.md#9-发现与连接二维码)。两种格式都由监听方提供、拨号方读取，不按平台区分；扫码只在移动端提供。拿到的地址只用来连接，连接后仍用 `/v1/device` 核对设备 ID，设备 ID 不一致时不替换已保存的设备。
 
 - DNS-SD：服务类型 `_savedata-sync._tcp`，实例名是截到 63 个 UTF-8 字节的显示名，TXT 为 `v`、`id`、`pf`。地址和端口取 SRV 与 A 记录，拨号方只用 IPv4。
 - 二维码：`savedata-sync://connect?v=1&id=<设备 ID>&p=<端口>&a=<IPv4>,…`，1–8 个地址按推荐顺序排列，拨号方依次尝试。电脑端设备页在服务运行时显示，载荷取服务快照的 `deviceId`、实际端口和 `listener.ipv4Addresses`；没有地址时不显示二维码。虚拟机、Hyper-V、代理软件的虚拟网卡不进二维码：其他设备访问不到，列出来会暴露本机内部网络，扫码端还会去连它所在网络里碰巧同址的主机。
-- 电脑端广播：HTTP 服务监听期间由主进程广播，停止服务或退出应用时发 goodbye 包。SRV 主机名是 `savedata-sync-<设备 ID>`（小写，`_` 换成 `-`），不用显示名；只发 A 记录，每块网卡只回答这块网卡的地址。实例名重名时自动加序号。广播失败时 HTTP 服务照常运行，服务快照的 `discovery` 显示失败并每 30 秒重试；防火墙拦截 UDP 5353 时本机察觉不到。实现见桌面 README 第 3 节。
-- Android 搜索：只在有页面订阅时用 NsdManager 搜索，Activity 停止时暂停；结果只含 IPv4 地址，TXT 由 `parseDiscoveryTxt` 校验后按设备 ID 合并，协议版本不同的只保留实例名。接口见移动 README“局域网设备搜索”。
+- 电脑端广播：HTTP 服务监听期间由主进程广播，停止服务或退出应用时发 goodbye 包。SRV 主机名是 `savedata-sync-<设备 ID>`（小写，`_` 换成 `-`），不用显示名；只发 A 记录，每块网卡只回答这块网卡的地址。实例名重名时自动加序号。广播失败时 HTTP 服务照常运行，服务快照的 `discovery` 显示失败并每 30 秒重试；防火墙拦截 UDP 5353 时本机察觉不到。实现见 [Windows 平台层](windows.md#6-有限-ipc-与服务控制)。
+- Android 搜索：只在有页面订阅时用 NsdManager 搜索，Activity 停止时暂停；结果只含 IPv4 地址，TXT 由 `parseDiscoveryTxt` 校验后按设备 ID 合并，协议版本不同的只保留实例名。接口见[Android 平台层](android.md#12-局域网设备搜索)。
 - 版本：两种格式的 `v` 都是 `PROTOCOL_VERSION`。版本不同时解析结果为 `unsupported-version`，其余字段不解析；不合法时为 `invalid`。

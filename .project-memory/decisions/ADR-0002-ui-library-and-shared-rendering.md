@@ -3,7 +3,6 @@ doc_type: adr
 status: accepted
 updated: 2026-11-17
 tags: [决策, 界面, 组件库, 共用组件]
-related_files: [eslint.config.mjs, apps/shared]
 ---
 
 # ADR-0002 维持 antd 系列，抽取双端共用渲染
@@ -29,7 +28,7 @@ accepted。2026-11-01 确定：组件库维持 antd + antd-mobile；与两端交
 
 | 被替代 ADR | 原路径 | 原因 |
 | --- | --- | --- |
-| 无 | 无 | 新决策；修订“两端各自维护完整界面”的约定（architecture/overview.md、requirements/constraints.md、standards/coding-style.md 平台边界） |
+| 无 | 无 | 新决策；修订“两端各自维护完整界面”的约定（architecture/overview.md、requirements/constraints.md、standards/coding.md 平台边界） |
 
 ## 背景
 
@@ -46,7 +45,7 @@ accepted。2026-11-01 确定：组件库维持 antd + antd-mobile；与两端交
    - 主入口不得导入 ui 入口，ESLint 按目录分别限制；颜色、圆角与字体只在主入口 `preferences/design-tokens.ts` 取值；ui 入口的 `designTheme` 由它生成两端 ConfigProvider 主题，`installDesignTokens` 写出两端样式表共用的 `--ss-*` CSS 变量。
 3. 两端差异只通过排版参数传入（方向、尺寸、边距、紧凑程度）。操作入口与平台交互（底部弹层/抽屉/对话框、返回键、系统选择器、确认、提示消息）留在各端，由各端把回调和操作区传给共用主体。
 4. 抽取以“与两端交互差异无关”为标准，不为复用而强行统一两端交互。
-5. 共用组件的 Props 类型全部命名导出并写明每个参数的用途，不接受、不透传 style、className、styles、classNames 等样式参数；功能相近的一组参数可合并为导出的结构化类型（细则见 standards/coding-style.md“共用界面组件参数”）。
+5. 共用组件的 Props 类型全部命名导出并写明每个参数的用途，不接受、不透传 style、className、styles、classNames 等样式参数；功能相近的一组参数可合并为导出的结构化类型（细则见 standards/coding.md“共用界面组件参数”）。
 
 ## 原因
 
@@ -79,4 +78,4 @@ accepted。2026-11-01 确定：组件库维持 antd + antd-mobile；与两端交
 
 - 原型 v2：本地 docs/design/ui-redesign-v2/（不进 Git）
 - eslint.config.mjs（apps/shared 与两端的 no-restricted-imports 规则）
-- standards/coding-style.md 平台边界、requirements/constraints.md 开发方式、architecture/overview.md 技术选型理由
+- standards/coding.md 平台边界、requirements/constraints.md 开发方式、architecture/overview.md 技术选型理由
