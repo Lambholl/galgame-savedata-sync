@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Button, Dropdown, Input, Modal } from 'antd'
 import { EditOutlined, MoreOutlined, PlusOutlined } from '@ant-design/icons'
 import type { DirectoryReference, LibraryGame, LibraryPeer } from '@savedata-sync/shared'
@@ -54,10 +54,16 @@ export function GameSettingsPage({
 }): React.JSX.Element {
   const t = useT()
   const [name, setName] = useState(game.name)
+  // 只在已保存的名称变化后同步输入框；保存失败时保留输入草稿。
+  const savedNameKey = `${game.id}
+${game.name}`
+  const [syncedNameKey, setSyncedNameKey] = useState(savedNameKey)
+  if (syncedNameKey !== savedNameKey) {
+    setSyncedNameKey(savedNameKey)
+    setName(game.name)
+  }
   const [draft, setDraft] = useState<LinkDraft | null>(null)
   const [isLinking, setIsLinking] = useState(false)
-  // 只在已保存名称变化后同步；保存失败时保留输入草稿。
-  useEffect(() => setName(game.name), [game.id, game.name])
   const isLocked = isDisabled || isActive
   const draftPeer = peers.find((peer) => peer.device.id === draft?.deviceId)
   function openLink(): void {
@@ -124,7 +130,7 @@ export function GameSettingsPage({
           items={linkedDevices(game, peers, 'mobile', t('game.deviceRemoved'))}
           actions={(item) => (
             <>
-              {item.isConnected && (
+              {item.isConnected ? (
                 <Button
                   size="small"
                   disabled={isActive || !localRoot}
@@ -132,7 +138,7 @@ export function GameSettingsPage({
                 >
                   {t('game.transfer')}
                 </Button>
-              )}
+              ) : null}
               <Dropdown
                 trigger={['click']}
                 placement="bottomRight"
@@ -187,7 +193,7 @@ export function GameSettingsPage({
         onOk={confirmLink}
         onCancel={() => setDraft(null)}
       >
-        {draft && (
+        {draft ? (
           <LinkPicker
             devices={linkPickerDevices(game, peers, 'mobile')}
             isDeviceStepShown={draft.mode === 'link'}
@@ -212,7 +218,7 @@ export function GameSettingsPage({
               onManageDevices()
             }}
           />
-        )}
+        ) : null}
       </Modal>
     </div>
   )

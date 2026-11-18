@@ -886,7 +886,7 @@ final class SyncTransferEngine implements AutoCloseable {
       "preparing",
       "updatedAt",
       now,
-      "cancelRequested",
+      "isCancelRequested",
       false,
       "failureStage",
       null,
@@ -1037,7 +1037,7 @@ final class SyncTransferEngine implements AutoCloseable {
         synchronized (this) {
           boolean wasCancelled =
             !job.hasTimedOut &&
-            (failure.isCancelled || Boolean.TRUE.equals(job.state.get("cancelRequested")));
+            (failure.isCancelled || Boolean.TRUE.equals(job.state.get("isCancelRequested")));
           terminal(
             job,
             wasCancelled ? "cancelled" : "failed",
@@ -1512,7 +1512,7 @@ final class SyncTransferEngine implements AutoCloseable {
     try {
       boolean isCancelled =
         !job.hasTimedOut &&
-        (cause.isCancelled || Boolean.TRUE.equals(job.state.get("cancelRequested")));
+        (cause.isCancelled || Boolean.TRUE.equals(job.state.get("isCancelRequested")));
       String code = job.hasTimedOut
         ? "timeout"
         : cause.code.equals("result-unknown")
@@ -1559,7 +1559,7 @@ final class SyncTransferEngine implements AutoCloseable {
         )
       );
       if (isCancelled) {
-        job.state.put("cancelRequested", true);
+        job.state.put("isCancelRequested", true);
         job.state.put("status", "cancelled");
       }
     } catch (Exception invalid) {
@@ -1599,7 +1599,7 @@ final class SyncTransferEngine implements AutoCloseable {
     job.state.put("stage", "done");
     job.state.put("updatedAt", System.currentTimeMillis());
     if (isCancelled) {
-      job.state.put("cancelRequested", true);
+      job.state.put("isCancelRequested", true);
     }
   }
 
@@ -1764,7 +1764,7 @@ final class SyncTransferEngine implements AutoCloseable {
     job.state.put("stage", "done");
     job.state.put("error", code == null ? null : error(code, device));
     if (status.equals("cancelled")) {
-      job.state.put("cancelRequested", true);
+      job.state.put("isCancelRequested", true);
     }
     job.state.put("updatedAt", System.currentTimeMillis());
   }
@@ -1886,7 +1886,7 @@ final class SyncTransferEngine implements AutoCloseable {
       if (isTimeout) {
         job.hasTimedOut = true;
       }
-      job.state.put("cancelRequested", !isTimeout);
+      job.state.put("isCancelRequested", !isTimeout);
       shouldNotify = shouldNotifyPc && job.isRunning && job.wasRemoteAttempted;
     }
     if (shouldNotify) {
@@ -1989,7 +1989,7 @@ final class SyncTransferEngine implements AutoCloseable {
     return object(
       "transferId",
       active.plan.id,
-      "upload",
+      "isUpload",
       active.preparation.upload(),
       "running",
       active.isRunning,

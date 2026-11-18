@@ -812,7 +812,7 @@ final class TransferEngine {
         "running",
         "stage",
         stage,
-        "cancelRequested",
+        "isCancelRequested",
         cancelled(job),
         "fileResults",
         job.upload() ? null : fileResults(job),
@@ -1289,7 +1289,7 @@ final class TransferEngine {
           object(
             "options",
             object("request", last.selection, "targetRootId", last.root, "targets", last.targets),
-            "upload",
+            "isUpload",
             last.upload(),
             "device",
             last.connection
@@ -1307,7 +1307,7 @@ final class TransferEngine {
     return object(
       "transferId",
       active.id,
-      "upload",
+      "isUpload",
       active.upload(),
       "running",
       active.isRunning,

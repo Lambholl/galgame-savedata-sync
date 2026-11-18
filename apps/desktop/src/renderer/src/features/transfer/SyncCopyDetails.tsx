@@ -97,7 +97,7 @@ export function SyncCopyDetails({
         (resource.isLoading && <Skeleton active />) ||
         (failure && (
           <Empty description={t('task.readFailed')}>
-            <Button onClick={resource.reload}>{t('common.retry')}</Button>
+            <Button onClick={() => resource.reload()}>{t('common.retry')}</Button>
           </Empty>
         ))
       )}

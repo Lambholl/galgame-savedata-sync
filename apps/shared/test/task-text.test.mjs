@@ -19,7 +19,7 @@ function state(role, overrides = {}) {
     status: 'failed',
     stage: 'done',
     updatedAt: 1,
-    cancelRequested: false,
+    isCancelRequested: false,
     progress: {
       sourceBytesRead: 0,
       archiveBytesTransferred: 0,

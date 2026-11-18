@@ -160,7 +160,7 @@ interface BatchIdentity {
 export type BatchRunningState = BatchIdentity & {
   readonly status: 'running'
   readonly progress: BatchProgress
-  readonly cancelRequested: boolean
+  readonly isCancelRequested: boolean
 } & (
     | {
         readonly role: 'sender'

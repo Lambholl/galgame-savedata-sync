@@ -102,16 +102,16 @@ export function SettingsPage({
       <section className="settings-section">
         <h2>{t('settings.backup')}</h2>
         {failureHolder}
-        {backupError && !policy && (
+        {backupError && !policy ? (
           <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={backupError.context}>
             <Button onClick={() => setVersion((value) => value + 1)}>{t('common.retry')}</Button>
           </Empty>
-        )}
-        {policy && (
+        ) : null}
+        {policy ? (
           <Form {...SETTING_FORM}>
             <BackupPolicyFields policy={policy} isDisabled={false} onChange={changePolicy} />
           </Form>
-        )}
+        ) : null}
       </section>
       <section className="settings-section">
         <h2>{t('settings.about')}</h2>

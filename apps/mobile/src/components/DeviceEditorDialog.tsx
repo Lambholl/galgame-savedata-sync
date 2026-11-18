@@ -38,7 +38,7 @@ export function DeviceEditorDialog({
       onClose={onCancel}
     >
       <div className="page-stack">
-        {editingDeviceId && (
+        {editingDeviceId ? (
           <label className="field">
             {t('device.name')}
             <Input
@@ -48,7 +48,7 @@ export function DeviceEditorDialog({
               onChange={onDeviceNameChange}
             />
           </label>
-        )}
+        ) : null}
         <label className="field">
           {t('device.address')}
           <Input
@@ -70,7 +70,7 @@ export function DeviceEditorDialog({
         >
           {t(editingDeviceId ? 'common.save' : 'device.connect')}
         </Button>
-        {editingDeviceId && (
+        {editingDeviceId ? (
           <Button
             block
             color="danger"
@@ -80,7 +80,7 @@ export function DeviceEditorDialog({
           >
             {t('device.removeTitle')}
           </Button>
-        )}
+        ) : null}
         <Button block disabled={isBusy} onClick={onCancel}>
           {t('common.cancel')}
         </Button>

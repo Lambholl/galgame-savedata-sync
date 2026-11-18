@@ -162,7 +162,7 @@ public class TransferService extends Service {
     Map<String, Object> state =
       sync != null && sync.busy() ? sync.notice() : runtime == null ? null : runtime.notice();
     String id = state == null ? null : (String) state.get("transferId");
-    boolean isUpload = state != null && Boolean.TRUE.equals(state.get("upload"));
+    boolean isUpload = state != null && Boolean.TRUE.equals(state.get("isUpload"));
     boolean isActive = state == null || Boolean.TRUE.equals(state.get("running"));
     String stage = state == null ? "preparing" : (String) state.get("stage");
     int textResource;

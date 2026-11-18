@@ -82,7 +82,7 @@ export function GameActions({
             danger={item.key === 'remove'}
             className={`ss-game-action${item.key === 'remove' ? ' is-danger' : ''}`}
             disabled={item.key === 'remove' && isRemoveDisabled}
-            onClick={item.onClick}
+            onClick={() => item.onClick()}
           >
             {item.icon}
             <b>{item.label}</b>

@@ -21,18 +21,14 @@ function stateTitle(t: Translate, state: BatchState | null): string {
     unknown: t('task.unknown'),
   }[state.status]
 }
-function FileTitle({ result }: { readonly result: FileOutcome }): React.JSX.Element {
+function FileTitle({ result }: { readonly result: FileOutcome }): React.ReactNode {
   const t = useT()
   if (result.status === 'failed' || result.status === 'unknown') {
     return <ErrorText error={result.error} context={null} />
   }
-  return (
-    <>
-      {result.status === 'succeeded'
-        ? t('task.written')
-        : t(`task.outcome.${result.status === 'cancelled' ? 'cancelled' : 'not-attempted'}`)}
-    </>
-  )
+  return result.status === 'succeeded'
+    ? t('task.written')
+    : t(`task.outcome.${result.status === 'cancelled' ? 'cancelled' : 'not-attempted'}`)
 }
 /** 一次批量传输的详情；以接收端结果判定成功，发送完成后缺少回执时显示待确认。 */
 export function TaskPage({
@@ -60,7 +56,7 @@ export function TaskPage({
         return (
           <Panel key={task.id} title={task.title}>
             <p className="task-state">{stateTitle(t, receiver ?? local)}</p>
-            {progress && (
+            {progress ? (
               <>
                 <ProgressBar
                   percent={
@@ -82,20 +78,20 @@ export function TaskPage({
                   {t('task.files', { done: progress.publishedFiles, total: progress.totalFiles })}
                 </p>
               </>
-            )}
+            ) : null}
             {local?.status === 'sent' && receiver?.status !== 'succeeded' && (
               <p className="notice">{t('task.unknownDetail')}</p>
             )}
-            {local && local.status !== 'running' && local.error && (
+            {local && local.status !== 'running' && local.error ? (
               <div className="notice notice-error">
                 <ErrorText error={local.error} context={null} />
               </div>
-            )}
-            {local && local.status !== 'running' && local.cleanupError && (
+            ) : null}
+            {local && local.status !== 'running' && local.cleanupError ? (
               <div className="notice notice-warning">
                 <ErrorText error={local.cleanupError} context={t('task.cleanupFailed')} />
               </div>
-            )}
+            ) : null}
             <div className="action-row">
               {taskIsActive(task) && (
                 <Button color="danger" disabled={isBusy} onClick={() => onCancel(task.id)}>

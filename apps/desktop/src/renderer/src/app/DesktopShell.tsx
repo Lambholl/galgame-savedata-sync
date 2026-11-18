@@ -86,7 +86,7 @@ export function DesktopShell({
         </aside>
         <div className="library-surface">
           <header className="library-header">
-            {hasBack && (
+            {hasBack ? (
               <Button
                 type="text"
                 className="library-back"
@@ -94,15 +94,15 @@ export function DesktopShell({
                 icon={<ArrowLeftOutlined />}
                 onClick={onBack}
               />
-            )}
+            ) : null}
             <div className="library-header-title">
               <h1>{title}</h1>
               {/* 游戏设置页正文就是可编辑的游戏名，不在标题下重复。 */}
-              {gameName && !isRootPage(page) && page !== 'task' && page !== 'edit' && (
+              {gameName && !isRootPage(page) && page !== 'task' && page !== 'edit' ? (
                 <p>{gameName}</p>
-              )}
+              ) : null}
             </div>
-            {headerAction && <div className="library-header-actions">{headerAction}</div>}
+            {headerAction ? <div className="library-header-actions">{headerAction}</div> : null}
           </header>
           {/* 传输页铺满窗口高度：两列文件各自滚动，状态栏贴在底部。 */}
           <main className={`library-main${page === 'transfer' ? ' is-fill' : ''}`}>

@@ -598,7 +598,7 @@ export class WindowsSyncRegistry {
         status: 'running',
         stage: 'preparing',
         updatedAt: now,
-        cancelRequested: false,
+        isCancelRequested: false,
         failureStage: null,
         result: null,
         error: null,
@@ -1102,7 +1102,7 @@ export class WindowsSyncRegistry {
       return
     }
     task.reason = task.isCancelling ? null : reason
-    task.state = { ...task.state, cancelRequested: task.reason === null, updatedAt: Date.now() }
+    task.state = { ...task.state, isCancelRequested: task.reason === null, updatedAt: Date.now() }
     task.controller.abort()
     task.settleContent(new ArchiveCancelledError())
     if (!task.isWorking) {

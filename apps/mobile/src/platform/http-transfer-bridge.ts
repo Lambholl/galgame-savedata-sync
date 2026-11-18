@@ -41,7 +41,7 @@ export interface TransferHandle {
 /** 当前批量传输的参数和对端设备。 */
 export interface CurrentTransfer {
   readonly options: TransferStartOptions
-  readonly upload: boolean
+  readonly isUpload: boolean
   readonly device: BatchDeviceDescriptor
 }
 /** 一个原生事件订阅。 */
@@ -68,7 +68,7 @@ export interface HttpTransferNativePlugin {
   startDownload(options: TransferStartOptions): Promise<unknown>
   startUpload(options: TransferStartOptions): Promise<unknown>
   query(options: TransferHandle): Promise<unknown>
-  queryRemote(options: TransferHandle & { refresh: boolean }): Promise<unknown>
+  queryRemote(options: TransferHandle & { shouldRefresh: boolean }): Promise<unknown>
   getManifest(options: TransferHandle): Promise<unknown>
   cancel(options: TransferHandle): Promise<unknown>
   retryCleanup(): Promise<unknown>
@@ -186,7 +186,7 @@ function isStartOptions(value: unknown): value is TransferStartOptions {
 }
 interface TransferContext {
   readonly options: TransferStartOptions
-  readonly upload: boolean
+  readonly isUpload: boolean
   readonly remoteDeviceId: string
   manifest?: BatchManifest
 }
@@ -247,7 +247,7 @@ export function createHttpTransferBridge(
       manifest.transferId !== transferId ||
       manifest.sourceRootId !== context.options.request.sourceRootId ||
       manifest.files.length !== context.options.request.files.length ||
-      (!context.upload && manifest.sourceDeviceId !== context.remoteDeviceId) ||
+      (!context.isUpload && manifest.sourceDeviceId !== context.remoteDeviceId) ||
       manifest.files.some(
         (file, index) => file.sourceEntryId !== context.options.request.files[index]?.entryId,
       )
@@ -266,8 +266,8 @@ export function createHttpTransferBridge(
     isRemote: boolean,
   ): Promise<OperationResult<BatchState>> {
     const id = context.options.request.transferId
-    const direction = context.upload ? 'android-to-windows' : 'windows-to-android'
-    const isSender = context.upload !== isRemote
+    const direction = context.isUpload ? 'android-to-windows' : 'windows-to-android'
+    const isSender = context.isUpload !== isRemote
     if (
       !isBatchState(value) ||
       value.transferId !== id ||
@@ -284,7 +284,7 @@ export function createHttpTransferBridge(
         // 原生下载在清单生成前结束时，逐文件只能是本次选择的“未尝试”。
         if (
           !isRemote &&
-          !context.upload &&
+          !context.isUpload &&
           value.role === 'receiver' &&
           response.error.code === 'task-conflict' &&
           (value.status === 'failed' || value.status === 'cancelled') &&
@@ -334,9 +334,7 @@ export function createHttpTransferBridge(
     }
     const response = await invoke(
       () =>
-        isRemote
-          ? plugin.queryRemote({ transferId, refresh: shouldRefresh })
-          : plugin.query({ transferId }),
+        isRemote ? plugin.queryRemote({ transferId, shouldRefresh }) : plugin.query({ transferId }),
       isBatchState,
     )
     if (response.status === 'error') {
@@ -360,7 +358,7 @@ export function createHttpTransferBridge(
     const stable = structuredClone(options)
     const id = stable.request.transferId
     // 原生事件可能先于 start 的回执到达；先保存上下文，失败后撤回。
-    contexts.set(id, { options: stable, upload: isUpload, remoteDeviceId: device.device.deviceId })
+    contexts.set(id, { options: stable, isUpload, remoteDeviceId: device.device.deviceId })
     const response = await invoke(
       () => (isUpload ? plugin.startUpload(stable) : plugin.startDownload(stable)),
       isHandle,
@@ -475,10 +473,10 @@ export function createHttpTransferBridge(
           (typeof value === 'object' &&
             Object.keys(value).length === 3 &&
             'options' in value &&
-            'upload' in value &&
+            'isUpload' in value &&
             'device' in value &&
             isStartOptions(value.options) &&
-            typeof value.upload === 'boolean' &&
+            typeof value.isUpload === 'boolean' &&
             isBatchDeviceDescriptor(value.device) &&
             value.device.device.platform === 'windows'),
       )
@@ -487,7 +485,7 @@ export function createHttpTransferBridge(
         device ??= structuredClone(value.device)
         contexts.set(value.options.request.transferId, {
           options: value.options,
-          upload: value.upload,
+          isUpload: value.isUpload,
           remoteDeviceId: value.device.device.deviceId,
         })
       }

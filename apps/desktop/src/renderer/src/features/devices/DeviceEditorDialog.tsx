@@ -33,20 +33,20 @@ export function DeviceEditorDialog({
       cancelText={t('common.cancel')}
       onCancel={onCancel}
       onOk={onSave}
-      footer={(_, { OkBtn, CancelBtn }) => (
+      footer={(_originNode, buttons) => (
         <>
-          {editingDeviceId && (
+          {editingDeviceId ? (
             <Button danger disabled={isBusy || isActive} onClick={onRemove}>
               {t('device.removeTitle')}
             </Button>
-          )}
-          <OkBtn />
-          <CancelBtn />
+          ) : null}
+          <buttons.OkBtn />
+          <buttons.CancelBtn />
         </>
       )}
     >
       <Space orientation="vertical" className="library-full">
-        {editingDeviceId && (
+        {editingDeviceId ? (
           <label className="library-field">
             {t('device.name')}
             <Input
@@ -55,7 +55,7 @@ export function DeviceEditorDialog({
               onChange={(event) => onDeviceNameChange(event.target.value)}
             />
           </label>
-        )}
+        ) : null}
       </Space>
     </Modal>
   )

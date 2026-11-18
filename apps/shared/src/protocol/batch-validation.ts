@@ -411,10 +411,10 @@ function hasValidRunningState(value: Record<string, unknown>): boolean {
       'status',
       'stage',
       'progress',
-      'cancelRequested',
+      'isCancelRequested',
       'fileResults',
     ]) ||
-    typeof value.cancelRequested !== 'boolean' ||
+    typeof value.isCancelRequested !== 'boolean' ||
     !isBatchProgress(value.progress)
   ) {
     return false

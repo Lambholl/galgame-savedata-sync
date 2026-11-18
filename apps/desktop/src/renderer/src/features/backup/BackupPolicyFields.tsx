@@ -25,7 +25,7 @@ export function BackupPolicyFields({
           onChange={(shouldBackup) => onChange({ ...policy, shouldBackup })}
         />
       </Form.Item>
-      {policy.shouldBackup && (
+      {policy.shouldBackup ? (
         <Form.Item label={t('backup.keepCount')} wrapperCol={NUMBER_FIELD}>
           <InputNumber<number>
             mode="spinner"
@@ -42,7 +42,7 @@ export function BackupPolicyFields({
             }}
           />
         </Form.Item>
-      )}
+      ) : null}
     </>
   )
 }

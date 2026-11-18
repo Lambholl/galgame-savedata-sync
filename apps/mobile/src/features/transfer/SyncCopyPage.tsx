@@ -96,6 +96,20 @@ export function SyncCopyPage({
     !isLocalRootLost &&
     !isRemoteRootLost &&
     !isTransferActive
+  // 每次重新比较前清掉上一次的结果和选择。
+  const scanKey = canScan
+    ? [game.id, peerId, direction, localRootId, remoteRootId, scanVersion].join('\n')
+    : null
+  const [startedScanKey, setStartedScanKey] = useState(scanKey)
+  if (startedScanKey !== scanKey) {
+    setStartedScanKey(scanKey)
+    if (scanKey !== null) {
+      setPreparation(null)
+      setPreview(null)
+      setScanError(null)
+      setIsKeepingExtras(true)
+    }
+  }
   useEffect(() => {
     if (!canScan) {
       return
@@ -103,10 +117,6 @@ export function SyncCopyPage({
     let isCurrent = true
     let id: string | null = null
     let timer: ReturnType<typeof setTimeout> | undefined
-    setPreparation(null)
-    setPreview(null)
-    setScanError(null)
-    setIsKeepingExtras(true)
     async function accept(state: SyncPreparationState): Promise<void> {
       if (!isCurrent) {
         return
@@ -291,13 +301,15 @@ export function SyncCopyPage({
           onKeepExtrasChange={hasExtras ? setIsKeepingExtras : null}
         />
       </div>
-      {isPlan && plan && (
+      {isPlan && plan ? (
         <PlanConfirm
           plan={plan}
           source={direction === 'android-to-windows' ? localEnd : remoteEnd}
           target={direction === 'android-to-windows' ? remoteEnd : localEnd}
           backupKeepCount={preview?.backupKeepCount ?? null}
-          notice={hasChanged && <p className="notice notice-error">{t('transfer.planStale')}</p>}
+          notice={
+            hasChanged ? <p className="notice notice-error">{t('transfer.planStale')}</p> : null
+          }
           action={{
             label: t('transfer.start'),
             isDisabled: isDisabled || !canStart,
@@ -305,8 +317,8 @@ export function SyncCopyPage({
             onClick: start,
           }}
         />
-      )}
-      {isPlan && !plan && <p className="notice">{t('transfer.planUnavailable')}</p>}
+      ) : null}
+      {isPlan && !plan ? <p className="notice">{t('transfer.planUnavailable')}</p> : null}
       <ActionSheet
         visible={isPeerSheetOpen}
         extra={t('transfer.pickPeerTitle')}

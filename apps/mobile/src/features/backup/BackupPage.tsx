@@ -183,7 +183,7 @@ export function BackupPage({
   return (
     <div className="page-stack">
       {failureHolder}
-      {error && !details && (
+      {error && !details ? (
         <div className="empty-state">
           <p>{error.context}</p>
           <div className="action-row">
@@ -192,8 +192,8 @@ export function BackupPage({
             </Button>
           </div>
         </div>
-      )}
-      {policy && (
+      ) : null}
+      {policy ? (
         <BackupPolicyBlock
           isEnabled={policy.shouldBackup}
           keepCount={policy.keepCount}
@@ -201,7 +201,7 @@ export function BackupPage({
           location={null}
           onEdit={isLocked ? null : openPolicy}
         />
-      )}
+      ) : null}
       {incomplete.length > 0 && (
         <BackupLeftoverNotice
           items={incomplete}
@@ -211,7 +211,7 @@ export function BackupPage({
           }
         />
       )}
-      {details && policy && (
+      {details && policy ? (
         <section>
           <h3 className="group-title">
             {t('backup.list')}
@@ -235,21 +235,21 @@ export function BackupPage({
             }}
           />
         </section>
-      )}
-      {current && (
+      ) : null}
+      {current ? (
         <Button
           onClick={() => onOpenRestore(current.state.restoreId, sourceName(current.state.backupId))}
         >
           {t('backup.openRestore')}
         </Button>
-      )}
-      {details && (
+      ) : null}
+      {details ? (
         <p className="foot-note">
           {t('backup.storageNote')}
           <br />
           {t('backup.location')} <PathText path={details.info.displayPath} />
         </p>
-      )}
+      ) : null}
       <ConfirmationDialog
         confirmation={
           deleting
@@ -276,7 +276,7 @@ export function BackupPage({
         title={t('backup.policyTitle', { name: game.name })}
         onClose={() => setIsPolicyOpen(false)}
       >
-        {settings && draft && (
+        {settings && draft ? (
           <List>
             <SwitchItem
               title={t('backup.followGlobal')}
@@ -307,7 +307,7 @@ export function BackupPage({
               />
             )}
           </List>
-        )}
+        ) : null}
       </Sheet>
     </div>
   )

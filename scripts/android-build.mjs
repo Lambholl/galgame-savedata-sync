@@ -10,15 +10,13 @@ if (
   !isCheckstyle &&
   (!sdkRoot || !existsSync(join(sdkRoot, 'platforms', 'android-36', 'android.jar')))
 ) {
-  throw new Error(
-    'Android SDK Platform 36 missing. Run pnpm env:check and configure dev.local.json.',
-  )
+  throw new Error('Android SDK Platform 36 missing. Run pnpm doctor and configure dev.local.json.')
 }
 if (
   !javaHome ||
   !existsSync(join(javaHome, 'bin', process.platform === 'win32' ? 'javac.exe' : 'javac'))
 ) {
-  throw new Error('Configure a JDK in JAVA_HOME or dev.local.json javaHome; run pnpm env:check.')
+  throw new Error('Configure a JDK in JAVA_HOME or dev.local.json javaHome; run pnpm doctor.')
 }
 
 const cwd = join(REPO_ROOT, 'apps', 'mobile', 'android')

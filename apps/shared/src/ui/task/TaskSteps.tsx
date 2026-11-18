@@ -40,9 +40,9 @@ export function TaskSteps({ step, phase, percent }: TaskStepsProps): ReactElemen
         aria-label={SYNC_TASK_STEPS.map((key) => t(key)).join(' / ')}
         items={SYNC_TASK_STEPS.map((key) => ({ title: t(key) }))}
       />
-      {hasError && step === null && (
+      {hasError && step === null ? (
         <p className="ss-task-stage-missing">{t('task.failureStageMissing')}</p>
-      )}
+      ) : null}
     </div>
   )
 }

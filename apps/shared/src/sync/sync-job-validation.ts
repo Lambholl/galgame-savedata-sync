@@ -118,7 +118,7 @@ const DIGEST_FIELDS = [
   'status',
   'stage',
   'updatedAt',
-  'cancelRequested',
+  'isCancelRequested',
   'progress',
   'failureStage',
   'error',
@@ -143,7 +143,7 @@ function hasDigestRelations(
     !direction(value.direction) ||
     !isOneOf(value.role, ['sender', 'receiver']) ||
     !isTimestamp(value.updatedAt) ||
-    typeof value.cancelRequested !== 'boolean' ||
+    typeof value.isCancelRequested !== 'boolean' ||
     !isSyncJobProgress(value.progress) ||
     !isNullable(value.failureStage, (item): item is SyncFailureStage =>
       isOneOf(item, FAILURE_STAGES),
@@ -192,7 +192,7 @@ function hasDigestRelations(
     )
   }
   if (value.status === 'cancelled') {
-    return value.error === null && value.cancelRequested
+    return value.error === null && value.isCancelRequested
   }
   if (value.status === 'unknown') {
     return value.error?.code === 'result-unknown'
@@ -308,14 +308,14 @@ export function isSyncPreparationPreview(value: unknown): value is SyncPreparati
   ) {
     return false
   }
-  const upload = value.direction === 'android-to-windows'
+  const isUpload = value.direction === 'android-to-windows'
   return (
     value.source.deviceId ===
-      (upload ? value.binding.localDeviceId : value.binding.remoteDeviceId) &&
-    value.source.rootId === (upload ? value.binding.localRootId : value.binding.remoteRootId) &&
+      (isUpload ? value.binding.localDeviceId : value.binding.remoteDeviceId) &&
+    value.source.rootId === (isUpload ? value.binding.localRootId : value.binding.remoteRootId) &&
     value.target.deviceId ===
-      (upload ? value.binding.remoteDeviceId : value.binding.localDeviceId) &&
-    value.target.rootId === (upload ? value.binding.remoteRootId : value.binding.localRootId)
+      (isUpload ? value.binding.remoteDeviceId : value.binding.localDeviceId) &&
+    value.target.rootId === (isUpload ? value.binding.remoteRootId : value.binding.localRootId)
   )
 }
 /** 从预览还原计划；计划的项目 ID 取目标端的本机项目 ID。 */

@@ -65,7 +65,7 @@ export function Verdict({ tone, title, detail }: VerdictProps): ReactElement {
     <>
       <div className={`ss-verdict is-${tone}`}>{VERDICT_ICON[tone]}</div>
       <h2>{title}</h2>
-      {detail && <div className="ss-verdict-detail">{detail}</div>}
+      {detail ? <div className="ss-verdict-detail">{detail}</div> : null}
     </>
   )
 }

@@ -533,7 +533,7 @@ final class TransferSchema {
         "status",
         "stage",
         "progress",
-        "cancelRequested",
+        "isCancelRequested",
         "fileResults"
       );
     } else {
@@ -564,7 +564,7 @@ final class TransferSchema {
       checkResults(results, manifest, targetRoot, targets, isRunning, totalFiles, s.get("status"));
     }
     if (isRunning) {
-      require(s.get("cancelRequested") instanceof Boolean);
+      require(s.get("isCancelRequested") instanceof Boolean);
       one(
         s.get("stage"),
         isSender

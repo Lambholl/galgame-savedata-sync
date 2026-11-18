@@ -73,7 +73,7 @@ export function TaskStrip({ task, onOpen }: TaskStripProps): ReactElement {
           <b title={task.gameName}>{task.gameName}</b>
           <span>{statusText}</span>
         </Button>
-        {task.steps && (
+        {task.steps ? (
           <Progress
             className="ss-task-strip-progress"
             steps={SYNC_TASK_STEPS.length}
@@ -93,7 +93,7 @@ export function TaskStrip({ task, onOpen }: TaskStripProps): ReactElement {
             aria-valuenow={completed + (hasCurrent ? currentPercent / 100 : 0)}
             aria-valuetext={statusText}
           />
-        )}
+        ) : null}
       </div>
       <RightOutlined className="ss-task-strip-chevron" />
     </div>

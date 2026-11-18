@@ -47,7 +47,7 @@ export function GamesPage({
           </Button>
         </Space>
       </div>
-      {task && <TaskStrip task={task} onOpen={onOpenTasks} />}
+      {task ? <TaskStrip task={task} onOpen={onOpenTasks} /> : null}
       {games.length ? (
         <div className="library-game-grid">
           {games.map((item, index) => (

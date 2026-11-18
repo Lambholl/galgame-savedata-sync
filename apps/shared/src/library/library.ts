@@ -17,12 +17,12 @@ export interface GameLink {
   readonly deviceId: string
   readonly gameId: string
 }
-/** 已保存的设备。address 是对端的监听地址，对端不监听时为 null；blocked 为 true 时本机不与它连接。 */
+/** 已保存的设备。address 是对端的监听地址，对端不监听时为 null；isBlocked 为 true 时本机不与它连接。 */
 export interface SavedDevice {
   readonly id: string
   readonly name: string
   readonly address: string | null
-  readonly blocked: boolean
+  readonly isBlocked: boolean
 }
 /** 本机的游戏库配置：游戏和已保存的设备。 */
 export interface LibraryConfig {
@@ -85,7 +85,7 @@ export function isSavedDevice(value: unknown): value is SavedDevice {
     record(value) &&
     isOpaqueId(value.id) &&
     text(value.name) &&
-    typeof value.blocked === 'boolean' &&
+    typeof value.isBlocked === 'boolean' &&
     (value.address === null || (typeof value.address === 'string' && value.address.length <= 256))
   )
 }

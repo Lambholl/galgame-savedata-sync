@@ -54,7 +54,7 @@ export function createDesktopLibraryAdapter(): DesktopLibraryAdapter {
           ),
           local,
           remote: null,
-          upload: local.direction === 'android-to-windows',
+          isUpload: local.direction === 'android-to-windows',
           names: {},
         })),
         copies: unwrap(copies),

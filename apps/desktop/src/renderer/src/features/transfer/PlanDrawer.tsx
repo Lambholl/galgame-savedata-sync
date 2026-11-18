@@ -39,7 +39,7 @@ export function PlanDrawer({
       destroyOnHidden
       classNames={{ footer: 'transfer-drawer-footer' }}
       footer={
-        action && (
+        action ? (
           <Button
             type="primary"
             danger={action.isDanger}
@@ -47,11 +47,11 @@ export function PlanDrawer({
             icon={action.icon}
             loading={action.isLoading}
             disabled={action.isDisabled}
-            onClick={action.onClick}
+            onClick={() => action.onClick()}
           >
             {action.label}
           </Button>
-        )
+        ) : null
       }
       onClose={onClose}
     >

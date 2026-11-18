@@ -90,7 +90,6 @@ function useUptime(startedAt: number | null): string | null {
     if (startedAt === null) {
       return undefined
     }
-    setNow(Date.now())
     const timer = setInterval(() => setNow(Date.now()), 1000)
     return () => clearInterval(timer)
   }, [startedAt])
@@ -171,7 +170,7 @@ export function ServiceHero({
           ) : (
             <div className="ss-service-port">{portEditor}</div>
           )}
-          {isRunning && (
+          {isRunning ? (
             <dl className="ss-service-meta">
               <div>
                 <dt>{t('service.uptime')}</dt>
@@ -181,30 +180,30 @@ export function ServiceHero({
                 <dt>{t('transfer.connected')}</dt>
                 <dd>{connectedName ?? '—'}</dd>
               </div>
-              {discoveryLabel && (
+              {discoveryLabel ? (
                 <div>
                   <dt>{t('service.discovery')}</dt>
                   <dd className={discovery === 'failed' ? 'is-warn' : undefined}>
                     {t(discoveryLabel)}
                   </dd>
                 </div>
-              )}
+              ) : null}
             </dl>
-          )}
+          ) : null}
         </div>
-        {isRunning && isAddressLoading && (
+        {isRunning && isAddressLoading ? (
           <div className="ss-service-qr">
             {/* 和二维码同样大小，读到地址后二维码出现在原处，卡片不跳动。 */}
             <div className="ss-connection-qr-placeholder" aria-hidden="true">
               <LoadingOutlined />
             </div>
           </div>
-        )}
-        {isRunning && !isAddressLoading && qrText !== null && (
+        ) : null}
+        {isRunning && !isAddressLoading && qrText !== null ? (
           <div className="ss-service-qr">
             <ConnectionQr text={qrText} size={132} label={t('service.qrTitle')} />
           </div>
-        )}
+        ) : null}
         <div className="ss-service-toggle-slot">
           <button
             type="button"

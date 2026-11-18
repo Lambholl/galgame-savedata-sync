@@ -235,7 +235,7 @@ test('ready 取消等待清理，重复 DELETE 返回实际终态且不重用任
   await waitState(fixture)
   const cancelled = await request(fixture, '/v1/transfers/batch-1', { method: 'DELETE' })
   assert.equal(cancelled.status, 202)
-  assert.equal(unwrap(cancelled.json).cancelRequested, true)
+  assert.equal(unwrap(cancelled.json).isCancelRequested, true)
   const terminal = await waitState(fixture, (state) => state.status !== 'running')
   assert.equal(terminal.status, 'cancelled')
   assert.equal(terminal.error, null)

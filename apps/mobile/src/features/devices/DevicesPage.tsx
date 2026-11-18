@@ -195,7 +195,7 @@ export function DevicesPage({
           header={
             <span className="device-inline">
               {t('device.nearby')}
-              {isSearching && <SpinLoading style={{ '--size': '12px' }} />}
+              {isSearching ? <SpinLoading style={{ '--size': '12px' }} /> : null}
             </span>
           }
         >
@@ -239,7 +239,7 @@ export function DevicesPage({
             <List.Item
               arrow={false}
               extra={
-                <Button size="small" onClick={nearby.retry}>
+                <Button size="small" onClick={() => nearby.retry()}>
                   {t('common.retry')}
                 </Button>
               }

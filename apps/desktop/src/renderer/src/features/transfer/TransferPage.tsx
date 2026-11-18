@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Button, Modal } from 'antd'
 import { CaretRightOutlined, RightOutlined } from '@ant-design/icons'
 import {
@@ -45,7 +45,7 @@ export function TransferPage({
   localRoot,
   deviceName,
   peerId,
-  upload,
+  isUpload,
   isDisabled,
   isActive,
   onPeerChange,
@@ -61,7 +61,7 @@ export function TransferPage({
   readonly localRoot: DirectoryReference | null
   readonly deviceName: string | null
   readonly peerId: string
-  readonly upload: boolean
+  readonly isUpload: boolean
   readonly isDisabled: boolean
   readonly isActive: boolean
   readonly onPeerChange: (id: string) => void
@@ -73,7 +73,7 @@ export function TransferPage({
   readonly onPlanExpired: () => void
 }): React.JSX.Element {
   const t = useT()
-  const direction: TransferDirection = upload ? 'android-to-windows' : 'windows-to-android'
+  const direction: TransferDirection = isUpload ? 'android-to-windows' : 'windows-to-android'
   const [request, setRequest] = useState<DesktopRemoteRequest | null>(null)
   const [requestId, setRequestId] = useState<string | null>(null)
   const [plan, setPlan] = useState<{ readonly requestId: string; readonly value: SyncPlan } | null>(
@@ -89,8 +89,32 @@ export function TransferPage({
   /** 已确认、等移动端应答的请求；应答前留在本页，计划过期时才能直接重新比较。 */
   const [confirmedId, setConfirmedId] = useState<string | null>(null)
   const isStarting = isConfirming || confirmedId !== null
+  const confirmedIdRef = useRef<string | null>(null)
+  // 比较请求的 effect 在清理时读 latest；layout effect 先于普通 effect 的清理执行，读到的是本次渲染的值。
   const latest = useRef<DesktopRemoteRequest | null>(null)
-  latest.current = request
+  const callbacks = useRef({ onStarted, onPlanExpired })
+  useLayoutEffect(() => {
+    latest.current = request
+    callbacks.current = { onStarted, onPlanExpired }
+  })
+  // 所有新的请求状态都从这里进入，确认后的请求在这里判断是否已经开始或者计划已过期。
+  const receiveRequest = useCallback((value: DesktopRemoteRequest | null) => {
+    setRequest(value)
+    const id = confirmedIdRef.current
+    const confirmed = id !== null && value?.requestId === id ? value : null
+    // 轮询可能先带回确认前的 ready，也要继续等。
+    if (id === null || confirmed?.status === 'ready' || confirmed?.status === 'starting') {
+      return
+    }
+    confirmedIdRef.current = null
+    setConfirmedId(null)
+    if (confirmed?.error?.code === 'plan-expired') {
+      callbacks.current.onPlanExpired()
+      setScanVersion((version) => version + 1)
+    } else {
+      callbacks.current.onStarted()
+    }
+  }, [])
   const localRootId = localRoot?.rootId ?? null
   const remoteRootId = remoteGame?.root?.rootId ?? null
   const isConnected = Boolean(selectedPeer?.isConnected)
@@ -110,7 +134,7 @@ export function TransferPage({
       try {
         const value = unwrap(await desktopSync().remoteRequest())
         if (isCurrent) {
-          setRequest(value)
+          receiveRequest(value)
         }
       } catch {
         // 读取失败时保留上次状态，下一轮再试。
@@ -126,24 +150,34 @@ export function TransferPage({
       isCurrent = false
       clearTimeout(timer)
     }
-  }, [])
+  }, [receiveRequest])
+  // 每次重新比较前清掉上一次的结果和选择。
+  const scanKey = canScan
+    ? [game.id, peerId, direction, localRootId, remoteRootId, scanVersion].join('\n')
+    : null
+  const [startedScanKey, setStartedScanKey] = useState(scanKey)
+  if (startedScanKey !== scanKey) {
+    setStartedScanKey(scanKey)
+    if (scanKey !== null) {
+      setRequestId(null)
+      setScanError(null)
+      setIsPlanOpen(false)
+      setIsKeepingExtras(true)
+    }
+  }
   useEffect(() => {
     if (!canScan) {
       return
     }
     let isCurrent = true
     let id: string | null = null
-    setRequestId(null)
-    setScanError(null)
-    setIsPlanOpen(false)
-    setIsKeepingExtras(true)
     desktopSync()
       .startRemote(game.id, peerId, direction)
       .then((result) => {
         const value = unwrap(result)
         id = value.requestId
         if (isCurrent) {
-          setRequest(value)
+          receiveRequest(value)
           setRequestId(value.requestId)
         } else {
           desktopSync()
@@ -165,23 +199,9 @@ export function TransferPage({
           .catch(() => undefined)
       }
     }
-  }, [canScan, game.id, peerId, direction, localRootId, remoteRootId, scanVersion])
+  }, [canScan, game.id, peerId, direction, localRootId, remoteRootId, scanVersion, receiveRequest])
   const shown = request !== null && request.requestId === requestId ? request : null
   const hasPlan = shown?.status === 'ready'
-  const confirmed = request?.requestId === confirmedId ? request : null
-  useEffect(() => {
-    // 轮询可能先带回确认前的 ready，也要继续等。
-    if (confirmedId === null || confirmed?.status === 'ready' || confirmed?.status === 'starting') {
-      return
-    }
-    setConfirmedId(null)
-    if (confirmed?.error?.code === 'plan-expired') {
-      onPlanExpired()
-      setScanVersion((value) => value + 1)
-    } else {
-      onStarted()
-    }
-  }, [confirmedId, confirmed?.status, confirmed?.error?.code, onPlanExpired, onStarted])
   useEffect(() => {
     if (!requestId || !hasPlan || plan?.requestId === requestId) {
       return
@@ -274,8 +294,10 @@ export function TransferPage({
     const id = shown.requestId
     const shouldDeleteExtras = current.shouldDeleteExtras
     async function work(): Promise<void> {
-      setRequest(unwrap(await desktopSync().confirmRemote(id, shouldDeleteExtras)))
+      const value = unwrap(await desktopSync().confirmRemote(id, shouldDeleteExtras))
+      confirmedIdRef.current = id
       setConfirmedId(id)
+      receiveRequest(value)
     }
     const confirmation = syncStartConfirmation(current, t)
     if (confirmation) {
@@ -308,7 +330,7 @@ export function TransferPage({
         direction={direction}
         status={status}
         isLocked={isDisabled || isActive || isStarting}
-        onFlip={() => onUploadChange(!upload)}
+        onFlip={() => onUploadChange(!isUpload)}
         onPickPeer={() => setIsPeerPickerOpen(true)}
         onRefresh={() => setScanVersion((value) => value + 1)}
         onCancel={
@@ -316,7 +338,7 @@ export function TransferPage({
             ? () => {
                 desktopSync()
                   .cancelRemote(shown.requestId)
-                  .then((result) => setRequest(unwrap(result)))
+                  .then((result) => receiveRequest(unwrap(result)))
                   .catch((cause: unknown) => setScanError(toShownError(cause)))
               }
             : null
@@ -337,7 +359,7 @@ export function TransferPage({
         {t('transfer.preview')}
       </Button>
       <PlanDrawer
-        isOpen={isPlanOpen && current !== null}
+        isOpen={current !== null && isPlanOpen}
         title={t('page.plan')}
         gameName={game.name}
         action={{
@@ -350,14 +372,14 @@ export function TransferPage({
         }}
         onClose={() => setIsPlanOpen(false)}
       >
-        {current && (
+        {current ? (
           <SyncPlanSummary
             plan={current}
-            source={upload ? mobileEnd : pcEnd}
-            target={upload ? pcEnd : mobileEnd}
+            source={isUpload ? mobileEnd : pcEnd}
+            target={isUpload ? pcEnd : mobileEnd}
             backupKeepCount={shown?.backupKeepCount ?? null}
           />
-        )}
+        ) : null}
       </PlanDrawer>
       <Modal
         open={isPeerPickerOpen}

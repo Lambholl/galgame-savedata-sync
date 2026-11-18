@@ -396,7 +396,7 @@ final class SyncJobModel {
       "status",
       "stage",
       "updatedAt",
-      "cancelRequested",
+      "isCancelRequested",
       "progress",
       "failureStage",
       "result",
@@ -411,7 +411,7 @@ final class SyncJobModel {
         state.get("role").equals(role)
     );
     number(state.get("updatedAt"), -BackupModel.MAX_DATE, BackupModel.MAX_DATE);
-    require(state.get("cancelRequested") instanceof Boolean);
+    require(state.get("isCancelRequested") instanceof Boolean);
     if (state.get("error") != null) {
       error(state.get("error"));
     }
@@ -499,7 +499,7 @@ final class SyncJobModel {
           require(map(outcome).get("status").equals("succeeded"));
         }
       } else if (status.equals("cancelled")) {
-        require(state.get("error") == null && Boolean.TRUE.equals(state.get("cancelRequested")));
+        require(state.get("error") == null && Boolean.TRUE.equals(state.get("isCancelRequested")));
       } else {
         require(state.get("error") != null);
         require(

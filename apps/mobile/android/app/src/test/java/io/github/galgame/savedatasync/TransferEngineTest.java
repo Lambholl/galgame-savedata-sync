@@ -348,7 +348,7 @@ public class TransferEngineTest {
         result.put("cleanupError", null);
       } else {
         result.put("stage", isUpload ? "awaiting-content" : "ready");
-        result.put("cancelRequested", false);
+        result.put("isCancelRequested", false);
         ArchiveModel.Manifest m = isUpload
           ? TransferSchema.manifest(receive.get("manifest"))
           : manifest;
@@ -739,7 +739,7 @@ public class TransferEngineTest {
     engine.start(options(false, "transfer-1"), false);
     idle(engine);
     Map<String, Object> current = map(engine.current());
-    assertEquals(Boolean.FALSE, current.get("upload"));
+    assertEquals(Boolean.FALSE, current.get("isUpload"));
     assertEquals("transfer-1", map(map(current.get("options")).get("request")).get("transferId"));
     device(current.get("device"));
     assertEquals(1, peer.posts);

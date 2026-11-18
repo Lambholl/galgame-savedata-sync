@@ -57,7 +57,7 @@ export interface SyncJobDigest {
   readonly status: 'running' | 'sent' | 'succeeded' | 'failed' | 'cancelled' | 'unknown'
   readonly stage: SyncFailureStage | 'cleaning' | 'done'
   readonly updatedAt: number
-  readonly cancelRequested: boolean
+  readonly isCancelRequested: boolean
   readonly progress: SyncJobProgress
   /**
    * 任务中断时所处的工作阶段，记录后保持不变。只在 failed、unknown、cancelled 时可能有值；

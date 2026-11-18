@@ -121,9 +121,9 @@ public class SyncTransfersPlugin extends Plugin {
   @PluginMethod
   public void query(PluginCall call) {
     submit(call, runtime -> {
-      Map<String, Object> value = arguments(call, "jobId", "refresh");
-      require(value.get("refresh") instanceof Boolean);
-      return runtime.engine.query(id(value.get("jobId")), (Boolean) value.get("refresh"));
+      Map<String, Object> value = arguments(call, "jobId", "shouldRefresh");
+      require(value.get("shouldRefresh") instanceof Boolean);
+      return runtime.engine.query(id(value.get("jobId")), (Boolean) value.get("shouldRefresh"));
     });
   }
 

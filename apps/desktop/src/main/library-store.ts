@@ -93,7 +93,7 @@ export class DesktopLibrary {
   canControl(deviceId: string): boolean {
     const saved = this.config.devices.find((item) => item.id === deviceId)
     return (
-      Boolean(saved && !saved.blocked) &&
+      Boolean(saved && !saved.isBlocked) &&
       this.runtime.has(deviceId) &&
       !this.disconnected.has(deviceId) &&
       !this.hasOtherPeer(deviceId)
@@ -118,7 +118,7 @@ export class DesktopLibrary {
   touchPeer(deviceId: string): void {
     const saved = this.config.devices.find((item) => item.id === deviceId)
     const current = this.runtime.get(deviceId)
-    if (!saved || saved.blocked || !current || this.disconnected.has(deviceId)) {
+    if (!saved || saved.isBlocked || !current || this.disconnected.has(deviceId)) {
       throw new HttpOperationError(
         'session-mismatch',
         'The device connection changed. Reconnect the device.',
@@ -148,7 +148,7 @@ export class DesktopLibrary {
       !game ||
       game.rootId !== localRootId ||
       !device ||
-      device.blocked ||
+      device.isBlocked ||
       this.disconnected.has(peerId) ||
       game.excludedDevices?.includes(peerId) ||
       !game.links.some((link) => link.deviceId === peerId && link.gameId === remoteProjectId) ||
@@ -252,7 +252,7 @@ export class DesktopLibrary {
     }
     const hello = structuredClone(value)
     const saved = this.config.devices.find((item) => item.id === hello.deviceId)
-    if (saved?.blocked) {
+    if (saved?.isBlocked) {
       throw new HttpOperationError('permission-denied', 'This device is disabled.')
     }
     if (isNewConnection) {
@@ -293,7 +293,7 @@ export class DesktopLibrary {
                     id: hello.deviceId,
                     name: hello.name,
                     address: null,
-                    blocked: false,
+                    isBlocked: false,
                   },
                   ...current.devices.filter((item) => item.id !== hello.deviceId),
                 ]

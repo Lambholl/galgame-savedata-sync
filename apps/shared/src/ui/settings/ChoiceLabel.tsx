@@ -16,7 +16,7 @@ export function ChoiceLabel({ text, isSelected }: ChoiceLabelProps): ReactElemen
     <span className="ss-choice-label">
       <span>{text}</span>
       <span className="ss-choice-check" aria-hidden="true">
-        {isSelected && <CheckOutlined />}
+        {isSelected ? <CheckOutlined /> : null}
       </span>
     </span>
   )

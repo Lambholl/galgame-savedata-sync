@@ -91,7 +91,7 @@ export function SyncTaskDetails({
   return (
     <div className="page-stack">
       {failureHolder}
-      {!copy && !restore && failure && (
+      {!copy && !restore && failure ? (
         <div className="empty-state">
           <p>{t('task.readFailed')}</p>
           <Button
@@ -104,7 +104,7 @@ export function SyncTaskDetails({
             {t('common.retry')}
           </Button>
         </div>
-      )}
+      ) : null}
       {!copy && !restore && !failure && !isLoading && (
         <p className="notice">
           {projectId
@@ -112,7 +112,7 @@ export function SyncTaskDetails({
             : t('task.none')}
         </p>
       )}
-      {copy && state && binding && (
+      {copy && state && binding ? (
         <>
           <SyncTaskSummary
             key={state.jobId}
@@ -131,7 +131,7 @@ export function SyncTaskDetails({
             }
             renderTechnicalDetails={(text) => <TechnicalDetails text={text} />}
           />
-          {isRunning && <p className="foot-note">{t('task.backgroundNote')}</p>}
+          {isRunning ? <p className="foot-note">{t('task.backgroundNote')}</p> : null}
           {isRunning ? (
             <FloatingAction
               color="danger"
@@ -156,8 +156,8 @@ export function SyncTaskDetails({
             />
           )}
         </>
-      )}
-      {restore && (
+      ) : null}
+      {restore ? (
         <Panel title={t('backup.restoreTask')}>
           <p>
             {games.find((item) => item.id === restore.state.projectId)?.name ?? t('common.unknown')}{' '}
@@ -167,7 +167,7 @@ export function SyncTaskDetails({
             {t('backup.openRestore')}
           </Button>
         </Panel>
-      )}
+      ) : null}
     </div>
   )
 }

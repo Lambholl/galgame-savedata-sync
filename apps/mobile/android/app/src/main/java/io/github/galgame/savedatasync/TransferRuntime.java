@@ -131,7 +131,7 @@ final class TransferRuntime {
       ? object(
           "transferId",
           pendingId,
-          "upload",
+          "isUpload",
           isUploadPending,
           "running",
           true,

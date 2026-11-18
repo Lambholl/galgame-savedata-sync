@@ -30,7 +30,7 @@ function state(role, overrides = {}, progressOverrides = {}) {
     status: 'running',
     stage: 'backing-up',
     updatedAt: 1,
-    cancelRequested: false,
+    isCancelRequested: false,
     progress: progress(progressOverrides),
     failureStage: null,
     error: null,

@@ -115,7 +115,7 @@ export function SyncPlanSummary({
         <>
           <FileIcon kind={kind} marker="none" />
           <span className="ss-prow-name">
-            {parent && <small>{parent} / </small>}
+            {parent ? <small>{parent} / </small> : null}
             {name}
           </span>
           <span className="ss-prow-change">
@@ -245,7 +245,7 @@ export function SyncPlanSummary({
           {t('transfer.startNote')}
         </span>
       </div>
-      {issue && (
+      {issue ? (
         <div className="ss-banner" role="alert">
           <ExclamationCircleOutlined />
           <span>
@@ -253,13 +253,13 @@ export function SyncPlanSummary({
             <small>{t('plan.issueHint')}</small>
           </span>
         </div>
-      )}
-      {isWipe && (
+      ) : null}
+      {isWipe ? (
         <div className="ss-banner" role="alert">
           <ExclamationCircleOutlined />
           <span>{t('plan.wipeBanner')}</span>
         </div>
-      )}
+      ) : null}
       {groups.replace.length > 0 && (
         <section>
           <h3 className="ss-sec is-replace">

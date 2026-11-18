@@ -50,7 +50,7 @@ export function PlanConfirm({
         label={action.label}
         isDisabled={action.isDisabled}
         isLoading={action.isLoading}
-        onClick={action.onClick}
+        onClick={() => action.onClick()}
       />
     </>
   )

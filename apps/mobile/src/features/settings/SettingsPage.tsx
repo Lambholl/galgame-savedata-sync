@@ -137,19 +137,19 @@ export function SettingsPage({
         />
       </List>
       {failureHolder}
-      {backupError && !policy && (
+      {backupError && !policy ? (
         <div className="empty-state">
           <p>{backupError.context}</p>
           <Button size="small" onClick={() => setVersion((value) => value + 1)}>
             {t('common.retry')}
           </Button>
         </div>
-      )}
-      {policy && (
+      ) : null}
+      {policy ? (
         <List mode="card" header={t('settings.backup')}>
           <BackupPolicyFields policy={policy} isDisabled={false} onChange={changePolicy} />
         </List>
-      )}
+      ) : null}
       {isDirectGranted !== null && (
         <List mode="card" header={t('settings.storage')}>
           {/* 应用不能自己开关这项权限，开关只反映当前状态，点按跳到系统授权页。 */}

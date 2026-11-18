@@ -50,7 +50,7 @@ export function BackupPolicyBlock({
           )}
         </small>
       </span>
-      {onEdit && <RightOutlined className="ss-policy-chevron" />}
+      {onEdit ? <RightOutlined className="ss-policy-chevron" /> : null}
     </button>
   )
 }

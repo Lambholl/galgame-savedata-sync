@@ -1,13 +1,13 @@
 import type { BatchState } from '../protocol/batch-contracts.ts'
 import type { DirectoryListing, FileMetadata } from '../protocol/contracts.ts'
 
-/** 两端传输任务的状态；upload 表示移动端发送到电脑，names 是源 entryId 到目标名的映射。 */
+/** 两端传输任务的状态；isUpload 表示移动端发送到电脑，names 是源 entryId 到目标名的映射。 */
 export interface TransferTask {
   readonly id: string
   readonly title: string
   readonly local: BatchState | null
   readonly remote: BatchState | null
-  readonly upload: boolean
+  readonly isUpload: boolean
   readonly names: Readonly<Record<string, string>>
 }
 
@@ -15,7 +15,7 @@ export interface TransferTask {
 export interface TransferRequest {
   readonly projectId: string
   readonly deviceId: string
-  readonly upload: boolean
+  readonly isUpload: boolean
   readonly sourceRootId: string
   readonly targetRootId: string
   readonly targetParentId: string | null
@@ -38,6 +38,6 @@ export function taskIsActive(task: TransferTask): boolean {
     !task.local ||
     task.local.status === 'running' ||
     task.remote?.status === 'running' ||
-    (task.upload && task.local.status === 'sent' && !task.remote)
+    (task.isUpload && task.local.status === 'sent' && !task.remote)
   )
 }

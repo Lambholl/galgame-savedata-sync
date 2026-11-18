@@ -76,7 +76,7 @@ export function TaskPage({
           }
         />
       )}
-      {copy && (
+      {copy ? (
         <SyncCopyDetails
           key={copy.jobId}
           task={copy}
@@ -88,7 +88,7 @@ export function TaskPage({
           }
           onChanged={onChanged}
         />
-      )}
+      ) : null}
       {copies.length > 1 && (
         <section className="task-history">
           <h2>{t('task.history')}</h2>
@@ -121,7 +121,7 @@ export function TaskPage({
         >
           <Space orientation="vertical" className="library-full">
             <span>{formatShortDateTime(item.updatedAt)}</span>
-            {item.hasCleanupError && <span>{t('task.cleanupFailed')}</span>}
+            {item.hasCleanupError ? <span>{t('task.cleanupFailed')}</span> : null}
             <Button onClick={() => setRestoreId(item.restoreId)}>{t('backup.openRestore')}</Button>
           </Space>
         </Card>
@@ -129,7 +129,7 @@ export function TaskPage({
       {tasks.length > 0 && (
         <TaskView tasks={tasks} isBusy={isBusy} onCancel={onCancel} onCleanup={onCleanup} />
       )}
-      {restoreId && (
+      {restoreId ? (
         <RestoreDetails
           key={restoreId}
           restoreId={restoreId}
@@ -148,7 +148,7 @@ export function TaskPage({
           onChanged={onChanged}
           onOpenBackup={backup}
         />
-      )}
+      ) : null}
     </div>
   )
 }

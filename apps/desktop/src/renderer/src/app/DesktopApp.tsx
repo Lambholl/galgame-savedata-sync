@@ -111,15 +111,10 @@ export function DesktopApp({
     null,
   )
   const [importKey, setImportKey] = useState('')
-  const [upload, setUpload] = useState(false)
-  const [portDraft, setPort] = useState<number | null | undefined>(undefined)
-  // 设备页开关按下后、服务快照刷新前显示“正在启动”或“正在停止”；只在 isBusy 期间有效。
+  const [isUpload, setIsUpload] = useState(false)
+  const [portDraft, setPortDraft] = useState<number | null | undefined>(undefined)
+  // 设备页开关按下后、服务快照刷新前显示“正在启动”或“正在停止”；run 结束时清空。
   const [serviceChange, setServiceChange] = useState<'starting' | 'stopping' | null>(null)
-  useEffect(() => {
-    if (!isBusy) {
-      setServiceChange(null)
-    }
-  }, [isBusy])
   const [copied, setCopied] = useState('')
   const copiedTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
   useEffect(() => () => clearTimeout(copiedTimer.current), [])
@@ -131,8 +126,8 @@ export function DesktopApp({
   const invalidate = useCallback(() => {
     generation.current++
   }, [])
+  // 只由 refresh 写入，和 snapshot state 同步更新。
   const snapshotRef = useRef(snapshot)
-  snapshotRef.current = snapshot
   const refresh = useCallback(async (): Promise<void> => {
     const version = ++generation.current
     const value = await adapter.read(t)
@@ -260,6 +255,7 @@ export function DesktopApp({
       .finally(() => {
         operating.current = false
         setIsBusy(false)
+        setServiceChange(null)
       })
   }
   const config = snapshot?.config ?? EMPTY
@@ -559,8 +555,8 @@ export function DesktopApp({
   function changePeer(id: string): void {
     setPeerId(id)
   }
-  function changeUpload(isUpload: boolean): void {
-    setUpload(isUpload)
+  function changeUpload(isNextUpload: boolean): void {
+    setIsUpload(isNextUpload)
   }
   function unlinkGame(deviceId: string): void {
     if (!game) {
@@ -622,15 +618,15 @@ export function DesktopApp({
     body = (
       <DevicesPage
         service={snapshot?.service ?? null}
-        serviceChange={isBusy ? serviceChange : null}
+        serviceChange={serviceChange}
         peers={peers}
         copied={copied}
         port={port}
         isBusy={isBusy}
         isDisabled={isDisabled}
         isActive={isActive}
-        onPortChange={setPort}
-        onRandomizePort={() => run(async () => setPort(await adapter.randomizePort()))}
+        onPortChange={setPortDraft}
+        onRandomizePort={() => run(async () => setPortDraft(await adapter.randomizePort()))}
         onToggleService={toggleService}
         onCopyAddress={copyAddress}
         onDeviceAction={actOnDevice}
@@ -690,7 +686,7 @@ export function DesktopApp({
         localRoot={localRoot}
         deviceName={snapshot?.deviceName ?? null}
         peerId={peerId}
-        upload={upload}
+        isUpload={isUpload}
         isDisabled={isDisabled}
         isActive={isActive}
         onPeerChange={changePeer}
@@ -759,7 +755,7 @@ export function DesktopApp({
         onRescan={(projectId, deviceId, direction, shownCopyId) => {
           setGameId(projectId)
           setPeerId(deviceId)
-          setUpload(direction === 'android-to-windows')
+          setIsUpload(direction === 'android-to-windows')
           navigation.open('transfer', {
             ...pageContext,
             taskCopyId: shownCopyId,
@@ -915,8 +911,8 @@ export function DesktopApp({
         ) : null
       }
       dialogs={dialogs}
-      onBack={navigation.back}
-      onNavigate={navigation.openMain}
+      onBack={() => navigation.back()}
+      onNavigate={(target) => navigation.openMain(target)}
     >
       {body}
     </DesktopShell>

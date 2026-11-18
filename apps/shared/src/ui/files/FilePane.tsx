@@ -68,7 +68,7 @@ export function FilePane({
         )
       ) : (
         <>
-          {onUp && (
+          {onUp ? (
             <button
               type="button"
               className="ss-row is-up ss-pressable"
@@ -78,7 +78,7 @@ export function FilePane({
               <FileIcon kind="directory" marker="none" />
               <span className="ss-row-name">..</span>
             </button>
-          )}
+          ) : null}
           {rows.map((row) => {
             // 窄列和宽列共用这份内容，由样式按列宽决定显示成名称下方的小字还是右侧两格。
             const body = (

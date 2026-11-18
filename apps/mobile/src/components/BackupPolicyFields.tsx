@@ -23,7 +23,7 @@ export function BackupPolicyFields({
         isDisabled={isDisabled}
         onChange={(shouldBackup) => onChange({ ...policy, shouldBackup })}
       />
-      {policy.shouldBackup && (
+      {policy.shouldBackup ? (
         <List.Item
           disabled={isDisabled}
           extra={
@@ -39,7 +39,7 @@ export function BackupPolicyFields({
         >
           {t('backup.keepCount')}
         </List.Item>
-      )}
+      ) : null}
     </>
   )
 }

@@ -26,12 +26,12 @@ export function FolderRow({ name, path, isLost, onChange }: FolderRowProps): Rea
       </span>
       <span className="ss-list-body">
         <b>{name ?? t('game.noFolder')}</b>
-        {path && (
+        {path ? (
           <small>
             <PathText path={path} />
           </small>
-        )}
-        {isLost && <span className="ss-list-warn">{t('game.folderLost')}</span>}
+        ) : null}
+        {isLost ? <span className="ss-list-warn">{t('game.folderLost')}</span> : null}
       </span>
     </>
   )

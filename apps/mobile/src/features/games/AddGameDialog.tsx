@@ -55,7 +55,7 @@ export function AddGameDialog({
           </span>
           <RightOutlined aria-hidden="true" />
         </button>
-        {directory && (
+        {directory ? (
           <label className="field add-game-name">
             {t('game.name')}
             <Input
@@ -67,7 +67,7 @@ export function AddGameDialog({
               placeholder={t('game.namePlaceholder')}
             />
           </label>
-        )}
+        ) : null}
         <div className="add-game-footer">
           <Button fill="none" disabled={isBusy} onClick={onCancel}>
             {t('common.cancel')}

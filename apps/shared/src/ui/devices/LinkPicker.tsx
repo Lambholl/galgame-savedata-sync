@@ -59,7 +59,7 @@ export function LinkPicker({
   const t = useT()
   return (
     <div className="ss-picker">
-      {isDeviceStepShown && (
+      {isDeviceStepShown ? (
         <section>
           <h3 className="ss-step-title">
             <b>1</b>
@@ -124,11 +124,11 @@ export function LinkPicker({
             <p className="ss-list-empty">{t('game.noDevices')}</p>
           )}
         </section>
-      )}
-      {selectedDevice && (
+      ) : null}
+      {selectedDevice ? (
         <section>
           <h3 className="ss-step-title">
-            {isDeviceStepShown && <b>2</b>}
+            {isDeviceStepShown ? <b>2</b> : null}
             {t('game.linkStepGame', { name: selectedDevice.name })}
           </h3>
           {games.length ? (
@@ -146,7 +146,7 @@ export function LinkPicker({
                     <span className="ss-list-body">
                       <span className="ss-list-title">
                         <b>{item.name}</b>
-                        {item.isRecommended && <i className="ss-tag">{t('game.sameName')}</i>}
+                        {item.isRecommended ? <i className="ss-tag">{t('game.sameName')}</i> : null}
                       </span>
                     </span>
                     <span className={`ss-radio${isSelected ? ' is-on' : ''}`} />
@@ -158,7 +158,7 @@ export function LinkPicker({
             <p className="ss-list-empty">{t('game.noRemoteGames')}</p>
           )}
         </section>
-      )}
+      ) : null}
     </div>
   )
 }

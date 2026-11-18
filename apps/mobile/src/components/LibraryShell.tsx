@@ -101,17 +101,17 @@ export function LibraryShell({
         }
       >
         <header className="app-heading">
-          {hasBack && (
+          {hasBack ? (
             <Button fill="none" aria-label={t('nav.back')} onClick={onBack}>
               <ArrowLeftOutlined />
             </Button>
-          )}
+          ) : null}
           <div>
             <h1>{title}</h1>
             {/* 游戏设置页正文就是可编辑的游戏名，不在标题下重复。 */}
-            {!isRootPage(page) && gameName && page !== 'task' && page !== 'edit' && (
+            {!isRootPage(page) && gameName && page !== 'task' && page !== 'edit' ? (
               <p>{gameName}</p>
-            )}
+            ) : null}
           </div>
           {!hasBack && !headerAction && <span className="app-wordmark">{t('app.name')}</span>}
           {headerAction}

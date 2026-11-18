@@ -60,7 +60,7 @@ export function AddGameDialog({
         </span>
         <RightOutlined aria-hidden="true" />
       </Button>
-      {directory && (
+      {directory ? (
         <label className="library-field library-add-game-name">
           {t('game.name')}
           <Input
@@ -72,7 +72,7 @@ export function AddGameDialog({
             placeholder={t('game.namePlaceholder')}
           />
         </label>
-      )}
+      ) : null}
     </Modal>
   )
 }

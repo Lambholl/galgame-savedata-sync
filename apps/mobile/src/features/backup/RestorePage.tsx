@@ -55,7 +55,9 @@ export function RestorePage({
         target={{ name: t('transfer.local'), kind: 'mobile' }}
         backupKeepCount={null}
         notice={
-          hasFolderChanged && <p className="notice notice-warning">{t('backup.folderChanged')}</p>
+          hasFolderChanged ? (
+            <p className="notice notice-warning">{t('backup.folderChanged')}</p>
+          ) : null
         }
         action={{
           label: t('backup.confirmRestore'),

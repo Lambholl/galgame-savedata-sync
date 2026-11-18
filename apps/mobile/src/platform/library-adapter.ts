@@ -178,7 +178,7 @@ export function createMobileLibraryAdapter(
           title: current.device.device.displayName,
           local: null,
           remote: null,
-          upload: current.upload,
+          isUpload: current.isUpload,
           names: {},
         }
       }
@@ -270,8 +270,8 @@ export function createMobileLibraryAdapter(
         transfer.projectId,
       ),
     )
-    const sourceRootId = transfer.upload ? value.localRootId : value.remoteRootId
-    const targetRootId = transfer.upload ? value.remoteRootId : value.localRootId
+    const sourceRootId = transfer.isUpload ? value.localRootId : value.remoteRootId
+    const targetRootId = transfer.isUpload ? value.remoteRootId : value.localRootId
     if (sourceRootId !== transfer.sourceRootId || targetRootId !== transfer.targetRootId) {
       throw new OperationFailure(
         'task-conflict',
@@ -293,7 +293,7 @@ export function createMobileLibraryAdapter(
           save({
             ...load(),
             devices: [
-              { id, name: descriptor.device.displayName, address: null, blocked: false },
+              { id, name: descriptor.device.displayName, address: null, isBlocked: false },
               ...load().devices,
             ],
           })
@@ -413,7 +413,7 @@ export function createMobileLibraryAdapter(
               id,
               name,
               address: normalized,
-              blocked: false,
+              isBlocked: false,
             },
             ...load().devices.filter((item) => item.id !== id),
           ],
@@ -537,18 +537,18 @@ export function createMobileLibraryAdapter(
         })),
       }
       unwrap(
-        await (transfer.upload
+        await (transfer.isUpload
           ? androidTransfers.startUpload(options)
           : androidTransfers.startDownload(options)),
       )
-      current = { options, upload: transfer.upload, device: descriptor }
+      current = { options, isUpload: transfer.isUpload, device: descriptor }
       hasRestored = true
       task = {
         id: options.request.transferId,
         title: transfer.title,
         local: null,
         remote: null,
-        upload: transfer.upload,
+        isUpload: transfer.isUpload,
         names: Object.fromEntries(
           transfer.files.map((file, index) => [
             `f${String(index + 1).padStart(6, '0')}`,

@@ -26,8 +26,8 @@ export function startSystemTheme(): () => void {
     }
   }
   const updateNativeTheme = (event: Event): void => {
-    if ('dark' in event && typeof event.dark === 'boolean') {
-      isNativeDarkMode = event.dark
+    if ('isDark' in event && typeof event.isDark === 'boolean') {
+      isNativeDarkMode = event.isDark
       updateTheme()
     }
   }

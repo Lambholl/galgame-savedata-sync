@@ -57,7 +57,7 @@ export function DevicesPage({
   const isPortValid = port !== null && Number.isInteger(port) && port >= 1 && port <= 65535
   return (
     <>
-      {service && (
+      {service ? (
         <ServiceHero
           state={state}
           address={address}
@@ -90,7 +90,7 @@ export function DevicesPage({
           onCopy={() => address && onCopyAddress(address)}
           onShowQr={() => setIsQrOpen(true)}
         />
-      )}
+      ) : null}
       <div className="library-section-heading">
         <h2>{t('device.saved')}</h2>
       </div>
@@ -107,22 +107,22 @@ export function DevicesPage({
                 <Flex vertical className="library-device-info">
                   <Flex align="center" gap="small">
                     <strong className="library-device-name ss-copyable">{peer.device.name}</strong>
-                    {peer.isConnected && (
+                    {peer.isConnected ? (
                       <Tag color="success" className="library-device-state">
                         {t('transfer.connected')}
                       </Tag>
-                    )}
+                    ) : null}
                   </Flex>
                   {/* 连着且没有地址时不写说明：标签已经写了“已连接”。 */}
-                  {(peer.device.address || !peer.isConnected) && (
+                  {peer.device.address || !peer.isConnected ? (
                     <span className="library-device-caption">
                       {peer.device.address
                         ? formatConnectionAddress(peer.device.address)
                         : t('device.waitingMobile')}
                     </span>
-                  )}
+                  ) : null}
                 </Flex>
-                {peer.isConnected && (
+                {peer.isConnected ? (
                   <Button
                     danger
                     disabled={isDisabled || isActive}
@@ -130,7 +130,7 @@ export function DevicesPage({
                   >
                     {t('device.disconnect')}
                   </Button>
-                )}
+                ) : null}
                 <Button disabled={isDisabled} onClick={() => onManageDevice(peer.device.id)}>
                   {t('device.manage')}
                 </Button>
@@ -143,17 +143,17 @@ export function DevicesPage({
       </Card>
       <Modal
         title={t('service.qrTitle')}
-        open={isQrOpen && qrText !== null}
+        open={qrText !== null && isQrOpen}
         footer={null}
         width={340}
         onCancel={() => setIsQrOpen(false)}
       >
-        {qrText && (
+        {qrText ? (
           <Flex vertical align="center" gap={12}>
             <ConnectionQr text={qrText} size={240} label={t('service.qrTitle')} />
             <span className="library-qr-address ss-copyable">{address}</span>
           </Flex>
-        )}
+        ) : null}
       </Modal>
     </>
   )

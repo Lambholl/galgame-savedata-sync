@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Button, SpinLoading } from 'antd-mobile'
 import { parseConnectionQrText } from '@savedata-sync/shared'
 import type { ConnectionQrPayload } from '@savedata-sync/shared'
@@ -33,6 +33,10 @@ export function ScanPage({
   const t = useT()
   const [status, setStatus] = useState<ScanStatus>('starting')
   const [attempt, setAttempt] = useState(0)
+  const retryCamera = useCallback(() => {
+    setStatus('starting')
+    setAttempt((value) => value + 1)
+  }, [])
   const [isOutdated, setIsOutdated] = useState(false)
   const hasScanned = useRef(false)
 
@@ -59,7 +63,6 @@ export function ScanPage({
 
   useEffect(() => {
     let isCurrent = true
-    setStatus('starting')
     qrScanner
       .start()
       .then((result) => {
@@ -88,8 +91,8 @@ export function ScanPage({
     if (status !== 'denied') {
       return undefined
     }
-    return qrScanner.watchPermissionGranted(() => setAttempt((value) => value + 1))
-  }, [status])
+    return qrScanner.watchPermissionGranted(retryCamera)
+  }, [status, retryCamera])
 
   useEffect(() => {
     if (!isOutdated) {
@@ -108,7 +111,7 @@ export function ScanPage({
               {t('device.scanOpenSettings')}
             </Button>
           ) : (
-            <Button color="primary" onClick={() => setAttempt((value) => value + 1)}>
+            <Button color="primary" onClick={retryCamera}>
               {t('common.retry')}
             </Button>
           )}

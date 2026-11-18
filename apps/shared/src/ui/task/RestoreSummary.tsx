@@ -98,7 +98,7 @@ export function RestoreSummary({
       <Verdict
         tone="bad"
         title={t('backup.restoreFailed')}
-        detail={reason && <ErrorText error={reason} context={null} />}
+        detail={reason ? <ErrorText error={reason} context={null} /> : null}
       />
     )
   }

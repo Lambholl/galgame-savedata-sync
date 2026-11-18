@@ -32,7 +32,7 @@ export function GamesPage({
             ? t('device.noneConnected')
             : ' '}
       </div>
-      {task && <TaskStrip task={task} onOpen={onOpenTasks} />}
+      {task ? <TaskStrip task={task} onOpen={onOpenTasks} /> : null}
       {games.length ? (
         <div className="game-grid">
           {games.map((game, index) => (

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Button, Empty, Form, Modal, Switch } from 'antd'
 import { DeleteOutlined, FolderOpenOutlined, HistoryOutlined } from '@ant-design/icons'
 import {
@@ -54,16 +54,17 @@ export function BackupPage({
   const t = useT()
   const [info, setInfo] = useState<DesktopBackupInfo | null>(null)
   const [listing, setListing] = useState<DesktopBackupList | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
+  // 最近一次读完（成功或失败）的列表请求；和当前请求不同时表示正在读取。
+  const [loadedListingKey, setLoadedListingKey] = useState<string | null>(null)
   const [isBusy, setIsBusy] = useState(false)
   const [error, setError] = useState<{ context: string; error: ShownError } | null>(null)
   const [version, setVersion] = useState(0)
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [manifest, setManifest] = useState<SyncBackupManifest | null>(null)
-  const [isReading, setIsReading] = useState(false)
-  const [manifestError, setManifestError] = useState<{
-    context: string
-    error: ShownError
+  // 读到的文件清单连同它属于哪个备份一起保存，切换备份后旧结果自然失效。
+  const [manifestResult, setManifestResult] = useState<{
+    key: string
+    manifest: SyncBackupManifest | null
+    error: { context: string; error: ShownError } | null
   } | null>(null)
   const [restoreId, setRestoreId] = useState<string | null>(null)
   const [isPolicyOpen, setIsPolicyOpen] = useState(false)
@@ -72,28 +73,31 @@ export function BackupPage({
   const [isDeleteOpen, setIsDeleteOpen] = useState(false)
   const isCurrent = useRef(true)
   const saving = useRef(Promise.resolve())
-  const manifestVersion = useRef(0)
-  const invalidateManifest = useCallback(() => {
-    manifestVersion.current++
-  }, [])
   useEffect(() => {
     isCurrent.current = true
     return () => {
       isCurrent.current = false
-      invalidateManifest()
     }
-  }, [invalidateManifest])
+  }, [])
+  const rootId = game?.rootId ?? null
+  const projectId = game?.id ?? null
+  const listingKey = `${projectId ?? ''}:${version}`
+  const isLoading = loadedListingKey !== listingKey
+  const backups = listing?.backups ?? []
+  const selected = backups.find((item) => item.backupId === selectedId) ?? backups[0] ?? null
+  const selectedKey = selected ? `${selected.projectId}/${selected.backupId}` : null
+  const shownManifest = manifestResult?.key === selectedKey ? manifestResult : null
+  const manifest = shownManifest?.manifest ?? null
+  const manifestError = shownManifest?.error ?? null
+  const isReading = selectedKey !== null && shownManifest === null
   // 失败用 Message 提示一次；读不到列表时正文留一个重试入口。
   const [showFailure, failureHolder] = useFailureMessage()
   const failure = error ?? manifestError
   useEffect(() => {
     showFailure(failure?.error ?? null, failure?.context ?? null)
   }, [failure, showFailure])
-  const rootId = game?.rootId ?? null
-  const projectId = game?.id ?? null
   useEffect(() => {
     let hasResult = true
-    setIsLoading(true)
     async function read(): Promise<void> {
       const api = desktopBackups()
       const details = unwrap(await api.read())
@@ -112,13 +116,13 @@ export function BackupPage({
       })
       .finally(() => {
         if (hasResult) {
-          setIsLoading(false)
+          setLoadedListingKey(listingKey)
         }
       })
     return () => {
       hasResult = false
     }
-  }, [projectId, version, t])
+  }, [listingKey, projectId, t])
   // 对方传入或恢复结束时可能新建或轮换了备份，页面开着也要重新读一次列表。
   const wasRunning = useRef(hasRunningWork)
   useEffect(() => {
@@ -127,39 +131,34 @@ export function BackupPage({
     }
     wasRunning.current = hasRunningWork
   }, [hasRunningWork])
-  const backups = listing?.backups ?? []
-  const selected = backups.find((item) => item.backupId === selectedId) ?? backups[0] ?? null
   // 所选备份变化时读取它的文件清单；切换得快时只保留最后一次的结果。
   useEffect(() => {
-    if (!selected) {
-      setManifest(null)
+    if (!selected || selectedKey === null) {
       return
     }
-    const current = ++manifestVersion.current
-    setManifest(null)
-    setManifestError(null)
-    setIsReading(true)
+    let hasResult = true
     async function read(): Promise<void> {
-      if (!selected) {
+      if (!selected || selectedKey === null) {
         return
       }
       const value = unwrap(await desktopBackups().manifest(selected.projectId, selected.backupId))
-      if (isCurrent.current && current === manifestVersion.current) {
-        setManifest(value)
+      if (hasResult) {
+        setManifestResult({ key: selectedKey, manifest: value, error: null })
       }
     }
-    void read()
-      .catch((cause: unknown) => {
-        if (isCurrent.current && current === manifestVersion.current) {
-          setManifestError({ context: t('backup.readFailed'), error: toShownError(cause) })
-        }
-      })
-      .finally(() => {
-        if (isCurrent.current && current === manifestVersion.current) {
-          setIsReading(false)
-        }
-      })
-  }, [selected, t])
+    read().catch((cause: unknown) => {
+      if (hasResult && selectedKey !== null) {
+        setManifestResult({
+          key: selectedKey,
+          manifest: null,
+          error: { context: t('backup.readFailed'), error: toShownError(cause) },
+        })
+      }
+    })
+    return () => {
+      hasResult = false
+    }
+  }, [selected, selectedKey, t])
   function refresh(): void {
     setVersion((value) => value + 1)
     onChanged()
@@ -304,7 +303,7 @@ export function BackupPage({
   }
   return (
     <div className="library-stack">
-      {policy && (
+      {policy ? (
         <BackupPolicyBlock
           isEnabled={policy.shouldBackup}
           keepCount={policy.keepCount}
@@ -312,10 +311,10 @@ export function BackupPage({
           location={info?.displayPath ?? null}
           onEdit={isActive ? null : openPolicy}
         />
-      )}
+      ) : null}
       {failureHolder}
       {/* 恢复预览在与传输计划相同的确认抽屉里打开，不改动本页内容。 */}
-      {restoreId && (
+      {restoreId ? (
         <RestoreDetails
           key={restoreId}
           restoreId={restoreId}
@@ -329,12 +328,12 @@ export function BackupPage({
           onChanged={onChanged}
           onOpenBackup={null}
         />
-      )}
-      {error && !listing && !isLoading && (
+      ) : null}
+      {error && !listing && !isLoading ? (
         <Empty description={error.context}>
           <Button onClick={refresh}>{t('common.retry')}</Button>
         </Empty>
-      )}
+      ) : null}
       {incomplete.length > 0 && (
         <BackupLeftoverNotice
           items={incomplete}
@@ -354,11 +353,11 @@ export function BackupPage({
             <h3 className="group-title">
               {t('backup.list')}
               <span className="group-title-end">
-                {policy && (
+                {policy ? (
                   <small>
                     {backups.length} / {policy.keepCount}
                   </small>
-                )}
+                ) : null}
                 <Button
                   size="small"
                   icon={<FolderOpenOutlined />}
@@ -403,7 +402,7 @@ export function BackupPage({
         onOk={deleteSelected}
         onCancel={() => setIsDeleteOpen(false)}
       >
-        {selected && t('backup.deleteText', { time: when(selected.createdAt) })}
+        {selected ? t('backup.deleteText', { time: when(selected.createdAt) }) : null}
       </Modal>
       <Modal
         open={isPolicyOpen}
@@ -411,7 +410,7 @@ export function BackupPage({
         footer={null}
         onCancel={() => setIsPolicyOpen(false)}
       >
-        {settings && draft && (
+        {settings && draft ? (
           <Form {...SETTING_FORM}>
             <Form.Item label={t('backup.followGlobal')}>
               <Switch
@@ -449,7 +448,7 @@ export function BackupPage({
               />
             )}
           </Form>
-        )}
+        ) : null}
       </Modal>
     </div>
   )

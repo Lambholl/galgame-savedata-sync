@@ -151,7 +151,7 @@ export class WindowsTransferRegistry {
       updatedAt: at,
       status: 'running',
       stage: 'preparing',
-      cancelRequested: false,
+      isCancelRequested: false,
       fileResults: null,
       progress: {
         sourceBytesRead: 0,
@@ -249,7 +249,7 @@ export class WindowsTransferRegistry {
       updatedAt: at,
       status: 'running',
       stage: 'awaiting-content',
-      cancelRequested: false,
+      isCancelRequested: false,
       fileResults: [],
       progress: {
         sourceBytesRead: 0,
@@ -533,7 +533,7 @@ export class WindowsTransferRegistry {
       return
     }
     task.reason = reason
-    task.state = { ...task.state, cancelRequested: reason === null, updatedAt: this.now() }
+    task.state = { ...task.state, isCancelRequested: reason === null, updatedAt: this.now() }
     task.controller.abort(
       reason?.code === 'timeout'
         ? new DOMException('The task timed out.', 'TimeoutError')

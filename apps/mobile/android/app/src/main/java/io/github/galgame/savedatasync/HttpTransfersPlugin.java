@@ -312,9 +312,9 @@ public class HttpTransfersPlugin extends Plugin {
   @PluginMethod
   public void queryRemote(PluginCall call) {
     submit(call, c -> {
-      Map<String, Object> a = arguments(call, "transferId", "refresh");
-      require(a.get("refresh") instanceof Boolean);
-      return engine().remoteState(id(a.get("transferId")), (Boolean) a.get("refresh"), c);
+      Map<String, Object> a = arguments(call, "transferId", "shouldRefresh");
+      require(a.get("shouldRefresh") instanceof Boolean);
+      return engine().remoteState(id(a.get("transferId")), (Boolean) a.get("shouldRefresh"), c);
     });
   }
 

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ActionSheet, Button } from 'antd-mobile'
 import { DownloadOutlined, MoreOutlined, PlusOutlined, ScanOutlined } from '@ant-design/icons'
 import { EmptyState } from '../components/EmptyState'
@@ -138,13 +138,8 @@ export function MobileApp({
   } | null>(null)
   // 比较页打开时的方向：从任务详情重新扫描时沿用那次传输的方向，从其它入口打开用默认方向。
   const [syncDirection, setSyncDirection] = useState<TransferDirection>('windows-to-android')
-  // 设备页正在连接的设备 ID，行内显示转圈；只在 isBusy 期间有效。
+  // 设备页正在连接的设备 ID，行内显示转圈；run 结束时清空。
   const [connectingId, setConnectingId] = useState<string | null>(null)
-  useEffect(() => {
-    if (!isBusy) {
-      setConnectingId(null)
-    }
-  }, [isBusy])
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null)
   const [interruptedWrites, setInterruptedWrites] = useState<readonly InterruptedWrite[]>([])
   const operating = useRef(false)
@@ -327,16 +322,17 @@ export function MobileApp({
       .finally(() => {
         operating.current = false
         setIsBusy(false)
+        setConnectingId(null)
       })
   }
   // 页面重建后第一次读取要等目录和连接查完，这之前先用本机保存的配置，游戏和设备名不会显示成“未知”。
-  const [savedConfig] = useState(() => {
+  const savedConfig = useMemo(() => {
     try {
       return adapter.savedConfig()
     } catch {
       return EMPTY
     }
-  })
+  }, [adapter])
   const config = snapshot?.config ?? savedConfig
   const game = config.games.find((item) => item.id === gameId) ?? null
   const interruptedWrite = interruptedWrites[0] ?? null
@@ -883,7 +879,7 @@ export function MobileApp({
       <DevicesPage
         peers={peers}
         online={online}
-        connectingId={(isBusy ? connectingId : null) ?? opening?.device.id ?? null}
+        connectingId={connectingId ?? opening?.device.id ?? null}
         isDisabled={isDisabled}
         isActive={isActive}
         onConnect={connectDevice}
@@ -997,7 +993,7 @@ export function MobileApp({
           games={config.games}
           peers={peers}
           errors={syncTasks.errors}
-          onChanged={syncTasks.reload}
+          onChanged={() => syncTasks.reload()}
           onRescan={(projectId, deviceId, direction) => {
             setGameId(projectId)
             setPeerId(deviceId)
@@ -1024,7 +1020,7 @@ export function MobileApp({
         game={game}
         restore={syncTasks.restore}
         isDisabled={isDisabled || isActive}
-        onChanged={syncTasks.reload}
+        onChanged={() => syncTasks.reload()}
         onSettings={() => navigation.open('edit')}
         onOpenAppSettings={() => navigation.open('settings')}
         onOpenRestore={(restoreId, sourceName) => {
@@ -1046,7 +1042,7 @@ export function MobileApp({
         rootId={game?.rootId ?? null}
         sourceName={restoreTarget.sourceName}
         isDisabled={isDisabled || isActive}
-        onChanged={syncTasks.reload}
+        onChanged={() => syncTasks.reload()}
         onDone={closeRestore}
         onFailure={showSyncFailure}
       />
@@ -1226,7 +1222,7 @@ export function MobileApp({
       }
       dialogs={dialogs}
       onBack={goBack}
-      onNavigate={navigation.openMain}
+      onNavigate={(target) => navigation.openMain(target)}
     >
       {body}
     </LibraryShell>

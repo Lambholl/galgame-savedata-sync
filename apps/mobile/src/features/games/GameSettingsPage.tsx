@@ -52,11 +52,17 @@ export function GameSettingsPage({
 }): React.JSX.Element {
   const t = useT()
   const [name, setName] = useState(game.name)
+  // 只在已保存的名称变化后同步输入框；保存失败时保留输入草稿。
+  const savedNameKey = `${game.id}
+${game.name}`
+  const [syncedNameKey, setSyncedNameKey] = useState(savedNameKey)
+  if (syncedNameKey !== savedNameKey) {
+    setSyncedNameKey(savedNameKey)
+    setName(game.name)
+  }
   const [draft, setDraft] = useState<LinkDraft | null>(null)
   const [menuDeviceId, setMenuDeviceId] = useState<string | null>(null)
   const [isLinking, setIsLinking] = useState(false)
-  // 只在已保存名称变化后同步；保存失败时保留输入草稿。
-  useEffect(() => setName(game.name), [game.id, game.name])
   const isOverlayOpen = draft !== null || menuDeviceId !== null
   useEffect(() => {
     if (!isOverlayOpen) {
@@ -162,7 +168,7 @@ export function GameSettingsPage({
         isBusy={isLinking}
         onClose={() => setDraft(null)}
       >
-        {draft && (
+        {draft ? (
           <div className="page-stack">
             {draft.mode === 'link' && <p className="muted">{t('game.linkHint')}</p>}
             <LinkPicker
@@ -190,20 +196,20 @@ export function GameSettingsPage({
               {t('game.link')}
             </Button>
           </div>
-        )}
+        ) : null}
       </Sheet>
       <ActionSheet
         visible={menuItem !== undefined}
         extra={
-          menuItem && (
+          menuItem ? (
             <div className="sheet-caption">
               <b>{menuItem.name}</b>
               <span>
                 {menuItem.isConnected ? t('transfer.connected') : t('transfer.disconnected')}
-                {menuItem.gameName && ` · ${menuItem.gameName}`}
+                {menuItem.gameName ? ` · ${menuItem.gameName}` : null}
               </span>
             </div>
-          )
+          ) : null
         }
         cancelText={t('common.cancel')}
         actions={[

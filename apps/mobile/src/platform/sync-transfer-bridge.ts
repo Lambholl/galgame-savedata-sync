@@ -27,7 +27,7 @@ export interface SyncTransferNativePlugin {
   preview(options: { preparationId: string }): Promise<unknown>
   cancelPreparation(options: { preparationId: string }): Promise<unknown>
   execute(options: { preparationId: string; plan: SyncPlan }): Promise<unknown>
-  query(options: { jobId: string; refresh: boolean }): Promise<unknown>
+  query(options: { jobId: string; shouldRefresh: boolean }): Promise<unknown>
   current(): Promise<unknown>
   latest(options: { projectId: string }): Promise<unknown>
   cancel(options: { jobId: string }): Promise<unknown>
@@ -168,7 +168,7 @@ export function createSyncTransferBridge(
     }
     return validate(
       jobId,
-      await invoke(() => plugin.query({ jobId, refresh: shouldRefresh }), isSyncTransferState),
+      await invoke(() => plugin.query({ jobId, shouldRefresh }), isSyncTransferState),
     )
   }
   async function preparationState(

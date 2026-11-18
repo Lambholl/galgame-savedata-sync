@@ -144,7 +144,7 @@ public class MainActivity extends BridgeActivity {
       boolean isDark =
         (configuration.uiMode & Configuration.UI_MODE_NIGHT_MASK) ==
         Configuration.UI_MODE_NIGHT_YES;
-      getBridge().triggerWindowJSEvent("savedata:theme-change", "{\"dark\":" + isDark + "}");
+      getBridge().triggerWindowJSEvent("savedata:theme-change", "{\"isDark\":" + isDark + "}");
     }
   }
 }

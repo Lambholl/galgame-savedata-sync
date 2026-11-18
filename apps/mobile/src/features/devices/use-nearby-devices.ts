@@ -28,7 +28,6 @@ export function useNearbyDevices(): NearbyDevicesState {
   const [isSettled, setIsSettled] = useState(false)
   useEffect(() => deviceDiscovery.watch(setSnapshot), [])
   useEffect(() => {
-    setIsSettled(false)
     const timer = setTimeout(() => setIsSettled(true), EMPTY_GRACE_MS)
     return () => clearTimeout(timer)
   }, [startedAt])
@@ -37,6 +36,7 @@ export function useNearbyDevices(): NearbyDevicesState {
     isSettled,
     retry: () => {
       deviceDiscovery.retry()
+      setIsSettled(false)
       setStartedAt(Date.now())
     },
   }

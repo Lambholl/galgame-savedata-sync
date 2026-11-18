@@ -163,7 +163,7 @@ export function SyncTaskSummary({
         onRetryCleanup={onRetryCleanup}
       />
       {/* 整行可点的入口，与技术详情同一形式；不用文字链接。 */}
-      {phase !== 'running' && onViewBackup && (
+      {phase !== 'running' && onViewBackup ? (
         <div className="ss-task-group">
           <button type="button" className="ss-task-row ss-pressable" onClick={onViewBackup}>
             <span className="ss-task-lead is-accent">
@@ -173,7 +173,7 @@ export function SyncTaskSummary({
             <RightOutlined className="ss-task-chevron" />
           </button>
         </div>
-      )}
+      ) : null}
       {renderTechnicalDetails(technicalText)}
     </div>
   )

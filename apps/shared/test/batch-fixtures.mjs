@@ -90,7 +90,7 @@ export function createSenderState(manifest = createManifest()) {
     updatedAt: 0,
     status: 'running',
     stage: 'ready',
-    cancelRequested: false,
+    isCancelRequested: false,
     fileResults: null,
     progress: {
       sourceBytesRead: manifest.totalFileBytes,
@@ -116,7 +116,7 @@ export function createReceiverRunning(request = createReceiveRequest()) {
     updatedAt: 0,
     status: 'running',
     stage: 'publishing',
-    cancelRequested: false,
+    isCancelRequested: false,
     fileResults: [],
     progress: {
       sourceBytesRead: 0,

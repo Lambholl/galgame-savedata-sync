@@ -130,7 +130,7 @@ function EndpointCard({
           <MobileOutlined className="ss-end-icon" />
         )}
         <span>{endpoint.name}</span>
-        {isRemote && <DownOutlined className="ss-end-pick" />}
+        {isRemote ? <DownOutlined className="ss-end-pick" /> : null}
       </span>
       <span className="ss-end-caption">
         <span className={`ss-role ${isSource ? 'is-source' : 'is-target'}`}>
@@ -142,7 +142,7 @@ function EndpointCard({
             {t(endpoint.isOnline ? 'transfer.connected' : 'transfer.disconnected')}
           </>
         )}
-        {endpoint.caption && <span className="ss-end-detail">{endpoint.caption}</span>}
+        {endpoint.caption ? <span className="ss-end-detail">{endpoint.caption}</span> : null}
       </span>
     </>
   )
@@ -201,16 +201,17 @@ function ComparePane({
       label={endpoint.name}
       crumb={[endpoint.rootName, ...path].join(' / ')}
       rows={
-        comparison &&
-        shown.map((item) => ({
-          name: item.name,
-          kind: item.kind,
-          path: item.path,
-          sizeBytes: item.sizeBytes,
-          modifiedAt: item.modifiedAt,
-          marker: markerOf(item, isSource, isKeeping),
-          tone: toneOf(item, isSource, isKeeping),
-        }))
+        comparison
+          ? shown.map((item) => ({
+              name: item.name,
+              kind: item.kind,
+              path: item.path,
+              sizeBytes: item.sizeBytes,
+              modifiedAt: item.modifiedAt,
+              marker: markerOf(item, isSource, isKeeping),
+              tone: toneOf(item, isSource, isKeeping),
+            }))
+          : null
       }
       isLoading={status.kind === 'waiting' || status.kind === 'scanning'}
       foot={[
@@ -340,12 +341,12 @@ export function TransferComparison({
             ))
         )}
         <span className="ss-diffbar-space" />
-        {isScanning && onCancel && (
+        {isScanning && onCancel ? (
           <button type="button" className="ss-chip ss-pressable" onClick={onCancel}>
             <span>{t('common.cancel')}</span>
           </button>
-        )}
-        {comparison !== null && onKeepExtrasChange && (
+        ) : null}
+        {comparison !== null && onKeepExtrasChange ? (
           <button
             type="button"
             role="switch"
@@ -362,7 +363,7 @@ export function TransferComparison({
               <span hidden={isKeepingExtras}>{t('plan.stat.delete')}</span>
             </span>
           </button>
-        )}
+        ) : null}
         {comparison !== null && (
           <button
             type="button"

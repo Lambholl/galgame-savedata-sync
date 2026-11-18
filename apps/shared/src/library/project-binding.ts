@@ -69,7 +69,7 @@ export function resolveSyncProjectBinding(
       'The project is not linked to this device. Select the project and device again.',
     )
   }
-  if (!peer.isConnected || device.blocked) {
+  if (!peer.isConnected || device.isBlocked) {
     return fail('network-failure', 'Connect to the device linked to the project first.')
   }
   const localRoot = roots.find((item) => item.rootId === game.rootId)

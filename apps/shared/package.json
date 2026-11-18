@@ -8,7 +8,6 @@
     "./ui": "./src/ui/index.ts"
   },
   "scripts": {
-    "build": "pnpm typecheck",
     "typecheck": "tsc --noEmit && tsc --noEmit -p src/ui",
     "test": "node --experimental-strip-types --test test/*.test.mjs"
   },

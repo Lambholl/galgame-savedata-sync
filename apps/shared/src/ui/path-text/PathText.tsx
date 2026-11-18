@@ -13,13 +13,20 @@ export interface PathTextProps {
  * 字号和颜色继承所在位置。
  */
 export function PathText({ path }: PathTextProps): ReactElement {
-  const segments = splitPathAtSeparators(path)
+  // 片段可能重复（如 a/a/），用片段在路径里的起始位置作 key。
+  const segments = splitPathAtSeparators(path).reduce<{ text: string; start: number }[]>(
+    (list, text) => {
+      const previous = list.at(-1)
+      return [...list, { text, start: previous ? previous.start + previous.text.length : 0 }]
+    },
+    [],
+  )
   return (
     <span className="ss-path-text">
-      {segments.map((segment, index) => (
-        <Fragment key={index}>
-          {segment}
-          {index < segments.length - 1 && <wbr />}
+      {segments.map((segment) => (
+        <Fragment key={segment.start}>
+          {segment.text}
+          {segment.start + segment.text.length < path.length ? <wbr /> : null}
         </Fragment>
       ))}
     </span>

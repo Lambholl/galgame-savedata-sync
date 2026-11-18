@@ -19,18 +19,14 @@ function stateTitle(t: Translate, state: BatchState | null): string {
     unknown: t('task.unknown'),
   }[state.status]
 }
-function FileTitle({ result }: { readonly result: FileOutcome }): React.JSX.Element {
+function FileTitle({ result }: { readonly result: FileOutcome }): React.ReactNode {
   const t = useT()
   if (result.status === 'failed' || result.status === 'unknown') {
     return <ErrorText error={result.error} context={null} />
   }
-  return (
-    <>
-      {result.status === 'succeeded'
-        ? t('task.written')
-        : t(`task.outcome.${result.status === 'cancelled' ? 'cancelled' : 'not-attempted'}`)}
-    </>
-  )
+  return result.status === 'succeeded'
+    ? t('task.written')
+    : t(`task.outcome.${result.status === 'cancelled' ? 'cancelled' : 'not-attempted'}`)
 }
 /** 一次批量传输的详情；以接收端结果判定成功，发送完成后缺少回执时显示待确认。 */
 export function TaskView({
@@ -61,7 +57,7 @@ export function TaskView({
             title={task.title}
             extra={<Tag>{stateTitle(t, receiver ?? local)}</Tag>}
           >
-            {progress && (
+            {progress ? (
               <>
                 <Progress
                   percent={
@@ -84,24 +80,24 @@ export function TaskView({
                   {t('task.files', { done: progress.publishedFiles, total: progress.totalFiles })}
                 </p>
               </>
-            )}
+            ) : null}
             {local?.status === 'sent' && receiver?.status !== 'succeeded' && (
               <Alert type="info" title={t('task.unknownDetail')} showIcon />
             )}
-            {local && local.status !== 'running' && local.error && (
+            {local && local.status !== 'running' && local.error ? (
               <Alert
                 type="error"
                 title={<ErrorText error={local.error} context={null} />}
                 showIcon
               />
-            )}
-            {local && local.status !== 'running' && local.cleanupError && (
+            ) : null}
+            {local && local.status !== 'running' && local.cleanupError ? (
               <Alert
                 type="warning"
                 title={<ErrorText error={local.cleanupError} context={t('task.cleanupFailed')} />}
                 showIcon
               />
-            )}
+            ) : null}
             <Space wrap className="library-task-actions">
               {taskIsActive(task) && (
                 <Button danger disabled={isBusy} onClick={() => onCancel(task.id)}>

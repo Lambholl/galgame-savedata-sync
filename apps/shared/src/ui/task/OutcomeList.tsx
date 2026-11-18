@@ -53,7 +53,7 @@ export function OutcomeList({
   const hasAction = unsettled.length > 0 || cleanupError !== null || remoteError !== null
   return (
     <>
-      {hasAction && (
+      {hasAction ? (
         <section>
           <h3 className="ss-task-title">{t('task.needsAction')}</h3>
           <div className="ss-task-group">
@@ -74,7 +74,7 @@ export function OutcomeList({
                 </span>
               </div>
             ))}
-            {cleanupError && (
+            {cleanupError ? (
               <div className="ss-task-row">
                 <span className="ss-task-lead is-warn">
                   <DeleteOutlined />
@@ -85,14 +85,14 @@ export function OutcomeList({
                     <ErrorText error={cleanupError} context={null} />
                   </small>
                 </span>
-                {onRetryCleanup && (
+                {onRetryCleanup ? (
                   <Button size="small" onClick={onRetryCleanup}>
                     {t('common.retry')}
                   </Button>
-                )}
+                ) : null}
               </div>
-            )}
-            {remoteError && (
+            ) : null}
+            {remoteError ? (
               <div className="ss-task-row">
                 <span className="ss-task-lead is-warn">
                   <ExclamationOutlined />
@@ -103,10 +103,10 @@ export function OutcomeList({
                   </small>
                 </span>
               </div>
-            )}
+            ) : null}
           </div>
         </section>
-      )}
+      ) : null}
       {succeeded.length > 0 && (
         <section>
           <h3 className="ss-task-title">{t('task.written')}</h3>
