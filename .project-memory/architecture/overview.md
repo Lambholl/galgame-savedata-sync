@@ -1,7 +1,7 @@
 ---
 doc_type: architecture-overview
 status: active
-updated: 2026-11-17
+updated: 2026-11-19
 tags: [架构总览]
 ---
 
@@ -19,7 +19,7 @@ tags: [架构总览]
 
 ## 1. 摘要
 
-- 架构风格：Windows 内置 HTTP 服务，Android 主动连接，两端在同一局域网内工作。设备间控制走 WebSocket，文件内容走 HTTP。
+- 架构风格：两端在同一局域网内工作，连接分监听方和拨号方：监听方运行 HTTP 服务和控制通道，拨号方连接并编排传输（[ADR-0004](../decisions/ADR-0004-symmetric-listener-dialer-roles.md)）。设备间控制走 WebSocket，文件内容走 HTTP。当前电脑只作监听方、Android 只作拨号方，其余组合在 M-005 实现。
 - 当前实现：双向覆盖复制（移动端或电脑都能发起）、写入前全量备份、本机恢复，以及游戏、设备和传输界面。传输时可选择删除目标多出的条目。有限桥不传文件字节。接口边界见[接口约定](api-contracts.md)。
 - 核心模块：设备与地址管理、目录映射、当前目录预览、本次差异计划、文件流传输、平台文件适配。
 - 关键约束：明文 HTTP、手选方向、无历史同步基线、目录不递归汇总大小。
@@ -40,7 +40,7 @@ tags: [架构总览]
 | 界面与平台能力分离 | apps 下分 mobile、desktop、shared；模型、业务规则和与平台交互无关的渲染放 shared，平台交互、页面状态和 Hook 各端实现。两端文件始终并列，列内布局按列宽切换 |
 | 文件以流传输 | 文件内容通过 Node.js 或 Android 原生流读取和发送，避免将整份文件转为 Base64 跨 JS 桥传递 |
 | tar.gz 流式传输 | 双向统一把本次待传文件边读边打包为 tar.gz，经分块 HTTP 原生流发送；接收端边收边解包到私有目录，内容收齐后逐文件写入目标，批量边界不改变文件级结果语义 |
-| Android 活动传输 | 业务不判断前后台；仅用户显式发起的传输通过持续通知/dataSync 前台服务保持，Activity 销毁后原传输继续，完成/显式取消及清理后退出。普通操作不处理切后台后的成败，不引入自动同步或旧任务重放 |
+| Android 活动传输 | 业务不判断前后台；仅用户显式发起的传输通过持续通知/dataSync 前台服务保持，Activity 销毁后原传输继续，完成/显式取消及清理后退出。M-005 起本机服务开着时由 `connectedDevice` 前台服务和常驻通知保持监听，用户关掉才停，被系统结束后不自动重启。普通操作不处理切后台后的成败，不引入自动同步或旧任务重放 |
 | 独立备份 | 备份可关闭、默认开启，每个游戏保留 1–10 份（默认 3 份）；目标端备份区位于同步目录之外，不参与方向或差异判定 |
 | 任务安全边界 | 同一时间只有一个写入任务；内容先解包到私有区，收齐后才写入目标，失败时报告实际结果；SAF 不能原子替换整个目录 |
 
@@ -48,25 +48,25 @@ tags: [架构总览]
 
 | 模块 | 职责 | 边界 | 状态 |
 | --- | --- | --- | --- |
-| 设备与连接 | 初次关联、保存设备 ID、更新地址、重连 | 已有手动 IP、保存设备和重连，电脑 mDNS 广播、Android 发现列表、电脑连接二维码、Android 扫码和改址自动重连 | active |
+| 设备与连接 | 初次关联、保存设备 ID、更新地址、重连 | 监听方广播并显示连接二维码，拨号方用发现列表、扫码（只在移动端）或手动 IP 连接，改址时自动重连。当前已实现电脑一侧的广播和二维码、Android 一侧的发现列表、扫码、手动 IP 和重连 | active |
 | 同步项目 | 保存项目名称、可选展示信息和两端目录映射 | 配置不保存历史文件索引；任务固定项目映射与两端目录关联 | active |
 | 预览与比较 | 读取当前条目、属性对照、生成本次差异计划 | 共用 TypeScript 模型，原生适配只负责实际读取 | active |
 | Windows 应用 | 桌面界面、目录选择、HTTP 服务、复制与恢复 | Electron 主进程运行 Node.js 能力，界面通过受限桥调用 | active |
 | Android 应用 | 移动界面、目录授权、HTTP 客户端 | Capacitor + Java 插件；活动传输由持续通知保持，持久目录授权与远端 IP 相互独立；局域网搜索用 NsdManager，扫码用 CameraX 取景、ZXing 解码 | active |
-| 任务控制与传输 | 显式方向、传输进度、文件流和结果 | 移动端或电脑均可发起覆盖复制，电脑发起经控制通道传递，需移动端开着应用并已连接；目标多出的条目默认保留，每次可选择删除 | active |
+| 任务控制与传输 | 显式方向、传输进度、文件流和结果 | 两端均可发起覆盖复制；拨号方编排扫描、计划和任务，监听方发起时经控制通道交给拨号方，需拨号方开着应用并已连接（当前即电脑发起、移动端执行）；目标多出的条目默认保留，每次可选择删除 | active |
 | 备份与恢复 | 写入前保存目标目录的全部文件，提供手工恢复 | 默认开启，每个游戏保留 1–10 份（默认 3 份）；独立于同步目录和任务比较数据；删除同样算写入，先备份 | active |
 
 ### 3.1 设备识别与地址更新
 
-1. Windows HTTP 服务监听 `0.0.0.0`，界面显示一个推荐 IPv4 地址、端口和稳定设备 ID；地址先取物理网卡上有默认网关的接口，再取其他有默认网关的接口，同级按默认路由 metric 排序；连接二维码最多带 8 个候选地址。服务运行期间电脑用 mDNS 广播，Android 从发现列表、扫码或手动 IP 连接并读取设备描述。
+1. 下面 1–4 条按当前实现写，电脑是监听方、Android 是拨号方；M-005 起两种平台都可担任两种角色，规则不变。Windows HTTP 服务监听 `0.0.0.0`，界面显示一个推荐 IPv4 地址、端口和稳定设备 ID；地址先取物理网卡上有默认网关的接口，再取其他有默认网关的接口，同级按默认路由 metric 排序；连接二维码最多带 8 个候选地址。服务运行期间电脑用 mDNS 广播，Android 从发现列表、扫码或手动 IP 连接并读取设备描述。
 2. 建立连接后核对设备 ID，关联保存的设备记录；地址或显示名称不作为设备身份。
 3. DHCP 或网络变化时旧连接失效。Android 点已保存设备的“连接”时，连保存的地址的同时在后台按设备 ID 用 DNS-SD 查找 5 秒；保存的地址连上就停止查找，连不上或上面是另一台设备时，查到了就连接并更新地址；附近已搜到这台设备且地址变了时直接连搜到的地址。没查到时按连接失败提示，由用户手动改址或扫码；原地址不回应时约 5 秒得出结果。项目与目录映射按设备 ID 保存，改址后保留；新地址返回不同设备 ID 时不替换已保存的设备。
 4. 查找只在点连接时进行，已连着的控制通道断开后回到未连接。异常断开后 Android 会话保留 10 秒等对方恢复，这期间点连接时，没有进行中的任务就先释放本机会话再连；配对码不在范围内，定位设备不依赖公网服务。
-5. 发现和二维码协议与设备页按对称角色设计：广播服务和显示二维码的是监听方，搜索和扫码的是拨号方，不按平台区分；唯一例外是扫码只在移动端提供，桌面端作为拨号方时用发现列表和手动 IP。M-003 只实现电脑监听、Android 拨号；反向角色属于 M-005（REQ-022）。
+5. 发现和二维码协议与设备页按对称角色设计：广播服务和显示二维码的是监听方，搜索和扫码的是拨号方，不按平台区分；唯一例外是扫码只在移动端提供，桌面端作为拨号方时用发现列表和手动 IP。一台设备同一时刻只有一条连接，作为监听方被连着或作为拨号方连着别人；拨号方连着别人时本机监听服务拒绝新的连接（`busy`）。当前只有电脑监听、Android 拨号；Android 监听、电脑拨号属于 M-005（REQ-022，ADR-0004），Android 开着本机服务时由前台服务和常驻通知保持监听。
 
 ### 3.2 本次同步流程
 
-1. 两端已连接后，用户可在移动端或电脑选择项目、电脑 → Android 或 Android → 电脑。目标有多出的条目时可选择保留或删除，默认保留。
+1. 两端已连接后，用户可在任一端选择项目和方向（当前为电脑 → Android 或 Android → 电脑，M-005 起按设备名显示两端）。目标有多出的条目时可选择保留或删除，默认保留。
 2. 重新扫描当前源目录和目标目录，生成本次临时清单；按相对路径、类型、大小和修改日期比较，大小相同且修改日期相差不超过 2 秒的文件算相同（兼容 FAT 和 exFAT 的日期精度）。
 3. 源端独有条目复制；同路径的文件不同时按所选方向覆盖；相同的文件跳过；目标端独有条目由本次的保留开关决定。
 4. 没有“首次同步”分支，没有依据日期选择权威端或双向修改冲突合并的逻辑。选择删除时先完成全部写入再删除，写入失败时一项都不删。
@@ -98,8 +98,9 @@ tags: [架构总览]
 | React 双端技术栈 | React + TypeScript + Vite，Windows Electron + antd，Android Capacitor + antd-mobile | accepted |
 | 稳定 ID、地址和目录映射解耦 | 改址后保留目录配置；连保存的地址时同时按设备 ID 查找 5 秒（Q-016），原地址连不上又没查到时再手动改址或扫码 | accepted |
 | 首次连接入口 | 发现列表、扫码和手动 IP，三个入口都核对设备 ID | accepted |
+| 连接与传输角色 | 监听方提供服务、拨号方编排传输，方向和两端按角色命名；一台设备同一时刻只有一条连接；见 [ADR-0004](../decisions/ADR-0004-symmetric-listener-dialer-roles.md) | accepted |
 | 复制与备份 | 默认覆盖复制并保留目标多出的条目，每次可选择删除。备份可关闭、默认开启，每个游戏保留 1–10 份（默认 3 份） | accepted |
-| Android 生命周期 | 不判断前后台，仅传输保活；普通操作不处理切后台后的成败。任务由用户显式发起，自动调度不在范围内；连接可用时两端均可发起任务 | accepted |
+| Android 生命周期 | 不判断前后台，只保持传输和用户开着的本机服务（M-005）；普通操作不处理切后台后的成败。任务由用户显式发起，自动调度不在范围内；连接可用时两端均可发起任务 | accepted |
 | 文件传输格式 | 双向唯一 tar.gz，边打包边发送、边收边解包；内容收齐且备份完成后才逐项写入；见[传输协议](transfer-protocol.md) | accepted |
 
-上述结论记录于[开放问题](../requirements/open-questions.md)和[ADR-0002](../decisions/ADR-0002-ui-library-and-shared-rendering.md)。参考：[Ant Design](https://ant.design/docs/react/introduce/)、[Ant Design Mobile](https://github.com/ant-design/ant-design-mobile)、[Capacitor Android](https://capacitorjs.com/docs/android)、[Android NSD](https://developer.android.com/develop/connectivity/wifi/use-nsd)、[SAF 文件属性](https://developer.android.com/reference/android/provider/DocumentsContract.Document)。
+上述结论记录于[开放问题](../requirements/open-questions.md)、[ADR-0002](../decisions/ADR-0002-ui-library-and-shared-rendering.md)和[ADR-0004](../decisions/ADR-0004-symmetric-listener-dialer-roles.md)。参考：[Ant Design](https://ant.design/docs/react/introduce/)、[Ant Design Mobile](https://github.com/ant-design/ant-design-mobile)、[Capacitor Android](https://capacitorjs.com/docs/android)、[Android NSD](https://developer.android.com/develop/connectivity/wifi/use-nsd)、[SAF 文件属性](https://developer.android.com/reference/android/provider/DocumentsContract.Document)。

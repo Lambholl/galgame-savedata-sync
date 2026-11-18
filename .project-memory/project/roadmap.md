@@ -21,7 +21,7 @@ tags: [路线图, 里程碑]
 
 | 里程碑 | 目标 | 计划时间 | 状态 |
 | --- | --- | --- | --- |
-| M-005 | 任意两台设备传输（REQ-022）：Android 监听、电脑拨号，Android/Android 与电脑/电脑互传。M-003 已按对称角色设计协议和设备页，本地原型 `docs/design/device-page-v3/`（不进 Git）画出了 M-005 的设备页，在仓库根目录用 `pnpm exec vite --config docs/design/device-page-v3/vite.config.ts` 打开。拆分为 WP-46 到 WP-52，见[工作包登记](../development/work-packages.md) | 待安排 | planned |
+| M-005 | 任意两台设备传输（REQ-022）：Android 监听、电脑拨号，Android/Android 与电脑/电脑互传。M-003 已按对称角色设计协议和设备页，本地原型 `docs/design/device-page-v3/`（不进 Git）画出了 M-005 的设备页，在仓库根目录用 `pnpm exec vite --config docs/design/device-page-v3/vite.config.ts` 打开。角色设计见 [ADR-0004](../decisions/ADR-0004-symmetric-listener-dialer-roles.md)，实现拆分为 WP-47 到 WP-52，见[工作包登记](../development/work-packages.md) | 待安排 | planned |
 
 ## 2. 当前计划
 

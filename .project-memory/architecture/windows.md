@@ -29,7 +29,7 @@ tags: [Windows, 电脑端, 主进程, IPC]
 
 代码在 `apps/desktop`。目录读取模块保持源只读；私有归档负责快照、编解码和缓存清理；HTTP 服务负责设备/目录查询、双向传输及状态/取消。桌面提供服务启停、实际地址/端口、目录选择、任务计划与实际结果、备份设置和本机恢复。
 
-跨端复制可从移动端或电脑发起；电脑发起时，移动端须开着应用并保持连接，计划在电脑确认、移动端执行。旧 v1 批量接口只新建文件，新复制协议按确认计划执行新增、受保护覆盖、跳过和删除多余项。
+电脑目前只作监听方：提供 HTTP 服务和控制通道，接纳拨号方登记的任务；电脑发起的复制经控制通道交给拨号方，对方须开着应用并保持连接，计划在电脑确认、拨号方执行。M-005 增加电脑作拨号方：主进程编排扫描、计划和任务，用 `node:http` 和 `ws` 连接对方，用 `bonjour-service` 搜索局域网设备（[ADR-0004](../decisions/ADR-0004-symmetric-listener-dialer-roles.md)）。旧 v1 批量接口只新建文件，新复制协议按确认计划执行新增、受保护覆盖、跳过和删除多余项。
 
 Electron 构建显式内联 workspace 共享包，避免 sandbox preload 在运行时 require TypeScript 源码。preload 保留 CJS 输出，contextIsolation/sandbox 开启，Renderer 无 Node 集成。
 

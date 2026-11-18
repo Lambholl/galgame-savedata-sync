@@ -28,7 +28,7 @@ tags: [决策, 连接, 传输, 监听方, 拨号方, Android, Windows]
 
 ## 状态
 
-accepted。[架构总览](../architecture/overview.md)、[接口约定](../architecture/api-contracts.md)、[传输协议](../architecture/transfer-protocol.md)、两端平台层文档和[术语表](../project/glossary.md)还按平台写角色，按本文改写之前以本文为准（WP-46）。本文列出的新依赖 `bonjour-service` 随本文接受；其他新增依赖由维护者另行同意。
+accepted。架构文档和术语表已按监听方和拨号方描述规则；代码还没改，文档里写“当前为……，M-005 改为……”的地方是现状与目标的差异。本文列出的新依赖 `bonjour-service` 随本文接受；其他新增依赖由维护者另行同意。
 
 ## 替代关系
 

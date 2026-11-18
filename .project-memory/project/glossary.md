@@ -1,7 +1,7 @@
 ---
 doc_type: glossary
 status: draft
-updated: 2026-11-14
+updated: 2026-11-19
 tags: [术语]
 ---
 
@@ -11,7 +11,10 @@ tags: [术语]
 | --- | --- | --- |
 | 用户 | 应用的使用者 | 不指项目维护者 |
 | 维护者 | 决定需求、验收和 Git 操作的项目负责人 | 文档里流程上的确认、验收和待决定都由维护者做出，不能由执行者自己给出；不含应用界面里的确认操作 |
-| 移动端 | 运行 Android 应用的设备，包括手机和平板；与“电脑端”相对 | 界面文案：zh-TW“行動端”，en-US“mobile device”或“Mobile”，ja-JP“モバイル端末”或“モバイル”。只有说具体硬件时才写手机或平板。协议字段 `ErrorDevice` 的取值 `phone` 已发布，协议变化前不改名 |
+| 移动端 | 运行 Android 应用的设备，包括手机和平板；与“电脑端”相对 | 界面文案：zh-TW“行動端”，en-US“mobile device”或“Mobile”，ja-JP“モバイル端末”或“モバイル”。只有说具体硬件时才写手机或平板。协议字段 `ErrorDevice` 目前取 `phone`、`pc`，M-005 改为 `listener`、`dialer` |
+| 监听方 | 连接中运行 HTTP 服务和控制通道、广播并显示连接二维码的一端 | 与平台无关（[ADR-0004](../decisions/ADR-0004-symmetric-listener-dialer-roles.md)）；代码里的 listener。当前只有电脑担任 |
+| 拨号方 | 连接中主动连接对方、编排扫描、计划和任务的一端 | 与平台无关；代码里的 dialer。监听方发起的传输经控制通道交给拨号方执行。当前只有 Android 担任 |
+| 本机服务 | 设备作为监听方运行的服务，界面上的“本机服务” | Android 上开着时由常驻通知保持（M-005） |
 | 界面用语 | 两端入口和页面统一叫“游戏设置”“传输详情”“传输计划”，动作动词统一用“传输”；“移除”游戏删除它的配置、设备关联和备份，不删存档文件 | 四种语言的文案在 `apps/shared`；后端错误原文用英文，界面按错误码翻译 |
 | 批量传输 | 只新建文件的传输任务，状态是 `BatchState` | 电脑端 `WindowsTransferRegistry`，移动端 `TransferEngine` |
 | 复制任务 | 按计划覆盖、新建或删除文件的传输任务，状态是 `SyncJobState` | 电脑端 `WindowsSyncRegistry`，移动端 `SyncTransferEngine` |

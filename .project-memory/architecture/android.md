@@ -26,6 +26,8 @@ tags: [Android, 移动端, SAF, 原生插件]
 
 ## 1. 界面入口
 
+Android 目前只作拨号方：原生层连接监听方、编排扫描、计划和任务，并执行监听方经控制通道交来的传输。M-005 增加 Android 作监听方：自写的 HTTP 和 WebSocket 服务、NsdManager 注册服务、连接二维码，以及设备页的“本机服务”部分；服务开着时由 `connectedDevice` 前台服务和常驻通知保持（[ADR-0004](../decisions/ADR-0004-symmetric-listener-dialer-roles.md)）。
+
 移动界面在 `apps/mobile/src/app`、`features`、`components` 和 `styles`，使用 antd-mobile；平台接入位于 `src/platform/library-adapter.ts`。界面只从 `@savedata-sync/shared` 引入协议、配置、任务类型和纯数据规则。Android 返回键和系统主题位于 `src/app`；SAF、HTTP 传输桥和配置持久化位于 `src/platform`。
 
 - 设备、游戏、设置三个主页面保留底部导航；打开传输存档、同步计划、备份等子页面时，内容覆盖底部导航区，使用顶部返回键返回。
@@ -194,9 +196,9 @@ SAF 没有通用排他创建或比较后删除原语；这些复核能发现可�
 | `query(jobId, shouldRefresh?)`、`manifest`、`current`、`latest(projectId)` | 读取两个角色的状态、公开元数据清单、最近任务 ID；`shouldRefresh` 只查询原远端任务，不续期、不重放 |
 | `cancel`、`release`、`retryCleanup` | 显式取消并读取 receiver 实际结果，释放预览/已结束任务，或重试缓存清理 |
 
-Android → Windows：确认后先登记目标任务，再按计划顺序从 SAF 流边读边打包上传（chunked PUT），逐文件读取前后核对大小和修改日期。上传期间每 3 秒查询原任务作为通信心跳，电脑仍在备份时每秒刷新它的进度。sender sent 只表示已发送，最终结果以 receiver 的 `SyncApplyResult` 为准。无文件的计划不生成空归档。
+Android → Windows（拨号方 → 监听方）：确认后先登记目标任务，再按计划顺序从 SAF 流边读边打包上传（chunked PUT），逐文件读取前后核对大小和修改日期。上传期间每 3 秒查询原任务作为通信心跳，电脑仍在备份时每秒刷新它的进度。sender sent 只表示已发送，最终结果以 receiver 的 `SyncApplyResult` 为准。无文件的计划不生成空归档。
 
-Windows → Android：使用移动端目标项目的备份设置；Windows 准备不可变归档，ready 后移动端核对清单与确认计划，再检查缓存、备份和目标增量的已知同卷峰值。内容 GET 只领取一次；完整校验通过后 `SyncWriter` 重新扫描目标、提交保护备份并逐项写入。备份清理或轮换失败不占名额，也不挡下一次传输，界面不提示；恢复流程会提示。
+Windows → Android（监听方 → 拨号方）：使用移动端目标项目的备份设置；Windows 准备不可变归档，ready 后移动端核对清单与确认计划，再检查缓存、备份和目标增量的已知同卷峰值。内容 GET 只领取一次；完整校验通过后 `SyncWriter` 重新扫描目标、提交保护备份并逐项写入。备份清理或轮换失败不占名额，也不挡下一次传输，界面不提示；恢复流程会提示。
 
 确认执行后才使用 dataSync 服务和持续通知；插件销毁不会中断任务。任务总期限 30 分钟，预览/终态最多保留 10 分钟、各最多 32 份，已用任务 ID 最多 4096 个。
 
