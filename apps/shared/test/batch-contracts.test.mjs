@@ -29,7 +29,7 @@ const UNKNOWN = { code: 'result-unknown', message: '请核实目标', canRetry: 
 test('HTTP 描述包装本地设备，预算不接受协商放宽或额外字段', () => {
   const descriptor = {
     device: {
-      protocolVersion: 1,
+      protocolVersion: 2,
       deviceId: 'device-1',
       displayName: '电脑',
       platform: 'windows',
@@ -49,7 +49,7 @@ test('HTTP 描述包装本地设备，预算不接受协商放宽或额外字段
   assert.equal(
     isBatchDeviceDescriptor({
       ...descriptor,
-      device: { ...descriptor.device, protocolVersion: 2 },
+      device: { ...descriptor.device, protocolVersion: 1 },
     }),
     false,
   )

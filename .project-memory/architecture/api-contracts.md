@@ -35,7 +35,7 @@ tags: [API, 接口约定]
 | EntryMetadata | rootId、entryId、parentId、name、kind、sizeBytes、modifiedAt、capabilities；file/directory 联合；根层 parentId=null，parentId 不指向自身；文件夹大小恒为 null，文件未知大小为 null，空文件为 0 |
 | DirectoryListing | rootId、parentId、observedAt、entries；成功空数组表示空目录；条目须属于同一根/层且 ID 不重复；错误用独立包络 |
 | EntryCapabilities / DeviceCapabilities | 条目能力 canRead/canList/canCreate/canRename/canDelete；设备能力 canListRoots/canReadFiles/canReceiveFiles/canQueryTransfers/canCancelTransfers；各值 supported/unsupported/unknown |
-| OperationError / OperationResult | code、message、canRetry，以及确定是哪一端访问文件或目录失败时才有的 device（phone 表示移动端、pc，移动端准备阶段产生并经 sync.report 转给电脑，HTTP 错误不带）；Android 任务状态的 error 也带 device：本机文件访问和授权失效是 phone，转抄电脑报来的文件错误是 pc，取消和超时不带；其余任务错误由 locateSyncError 按方向和中断阶段标出一端，打包阶段的授权失效不按阶段推断；互斥 success/value 与 error/error 包络；result-unknown 的 canRetry 必须为 false；自有错误原文默认英文并由生产者脱敏。界面按 code 翻译，message 与 code 在电脑上悬停可见，任务详情写进技术详情；unwrap 抛带 code 的 OperationFailure，toShownError 转为 ShownError，缺少 code 时保留原文 |
+| OperationError / OperationResult | code、message、canRetry，以及确定是哪一端访问文件或目录失败时才有的 device（listener 表示监听方，dialer 表示拨号方；拨号方准备阶段产生并经 sync.report 转给监听方，HTTP 错误不带）；Android 任务状态的 error 也带 device：本机文件访问和授权失效是 dialer，转抄监听方报来的文件错误是 listener，取消和超时不带；其余任务错误由 locateSyncError 按方向和中断阶段标出一端，打包阶段的授权失效不按阶段推断；互斥 success/value 与 error/error 包络；result-unknown 的 canRetry 必须为 false；自有错误原文默认英文并由生产者脱敏。界面按 code 翻译，message 与 code 在电脑上悬停可见，任务详情写进技术详情；unwrap 抛带 code 的 OperationFailure，toShownError 转为 ShownError，缺少 code 时保留原文 |
 | DirectorySelectionResult | selected 携带 directory，cancelled 不携带目录或错误，error 携带错误；取消不清空既有有效引用 |
 | BatchDeviceDescriptor | 共享模型：包装 device，加 sessionId 和固定 limits；本地目录桥的返回值不含这些字段 |
 | BatchManifest / TargetSelection | 提供 DTO 和关系校验：源引用、连续 fileId、实测长度/哈希及精确 tar 求和；目标在已有父目录以单文件名一一映射，不展开归档路径 |
@@ -55,7 +55,7 @@ tags: [API, 接口约定]
 
 监听方发起的复制经控制通道交给拨号方，复用拨号方的扫描与执行（当前即电脑发起、移动端执行）。电脑 `remote-sync-requests.ts` 同时只保留一个请求：发起时发 `sync.prepare {requestId, projectId, direction}`，拨号方应答后开始扫描，用 `sync.report` 回报 preparing、ready（附计划）或 failed。拨号方有传输刚结束时最多等 2 秒再判断是否 busy；新扫描取代还没结束的旧扫描，等待期间被取消或被更新请求取代的 `sync.prepare` 只应答、不扫描；ready 计划须是对应项目、方向、设备和根的覆盖复制。`sync.report` 附的计划固定 `shouldDeleteExtras=false`，监听方确认后发 `sync.confirm {requestId, shouldDeleteExtras}`，两端用同一批快照各自算出选定的计划；拨号方执行并应答 `{jobId}`，jobId 等于 planId 时记为 running；之后的进度和结果来自下面的任务观察。监听方取消发 `sync.cancel`，拨号方取消并释放本机扫描；控制连接断开时未确认的请求记为失败，已确认的请求记为结果待确认，拨号方重连后由摘要更新。电脑的有限 desktopSync 桥提供 remoteRequest/startRemote/remotePlan/confirmRemote/cancelRemote。
 
-任务观察对两种发起方式、两个方向相同。版本：`/v1/sync/capabilities.schemaVersion` 为 6，是唯一的版本门槛，版本不符的对端在创建任务前得到“请更新两端”；控制消息 `v` 为 1。`SyncJobState.schemaVersion` 为 4，含 `failureStage`（失败、取消或待确认时停在哪个阶段，取值为 cleaning、done 以外的阶段；成功、已发送或没有记录时为 null，清理和终态更新不改写它）。`SyncTransferState` 为 1。M-005 把方向、任务观察的两端和 `ErrorDevice` 改为按角色命名，`PROTOCOL_VERSION` 升到 2、能力 `schemaVersion` 升到 7、`SyncJobState.schemaVersion` 升到 5，控制消息 `v` 不变（ADR-0004）。
+任务观察对两种发起方式、两个方向相同。版本：`/v1/sync/capabilities.schemaVersion` 为 7，是唯一的版本门槛，版本不符的对端在创建任务前得到“请更新两端”；控制消息 `v` 为 1。`SyncJobState.schemaVersion` 为 5，含 `failureStage`（失败、取消或待确认时停在哪个阶段，取值为 cleaning、done 以外的阶段；成功、已发送或没有记录时为 null，清理和终态更新不改写它）。`SyncTransferState` 为 1。
 
 进度 `SyncJobProgress` 有七个字段：`transferredBytes`（已打包或已解包的文件内容字节数，不含 tar 头和压缩开销）、`totalFileBytes`、`totalFiles`、`publishedFiles` 和 `fileBytesPublished`（接收端已写入目标的文件数和字节数）、`backupBytesCopied` 和 `totalBackupBytes`。界面按备份、传输、写入三步显示，分别用备份字节、传输字节和已写入文件数算百分比；接收端处于备份阶段时整个任务显示为备份。`totalBackupBytes` 等于计划的 `backupFileBytes`（由 shared `syncJobBackupBytes` 算出，计划里为 null 时为 0），两端都按计划核对；`backupBytesCopied` 是接收端备份时已写进备份的字节数，每写一块更新一次，只增不减，发送端始终为 0，接收端成功时等于总量。写完后重读核对备份文件和轮换不计入进度。`observeSyncJob` 用这两个字段算备份段的百分比，总量为 0 时百分比未知。Android 通知在备份阶段按同样的字段显示百分比。
 
@@ -134,7 +134,7 @@ transferId 只属于当前会话，不是历史同步基线。服务以每次启
 
 数据声明和映射由共享包提供；监听方 HTTP 读取使用严格 JSON/路由/头/会话和 UTF-8 字节预算，双端私有归档负责实际流、格式、长度与哈希校验。Windows HTTP receiver 负责上传预检、单次 PUT、完整校验与批次编排，Android 原生层负责单文件发布和网络/批次编排。当前协议使用批量 v1，只有批量端点，没有单文件别名。完整声明见[共享包](shared-package.md)。
 
-- 协议只接受数字版本 1（M-005 升为 2），封闭 DTO 拒绝缺失和额外字段。ID 为 1–128 个 ASCII 字符，首位字母或数字，后续允许字母、数字、下划线和短横线，不接收路径或 URI；批内 fileId 使用受限连续编号。
+- 设备描述只接受数字版本 2（`PROTOCOL_VERSION`），旧批量传输只接受 1（`BATCH_PROTOCOL_VERSION`）；封闭 DTO 拒绝缺失和额外字段。ID 为 1–128 个 ASCII 字符，首位字母或数字，后续允许字母、数字、下划线和短横线，不接收路径或 URI；批内 fileId 使用受限连续编号。
 - 字节数为非负安全整数；时间是 ±8.64e15 范围内的 Unix 毫秒整数，0 和负数有实际含义，未知修改日期用 null。文本非空白且最长 1024 个 UTF-16 码元。
 - 新文件名最长 255 个 UTF-16 码元，路径字符、控制字符、未配对代理项、Windows 保留名和尾部点/空格会被拒绝；改名和归一化不会发生。内容哈希固定 64 个小写十六进制字符，只用于当前任务。
 - JSON 使用 OperationResult 包络，重复键和非法 UTF-8 会被拒绝。查询 200 表示请求成功，任务是否成功要看 BatchState；POST uploads 的 201 表示任务已登记，POST downloads 和 PUT content 的 202 表示处理仍在进行。GET content 为原始 gzip，流开始后的失败通过接收校验和任务状态核实。

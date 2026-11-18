@@ -235,8 +235,8 @@ export function isDesktopCopySummary(value: unknown): value is DesktopCopySummar
   return (
     shape(value, COPY_FIELDS) &&
     [value.jobId, value.projectId, value.peerId].every(isOpaqueId) &&
-    member(value.direction, ['android-to-windows', 'windows-to-android']) &&
-    value.role === (value.direction === 'android-to-windows' ? 'receiver' : 'sender') &&
+    member(value.direction, ['dialer-to-listener', 'listener-to-dialer']) &&
+    value.role === (value.direction === 'dialer-to-listener' ? 'receiver' : 'sender') &&
     member(value.phase, ['running', 'done', 'partial', 'failed', 'cancelled', 'unknown']) &&
     member(value.stage, COPY_STAGES) &&
     (value.step === null || count(value.step, SYNC_STEP_DONE)) &&
@@ -297,7 +297,7 @@ export function isDesktopRemoteRequest(value: unknown): value is DesktopRemoteRe
     ]) &&
     (value.backupKeepCount === null || isBackupKeepCount(value.backupKeepCount)) &&
     [value.requestId, value.projectId, value.peerId].every(isOpaqueId) &&
-    member(value.direction, ['android-to-windows', 'windows-to-android']) &&
+    member(value.direction, ['dialer-to-listener', 'listener-to-dialer']) &&
     member(value.status, [
       'waiting',
       'preparing',
@@ -465,7 +465,7 @@ export function createSyncBridge(
     const request = context.value
     // 对端的状态已在主进程核对过，这里只核对它属于本次任务。
     return local.role ===
-      (request.plan.direction === 'android-to-windows' ? 'receiver' : 'sender') &&
+      (request.plan.direction === 'dialer-to-listener' ? 'receiver' : 'sender') &&
       matchesSyncJobState(local, request) &&
       (remote === null ||
         (matchesSyncJobDigest(remote, request, local.role) &&
@@ -645,7 +645,7 @@ export function createSyncBridge(
       direction: DesktopRemoteRequest['direction'],
     ) =>
       [projectId, peerId].every(isOpaqueId) &&
-      member(direction, ['android-to-windows', 'windows-to-android'])
+      member(direction, ['dialer-to-listener', 'listener-to-dialer'])
         ? call(
             'startRemote',
             [{ projectId, peerId, direction }],

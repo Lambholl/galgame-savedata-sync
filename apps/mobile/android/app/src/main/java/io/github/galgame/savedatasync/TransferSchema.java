@@ -281,8 +281,8 @@ final class TransferSchema {
       "platform",
       "capabilities"
     );
-    if (!Long.valueOf(1).equals(device.get("protocolVersion"))) {
-      number(device.get("protocolVersion"), 1, 1);
+    if (!Long.valueOf(2).equals(device.get("protocolVersion"))) {
+      number(device.get("protocolVersion"), 2, 2);
     }
     id(device.get("deviceId"));
     text(device.get("displayName"));
@@ -310,7 +310,9 @@ final class TransferSchema {
     Map<String, Object> e = map(value).containsKey("device")
       ? shape(value, "code", "message", "canRetry", "device")
       : shape(value, "code", "message", "canRetry");
-    require(!e.containsKey("device") || Arrays.asList("phone", "pc").contains(e.get("device")));
+    require(
+      !e.containsKey("device") || Arrays.asList("listener", "dialer").contains(e.get("device"))
+    );
     require(Arrays.asList(ERROR_CODES.split(" ")).contains(e.get("code")));
     text(e.get("message"));
     require(e.get("canRetry") instanceof Boolean);
@@ -320,7 +322,7 @@ final class TransferSchema {
     return e;
   }
 
-  /** 同 {@link #error(String)}，device 不为 null 时注明出错的目录在哪一端（phone 或 pc）。 */
+  /** 同 {@link #error(String)}，device 不为 null 时注明出错的目录在哪一端（listener 或 dialer）。 */
   static Map<String, Object> error(String code, String device) {
     Map<String, Object> e = error(code);
     if (device != null) {

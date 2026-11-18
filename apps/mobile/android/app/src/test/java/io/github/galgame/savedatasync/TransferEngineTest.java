@@ -394,7 +394,7 @@ public class TransferEngineTest {
           "device",
           object(
             "protocolVersion",
-            1,
+            2,
             "deviceId",
             "windows-device",
             "displayName",

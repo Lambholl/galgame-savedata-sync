@@ -15,7 +15,7 @@ import type {
   LibraryPeer,
   ShownError,
   SyncPlan,
-  TransferDirection,
+  SyncDirection,
 } from '@savedata-sync/shared'
 import {
   SyncPlanSummary,
@@ -73,7 +73,7 @@ export function TransferPage({
   readonly onPlanExpired: () => void
 }): React.JSX.Element {
   const t = useT()
-  const direction: TransferDirection = isUpload ? 'android-to-windows' : 'windows-to-android'
+  const direction: SyncDirection = isUpload ? 'dialer-to-listener' : 'listener-to-dialer'
   const [request, setRequest] = useState<DesktopRemoteRequest | null>(null)
   const [requestId, setRequestId] = useState<string | null>(null)
   const [plan, setPlan] = useState<{ readonly requestId: string; readonly value: SyncPlan } | null>(
@@ -228,7 +228,7 @@ export function TransferPage({
     if (!reported) {
       return null
     }
-    return reported.direction === 'windows-to-android'
+    return reported.direction === 'listener-to-dialer'
       ? compareSnapshots(reported.source, reported.target)
       : compareSnapshots(reported.target, reported.source)
   }, [reported])
@@ -314,19 +314,21 @@ export function TransferPage({
     <div className="transfer-page">
       <TransferComparison
         key={peerId}
-        pc={{
+        listener={{
           name: localName,
           caption: deviceName ?? '',
           isOnline: null,
           rootName: localRoot?.displayName ?? '—',
+          platform: 'windows',
         }}
-        mobile={{
+        dialer={{
           name: peerName,
           caption: '',
           isOnline: selectedPeer ? isConnected : null,
           rootName: remoteGame?.root?.displayName ?? '—',
+          platform: 'android',
         }}
-        remoteSide="mobile"
+        remoteSide="dialer"
         direction={direction}
         status={status}
         isLocked={isDisabled || isActive || isStarting}

@@ -7,7 +7,8 @@ import {
   ReloadOutlined,
   SwapOutlined,
 } from '@ant-design/icons'
-import type { TransferDirection } from '../../protocol/contracts.ts'
+import type { DeviceDescriptor } from '../../protocol/contracts.ts'
+import type { SyncDirection } from '../../sync/sync-contracts.ts'
 import type { ShownError } from '../../result.ts'
 import { comparisonChildren } from '../../sync/snapshot-compare.ts'
 import type { CompareItem, CompareSide, SnapshotComparison } from '../../sync/snapshot-compare.ts'
@@ -28,6 +29,8 @@ export interface TransferEndpoint {
   readonly isOnline: boolean | null
   /** 该端存档目录的显示名，作为该列路径的起点。 */
   readonly rootName: string
+  /** 该端设备的平台，决定名称前的图标。 */
+  readonly platform: DeviceDescriptor['platform']
 }
 
 /**
@@ -46,14 +49,14 @@ export type ComparisonStatus =
 
 /** TransferComparison 的参数。 */
 export interface TransferComparisonProps {
-  /** 电脑一端。 */
-  readonly pc: TransferEndpoint
-  /** 移动端一端。 */
-  readonly mobile: TransferEndpoint
+  /** 监听方一端。 */
+  readonly listener: TransferEndpoint
+  /** 拨号方一端。 */
+  readonly dialer: TransferEndpoint
   /** 哪一端是对端设备；点它的名称会调用 onPickPeer。 */
   readonly remoteSide: CompareSide
   /** 当前传输方向：来源一端排在左边，目标一端排在右边。 */
-  readonly direction: TransferDirection
+  readonly direction: SyncDirection
   /** 比较进度与结果。 */
   readonly status: ComparisonStatus
   /** 为 true 时禁用交换、切换设备和刷新（例如正在传输）。 */
@@ -106,14 +109,12 @@ function existingPath(
 }
 
 function EndpointCard({
-  side,
   endpoint,
   isSource,
   isRemote,
   isLocked,
   onPickPeer,
 }: {
-  readonly side: CompareSide
   readonly endpoint: TransferEndpoint
   readonly isSource: boolean
   readonly isRemote: boolean
@@ -124,7 +125,7 @@ function EndpointCard({
   const content = (
     <>
       <span className="ss-end-name">
-        {side === 'pc' ? (
+        {endpoint.platform === 'windows' ? (
           <DesktopOutlined className="ss-end-icon" />
         ) : (
           <MobileOutlined className="ss-end-icon" />
@@ -239,8 +240,8 @@ function ComparePane({
  * 列末留出 --ss-pane-end-space 的空白。
  */
 export function TransferComparison({
-  pc,
-  mobile,
+  listener,
+  dialer,
   remoteSide,
   direction,
   status,
@@ -254,15 +255,14 @@ export function TransferComparison({
 }: TransferComparisonProps): ReactElement {
   const t = useT()
   const [isFilterOn, setIsFilterOn] = useState(false)
-  const endpoints = { pc, mobile }
+  const endpoints = { listener, dialer }
   const [source, target]: readonly [CompareSide, CompareSide] =
-    direction === 'windows-to-android' ? ['pc', 'mobile'] : ['mobile', 'pc']
+    direction === 'listener-to-dialer' ? ['listener', 'dialer'] : ['dialer', 'listener']
   const comparison = status.kind === 'ready' ? status.comparison : null
   const isScanning = status.kind === 'waiting' || status.kind === 'scanning'
   const card = (side: CompareSide): ReactElement => (
     <EndpointCard
       key={side}
-      side={side}
       endpoint={endpoints[side]}
       isSource={side === source}
       isRemote={remoteSide === side}

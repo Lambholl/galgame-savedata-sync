@@ -67,7 +67,7 @@ function setup(upload = false) {
     connect: async () =>
       ok({
         device: {
-          protocolVersion: 1,
+          protocolVersion: 2,
           deviceId: manifest.sourceDeviceId,
           displayName: '电脑',
           platform: 'windows',

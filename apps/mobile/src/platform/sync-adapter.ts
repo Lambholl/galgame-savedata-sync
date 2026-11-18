@@ -16,7 +16,7 @@ import type {
   SyncPreparationPreview,
   SyncPreparationState,
   SyncTransferState,
-  TransferDirection,
+  SyncDirection,
 } from '@savedata-sync/shared'
 import { androidSyncTransfers } from './sync-transfers'
 import { androidSyncWrites } from './sync-writes'
@@ -50,7 +50,7 @@ export interface MobileSyncAdapter {
   prepare(
     projectId: string,
     deviceId: string,
-    direction: TransferDirection,
+    direction: SyncDirection,
   ): Promise<SyncPreparationState>
   /** 读取准备的状态。 */
   preparation(id: string): Promise<SyncPreparationState>

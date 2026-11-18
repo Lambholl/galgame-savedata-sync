@@ -61,7 +61,7 @@ export function App(): React.JSX.Element {
         button={DESIGN_BUTTON}
         wave={NO_WAVE}
       >
-        <LocalDeviceProvider device="phone">
+        <LocalDeviceProvider device="dialer">
           <MobileApp adapter={ADAPTER} sync={SYNC} backButton={androidBackButton} />
         </LocalDeviceProvider>
       </ConfigProvider>

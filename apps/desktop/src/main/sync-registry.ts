@@ -488,7 +488,7 @@ export class WindowsSyncRegistry {
   }
   /** 登记任务：格式正确后同步占用任务 ID 和名额；之后的异步错误记在任务状态里。 */
   register(value: unknown, peerId: string): Promise<SyncJobState> {
-    const isUpload = isSyncJobRequest(value) && value.plan.direction === 'android-to-windows'
+    const isUpload = isSyncJobRequest(value) && value.plan.direction === 'dialer-to-listener'
     if (
       !isSyncJobRequest(value) ||
       (isUpload
@@ -593,7 +593,7 @@ export class WindowsSyncRegistry {
       state: {
         schemaVersion: SYNC_JOB_SCHEMA_VERSION,
         jobId: request.jobId,
-        direction: isUpload ? 'android-to-windows' : 'windows-to-android',
+        direction: isUpload ? 'dialer-to-listener' : 'listener-to-dialer',
         role: isUpload ? 'receiver' : 'sender',
         status: 'running',
         stage: 'preparing',

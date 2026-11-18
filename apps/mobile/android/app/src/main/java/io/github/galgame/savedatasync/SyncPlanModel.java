@@ -227,7 +227,7 @@ final class SyncPlanModel {
       project = id(value.get("projectId"));
       one(value.get("operation"), "copy", "restore");
       reason = string(value.get("operation"));
-      one(value.get("direction"), "android-to-windows", "windows-to-android", "local-restore");
+      one(value.get("direction"), "dialer-to-listener", "listener-to-dialer", "local-restore");
       require(
         value.get("shouldBackup") instanceof Boolean &&
           value.get("shouldDeleteExtras") instanceof Boolean &&

@@ -20,7 +20,7 @@ tags: [工作包]
 
 | ID | 工作包 | 内容与完成标准 | 依赖 | 状态 |
 | --- | --- | --- | --- | --- |
-| WP-47 | 共享模型改按角色 | 按 [ADR-0004](../decisions/ADR-0004-symmetric-listener-dialer-roles.md)：方向改为 `listener-to-dialer`、`dialer-to-listener`，`observeSyncJob` 的 `pc`、`phone` 和 `ErrorDevice` 改为 `listener`、`dialer`，涉及 shared、两端网页层和 Android 原生；界面文案用设备名代替“电脑”“Android”；`PROTOCOL_VERSION` 升到 2、能力 `schemaVersion` 升到 7、`SyncJobState.schemaVersion` 升到 5。只改模型和文案，不加新角色。完成后删掉架构文档里“当前为……，M-005 改为……”的过渡说法。完成标准：shared 测试和两端检查通过；现有电脑监听、Android 拨号的双向复制、两端发起、取消和断网回归结果不变 | 无 | planned |
+| WP-47 | 共享模型改按角色 | 按 [ADR-0004](../decisions/ADR-0004-symmetric-listener-dialer-roles.md) 把方向、任务观察两端、`ErrorDevice` 和对比两侧改为 `listener`、`dialer`，`PROTOCOL_VERSION` 升到 2、能力 `schemaVersion` 升到 7、`SyncJobState.schemaVersion` 升到 5；旧批量接口保留平台方向和 `BATCH_PROTOCOL_VERSION=1`。代码已改，`pnpm check`、`pnpm test`、`pnpm android:test` 通过。缺口：电脑监听、Android 拨号的双向复制、两端发起、取消和断网还没在真机上回归 | 无 | in-review |
 | WP-48 | 电脑拨号：连接 | 电脑端 DNS-SD 搜索、手动 IP、保存的设备，连接时按设备 ID 查找 5 秒（同 Q-016），控制通道客户端、2 秒重连和 4001、4002 关闭码；设备页加“连接其他设备”部分，按原型 `docs/design/device-page-v3/`。电脑不提供扫码。完成标准：两台电脑互相发现、手动连接、交换目录表、浏览对方目录；对方停服、改址、断开时按现有连接规则表现 | WP-47 | planned |
 | WP-49 | 电脑拨号：传输 | 电脑作为拨号方编排扫描、计划、任务登记、内容上传和下载、取消和结果读取，对应 Android `SyncTransferEngine` 的拨号方职责；处理监听方经控制通道发来的 `sync.prepare`、`sync.confirm`、`sync.cancel`、`sync.job.*`。完成标准：电脑与电脑之间两个方向、两端发起，删除多出条目、关闭备份、取消、断网的合成目录用例通过 | WP-48 | planned |
 | WP-50 | Android 监听：服务与连接 | Android 内置 HTTP 服务（`/v1/device`、`/v1/catalog`、`/v1/roots`、目录列举）、控制通道监听端（15 秒 ping，只允许一台设备在线）、NsdManager 注册服务、连接二维码；移动端设备页加“本机服务”部分（Q-014），含开关、地址和二维码。生命周期按 Q-018。完成标准：另一台 Android 能发现、扫码、手动连接，交换目录表并浏览目录；WP-48 完成后电脑同样能连；停止服务时注销广播 | WP-47 | planned |

@@ -44,7 +44,7 @@ Windows `WindowsDirectoryAdapter.assertCacheIsolated` 检查应用存储与已�
 
 ## 3. 比较计划
 
-`createSyncPlan` 接收本次源/目标快照、`operation=copy|restore`、显式方向、项目 ID、新 `planId`、`shouldBackup` 和 `shouldDeleteExtras`，输出只读 `SyncPlan`：固定的设备/根/扫描 ID、操作列表、问题列表、待传文件数/字节数及备份字节数。待传字节统计本次写入文件；备份开启且计划有写入时，备份字节统计目标目录的全部文件，包括未变化和仅存在于目标的文件。复制方向当前为 `windows-to-android|android-to-windows`，M-005 改为 `listener-to-dialer|dialer-to-listener`（ADR-0004）；本机恢复为 `local-restore`，源是本机已验证备份、目标是本机当前扫描，备份保护恒开启，`shouldDeleteExtras` 固定为 false。比较器是纯 TypeScript，只用本次快照，不执行 IO 或历史查询。
+`createSyncPlan` 接收本次源/目标快照、`operation=copy|restore`、显式方向、项目 ID、新 `planId`、`shouldBackup` 和 `shouldDeleteExtras`，输出只读 `SyncPlan`：固定的设备/根/扫描 ID、操作列表、问题列表、待传文件数/字节数及备份字节数。待传字节统计本次写入文件；备份开启且计划有写入时，备份字节统计目标目录的全部文件，包括未变化和仅存在于目标的文件。复制方向为 `listener-to-dialer|dialer-to-listener`（ADR-0004）；本机恢复为 `local-restore`，源是本机已验证备份、目标是本机当前扫描，备份保护恒开启，`shouldDeleteExtras` 固定为 false。比较器是纯 TypeScript，只用本次快照，不执行 IO 或历史查询。
 
 | 当前条目 | 计划动作 |
 | --- | --- |

@@ -1,6 +1,6 @@
-import type { OperationError, TransferDirection } from '../protocol/contracts.ts'
+import type { OperationError } from '../protocol/contracts.ts'
 import type { SyncProjectBinding } from '../library/project-binding.ts'
-import type { SyncApplyResult, SyncPlan, SyncSnapshot } from './sync-contracts.ts'
+import type { SyncApplyResult, SyncDirection, SyncPlan, SyncSnapshot } from './sync-contracts.ts'
 
 /** 复制请求里标识发起设备的 HTTP 头。 */
 export const SYNC_DEVICE_HEADER = 'x-sync-device-id'
@@ -42,7 +42,7 @@ export interface SyncJobProgress {
 }
 
 /** 任务状态结构的版本。 */
-export const SYNC_JOB_SCHEMA_VERSION = 4
+export const SYNC_JOB_SCHEMA_VERSION = 5
 
 /** 任务的工作阶段；cleaning 和 done 是收尾阶段。 */
 export type SyncFailureStage =
@@ -52,7 +52,7 @@ export type SyncFailureStage =
 export interface SyncJobDigest {
   readonly schemaVersion: typeof SYNC_JOB_SCHEMA_VERSION
   readonly jobId: string
-  readonly direction: TransferDirection
+  readonly direction: SyncDirection
   readonly role: 'sender' | 'receiver'
   readonly status: 'running' | 'sent' | 'succeeded' | 'failed' | 'cancelled' | 'unknown'
   readonly stage: SyncFailureStage | 'cleaning' | 'done'
@@ -77,7 +77,7 @@ export interface SyncJobState extends SyncJobDigest {
 export interface SyncPreparationState {
   readonly schemaVersion: 1
   readonly preparationId: string
-  readonly direction: TransferDirection
+  readonly direction: SyncDirection
   readonly status: 'preparing' | 'ready' | 'failed' | 'cancelled'
   readonly error: OperationError | null
 }
@@ -85,7 +85,7 @@ export interface SyncPreparationState {
 export interface SyncPreparationPreview {
   readonly schemaVersion: 1
   readonly preparationId: string
-  readonly direction: TransferDirection
+  readonly direction: SyncDirection
   readonly binding: SyncProjectBinding
   readonly source: SyncSnapshot
   readonly target: SyncSnapshot

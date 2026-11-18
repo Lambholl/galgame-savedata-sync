@@ -31,8 +31,8 @@ import java.util.Set;
 final class SyncJobModel {
 
   /** 与 shared 的 SYNC_CAPABILITIES_VERSION、SYNC_JOB_SCHEMA_VERSION 保持一致。 */
-  static final int CAPABILITIES_VERSION = 6;
-  static final int JOB_SCHEMA_VERSION = 4;
+  static final int CAPABILITIES_VERSION = 7;
+  static final int JOB_SCHEMA_VERSION = 5;
 
   private SyncJobModel() {}
 
@@ -109,7 +109,7 @@ final class SyncJobModel {
           "authorization-expired",
           "Project directory authorization or binding changed."
         );
-        expired.device = isLocal ? "phone" : "pc";
+        expired.device = isLocal ? "dialer" : "listener";
         throw expired;
       }
     }
@@ -268,7 +268,7 @@ final class SyncJobModel {
   }
 
   static Map<String, Object> request(SyncPlanModel.Plan plan, Map<String, Object> binding) {
-    boolean isUpload = plan.value.get("direction").equals("android-to-windows");
+    boolean isUpload = plan.value.get("direction").equals("dialer-to-listener");
     return object(
       "schemaVersion",
       1,
@@ -381,7 +381,7 @@ final class SyncJobModel {
     return state(
       raw,
       plan,
-      plan.value.get("direction").equals("android-to-windows") ? "receiver" : "sender"
+      plan.value.get("direction").equals("dialer-to-listener") ? "receiver" : "sender"
     );
   }
 

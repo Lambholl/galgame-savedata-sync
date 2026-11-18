@@ -1,10 +1,5 @@
-import type {
-  DirectoryListing,
-  OperationError,
-  OperationResult,
-  TransferDirection,
-} from '../protocol/contracts.ts'
-import type { SyncPlan } from '../sync/sync-contracts.ts'
+import type { DirectoryListing, OperationError, OperationResult } from '../protocol/contracts.ts'
+import type { SyncDirection, SyncPlan } from '../sync/sync-contracts.ts'
 import type { SyncJobDigest, SyncJobState } from '../sync/sync-job-contracts.ts'
 
 /** 控制通道的 WebSocket 路由。 */
@@ -24,7 +19,7 @@ export interface RemoteSyncPrepare {
   readonly requestId: string
   /** 执行方本机的游戏 ID。 */
   readonly projectId: string
-  readonly direction: TransferDirection
+  readonly direction: SyncDirection
 }
 /**
  * 扫描阶段的回报：preparing 表示已开始扫描，ready 附完整计划，failed 表示开始前失败。

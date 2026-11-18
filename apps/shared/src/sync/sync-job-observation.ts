@@ -1,5 +1,6 @@
-import type { OperationErrorCode, TransferDirection } from '../protocol/contracts.ts'
+import type { OperationErrorCode } from '../protocol/contracts.ts'
 import type { ShownError } from '../result.ts'
+import type { SyncDirection } from './sync-contracts.ts'
 import type { SyncFailureStage, SyncJobState } from './sync-job-contracts.ts'
 
 // Android 的 SyncTransferEngine.DEVICE_ERRORS 是同一份清单，两边要一起改。
@@ -24,7 +25,7 @@ const DEVICE_ERRORS: ReadonlySet<OperationErrorCode> = new Set<OperationErrorCod
  */
 export function locateSyncError(
   error: ShownError,
-  direction: TransferDirection,
+  direction: SyncDirection,
   failureStage: SyncFailureStage | null,
   role: SyncJobState['role'] | null = null,
 ): ShownError {
@@ -32,7 +33,9 @@ export function locateSyncError(
     return error
   }
   const [source, target] =
-    direction === 'windows-to-android' ? (['pc', 'phone'] as const) : (['phone', 'pc'] as const)
+    direction === 'listener-to-dialer'
+      ? (['listener', 'dialer'] as const)
+      : (['dialer', 'listener'] as const)
   if (failureStage === 'backing-up' || failureStage === 'writing') {
     return { ...error, device: target }
   }

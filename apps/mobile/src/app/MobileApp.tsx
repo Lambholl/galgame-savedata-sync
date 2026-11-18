@@ -22,7 +22,7 @@ import type {
   LibraryGame,
   LibraryPeer,
   ShownError,
-  TransferDirection,
+  SyncDirection,
 } from '@savedata-sync/shared'
 import type { MobileLibraryAdapter, MobileSnapshot } from '../platform/library-types'
 import { deviceDiscovery, findDevice } from '../platform/device-discovery'
@@ -137,7 +137,7 @@ export function MobileApp({
     readonly sourceName: string
   } | null>(null)
   // 比较页打开时的方向：从任务详情重新扫描时沿用那次传输的方向，从其它入口打开用默认方向。
-  const [syncDirection, setSyncDirection] = useState<TransferDirection>('windows-to-android')
+  const [syncDirection, setSyncDirection] = useState<SyncDirection>('listener-to-dialer')
   // 设备页正在连接的设备 ID，行内显示转圈；run 结束时清空。
   const [connectingId, setConnectingId] = useState<string | null>(null)
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null)
@@ -933,7 +933,7 @@ export function MobileApp({
         onUnlink={unlinkGame}
         onTransfer={(deviceId) => {
           setPeerId(deviceId)
-          setSyncDirection('windows-to-android')
+          setSyncDirection('listener-to-dialer')
           navigation.open('sync')
         }}
         onManageDevices={() => navigation.open('devices')}
@@ -1087,7 +1087,7 @@ export function MobileApp({
           caption={`${localRoot?.displayName ?? t('game.noFolder')} · ${t('game.linkCount', { count: game?.links.length ?? 0 })}`}
           isRemoveDisabled={isActive}
           onTransfer={() => {
-            setSyncDirection('windows-to-android')
+            setSyncDirection('listener-to-dialer')
             go('sync')
           }}
           onSettings={() => go('edit')}

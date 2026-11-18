@@ -8,7 +8,7 @@ import {
   normalizeHttpAddress,
   OperationFailure,
   resolveSyncProjectBinding,
-  PROTOCOL_VERSION,
+  BATCH_PROTOCOL_VERSION,
 } from '@savedata-sync/shared'
 import type {
   BatchDeviceDescriptor,
@@ -521,7 +521,7 @@ export function createMobileLibraryAdapter(
       }
       const options: TransferStartOptions = {
         request: {
-          protocolVersion: PROTOCOL_VERSION,
+          protocolVersion: BATCH_PROTOCOL_VERSION,
           transferId: crypto.randomUUID(),
           sourceRootId: transfer.sourceRootId,
           files: transfer.files.map((file, index) => ({

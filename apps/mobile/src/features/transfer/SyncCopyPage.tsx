@@ -14,7 +14,7 @@ import type {
   ShownError,
   SyncPreparationPreview,
   SyncPreparationState,
-  TransferDirection,
+  SyncDirection,
 } from '@savedata-sync/shared'
 import { TransferComparison, syncStartConfirmation, useT } from '@savedata-sync/shared/ui'
 import type { ComparisonStatus, PlanEndpoint } from '@savedata-sync/shared/ui'
@@ -54,7 +54,7 @@ export function SyncCopyPage({
   readonly deviceName: string | null
   readonly peerId: string
   /** 页面打开时的传输方向，之后由页面里的翻转按钮改变。 */
-  readonly initialDirection: TransferDirection
+  readonly initialDirection: SyncDirection
   readonly isPlan: boolean
   readonly isDisabled: boolean
   /** 有传输或恢复在进行时不发起新的扫描。 */
@@ -69,7 +69,7 @@ export function SyncCopyPage({
   readonly onFailure: (error: ShownError) => void
 }): React.JSX.Element {
   const t = useT()
-  const [direction, setDirection] = useState<TransferDirection>(initialDirection)
+  const [direction, setDirection] = useState<SyncDirection>(initialDirection)
   const [preparation, setPreparation] = useState<SyncPreparationState | null>(null)
   const [preview, setPreview] = useState<SyncPreparationPreview | null>(null)
   /** 扫描失败的原因；null 表示没有失败。 */
@@ -161,8 +161,8 @@ export function SyncCopyPage({
     if (!preview) {
       return null
     }
-    const isPcSource = preview.direction === 'windows-to-android'
-    return isPcSource
+    const isListenerSource = preview.direction === 'listener-to-dialer'
+    return isListenerSource
       ? compareSnapshots(preview.source, preview.target)
       : compareSnapshots(preview.target, preview.source)
   }, [preview])
@@ -273,25 +273,27 @@ export function SyncCopyPage({
       <div className="transfer-fill" hidden={isPlan}>
         <TransferComparison
           key={peerId}
-          pc={{
+          listener={{
             name: remoteName,
             caption: '',
             isOnline: peer ? isConnected : null,
             rootName: remote?.root?.displayName ?? '—',
+            platform: 'windows',
           }}
-          mobile={{
+          dialer={{
             name: t('transfer.local'),
             caption: deviceName ?? '',
             isOnline: null,
             rootName: localRoot?.displayName ?? '—',
+            platform: 'android',
           }}
-          remoteSide="pc"
+          remoteSide="listener"
           direction={direction}
           status={status}
           isLocked={isDisabled || isStarting}
           onFlip={() =>
             setDirection(
-              direction === 'windows-to-android' ? 'android-to-windows' : 'windows-to-android',
+              direction === 'listener-to-dialer' ? 'dialer-to-listener' : 'listener-to-dialer',
             )
           }
           onPickPeer={() => setIsPeerSheetOpen(true)}
@@ -304,8 +306,8 @@ export function SyncCopyPage({
       {isPlan && plan ? (
         <PlanConfirm
           plan={plan}
-          source={direction === 'android-to-windows' ? localEnd : remoteEnd}
-          target={direction === 'android-to-windows' ? remoteEnd : localEnd}
+          source={direction === 'dialer-to-listener' ? localEnd : remoteEnd}
+          target={direction === 'dialer-to-listener' ? remoteEnd : localEnd}
           backupKeepCount={preview?.backupKeepCount ?? null}
           notice={
             hasChanged ? <p className="notice notice-error">{t('transfer.planStale')}</p> : null

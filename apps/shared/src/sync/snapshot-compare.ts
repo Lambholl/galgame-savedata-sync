@@ -2,8 +2,8 @@ import type { SyncEntry, SyncSnapshot } from './sync-contracts.ts'
 import { syncPathKey } from './sync-paths.ts'
 import { isSameSyncFile } from './sync-plan.ts'
 
-/** 比较的一端：pc 是电脑，mobile 是移动端。 */
-export type CompareSide = 'pc' | 'mobile'
+/** 比较的一端：listener 是监听方，dialer 是拨号方。 */
+export type CompareSide = 'listener' | 'dialer'
 
 /** 显示用的条目类型；图片指 png/jpg/jpeg/bmp/webp/gif。 */
 export type FileKind = 'directory' | 'image' | 'file'
@@ -65,18 +65,18 @@ function compareItems(left: CompareItem, right: CompareItem): number {
  *
  * 路径按原始名称精确匹配；文件按 isSameSyncFile 比较大小和修改日期，任一端未知时按不同处理。
  */
-export function compareSnapshots(pc: SyncSnapshot, mobile: SyncSnapshot): SnapshotComparison {
+export function compareSnapshots(listener: SyncSnapshot, dialer: SyncSnapshot): SnapshotComparison {
   const sides: Record<CompareSide, Map<string, SyncEntry>> = {
-    pc: new Map(pc.entries.map((entry) => [syncPathKey(entry.path), entry])),
-    mobile: new Map(mobile.entries.map((entry) => [syncPathKey(entry.path), entry])),
+    listener: new Map(listener.entries.map((entry) => [syncPathKey(entry.path), entry])),
+    dialer: new Map(dialer.entries.map((entry) => [syncPathKey(entry.path), entry])),
   }
   // 先找出所有不一致的文件路径，再给它们的每一级上级文件夹计数。
   const differing = new Map<string, readonly string[]>()
   let differingFiles = 0
-  const onlyFiles = { pc: 0, mobile: 0 }
+  const onlyFiles = { listener: 0, dialer: 0 }
   for (const [side, other] of [
-    ['pc', 'mobile'],
-    ['mobile', 'pc'],
+    ['listener', 'dialer'],
+    ['dialer', 'listener'],
   ] as const) {
     for (const [key, entry] of sides[side]) {
       if (entry.kind !== 'file' || differing.has(key)) {
@@ -101,8 +101,8 @@ export function compareSnapshots(pc: SyncSnapshot, mobile: SyncSnapshot): Snapsh
   }
   const children = new Map<string, CompareItem[]>()
   for (const [side, other] of [
-    ['pc', 'mobile'],
-    ['mobile', 'pc'],
+    ['listener', 'dialer'],
+    ['dialer', 'listener'],
   ] as const) {
     for (const [key, entry] of sides[side]) {
       const name = entry.path[entry.path.length - 1] ?? ''

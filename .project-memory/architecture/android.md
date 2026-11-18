@@ -166,7 +166,7 @@ SAF 没有通用排他创建或比较后删除原语；这些复核能发现可�
 
 ## 10. 受保护写入与本机恢复
 
-`SyncPlanModel` 从两端完整快照重新推导全部动作、顺序、条目引用和预算。`SyncWriter.apply(plan, material, control)` 目标必须为本机，方向为 windows-to-android 或 local-restore；接纳后返回完整 `SyncApplyResult`。
+`SyncPlanModel` 从两端完整快照重新推导全部动作、顺序、条目引用和预算。`SyncWriter.apply(plan, material, control)` 目标必须为本机，方向为 listener-to-dialer 或 local-restore；接纳后返回完整 `SyncApplyResult`。
 
 写入前重扫目标，核对计划与目标的大小和修改日期；备份开启且有写入时，先保存目标目录全部文件。原地覆盖按文件增量预检目标空间，并合计已知同卷的备份峰值；备份落盘后再查目标实际余量，覆盖 SAF 与备份目录逻辑设备 ID 不同但共用物理空间的情况。
 

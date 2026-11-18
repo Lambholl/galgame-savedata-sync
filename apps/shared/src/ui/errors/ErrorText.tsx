@@ -14,7 +14,7 @@ export interface ErrorTextProps {
 
 /**
  * 显示一个错误：有错误码时显示该错误码的本地化说明，没有错误码时显示原消息。
- * 知道出错的一端时，按 LocalDeviceProvider 提供的本机设备种类在说明前写“本机”或“对方设备”。
+ * 知道出错的一端时，按 LocalDeviceProvider 提供的本机角色在说明前写“本机”或“对方设备”。
  * 有错误码时，原消息和错误码放在悬停提示里。字号和颜色继承所在位置。
  *
  * @throws Error 组件不在 LocalDeviceProvider 之下时抛出。

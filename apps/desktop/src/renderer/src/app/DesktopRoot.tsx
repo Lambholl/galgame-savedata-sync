@@ -13,7 +13,7 @@ export function DesktopRoot(): React.JSX.Element {
   }, [appPreferences.locale])
   return (
     <I18nProvider locale={appPreferences.locale}>
-      <LocalDeviceProvider device="pc">
+      <LocalDeviceProvider device="listener">
         <DesktopApp appPreferences={appPreferences} />
       </LocalDeviceProvider>
     </I18nProvider>

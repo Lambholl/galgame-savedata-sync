@@ -105,13 +105,13 @@ final class SyncTransferEngine implements AutoCloseable {
   );
 
   // 打包阶段两端都可能报授权失效，界面按阶段推断不出是哪一端，要在这里注明。
-  // 电脑不产生 authorization-expired，转述电脑的错误时已注明 pc，所以没注明的授权失效都是本机目录。
-  /** 返回任务错误该注明的一端（phone 或 pc）；分不出时为 null。 */
+  // 电脑不产生 authorization-expired，转述电脑的错误时已注明 listener，所以没注明的授权失效都是本机目录。
+  /** 返回任务错误该注明的一端（dialer 或 listener）；分不出时为 null。 */
   private static String failedDevice(ArchiveFailure failure) {
     if (failure.device != null || !DEVICE_ERRORS.contains(failure.code)) {
       return failure.device;
     }
-    return failure.code.equals("authorization-expired") ? "phone" : null;
+    return failure.code.equals("authorization-expired") ? "dialer" : null;
   }
 
   private final TransferEngine transport;
@@ -161,7 +161,7 @@ final class SyncTransferEngine implements AutoCloseable {
     }
 
     boolean upload() {
-      return direction.equals("android-to-windows");
+      return direction.equals("dialer-to-listener");
     }
 
     Map<String, Object> state() {
@@ -497,7 +497,7 @@ final class SyncTransferEngine implements AutoCloseable {
     Preparation superseded;
     synchronized (this) {
       available();
-      one(direction, "android-to-windows", "windows-to-android");
+      one(direction, "dialer-to-listener", "listener-to-dialer");
       Map<String, Object> binding = SyncJobModel.binding(rawBinding);
       require(local.deviceId().equals(binding.get("localDeviceId")));
       trim(null);
@@ -607,7 +607,7 @@ final class SyncTransferEngine implements AutoCloseable {
       }
       String targetRoot = string(binding.get("remoteRootId"));
       final String sourceRoot = string(binding.get("localRootId"));
-      accessing = "pc";
+      accessing = "listener";
       Map<String, Object> remote = SyncJobModel.scan(
         startRemoteScan(preparation, targetRoot),
         connection.deviceId,
@@ -618,13 +618,13 @@ final class SyncTransferEngine implements AutoCloseable {
         preparation.scanId = id(remote.get("scanId"));
       }
       hasRemoteScan = true;
-      accessing = "phone";
+      accessing = "dialer";
       final Map<String, Object> source = SyncJobModel.snapshot(
         local.snapshot(sourceRoot, preparation.control),
         local.deviceId(),
         sourceRoot
       );
-      accessing = "pc";
+      accessing = "listener";
       while (remote.get("status").equals("running")) {
         preparation.control.check();
         Thread.sleep(100);
@@ -1116,7 +1116,7 @@ final class SyncTransferEngine implements AutoCloseable {
         message
       );
       if (DEVICE_ERRORS.contains(remote.code)) {
-        remote.device = "pc";
+        remote.device = "listener";
       }
       return remote;
     }

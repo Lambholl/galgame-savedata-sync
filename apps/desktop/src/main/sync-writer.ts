@@ -237,7 +237,7 @@ export class WindowsSyncWriter {
       !isSyncPlan(value) ||
       !value.canExecute ||
       value.target.deviceId !== this.source.deviceId ||
-      !['android-to-windows', 'local-restore'].includes(value.direction) ||
+      !['dialer-to-listener', 'local-restore'].includes(value.direction) ||
       (material &&
         !matchesSyncPlan(value, {
           planId: value.planId,

@@ -1,11 +1,11 @@
 import { createContext, useContext } from 'react'
 import type { ErrorDevice } from '../../protocol/contracts.ts'
 
-/** 本机的设备种类；不在 LocalDeviceProvider 之下时为 null。 */
+/** 本机在连接里的角色；不在 LocalDeviceProvider 之下时为 null。 */
 export const localDeviceContext = createContext<ErrorDevice | null>(null)
 
 /**
- * 取本机的设备种类。
+ * 取本机在连接里的角色。
  *
  * @throws Error 组件不在 LocalDeviceProvider 之下时抛出。
  */

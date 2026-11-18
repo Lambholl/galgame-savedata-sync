@@ -1,11 +1,6 @@
 import { useState } from 'react'
 import { Button, Card, Empty, Space, Tag } from 'antd'
-import type {
-  LibraryGame,
-  LibraryPeer,
-  TransferDirection,
-  TransferTask,
-} from '@savedata-sync/shared'
+import type { LibraryGame, LibraryPeer, SyncDirection, TransferTask } from '@savedata-sync/shared'
 import type { DesktopCopySummary, DesktopRestoreSummary } from '../../../../bridge/sync-bridge.ts'
 import { TaskView } from './TaskView.tsx'
 import { SyncCopyDetails } from './SyncCopyDetails.tsx'
@@ -51,7 +46,7 @@ export function TaskPage({
   readonly onRescan: (
     projectId: string,
     peerId: string,
-    direction: TransferDirection,
+    direction: SyncDirection,
     shownCopyId: string | null,
   ) => void
 }): React.JSX.Element {
@@ -102,7 +97,7 @@ export function TaskPage({
               <span>
                 {games.find((game) => game.id === item.projectId)?.name ?? t('common.unknown')}
                 <small>
-                  {item.direction === 'android-to-windows'
+                  {item.direction === 'dialer-to-listener'
                     ? `${peers.find((peer) => peer.device.id === item.peerId)?.device.name ?? t('common.unknown')} → ${t('transfer.local')}`
                     : `${t('transfer.local')} → ${peers.find((peer) => peer.device.id === item.peerId)?.device.name ?? t('common.unknown')}`}{' '}
                   · {formatShortDateTime(item.updatedAt)}

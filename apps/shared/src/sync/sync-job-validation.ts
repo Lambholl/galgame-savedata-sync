@@ -29,8 +29,8 @@ import type {
   SyncTransferState,
 } from './sync-job-contracts.ts'
 
-function direction(value: unknown): value is 'android-to-windows' | 'windows-to-android' {
-  return value === 'android-to-windows' || value === 'windows-to-android'
+function direction(value: unknown): value is 'dialer-to-listener' | 'listener-to-dialer' {
+  return value === 'dialer-to-listener' || value === 'listener-to-dialer'
 }
 function isBoundedCount(value: unknown, maximum: number): value is number {
   return isByteCount(value) && value <= maximum
@@ -308,7 +308,7 @@ export function isSyncPreparationPreview(value: unknown): value is SyncPreparati
   ) {
     return false
   }
-  const isUpload = value.direction === 'android-to-windows'
+  const isUpload = value.direction === 'dialer-to-listener'
   return (
     value.source.deviceId ===
       (isUpload ? value.binding.localDeviceId : value.binding.remoteDeviceId) &&
@@ -326,7 +326,7 @@ export function syncPlanFromPreview(preview: SyncPreparationPreview): SyncPlan {
   return createSyncPlan({
     planId: preview.preparationId,
     projectId:
-      preview.direction === 'android-to-windows'
+      preview.direction === 'dialer-to-listener'
         ? preview.binding.remoteProjectId
         : preview.binding.projectId,
     operation: 'copy',

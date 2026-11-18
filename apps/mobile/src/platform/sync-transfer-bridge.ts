@@ -17,12 +17,12 @@ import type {
   SyncPreparationState,
   SyncProjectBinding,
   SyncTransferState,
-  TransferDirection,
+  SyncDirection,
 } from '@savedata-sync/shared'
 
 /** 复制任务的原生插件；方法与 AndroidSyncTransferApi 的同名方法对应，返回值未经校验。任务属于应用进程，不随页面销毁。 */
 export interface SyncTransferNativePlugin {
-  prepare(options: { binding: SyncProjectBinding; direction: TransferDirection }): Promise<unknown>
+  prepare(options: { binding: SyncProjectBinding; direction: SyncDirection }): Promise<unknown>
   queryPreparation(options: { preparationId: string }): Promise<unknown>
   preview(options: { preparationId: string }): Promise<unknown>
   cancelPreparation(options: { preparationId: string }): Promise<unknown>
@@ -39,7 +39,7 @@ export interface AndroidSyncTransferApi {
   /** 开始扫描两端，准备一次复制。 */
   prepare(
     binding: SyncProjectBinding,
-    direction: TransferDirection,
+    direction: SyncDirection,
   ): Promise<OperationResult<SyncPreparationState>>
   /** 读取准备的状态。 */
   queryPreparation(preparationId: string): Promise<OperationResult<SyncPreparationState>>
@@ -78,7 +78,7 @@ function failure(
   }
 }
 function request(preview: SyncPreparationPreview): SyncJobRequest {
-  const isUpload = preview.direction === 'android-to-windows'
+  const isUpload = preview.direction === 'dialer-to-listener'
   return {
     schemaVersion: 1,
     jobId: preview.preparationId,
@@ -151,7 +151,7 @@ export function createSyncTransferBridge(
     }
     const expected = request(restored.value),
       state = raw.value
-    const localRole = restored.value.direction === 'android-to-windows' ? 'sender' : 'receiver'
+    const localRole = restored.value.direction === 'dialer-to-listener' ? 'sender' : 'receiver'
     return state.jobId === jobId &&
       state.local.role === localRole &&
       matchesSyncJobState(state.local, expected) &&
@@ -191,7 +191,7 @@ export function createSyncTransferBridge(
     async prepare(binding, direction) {
       if (
         !isSyncProjectBinding(binding) ||
-        !['android-to-windows', 'windows-to-android'].includes(direction)
+        !['dialer-to-listener', 'listener-to-dialer'].includes(direction)
       ) {
         return failure('invalid-request')
       }

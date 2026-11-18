@@ -32,8 +32,8 @@ function input(args: readonly unknown[], fields: readonly string[]): Record<stri
   }
   if (
     fields.includes('direction') &&
-    data.direction !== 'android-to-windows' &&
-    data.direction !== 'windows-to-android'
+    data.direction !== 'dialer-to-listener' &&
+    data.direction !== 'listener-to-dialer'
   ) {
     throw new HttpOperationError('invalid-request', 'The copy direction is invalid.')
   }
@@ -110,7 +110,7 @@ export function registerSyncIpc(
           value = service.startRemoteSync(
             data.projectId as string,
             data.peerId as string,
-            data.direction as 'android-to-windows' | 'windows-to-android',
+            data.direction as 'dialer-to-listener' | 'listener-to-dialer',
           )
         } else if (action === 'confirmRemote') {
           const data = input(args, ['requestId', 'shouldDeleteExtras'])

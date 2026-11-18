@@ -14,7 +14,7 @@ import type {
   SyncPlan,
   SyncSnapshot,
   SyncTransferState,
-  TransferDirection,
+  SyncDirection,
 } from '@savedata-sync/shared'
 import type { DesktopCopySummary, DesktopRemoteRequest } from '../bridge/sync-bridge.ts'
 import type { ControlHub } from './control-hub.ts'
@@ -59,7 +59,7 @@ function matchesSide(snapshot: SyncSnapshot, deviceId: string, rootId: string): 
 function pendingLocalState(entry: RemoteEntry, request: SyncJobRequest): SyncJobState {
   const { status, direction, error, updatedAt } = entry.value
   const plan = request.plan
-  const isReceiver = direction === 'android-to-windows'
+  const isReceiver = direction === 'dialer-to-listener'
   const base: SyncJobState = {
     schemaVersion: SYNC_JOB_SCHEMA_VERSION,
     jobId: request.jobId,
@@ -132,7 +132,7 @@ export class WindowsRemoteSyncRequests {
    *
    * @throws HttpOperationError 已确认的请求还没开始或已有网络传输时抛出 busy，项目没有关联这台在线设备时抛出 session-mismatch。
    */
-  start(projectId: string, peerId: string, direction: TransferDirection): DesktopRemoteRequest {
+  start(projectId: string, peerId: string, direction: SyncDirection): DesktopRemoteRequest {
     if (this.current?.value.status === 'starting') {
       throw new HttpOperationError(
         'busy',
@@ -357,7 +357,7 @@ export class WindowsRemoteSyncRequests {
     if (status === 'succeeded') {
       return null
     }
-    const isUpload = entry.value.direction === 'android-to-windows'
+    const isUpload = entry.value.direction === 'dialer-to-listener'
     const request: SyncJobRequest = {
       schemaVersion: 1,
       jobId: plan.planId,
@@ -437,7 +437,7 @@ export class WindowsRemoteSyncRequests {
   private matchesPlan(entry: RemoteEntry, plan: SyncPlan): boolean {
     const peer = { deviceId: entry.value.peerId, rootId: entry.remoteRootId }
     const local = { deviceId: this.options.deviceId, rootId: entry.localRootId }
-    const isUpload = entry.value.direction === 'android-to-windows'
+    const isUpload = entry.value.direction === 'dialer-to-listener'
     const [source, target] = isUpload ? [peer, local] : [local, peer]
     // 计划的项目 ID 取目标一侧：移动端 → 电脑时是电脑的项目。
     return (

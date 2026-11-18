@@ -203,7 +203,7 @@ sender 的 sent 表示本机发送流完成，Android 是否接收或发布要�
 
 | 原生方法 | 输入、输出与资源责任 |
 | --- | --- |
-| `apply(plan, material, options?)` | 计划须可执行、目标为本机、方向为 android-to-windows 或 local-restore；非法/过期/重复确认或 busy 抛错误；已接纳任务返回完整 `SyncApplyResult` |
+| `apply(plan, material, options?)` | 计划须可执行、目标为本机、方向为 dialer-to-listener 或 local-restore；非法/过期/重复确认或 busy 抛错误；已接纳任务返回完整 `SyncApplyResult` |
 | `prepareRestore(projectId, rootId, backupId, targetSnapshot)` | 完整验证并引用备份，生成强制保护当前内容的恢复计划；返回 `{ plan, apply, close }`，已使用/释放的预览不能再执行 |
 | `retryCleanup()` | 只清理本进程仍持有、身份匹配的候选 |
 | `checkSpace(plan, privateSpace?)` | 合计新文件、完整备份和同卷接收缓存的余量 |

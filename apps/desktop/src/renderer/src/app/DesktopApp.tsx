@@ -755,7 +755,7 @@ export function DesktopApp({
         onRescan={(projectId, deviceId, direction, shownCopyId) => {
           setGameId(projectId)
           setPeerId(deviceId)
-          setIsUpload(direction === 'android-to-windows')
+          setIsUpload(direction === 'dialer-to-listener')
           navigation.open('transfer', {
             ...pageContext,
             taskCopyId: shownCopyId,

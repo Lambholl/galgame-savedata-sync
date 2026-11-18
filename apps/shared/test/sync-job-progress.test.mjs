@@ -25,7 +25,7 @@ function state(role, overrides = {}, progressOverrides = {}) {
   return {
     schemaVersion: SYNC_JOB_SCHEMA_VERSION,
     jobId: 'job-1',
-    direction: 'windows-to-android',
+    direction: 'listener-to-dialer',
     role,
     status: 'running',
     stage: 'backing-up',

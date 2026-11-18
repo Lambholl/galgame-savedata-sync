@@ -12,6 +12,7 @@ import type {
   SourceSelection,
   TargetSelection,
 } from './batch-contracts.ts'
+import { BATCH_PROTOCOL_VERSION } from './contracts.ts'
 import type { EntryReference } from './contracts.ts'
 import { BATCH_ARCHIVE, BATCH_LIMITS, isBatchFileId } from './batch-limits.ts'
 import {
@@ -25,7 +26,7 @@ import {
   isOneOf,
 } from '../validation/data-validation.ts'
 import type { ValueGuard } from '../validation/data-validation.ts'
-import { isOpaqueId, isPortableFileName, isProtocolVersionSupported, isSha256 } from './protocol.ts'
+import { isOpaqueId, isPortableFileName, isSha256 } from './protocol.ts'
 import {
   isDeviceDescriptor,
   isEntryMetadata,
@@ -89,7 +90,7 @@ export function isSourceSelection(value: unknown): value is SourceSelection {
 export function isDownloadBatchRequest(value: unknown): value is DownloadBatchRequest {
   return (
     hasShape(value, ['protocolVersion', 'transferId', 'sourceRootId', 'files']) &&
-    isProtocolVersionSupported(value.protocolVersion) &&
+    value.protocolVersion === BATCH_PROTOCOL_VERSION &&
     isOpaqueId(value.transferId) &&
     isOpaqueId(value.sourceRootId) &&
     isBoundedArray(value.files, isSourceSelection) &&
@@ -148,7 +149,7 @@ export function isBatchManifest(value: unknown): value is BatchManifest {
       'totalFileBytes',
       'archive',
     ]) ||
-    !isProtocolVersionSupported(value.protocolVersion) ||
+    value.protocolVersion !== BATCH_PROTOCOL_VERSION ||
     !isOpaqueId(value.transferId) ||
     !isOpaqueId(value.sourceDeviceId) ||
     !isOpaqueId(value.sourceRootId) ||
@@ -185,7 +186,7 @@ export function isTargetSelection(value: unknown): value is TargetSelection {
 export function isReceiveBatchRequest(value: unknown): value is ReceiveBatchRequest {
   if (
     !hasShape(value, ['protocolVersion', 'manifest', 'targetRootId', 'targets']) ||
-    !isProtocolVersionSupported(value.protocolVersion) ||
+    value.protocolVersion !== BATCH_PROTOCOL_VERSION ||
     !isBatchManifest(value.manifest) ||
     !isOpaqueId(value.targetRootId) ||
     !isBoundedArray(value.targets, isTargetSelection) ||

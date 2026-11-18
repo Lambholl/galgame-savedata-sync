@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Button, Empty, Skeleton } from 'antd'
 import { ReloadOutlined, StopOutlined } from '@ant-design/icons'
 import { observeSyncJob, toShownError, unwrap } from '@savedata-sync/shared'
-import type { LibraryGame, LibraryPeer, ShownError, TransferDirection } from '@savedata-sync/shared'
+import type { LibraryGame, LibraryPeer, ShownError, SyncDirection } from '@savedata-sync/shared'
 import { SyncTaskSummary, useT } from '@savedata-sync/shared/ui'
 import { useFailureMessage } from '../../app/failure-message.ts'
 import type { PlanEndpoint } from '@savedata-sync/shared/ui'
@@ -28,7 +28,7 @@ export function SyncCopyDetails({
   readonly peers: readonly LibraryPeer[]
   readonly onOpenBackup: (projectId: string) => void
   /** 用这次传输的游戏、设备和方向重新比较。 */
-  readonly onRescan: (projectId: string, peerId: string, direction: TransferDirection) => void
+  readonly onRescan: (projectId: string, peerId: string, direction: SyncDirection) => void
   readonly onChanged: () => void
 }): React.JSX.Element {
   const t = useT()
@@ -62,7 +62,7 @@ export function SyncCopyDetails({
   }
   const pcEnd: PlanEndpoint = { name: t('transfer.local'), kind: 'pc' }
   const mobileEnd: PlanEndpoint = { name: peer?.device.name ?? t('common.unknown'), kind: 'mobile' }
-  const isUpload = task.direction === 'android-to-windows'
+  const isUpload = task.direction === 'dialer-to-listener'
   // 按钮和正文读同一份状态；列表摘要另有轮询，用它会出现正文已完成、按钮还是取消的一瞬间。
   const phase = state
     ? observeSyncJob(state.local, state.remote, state.remoteError !== null).phase

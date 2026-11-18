@@ -4,7 +4,7 @@ import type {
   OperationError,
   RemoteSyncReport,
   ShownError,
-  TransferDirection,
+  SyncDirection,
 } from '@savedata-sync/shared'
 import type { AndroidControlApi } from '../../platform/control-channel'
 import type { MobileSyncAdapter } from '../../platform/sync-adapter'
@@ -88,7 +88,7 @@ export function useRemoteSync(
     async function prepare(
       item: ActiveRequest,
       projectId: string,
-      direction: TransferDirection,
+      direction: SyncDirection,
     ): Promise<void> {
       let state = await sync.prepare(projectId, peerId, direction)
       item.preparationId = state.preparationId

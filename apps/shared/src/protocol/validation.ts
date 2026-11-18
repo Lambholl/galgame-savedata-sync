@@ -138,7 +138,7 @@ export function isOperationError(value: unknown): value is OperationError {
   return (
     (hasShape(value, ['code', 'message', 'canRetry']) ||
       (hasShape(value, ['code', 'message', 'canRetry', 'device']) &&
-        (value.device === 'phone' || value.device === 'pc'))) &&
+        (value.device === 'listener' || value.device === 'dialer'))) &&
     typeof value.code === 'string' &&
     Object.hasOwn(HTTP_ERROR_STATUS, value.code) &&
     isText(value.message) &&

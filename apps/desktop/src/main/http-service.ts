@@ -170,7 +170,7 @@ export class WindowsHttpService {
   startRemoteSync(
     projectId: string,
     peerId: string,
-    direction: 'android-to-windows' | 'windows-to-android',
+    direction: 'dialer-to-listener' | 'listener-to-dialer',
   ): ReturnType<WindowsRemoteSyncRequests['start']> {
     return this.requireRemote().start(projectId, peerId, direction)
   }

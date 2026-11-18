@@ -98,7 +98,7 @@ export function isSyncPlanInput(value: unknown): value is SyncPlanInput {
     isOpaqueId(value.planId) &&
     isOpaqueId(value.projectId) &&
     ((value.operation === 'copy' &&
-      (value.direction === 'windows-to-android' || value.direction === 'android-to-windows')) ||
+      (value.direction === 'listener-to-dialer' || value.direction === 'dialer-to-listener')) ||
       (value.operation === 'restore' &&
         value.direction === 'local-restore' &&
         value.shouldBackup === true &&

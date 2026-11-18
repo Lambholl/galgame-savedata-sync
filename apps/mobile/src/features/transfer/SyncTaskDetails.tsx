@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Button } from 'antd-mobile'
 import { ReloadOutlined, StopOutlined } from '@ant-design/icons'
 import { observeSyncJob, toShownError } from '@savedata-sync/shared'
-import type { LibraryGame, LibraryPeer, ShownError, TransferDirection } from '@savedata-sync/shared'
+import type { LibraryGame, LibraryPeer, ShownError, SyncDirection } from '@savedata-sync/shared'
 import { SyncTaskSummary, useT } from '@savedata-sync/shared/ui'
 import { useFailureMessage } from '../../app/failure-message'
 import type { PlanEndpoint } from '@savedata-sync/shared/ui'
@@ -52,7 +52,7 @@ export function SyncTaskDetails({
   readonly errors: readonly ShownError[]
   readonly onChanged: () => void
   /** 用这次传输的游戏、设备和方向重新比较。 */
-  readonly onRescan: (projectId: string, deviceId: string, direction: TransferDirection) => void
+  readonly onRescan: (projectId: string, deviceId: string, direction: SyncDirection) => void
   readonly onBackup: (projectId: string) => void
 }): React.JSX.Element {
   const t = useT()
@@ -81,7 +81,7 @@ export function SyncTaskDetails({
     observeSyncJob(state.local, state.remote, state.remoteError !== null).phase === 'running'
   const mobileEnd: PlanEndpoint = { name: t('transfer.local'), kind: 'mobile' }
   const pcEnd: PlanEndpoint = { name: peer?.device.name ?? t('common.unknown'), kind: 'pc' }
-  const isUpload = copy?.preview.direction === 'android-to-windows'
+  const isUpload = copy?.preview.direction === 'dialer-to-listener'
   const failure = error ?? errors[0] ?? null
   // 失败用 Message 提示一次；读不到任务时正文留一个重试入口。
   const [showFailure, failureHolder] = useFailureMessage()

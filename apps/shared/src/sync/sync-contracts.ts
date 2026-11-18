@@ -1,11 +1,14 @@
-import type { CapabilityState, OperationError, TransferDirection } from '../protocol/contracts.ts'
+import type { CapabilityState, OperationError } from '../protocol/contracts.ts'
 
 /** 复制功能的 schema 版本，与 PROTOCOL_VERSION 分别计数。 */
 export const SYNC_SCHEMA_VERSION = 1
 /**
  * 能力声明的版本，两端相同才能互传。
  */
-export const SYNC_CAPABILITIES_VERSION = 6
+export const SYNC_CAPABILITIES_VERSION = 7
+
+/** 复制方向，按连接里的角色区分：listener-to-dialer 从监听方复制到拨号方。 */
+export type SyncDirection = 'listener-to-dialer' | 'dialer-to-listener'
 
 /** 两端修改日期相差不超过这个毫秒数时算相同，兼容 FAT 和 exFAT 的 2 秒精度。 */
 export const SYNC_MODIFIED_TOLERANCE_MS = 2000
@@ -115,7 +118,7 @@ export interface SyncPlanInput {
   readonly planId: string
   readonly projectId: string
   readonly operation: 'copy' | 'restore'
-  readonly direction: TransferDirection | 'local-restore'
+  readonly direction: SyncDirection | 'local-restore'
   readonly shouldBackup: boolean
   /** 只在目标有的条目：false 保留，true 删除。恢复计划固定为 false。 */
   readonly shouldDeleteExtras: boolean

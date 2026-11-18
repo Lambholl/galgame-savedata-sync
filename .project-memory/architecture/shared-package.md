@@ -25,7 +25,7 @@ tags: [共享包, 数据模型, 守卫]
 
 `@savedata-sync/shared/ui`（`src/ui`）放两端共用的 React 展示组件，例如 PathText；它可以依赖 React、`@ant-design/icons` 与不涉及平台交互的 antd 组件，主入口不得导入它，因此电脑主进程和 node 测试不会加载 React。组件参数逐项声明，不接受样式参数，规则见 [ADR-0002](../decisions/ADR-0002-ui-library-and-shared-rendering.md) 与 `eslint.config.mjs`。
 
-协议使用数字 `PROTOCOL_VERSION=1`。本地目录桥使用 DeviceDescriptor、DirectoryReference、EntryMetadata、DirectoryListing 和 DirectorySelectionResult；HTTP 的 DeviceResponse 为 `OperationResult<BatchDeviceDescriptor>`，包装本地 device 并提供 sessionId/limits。
+设备描述、发现 TXT 和连接二维码使用数字 `PROTOCOL_VERSION=2`，旧批量传输使用 `BATCH_PROTOCOL_VERSION=1`。本地目录桥使用 DeviceDescriptor、DirectoryReference、EntryMetadata、DirectoryListing 和 DirectorySelectionResult；HTTP 的 DeviceResponse 为 `OperationResult<BatchDeviceDescriptor>`，包装本地 device 并提供 sessionId/limits。
 
 传输使用 BatchProgress/BatchState/FileOutcome、DownloadBatchRequest/ReceiveBatchRequest、BatchResponse/ManifestResponse，以及批量路由和归档校验头。接收成功前必须执行上下文匹配。当前只有 v1 批量端点，没有单文件别名。应用仍是测试版，协议字段可以不兼容地修改，但两端必须同时更新。
 
@@ -117,7 +117,7 @@ withGameLink、withoutGameLink、createImportedGame 返回新的游戏配置，�
 
 `SyncScanRequest` 只含 schemaVersion/rootId，`isSyncScanState` 核对扫描句柄、状态、成功快照的实测字节数和完整指纹；失败可保留部分条目，取消与空目录成功分开。`isSyncCapabilities` 校验能力声明与固定扫描限制。
 
-`createSyncPlan({ planId, projectId, operation, direction, shouldBackup, shouldDeleteExtras, source, target })` 生成本次计划。`operation=copy` 使用明确的跨端方向（当前为 `windows-to-android`、`android-to-windows`，M-005 改为 `listener-to-dialer`、`dialer-to-listener`，见 [ADR-0004](../decisions/ADR-0004-symmetric-listener-dialer-roles.md)）；`operation=restore` 使用 `local-restore`、同一设备、开启的保护备份和 `shouldDeleteExtras=false`。`shouldDeleteExtras=true` 时目标多出的条目变成 `delete-file`/`delete-directory`，排在所有写入之后，由深到浅；`withDeleteExtras(plan, value)` 用同一批快照重算，切换开关时不需要重新扫描。源/目标是本次 `SyncSnapshot`，恢复源由本机已验证备份构造。非法输入抛 Error；读取错误、内容未知、类型/名称冲突和超限返回 `canExecute=false` 及问题列表。
+`createSyncPlan({ planId, projectId, operation, direction, shouldBackup, shouldDeleteExtras, source, target })` 生成本次计划。`operation=copy` 使用明确的跨端方向（`listener-to-dialer`、`dialer-to-listener`，见 [ADR-0004](../decisions/ADR-0004-symmetric-listener-dialer-roles.md)）；`operation=restore` 使用 `local-restore`、同一设备、开启的保护备份和 `shouldDeleteExtras=false`。`shouldDeleteExtras=true` 时目标多出的条目变成 `delete-file`/`delete-directory`，排在所有写入之后，由深到浅；`withDeleteExtras(plan, value)` 用同一批快照重算，切换开关时不需要重新扫描。源/目标是本次 `SyncSnapshot`，恢复源由本机已验证备份构造。非法输入抛 Error；读取错误、内容未知、类型/名称冲突和超限返回 `canExecute=false` 及问题列表。
 
 计划器复制输入快照，按固定路径顺序给出操作，父目录先创建；不会修改输入、执行 IO、按时间选方向或查询历史。待传字节统计本次写入文件；备份开启且有写入时，备份字节统计目标目录的全部文件，包括未变化和仅存在于目标的文件，并校验文件数、单文件大小和总大小。`selectSyncBackupFiles(plan)` 返回这个集合；备份关闭、无写入或目标没有文件时返回空集合。未知或无法表示为安全整数的字节数为 null。`isSyncPlan` 重新推导完整计划；执行前用 `matchesSyncPlan(value, input)` 对照调用方保存的本次上下文，不能只校验 planId 或 canExecute。
 

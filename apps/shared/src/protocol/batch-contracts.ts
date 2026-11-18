@@ -6,7 +6,7 @@ import type {
   OperationResult,
   TransferDirection,
 } from './contracts.ts'
-import type { PROTOCOL_VERSION } from './contracts.ts'
+import type { BATCH_PROTOCOL_VERSION } from './contracts.ts'
 
 /** 除 result-unknown 以外、已确定原因的错误。 */
 export type KnownOperationError = Exclude<OperationError, { readonly code: 'result-unknown' }>
@@ -41,7 +41,7 @@ export interface SourceSelection {
 
 /** 下载请求：同一个已登记根目录中的若干文件。 */
 export interface DownloadBatchRequest {
-  readonly protocolVersion: typeof PROTOCOL_VERSION
+  readonly protocolVersion: typeof BATCH_PROTOCOL_VERSION
   readonly transferId: string
   readonly sourceRootId: string
   readonly files: readonly SourceSelection[]
@@ -69,7 +69,7 @@ export interface ArchiveDescriptor {
 
 /** 批次清单，只在当前会话内有效。 */
 export interface BatchManifest {
-  readonly protocolVersion: typeof PROTOCOL_VERSION
+  readonly protocolVersion: typeof BATCH_PROTOCOL_VERSION
   readonly transferId: string
   readonly sourceDeviceId: string
   readonly sourceRootId: string
@@ -87,7 +87,7 @@ export interface TargetSelection {
 
 /** 接收登记请求：本次的清单和目标。 */
 export interface ReceiveBatchRequest {
-  readonly protocolVersion: typeof PROTOCOL_VERSION
+  readonly protocolVersion: typeof BATCH_PROTOCOL_VERSION
   readonly manifest: BatchManifest
   readonly targetRootId: string
   readonly targets: readonly TargetSelection[]

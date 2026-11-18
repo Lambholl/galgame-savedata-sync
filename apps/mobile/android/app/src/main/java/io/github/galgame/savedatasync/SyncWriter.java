@@ -620,7 +620,7 @@ final class SyncWriter implements AutoCloseable {
   ) throws Exception {
     SyncPlanModel.Plan plan = new SyncPlanModel.Plan(raw);
     require(plan.target.device.equals(backend.source().deviceId()));
-    one(plan.value.get("direction"), "windows-to-android", "local-restore");
+    one(plan.value.get("direction"), "listener-to-dialer", "local-restore");
     if (material == null) {
       require(number(plan.value.get("transferFileCount"), 0, 1024) == 0);
     } else {

@@ -66,7 +66,7 @@ export function isControlRequestBody<M extends ControlRequestMethod>(
       hasShape(value, ['requestId', 'projectId', 'direction']) &&
       isOpaqueId(value.requestId) &&
       isOpaqueId(value.projectId) &&
-      isOneOf(value.direction, ['android-to-windows', 'windows-to-android'])
+      isOneOf(value.direction, ['dialer-to-listener', 'listener-to-dialer'])
     )
   }
   if (method === 'sync.job.read' || method === 'sync.job.cancel') {

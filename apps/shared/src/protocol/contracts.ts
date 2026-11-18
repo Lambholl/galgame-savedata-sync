@@ -1,5 +1,8 @@
-/** 协议版本。不兼容的变更使用新版本号。 */
-export const PROTOCOL_VERSION = 1
+/** 设备描述、发现 TXT 和连接二维码的协议版本。不兼容的变更使用新版本号。 */
+export const PROTOCOL_VERSION = 2
+
+/** 旧批量传输（`/v1/transfers/*`）的协议版本，与 PROTOCOL_VERSION 分别计数。 */
+export const BATCH_PROTOCOL_VERSION = 1
 
 /** 能力状态。supported 表示平台声明支持，调用仍可能失败。 */
 export type CapabilityState = 'supported' | 'unsupported' | 'unknown'
@@ -106,8 +109,8 @@ export type OperationErrorCode =
   | 'cleanup-failed'
   | 'result-unknown'
 
-/** 出错的一端；phone 表示移动端，平板也用这个值。取值已随协议发布，协议变化前不改名。 */
-export type ErrorDevice = 'phone' | 'pc'
+/** 出错的一端，按连接里的角色区分：listener 是监听方，dialer 是拨号方。 */
+export type ErrorDevice = 'listener' | 'dialer'
 
 /**
  * 操作错误。message 已脱敏；canRetry 表示用户核实当前状态后可以重新发起操作。
@@ -142,7 +145,7 @@ export type DirectorySelectionResult =
   | { readonly status: 'cancelled' }
   | { readonly status: 'error'; readonly error: OperationError }
 
-/** 传输方向。 */
+/** 旧批量传输的方向，只在电脑监听、Android 拨号之间使用。复制任务用 SyncDirection。 */
 export type TransferDirection = 'windows-to-android' | 'android-to-windows'
 
 /** 本机已选择的目录引用列表。 */
