@@ -130,7 +130,7 @@ export function DevicesPage({
                   data-device-id={peer.device.id}
                   prefix={
                     <span className={`device-icon${peer.isConnected ? ' is-online' : ''}`}>
-                      <DesktopOutlined />
+                      <PlatformIcon platform={peer.device.platform} />
                     </span>
                   }
                   description={

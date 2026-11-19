@@ -1,7 +1,7 @@
 ---
 doc_type: adr
 status: accepted
-updated: 2026-11-19
+updated: 2026-11-20
 tags: [决策, 连接, 传输, 监听方, 拨号方, Android, Windows]
 ---
 
@@ -112,8 +112,6 @@ M-003 把发现、二维码和控制通道按对称角色设计，但实现只�
 ### 待验证
 
 - Android 熄屏、Doze 状态下，开着前台服务的监听能否被局域网设备连上、NsdManager 广播是否持续；连不上时再考虑 Wi-Fi 锁。在 WP-50 用真机验证。
-- `bonjour-service` 搜索与 ciao 广播在同一台电脑上能否同时使用 UDP 5353。在 WP-48 验证；不行时改用 `multicast-dns` 直接查询。
-
 ## 替代方案
 
 | 方案 | 优点 | 缺点 | 结果 |

@@ -11,6 +11,7 @@ import type {
 } from '@savedata-sync/shared'
 import type { DesktopDiscoveryState } from '../../../bridge/service-bridge.ts'
 import type { DesktopCopySummary, DesktopRestoreSummary } from '../../../bridge/sync-bridge.ts'
+import type { DesktopDialResult, DesktopDialerSnapshot } from '../../../bridge/dialer-bridge.ts'
 
 /** 设备页显示的本机服务状态。 */
 export interface DesktopServiceView {
@@ -38,6 +39,8 @@ export interface DesktopSnapshot {
   readonly peers: readonly LibraryPeer[]
   readonly roots: readonly DirectoryReference[]
   readonly service: DesktopServiceView | null
+  /** 本机作为拨号方的连接和附近的设备。 */
+  readonly dialer: DesktopDialerSnapshot
   readonly tasks: readonly TransferTask[]
   readonly copies: readonly DesktopCopySummary[]
   readonly restores: readonly DesktopRestoreSummary[]
@@ -45,12 +48,16 @@ export interface DesktopSnapshot {
 }
 /** 桌面游戏库接口。directory 以外的方法失败时 reject。 */
 export interface DesktopLibraryAdapter {
-  /** 读取快照；任务的方向标题按 t 的语言生成。 */
-  read(t: Translate): Promise<DesktopSnapshot>
+  /** 读取快照；任务的方向标题按 t 的语言生成。shouldWatchNearby 为 true 时续期局域网搜索。 */
+  read(t: Translate, shouldWatchNearby: boolean): Promise<DesktopSnapshot>
   /** 用 games 替换全部本机游戏。 */
   saveGames(games: readonly LibraryGame[]): Promise<void>
   /** 打开系统目录选择器并登记所选目录。 */
   chooseDirectory(): Promise<DirectorySelectionResult>
+  /** 依次连接 addresses（`IP:端口`），连上一个就停；expectedDeviceId 不为 null 时只连这台设备。 */
+  connect(addresses: readonly string[], expectedDeviceId: string | null): Promise<DesktopDialResult>
+  /** 连接已保存的设备，保存的地址连不上时按设备 ID 查找新地址。 */
+  connectSaved(deviceId: string): Promise<DesktopDialResult>
   /** 断开、重命名或忘记一台设备；rename 时 name 是新名称。 */
   device(id: string, action: 'disconnect' | 'forget' | 'rename', name?: string): Promise<void>
   /** 列出目录的一层；deviceId 为 null 时读本机。失败以错误结果返回。 */

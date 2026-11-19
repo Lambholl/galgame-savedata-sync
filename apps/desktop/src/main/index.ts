@@ -16,6 +16,9 @@ import { registerServiceIpc } from './service-ipc.ts'
 import { ServicePortSettings } from './service-port-settings.ts'
 import { DesktopLibrary } from './library-store.ts'
 import { registerLibraryIpc } from './library-ipc.ts'
+import { WindowsDiscoveryBrowser } from './discovery-browser.ts'
+import { WindowsDialer } from './dialer-session.ts'
+import { registerDialerIpc } from './dialer-ipc.ts'
 import { createWindowsBackupStore } from './backup-store.ts'
 import { registerBackupIpc } from './backup-ipc.ts'
 import { WindowsSyncWriter } from './sync-writer.ts'
@@ -206,6 +209,15 @@ if (hasInstanceLock) {
           isTrustedDirectorySender(event, trustedWindows, expectedRendererUrl),
         ),
       )
+      const discoveryBrowser = new WindowsDiscoveryBrowser(adapter.deviceId)
+      const dialer = new WindowsDialer(library, adapter, discoveryBrowser)
+      library.attachDialer(dialer)
+      app.once(
+        'will-quit',
+        registerDialerIpc(ipcMain, dialer, (event) =>
+          isTrustedDirectorySender(event, trustedWindows, expectedRendererUrl),
+        ),
+      )
       let canQuit = false
       let isClosing = false
       app.on('before-quit', (event) => {
@@ -217,8 +229,11 @@ if (hasInstanceLock) {
           return
         }
         isClosing = true
-        httpService
+        discoveryBrowser.stop()
+        // dialer.stop 不会 reject，后面的释放步骤总会执行。
+        dialer
           .stop()
+          .then(() => httpService.stop())
           // HTTP 服务停止失败时也要撤下广播；广播的 stop 不会 reject。
           .finally(() => advertiser.stop())
           .then(() => restores.stop())

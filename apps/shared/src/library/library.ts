@@ -1,4 +1,4 @@
-import type { DirectoryReference } from '../protocol/contracts.ts'
+import type { DeviceDescriptor, DirectoryReference } from '../protocol/contracts.ts'
 import { isDirectoryReference } from '../protocol/validation.ts'
 import { isOpaqueId } from '../protocol/protocol.ts'
 import { isArrayOf } from '../validation/data-validation.ts'
@@ -21,12 +21,13 @@ export interface GameLink {
 export interface SavedDevice {
   readonly id: string
   readonly name: string
+  readonly platform: DeviceDescriptor['platform']
   readonly address: string | null
   readonly isBlocked: boolean
 }
 /** 本机的游戏库配置：游戏和已保存的设备。 */
 export interface LibraryConfig {
-  readonly schemaVersion: 1
+  readonly schemaVersion: 2
   readonly games: readonly LibraryGame[]
   readonly devices: readonly SavedDevice[]
 }
@@ -46,10 +47,11 @@ export interface CatalogPush {
   readonly games: readonly CatalogGame[]
   readonly links: readonly CatalogLink[]
 }
-/** 带发送方设备 ID 和名称的目录表。 */
+/** 带发送方设备 ID、名称和平台的目录表。 */
 export interface CatalogHello extends CatalogPush {
   readonly deviceId: string
   readonly name: string
+  readonly platform: DeviceDescriptor['platform']
 }
 /** 交换目录表时对方答复的目录表。 */
 export interface CatalogReply {
@@ -76,6 +78,9 @@ function text(value: unknown): value is string {
 function unique<T>(items: readonly T[], key: (item: T) => string): boolean {
   return new Set(items.map(key)).size === items.length
 }
+function isPlatform(value: unknown): value is DeviceDescriptor['platform'] {
+  return value === 'windows' || value === 'android'
+}
 function isLink(value: unknown): value is GameLink {
   return record(value) && isOpaqueId(value.deviceId) && isOpaqueId(value.gameId)
 }
@@ -85,6 +90,7 @@ export function isSavedDevice(value: unknown): value is SavedDevice {
     record(value) &&
     isOpaqueId(value.id) &&
     text(value.name) &&
+    isPlatform(value.platform) &&
     typeof value.isBlocked === 'boolean' &&
     (value.address === null || (typeof value.address === 'string' && value.address.length <= 256))
   )
@@ -93,7 +99,7 @@ export function isSavedDevice(value: unknown): value is SavedDevice {
 export function isLibraryConfig(value: unknown): value is LibraryConfig {
   if (
     !record(value) ||
-    value.schemaVersion !== 1 ||
+    value.schemaVersion !== 2 ||
     !Array.isArray(value.games) ||
     value.games.length > 128 ||
     !Array.isArray(value.devices) ||
@@ -163,10 +169,11 @@ export function isCatalogPush(value: unknown): value is CatalogPush {
 export function isCatalogHello(value: unknown): value is CatalogHello {
   return (
     record(value) &&
-    Object.keys(value).length === 4 &&
+    Object.keys(value).length === 5 &&
     catalog(value) &&
     isOpaqueId(value.deviceId) &&
     text(value.name) &&
+    isPlatform(value.platform) &&
     (value.games as readonly CatalogGame[]).every(
       (item) => item.root === null || item.root.deviceId === value.deviceId,
     )
@@ -189,7 +196,7 @@ export function isLibraryPeer(value: unknown): value is LibraryPeer {
 }
 /** 返回没有游戏和设备的游戏库配置。 */
 export function emptyLibrary(): LibraryConfig {
-  return { schemaVersion: 1, games: [], devices: [] }
+  return { schemaVersion: 2, games: [], devices: [] }
 }
 /** 去掉 HTTP 地址的协议前缀，保留 IP、IPv6 方括号和端口。 */
 export function formatConnectionAddress(value: string): string {

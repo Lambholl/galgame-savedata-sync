@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Button, Empty, Tooltip } from 'antd'
 import { ControlOutlined, HistoryOutlined } from '@ant-design/icons'
 import {
@@ -20,11 +20,13 @@ import type {
   LibraryPeer,
 } from '@savedata-sync/shared'
 import type { DesktopSnapshot } from '../platform/library-types.ts'
+import type { DesktopDialResult, DesktopNearbyDevice } from '../../../bridge/dialer-bridge.ts'
 import { createDesktopLibraryAdapter } from '../platform/library-adapter.ts'
 import { desktopBackups, desktopSync } from '../platform/sync-adapter.ts'
 import { ConfirmationDialog } from '../components/ConfirmationDialog.tsx'
 import { InterruptedWriteDialog } from '../components/InterruptedWriteDialog.tsx'
 import { DeviceEditorDialog } from '../features/devices/DeviceEditorDialog.tsx'
+import { AddDeviceDialog } from '../features/devices/AddDeviceDialog.tsx'
 import { GameActionDialog } from '../features/games/GameActionDialog.tsx'
 import { ImportGameDialog } from '../features/games/ImportGameDialog.tsx'
 import { DesktopShell } from './DesktopShell.tsx'
@@ -120,6 +122,14 @@ export function DesktopApp({
   useEffect(() => () => clearTimeout(copiedTimer.current), [])
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null)
   const [interruptedWrites, setInterruptedWrites] = useState<readonly InterruptedWrite[]>([])
+  const [connectingId, setConnectingId] = useState<string | null>(null)
+  const [isAddDeviceOpen, setIsAddDeviceOpen] = useState(false)
+  const [addressDraft, setAddressDraft] = useState('')
+  // 轮询要读到当前页面：只在设备页续期局域网搜索。
+  const pageRef = useRef(page)
+  useLayoutEffect(() => {
+    pageRef.current = page
+  }, [page])
 
   const operating = useRef(false)
   const generation = useRef(0)
@@ -130,7 +140,7 @@ export function DesktopApp({
   const snapshotRef = useRef(snapshot)
   const refresh = useCallback(async (): Promise<void> => {
     const version = ++generation.current
-    const value = await adapter.read(t)
+    const value = await adapter.read(t, pageRef.current === 'devices')
     if (version === generation.current) {
       if (
         snapshotRef.current?.peers.some(
@@ -509,9 +519,43 @@ export function DesktopApp({
     }
   }
   function actOnDevice(peer: LibraryPeer): void {
-    if (peer.isConnected) {
+    if (peer.isConnected || snapshot?.dialer.session?.deviceId === peer.device.id) {
       run(() => adapter.device(peer.device.id, 'disconnect'))
     }
+  }
+  /** 连接另一台设备；deviceId 是要连接的已保存或附近设备，手动输入地址时为 null。 */
+  function connectDevice(deviceId: string | null, connect: () => Promise<DesktopDialResult>): void {
+    run(async () => {
+      setConnectingId(deviceId)
+      try {
+        const result = await connect()
+        setIsAddDeviceOpen(false)
+        appMessage.show({
+          type: 'success',
+          content: t(result.isRelocated ? 'device.relocated' : 'app.connectedTo', {
+            name: result.name,
+          }),
+          slot: 'connection',
+        })
+      } catch (cause) {
+        // 连接失败不中断 run：失败要带“连接失败”的上下文提示，之后照常刷新状态。
+        showError(toShownError(cause), t('device.connectFailed'))
+      } finally {
+        setConnectingId(null)
+      }
+    })
+  }
+  function connectNearby(device: DesktopNearbyDevice): void {
+    connectDevice(device.deviceId, () =>
+      adapter.connect(
+        device.addresses.map((address) => `${address}:${device.port}`),
+        device.deviceId,
+      ),
+    )
+  }
+  function openAddDevice(): void {
+    setAddressDraft('')
+    setIsAddDeviceOpen(true)
   }
   function go(value: Page): void {
     setIsGameActionDialogOpen(false)
@@ -620,6 +664,8 @@ export function DesktopApp({
         service={snapshot?.service ?? null}
         serviceChange={serviceChange}
         peers={peers}
+        dialer={snapshot?.dialer ?? null}
+        connectingId={connectingId}
         copied={copied}
         port={port}
         isBusy={isBusy}
@@ -629,6 +675,11 @@ export function DesktopApp({
         onRandomizePort={() => run(async () => setPortDraft(await adapter.randomizePort()))}
         onToggleService={toggleService}
         onCopyAddress={copyAddress}
+        onAddDevice={openAddDevice}
+        onConnectSaved={(peer) =>
+          connectDevice(peer.device.id, () => adapter.connectSaved(peer.device.id))
+        }
+        onConnectNearby={connectNearby}
         onDeviceAction={actOnDevice}
         onManageDevice={deviceEditor}
       />
@@ -837,6 +888,14 @@ export function DesktopApp({
         onCancel={() => setIsDeviceEditorOpen(false)}
         onSave={saveDevice}
         onRemove={removeDevice}
+      />
+      <AddDeviceDialog
+        isOpen={isAddDeviceOpen}
+        address={addressDraft}
+        isBusy={isBusy}
+        onAddressChange={setAddressDraft}
+        onCancel={() => setIsAddDeviceOpen(false)}
+        onConnect={() => connectDevice(null, () => adapter.connect([addressDraft.trim()], null))}
       />
       <ImportGameDialog
         isOpen={isImportOpen}

@@ -11,7 +11,9 @@ import {
 } from '@savedata-sync/shared'
 import type {
   CatalogHello,
+  CatalogPush,
   CatalogReply,
+  DeviceDescriptor,
   DirectoryListing,
   LibraryConfig,
   LibraryGame,
@@ -27,6 +29,20 @@ interface PeerRuntime {
   readonly entries: Set<string>
 }
 type LibraryControl = Pick<ControlHub, 'isOpen' | 'request' | 'broadcast' | 'disconnect'>
+/** 本机作为拨号方的当前连接。 */
+export interface LibraryDialer {
+  /** 本机正连着（包括控制通道正在重连）的设备 ID；没有时为 null。 */
+  deviceId(): string | null
+  /** 控制通道是否打开。 */
+  isOpen(): boolean
+  /** 读取对方一个根目录的一层。 */
+  directory(rootId: string, parentId: string | null): Promise<DirectoryListing>
+  /** 断开 deviceId 并通知对方；没连着它时不做任何事。 */
+  disconnect(deviceId: string): Promise<void>
+  /** 通知本机游戏或关联已经改变。 */
+  catalogChanged(): void
+}
+const BUSY_MESSAGE = 'This device is connected to another device. Disconnect it first.'
 /**
  * 游戏库：本机游戏和已保存设备写入配置文件，对端的目录表和目录条目只在当前会话内保留。
  * 设备是否在线以控制通道是否打开为准；读取对端目录时对方 8 秒未应答即失败。
@@ -37,6 +53,9 @@ export class DesktopLibrary {
   private readonly reading = new Map<string, Promise<DirectoryListing>>()
   private readonly disconnected = new Set<string>()
   private control: LibraryControl | null = null
+  private dialer: LibraryDialer | null = null
+  /** 本机拨号连着的设备答复的目录表。 */
+  private dialed: { readonly deviceId: string; readonly reply: CatalogReply } | null = null
   private saving: Promise<void> = Promise.resolve()
   constructor(
     private readonly file: string,
@@ -82,8 +101,30 @@ export class DesktopLibrary {
   attachControl(control: LibraryControl | null): void {
     this.control = control
   }
+  /** 设置本机作为拨号方的连接。 */
+  attachDialer(dialer: LibraryDialer): void {
+    this.dialer = dialer
+  }
   private isOpen(deviceId: string): boolean {
     return this.runtime.has(deviceId) && Boolean(this.control?.isOpen(deviceId))
+  }
+  private isDialedOpen(deviceId: string): boolean {
+    return this.dialed?.deviceId === deviceId && Boolean(this.dialer?.isOpen())
+  }
+  /** 本机是否作为拨号方连着别的设备，包括控制通道正在重连。 */
+  private isDialing(): boolean {
+    return Boolean(this.dialer?.deviceId())
+  }
+  /** 判断是否有设备作为拨号方连着本机的控制通道。 */
+  hasListenerPeer(): boolean {
+    return [...this.runtime.keys()].some((id) => this.isOpen(id))
+  }
+  /** 对端的目录表：它连着本机时是它发来的，本机连着它时是它答复的。 */
+  private peerCatalog(deviceId: string): CatalogPush | undefined {
+    return (
+      this.runtime.get(deviceId)?.hello ??
+      (this.dialed?.deviceId === deviceId ? this.dialed.reply : undefined)
+    )
   }
   /** 判断是否有 deviceId 以外的设备连着控制通道。 */
   private hasOtherPeer(deviceId: string): boolean {
@@ -96,7 +137,8 @@ export class DesktopLibrary {
       Boolean(saved && !saved.isBlocked) &&
       this.runtime.has(deviceId) &&
       !this.disconnected.has(deviceId) &&
-      !this.hasOtherPeer(deviceId)
+      !this.hasOtherPeer(deviceId) &&
+      !this.isDialing()
     )
   }
   /** 返回游戏库配置的副本，以及每台已保存设备的连接状态和游戏表。 */
@@ -105,8 +147,8 @@ export class DesktopLibrary {
       config: structuredClone(this.config),
       peers: this.config.devices.map((device) => ({
         device,
-        isConnected: this.isOpen(device.id),
-        games: this.runtime.get(device.id)?.hello.games ?? [],
+        isConnected: this.isOpen(device.id) || this.isDialedOpen(device.id),
+        games: this.peerCatalog(device.id)?.games ?? [],
       })),
     }
   }
@@ -124,11 +166,8 @@ export class DesktopLibrary {
         'The device connection changed. Reconnect the device.',
       )
     }
-    if (this.hasOtherPeer(deviceId)) {
-      throw new HttpOperationError(
-        'busy',
-        'The PC is already connected to another mobile device. Disconnect it first.',
-      )
+    if (this.hasOtherPeer(deviceId) || this.isDialing()) {
+      throw new HttpOperationError('busy', BUSY_MESSAGE)
     }
     this.runtime.set(deviceId, { ...current, seenAt: Date.now() })
   }
@@ -142,7 +181,7 @@ export class DesktopLibrary {
   ): void {
     const game = this.config.games.find((item) => item.id === projectId)
     const device = this.config.devices.find((item) => item.id === peerId)
-    const hello = this.runtime.get(peerId)?.hello
+    const hello = this.peerCatalog(peerId)
     const remote = hello?.games.find((item) => item.id === remoteProjectId)
     if (
       !game ||
@@ -190,6 +229,7 @@ export class DesktopLibrary {
     }
     await this.update((current) => ({ ...current, games }))
     this.control?.broadcast('catalog.changed', {})
+    this.dialer?.catalogChanged()
   }
   /** 断开、重命名或忘记一台设备；断开和忘记都会关闭控制通道，忘记还删除游戏里关联它的链接。 */
   async device(
@@ -197,6 +237,9 @@ export class DesktopLibrary {
     action: 'disconnect' | 'rename' | 'forget',
     name?: string,
   ): Promise<void> {
+    if (action !== 'rename' && this.dialer?.deviceId() === id) {
+      await this.dialer.disconnect(id)
+    }
     if (action !== 'disconnect') {
       await this.update((current) => ({
         ...current,
@@ -262,14 +305,12 @@ export class DesktopLibrary {
     }
     const latest = [...this.runtime.entries()].sort((a, b) => b[1].seenAt - a[1].seenAt)[0]?.[0]
     if (
+      this.isDialing() ||
       [...this.runtime.keys()].some(
         (id) => id !== hello.deviceId && ((isTransferring && id === latest) || this.isOpen(id)),
       )
     ) {
-      throw new HttpOperationError(
-        'busy',
-        'The PC is already connected to another mobile device. Disconnect it first.',
-      )
+      throw new HttpOperationError('busy', BUSY_MESSAGE)
     }
     if (!saved && this.config.devices.length >= 32) {
       throw new HttpOperationError('resource-limit', 'At most 32 devices can be saved.')
@@ -292,6 +333,7 @@ export class DesktopLibrary {
                   existing ?? {
                     id: hello.deviceId,
                     name: hello.name,
+                    platform: hello.platform,
                     address: null,
                     isBlocked: false,
                   },
@@ -314,6 +356,20 @@ export class DesktopLibrary {
   }
   /** 读取对端一个已关联游戏目录的一层；parentId 必须来自本会话读到的条目。同一层的并发读取共用一次请求。 */
   directory(deviceId: string, rootId: string, parentId: string | null): Promise<DirectoryListing> {
+    if (this.dialer && this.dialed?.deviceId === deviceId) {
+      if (
+        !this.isDialedOpen(deviceId) ||
+        !this.dialed.reply.games.some((item) => item.root?.rootId === rootId)
+      ) {
+        return Promise.reject(
+          new HttpOperationError(
+            'not-found',
+            'The device is offline or the directory reference expired.',
+          ),
+        )
+      }
+      return this.dialer.directory(rootId, parentId)
+    }
     const peer = this.snapshot().peers.find((item) => item.device.id === deviceId)
     const runtime = this.runtime.get(deviceId)
     if (!peer?.isConnected || !peer.games.some((item) => item.root?.rootId === rootId)) {
@@ -364,6 +420,70 @@ ${item.entryId}`)
       .finally(() => this.reading.delete(key))
     this.reading.set(key, reading)
     return reading
+  }
+  /** 本机发给 peerId 的目录表：本机游戏和与它的关联。 */
+  async localCatalog(peerId: string): Promise<CatalogPush> {
+    const roots = await this.adapter.listRoots()
+    if (roots.status === 'error') {
+      throw new HttpOperationError(roots.error.code, roots.error.message)
+    }
+    return {
+      games: libraryCatalog(this.config, roots.value),
+      links: libraryLinks(this.config, peerId),
+    }
+  }
+  /**
+   * 保存本机拨号连上的设备和它答复的目录表，合并关联，返回设备在本机的名称。
+   * 新连接把设备移到开头并保存连上的地址；已保存的名称不变。
+   *
+   * @throws HttpOperationError 设备已停用或已保存的设备达到上限时抛出。
+   */
+  async acceptDial(
+    peer: Pick<DeviceDescriptor, 'deviceId' | 'displayName' | 'platform'>,
+    address: string,
+    reply: CatalogReply,
+    isNewConnection: boolean,
+  ): Promise<string> {
+    const { deviceId, displayName, platform } = peer
+    const saved = this.config.devices.find((item) => item.id === deviceId)
+    if (saved?.isBlocked) {
+      throw new HttpOperationError('permission-denied', 'This device is disabled.')
+    }
+    if (!saved && this.config.devices.length >= 32) {
+      throw new HttpOperationError('resource-limit', 'At most 32 devices can be saved.')
+    }
+    this.dialed = { deviceId, reply: structuredClone(reply) }
+    this.runtime.delete(deviceId)
+    await this.update((current) => {
+      const existing = current.devices.find((item) => item.id === deviceId)
+      const device = existing
+        ? { ...existing, ...(isNewConnection ? { address } : {}) }
+        : {
+            id: deviceId,
+            name: displayName.trim().slice(0, 128),
+            platform,
+            address,
+            isBlocked: false,
+          }
+      return mergeCatalogLinks(
+        {
+          ...current,
+          // 每次新连接把设备移到开头，已保存的设备按最近连接排序。
+          devices: isNewConnection
+            ? [device, ...current.devices.filter((item) => item.id !== deviceId)]
+            : current.devices.map((item) => (item.id === deviceId ? device : item)),
+        },
+        deviceId,
+        reply.links.filter((link) => reply.games.some((item) => item.id === link.localGameId)),
+      )
+    })
+    return this.config.devices.find((item) => item.id === deviceId)?.name ?? displayName
+  }
+  /** 本机拨号的连接结束，丢掉对方答复的目录表。 */
+  clearDial(deviceId: string): void {
+    if (this.dialed?.deviceId === deviceId) {
+      this.dialed = null
+    }
   }
   /** 清空会话内的对端状态和进行中的读取。 */
   stop(): void {

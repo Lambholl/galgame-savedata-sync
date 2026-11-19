@@ -31,7 +31,9 @@ export default defineConfig(async ({ command }): Promise<UserConfig> => ({
   main: {
     define: versionDefine,
     build: {
-      externalizeDeps: { exclude: ['@savedata-sync/shared', '@homebridge/ciao', 'ws'] },
+      externalizeDeps: {
+        exclude: ['@savedata-sync/shared', '@homebridge/ciao', 'bonjour-service', 'ws'],
+      },
     },
   },
   preload: {

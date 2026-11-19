@@ -1,7 +1,7 @@
 ---
 doc_type: code-map
 status: active
-updated: 2026-11-10
+updated: 2026-11-20
 tags: [代码地图]
 ---
 
@@ -40,7 +40,7 @@ tags: [代码地图]
 | `apps/shared/src/protocol/contracts.ts`、`protocol.ts`、`validation.ts` | 协议版本、DTO、错误/路由/头名映射与纯数据守卫 | 封闭 DTO 区分空值、失败和未知结果；平台路径、权限和真实内容校验由适配器负责 |
 | `apps/shared/src/protocol/batch-contracts.ts`、`batch-limits.ts`、`batch-validation.ts`、`batch-context.ts`、`data-validation.ts` | v1 批量 DTO、固定预算/期限、结构/关系守卫与任务上下文匹配；基础容器/文本/数值辅助供内部复用 | sender/receiver 分开；清单与目标一一对应；matchesBatchState 核对实际结果；不含归档、HTTP、IO 或历史存储 |
 | `apps/shared/src/sync/` | 本次扫描/计划/备份/结果 DTO、路径关系、纯比较及上下文重算守卫 | 独立 schema 1，不改批量 v1；不做 IO、哈希计算或历史查询；复制方向显式，本机恢复强制保护当前内容 |
-| `apps/shared/src/control`；Windows `main/control-hub.ts`；Java `ControlClient.java`、`TransferEngine.java` 控制部分；移动 `platform/control-channel.ts`、`features/transfer/use-remote-sync.ts` | WebSocket 控制通道 `/v1/control`：目录读取、电脑发起复制、完成回报、目录表变化通知和在线判断 | 消息格式对称，按监听方和拨号方区分；HTTP 服务核实身份后才升级；两端严格校验每条消息；文件内容不走控制通道 |
+| `apps/shared/src/control`；Windows `main/control-hub.ts`、`main/dialer-control.ts`；Java `ControlClient.java`、`TransferEngine.java` 控制部分；移动 `platform/control-channel.ts`、`features/transfer/use-remote-sync.ts` | WebSocket 控制通道 `/v1/control`：目录读取、电脑发起复制、完成回报、目录表变化通知和在线判断 | 消息格式对称，按监听方和拨号方区分；HTTP 服务核实身份后才升级；两端严格校验每条消息；文件内容不走控制通道 |
 | `apps/shared/src/connection` | DNS-SD 服务类型、实例名和 TXT，连接二维码文本，候选连接地址 | 监听方生成、拨号方解析，不按平台区分；解析结果分 valid、unsupported-version、invalid，版本先于其他字段检查；地址只用于连接，身份以 `/v1/device` 为准 |
 | `apps/shared/src/ui/navigation/page-navigation.ts`、`use-page-navigation.ts` | 两端共用的页面导航：前者是来源记录、返回目标和切页方向的纯函数，后者把它接到 React 状态 | 页面名称和上下文由各端定义；跳转关系写在 DesktopApp、MobileApp |
 | `apps/shared/test/` | 运行时数据关系回归；字段和线格式见[共享包](../architecture/shared-package.md) | — |
@@ -60,6 +60,9 @@ tags: [代码地图]
 | `apps/desktop/src/main/upload-receiver.ts`、`test/http-receiver.test.mjs` | 单次上传背压/断流/取消、压缩体检查点与异步完整归档校验、顺序发布/部分结果与上下文核对 | 接收适配和本机写授权是两道检查，全部原文验证前零发布；202 时发布结果另行查询；清理失败保留名额，响应或结果丢失不重放 |
 | `apps/desktop/src/bridge/service-bridge.ts`、`src/main/service-ipc.ts`、`src/renderer/src/features/devices` | 本机服务启停/接收根授权/任务桥与设备页控制 | 系统选择及本机确认后授权，校验来源与 DTO；不传私有路径或字节 |
 | `apps/desktop/src/main/discovery-advertiser.ts` | 服务运行期间用 `@homebridge/ciao` 做 mDNS 广播，状态进服务快照的 `discovery` | 服务 IPC 启停时调用，退出前由 `index.ts` 停止；失败不影响 HTTP 服务，30 秒重试 |
+| `apps/desktop/src/main/dialer-session.ts`、`dialer-http.ts`、`dialer-control.ts` | 电脑作为拨号方连接另一台设备：交换目录表、读取对方目录、控制通道重连和断开 | 同一时间只连一台；连着时本机监听服务对新连接返回 `busy`；`library-store.ts` 经 `LibraryDialer` 把连着的设备并入设备快照和目录读取；还不能传输 |
+| `apps/desktop/src/main/discovery-browser.ts` | 用 `bonjour-service` 搜索附近设备，按设备 ID 合并地址，排除本机 | 只在设备页可见时搜索；连接已保存的设备时由 `dialer-session.ts` 按设备 ID 查找 5 秒 |
+| `apps/desktop/src/bridge/dialer-bridge.ts`、`src/main/dialer-ipc.ts`、`src/renderer/src/features/devices/AddDeviceDialog.tsx` | 拨号桥（状态、附近设备、连接、连接已保存设备）和手动输入地址的对话框 | IPC 校验来源和参数：地址 1～16 个且已规范化，设备 ID 为不透明 ID 或 null |
 | `apps/desktop/src/main/sync-scanner.ts`、HTTP sync 路由、service bridge/IPC | Windows 本次递归扫描（只列目录，取大小和修改日期）及会话内查询/取消 | 单扫描，最多保留 32 份结果，有条目、深度、JSON 和期限预算；只读源；取消或停止要等流关闭；结果不持久化 |
 | `apps/desktop/src/main/sync-writer.ts`、`sync-target-files.ts`、`target-operation.ts`；transfer-registry、directory-adapter、启动 | 确认计划的目标目录创建、同卷候选替换和本机恢复；接收远端内容时等内容收齐再写入；旧批次共用互斥 | 写入前备份目标目录全部文件，内容收齐后重新核对目标，逐项报告实际结果，首次失败停止；同路径对象替换产生新 ID；原生流和候选不跨桥 |
 | `apps/desktop/src/main/restore-registry.ts`、`sync-ipc.ts`、`src/bridge/sync-bridge.ts` | 进程内异步恢复、有限复制与恢复桥、同次原生计划/结果核对 | 普通准备不占目标名额，确认后借用并保留至清理成功；任务和结果可在页面刷新后查询；不接收路径或字节；电脑发起的方法转给 `remote-sync-requests.ts` |

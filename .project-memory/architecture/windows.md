@@ -1,7 +1,7 @@
 ---
 doc_type: architecture
 status: active
-updated: 2026-11-19
+updated: 2026-11-20
 tags: [Windows, 电脑端, 主进程, IPC]
 ---
 
@@ -29,7 +29,7 @@ tags: [Windows, 电脑端, 主进程, IPC]
 
 代码在 `apps/desktop`。目录读取模块保持源只读；私有归档负责快照、编解码和缓存清理；HTTP 服务负责设备/目录查询、双向传输及状态/取消。桌面提供服务启停、实际地址/端口、目录选择、任务计划与实际结果、备份设置和本机恢复。
 
-电脑目前只作监听方：提供 HTTP 服务和控制通道，接纳拨号方登记的任务；电脑发起的复制经控制通道交给拨号方，对方须开着应用并保持连接，计划在电脑确认、拨号方执行。M-005 增加电脑作拨号方：主进程编排扫描、计划和任务，用 `node:http` 和 `ws` 连接对方，用 `bonjour-service` 搜索局域网设备（[ADR-0004](../decisions/ADR-0004-symmetric-listener-dialer-roles.md)）。旧 v1 批量接口只新建文件，新复制协议按确认计划执行新增、受保护覆盖、跳过和删除多余项。
+电脑作监听方时提供 HTTP 服务和控制通道，接纳拨号方登记的任务；电脑发起的复制经控制通道交给拨号方，对方须开着应用并保持连接，计划在电脑确认、拨号方执行。电脑也能作拨号方连接另一台设备（[ADR-0004](../decisions/ADR-0004-symmetric-listener-dialer-roles.md)）：用 `bonjour-service` 搜索局域网设备，用 `node:http` 和 `ws` 交换目录表、浏览对方目录、保持控制通道，见[第 2 节](#2-游戏与设备界面)。作拨号方时编排扫描、计划和任务属于 WP-49，还没实现：对方经控制通道发来的 `sync.*` 请求现在答复 `unsupported-operation`。旧 v1 批量接口只新建文件，新复制协议按确认计划执行新增、受保护覆盖、跳过和删除多余项。
 
 Electron 构建显式内联 workspace 共享包，避免 sandbox preload 在运行时 require TypeScript 源码。preload 保留 CJS 输出，contextIsolation/sandbox 开启，Renderer 无 Node 集成。
 
@@ -42,7 +42,17 @@ Electron 构建显式内联 workspace 共享包，避免 sandbox preload 在运�
 - 游戏卡片和移动端一致：三组渐变、居中封面、底部名称/设备数量和箭头。桌面卡片宽 160–180px，封面至少高 152px、信息区至少高 88px，保持竖版；长标题换行，颜色跟随明暗主题。
 - 添加游戏会打开弹窗，点击“选择存档目录”直接选择文件夹，随后显示游戏名输入框，默认填入父目录名，可以修改后确认添加；取消不会创建游戏。从对端导入游戏时也先选择本机目录。选择目录即同意在该目录接收文件，重启后沿用配置，接收前会重新检查目录身份和写权限。
 
-游戏与设备配置保存在应用私有目录的 `game-library.json`。一个游戏保存本机一个目录，关联多个对端游戏；同一时间只接纳一台在线移动端。移动端通过 `POST /v1/catalog` 提交自己的目录表并取回电脑目录表。在线状态看 WebSocket 控制通道（`control-hub.ts`）：控制请求 8 秒内要应答，15 秒心跳没有回应按断开处理（`CONTROL_LIMITS`）。运行传输时保留单活动批次限制。
+游戏与设备配置保存在应用私有目录的 `game-library.json`。一个游戏保存本机一个目录，关联多个对端游戏。同一时间只有一条连接：一台设备连着本机，或本机连着一台设备。连进本机的设备通过 `POST /v1/catalog` 提交自己的目录表并取回电脑目录表，在线状态看 WebSocket 控制通道（`control-hub.ts`）：控制请求 8 秒内要应答，15 秒心跳没有回应按断开处理（`CONTROL_LIMITS`）。运行传输时保留单活动批次限制。
+
+电脑拨号由 `src/main/dialer-session.ts` 的 `WindowsDialer` 负责，`DesktopLibrary` 通过 `LibraryDialer` 接口读取它的在线状态、对方目录和断开：
+
+- 入口：设备页“添加设备”手动输入 `IP:端口`，附近的设备列表和已保存设备的“连接”按钮。电脑不提供扫码。
+- 连接：先读 `/v1/device`（5 秒），协议版本不同答复 `protocol-mismatch`，地址是本机或设备 ID 和预期不同时失败；再带 `x-sync-connect: 1` 交换目录表，保存设备和连上的地址，最后连控制通道（`dialer-control.ts`）。交换目录表期间有设备连进本机时撤回这次连接，答复 `busy`。
+- 连接已保存的设备：附近的设备里搜到它在别的地址时，先连搜到的地址再连保存的地址；否则连保存的地址，同时按设备 ID 查找 5 秒，失败码为 `network-failure`、`timeout`、`session-mismatch` 时改连查到的地址。连上的不是保存的地址时提示“已找到新地址并连接”。
+- 连着时：控制通道异常断开后每 2 秒重连，10 秒内没恢复就断开并向对方发告别请求；对方以 4001、4002 关闭时立即断开。对方的 `directory.list` 只能读本机游戏目录。本机游戏或关联变化、收到 `catalog.changed` 或控制通道重新打开时重新交换目录表；对方答复 `session-mismatch` 或 `permission-denied` 时断开。
+- 互斥：本机连着别的设备（包括正在重连）时，本机监听服务对新的目录交换答复 `busy`，控制通道升级答复 403；有设备连进本机时不能拨号。
+- 断开、忘记设备和退出应用时向对方发告别请求（`POST /v1/catalog`，正文 `{deviceId, goodbye: true}`），最多等 2 秒；对方收到后断开本机。本机服务停止时，连进本机的设备显示离线，本机连着的设备不受影响。
+- 设备图标：按已保存设备记录的平台显示；附近的设备按 TXT 里的平台显示。
 
 电脑只设置本机目录；移动端的目录由移动端设置后交换公开引用。断开只结束本次连接，移动端之后可以重新连接。设备断开/移除不删除存档；移除游戏或更换目录后，原目录不再作为该游戏的接收目标。
 
@@ -59,7 +69,7 @@ Electron 构建显式内联 workspace 共享包，避免 sandbox preload 在运�
 
 打包脚本将已编译的 `out/` 和最小应用清单复制到 `.reports/` 下的新暂存目录，隔离工作区依赖；使用本机 Electron 分发文件，缺少时由打包器下载。安装包、免安装包及暂存资源不纳入 Git。
 
-分发包不带 `node_modules`，主进程运行时用到的第三方包（`ws`、`@homebridge/ciao`）列在 `electron.vite.config.ts` 的 `main.build.externalizeDeps.exclude` 里，由 electron-vite 打进 `out/main`。主进程新增运行时依赖时要加进这个列表，构建后 `out/main/index.js` 的外部导入应只剩 `electron` 和 Node 内置模块。`ws` 的可选原生依赖 bufferutil、utf-8-validate 没有安装，打包后 `ws` 使用纯 JS 实现。
+分发包不带 `node_modules`，主进程运行时用到的第三方包（`ws`、`@homebridge/ciao`、`bonjour-service`）列在 `electron.vite.config.ts` 的 `main.build.externalizeDeps.exclude` 里，由 electron-vite 打进 `out/main`。主进程新增运行时依赖时要加进这个列表，构建后 `out/main/index.js` 的外部导入应只剩 `electron` 和 Node 内置模块。`ws` 的可选原生依赖 bufferutil、utf-8-validate 没有安装，打包后 `ws` 使用纯 JS 实现。
 
 公共原图为仓库根目录的 `assets/app-logo.png`（透明 PNG）。侧栏以 64×64 显示，HTML 图标和界面通过构建引用同一资源。`resources/app-icon.ico` 提供 Windows 多尺寸图标，`BrowserWindow` 通过 `?asset&asarUnpack` 引用；打包脚本将 ICO 复制到暂存项目并解包，窗口和 EXE 均使用它。`signExecutable: false` 保持不签名，同时保留写入图标及版本信息的资源编辑。
 
@@ -87,6 +97,8 @@ Electron 构建显式内联 workspace 共享包，避免 sandbox preload 在运�
 
 preload 通过 `window.desktopDirectories` 暴露冻结的 `DesktopDirectoryApi`：`chooseDirectory()`（取消返回 cancelled 并保留既有根）、`listRoots()`、`listDirectory(rootId, parentId?)`（仅接受不透明 ID）。固定通道为 directories:choose、directories:roots、directories:list。主进程检查窗口登记、主 frame 身份及精确 renderer URL；选择器返回后再次核实来源。子 frame、导航后的页面、额外参数、非法 ID 和附加路径字段均被拒绝。preload 另检查输入和响应结构，异常映射为脱敏错误；不暴露 ipcRenderer、通用 invoke、Node 句柄或文件字节。应用退出时移除 handler，窗口关闭时删除可信窗口记录；应用采用单实例锁。
 
+拨号由 `window.desktopDialer` 的冻结 `DesktopDialerApi` 提供：`status()`、`watchNearby()`（同时续期局域网搜索）、`connect(addresses, expectedDeviceId)`（最多 16 个地址）、`connectSaved(deviceId)`；断开和忘记设备仍用 `desktopLibrary`。固定通道与响应守卫在 `src/bridge/dialer-bridge.ts`，主进程来源和参数校验在 `src/main/dialer-ipc.ts`。界面只在设备页用 `watchNearby` 轮询，其他页面用 `status`。
+
 服务控制由 `window.desktopService` 的冻结 `DesktopServiceApi` 提供：`status()`、`start(port)`、`randomizePort()`、`stop()`、`chooseTarget()`、`revokeTarget(rootId)`、`cancel(transferId)`、`retryCleanup()`。固定通道与响应守卫在 `src/bridge/service-bridge.ts`，主进程来源/参数校验在 `src/main/service-ipc.ts`。
 
 - `start` 接受 1 到 65535 的整数，本机显式启动后监听 `0.0.0.0`，冲突返回错误。端口保存到应用私有目录，首次生成 49152 到 65535 的随机值；`randomizePort()` 选择并保存另一个端口。
@@ -96,6 +108,8 @@ preload 通过 `window.desktopDirectories` 暴露冻结的 `DesktopDirectoryApi`
 - `chooseTarget()` 打开原生系统选择器；选中目录后执行 `publisher.grant`，取消保留既有授权。`revokeTarget` 撤销新写入授权并收尾该根的当前发布。全部 Promise 将失败转为脱敏错误。界面每秒读取状态，卸载停止轮询。`cancel()` 保留已经发布的文件。
 
 服务开始监听后，`src/main/discovery-advertiser.ts` 用 `@homebridge/ciao` 在局域网广播 `_savedata-sync._tcp`（格式见[共享包](shared-package.md#9-发现与连接二维码)）：实例名取本机名称，SRV 主机名由设备 ID 生成，只发 IPv4，每块网卡只回答这块网卡的地址；网卡增减或地址变化后 ciao 每 15 秒检查一次并重新宣告。停止服务和退出应用时发送 goodbye 包并关闭 UDP 5353 套接字，最多等 3 秒。广播失败不影响 HTTP 服务，快照的 `discovery.status` 为 `failed`，每 30 秒重试。`advertising` 只表示本机已发出宣告，防火墙拦截 UDP 5353 时其他设备仍然搜不到。
+
+`src/main/discovery-browser.ts` 用 `bonjour-service` 搜索 `_savedata-sync._tcp`，和 ciao 广播在同一进程里同时使用 UDP 5353。搜索在续期后进行，停止续期 10 秒后停止并关闭套接字；按设备 ID 查找期间也保持搜索。mDNS 应答方只在被问到或上线时宣告，所以搜索期间每 4 秒重新查询。结果排除本机设备 ID，同一设备 ID 只保留一项；TXT 协议版本不同的设备只列出实例名，界面显示为版本不同。无法开始搜索时状态为 `failed`，下次续期再试。
 
 ## 7. 配置与路径边界
 
@@ -250,4 +264,4 @@ sender 的 sent 表示本机发送流完成，Android 是否接收或发布要�
 
 Windows 短路径检查通过 PowerShell 调用 GetShortPathName 生成真实 8.3 别名，并在只影响子进程的 TEMP/TMP 环境中重跑目录与 IPC 用例；卷未生成不同短名时跳过这一项。HTTP 测试使用真实回环 HTTP/TCP，时间边界由注入的时钟和仅收紧的期限验证，不等待实际 30 分钟。
 
-实际桌面窗口、系统选择器、Android LAN 双向、取消、清理重试和界面结果已在真机上验收，见[验收标准](../testing/acceptance.md)。
+实际桌面窗口、系统选择器、Android LAN 双向、取消、清理重试和界面结果已在真机上验收，见[验收标准](../testing/acceptance.md)。电脑拨号没有长期测试，验证情况见[回归状态](../testing/regression-notes.md)。

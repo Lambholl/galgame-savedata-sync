@@ -293,7 +293,13 @@ export function createMobileLibraryAdapter(
           save({
             ...load(),
             devices: [
-              { id, name: descriptor.device.displayName, address: null, isBlocked: false },
+              {
+                id,
+                name: descriptor.device.displayName,
+                platform: descriptor.device.platform,
+                address: null,
+                isBlocked: false,
+              },
               ...load().devices,
             ],
           })
@@ -412,6 +418,7 @@ export function createMobileLibraryAdapter(
             {
               id,
               name,
+              platform: descriptor.device.platform,
               address: normalized,
               isBlocked: false,
             },

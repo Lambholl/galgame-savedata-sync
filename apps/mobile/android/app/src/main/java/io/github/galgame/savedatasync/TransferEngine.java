@@ -411,6 +411,8 @@ final class TransferEngine {
       local.deviceId(),
       "name",
       name,
+      "platform",
+      "android",
       "games",
       games,
       "links",

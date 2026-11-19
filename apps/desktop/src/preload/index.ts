@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron'
 import { createDirectoryBridge } from '../bridge/directory-bridge.ts'
 import { createServiceBridge } from '../bridge/service-bridge.ts'
 import { createLibraryBridge } from '../bridge/library-bridge.ts'
+import { createDialerBridge } from '../bridge/dialer-bridge.ts'
 import { createBackupBridge } from '../bridge/backup-bridge.ts'
 import { createSyncBridge } from '../bridge/sync-bridge.ts'
 import { createPreferencesBridge } from '../bridge/preferences-bridge.ts'
@@ -19,6 +20,11 @@ contextBridge.exposeInMainWorld(
 contextBridge.exposeInMainWorld(
   'desktopLibrary',
   createLibraryBridge((channel, ...args): Promise<unknown> => ipcRenderer.invoke(channel, ...args)),
+)
+
+contextBridge.exposeInMainWorld(
+  'desktopDialer',
+  createDialerBridge((channel, ...args): Promise<unknown> => ipcRenderer.invoke(channel, ...args)),
 )
 
 contextBridge.exposeInMainWorld(

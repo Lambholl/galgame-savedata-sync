@@ -8,34 +8,41 @@ export function createDesktopLibraryAdapter(): DesktopLibraryAdapter {
   function apis() {
     const library = window.desktopLibrary,
       service = window.desktopService,
-      directories = window.desktopDirectories
-    if (!library || !service || !directories) {
+      directories = window.desktopDirectories,
+      dialer = window.desktopDialer
+    if (!library || !service || !directories || !dialer) {
       throw new OperationFailure('unsupported-operation', 'Open this page in the desktop app.')
     }
-    return { library, service, directories }
+    return { library, service, directories, dialer }
   }
   return {
-    async read(t: Translate): Promise<DesktopSnapshot> {
+    async read(t: Translate, shouldWatchNearby: boolean): Promise<DesktopSnapshot> {
       const api = apis()
       const sync = desktopSync()
-      const [library, service, roots, copies, restores, activity] = await Promise.all([
+      const [library, service, dialer, roots, copies, restores, activity] = await Promise.all([
         api.library.read(),
         api.service.status(),
+        shouldWatchNearby ? api.dialer.watchNearby() : api.dialer.status(),
         api.directories.listRoots(),
         sync.copies(),
         sync.restores(),
         sync.activity(),
       ])
       const config = unwrap(library),
-        status = unwrap(service)
+        status = unwrap(service),
+        dialerStatus = unwrap(dialer)
       return {
         warning: null,
         config: config.config,
         deviceName: status.deviceName,
+        // 连进本机的设备在服务停止时已经断开；本机拨号连着的设备不受本机服务影响。
         peers: config.peers.map((item) => ({
           ...item,
-          isConnected: item.isConnected && Boolean(status.listener),
+          isConnected:
+            item.isConnected &&
+            (Boolean(status.listener) || item.device.id === dialerStatus.session?.deviceId),
         })),
+        dialer: dialerStatus,
         roots: unwrap(roots),
         service: {
           deviceId: status.deviceId,
@@ -67,6 +74,12 @@ export function createDesktopLibraryAdapter(): DesktopLibraryAdapter {
     },
     chooseDirectory() {
       return apis().service.chooseTarget()
+    },
+    async connect(addresses, expectedDeviceId) {
+      return unwrap(await apis().dialer.connect(addresses, expectedDeviceId))
+    },
+    async connectSaved(deviceId) {
+      return unwrap(await apis().dialer.connectSaved(deviceId))
     },
     async device(id, action, name): Promise<void> {
       const api = apis()
