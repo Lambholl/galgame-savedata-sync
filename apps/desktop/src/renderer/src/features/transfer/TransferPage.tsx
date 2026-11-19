@@ -10,6 +10,7 @@ import {
 } from '@savedata-sync/shared'
 import type {
   CatalogGame,
+  CompareSide,
   DirectoryReference,
   LibraryGame,
   LibraryPeer,
@@ -18,12 +19,13 @@ import type {
   SyncDirection,
 } from '@savedata-sync/shared'
 import {
+  LocalDeviceProvider,
   SyncPlanSummary,
   TransferComparison,
   syncStartConfirmation,
   useT,
 } from '@savedata-sync/shared/ui'
-import type { ComparisonStatus, PlanEndpoint } from '@savedata-sync/shared/ui'
+import type { ComparisonStatus, PlanEndpoint, TransferEndpoint } from '@savedata-sync/shared/ui'
 import type { DesktopRemoteRequest } from '../../../../bridge/sync-bridge.ts'
 import type { Confirmation } from '../../app/navigation.ts'
 import { desktopSync } from '../../platform/sync-adapter.ts'
@@ -34,7 +36,7 @@ const SCANNING: readonly DesktopRemoteRequest['status'][] = ['waiting', 'prepari
 const UNCONFIRMED: readonly DesktopRemoteRequest['status'][] = ['waiting', 'preparing', 'ready']
 
 /**
- * 传输页：进入即请移动端扫描两端，显示移动端返回的比较结果和计划。
+ * 传输页：进入即扫描两端，显示比较结果和计划。
  * 翻转方向、切换设备或刷新时取代旧请求，离开页面时取消未确认的请求。
  */
 export function TransferPage({
@@ -45,6 +47,7 @@ export function TransferPage({
   localRoot,
   deviceName,
   peerId,
+  isLocalDialer,
   isUpload,
   isDisabled,
   isActive,
@@ -61,19 +64,26 @@ export function TransferPage({
   readonly localRoot: DirectoryReference | null
   readonly deviceName: string | null
   readonly peerId: string
+  /** 本机拨号连着所选设备时为 true，本机是拨号方。 */
+  readonly isLocalDialer: boolean
+  /** 为 true 时从所选设备复制到本机。 */
   readonly isUpload: boolean
   readonly isDisabled: boolean
   readonly isActive: boolean
   readonly onPeerChange: (id: string) => void
   readonly onUploadChange: (isUpload: boolean) => void
   readonly onConfirm: (confirmation: Confirmation) => void
-  /** 移动端已应答计划，转到传输详情；开始前的失败也在那里显示。 */
+  /** 确认已被应答，转到传输详情；开始前的失败也在那里显示。 */
   readonly onStarted: () => void
   /** 计划已过期，提示一次；页面自己重新比较。 */
   readonly onPlanExpired: () => void
 }): React.JSX.Element {
   const t = useT()
-  const direction: SyncDirection = isUpload ? 'dialer-to-listener' : 'listener-to-dialer'
+  const localSide: CompareSide = isLocalDialer ? 'dialer' : 'listener'
+  const remoteSide: CompareSide = isLocalDialer ? 'listener' : 'dialer'
+  // 方向按连接角色命名：复制到本机时由对方这一端指向本机这一端。
+  const direction: SyncDirection =
+    isUpload === isLocalDialer ? 'listener-to-dialer' : 'dialer-to-listener'
   const [request, setRequest] = useState<DesktopRemoteRequest | null>(null)
   const [requestId, setRequestId] = useState<string | null>(null)
   const [plan, setPlan] = useState<{ readonly requestId: string; readonly value: SyncPlan } | null>(
@@ -232,7 +242,7 @@ export function TransferPage({
       ? compareSnapshots(reported.source, reported.target)
       : compareSnapshots(reported.target, reported.source)
   }, [reported])
-  // 移动端回报的计划保持原样；开关只改变这里生成的计划，确认时把选择一并提交。
+  // 准备好的计划保持原样；开关只改变这里生成的计划，确认时把选择一并提交。
   const current = useMemo(
     () => reported && withDeleteExtras(reported, !isKeepingExtras),
     [reported, isKeepingExtras],
@@ -285,8 +295,26 @@ export function TransferPage({
     selectedPeer?.device.name ??
     t(game.links.length > 0 ? 'transfer.pickPeerTitle' : 'common.unknown')
   const localName = t('transfer.local')
-  const pcEnd: PlanEndpoint = { name: localName, kind: 'pc' }
-  const mobileEnd: PlanEndpoint = { name: peerName, kind: 'mobile' }
+  const peerPlatform = selectedPeer?.device.platform ?? 'android'
+  const localEnd: PlanEndpoint = { name: localName, kind: 'pc' }
+  const peerEnd: PlanEndpoint = {
+    name: peerName,
+    kind: peerPlatform === 'windows' ? 'pc' : 'mobile',
+  }
+  const localEndpoint: TransferEndpoint = {
+    name: localName,
+    caption: deviceName ?? '',
+    isOnline: null,
+    rootName: localRoot?.displayName ?? '—',
+    platform: 'windows',
+  }
+  const peerEndpoint: TransferEndpoint = {
+    name: peerName,
+    caption: '',
+    isOnline: selectedPeer ? isConnected : null,
+    rootName: remoteGame?.root?.displayName ?? '—',
+    platform: peerPlatform,
+  }
   function start(): void {
     if (!shown || !current || !canStart) {
       return
@@ -311,107 +339,97 @@ export function TransferPage({
   }
   const isScanning = shown !== null && SCANNING.includes(shown.status)
   return (
-    <div className="transfer-page">
-      <TransferComparison
-        key={peerId}
-        listener={{
-          name: localName,
-          caption: deviceName ?? '',
-          isOnline: null,
-          rootName: localRoot?.displayName ?? '—',
-          platform: 'windows',
-        }}
-        dialer={{
-          name: peerName,
-          caption: '',
-          isOnline: selectedPeer ? isConnected : null,
-          rootName: remoteGame?.root?.displayName ?? '—',
-          platform: 'android',
-        }}
-        remoteSide="dialer"
-        direction={direction}
-        status={status}
-        isLocked={isDisabled || isActive || isStarting}
-        onFlip={() => onUploadChange(!isUpload)}
-        onPickPeer={() => setIsPeerPickerOpen(true)}
-        onRefresh={() => setScanVersion((value) => value + 1)}
-        onCancel={
-          isScanning && shown
-            ? () => {
-                desktopSync()
-                  .cancelRemote(shown.requestId)
-                  .then((result) => receiveRequest(unwrap(result)))
-                  .catch((cause: unknown) => setScanError(toShownError(cause)))
-              }
-            : null
-        }
-        isKeepingExtras={isKeepingExtras}
-        onKeepExtrasChange={hasExtras ? setIsKeepingExtras : null}
-      />
-      {/* 底部只有一个悬浮的下一步按钮；文件列末尾留出它的高度。 */}
-      <Button
-        className="transfer-next"
-        type="primary"
-        size="large"
-        icon={<RightOutlined />}
-        iconPlacement="end"
-        disabled={isDisabled || status.kind !== 'ready' || !current}
-        onClick={() => setIsPlanOpen(true)}
-      >
-        {t('transfer.preview')}
-      </Button>
-      <PlanDrawer
-        isOpen={current !== null && isPlanOpen}
-        title={t('page.plan')}
-        gameName={game.name}
-        action={{
-          label: t('transfer.start'),
-          icon: <CaretRightOutlined />,
-          isDanger: false,
-          isLoading: isStarting,
-          isDisabled: isDisabled || !canStart,
-          onClick: start,
-        }}
-        onClose={() => setIsPlanOpen(false)}
-      >
-        {current ? (
-          <SyncPlanSummary
-            plan={current}
-            source={isUpload ? mobileEnd : pcEnd}
-            target={isUpload ? pcEnd : mobileEnd}
-            backupKeepCount={shown?.backupKeepCount ?? null}
-          />
-        ) : null}
-      </PlanDrawer>
-      <Modal
-        open={isPeerPickerOpen}
-        width={360}
-        footer={null}
-        title={t('transfer.pickPeerTitle')}
-        onCancel={() => setIsPeerPickerOpen(false)}
-      >
-        <div className="transfer-peer-list">
-          {game.links.map((link) => {
-            const peer = peers.find((item) => item.device.id === link.deviceId)
-            return (
-              <Button
-                key={link.deviceId}
-                block
-                type={link.deviceId === peerId ? 'primary' : 'default'}
-                onClick={() => {
-                  setIsPeerPickerOpen(false)
-                  onPeerChange(link.deviceId)
-                }}
-              >
-                {peer?.device.name ?? t('common.unknown')}
-                <small>
-                  {t(peer?.isConnected ? 'transfer.connected' : 'transfer.disconnected')}
-                </small>
-              </Button>
-            )
-          })}
-        </div>
-      </Modal>
-    </div>
+    <LocalDeviceProvider device={localSide}>
+      <div className="transfer-page">
+        <TransferComparison
+          key={peerId}
+          listener={isLocalDialer ? peerEndpoint : localEndpoint}
+          dialer={isLocalDialer ? localEndpoint : peerEndpoint}
+          remoteSide={remoteSide}
+          direction={direction}
+          status={status}
+          isLocked={isDisabled || isActive || isStarting}
+          onFlip={() => onUploadChange(!isUpload)}
+          onPickPeer={() => setIsPeerPickerOpen(true)}
+          onRefresh={() => setScanVersion((value) => value + 1)}
+          onCancel={
+            isScanning && shown
+              ? () => {
+                  desktopSync()
+                    .cancelRemote(shown.requestId)
+                    .then((result) => receiveRequest(unwrap(result)))
+                    .catch((cause: unknown) => setScanError(toShownError(cause)))
+                }
+              : null
+          }
+          isKeepingExtras={isKeepingExtras}
+          onKeepExtrasChange={hasExtras ? setIsKeepingExtras : null}
+        />
+        {/* 底部只有一个悬浮的下一步按钮；文件列末尾留出它的高度。 */}
+        <Button
+          className="transfer-next"
+          type="primary"
+          size="large"
+          icon={<RightOutlined />}
+          iconPlacement="end"
+          disabled={isDisabled || status.kind !== 'ready' || !current}
+          onClick={() => setIsPlanOpen(true)}
+        >
+          {t('transfer.preview')}
+        </Button>
+        <PlanDrawer
+          isOpen={current !== null && isPlanOpen}
+          title={t('page.plan')}
+          gameName={game.name}
+          action={{
+            label: t('transfer.start'),
+            icon: <CaretRightOutlined />,
+            isDanger: false,
+            isLoading: isStarting,
+            isDisabled: isDisabled || !canStart,
+            onClick: start,
+          }}
+          onClose={() => setIsPlanOpen(false)}
+        >
+          {current ? (
+            <SyncPlanSummary
+              plan={current}
+              source={isUpload ? peerEnd : localEnd}
+              target={isUpload ? localEnd : peerEnd}
+              backupKeepCount={shown?.backupKeepCount ?? null}
+            />
+          ) : null}
+        </PlanDrawer>
+        <Modal
+          open={isPeerPickerOpen}
+          width={360}
+          footer={null}
+          title={t('transfer.pickPeerTitle')}
+          onCancel={() => setIsPeerPickerOpen(false)}
+        >
+          <div className="transfer-peer-list">
+            {game.links.map((link) => {
+              const peer = peers.find((item) => item.device.id === link.deviceId)
+              return (
+                <Button
+                  key={link.deviceId}
+                  block
+                  type={link.deviceId === peerId ? 'primary' : 'default'}
+                  onClick={() => {
+                    setIsPeerPickerOpen(false)
+                    onPeerChange(link.deviceId)
+                  }}
+                >
+                  {peer?.device.name ?? t('common.unknown')}
+                  <small>
+                    {t(peer?.isConnected ? 'transfer.connected' : 'transfer.disconnected')}
+                  </small>
+                </Button>
+              )
+            })}
+          </div>
+        </Modal>
+      </div>
+    </LocalDeviceProvider>
   )
 }

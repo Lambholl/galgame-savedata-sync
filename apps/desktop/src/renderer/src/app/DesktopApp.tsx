@@ -737,6 +737,7 @@ export function DesktopApp({
         localRoot={localRoot}
         deviceName={snapshot?.deviceName ?? null}
         peerId={peerId}
+        isLocalDialer={snapshot?.dialer.session?.deviceId === peerId}
         isUpload={isUpload}
         isDisabled={isDisabled}
         isActive={isActive}
@@ -803,10 +804,10 @@ export function DesktopApp({
             taskRestoreId: null,
           })
         }
-        onRescan={(projectId, deviceId, direction, shownCopyId) => {
+        onRescan={(projectId, deviceId, isRescanUpload, shownCopyId) => {
           setGameId(projectId)
           setPeerId(deviceId)
-          setIsUpload(direction === 'dialer-to-listener')
+          setIsUpload(isRescanUpload)
           navigation.open('transfer', {
             ...pageContext,
             taskCopyId: shownCopyId,

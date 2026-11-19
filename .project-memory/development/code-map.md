@@ -60,7 +60,8 @@ tags: [代码地图]
 | `apps/desktop/src/main/upload-receiver.ts`、`test/http-receiver.test.mjs` | 单次上传背压/断流/取消、压缩体检查点与异步完整归档校验、顺序发布/部分结果与上下文核对 | 接收适配和本机写授权是两道检查，全部原文验证前零发布；202 时发布结果另行查询；清理失败保留名额，响应或结果丢失不重放 |
 | `apps/desktop/src/bridge/service-bridge.ts`、`src/main/service-ipc.ts`、`src/renderer/src/features/devices` | 本机服务启停/接收根授权/任务桥与设备页控制 | 系统选择及本机确认后授权，校验来源与 DTO；不传私有路径或字节 |
 | `apps/desktop/src/main/discovery-advertiser.ts` | 服务运行期间用 `@homebridge/ciao` 做 mDNS 广播，状态进服务快照的 `discovery` | 服务 IPC 启停时调用，退出前由 `index.ts` 停止；失败不影响 HTTP 服务，30 秒重试 |
-| `apps/desktop/src/main/dialer-session.ts`、`dialer-http.ts`、`dialer-control.ts` | 电脑作为拨号方连接另一台设备：交换目录表、读取对方目录、控制通道重连和断开 | 同一时间只连一台；连着时本机监听服务对新连接返回 `busy`；`library-store.ts` 经 `LibraryDialer` 把连着的设备并入设备快照和目录读取；还不能传输 |
+| `apps/desktop/src/main/dialer-session.ts`、`dialer-http.ts`、`dialer-control.ts` | 电脑作为拨号方连接另一台设备：交换目录表、读取对方目录、控制通道重连和断开 | 同一时间只连一台；连着时本机监听服务对新连接返回 `busy`；`library-store.ts` 经 `LibraryDialer` 把连着的设备并入设备快照和目录读取 |
+| `apps/desktop/src/main/dialer-sync.ts` | 电脑作为拨号方的复制：两端扫描、计划、任务登记、内容上传下载、取消、结果补读，处理对方经控制通道发起的 `sync.*` 请求 | 和监听方任务共用写入名额；准备和任务只在内存，结束后保留 10 分钟、各最多 32 份；`sync-ipc.ts` 按设备把请求分给它或监听方部分 |
 | `apps/desktop/src/main/discovery-browser.ts` | 用 `bonjour-service` 搜索附近设备，按设备 ID 合并地址，排除本机 | 只在设备页可见时搜索；连接已保存的设备时由 `dialer-session.ts` 按设备 ID 查找 5 秒 |
 | `apps/desktop/src/bridge/dialer-bridge.ts`、`src/main/dialer-ipc.ts`、`src/renderer/src/features/devices/AddDeviceDialog.tsx` | 拨号桥（状态、附近设备、连接、连接已保存设备）和手动输入地址的对话框 | IPC 校验来源和参数：地址 1～16 个且已规范化，设备 ID 为不透明 ID 或 null |
 | `apps/desktop/src/main/sync-scanner.ts`、HTTP sync 路由、service bridge/IPC | Windows 本次递归扫描（只列目录，取大小和修改日期）及会话内查询/取消 | 单扫描，最多保留 32 份结果，有条目、深度、JSON 和期限预算；只读源；取消或停止要等流关闭；结果不持久化 |

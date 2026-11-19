@@ -131,8 +131,12 @@ function known(cause: unknown): KnownOperationError {
     ? { code: 'io-failure', message: 'Receive preparation failed.', canRetry: false }
     : error
 }
-/** 计划里要传的文件，按写入操作的顺序编号为 tar 成员 f000001、f000002……。 */
-function contentFiles(request: SyncJobRequest): readonly SyncContentFile[] {
+/**
+ * 计划里要传的文件，按写入操作的顺序编号为 tar 成员 f000001、f000002……。
+ *
+ * @throws HttpOperationError 计划缺少某个写文件操作的源文件或源文件大小未知时抛 invalid-request。
+ */
+export function contentFiles(request: SyncJobRequest): readonly SyncContentFile[] {
   const source = new Map(request.plan.source.entries.map((entry) => [entry.entryId, entry]))
   return request.plan.entries
     .filter((entry) => isSyncFileWrite(entry.action))
@@ -227,6 +231,7 @@ export class WindowsSyncRegistry {
         peerId: task.peerId,
         direction: task.state.direction,
         role: task.state.role,
+        localSide: 'listener',
         phase,
         stage,
         step,

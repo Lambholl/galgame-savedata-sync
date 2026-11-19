@@ -18,6 +18,8 @@ import { DesktopLibrary } from './library-store.ts'
 import { registerLibraryIpc } from './library-ipc.ts'
 import { WindowsDiscoveryBrowser } from './discovery-browser.ts'
 import { WindowsDialer } from './dialer-session.ts'
+import { WindowsDialerSync } from './dialer-sync.ts'
+import { WindowsSyncScanner } from './sync-scanner.ts'
 import { registerDialerIpc } from './dialer-ipc.ts'
 import { createWindowsBackupStore } from './backup-store.ts'
 import { registerBackupIpc } from './backup-ipc.ts'
@@ -186,9 +188,22 @@ if (hasInstanceLock) {
         writer: syncWriter,
         library,
       })
+      const discoveryBrowser = new WindowsDiscoveryBrowser(adapter.deviceId)
+      const dialer = new WindowsDialer(library, adapter, discoveryBrowser)
+      library.attachDialer(dialer)
+      const dialerSync = new WindowsDialerSync({
+        dialer,
+        library,
+        scanner: new WindowsSyncScanner(adapter),
+        archive,
+        writer: syncWriter,
+        backups,
+        deviceId: adapter.deviceId,
+      })
+      dialer.attachSync(dialerSync)
       app.once(
         'will-quit',
-        registerSyncIpc(ipcMain, httpService, restores, interruptedWrites, (event) =>
+        registerSyncIpc(ipcMain, httpService, dialerSync, restores, interruptedWrites, (event) =>
           isTrustedDirectorySender(event, trustedWindows, expectedRendererUrl),
         ),
       )
@@ -200,7 +215,10 @@ if (hasInstanceLock) {
           library,
           (event) => isTrustedDirectorySender(event, trustedWindows, expectedRendererUrl),
           (path) => shell.openPath(path),
-          () => httpService.hasRunningNetworkWork() || restores.hasRunningWork(),
+          () =>
+            httpService.hasRunningNetworkWork() ||
+            dialerSync.hasRunningWork() ||
+            restores.hasRunningWork(),
         ),
       )
       app.once(
@@ -209,9 +227,6 @@ if (hasInstanceLock) {
           isTrustedDirectorySender(event, trustedWindows, expectedRendererUrl),
         ),
       )
-      const discoveryBrowser = new WindowsDiscoveryBrowser(adapter.deviceId)
-      const dialer = new WindowsDialer(library, adapter, discoveryBrowser)
-      library.attachDialer(dialer)
       app.once(
         'will-quit',
         registerDialerIpc(ipcMain, dialer, (event) =>
@@ -230,9 +245,11 @@ if (hasInstanceLock) {
         }
         isClosing = true
         discoveryBrowser.stop()
-        // dialer.stop 不会 reject，后面的释放步骤总会执行。
-        dialer
+        // 先停拨号方的任务：它要经连接请监听方取消，连接断开后就发不出去。
+        dialerSync
           .stop()
+          // dialer.stop 不会 reject，后面的释放步骤总会执行。
+          .then(() => dialer.stop())
           .then(() => httpService.stop())
           // HTTP 服务停止失败时也要撤下广播；广播的 stop 不会 reject。
           .finally(() => advertiser.stop())

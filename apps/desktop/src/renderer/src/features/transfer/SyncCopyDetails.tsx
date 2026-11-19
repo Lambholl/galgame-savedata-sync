@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react'
 import { Button, Empty, Skeleton } from 'antd'
 import { ReloadOutlined, StopOutlined } from '@ant-design/icons'
 import { observeSyncJob, toShownError, unwrap } from '@savedata-sync/shared'
-import type { LibraryGame, LibraryPeer, ShownError, SyncDirection } from '@savedata-sync/shared'
-import { SyncTaskSummary, useT } from '@savedata-sync/shared/ui'
+import type { LibraryGame, LibraryPeer, ShownError } from '@savedata-sync/shared'
+import { LocalDeviceProvider, SyncTaskSummary, useT } from '@savedata-sync/shared/ui'
 import { useFailureMessage } from '../../app/failure-message.ts'
 import type { PlanEndpoint } from '@savedata-sync/shared/ui'
 import type { DesktopCopySummary } from '../../../../bridge/sync-bridge.ts'
@@ -27,8 +27,8 @@ export function SyncCopyDetails({
   readonly games: readonly LibraryGame[]
   readonly peers: readonly LibraryPeer[]
   readonly onOpenBackup: (projectId: string) => void
-  /** 用这次传输的游戏、设备和方向重新比较。 */
-  readonly onRescan: (projectId: string, peerId: string, direction: SyncDirection) => void
+  /** 用这次传输的游戏、设备和方向重新比较；isUpload 为 true 表示从该设备复制到本机。 */
+  readonly onRescan: (projectId: string, peerId: string, isUpload: boolean) => void
   readonly onChanged: () => void
 }): React.JSX.Element {
   const t = useT()
@@ -60,9 +60,12 @@ export function SyncCopyDetails({
         setIsBusy(false)
       })
   }
-  const pcEnd: PlanEndpoint = { name: t('transfer.local'), kind: 'pc' }
-  const mobileEnd: PlanEndpoint = { name: peer?.device.name ?? t('common.unknown'), kind: 'mobile' }
-  const isUpload = task.direction === 'dialer-to-listener'
+  const localEnd: PlanEndpoint = { name: t('transfer.local'), kind: 'pc' }
+  const peerEnd: PlanEndpoint = {
+    name: peer?.device.name ?? t('common.unknown'),
+    kind: peer?.device.platform === 'windows' ? 'pc' : 'mobile',
+  }
+  const isUpload = task.role === 'receiver'
   // 按钮和正文读同一份状态；列表摘要另有轮询，用它会出现正文已完成、按钮还是取消的一瞬间。
   const phase = state
     ? observeSyncJob(state.local, state.remote, state.remoteError !== null).phase
@@ -78,21 +81,23 @@ export function SyncCopyDetails({
     <div className="library-stack">
       {failureHolder}
       {state ? (
-        <SyncTaskSummary
-          gameName={game?.name ?? t('common.unknown')}
-          source={isUpload ? mobileEnd : pcEnd}
-          target={isUpload ? pcEnd : mobileEnd}
-          local={state.local}
-          remote={state.remote}
-          remoteError={state.remoteError}
-          onRetryCleanup={state.local.cleanupError && !isRunning ? () => act('cleanup') : null}
-          // 备份建在被写入的一端；本机发送时备份在移动端上，这里不提供入口。
-          onViewBackup={
-            state.local.role === 'receiver' && plan ? () => onOpenBackup(task.projectId) : null
-          }
-          renderTechnicalDetails={(text) => <TechnicalDetails text={text} />}
-          isAwaitingPeer={task.isAwaitingPeer}
-        />
+        <LocalDeviceProvider device={task.localSide}>
+          <SyncTaskSummary
+            gameName={game?.name ?? t('common.unknown')}
+            source={isUpload ? peerEnd : localEnd}
+            target={isUpload ? localEnd : peerEnd}
+            local={state.local}
+            remote={state.remote}
+            remoteError={state.remoteError}
+            onRetryCleanup={state.local.cleanupError && !isRunning ? () => act('cleanup') : null}
+            // 备份建在被写入的一端；本机发送时备份在移动端上，这里不提供入口。
+            onViewBackup={
+              state.local.role === 'receiver' && plan ? () => onOpenBackup(task.projectId) : null
+            }
+            renderTechnicalDetails={(text) => <TechnicalDetails text={text} />}
+            isAwaitingPeer={task.isAwaitingPeer}
+          />
+        </LocalDeviceProvider>
       ) : (
         (resource.isLoading && <Skeleton active />) ||
         (failure && (
@@ -119,7 +124,7 @@ export function SyncCopyDetails({
             type="primary"
             size="large"
             icon={<ReloadOutlined />}
-            onClick={() => onRescan(task.projectId, task.peerId, task.direction)}
+            onClick={() => onRescan(task.projectId, task.peerId, isUpload)}
           >
             {t('task.rescan')}
           </Button>

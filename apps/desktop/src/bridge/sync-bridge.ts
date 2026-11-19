@@ -35,6 +35,8 @@ export interface DesktopCopySummary {
   readonly peerId: string
   readonly direction: SyncJobState['direction']
   readonly role: SyncJobState['role']
+  /** 本机在这次连接中是监听方还是拨号方。 */
+  readonly localSide: 'listener' | 'dialer'
   readonly phase: SyncJobObservation['phase']
   readonly stage: SyncJobObservation['stage']
   readonly step: SyncJobObservation['step']
@@ -200,6 +202,7 @@ const COPY_FIELDS = [
   'peerId',
   'direction',
   'role',
+  'localSide',
   'phase',
   'stage',
   'step',
@@ -236,7 +239,12 @@ export function isDesktopCopySummary(value: unknown): value is DesktopCopySummar
     shape(value, COPY_FIELDS) &&
     [value.jobId, value.projectId, value.peerId].every(isOpaqueId) &&
     member(value.direction, ['dialer-to-listener', 'listener-to-dialer']) &&
-    value.role === (value.direction === 'dialer-to-listener' ? 'receiver' : 'sender') &&
+    member(value.localSide, ['listener', 'dialer']) &&
+    // 方向指向本机这一端时本机接收。
+    value.role ===
+      ((value.localSide === 'listener') === (value.direction === 'dialer-to-listener')
+        ? 'receiver'
+        : 'sender') &&
     member(value.phase, ['running', 'done', 'partial', 'failed', 'cancelled', 'unknown']) &&
     member(value.stage, COPY_STAGES) &&
     (value.step === null || count(value.step, SYNC_STEP_DONE)) &&
@@ -463,10 +471,8 @@ export function createSyncBridge(
       return context
     }
     const request = context.value
-    // 对端的状态已在主进程核对过，这里只核对它属于本次任务。
-    return local.role ===
-      (request.plan.direction === 'dialer-to-listener' ? 'receiver' : 'sender') &&
-      matchesSyncJobState(local, request) &&
+    // 对端的状态已在主进程核对过，这里只核对它属于本次任务；本机角色随本机是监听方还是拨号方而定，由对端角色相反来约束。
+    return matchesSyncJobState(local, request) &&
       (remote === null ||
         (matchesSyncJobDigest(remote, request, local.role) &&
           (remote.result === null || matchesSyncApplyResult(remote.result, request.plan))))

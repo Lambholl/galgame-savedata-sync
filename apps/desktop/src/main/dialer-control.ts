@@ -10,6 +10,7 @@ import {
   isControlRequestBody,
 } from '@savedata-sync/shared'
 import type {
+  ControlEvent,
   ControlEventBodies,
   ControlEventMethod,
   ControlMessage,
@@ -93,6 +94,19 @@ export class DialerControlSocket {
   /** 控制通道是否已打开。 */
   isOpen(): boolean {
     return !this.isClosed && this.socket.readyState === WebSocket.OPEN
+  }
+
+  /**
+   * 向监听方发一条事件。
+   *
+   * @throws HttpOperationError 通道没打开时抛 network-failure，事件超过 8 MiB 时抛 resource-limit。
+   */
+  emit<M extends ControlEventMethod>(method: M, body: ControlEventBodies[M]): void {
+    if (!this.isOpen()) {
+      throw new HttpOperationError('network-failure', 'The control channel is not open.')
+    }
+    const event: ControlEvent<M> = { v: 1, type: 'event', method, body }
+    this.send(event)
   }
 
   /** 关闭连接，关闭码 1000；握手还没完成时直接终止。已关闭时不做任何事。 */

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Button, Card, Empty, Space, Tag } from 'antd'
-import type { LibraryGame, LibraryPeer, SyncDirection, TransferTask } from '@savedata-sync/shared'
+import type { LibraryGame, LibraryPeer, TransferTask } from '@savedata-sync/shared'
 import type { DesktopCopySummary, DesktopRestoreSummary } from '../../../../bridge/sync-bridge.ts'
 import { TaskView } from './TaskView.tsx'
 import { SyncCopyDetails } from './SyncCopyDetails.tsx'
@@ -42,11 +42,14 @@ export function TaskPage({
   readonly onChanged: () => void
   /** shownCopyId 是页面正在显示的那次传输，返回时回到它。 */
   readonly onOpenBackup: (projectId: string, shownCopyId: string | null) => void
-  /** 用一次传输的游戏、设备和方向重新比较；shownCopyId 是页面正在显示的那次传输，返回时回到它。 */
+  /**
+   * 用一次传输的游戏、设备和方向重新比较；isUpload 为 true 表示从该设备复制到本机。
+   * shownCopyId 是页面正在显示的那次传输，返回时回到它。
+   */
   readonly onRescan: (
     projectId: string,
     peerId: string,
-    direction: SyncDirection,
+    isUpload: boolean,
     shownCopyId: string | null,
   ) => void
 }): React.JSX.Element {
@@ -78,8 +81,8 @@ export function TaskPage({
           games={games}
           peers={peers}
           onOpenBackup={backup}
-          onRescan={(rescanProjectId, peerId, direction) =>
-            onRescan(rescanProjectId, peerId, direction, copy.jobId)
+          onRescan={(rescanProjectId, peerId, isUpload) =>
+            onRescan(rescanProjectId, peerId, isUpload, copy.jobId)
           }
           onChanged={onChanged}
         />
@@ -97,7 +100,7 @@ export function TaskPage({
               <span>
                 {games.find((game) => game.id === item.projectId)?.name ?? t('common.unknown')}
                 <small>
-                  {item.direction === 'dialer-to-listener'
+                  {item.role === 'receiver'
                     ? `${peers.find((peer) => peer.device.id === item.peerId)?.device.name ?? t('common.unknown')} → ${t('transfer.local')}`
                     : `${t('transfer.local')} → ${peers.find((peer) => peer.device.id === item.peerId)?.device.name ?? t('common.unknown')}`}{' '}
                   · {formatShortDateTime(item.updatedAt)}

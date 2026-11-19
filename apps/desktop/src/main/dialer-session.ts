@@ -8,6 +8,7 @@ import {
 } from '@savedata-sync/shared'
 import type {
   CatalogReply,
+  ControlEventBodies,
   ControlEventMethod,
   ControlRequestBodies,
   ControlRequestMethod,
@@ -42,6 +43,37 @@ const RELOCATABLE_CODES: readonly OperationErrorCode[] = [
 ]
 const CLOSE_DISCONNECTED = 4001
 const CLOSE_REPLACED = 4002
+
+/** 监听方发给拨号方传输引擎的控制请求。 */
+export type DialerSyncMethod = Exclude<ControlRequestMethod, 'directory.list'>
+
+/** 当前连接的访问凭据；会话结束或换了一次连接后失效。 */
+export interface DialerConnection {
+  readonly deviceId: string
+  readonly http: DialerHttpClient
+  readonly sessionId: string
+  /** 本机设备 ID，请求里放进 x-sync-device-id。 */
+  readonly localDeviceId: string
+}
+
+/** 监听方发来的一个复制请求，按 method 区分请求体。 */
+export type DialerSyncRequest = {
+  readonly [M in DialerSyncMethod]: {
+    readonly method: M
+    readonly body: ControlRequestBodies[M]
+  }
+}[DialerSyncMethod]
+
+/** 拨号方传输引擎：处理监听方的复制请求，并在控制通道关闭时得到通知。 */
+export interface DialerSyncHandler {
+  /** 处理 deviceId 发来的请求；返回值是对应方法的成功应答，抛错时按错误应答。 */
+  readonly request: (
+    deviceId: string,
+    request: DialerSyncRequest,
+  ) => Promise<ControlResponseValues[DialerSyncMethod]>
+  /** 到 deviceId 的控制通道关闭（包括正在重连）或连接结束时调用。 */
+  readonly closed: (deviceId: string) => void
+}
 
 /** 拨号方用到的游戏库接口。 */
 export type DialerLibrary = Pick<
@@ -83,6 +115,7 @@ function errorCode(error: unknown): OperationErrorCode {
 export class WindowsDialer implements LibraryDialer {
   private session: DialSession | null = null
   private isConnecting = false
+  private sync: DialerSyncHandler | null = null
   private readonly localName: string
 
   /**
@@ -194,6 +227,85 @@ export class WindowsDialer implements LibraryDialer {
   /** 连着（包括控制通道正在重连）的设备 ID；没有时为 null。 */
   deviceId(): string | null {
     return this.session?.deviceId ?? null
+  }
+
+  /** 设置处理复制请求的传输引擎。 */
+  attachSync(handler: DialerSyncHandler): void {
+    this.sync = handler
+  }
+
+  /**
+   * 返回到 deviceId 的当前连接。
+   *
+   * @throws HttpOperationError 没连着这台设备时抛 session-mismatch。
+   */
+  connection(deviceId: string): DialerConnection {
+    const session = this.session
+    if (session?.deviceId !== deviceId) {
+      throw new HttpOperationError(
+        'session-mismatch',
+        'The device connection changed. Reconnect the device.',
+      )
+    }
+    return {
+      deviceId,
+      http: session.http,
+      sessionId: session.sessionId,
+      localDeviceId: this.adapter.deviceId,
+    }
+  }
+
+  /**
+   * 核对 connection 仍是当前连接。
+   *
+   * @throws HttpOperationError 连接已结束或换过时抛 session-mismatch。
+   */
+  verify(connection: DialerConnection): void {
+    this.current(connection)
+  }
+
+  private current(connection: DialerConnection): DialSession {
+    const session = this.session
+    if (
+      session?.deviceId !== connection.deviceId ||
+      session.http !== connection.http ||
+      session.sessionId !== connection.sessionId
+    ) {
+      throw new HttpOperationError(
+        'session-mismatch',
+        'The device connection changed. Reconnect the device.',
+      )
+    }
+    return session
+  }
+
+  /**
+   * 立即与 connection 的设备重新交换目录表，等交换完成。
+   *
+   * @throws HttpOperationError 连接已换过、交换失败或对方目录表无效时抛出。
+   */
+  async refreshCatalog(connection: DialerConnection): Promise<void> {
+    const session = this.current(connection)
+    const reply = await this.exchange(session.http, session.sessionId, session.deviceId, false)
+    this.current(connection)
+    await this.library.acceptDial(session, session.http.origin, reply, false)
+  }
+
+  /**
+   * 向 deviceId 发一条控制事件。
+   *
+   * @throws HttpOperationError 没连着这台设备或控制通道没打开时抛出。
+   */
+  emit<M extends ControlEventMethod>(
+    deviceId: string,
+    method: M,
+    body: ControlEventBodies[M],
+  ): void {
+    const control = this.session?.deviceId === deviceId ? this.session.control : null
+    if (!control) {
+      throw new HttpOperationError('network-failure', 'The control channel is not open.')
+    }
+    control.emit(method, body)
   }
 
   /** 控制通道是否打开。 */
@@ -401,7 +513,7 @@ export class WindowsDialer implements LibraryDialer {
         },
         closed: (code) => this.controlClosed(session, code),
         event: (method) => this.receiveEvent(session, method),
-        request: (method, body) => this.answer(method, body),
+        request: (method, body) => this.answer(session, method, body),
       },
     )
   }
@@ -411,6 +523,7 @@ export class WindowsDialer implements LibraryDialer {
     if (this.session !== session) {
       return
     }
+    this.sync?.closed(session.deviceId)
     if (code === CLOSE_DISCONNECTED || code === CLOSE_REPLACED) {
       this.release(session, false)
       return
@@ -434,14 +547,20 @@ export class WindowsDialer implements LibraryDialer {
   }
 
   private async answer<M extends ControlRequestMethod>(
+    session: DialSession,
     method: M,
     body: ControlRequestBodies[M],
   ): Promise<ControlResponseValues[M]> {
     if (method !== 'directory.list') {
-      throw new HttpOperationError(
-        'unsupported-operation',
-        'This device does not support the request.',
-      )
+      if (!this.sync) {
+        throw new HttpOperationError(
+          'unsupported-operation',
+          'This device does not support the request.',
+        )
+      }
+      // 控制通道已按 method 校验过请求体；泛型 M 收窄不到具体方法，这里按校验结果转换。
+      const request = { method, body } as DialerSyncRequest
+      return (await this.sync.request(session.deviceId, request)) as ControlResponseValues[M]
     }
     const { rootId, parentId } = body as ControlRequestBodies['directory.list']
     // 目录适配器里登记的目录不都属于游戏，只对对方开放游戏目录。
@@ -507,6 +626,7 @@ export class WindowsDialer implements LibraryDialer {
     session.control?.close()
     session.control = null
     this.library.clearDial(session.deviceId)
+    this.sync?.closed(session.deviceId)
     if (shouldSayGoodbye) {
       await this.goodbye(session.http, session.sessionId)
     }

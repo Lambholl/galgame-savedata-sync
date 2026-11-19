@@ -20,7 +20,7 @@ tags: [API, 接口约定]
 
 ## 1. 状态与范围
 
-本文记录当前接口。连接分监听方和拨号方：监听方提供 HTTP 服务和 `/v1/control`，拨号方连接并编排传输，监听方发起的传输经控制通道交给拨号方（[ADR-0004](../decisions/ADR-0004-symmetric-listener-dialer-roles.md)）。当前电脑作监听方，也能作拨号方连接另一台电脑、交换目录表和读取目录，作拨号方的传输还没实现（WP-49）；Android 原生层只作拨号方，Android 监听在 M-005 实现。下文写“电脑”“移动端”的地方是当前实现，规则按监听方和拨号方理解。平台说明见 [Windows 平台层](windows.md)、[Android 平台层](android.md)，共享字段与线格式见[共享包](shared-package.md)。
+本文记录当前接口。连接分监听方和拨号方：监听方提供 HTTP 服务和 `/v1/control`，拨号方连接并编排传输，监听方发起的传输经控制通道交给拨号方（[ADR-0004](../decisions/ADR-0004-symmetric-listener-dialer-roles.md)）。当前电脑既能作监听方，也能作拨号方连接另一台电脑并传输；Android 原生层只作拨号方，Android 监听在 M-005 实现。下文写“电脑”“移动端”的地方是当前实现，规则按监听方和拨号方理解。平台说明见 [Windows 平台层](windows.md)、[Android 平台层](android.md)，共享字段与线格式见[共享包](shared-package.md)。
 
 已接入：游戏与设备配置、三页导航、并列目录视图、受保护覆盖、可选的目标多余条目删除、写入前全量备份、本机恢复和两端发起。发现与连接二维码的格式在 `apps/shared` 定义（第 8 节）：监听方广播并显示二维码，拨号方搜索和扫码（扫码只在移动端）；改址自动重连的安排见[路线图](../project/roadmap.md)。
 

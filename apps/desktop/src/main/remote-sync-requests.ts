@@ -382,6 +382,7 @@ export class WindowsRemoteSyncRequests {
         peerId: entry.value.peerId,
         direction: entry.value.direction,
         role: local.role,
+        localSide: 'listener',
         phase,
         stage,
         step,

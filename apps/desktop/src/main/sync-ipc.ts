@@ -1,6 +1,8 @@
 import type { IpcMain, IpcMainInvokeEvent } from 'electron'
 import { BATCH_LIMITS, isOpaqueId } from '@savedata-sync/shared'
 import { SYNC_CHANNELS } from '../bridge/sync-bridge.ts'
+import type { DesktopRemoteRequest } from '../bridge/sync-bridge.ts'
+import type { WindowsDialerSync } from './dialer-sync.ts'
 import type { WindowsHttpService } from './http-service.ts'
 import type { InterruptedWriteStore } from './interrupted-writes.ts'
 import type { WindowsRestoreRegistry } from './restore-registry.ts'
@@ -40,14 +42,27 @@ function input(args: readonly unknown[], fields: readonly string[]): Record<stri
   return data
 }
 
+/** 两部分各自的最近一次发起请求中更新的那个；都没有时为 null。 */
+function latestRequest(
+  listener: DesktopRemoteRequest | null,
+  dialer: DesktopRemoteRequest | null,
+): DesktopRemoteRequest | null {
+  if (!listener || !dialer) {
+    return listener ?? dialer
+  }
+  return dialer.updatedAt >= listener.updatedAt ? dialer : listener
+}
+
 /**
  * 注册复制接口的 IPC 处理函数；isTrusted 不通过、参数无效或响应超限时返回错误。
+ * 复制任务和发起的请求合并本机作为监听方和拨号方的两部分。
  *
  * @returns 移除这些处理函数的函数。
  */
 export function registerSyncIpc(
   ipc: Pick<IpcMain, 'handle' | 'removeHandler'>,
   service: WindowsHttpService,
+  dialerSync: WindowsDialerSync,
   restores: WindowsRestoreRegistry,
   interruptedWrites: InterruptedWriteStore,
   isTrusted: (event: IpcMainInvokeEvent) => boolean,
@@ -91,11 +106,14 @@ export function registerSyncIpc(
           }
           value =
             action === 'copies'
-              ? service.syncCopies()
+              ? // 两部分各自按登记顺序排列；合并后按更新时间排，最后一项是最近的传输。
+                [...service.syncCopies(), ...dialerSync.summaries()].sort(
+                  (a, b) => a.updatedAt - b.updatedAt,
+                )
               : action === 'restores'
                 ? restores.summaries()
                 : action === 'remoteRequest'
-                  ? service.remoteSyncRequest()
+                  ? latestRequest(service.remoteSyncRequest(), dialerSync.currentRequest())
                   : service.hasWork()
         } else if (action === 'interruptedWrites') {
           if (args.length) {
@@ -107,21 +125,30 @@ export function registerSyncIpc(
           value = null
         } else if (action === 'startRemote') {
           const data = input(args, ['projectId', 'peerId', 'direction'])
-          value = service.startRemoteSync(
-            data.projectId as string,
-            data.peerId as string,
-            data.direction as 'dialer-to-listener' | 'listener-to-dialer',
-          )
+          const projectId = data.projectId as string,
+            peerId = data.peerId as string,
+            direction = data.direction as 'dialer-to-listener' | 'listener-to-dialer'
+          // 同一台设备只有一条连接：本机拨号连着它时本机是拨号方，否则它拨号连着本机。
+          value = dialerSync.isPeer(peerId)
+            ? dialerSync.start(projectId, peerId, direction)
+            : service.startRemoteSync(projectId, peerId, direction)
         } else if (action === 'confirmRemote') {
           const data = input(args, ['requestId', 'shouldDeleteExtras'])
           if (typeof data.shouldDeleteExtras !== 'boolean') {
             throw new HttpOperationError('invalid-request', 'The confirmation format is invalid.')
           }
-          value = service.confirmRemoteSync(data.requestId as string, data.shouldDeleteExtras)
+          const id = data.requestId as string
+          value = dialerSync.ownsRequest(id)
+            ? dialerSync.confirm(id, data.shouldDeleteExtras)
+            : service.confirmRemoteSync(id, data.shouldDeleteExtras)
         } else if (action === 'remotePlan' || action === 'cancelRemote') {
           const id = input(args, ['requestId']).requestId as string
-          value =
-            action === 'remotePlan' ? service.remoteSyncPlan(id) : service.cancelRemoteSync(id)
+          if (dialerSync.ownsRequest(id)) {
+            value = action === 'remotePlan' ? dialerSync.plan(id) : dialerSync.cancel(id)
+          } else {
+            value =
+              action === 'remotePlan' ? service.remoteSyncPlan(id) : service.cancelRemoteSync(id)
+          }
         } else if (action === 'prepareRestore') {
           const data = input(args, ['projectId', 'rootId', 'backupId'])
           value = restores.prepare(
@@ -152,7 +179,18 @@ export function registerSyncIpc(
         ) {
           const data = input(args, ['jobId']),
             id = data.jobId as string
-          if (action === 'copyPlan') {
+          if (dialerSync.has(id)) {
+            if (action === 'copyPlan') {
+              value = dialerSync.jobRequest(id)
+            } else if (action === 'copyState') {
+              value = dialerSync.jobState(id)
+            } else if (action === 'cancelCopy') {
+              value = await dialerSync.cancelJob(id)
+            } else {
+              await dialerSync.cleanupJob(id)
+              value = null
+            }
+          } else if (action === 'copyPlan') {
             value = service.syncCopyRequest(id)
           } else if (action === 'copyState') {
             value = service.syncCopyState(id)
