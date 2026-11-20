@@ -58,7 +58,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "$env:RELEASE_TAG 指向的提交不在 origin/master 上" }
       - run: pnpm check
       - run: pnpm test:all
-      - run: pnpm desktop:package portable
+      - run: pnpm desktop:package
       # 密钥只在这一步解码并交给 Gradle，构建后删除。
       - name: Build signed Android release
         shell: pwsh

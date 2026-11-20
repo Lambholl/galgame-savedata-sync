@@ -81,7 +81,7 @@ Android 端最低支持 Android 11（API 30），编译目标为 API 36。前端
 | `pnpm test` | 运行脚本、共享包、桌面端和移动端前端测试（无需 Android 工具） |
 | `pnpm test:all` | 运行 `pnpm test` 和 `pnpm android:test`，适合发版前或大范围改动后执行 |
 | `pnpm doctor` | 检查本地工具链；支持 `--desktop`（跳过 Android 检查）和 `--json`；存在 FAIL 项时返回非零退出码 |
-| `pnpm desktop:package` | 打包 Windows 安装版与免安装版；加 `portable` 参数只生成免安装版 |
+| `pnpm desktop:package` | 打包 Windows x64 免安装版 |
 | `pnpm android:sync` | 构建移动端前端资源并同步到 Android 原生工程 |
 | `pnpm android:build` | 构建 debug APK；加 `--release` 构建签名后的 release APK |
 | `pnpm android:test` | 运行 Java 单元测试、Android lint、测试 APK 构建及 Windows/Java 归档互通检查（无需连接真机） |
@@ -176,7 +176,7 @@ keytool -genkeypair -v -keystore savedata-sync-release.jks -alias savedata-sync 
 - 当配置或备份存储格式变更时，桌面端读到旧配置会报错，需手动删除应用数据目录下的旧配置文件后重新添加游戏；移动端直接卸载重装。
 - 当通信协议变更时，桌面端与移动端需更新至同一版本才能连接。
 
-卸载移动端会清除游戏配置、目录访问授权以及 `Android/data` 下的备份；卸载桌面端会保留应用配置。发布包含不兼容变更的版本时，需在 Release 说明中注明处理方式。
+卸载移动端会清除游戏配置、目录访问授权以及 `Android/data` 下的备份；桌面端是免安装版，删除程序文件后应用数据目录里的配置仍会保留。发布包含不兼容变更的版本时，需在 Release 说明中注明处理方式。
 
 ## 版本号与发布
 
@@ -210,7 +210,7 @@ git push --atomic origin master v0.3.0
 
 1. 校验 tag 格式及其指向的提交是否在 `origin/master` 上。
 2. 运行 `pnpm check` 和 `pnpm test:all`。
-3. 使用 `pnpm desktop:package portable` 打包 Windows x64 免安装版（无数字签名）。
+3. 使用 `pnpm desktop:package` 打包 Windows x64 免安装版（无数字签名）。
 4. 使用 Secrets 中的签名配置构建 Android release APK，校验签名并生成 `SHA256SUMS.txt`。
 5. 将产物上传为保留 7 天的 Actions artifact，并创建草稿 GitHub Release。
 

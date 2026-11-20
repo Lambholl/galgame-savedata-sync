@@ -60,14 +60,11 @@ Electron 构建显式内联 workspace 共享包，避免 sandbox preload 在运�
 
 ## 3. 分发包与应用标识
 
-打包命令见 `docs/development.md`。产物在 `apps/desktop/release/`：
+打包命令见 `docs/development.md`。`pnpm desktop:package` 和 tag 发布流程只构建免安装版 `SavedataSync-<版本>-Portable-x64.exe`，产物在 `apps/desktop/release/`。
 
-- `SavedataSync-<版本>-Setup-x64.exe`：安装版，可选择安装目录，安装结束后手动启动。
-- `SavedataSync-<版本>-Portable-x64.exe`：免安装版。tag 发布流程只构建这一种。
+版本由 `scripts/app-version.mjs` 按 Git tag 推算。electron-builder 会去掉开发版的 `+<提交数>.g<哈希>` 部分：文件名和 exe 的文件版本只有 `0.3.0` 这样的数字版本，界面上显示完整版本。当前构建未签名。
 
-版本由 `scripts/app-version.mjs` 按 Git tag 推算。electron-builder 会去掉开发版的 `+<提交数>.g<哈希>` 部分：文件名和 exe 的文件版本只有 `0.3.0` 这样的数字版本，界面上显示完整版本。当前构建未签名。卸载保留应用配置。
-
-打包脚本将已编译的 `out/` 和最小应用清单复制到 `.reports/` 下的新暂存目录，隔离工作区依赖；使用本机 Electron 分发文件，缺少时由打包器下载。安装包、免安装包及暂存资源不纳入 Git。
+打包脚本将已编译的 `out/` 和最小应用清单复制到 `.reports/` 下的新暂存目录，隔离工作区依赖；使用本机 Electron 分发文件，缺少时由打包器下载。免安装包及暂存资源不纳入 Git。
 
 分发包不带 `node_modules`，主进程运行时用到的第三方包（`ws`、`@homebridge/ciao`、`bonjour-service`）列在 `electron.vite.config.ts` 的 `main.build.externalizeDeps.exclude` 里，由 electron-vite 打进 `out/main`。主进程新增运行时依赖时要加进这个列表，构建后 `out/main/index.js` 的外部导入应只剩 `electron` 和 Node 内置模块。`ws` 的可选原生依赖 bufferutil、utf-8-validate 没有安装，打包后 `ws` 使用纯 JS 实现。
 

@@ -111,7 +111,7 @@ git clone https://github.com/Lambholl/galgame-savedata-sync.git
 cd galgame-savedata-sync
 pnpm install
 pnpm doctor                     # 检查开发工具是否齐全
-pnpm desktop:package portable   # Windows 免安装版
+pnpm desktop:package            # Windows 免安装版
 pnpm android:build              # Android debug APK
 ```
 
