@@ -9,11 +9,6 @@ export interface HttpRoute {
     | 'device'
     | 'roots'
     | 'entries'
-    | 'downloads'
-    | 'uploads'
-    | 'manifest'
-    | 'content'
-    | 'transfer'
     | 'catalog'
     | 'sync-capabilities'
     | 'sync-scans'
@@ -149,35 +144,10 @@ export function inspectHttpRequest(request: IncomingMessage): HttpRoute {
     isOpaqueId(id)
   ) {
     kind = 'entries'
-  } else if (
-    segments.length === 3 &&
-    resource === 'transfers' &&
-    (id === 'downloads' || id === 'uploads') &&
-    method === 'POST'
-  ) {
-    kind = id
-  } else if (
-    resource === 'transfers' &&
-    isOpaqueId(id) &&
-    segments.length === 3 &&
-    (method === 'GET' || method === 'DELETE')
-  ) {
-    kind = 'transfer'
-  } else if (
-    resource === 'transfers' &&
-    isOpaqueId(id) &&
-    segments.length === 4 &&
-    ((method === 'GET' && (action === 'manifest' || action === 'content')) ||
-      (method === 'PUT' && action === 'content'))
-  ) {
-    kind = action
   } else {
     invalid()
   }
   if (kind !== 'entries' && query.size > 0) {
-    invalid()
-  }
-  if (method === 'PUT' && kind === 'content' && (encoding !== undefined || length === undefined)) {
     invalid()
   }
   // 复制内容边打包边发送，事先不知道长度。
@@ -185,13 +155,10 @@ export function inspectHttpRequest(request: IncomingMessage): HttpRoute {
     invalid()
   }
   if (
-    kind !== 'downloads' &&
-    kind !== 'uploads' &&
     kind !== 'catalog' &&
     kind !== 'sync-scans' &&
     kind !== 'sync-jobs' &&
     !(method === 'PUT' && kind === 'sync-job-content') &&
-    !(method === 'PUT' && kind === 'content') &&
     (encoding !== undefined || (length !== undefined && length !== '0'))
   ) {
     invalid()

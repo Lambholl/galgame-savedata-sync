@@ -71,40 +71,12 @@ public class ArchiveSafTest {
     return ArchiveFormat.hex(hash.digest());
   }
 
-  private ArchiveModel.Manifest fixedManifest(JSONObject json) throws Exception {
-    List<ArchiveModel.PreparedFile> files = new ArrayList<>();
-    JSONArray records = json.getJSONArray("files");
-    for (int i = 0; i < records.length(); i++) {
-      JSONObject f = records.getJSONObject(i);
-      files.add(
-        new ArchiveModel.PreparedFile(
-          f.getString("fileId"),
-          new ArchiveModel.Observation(
-            "fixture-" + i,
-            f.getString("sourceEntryId"),
-            f.isNull("sourceParentId") ? null : f.getString("sourceParentId"),
-            f.getString("sourceName"),
-            null,
-            f.isNull("sourceModifiedAt") ? null : f.getLong("sourceModifiedAt")
-          ),
-          f.getLong("sizeBytes"),
-          f.getString("sha256")
-        )
-      );
+  private static List<Long> sizes(byte[]... contents) {
+    List<Long> result = new ArrayList<>();
+    for (byte[] content : contents) {
+      result.add((long) content.length);
     }
-    JSONObject archive = json.getJSONObject("archive");
-    return new ArchiveModel.Manifest(
-      json.getString("transferId"),
-      json.getString("sourceDeviceId"),
-      json.getString("sourceRootId"),
-      files,
-      json.getLong("totalFileBytes"),
-      new ArchiveModel.Descriptor(
-        archive.getLong("sizeBytes"),
-        archive.getLong("tarSizeBytes"),
-        archive.getString("sha256")
-      )
-    );
+    return result;
   }
 
   private JSONObject fixture() throws Exception {
@@ -122,47 +94,37 @@ public class ArchiveSafTest {
     for (int i = 0; i < 3; i++) {
       contents[i] = Base64.getDecoder().decode(fixture.getJSONArray("contentsBase64").getString(i));
     }
-    ArchiveModel.Manifest python = fixedManifest(fixture.getJSONObject("manifest"));
     try (
-      ArchiveAdapter.Artifact artifact = adapter.receive(
-        python,
+      ArchiveAdapter.Staged staged = adapter.receiveFiles(
+        sizes(contents),
         new ByteArrayInputStream(Base64.getDecoder().decode(fixture.getString("archiveBase64"))),
         new ArchiveControl(),
         null
       )
     ) {
       for (int i = 0; i < 3; i++) {
-        assertArrayEquals(contents[i], smallBytes(artifact.openFile(ArchiveModel.id(i))));
+        assertArrayEquals(contents[i], smallBytes(staged.openFile(ArchiveModel.id(i))));
       }
     }
-    JSONObject windows = new JSONObject(
-      new String(
-        smallBytes(tests().getAssets().open("windows-manifest.json")),
-        StandardCharsets.UTF_8
-      )
-    );
     try (
-      ArchiveAdapter.Artifact artifact = adapter.receive(
-        fixedManifest(windows),
+      ArchiveAdapter.Staged staged = adapter.receiveFiles(
+        sizes(contents),
         tests().getAssets().open("windows-archive.bin"),
         new ArchiveControl(),
         null
       )
     ) {
       for (int i = 0; i < 3; i++) {
-        assertArrayEquals(contents[i], smallBytes(artifact.openFile(ArchiveModel.id(i))));
+        assertArrayEquals(contents[i], smallBytes(staged.openFile(ArchiveModel.id(i))));
       }
     }
-    JSONObject largeManifest = new JSONObject(
-      new String(smallBytes(tests().getAssets().open("windows-large.json")), StandardCharsets.UTF_8)
-    );
     byte[] large = new byte[131073];
     for (int i = 0; i < large.length; i++) {
       large[i] = (byte) (i * 31 + 7);
     }
     try (
-      ArchiveAdapter.Artifact artifact = adapter.receive(
-        fixedManifest(largeManifest),
+      ArchiveAdapter.Staged staged = adapter.receiveFiles(
+        sizes(large),
         tests().getAssets().open("windows-large.bin"),
         new ArchiveControl(),
         null
@@ -170,51 +132,43 @@ public class ArchiveSafTest {
     ) {
       assertEquals(
         ArchiveFormat.hex(ArchiveFormat.sha256().digest(large)),
-        digest(artifact.openFile("f000001"))
+        digest(staged.openFile("f000001"))
       );
     }
-    List<ArchiveModel.Source> sources = new ArrayList<>();
+    List<ArchiveAdapter.Outgoing> files = new ArrayList<>();
     for (int i = 0; i < 3; i++) {
       final int index = i;
-      sources.add(
-        new ArchiveModel.Source() {
-          @Override
-          public ArchiveModel.Observation observe(ArchiveControl control) {
-            return new ArchiveModel.Observation(
-              "fixture-" + index,
-              "fixture-" + (index + 1),
-              null,
-              "固定夹具",
-              null,
-              null
-            );
-          }
-
-          @Override
-          public InputStream open(ArchiveControl control) {
-            return new ByteArrayInputStream(contents[index]);
-          }
+      ArchiveModel.Source source = new ArchiveModel.Source() {
+        @Override
+        public ArchiveModel.Observation observe(ArchiveControl control) {
+          return new ArchiveModel.Observation(
+            "fixture-" + index,
+            "fixture-" + (index + 1),
+            null,
+            "固定夹具",
+            (long) contents[index].length,
+            null
+          );
         }
+
+        @Override
+        public InputStream open(ArchiveControl control) {
+          return new ByteArrayInputStream(contents[index]);
+        }
+      };
+      files.add(
+        new ArchiveAdapter.Outgoing(source, "fixture-" + (i + 1), contents[i].length, null)
       );
     }
-    try (
-      ArchiveAdapter.Artifact artifact = adapter.prepare(
-        "device-interop",
-        "device-fixture",
-        "root-fixture",
-        sources,
-        new ArchiveControl(),
-        null
-      )
-    ) {
-      byte[] bytes = smallBytes(artifact.openArchive());
-      assertArrayEquals(
-        Base64.getDecoder().decode(fixture.getString("tarBase64")),
-        smallBytes(new java.util.zip.GZIPInputStream(new ByteArrayInputStream(bytes)))
-      );
-      // 保留合成格式产物，供主机上的 Windows 原生解码复验；不含真实数据。
-      Files.write(context().getCacheDir().toPath().resolve("archive-device-java.gz"), bytes);
-    }
+    ByteArrayOutputStream output = new ByteArrayOutputStream();
+    adapter.sendFiles(files, output, new ArchiveControl(), null);
+    byte[] bytes = output.toByteArray();
+    assertArrayEquals(
+      Base64.getDecoder().decode(fixture.getString("tarBase64")),
+      smallBytes(new java.util.zip.GZIPInputStream(new ByteArrayInputStream(bytes)))
+    );
+    // 保留合成格式产物，供主机上用电脑端的接收实现复验；不含真实数据。
+    Files.write(context().getCacheDir().toPath().resolve("archive-device-java.gz"), bytes);
     assertCleanCache();
   }
 
@@ -224,6 +178,7 @@ public class ArchiveSafTest {
     final String rootId;
     final String deviceId;
     final List<JSONObject> entries = new ArrayList<>();
+    final List<String> nested = new ArrayList<>();
 
     Selected() throws Exception {
       String expected = InstrumentationRegistry.getArguments().getString("archiveExpectedName");
@@ -260,6 +215,7 @@ public class ArchiveSafTest {
             .getJSONArray("entries");
           assertEquals(1, child.length());
           entries.add(child.getJSONObject(0));
+          nested.add(child.getJSONObject(0).getString("entryId"));
         } else {
           entries.add(item);
         }
@@ -268,50 +224,25 @@ public class ArchiveSafTest {
       entries.sort(Comparator.comparing(item -> item.optString("name")));
     }
 
-    List<ArchiveModel.Source> sources(boolean isUnknown) throws Exception {
-      List<ArchiveModel.Source> sources = new ArrayList<>();
+    List<ArchiveAdapter.Outgoing> outgoing() throws Exception {
+      List<ArchiveAdapter.Outgoing> files = new ArrayList<>();
       for (JSONObject entry : entries) {
-        DirectoryArchiveSource source = new DirectoryArchiveSource(
-          store,
-          rootId,
-          entry.getString("entryId")
-        );
-        sources.add(
-          isUnknown
-            ? new ArchiveModel.Source() {
-                @Override
-                public void validateRoot(String rootId) throws ArchiveFailure {
-                  source.validateRoot(rootId);
-                }
-
-                @Override
-                public ArchiveModel.Observation observe(ArchiveControl control) throws Exception {
-                  ArchiveModel.Observation observed = source.observe(control);
-                  return new ArchiveModel.Observation(
-                    observed.identity,
-                    observed.entryId,
-                    observed.parentId,
-                    observed.name,
-                    null,
-                    observed.modified
-                  );
-                }
-
-                @Override
-                public InputStream open(ArchiveControl control) throws Exception {
-                  return source.open(control);
-                }
-              }
-            : source
+        String entryId = entry.getString("entryId");
+        files.add(
+          new ArchiveAdapter.Outgoing(
+            new DirectoryArchiveSource(store, rootId, entryId),
+            entryId,
+            entry.getLong("sizeBytes"),
+            entry.isNull("modifiedAt") ? null : entry.getLong("modifiedAt")
+          )
         );
       }
-      return sources;
+      return files;
     }
   }
 
   @Test
-  public void actualSafStreamsSnapshotKnownAndUnknownLengthsWithoutChangingSource()
-    throws Exception {
+  public void actualSafStreamsRoundTripWithoutChangingSource() throws Exception {
     Selected selected = new Selected();
     Map<String, String> before = new HashMap<>();
     for (JSONObject entry : selected.entries) {
@@ -327,93 +258,52 @@ public class ArchiveSafTest {
       );
     }
     ArchiveAdapter adapter = DirectoryArchiveSource.createAdapter(context());
-    Path staged = context().getCacheDir().toPath().resolve("archive-saf-roundtrip.gz");
+    Path packed = context().getCacheDir().toPath().resolve("archive-saf-roundtrip.gz");
     try {
-      for (boolean isUnknown : new boolean[] { false, true }) {
-        ArchiveModel.Manifest manifest;
-        try (
-          ArchiveAdapter.Artifact prepared = adapter.prepare(
-            "saf-transfer",
-            selected.deviceId,
-            selected.rootId,
-            selected.sources(isUnknown),
-            new ArchiveControl(),
-            null
-          )
-        ) {
-          manifest = prepared.manifest;
-          assertEquals(131073 + 12 + 11, manifest.totalFileBytes);
-          assertEquals(4, manifest.files.size());
-          try (
-            InputStream input = prepared.openArchive();
-            OutputStream output = Files.newOutputStream(staged)
-          ) {
-            byte[] buffer = new byte[65536];
-            int n;
-            while ((n = input.read(buffer)) != -1) {
-              output.write(buffer, 0, n);
-            }
-          }
-          // 保留这次合成的 SAF 快照，供 Windows 独立解包；不保存真实目录内容。
-          Files.copy(
-            staged,
-            context().getCacheDir().toPath().resolve("archive-device-saf.gz"),
-            java.nio.file.StandardCopyOption.REPLACE_EXISTING
-          );
-          JSONObject exported = new JSONObject();
-          exported.put("protocolVersion", 1);
-          exported.put("transferId", manifest.transferId);
-          exported.put("sourceDeviceId", manifest.sourceDeviceId);
-          exported.put("sourceRootId", manifest.sourceRootId);
-          exported.put("totalFileBytes", manifest.totalFileBytes);
-          JSONArray records = new JSONArray();
-          for (ArchiveModel.PreparedFile file : manifest.files) {
-            JSONObject record = new JSONObject();
-            record.put("fileId", file.fileId);
-            record.put("sourceEntryId", file.sourceEntryId);
-            record.put(
-              "sourceParentId",
-              file.sourceParentId == null ? JSONObject.NULL : file.sourceParentId
-            );
-            record.put("sourceName", file.sourceName);
-            record.put(
-              "sourceModifiedAt",
-              file.sourceModifiedAt == null ? JSONObject.NULL : file.sourceModifiedAt
-            );
-            record.put("sizeBytes", file.sizeBytes);
-            record.put("sha256", file.sha256);
-            records.put(record);
-          }
-          exported.put("files", records);
-          JSONObject descriptor = new JSONObject();
-          descriptor.put("format", "tar.gz");
-          descriptor.put("compressionLevel", 1);
-          descriptor.put("sizeBytes", manifest.archive.sizeBytes);
-          descriptor.put("tarSizeBytes", manifest.archive.tarSizeBytes);
-          descriptor.put("sha256", manifest.archive.sha256);
-          exported.put("archive", descriptor);
-          Files.write(
-            context().getCacheDir().toPath().resolve("archive-device-saf.json"),
-            exported.toString().getBytes(StandardCharsets.UTF_8)
-          );
-        }
-        try (
-          ArchiveAdapter.Artifact received = adapter.receive(
-            manifest,
-            Files.newInputStream(staged),
-            new ArchiveControl(),
-            null
-          )
-        ) {
-          for (ArchiveModel.PreparedFile file : manifest.files) {
-            assertEquals(before.get(file.sourceEntryId), file.sha256);
-            assertEquals(file.sha256, digest(received.openFile(file.fileId)));
-          }
-        }
-        assertCleanCache();
+      try (OutputStream output = Files.newOutputStream(packed)) {
+        adapter.sendFiles(selected.outgoing(), output, new ArchiveControl(), null);
       }
+      // 保留这次合成的 SAF 归档和成员清单，供电脑端独立解包；不保存真实目录内容。
+      Files.copy(
+        packed,
+        context().getCacheDir().toPath().resolve("archive-device-saf.gz"),
+        java.nio.file.StandardCopyOption.REPLACE_EXISTING
+      );
+      JSONArray listing = new JSONArray();
+      List<Long> sizes = new ArrayList<>();
+      long total = 0;
+      for (JSONObject entry : selected.entries) {
+        JSONObject record = new JSONObject();
+        record.put("name", entry.getString("name"));
+        record.put("sizeBytes", entry.getLong("sizeBytes"));
+        record.put("isNested", selected.nested.contains(entry.getString("entryId")));
+        listing.put(record);
+        sizes.add(entry.getLong("sizeBytes"));
+        total += entry.getLong("sizeBytes");
+      }
+      assertEquals(131073 + 12 + 11, total);
+      Files.write(
+        context().getCacheDir().toPath().resolve("archive-device-saf-files.json"),
+        listing.toString().getBytes(StandardCharsets.UTF_8)
+      );
+      try (
+        ArchiveAdapter.Staged received = adapter.receiveFiles(
+          sizes,
+          Files.newInputStream(packed),
+          new ArchiveControl(),
+          null
+        )
+      ) {
+        for (int i = 0; i < selected.entries.size(); i++) {
+          assertEquals(
+            before.get(selected.entries.get(i).getString("entryId")),
+            digest(received.openFile(ArchiveModel.id(i)))
+          );
+        }
+      }
+      assertCleanCache();
     } finally {
-      Files.deleteIfExists(staged);
+      Files.deleteIfExists(packed);
       adapter.retryCleanup();
     }
     for (JSONObject entry : selected.entries) {
@@ -433,7 +323,7 @@ public class ArchiveSafTest {
         new CancellationSignal()
       );
     }
-    report("实际 SAF 已验证：4 文件、含已有子目录，已知/未知长度两轮，源内容/属性保持，缓存释放");
+    report("实际 SAF 已验证：4 文件、含已有子目录，源内容和属性保持，缓存释放");
   }
 
   private void assertCleanCache() throws Exception {

@@ -1,19 +1,15 @@
 package io.github.galgame.savedatasync;
 
-import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -183,46 +179,6 @@ public class TransferHttpTest {
           )
         ).code
       );
-    }
-  }
-
-  @Test
-  public void archiveUploadHasExactLengthHashAndBoundedBuffers() throws Exception {
-    byte[] content = new byte[131073];
-    for (int i = 0; i < content.length; i++) {
-      content[i] = (byte) (i * 31 + 7);
-    }
-    String hash = ArchiveFormat.hex(ArchiveFormat.sha256().digest(content));
-    List<Long> progress = new ArrayList<>();
-    try (
-      Server server = new Server((socket, headers, bytes) -> {
-        assertArrayEquals(content, bytes);
-        assertTrue(
-          headers.toLowerCase(java.util.Locale.ROOT).contains("x-archive-sha256: " + hash)
-        );
-        assertTrue(headers.contains("Content-Length: 131073"));
-        socket.getOutputStream().write(response(202, jsonHeaders(OK), OK));
-      })
-    ) {
-      InputStream source = new ByteArrayInputStream(content) {
-        @Override
-        public synchronized int read(byte[] bytes, int offset, int length) {
-          assertTrue(length <= 65536);
-          return super.read(bytes, offset, length);
-        }
-      };
-      assertEquals(
-        Boolean.TRUE,
-        new TransferHttp.Client(server.address()).upload(
-          "/v1/transfers/id/content",
-          "session-1",
-          new ArchiveModel.Descriptor(content.length, 1024, hash),
-          source,
-          new ArchiveControl(),
-          (stage, count, total) -> progress.add(count)
-        )
-      );
-      assertEquals(Long.valueOf(content.length), progress.get(progress.size() - 1));
     }
   }
 

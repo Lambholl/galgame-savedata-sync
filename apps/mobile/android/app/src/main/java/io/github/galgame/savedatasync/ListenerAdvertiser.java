@@ -45,7 +45,7 @@ final class ListenerAdvertiser {
     next.setServiceName(instanceName(displayName));
     next.setServiceType(SERVICE_TYPE);
     next.setPort(port);
-    next.setAttribute("v", "2");
+    next.setAttribute("v", "3");
     next.setAttribute("id", deviceId);
     next.setAttribute("pf", "android");
     main.post(() -> {

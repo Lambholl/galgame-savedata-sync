@@ -11,7 +11,6 @@ import { createWindowsArchiveAdapter } from './archive-adapter.ts'
 import { WindowsHttpService } from './http-service.ts'
 import { WindowsDiscoveryAdvertiser } from './discovery-advertiser.ts'
 import { HttpOperationError, toHttpError } from './http-errors.ts'
-import { WindowsNewFilePublisher } from './new-file-publisher.ts'
 import { registerServiceIpc } from './service-ipc.ts'
 import { ServicePortSettings } from './service-port-settings.ts'
 import { DesktopLibrary } from './library-store.ts'
@@ -114,8 +113,6 @@ if (hasInstanceLock) {
       const adapter = await createDirectoryAdapter(join(privateDirectory, 'directory-config.json'))
       initializationStage = 'archive-cache'
       const archive = await createWindowsArchiveAdapter(adapter, privateDirectory)
-      // 已配置的存档目录在每次接收前重新核实写入权限。
-      const publisher = new WindowsNewFilePublisher(adapter)
       initializationStage = 'library'
       const library = new DesktopLibrary(join(privateDirectory, 'game-library.json'), adapter)
       await library.load()
@@ -166,20 +163,10 @@ if (hasInstanceLock) {
       const portSettings = new ServicePortSettings(join(privateDirectory, 'service-settings.json'))
       await portSettings.load()
       initializationStage = 'services'
-      const httpService = new WindowsHttpService(adapter, archive, {
+      const httpService = new WindowsHttpService(adapter, {
         scanSource: adapter,
-        publisher,
         library,
         sync: { writer: syncWriter, backups, archive },
-        authorizeTarget: async (rootId) => {
-          if (!library.snapshot().config.games.some((game) => game.rootId === rootId)) {
-            throw new HttpOperationError(
-              'permission-denied',
-              'The receive directory is not configured for a game.',
-            )
-          }
-          await publisher.grant(rootId)
-        },
       })
       const advertiser = new WindowsDiscoveryAdvertiser()
       const restores = new WindowsRestoreRegistry({
@@ -254,13 +241,8 @@ if (hasInstanceLock) {
           // HTTP 服务停止失败时也要撤下广播；广播的 stop 不会 reject。
           .finally(() => advertiser.stop())
           .then(() => restores.stop())
-          .then(() => Promise.allSettled([publisher.stop(), syncWriter.stop()]))
-          .then(async (results) => {
-            for (const result of results) {
-              if (result.status === 'rejected') {
-                throw toHttpError(result.reason)
-              }
-            }
+          .then(() => syncWriter.stop())
+          .then(async () => {
             // 目标任务释放成功后再关闭备份，清理失败时保留存储供重试。
             await backups.stop()
             canQuit = true
@@ -285,7 +267,7 @@ if (hasInstanceLock) {
           isTrustedDirectorySender(event, trustedWindows, expectedRendererUrl),
       })
       app.once('will-quit', disposeDirectoryIpc)
-      const disposeServiceIpc = registerServiceIpc(ipcMain, adapter, httpService, publisher, {
+      const disposeServiceIpc = registerServiceIpc(ipcMain, adapter, httpService, {
         portSettings,
         advertiser,
         isTrustedSender: (event) =>

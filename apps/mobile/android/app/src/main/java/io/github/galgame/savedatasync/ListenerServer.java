@@ -437,7 +437,7 @@ final class ListenerServer {
       "device",
       object(
         "protocolVersion",
-        2,
+        3,
         "deviceId",
         host.deviceId(),
         "displayName",
@@ -445,18 +445,7 @@ final class ListenerServer {
         "platform",
         "android",
         "capabilities",
-        object(
-          "canListRoots",
-          "supported",
-          "canReadFiles",
-          "unsupported",
-          "canReceiveFiles",
-          "unsupported",
-          "canQueryTransfers",
-          "unsupported",
-          "canCancelTransfers",
-          "unsupported"
-        )
+        object("canListRoots", "supported")
       ),
       "sessionId",
       sessionId,

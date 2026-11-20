@@ -1,6 +1,4 @@
 import {
-  isBatchState,
-  isDirectoryReference,
   isDirectorySelectionResult,
   isIpv4Address,
   isOpaqueId,
@@ -10,8 +8,6 @@ import {
   MAX_CANDIDATE_ADDRESSES,
 } from '@savedata-sync/shared'
 import type {
-  BatchState,
-  DirectoryReference,
   DirectorySelectionResult,
   OperationError,
   OperationResult,
@@ -38,8 +34,6 @@ export interface DesktopServiceSnapshot {
   } | null
   readonly error: OperationError | null
   readonly discovery: DesktopDiscoveryState
-  readonly targets: readonly DirectoryReference[]
-  readonly tasks: readonly BatchState[]
 }
 
 /** 本机 HTTP 服务在局域网的 mDNS 广播状态。 */
@@ -84,9 +78,6 @@ export const SERVICE_CHANNELS = {
   randomizePort: 'service:randomize-port',
   stop: 'service:stop',
   chooseTarget: 'service:choose-target',
-  revokeTarget: 'service:revoke-target',
-  cancel: 'service:cancel',
-  cleanup: 'service:cleanup',
   scanStart: 'service:scan-start',
   scanQuery: 'service:scan-query',
   scanCancel: 'service:scan-cancel',
@@ -102,14 +93,8 @@ export interface DesktopServiceApi {
   randomizePort(): Promise<OperationResult<DesktopServiceSnapshot>>
   /** 停止服务。 */
   stop(): Promise<OperationResult<DesktopServiceSnapshot>>
-  /** 打开系统目录选择器，把所选目录登记为接收目标。 */
+  /** 打开系统目录选择器并登记所选目录。 */
   chooseTarget(): Promise<DirectorySelectionResult>
-  /** 撤销一个接收目标的登记。 */
-  revokeTarget(rootId: string): Promise<OperationResult<DesktopServiceSnapshot>>
-  /** 取消一次批量传输。 */
-  cancel(transferId: string): Promise<OperationResult<DesktopServiceSnapshot>>
-  /** 重试失败的缓存清理。 */
-  retryCleanup(): Promise<OperationResult<DesktopServiceSnapshot>>
   /** 开始扫描一个本机根目录。 */
   startScan(rootId: string): Promise<OperationResult<SyncScanState>>
   /** 读取扫描状态。 */
@@ -127,9 +112,7 @@ function isSnapshot(value: unknown): value is DesktopServiceSnapshot {
     !('configuredPort' in value) ||
     !('listener' in value) ||
     !('error' in value) ||
-    !('discovery' in value) ||
-    !('targets' in value) ||
-    !('tasks' in value)
+    !('discovery' in value)
   ) {
     return false
   }
@@ -160,11 +143,7 @@ function isSnapshot(value: unknown): value is DesktopServiceSnapshot {
         typeof listener.startedAt === 'number' &&
         Number.isSafeInteger(listener.startedAt))) &&
     (value.error === null || isOperationError(value.error)) &&
-    isDiscoveryState(value.discovery) &&
-    Array.isArray(value.targets) &&
-    value.targets.every(isDirectoryReference) &&
-    Array.isArray(value.tasks) &&
-    value.tasks.every(isBatchState)
+    isDiscoveryState(value.discovery)
   )
 }
 
@@ -232,15 +211,6 @@ export function createServiceBridge(
         return failure
       }
     },
-    revokeTarget: (rootId: string) =>
-      isOpaqueId(rootId)
-        ? call(SERVICE_CHANNELS.revokeTarget, { rootId })
-        : Promise.resolve(failure),
-    cancel: (transferId: string) =>
-      isOpaqueId(transferId)
-        ? call(SERVICE_CHANNELS.cancel, { transferId })
-        : Promise.resolve(failure),
-    retryCleanup: () => call(SERVICE_CHANNELS.cleanup),
     startScan: (rootId: string) => scanCall(SERVICE_CHANNELS.scanStart, 'rootId', rootId),
     queryScan: (scanId: string) => scanCall(SERVICE_CHANNELS.scanQuery, 'scanId', scanId),
     cancelScan: (scanId: string) => scanCall(SERVICE_CHANNELS.scanCancel, 'scanId', scanId),

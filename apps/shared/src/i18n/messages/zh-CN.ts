@@ -375,18 +375,10 @@ export const zhCN = {
   'game.linkCount': ({ count }: { count: number }): string => `已关联 ${count} 台设备`,
   'game.removeTitle': '移除游戏',
   'game.removeText': '移除游戏配置、设备关联和这个游戏的备份，保留存档文件。',
-  'game.transferRunning': '传输进行中',
 
   'transfer.started': '已开始传输',
   'transfer.remoteScanRequest': ({ device, name }: { device: string; name: string }): string =>
     `${device} 请求扫描 ${name}`,
-  'task.loading': '正在读取任务',
-  'task.remoteToLocal': '对方设备 → 本机',
-  'task.localToRemote': '本机 → 对方设备',
-  'task.sent': '已发送',
-  'task.archiveProgress': ({ done, total }: { done: string; total: string }): string =>
-    `已传输 ${done} / ${total}`,
-  'task.retryCleanup': '重试清理',
   'task.cleanupPending': '文件已传输，临时文件还没有清理完，请查看传输详情。',
   'backup.status.preparing': '准备中',
   'backup.status.ready': '等待确认',

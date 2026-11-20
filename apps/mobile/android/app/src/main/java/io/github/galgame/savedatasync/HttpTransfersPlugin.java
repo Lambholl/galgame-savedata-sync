@@ -8,10 +8,8 @@ import static io.github.galgame.savedatasync.TransferSchema.directory;
 import static io.github.galgame.savedatasync.TransferSchema.error;
 import static io.github.galgame.savedatasync.TransferSchema.id;
 import static io.github.galgame.savedatasync.TransferSchema.parent;
-import static io.github.galgame.savedatasync.TransferSchema.require;
 import static io.github.galgame.savedatasync.TransferSchema.shape;
 import static io.github.galgame.savedatasync.TransferSchema.string;
-import static io.github.galgame.savedatasync.TransferSchema.text;
 
 import android.app.Activity;
 import android.content.Intent;
@@ -37,7 +35,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-/** 批量传输的原生插件：传输在持续通知服务里进行，Activity 销毁后继续。 */
+/** 设备连接的原生插件：连接、交换目录表、控制通道、浏览对方目录，以及选择存档目录和请求通知权限。 */
 @CapacitorPlugin(
   name = "HttpTransfers",
   permissions = @Permission(
@@ -52,18 +50,6 @@ public class HttpTransfersPlugin extends Plugin {
   private final AtomicBoolean choosing = new AtomicBoolean();
   private volatile boolean isDestroyed;
   private TransferRuntime runtime;
-  private final TransferEngine.Listener listener = value -> {
-    if (!isDestroyed) {
-      try {
-        notifyListeners("transferState", json(value));
-      } catch (Exception cause) {
-        throw new IllegalStateException(
-          "Task status notification failed. Query the actual result.",
-          cause
-        );
-      }
-    }
-  };
   private final TransferEngine.ControlListener control = new TransferEngine.ControlListener() {
     @Override
     public void message(String deviceId, String text) {
@@ -93,7 +79,6 @@ public class HttpTransfersPlugin extends Plugin {
     }
     if (runtime == null) {
       runtime = TransferRuntime.get(getContext());
-      runtime.attach(listener);
       runtime.engine.controlListener(control);
     }
     return runtime.engine;
@@ -153,9 +138,7 @@ public class HttpTransfersPlugin extends Plugin {
             throw fail("unsupported-operation");
           }
           Object value = work.run(control);
-          if (!call.getMethodName().startsWith("start")) {
-            control.check();
-          }
+          control.check();
           call.resolve(json(object("status", "success", "value", value)));
         } catch (Exception cause) {
           try {
@@ -272,65 +255,6 @@ public class HttpTransfersPlugin extends Plugin {
     submit(call, c -> {
       Map<String, Object> a = arguments(call, "rootId", "parentId");
       return engine().directory(id(a.get("rootId")), parent(a.get("parentId")), c);
-    });
-  }
-
-  @PluginMethod
-  public void startDownload(PluginCall call) {
-    submit(call, c -> {
-      engine();
-      return runtime.start(arguments(call, "request", "targetRootId", "targets"), false);
-    });
-  }
-
-  @PluginMethod
-  public void startUpload(PluginCall call) {
-    submit(call, c -> {
-      engine();
-      return runtime.start(arguments(call, "request", "targetRootId", "targets"), true);
-    });
-  }
-
-  @PluginMethod
-  public void current(PluginCall call) {
-    submit(call, c -> {
-      arguments(call);
-      return engine().current();
-    });
-  }
-
-  @PluginMethod
-  public void query(PluginCall call) {
-    submit(call, c -> engine().query(id(arguments(call, "transferId").get("transferId"))));
-  }
-
-  @PluginMethod
-  public void getManifest(PluginCall call) {
-    submit(call, c -> engine().manifest(id(arguments(call, "transferId").get("transferId"))));
-  }
-
-  @PluginMethod
-  public void queryRemote(PluginCall call) {
-    submit(call, c -> {
-      Map<String, Object> a = arguments(call, "transferId", "shouldRefresh");
-      require(a.get("shouldRefresh") instanceof Boolean);
-      return engine().remoteState(id(a.get("transferId")), (Boolean) a.get("shouldRefresh"), c);
-    });
-  }
-
-  @PluginMethod
-  public void cancel(PluginCall call) {
-    submit(call, c -> {
-      engine().cancel(id(arguments(call, "transferId").get("transferId")));
-      return null;
-    });
-  }
-
-  @PluginMethod
-  public void retryCleanup(PluginCall call) {
-    submit(call, c -> {
-      arguments(call);
-      return engine().retryCleanup();
     });
   }
 
@@ -484,9 +408,6 @@ public class HttpTransfersPlugin extends Plugin {
             data.getFlags(),
             new CancellationSignal()
           );
-          engine();
-          String root = directory.getString("rootId");
-          runtime.publisher.grant(root);
           call.resolve(
             json(
               object(
@@ -535,7 +456,6 @@ public class HttpTransfersPlugin extends Plugin {
     }
     synchronized (this) {
       if (runtime != null) {
-        runtime.detach(listener);
         runtime.engine.releaseControlListener(control);
       }
     }

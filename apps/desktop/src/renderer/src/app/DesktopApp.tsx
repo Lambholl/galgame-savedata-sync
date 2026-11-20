@@ -9,7 +9,6 @@ import {
   createImportedGame,
   OperationFailure,
   toShownError,
-  taskIsActive,
   unwrap,
 } from '@savedata-sync/shared'
 import type {
@@ -33,7 +32,6 @@ import { DesktopShell } from './DesktopShell.tsx'
 import type { AppPreferencesState } from './use-app-preferences.ts'
 import {
   GameActions,
-  legacyTaskPreview,
   restoreTaskPreview,
   syncTaskPreview,
   usePageNavigation,
@@ -142,7 +140,7 @@ export function DesktopApp({
   const openPeerTransfer = useRef<(projectId: string, jobId: string) => void>(() => undefined)
   const refresh = useCallback(async (): Promise<void> => {
     const version = ++generation.current
-    const value = await adapter.read(t, pageRef.current === 'devices')
+    const value = await adapter.read(pageRef.current === 'devices')
     if (version === generation.current) {
       const previous = snapshotRef.current
       // 打开应用时已经在进行的传输不算刚开始，不切页面。
@@ -298,10 +296,7 @@ export function DesktopApp({
   )
   const localRoot = snapshot?.roots.find((item) => item.rootId === game?.rootId) ?? null
   const isActive = snapshot?.hasActiveOperation ?? false
-  const hasRunningNetworkWork = Boolean(
-    snapshot?.tasks.some((task) => task.local?.status === 'running') ||
-    snapshot?.copies.some((task) => task.phase === 'running'),
-  )
+  const hasRunningNetworkWork = Boolean(snapshot?.copies.some((task) => task.phase === 'running'))
   const hasRunningWork =
     hasRunningNetworkWork || Boolean(snapshot?.restores.some((task) => task.isWorking))
   const isDisabled = isBusy || !snapshot
@@ -318,21 +313,14 @@ export function DesktopApp({
     .sort((a, b) => b.updatedAt - a.updatedAt)
   const restore = restoresByRecent.find((item) => item.isWorking) ?? restoresByRecent[0] ?? null
   const copyPreview = copy ? syncTaskPreview(copy, t) : null
-  const legacy = snapshot?.tasks.find(taskIsActive) ?? snapshot?.tasks.at(-1) ?? null
-  const shouldShowLegacy = legacy && (taskIsActive(legacy) || (!copy && !restore))
   const shouldShowCopy =
     copy &&
     (copy.phase === 'running' ||
       !restore ||
       (!restore.isWorking && copy.updatedAt >= restore.updatedAt))
-  const stripProjectId = shouldShowLegacy
-    ? null
-    : shouldShowCopy
-      ? copy.projectId
-      : (restore?.projectId ?? null)
-  const stripTask: TaskStripInfo | null = shouldShowLegacy
-    ? { ...legacyTaskPreview(legacy, t), gameName: legacy.title }
-    : shouldShowCopy && copyPreview
+  const stripProjectId = shouldShowCopy ? copy.projectId : (restore?.projectId ?? null)
+  const stripTask: TaskStripInfo | null =
+    shouldShowCopy && copyPreview
       ? {
           ...copyPreview,
           gameName:
@@ -723,8 +711,8 @@ export function DesktopApp({
         onOpenTasks={() =>
           openTasks(
             stripProjectId,
-            !shouldShowLegacy && shouldShowCopy ? copy.jobId : null,
-            !shouldShowLegacy && !shouldShowCopy ? (restore?.restoreId ?? null) : null,
+            shouldShowCopy ? copy.jobId : null,
+            shouldShowCopy ? null : (restore?.restoreId ?? null),
           )
         }
       />
@@ -801,7 +789,6 @@ export function DesktopApp({
         initialCopyId={taskCopyId}
         initialRestoreId={taskRestoreId}
         projectId={taskProjectId}
-        tasks={taskProjectId === null ? (snapshot?.tasks ?? []) : []}
         copies={
           snapshot?.copies.filter(
             (item) => taskProjectId === null || item.projectId === taskProjectId,
@@ -815,9 +802,6 @@ export function DesktopApp({
         games={config.games}
         peers={peers}
         isActive={isActive}
-        isBusy={isBusy}
-        onCancel={(id) => run(() => adapter.cancel(id))}
-        onCleanup={() => run(() => adapter.cleanup())}
         onChanged={tasksChanged}
         onOpenBackup={(projectId, shownCopyId) =>
           openBackup(projectId, {

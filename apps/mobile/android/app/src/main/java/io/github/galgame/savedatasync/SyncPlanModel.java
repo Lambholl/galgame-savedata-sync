@@ -14,7 +14,6 @@ import static io.github.galgame.savedatasync.TransferSchema.parent;
 import static io.github.galgame.savedatasync.TransferSchema.require;
 import static io.github.galgame.savedatasync.TransferSchema.shape;
 import static io.github.galgame.savedatasync.TransferSchema.string;
-import static io.github.galgame.savedatasync.TransferSchema.target;
 
 import java.util.ArrayList;
 import java.util.HashSet;

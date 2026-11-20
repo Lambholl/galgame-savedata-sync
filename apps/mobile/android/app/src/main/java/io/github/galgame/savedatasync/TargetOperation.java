@@ -2,7 +2,7 @@ package io.github.galgame.savedatasync;
 
 import java.util.concurrent.atomic.AtomicReference;
 
-/** 批量传输、复制任务和恢复共用的进程名额；清理完成后才释放。 */
+/** 复制任务和恢复共用的进程名额；清理完成后才释放。 */
 final class TargetOperation {
 
   private static final AtomicReference<Object> OWNER = new AtomicReference<>();

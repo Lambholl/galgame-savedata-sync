@@ -6,8 +6,6 @@ import type {
   LibraryGame,
   LibraryPeer,
   OperationResult,
-  TransferTask,
-  Translate,
 } from '@savedata-sync/shared'
 import type { DesktopDiscoveryState } from '../../../bridge/service-bridge.ts'
 import type { DesktopCopySummary, DesktopRestoreSummary } from '../../../bridge/sync-bridge.ts'
@@ -30,7 +28,7 @@ export interface DesktopServiceView {
   readonly discovery: DesktopDiscoveryState
 }
 
-/** 游戏库、服务和任务的快照。 */
+/** 游戏库、服务、复制和恢复任务的快照。 */
 export interface DesktopSnapshot {
   readonly warning: string | null
   readonly config: LibraryConfig
@@ -41,15 +39,14 @@ export interface DesktopSnapshot {
   readonly service: DesktopServiceView | null
   /** 本机作为拨号方的连接和附近的设备。 */
   readonly dialer: DesktopDialerSnapshot
-  readonly tasks: readonly TransferTask[]
   readonly copies: readonly DesktopCopySummary[]
   readonly restores: readonly DesktopRestoreSummary[]
   readonly hasActiveOperation: boolean
 }
 /** 桌面游戏库接口。directory 以外的方法失败时 reject。 */
 export interface DesktopLibraryAdapter {
-  /** 读取快照；任务的方向标题按 t 的语言生成。shouldWatchNearby 为 true 时续期局域网搜索。 */
-  read(t: Translate, shouldWatchNearby: boolean): Promise<DesktopSnapshot>
+  /** 读取快照；shouldWatchNearby 为 true 时续期局域网搜索。 */
+  read(shouldWatchNearby: boolean): Promise<DesktopSnapshot>
   /** 用 games 替换全部本机游戏。 */
   saveGames(games: readonly LibraryGame[]): Promise<void>
   /** 打开系统目录选择器并登记所选目录。 */
@@ -66,10 +63,6 @@ export interface DesktopLibraryAdapter {
     rootId: string,
     parentId: string | null,
   ): Promise<OperationResult<DirectoryListing>>
-  /** 取消一次批量传输。 */
-  cancel(id: string): Promise<void>
-  /** 重试失败的缓存清理。 */
-  cleanup(): Promise<void>
   /** shouldStart 为 true 时在 port 启动服务，否则停止服务。 */
   service(shouldStart: boolean, port: number): Promise<void>
   /** 换一个随机端口，返回新端口。 */

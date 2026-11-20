@@ -1,44 +1,16 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import {
-  BATCH_LIMITS,
-  BATCH_RESOURCES,
-  BATCH_TIMEOUTS_MS,
-  HTTP_ERROR_STATUS,
-  HTTP_HEADERS,
-  HTTP_ROUTES,
-  isBatchDeviceDescriptor,
-  isBatchFileId,
-  isBatchLimits,
-  isBatchManifest,
-  isBatchState,
-  isDownloadBatchRequest,
-  isOperationError,
-  isPreparedFile,
-} from '../src/index.ts'
-import {
-  createManifest,
-  createReceiveRequest,
-  createReceiverState,
-  createSenderState,
-} from './batch-fixtures.mjs'
-
-const FAILURE = { code: 'io-failure', message: '测试写入失败', canRetry: false }
-const UNKNOWN = { code: 'result-unknown', message: '请核实目标', canRetry: false }
+import { BATCH_LIMITS, isBatchDeviceDescriptor, isBatchLimits } from '../src/index.ts'
 
 test('HTTP 描述包装本地设备，预算不接受协商放宽或额外字段', () => {
   const descriptor = {
     device: {
-      protocolVersion: 2,
+      protocolVersion: 3,
       deviceId: 'device-1',
       displayName: '电脑',
       platform: 'windows',
       capabilities: {
         canListRoots: 'supported',
-        canReadFiles: 'supported',
-        canReceiveFiles: 'unsupported',
-        canQueryTransfers: 'supported',
-        canCancelTransfers: 'supported',
       },
     },
     sessionId: 'session-1',
@@ -49,7 +21,7 @@ test('HTTP 描述包装本地设备，预算不接受协商放宽或额外字段
   assert.equal(
     isBatchDeviceDescriptor({
       ...descriptor,
-      device: { ...descriptor.device, protocolVersion: 1 },
+      device: { ...descriptor.device, protocolVersion: 2 },
     }),
     false,
   )
@@ -58,198 +30,4 @@ test('HTTP 描述包装本地设备，预算不接受协商放宽或额外字段
     assert.equal(isBatchLimits({ ...BATCH_LIMITS, [key]: BATCH_LIMITS[key] + 1 }), false, key)
   }
   assert.equal(isBatchLimits({ ...BATCH_LIMITS, unlimited: true }), false)
-})
-
-test('批内编号是有界连续 ID，不能携带路径、尾随换行或数字强制转换', () => {
-  for (const value of ['f000001', 'f001024']) {
-    assert.equal(isBatchFileId(value), true)
-  }
-  for (const value of [
-    'f000000',
-    'f001025',
-    'f1',
-    'f000001\n',
-    '../f000001',
-    'f０００００１',
-    ['f000001'],
-    null,
-  ]) {
-    assert.equal(isBatchFileId(value), false)
-  }
-  const request = {
-    protocolVersion: 1,
-    transferId: 'batch-1',
-    sourceRootId: 'root-source',
-    files: [
-      { fileId: 'f000001', entryId: 'source-1' },
-      { fileId: 'f000002', entryId: 'source-2' },
-    ],
-  }
-  assert.equal(isDownloadBatchRequest(request), true)
-  for (const files of [
-    [],
-    new Array(1),
-    request.files.toReversed(),
-    [request.files[0], { ...request.files[1], entryId: 'source-1' }],
-    [request.files[0], { ...request.files[1], fileId: 'f000001' }],
-  ]) {
-    assert.equal(isDownloadBatchRequest({ ...request, files }), false)
-  }
-  assert.equal(isDownloadBatchRequest({ ...request, protocolVersion: '1' }), false)
-})
-
-test('已准备清单实测未知长度，严格验证求和及 tar 填充长度', () => {
-  const manifest = createManifest([0, 1, 512, 513])
-  assert.equal(manifest.archive.tarSizeBytes, 5120)
-  assert.equal(isBatchManifest(manifest), true)
-  assert.equal(isBatchManifest({ ...manifest, totalFileBytes: manifest.totalFileBytes + 1 }), false)
-  assert.equal(
-    isBatchManifest({ ...manifest, archive: { ...manifest.archive, tarSizeBytes: 5120 + 512 } }),
-    false,
-  )
-  assert.equal(isBatchManifest({ ...manifest, files: manifest.files.toReversed() }), false)
-  assert.equal(isBatchManifest({ ...manifest, absolutePath: 'C:/private' }), false)
-  const file = manifest.files[0]
-  for (const sizeBytes of [
-    null,
-    undefined,
-    '0',
-    -1,
-    0.5,
-    NaN,
-    Infinity,
-    Number.MAX_SAFE_INTEGER + 1,
-  ]) {
-    assert.equal(isPreparedFile({ ...file, sizeBytes }), false)
-  }
-  assert.equal(isPreparedFile({ ...file, sourceModifiedAt: -1 }), true)
-  assert.equal(isPreparedFile({ ...file, sourceModifiedAt: 8.64e15 + 1 }), false)
-  assert.equal(isPreparedFile({ ...file, sourceName: '\uD800' }), false)
-  assert.equal(isPreparedFile({ ...file, sourceParentId: file.sourceEntryId }), false)
-  assert.equal(
-    isBatchManifest({
-      ...manifest,
-      files: manifest.files.map((item) => ({ ...item, sourceEntryId: 'same-source' })),
-    }),
-    false,
-  )
-})
-
-test('sender 只能准备和发送，不能伪装为 receiver 的目标发布成功', () => {
-  const running = createSenderState()
-  assert.equal(isBatchState(running), true)
-  const end = {
-    transferId: running.transferId,
-    direction: running.direction,
-    role: 'sender',
-    updatedAt: 0,
-    status: 'sent',
-    error: null,
-    fileResults: null,
-    cleanupStatus: 'complete',
-    cleanupError: null,
-  }
-  assert.equal(isBatchState(end), true)
-  assert.equal(isBatchState({ ...end, status: 'succeeded' }), false)
-  assert.equal(isBatchState({ ...running, stage: 'publishing' }), false)
-  assert.equal(
-    isBatchState({ ...running, progress: { ...running.progress, verifiedFiles: 1 } }),
-    false,
-  )
-  assert.equal(
-    isBatchState({
-      ...running,
-      stage: 'ready',
-      progress: { ...running.progress, totalArchiveBytes: null },
-    }),
-    false,
-  )
-  assert.equal(isBatchState({ ...end, progress: running.progress }), false)
-})
-
-test('批次部分失败保留前项成功，后项未尝试，不能报整批成功或继续发布', () => {
-  const request = createReceiveRequest([1, 2, 3])
-  const end = createReceiverState(request)
-  const results = [
-    end.fileResults[0],
-    { fileId: 'f000002', status: 'failed', error: FAILURE, residualEntries: [] },
-    { fileId: 'f000003', status: 'not-attempted', reason: 'prior-failure' },
-  ]
-  const partial = { ...end, status: 'failed', error: FAILURE, fileResults: results }
-  assert.equal(isBatchState(partial), true)
-  assert.equal(isBatchState({ ...partial, status: 'succeeded', error: null }), false)
-  assert.equal(
-    isBatchState({ ...partial, fileResults: [...results.slice(0, 2), end.fileResults[2]] }),
-    false,
-  )
-  assert.equal(
-    isBatchState({
-      ...partial,
-      fileResults: [results[0], { ...results[1], fileId: 'f000001' }, results[2]],
-    }),
-    false,
-  )
-  assert.equal(isBatchState({ ...end, status: 'failed', error: FAILURE }), false)
-})
-
-test('取消与未知有独立实际结果，整批校验失败只标记未尝试', () => {
-  const end = createReceiverState(createReceiveRequest([0, 0]))
-  const cancelled = {
-    ...end,
-    status: 'cancelled',
-    fileResults: [
-      { fileId: 'f000001', status: 'cancelled', residualEntries: [] },
-      { fileId: 'f000002', status: 'not-attempted', reason: 'cancelled' },
-    ],
-  }
-  assert.equal(isBatchState(cancelled), true)
-  assert.equal(isBatchState({ ...cancelled, status: 'failed', error: FAILURE }), false)
-  const unknown = {
-    ...cancelled,
-    status: 'unknown',
-    error: UNKNOWN,
-    fileResults: [
-      { fileId: 'f000001', status: 'unknown', error: UNKNOWN, residualEntries: [] },
-      { fileId: 'f000002', status: 'not-attempted', reason: 'prior-failure' },
-    ],
-  }
-  assert.equal(isBatchState(unknown), true)
-  assert.equal(isBatchState({ ...unknown, error: FAILURE }), false)
-  const invalid = {
-    ...end,
-    status: 'failed',
-    error: { ...FAILURE, code: 'invalid-archive' },
-    fileResults: end.fileResults.map((file) => ({
-      fileId: file.fileId,
-      status: 'not-attempted',
-      reason: 'batch-invalid',
-    })),
-  }
-  assert.equal(isBatchState(invalid), true)
-})
-
-test('v1 批量路由、头和新增错误映射一致，旧会话与未知结果不允许直接重放', () => {
-  assert.equal(HTTP_ROUTES.content, '/v1/transfers/{transferId}/content')
-  assert.equal(HTTP_ROUTES.uploads, '/v1/transfers/uploads')
-  assert.equal(HTTP_HEADERS.sessionId, 'x-sync-session-id')
-  assert.equal(HTTP_HEADERS.archiveSha256, 'x-archive-sha256')
-  for (const [code, status] of [
-    ['session-mismatch', 409],
-    ['task-conflict', 409],
-    ['invalid-archive', 422],
-    ['resource-limit', 413],
-    ['busy', 429],
-    ['timeout', 408],
-  ]) {
-    assert.equal(HTTP_ERROR_STATUS[code], status)
-    assert.equal(isOperationError({ code, message: '测试错误', canRetry: false }), true)
-  }
-  for (const code of ['session-mismatch', 'result-unknown']) {
-    assert.equal(isOperationError({ code, message: '禁止重放', canRetry: true }), false)
-  }
-  assert.equal(
-    BATCH_RESOURCES.maxCacheBytes >= BATCH_LIMITS.maxArchiveBytes + BATCH_LIMITS.maxTotalFileBytes,
-    true,
-  )
-  assert.equal(BATCH_TIMEOUTS_MS.awaitingContent < BATCH_TIMEOUTS_MS.total, true)
 })

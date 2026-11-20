@@ -28,7 +28,6 @@ export interface ArchiveQuota {
   readonly maxFileBytes: number
   readonly maxTotalFileBytes: number
   readonly maxTarBytes: number
-  readonly maxArchiveBytes: number
   readonly maxCacheBytes: number
 }
 
@@ -48,7 +47,6 @@ const DEFAULT_QUOTA: ArchiveQuota = {
   maxFileBytes: BATCH_LIMITS.maxFileBytes,
   maxTotalFileBytes: BATCH_LIMITS.maxTotalFileBytes,
   maxTarBytes: BATCH_LIMITS.maxTarBytes,
-  maxArchiveBytes: BATCH_LIMITS.maxArchiveBytes,
   maxCacheBytes: BATCH_RESOURCES.maxCacheBytes,
 }
 const DEFAULT_IO: ArchiveCacheIO = {
@@ -61,10 +59,10 @@ const DEFAULT_IO: ArchiveCacheIO = {
 let activeJob: ArchiveCacheJob | null = null
 
 function isCacheName(name: string): boolean {
-  if (name === 'archive.tar.gz' || name === 'job.json') {
+  if (name === 'job.json') {
     return true
   }
-  const match = /^(?:raw|file)-(f\d{6})$/.exec(name)
+  const match = /^file-(f\d{6})$/.exec(name)
   return match !== null && isBatchFileId(match[1])
 }
 

@@ -47,19 +47,15 @@ test('协议只接受确切版本，缺失、未来版本和类型强制转换�
     platform: 'windows',
     capabilities: {
       canListRoots: 'supported',
-      canReadFiles: 'supported',
-      canReceiveFiles: 'supported',
-      canQueryTransfers: 'supported',
-      canCancelTransfers: 'supported',
     },
   }
   assert.equal(isDeviceDescriptor(JSON.parse(JSON.stringify(device))), true)
-  for (const protocolVersion of [undefined, null, '2', 1, 3, 2.1, Infinity]) {
+  for (const protocolVersion of [undefined, null, '3', 2, 4, 3.1, Infinity]) {
     assert.equal(isProtocolVersionSupported(protocolVersion), false)
     assert.equal(isDeviceDescriptor({ ...device, protocolVersion }), false)
   }
   assert.equal(
-    isDeviceDescriptor({ ...device, capabilities: { ...device.capabilities, canReadFiles: true } }),
+    isDeviceDescriptor({ ...device, capabilities: { ...device.capabilities, canListRoots: true } }),
     false,
   )
 })

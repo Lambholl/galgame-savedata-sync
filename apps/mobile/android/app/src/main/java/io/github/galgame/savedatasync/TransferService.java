@@ -29,7 +29,6 @@ public class TransferService extends Service {
   private static CompletableFuture<Void> startup;
   private static volatile boolean isRunning;
   private final Handler handler = new Handler(Looper.getMainLooper());
-  private TransferRuntime runtime;
   private int lastStartId;
 
   static void prepareChannel(Context context) {
@@ -92,18 +91,12 @@ public class TransferService extends Service {
   public void onCreate() {
     super.onCreate();
     prepareChannel(this);
-    try {
-      runtime = TransferRuntime.get(this);
-    } catch (Exception cause) {
-      ready(cause);
-      stopSelf();
-    }
   }
 
   @Override
   public int onStartCommand(Intent intent, int flags, int startId) {
     lastStartId = startId;
-    if (runtime == null || intent == null) {
+    if (intent == null) {
       stopSelf();
       return START_NOT_STICKY;
     }
@@ -118,18 +111,10 @@ public class TransferService extends Service {
       isRunning = true;
       ready(null);
       SyncTransferRuntime sync = SyncTransferRuntime.peek();
-      if (CANCEL.equals(action)) {
-        if (sync != null && sync.busy()) {
-          sync.cancel(id, false);
-        } else {
-          runtime.cancel(id, false);
-        }
-      } else if (RETRY.equals(action)) {
-        if (sync != null && sync.busy()) {
-          sync.retry(id);
-        } else {
-          runtime.retry(id);
-        }
+      if (sync != null && CANCEL.equals(action)) {
+        sync.cancel(id, false);
+      } else if (sync != null && RETRY.equals(action)) {
+        sync.retry(id);
       }
       handler.removeCallbacks(refresh);
       handler.postDelayed(refresh, 300);
@@ -144,7 +129,7 @@ public class TransferService extends Service {
     @Override
     public void run() {
       SyncTransferRuntime sync = SyncTransferRuntime.peek();
-      if ((runtime == null || !runtime.busy()) && (sync == null || !sync.busy())) {
+      if (sync == null || !sync.busy()) {
         stopForeground(STOP_FOREGROUND_REMOVE);
         stopSelfResult(lastStartId);
         return;
@@ -159,8 +144,7 @@ public class TransferService extends Service {
     Context localized = AppPreferencesPlugin.localizedContext(this);
     prepareChannel(localized);
     SyncTransferRuntime sync = SyncTransferRuntime.peek();
-    Map<String, Object> state =
-      sync != null && sync.busy() ? sync.notice() : runtime == null ? null : runtime.notice();
+    Map<String, Object> state = sync != null && sync.busy() ? sync.notice() : null;
     String id = state == null ? null : (String) state.get("transferId");
     boolean isUpload = state != null && Boolean.TRUE.equals(state.get("isUpload"));
     boolean isActive = state == null || Boolean.TRUE.equals(state.get("running"));
@@ -176,10 +160,6 @@ public class TransferService extends Service {
       case "transferring":
         textResource = R.string.transfer_stage_transferring;
         break;
-      case "verifying":
-        textResource = R.string.transfer_stage_verifying;
-        break;
-      case "publishing":
       case "writing":
         textResource = R.string.transfer_stage_writing;
         break;
@@ -252,28 +232,21 @@ public class TransferService extends Service {
     Long completed = null;
     Long total = null;
     if (progress != null) {
-      // 复制任务按文件内容字节计传输进度，批量传输按归档字节计。
-      boolean isSync = progress.containsKey("transferredBytes");
+      // 准备、确认等阶段没有计数，通知显示不定进度。
       String doneKey = stage.equals("transferring")
-        ? isSync
-          ? "transferredBytes"
-          : "archiveBytesTransferred"
-        : stage.equals("verifying")
-          ? "fileBytesVerified"
-          : stage.equals("backing-up")
-            ? "backupBytesCopied"
-            : stage.equals("publishing") || stage.equals("writing")
-              ? "publishedFiles"
-              : "sourceBytesRead";
+        ? "transferredBytes"
+        : stage.equals("backing-up")
+          ? "backupBytesCopied"
+          : stage.equals("writing")
+            ? "publishedFiles"
+            : null;
       String totalKey = stage.equals("transferring")
-        ? isSync
-          ? "totalFileBytes"
-          : "totalArchiveBytes"
+        ? "totalFileBytes"
         : stage.equals("backing-up")
           ? "totalBackupBytes"
-          : stage.equals("publishing") || stage.equals("writing")
+          : stage.equals("writing")
             ? "totalFiles"
-            : "totalFileBytes";
+            : null;
       if (progress.get(doneKey) instanceof Number) {
         completed = ((Number) progress.get(doneKey)).longValue();
       }
@@ -295,8 +268,6 @@ public class TransferService extends Service {
     SyncTransferRuntime sync = SyncTransferRuntime.peek();
     if (sync != null && sync.busy()) {
       sync.cancel(sync.activeId(), true);
-    } else if (runtime != null) {
-      runtime.cancel(runtime.engine.activeId(), true);
     }
     stopForeground(STOP_FOREGROUND_REMOVE);
     stopSelf();
@@ -306,9 +277,6 @@ public class TransferService extends Service {
   public void onDestroy() {
     isRunning = false;
     handler.removeCallbacksAndMessages(null);
-    if (runtime != null && runtime.busy()) {
-      runtime.cancel(runtime.engine.activeId(), false);
-    }
     SyncTransferRuntime sync = SyncTransferRuntime.peek();
     if (sync != null && sync.busy()) {
       sync.cancel(sync.activeId(), false);

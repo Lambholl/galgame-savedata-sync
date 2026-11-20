@@ -39,7 +39,7 @@ tags: [架构总览]
 | 文件夹不汇总大小 | 目录大小列建议显示“—”，不递归汇总后代文件字节数；修改日期读取目录自身元数据。同步枚举后代文件不属于目录大小计算 |
 | 界面与平台能力分离 | apps 下分 mobile、desktop、shared；模型、业务规则和与平台交互无关的渲染放 shared，平台交互、页面状态和 Hook 各端实现。两端文件始终并列，列内布局按列宽切换 |
 | 文件以流传输 | 文件内容通过 Node.js 或 Android 原生流读取和发送，避免将整份文件转为 Base64 跨 JS 桥传递 |
-| tar.gz 流式传输 | 双向统一把本次待传文件边读边打包为 tar.gz，经分块 HTTP 原生流发送；接收端边收边解包到私有目录，内容收齐后逐文件写入目标，批量边界不改变文件级结果语义 |
+| tar.gz 流式传输 | 双向统一把本次待传文件边读边打包为 tar.gz，经分块 HTTP 原生流发送；接收端边收边解包到私有目录，内容收齐后逐文件写入目标，逐项报告结果 |
 | Android 活动传输 | 业务不判断前后台；仅用户显式发起的传输通过持续通知/dataSync 前台服务保持，Activity 销毁后原传输继续，完成/显式取消及清理后退出。M-005 起本机服务开着时由 `connectedDevice` 前台服务和常驻通知保持监听，用户关掉才停，被系统结束后不自动重启。普通操作不处理切后台后的成败，不引入自动同步或旧任务重放 |
 | 独立备份 | 备份可关闭、默认开启，每个游戏保留 1–10 份（默认 3 份）；目标端备份区位于同步目录之外，不参与方向或差异判定 |
 | 任务安全边界 | 同一时间只有一个写入任务；内容先解包到私有区，收齐后才写入目标，失败时报告实际结果；SAF 不能原子替换整个目录 |
@@ -101,6 +101,6 @@ tags: [架构总览]
 | 连接与传输角色 | 监听方提供服务、拨号方编排传输，方向和两端按角色命名；一台设备同一时刻只有一条连接；见 [ADR-0004](../decisions/ADR-0004-symmetric-listener-dialer-roles.md) | accepted |
 | 复制与备份 | 默认覆盖复制并保留目标多出的条目，每次可选择删除。备份可关闭、默认开启，每个游戏保留 1–10 份（默认 3 份） | accepted |
 | Android 生命周期 | 不判断前后台，只保持传输和用户开着的本机服务（M-005）；普通操作不处理切后台后的成败。任务由用户显式发起，自动调度不在范围内；连接可用时两端均可发起任务 | accepted |
-| 文件传输格式 | 双向唯一 tar.gz，边打包边发送、边收边解包；内容收齐且备份完成后才逐项写入；见[传输协议](transfer-protocol.md) | accepted |
+| 文件传输格式 | 双向唯一 tar.gz，边打包边发送、边收边解包；内容收齐且备份完成后才逐项写入；见[设备接口与归档格式](transfer-protocol.md) | accepted |
 
 上述结论记录于[开放问题](../requirements/open-questions.md)、[ADR-0002](../decisions/ADR-0002-ui-library-and-shared-rendering.md)和[ADR-0004](../decisions/ADR-0004-symmetric-listener-dialer-roles.md)。参考：[Ant Design](https://ant.design/docs/react/introduce/)、[Ant Design Mobile](https://github.com/ant-design/ant-design-mobile)、[Capacitor Android](https://capacitorjs.com/docs/android)、[Android NSD](https://developer.android.com/develop/connectivity/wifi/use-nsd)、[SAF 文件属性](https://developer.android.com/reference/android/provider/DocumentsContract.Document)。

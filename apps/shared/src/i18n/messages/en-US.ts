@@ -374,16 +374,9 @@ export const enUS: Messages = {
   'game.removeTitle': 'Remove game',
   'game.removeText':
     "Removes the game settings, device links, and this game's backups. Save files are kept.",
-  'game.transferRunning': 'Transfer in progress',
 
   'transfer.started': 'Transfer started',
   'transfer.remoteScanRequest': ({ device, name }) => `${device} asked to scan ${name}`,
-  'task.loading': 'Loading the transfer',
-  'task.remoteToLocal': 'Other device → This device',
-  'task.localToRemote': 'This device → Other device',
-  'task.sent': 'Sent',
-  'task.archiveProgress': ({ done, total }) => `Transferred ${done} / ${total}`,
-  'task.retryCleanup': 'Retry cleanup',
   'task.cleanupPending':
     'Files transferred, but temporary files are not cleaned up yet. Check the transfer details.',
   'backup.status.preparing': 'Preparing',

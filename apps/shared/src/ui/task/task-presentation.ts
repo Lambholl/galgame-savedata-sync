@@ -1,7 +1,5 @@
 import type { Translate } from '../../i18n/translate.ts'
 import type { SyncJobObservation, SyncTaskPhase } from '../../sync/sync-job-observation.ts'
-import type { TransferTask } from '../../transfer/transfer.ts'
-import { taskIsActive } from '../../transfer/transfer.ts'
 
 /** 三段进度的本地化键。 */
 export const SYNC_TASK_STEPS = [
@@ -26,7 +24,7 @@ export interface TaskPreview {
   readonly percent: number | null
   /** 决定图标与语义色的任务状态。 */
   readonly phase: SyncTaskPhase
-  /** 复制任务的三段步骤；恢复和批量传输用 null。 */
+  /** 复制任务的三段步骤；恢复用 null。 */
   readonly steps: TaskStepProgress | null
 }
 
@@ -114,28 +112,4 @@ export function restoreTaskPreview(
     phase: phases[status],
     steps: null,
   }
-}
-
-/** 由批量传输任务生成短状态；steps 和 percent 为 null。 */
-export function legacyTaskPreview(task: TransferTask, t: Translate): TaskPreview {
-  const state = task.remote?.role === 'receiver' ? task.remote : task.local
-  const isRunning = taskIsActive(task)
-  const status = state?.status
-  const phase: SyncTaskPhase = isRunning
-    ? 'running'
-    : status === 'succeeded'
-      ? 'done'
-      : status === 'failed'
-        ? 'failed'
-        : status === 'cancelled'
-          ? 'cancelled'
-          : 'unknown'
-  const title = {
-    running: 'game.transferRunning',
-    done: 'task.done',
-    failed: 'task.failed',
-    cancelled: 'task.cancelled',
-    unknown: 'task.unknown',
-  } as const
-  return { status: t(title[phase]), percent: null, phase, steps: null }
 }

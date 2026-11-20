@@ -36,15 +36,7 @@ function isEntryCapabilities(value: unknown): value is EntryCapabilities {
 }
 
 function isDeviceCapabilities(value: unknown): value is DeviceCapabilities {
-  return (
-    hasShape(value, [
-      'canListRoots',
-      'canReadFiles',
-      'canReceiveFiles',
-      'canQueryTransfers',
-      'canCancelTransfers',
-    ]) && Object.values(value).every(isCapability)
-  )
+  return hasShape(value, ['canListRoots']) && Object.values(value).every(isCapability)
 }
 
 /** 校验解析后的 JSON 设备描述和协议版本。 */

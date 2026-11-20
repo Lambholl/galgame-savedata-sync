@@ -309,7 +309,7 @@ public class ListenerServerTest {
         assertEquals(200, reply.status);
         Map<String, Object> value = map(reply.body.get("value"));
         Map<String, Object> device = map(value.get("device"));
-        assertEquals(2L, device.get("protocolVersion"));
+        assertEquals(3L, device.get("protocolVersion"));
         assertEquals("android", device.get("platform"));
         assertEquals(server.sessionId(), value.get("sessionId"));
         TransferSchema.device(value);
@@ -649,7 +649,6 @@ public class ListenerServerTest {
     BlockingQueue<int[]> states = new LinkedBlockingQueue<>();
     TransferEngine engine = new TransferEngine(
       new ArchiveAdapter(new ArchiveCache(temporary.newFolder().toPath().toRealPath())),
-      new NewFilePublisher(null),
       new TransferEngine.Local() {
         @Override
         public String deviceId() {
@@ -657,19 +656,10 @@ public class ListenerServerTest {
         }
 
         @Override
-        public List<ArchiveModel.Source> sources(String root, List<Object> files) {
-          return new ArrayList<>();
-        }
-
-        @Override
         public boolean hasListenerPeer() {
           return false;
         }
-      },
-      null,
-      10000,
-      600000,
-      1
+      }
     );
     try {
       engine.controlListener(

@@ -12,11 +12,9 @@ import static io.github.galgame.savedatasync.TransferSchema.id;
 import static io.github.galgame.savedatasync.TransferSchema.nullable;
 import static io.github.galgame.savedatasync.TransferSchema.number;
 import static io.github.galgame.savedatasync.TransferSchema.one;
-import static io.github.galgame.savedatasync.TransferSchema.outcome;
 import static io.github.galgame.savedatasync.TransferSchema.parent;
 import static io.github.galgame.savedatasync.TransferSchema.require;
 import static io.github.galgame.savedatasync.TransferSchema.shape;
-import static io.github.galgame.savedatasync.TransferSchema.state;
 import static io.github.galgame.savedatasync.TransferSchema.string;
 import static io.github.galgame.savedatasync.TransferSchema.text;
 

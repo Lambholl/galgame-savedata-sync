@@ -56,7 +56,7 @@ function isPreference(value: unknown): value is SyncBackupPreference {
   )
 }
 
-/** 校验 v3 格式的备份设置。 */
+/** 校验备份设置；只认 schemaVersion 为 3 的当前格式。 */
 export function isSyncBackupSettings(value: unknown): value is SyncBackupSettings {
   return (
     hasShape(value, ['schemaVersion', 'defaults', 'projects']) &&
@@ -67,55 +67,6 @@ export function isSyncBackupSettings(value: unknown): value is SyncBackupSetting
     isArrayOf(value.projects, isPreference) &&
     new Set(value.projects.map((item) => item.projectId)).size === value.projects.length
   )
-}
-
-function isLegacyPreference(
-  value: unknown,
-): value is SyncBackupPreference & { readonly rootId: string } {
-  return (
-    hasShape(value, ['projectId', 'rootId', 'shouldBackup', 'keepCount']) &&
-    isOpaqueId(value.projectId) &&
-    isOpaqueId(value.rootId) &&
-    typeof value.shouldBackup === 'boolean' &&
-    isBackupKeepCount(value.keepCount)
-  )
-}
-
-/**
- * 读取保存的备份设置，v2 格式转换为 v3。
- *
- * v2 按游戏和目录单独设置；同一个游戏有多条时保留数组里最后一条，即最近一次修改的那条。
- *
- * @returns 格式不符时返回 null。
- */
-export function readSyncBackupSettings(value: unknown): SyncBackupSettings | null {
-  if (isSyncBackupSettings(value)) {
-    return value
-  }
-  if (
-    !hasShape(value, ['schemaVersion', 'defaults', 'projects']) ||
-    value.schemaVersion !== 2 ||
-    !isSyncBackupPolicy(value.defaults) ||
-    !Array.isArray(value.projects) ||
-    value.projects.length > BACKUP_PREFERENCE_LIMIT ||
-    !isArrayOf(value.projects, isLegacyPreference)
-  ) {
-    return null
-  }
-  const latest = new Map<string, SyncBackupPreference>()
-  for (const item of value.projects) {
-    latest.delete(item.projectId)
-    latest.set(item.projectId, {
-      projectId: item.projectId,
-      shouldBackup: item.shouldBackup,
-      keepCount: item.keepCount,
-    })
-  }
-  return {
-    schemaVersion: 3,
-    defaults: { shouldBackup: value.defaults.shouldBackup, keepCount: value.defaults.keepCount },
-    projects: [...latest.values()],
-  }
 }
 
 /** 某个游戏实际使用的策略；isCustom 表示单独设置，否则跟随全局。 */

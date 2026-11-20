@@ -5,7 +5,6 @@ import static io.github.galgame.savedatasync.TransferJson.object;
 import static io.github.galgame.savedatasync.TransferJson.parse;
 import static io.github.galgame.savedatasync.TransferSchema.id;
 import static io.github.galgame.savedatasync.TransferSchema.shape;
-import static io.github.galgame.savedatasync.TransferSchema.target;
 
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;

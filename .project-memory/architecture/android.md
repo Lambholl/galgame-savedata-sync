@@ -14,8 +14,8 @@ tags: [Android, 移动端, SAF, 原生插件]
 - [3. 系统明暗主题与应用图标](#3-系统明暗主题与应用图标)
 - [4. 目录桥与原生边界](#4-目录桥与原生边界)
 - [5. 原生归档](#5-原生归档)
-- [6. 旧 v1 新文件发布](#6-旧-v1-新文件发布)
-- [7. 原生 HTTP 与持续通知](#7-原生-http-与持续通知)
+- [6. 新文件发布](#6-新文件发布)
+- [7. 原生连接与持续通知](#7-原生连接与持续通知)
 - [8. 当前扫描](#8-当前扫描)
 - [9. 独立备份与恢复材料](#9-独立备份与恢复材料)
 - [10. 受保护写入与本机恢复](#10-受保护写入与本机恢复)
@@ -93,20 +93,20 @@ TS 桥校验请求与响应，拒绝路径/URI、附加字段及跨根/跨层响
 
 ## 5. 原生归档
 
-同包 Java 接口由后台 I/O 线程调用，不向 JS 暴露文件流或私有路径。入口为 `DirectoryArchiveSource.createAdapter(context)`。
+同包 Java 接口由后台 I/O 线程调用，不向 JS 暴露文件流或私有路径。入口为 `DirectoryArchiveSource.createAdapter(context)`。格式见[设备接口与归档格式](transfer-protocol.md#3-归档格式)。
 
-- `prepare` 按流暂存只读源、实测未知长度并计算 SHA-256，读取前后重新核实 SAF 授权、文档身份和已枚举的名称/大小/日期；可观察变化返回 `source-changed`。之后仅从私有快照构造规范 USTAR 和 gzip level 1。tar 仅含连续 fileId，支持不同目录中的同名源。
-- `receive(manifest, input, control, progress)` 接管并关闭输入。先完整暂存并核对压缩体长度/SHA-256，再严格检查单 gzip member、DEFLATE 结束、CRC32/ISIZE、全部 USTAR 字段/顺序/零填充/精确结束和每份原文长度/SHA-256；全部通过才返回私有句柄。
-- `Artifact.openArchive`/`openFile(fileId)` 返回调用者负责关闭的只读流；关闭全部流后调用 `close()`。源、归档和解包均使用至多 64 KiB 缓冲，逐文件处理。
+- `sendFiles` 按复制计划的文件顺序读取源文件（`ArchiveAdapter.Outgoing`），边读边写规范 USTAR 和 gzip level 1 到输出流；读取前后核对大小和修改日期，读到的字节数必须等于计划大小，否则返回 `source-changed`。tar 仅含连续 fileId，支持不同目录中的同名源。
+- `receiveFiles(sizes, input, control, progress)` 接管并关闭输入，边收边解包到私有缓存：严格检查单 gzip member、DEFLATE 结束、CRC32/ISIZE、全部 USTAR 字段/顺序/零填充/精确结束和每份原文长度；全部通过才返回 `Staged`。
+- `Staged.openFile(fileId)` 返回调用者负责关闭的只读流；用完调用 `close()`。源、归档和解包均使用至多 64 KiB 缓冲，逐文件处理。
 - `ArchiveModel.Limits` 与共享 `BATCH_LIMITS` 一致，实际私有缓存合计 3 GiB；测试注入只能收紧。
-- 每次下载在打开 HTTP 内容流前检查“压缩体 + 解包原文”的缓存空间，并查询 SAF 提供者能报告的目标余量。容量不足返回 `insufficient-space`；容量未知时保留未知，实际写入时继续检查。
+- `checkStagingSpace` 在接收前检查私有缓存能否放下解包原文，容量不足返回 `insufficient-space`。
 - `ArchiveControl` 在每次 I/O、解压和进度检查取消、线程中断及 30 分钟总期限；`cancel()` 可从生命周期线程调用，会关闭已登记的读流并取消 SAF 查询。切后台不取消已有传输。
 - `ArchiveCache` 仅在私有缓存路径创建 `transfer-archives-v1`，根/随机任务都有所有权标记。每个进程只允许一个任务，句柄和清理失败均占名额。重启只清除可验证的孤儿缓存。
 - `ArchiveFailure.code` 为稳定错误码；取消以 `cancelled=true` 区分，清理失败保留主错误并放入 `cleanupFailure`。
 
-## 6. 旧 v1 新文件发布
+## 6. 新文件发布
 
-`NewFilePublisher`/`DirectoryPublicationBackend` 只用于旧 v1 批量接口和独立合成目标；应用内的复制与恢复使用第 10 节的受保护写入。系统 WRITE 权限与本次进程显式 `grant(rootId)` 分别检查。
+`NewFilePublisher`/`DirectoryPublicationBackend` 由第 10 节的 `SyncWriter` 用来创建目标里还没有的文件；`SyncWriter` 开始写入时对目标根调用 `grant(rootId)`。系统 WRITE 权限与本次进程显式 `grant(rootId)` 分别检查。
 
 - `parentId` 必须来自同一根已枚举的已有目录；发布流程不创建目录。单项上限 256 MiB，当前层最多 32768 条。
 - 创建前拒绝已存在的同名及常见 NFC/大小写等价名称。调用 `createDocument` 后重新枚举，只有返回 ID 是新的、确实位于指定父目录、实际名精确匹配时才写入；回执无法确认时返回 unknown，不猜测删除或重放。
@@ -115,27 +115,26 @@ TS 桥校验请求与响应，拒绝路径/URI、附加字段及跨根/跨层响
 
 SAF 没有通用排他创建或比较后删除原语；这些复核能发现可观察竞争，恶意提供者或并发命名空间变更不在隔离范围内。
 
-## 7. 原生 HTTP 与持续通知
+## 7. 原生连接与持续通知
 
-`src/platform/http-transfers.ts` 导出 `androidTransfers`。文件字节只经过 Java 原生流，JS 接收目录、清单、句柄和实际任务状态。
+`src/platform/http-transfers.ts` 导出 `androidTransfers`。文件字节只经过 Java 原生流，JS 只接收连接、目录和任务状态。
 
 | 方法 | 行为与边界 |
 | --- | --- |
 | requestNotifications / chooseTarget | 申请通知权限，并通过 SAF 选择器取得目标 WRITE；不接受 URI 或路径参数 |
-| connect / disconnect | 连接数字 IP 的 HTTP 地址，核实 v1、Windows 设备/会话/固定预算；活动传输或清理期间拒绝切换连接 |
+| connect / disconnect | 连接数字 IP 的 HTTP 地址，核实 v1、Windows 设备/会话/固定预算；有任务持有写入名额（`TargetOperation`）或正在连接时返回 busy |
+| connections / selectDevice / disconnectDevice / exchangeCatalog | 连接列表、选择设备、断开和目录表交换，同一时间只连一台 |
+| controlStates / sendControl | 读取控制通道状态并发送控制消息 |
 | listRemoteRoots / listRemoteDirectory | 校验设备身份、根/父层及唯一条目，仅读取当前层 |
-| startDownload / startUpload | 原子占用本地单次 ID 与进程名额后返回 transferId，I/O 异步执行 |
-| query / queryRemote / getManifest | 分开本机与对端角色；`queryRemote` 的 `shouldRefresh` 只重查原远端任务；不重发 POST/PUT |
-| current / subscribe | Activity 重建后 current 取得同一任务的上下文；订阅者负责 remove |
-| cancel / retryCleanup | 显式取消关闭本地流并尽力请求远端 DELETE；清理只重试资源释放 |
+| deviceName | 本机设备名，规则见[接口约定](api-contracts.md) |
 
-`TransferJson` 严格拒绝重复键、坏 UTF-8、未配对代理项、附加内容、超限深度/节点及非安全整数，JSON 单项 8 MiB。`TransferSchema` 独立核实封闭字段、清单/目标/角色/实际结果、完整顺序和单调进度。
+`TransferJson` 严格拒绝重复键、坏 UTF-8、未配对代理项、附加内容、超限深度/节点及非安全整数，JSON 单项 8 MiB。`TransferSchema` 校验设备描述、目录列表、条目元数据和错误信封的封闭字段。`TransferRuntime` 持有进程内唯一的 `TransferEngine`，`SyncTransferRuntime` 和 `ListenerRuntime` 共用它的连接。
 
-`TransferHttp.Client` 使用无代理的 HttpURLConnection，明确 identity，关闭自动解压、重定向和缓存。显式缓冲 64 KiB，传输总期限 30 分钟、连接和默认网络无进展等待 5 秒。连接失败以短时消息显示原始 HTTP 状态、协议错误码或系统 errno/异常类型。首次 catalog 请求携带 `x-sync-connect: 1`，表示主动建立新连接。POST/PUT 丢失回执时只查询同 ID，不重发。取消线程断开连接，原 I/O 线程关闭网络缓冲流，避免 Android Okio 与 read 并发 close。
+`TransferHttp.Client` 使用无代理的 HttpURLConnection，明确 identity，关闭自动解压、重定向和缓存。连接和默认网络无进展等待 5 秒。连接失败以短时消息显示原始 HTTP 状态、协议错误码或系统 errno/异常类型。首次 catalog 请求携带 `x-sync-connect: 1`，表示主动建立新连接。取消线程断开连接，原 I/O 线程关闭网络缓冲流，避免 Android Okio 与 read 并发 close。
 
-`TransferRuntime` 使用应用 Context 持有任务与原生适配器，Activity 仅弱订阅。用户发起任务前先确认 `TransferService` 的 dataSync 前台服务和持续通知已启动；Android 13+ 需通知权限。Activity 暂停、销毁或回到桌面后，原任务继续运行；完成/显式取消并清理后服务和通知结束。通知展示阶段/进度，提供取消或残留清理重试。
+复制任务由 `SyncTransferRuntime` 以应用 Context 持有（第 11 节）。用户发起任务前先确认 `TransferService` 的 dataSync 前台服务和持续通知已启动；Android 13+ 需通知权限。Activity 暂停、销毁或回到桌面后，原任务继续运行；完成/显式取消并清理后服务和通知结束。通知按阶段显示进度：传输用 `transferredBytes`/`totalFileBytes`，备份用 `backupBytesCopied`/`totalBackupBytes`，写入用 `publishedFiles`/`totalFiles`。
 
-声明 FOREGROUND_SERVICE、FOREGROUND_SERVICE_DATA_SYNC、POST_NOTIFICATIONS；服务不导出、START_NOT_STICKY，没有开机接收器、定时同步或旧任务恢复。系统结束服务或进程后，任务不会记成成功，也不会自动重放。终态/清单保留 10 分钟，本地最多保留 32 份结果，进程最多 4096 个已用 ID。
+声明 FOREGROUND_SERVICE、FOREGROUND_SERVICE_DATA_SYNC、POST_NOTIFICATIONS；服务不导出、START_NOT_STICKY，没有开机接收器、定时同步或旧任务恢复。系统结束服务或进程后，任务不会记成成功，也不会自动重放。
 
 ## 8. 当前扫描
 
@@ -199,7 +198,7 @@ SAF 没有通用排他创建或比较后删除原语；这些复核能发现可�
 
 Android → Windows（拨号方 → 监听方）：确认后先登记目标任务，再按计划顺序从 SAF 流边读边打包上传（chunked PUT），逐文件读取前后核对大小和修改日期。上传期间每 3 秒查询原任务作为通信心跳，电脑仍在备份时每秒刷新它的进度。sender sent 只表示已发送，最终结果以 receiver 的 `SyncApplyResult` 为准。无文件的计划不生成空归档。
 
-Windows → Android（监听方 → 拨号方）：使用移动端目标项目的备份设置；Windows 准备不可变归档，ready 后移动端核对清单与确认计划，再检查缓存、备份和目标增量的已知同卷峰值。内容 GET 只领取一次；完整校验通过后 `SyncWriter` 重新扫描目标、提交保护备份并逐项写入。备份清理或轮换失败不占名额，也不挡下一次传输，界面不提示；恢复流程会提示。
+Windows → Android（监听方 → 拨号方）：使用移动端目标项目的备份设置；Windows 发送端 ready 后移动端核对确认计划，再检查缓存、备份和目标增量的已知同卷峰值。内容 GET 只领取一次，Windows 边读边打包发送，移动端边收边解包；完整校验通过后 `SyncWriter` 重新扫描目标、提交保护备份并逐项写入。备份清理或轮换失败不占名额，也不挡下一次传输，界面不提示；恢复流程会提示。
 
 确认执行后才使用 dataSync 服务和持续通知；插件销毁不会中断任务。任务总期限 30 分钟，预览/终态最多保留 10 分钟、各最多 32 份，已用任务 ID 最多 4096 个。
 
@@ -260,6 +259,6 @@ Windows → Android（监听方 → 拨号方）：使用移动端目标项目�
 
 - `ArchiveSafTest#androidConsumesPythonAndWindowsNativeArchivesAndExportsJavaArchive`：跨端归档固定夹具。设备生成的 `cache/archive-device-java.gz` 取回到 `.reports/wp013-device/java.gz` 后，用 `scripts/verify-archive-interop.mjs verify-device` 复核。
 - `DirectoriesTest#pickerSelectionAndNativeRead`（`-e safMode select -e safExpectedName <显示名>`）：先准备 `SaveDataSync-Archive-<随机后缀>` 合成目录，由测试者在系统选择器中授权。
-- `ArchiveSafTest#actualSafStreamsSnapshotKnownAndUnknownLengthsWithoutChangingSource`（`-e archiveExpectedName <显示名>`）：同一合成目录的已知/未知长度两轮快照；产物取回 `.reports/wp013-device/` 后用 `verify-device-saf` 复核。
+- `ArchiveSafTest#actualSafStreamsRoundTripWithoutChangingSource`（`-e archiveExpectedName <显示名>`）：从同一合成目录边读边打包，再在设备上解包核对，确认源文件没有变化；设备生成的 `cache/archive-device-saf.gz` 和 `cache/archive-device-saf-files.json` 取回为 `.reports/wp013-device/saf.gz` 和 `saf-files.json` 后用 `verify-device-saf` 复核。
 
 界面主题、按钮和具体文案由实际运行与截图验收。真机验收范围见[验收标准](../testing/acceptance.md)。

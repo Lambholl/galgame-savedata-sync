@@ -6,7 +6,6 @@
     <string name="transfer_stage_ready">Waiting to receive</string>
     <string name="transfer_stage_awaiting_content">Waiting for content</string>
     <string name="transfer_stage_transferring">Transferring</string>
-    <string name="transfer_stage_verifying">Verifying</string>
     <string name="transfer_stage_writing">Writing</string>
     <string name="transfer_stage_backing_up">Backing up</string>
     <string name="transfer_stage_cleaning">Wrapping up</string>

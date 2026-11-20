@@ -6,12 +6,10 @@ import type {
   LibraryGame,
   LibraryPeer,
   OperationResult,
-  TransferRequest,
-  TransferTask,
 } from '@savedata-sync/shared'
 import type { LocalServiceStatus } from './local-service-bridge'
 
-/** 游戏库、设备、目录和任务的快照。 */
+/** 游戏库、设备和目录的快照。 */
 export interface MobileSnapshot {
   readonly warning: string | null
   readonly config: LibraryConfig
@@ -25,7 +23,6 @@ export interface MobileSnapshot {
   /** 已经连上、控制通道还没打开过的设备 ID，这台设备在 peers 里还不算在线；没有时为 null。 */
   readonly connectingId: string | null
   readonly roots: readonly DirectoryReference[]
-  readonly tasks: readonly TransferTask[]
 }
 
 /** 移动游戏库接口。directory 以外的方法失败时 reject。 */
@@ -66,10 +63,4 @@ export interface MobileLibraryAdapter {
     rootId: string,
     parentId: string | null,
   ): Promise<OperationResult<DirectoryListing>>
-  /** 核对项目关联、申请通知权限后开始一次批量传输。 */
-  start(transfer: TransferRequest): Promise<void>
-  /** 取消一次批量传输。 */
-  cancel(id: string): Promise<void>
-  /** 重试失败的缓存清理；还有没清理完的文件时 reject。 */
-  cleanup(): Promise<void>
 }

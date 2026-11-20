@@ -1,12 +1,7 @@
 package io.github.galgame.savedatasync;
 
 import java.io.InputStream;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 
 /** 归档格式 v1 的不可变模型。 */
 final class ArchiveModel {
@@ -22,14 +17,13 @@ final class ArchiveModel {
     final long file;
     final long total;
     final long tar;
-    final long archive;
     final long cache;
 
     Limits() {
-      this(1024, 268435456L, 1073741824L, 1074790400L, 1140850688L, 3221225472L);
+      this(1024, 268435456L, 1073741824L, 1074790400L, 3221225472L);
     }
 
-    Limits(int files, long file, long total, long tar, long archive, long cache) {
+    Limits(int files, long file, long total, long tar, long cache) {
       if (
         files < 1 ||
         files > 1024 ||
@@ -39,8 +33,6 @@ final class ArchiveModel {
         total > 1073741824L ||
         tar < 1 ||
         tar > 1074790400L ||
-        archive < 1 ||
-        archive > 1140850688L ||
         cache < 1 ||
         cache > 3221225472L
       ) {
@@ -50,7 +42,6 @@ final class ArchiveModel {
       this.file = file;
       this.total = total;
       this.tar = tar;
-      this.archive = archive;
       this.cache = cache;
     }
   }
@@ -114,107 +105,6 @@ final class ArchiveModel {
     Observation observe(ArchiveControl control) throws Exception;
 
     InputStream open(ArchiveControl control) throws Exception;
-  }
-
-  static final class PreparedFile {
-
-    final String fileId;
-    final String sourceEntryId;
-    final String sourceParentId;
-    final String sourceName;
-    final String sha256;
-    final Long sourceModifiedAt;
-    final long sizeBytes;
-
-    PreparedFile(String fileId, Observation source, long sizeBytes, String sha256) {
-      this.fileId = fileId;
-      sourceEntryId = source.entryId;
-      sourceParentId = source.parentId;
-      sourceName = source.name;
-      sourceModifiedAt = source.modified;
-      this.sizeBytes = sizeBytes;
-      this.sha256 = sha256;
-    }
-  }
-
-  static final class Descriptor {
-
-    final long sizeBytes;
-    final long tarSizeBytes;
-    final String sha256;
-
-    Descriptor(long sizeBytes, long tarSizeBytes, String sha256) {
-      this.sizeBytes = sizeBytes;
-      this.tarSizeBytes = tarSizeBytes;
-      this.sha256 = sha256;
-    }
-  }
-
-  /** 原生清单，对应固定的 protocolVersion=1、format=tar.gz、compressionLevel=1。 */
-  static final class Manifest {
-
-    final String transferId;
-    final String sourceDeviceId;
-    final String sourceRootId;
-    final List<PreparedFile> files;
-    final long totalFileBytes;
-    final Descriptor archive;
-
-    Manifest(
-      String transferId,
-      String deviceId,
-      String rootId,
-      List<PreparedFile> files,
-      long total,
-      Descriptor archive
-    ) {
-      this.transferId = transferId;
-      sourceDeviceId = deviceId;
-      sourceRootId = rootId;
-      this.files = Collections.unmodifiableList(new ArrayList<>(files));
-      totalFileBytes = total;
-      this.archive = archive;
-    }
-
-    void validate(Limits limits) throws ArchiveFailure {
-      require(
-        DocumentValues.isId(transferId) &&
-          DocumentValues.isId(sourceDeviceId) &&
-          DocumentValues.isId(sourceRootId)
-      );
-      require(!files.isEmpty() && archive != null);
-      limit(files.size() <= limits.files);
-      long total = 0;
-      long tar = 1024;
-      Set<String> entries = new HashSet<>();
-      for (int i = 0; i < files.size(); i++) {
-        PreparedFile f = files.get(i);
-        require(
-          f != null &&
-            id(i).equals(f.fileId) &&
-            DocumentValues.isId(f.sourceEntryId) &&
-            entries.add(f.sourceEntryId) &&
-            (f.sourceParentId == null ||
-              (DocumentValues.isId(f.sourceParentId) &&
-                !f.sourceParentId.equals(f.sourceEntryId))) &&
-            text(f.sourceName) &&
-            hash(f.sha256) &&
-            f.sizeBytes >= 0 &&
-            (f.sourceModifiedAt == null ||
-              (f.sourceModifiedAt >= -8640000000000000L && f.sourceModifiedAt <= 8640000000000000L))
-        );
-        limit(f.sizeBytes <= limits.file);
-        total += f.sizeBytes;
-        tar += 512 + padded(f.sizeBytes);
-      }
-      limit(total <= limits.total && tar <= limits.tar && archive.sizeBytes <= limits.archive);
-      require(
-        total == totalFileBytes &&
-          tar == archive.tarSizeBytes &&
-          archive.sizeBytes > 0 &&
-          hash(archive.sha256)
-      );
-    }
   }
 
   /** 阶段内的实际计数；total 未知时为 null。回调在同一 I/O 线程执行，不能阻塞或修改任务。 */

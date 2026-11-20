@@ -1,6 +1,6 @@
 import { PublicationError } from './publication-errors.ts'
 
-// 批量传输、复制任务和本机恢复共用的进程名额，从准备、写入一直占到清理结束。
+// 复制任务和本机恢复共用的进程名额，从准备、写入一直占到清理结束。
 let owner: symbol | null = null
 
 // 任务接受时要同步 acquire，先 await 再登记会让两个任务都看到名额空闲。

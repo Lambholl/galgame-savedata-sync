@@ -1,55 +1,30 @@
 import {
   isBatchDeviceDescriptor,
-  isBatchManifest,
-  isBatchState,
   isDirectoryListing,
   isDirectoryReference,
   isDirectorySelectionResult,
-  isDownloadBatchRequest,
   isOpaqueId,
   isOperationResult,
-  isTargetSelection,
-  matchesBatchState,
   isCatalogPush,
   isCatalogReply,
 } from '@savedata-sync/shared'
 import type {
   BatchDeviceDescriptor,
-  BatchManifest,
-  BatchState,
   DirectoryListing,
   DirectoryReference,
   DirectorySelectionResult,
-  DownloadBatchRequest,
   OperationError,
   OperationResult,
-  TargetSelection,
   CatalogPush,
   CatalogReply,
 } from '@savedata-sync/shared'
 
-/** 开始批量传输的参数；方向由调用的方法决定。 */
-export interface TransferStartOptions {
-  readonly request: DownloadBatchRequest
-  readonly targetRootId: string
-  readonly targets: readonly TargetSelection[]
-}
-/** 一次批量传输的引用。 */
-export interface TransferHandle {
-  readonly transferId: string
-}
-/** 当前批量传输的参数和对端设备。 */
-export interface CurrentTransfer {
-  readonly options: TransferStartOptions
-  readonly isUpload: boolean
-  readonly device: BatchDeviceDescriptor
-}
 /** 一个原生事件订阅。 */
 export interface TransferSubscription {
   /** 取消订阅。 */
   remove(): Promise<void>
 }
-/** 连接和批量传输的原生插件；方法与 AndroidTransferApi 的同名方法对应，返回值未经校验。 */
+/** 设备连接和控制通道的原生插件；方法与 AndroidTransferApi 的同名方法对应，返回值未经校验。 */
 export interface HttpTransferNativePlugin {
   connections(): Promise<unknown>
   deviceName(): Promise<unknown>
@@ -62,22 +37,14 @@ export interface HttpTransferNativePlugin {
   disconnect(): Promise<unknown>
   chooseTarget(): Promise<unknown>
   requestNotifications(): Promise<unknown>
-  current(): Promise<unknown>
   listRemoteRoots(): Promise<unknown>
   listRemoteDirectory(options: { rootId: string; parentId: string | null }): Promise<unknown>
-  startDownload(options: TransferStartOptions): Promise<unknown>
-  startUpload(options: TransferStartOptions): Promise<unknown>
-  query(options: TransferHandle): Promise<unknown>
-  queryRemote(options: TransferHandle & { shouldRefresh: boolean }): Promise<unknown>
-  getManifest(options: TransferHandle): Promise<unknown>
-  cancel(options: TransferHandle): Promise<unknown>
-  retryCleanup(): Promise<unknown>
   addListener(
-    event: 'transferState' | 'controlMessage' | 'controlState',
+    event: 'controlMessage' | 'controlState',
     callback: (state: unknown) => void,
   ): Promise<TransferSubscription>
 }
-/** 设备连接和批量传输接口。所有方法的失败都以错误结果返回；取消和查询不会重发网络请求。 */
+/** 设备连接和目录浏览接口。所有方法的失败都以错误结果返回。 */
 export interface AndroidTransferApi {
   /** 列出已连接的设备。 */
   connections(): Promise<OperationResult<readonly BatchDeviceDescriptor[]>>
@@ -97,8 +64,6 @@ export interface AndroidTransferApi {
   chooseTarget(): Promise<DirectorySelectionResult>
   /** 需要时申请通知权限；value 表示是否允许通知。 */
   requestNotifications(): Promise<OperationResult<boolean>>
-  /** 读取当前批量传输的参数；没有时为 null。 */
-  current(): Promise<OperationResult<CurrentTransfer | null>>
   /** 列出对方的根目录。 */
   listRemoteRoots(): Promise<OperationResult<readonly DirectoryReference[]>>
   /** 列出对方目录的一层；parentId 省略或为 null 时列根层。 */
@@ -106,38 +71,20 @@ export interface AndroidTransferApi {
     rootId: string,
     parentId?: string | null,
   ): Promise<OperationResult<DirectoryListing>>
-  /** 开始从对方下载一批文件。 */
-  startDownload(options: TransferStartOptions): Promise<OperationResult<TransferHandle>>
-  /** 开始向对方上传一批文件。 */
-  startUpload(options: TransferStartOptions): Promise<OperationResult<TransferHandle>>
-  /** 读取本机这一端的状态；下载还在对方准备时返回 task-conflict。 */
-  query(transferId: string): Promise<OperationResult<BatchState>>
-  /** 读取对方这一端的状态；shouldRefresh 为 true 时先向对方查询。还没有对方状态时返回 task-conflict。 */
-  queryRemote(transferId: string, shouldRefresh?: boolean): Promise<OperationResult<BatchState>>
-  /** 读取传输的清单。 */
-  getManifest(transferId: string): Promise<OperationResult<BatchManifest>>
-  /** 取消批量传输。 */
-  cancel(transferId: string): Promise<OperationResult<null>>
-  /** 重试失败的缓存清理；value 表示是否已全部清理。 */
-  retryCleanup(): Promise<OperationResult<boolean>>
-  /** 订阅本机传输状态的推送；用完后 remove。 */
-  subscribe(
-    listener: (state: OperationResult<BatchState>) => void,
-  ): Promise<OperationResult<TransferSubscription>>
 }
 const INVALID: OperationError = {
   code: 'invalid-request',
-  message: 'Transfer parameters or the task reference are invalid.',
+  message: 'The device or directory reference is invalid.',
   canRetry: false,
 }
 const BRIDGE: OperationError = {
   code: 'io-failure',
-  message: 'The task response does not match this operation.',
+  message: 'The response does not match this operation.',
   canRetry: false,
 }
 const UNSUPPORTED: OperationError = {
   code: 'unsupported-operation',
-  message: 'Perform transfers in the Android app.',
+  message: 'Connect devices in the Android app.',
   canRetry: false,
 }
 function failure(error: OperationError): {
@@ -146,15 +93,6 @@ function failure(error: OperationError): {
 } {
   return { status: 'error', error }
 }
-function isHandle(value: unknown): value is TransferHandle {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    Object.keys(value).length === 1 &&
-    'transferId' in value &&
-    isOpaqueId(value.transferId)
-  )
-}
 function isRootList(value: unknown): value is readonly DirectoryReference[] {
   return (
     Array.isArray(value) &&
@@ -162,45 +100,16 @@ function isRootList(value: unknown): value is readonly DirectoryReference[] {
     new Set(value.map((root) => root.rootId)).size === value.length
   )
 }
-function isStartOptions(value: unknown): value is TransferStartOptions {
-  if (
-    typeof value !== 'object' ||
-    value === null ||
-    !('request' in value) ||
-    !('targetRootId' in value) ||
-    !('targets' in value) ||
-    Object.keys(value).length !== 3 ||
-    !isDownloadBatchRequest(value.request) ||
-    !isOpaqueId(value.targetRootId) ||
-    !Array.isArray(value.targets) ||
-    value.targets.length !== value.request.files.length ||
-    !value.targets.every(isTargetSelection)
-  ) {
-    return false
-  }
-  const ids = new Set(value.request.files.map((file) => file.fileId))
-  return (
-    new Set(value.targets.map((target) => target.fileId)).size === ids.size &&
-    value.targets.every((target) => ids.has(target.fileId))
-  )
-}
-interface TransferContext {
-  readonly options: TransferStartOptions
-  readonly isUpload: boolean
-  readonly remoteDeviceId: string
-  manifest?: BatchManifest
-}
 
 /**
  * 用原生插件创建 AndroidTransferApi；isAndroid 返回 false 时所有方法返回 unsupported-operation。
  *
- * @returns 返回值格式不对或与本次任务不符时，对应方法返回错误结果。
+ * @returns 返回值格式不对或与请求不符时，对应方法返回错误结果。
  */
 export function createHttpTransferBridge(
   plugin: HttpTransferNativePlugin,
   isAndroid: () => boolean,
 ): AndroidTransferApi {
-  const contexts = new Map<string, TransferContext>()
   let device: BatchDeviceDescriptor | undefined
   async function invoke<T>(
     work: () => Promise<unknown>,
@@ -232,142 +141,6 @@ export function createHttpTransferBridge(
       }
       return failure(BRIDGE)
     }
-  }
-  async function getManifest(transferId: string): Promise<OperationResult<BatchManifest>> {
-    const context = contexts.get(transferId)
-    if (!context) {
-      return failure(INVALID)
-    }
-    const response = await invoke(() => plugin.getManifest({ transferId }), isBatchManifest)
-    if (response.status === 'error') {
-      return response
-    }
-    const manifest = response.value
-    if (
-      manifest.transferId !== transferId ||
-      manifest.sourceRootId !== context.options.request.sourceRootId ||
-      manifest.files.length !== context.options.request.files.length ||
-      (!context.isUpload && manifest.sourceDeviceId !== context.remoteDeviceId) ||
-      manifest.files.some(
-        (file, index) => file.sourceEntryId !== context.options.request.files[index]?.entryId,
-      )
-    ) {
-      return failure(BRIDGE)
-    }
-    if (context.manifest && JSON.stringify(context.manifest) !== JSON.stringify(manifest)) {
-      return failure(BRIDGE)
-    }
-    context.manifest = structuredClone(manifest)
-    return response
-  }
-  async function validateState(
-    value: unknown,
-    context: TransferContext,
-    isRemote: boolean,
-  ): Promise<OperationResult<BatchState>> {
-    const id = context.options.request.transferId
-    const direction = context.isUpload ? 'android-to-windows' : 'windows-to-android'
-    const isSender = context.isUpload !== isRemote
-    if (
-      !isBatchState(value) ||
-      value.transferId !== id ||
-      value.direction !== direction ||
-      value.role !== (isSender ? 'sender' : 'receiver') ||
-      (value.status === 'running' &&
-        value.progress.totalFiles !== context.options.request.files.length)
-    ) {
-      return failure(BRIDGE)
-    }
-    if (!context.manifest) {
-      const response = await getManifest(id)
-      if (response.status === 'error') {
-        // 原生下载在清单生成前结束时，逐文件只能是本次选择的“未尝试”。
-        if (
-          !isRemote &&
-          !context.isUpload &&
-          value.role === 'receiver' &&
-          response.error.code === 'task-conflict' &&
-          (value.status === 'failed' || value.status === 'cancelled') &&
-          value.fileResults.length === context.options.request.files.length &&
-          value.fileResults.every(
-            (result, index) =>
-              result.fileId === context.options.request.files[index]?.fileId &&
-              result.status === 'not-attempted' &&
-              result.reason === (value.status === 'cancelled' ? 'cancelled' : 'batch-invalid'),
-          )
-        ) {
-          return { status: 'success', value }
-        }
-        if (
-          isSender &&
-          response.error.code === 'task-conflict' &&
-          (value.status === 'failed' ||
-            value.status === 'cancelled' ||
-            (value.status === 'running' && value.stage === 'preparing'))
-        ) {
-          return { status: 'success', value }
-        }
-        return failure(BRIDGE)
-      }
-    }
-    const manifest = context.manifest
-    const receiver = isSender
-      ? undefined
-      : {
-          protocolVersion: 1 as const,
-          manifest,
-          targetRootId: context.options.targetRootId,
-          targets: context.options.targets,
-        }
-    return matchesBatchState(value, manifest, direction, receiver)
-      ? { status: 'success', value }
-      : failure(BRIDGE)
-  }
-  async function query(
-    transferId: string,
-    isRemote: boolean,
-    shouldRefresh: boolean,
-  ): Promise<OperationResult<BatchState>> {
-    const context = contexts.get(transferId)
-    if (!context) {
-      return failure(INVALID)
-    }
-    const response = await invoke(
-      () =>
-        isRemote ? plugin.queryRemote({ transferId, shouldRefresh }) : plugin.query({ transferId }),
-      isBatchState,
-    )
-    if (response.status === 'error') {
-      return response
-    }
-    return validateState(response.value, context, isRemote)
-  }
-  async function start(
-    options: TransferStartOptions,
-    isUpload: boolean,
-  ): Promise<OperationResult<TransferHandle>> {
-    if (!isStartOptions(options) || contexts.has(options.request.transferId)) {
-      return failure(INVALID)
-    }
-    if (!isAndroid()) {
-      return failure(UNSUPPORTED)
-    }
-    if (!device) {
-      return failure(INVALID)
-    }
-    const stable = structuredClone(options)
-    const id = stable.request.transferId
-    // 原生事件可能先于 start 的回执到达；先保存上下文，失败后撤回。
-    contexts.set(id, { options: stable, isUpload, remoteDeviceId: device.device.deviceId })
-    const response = await invoke(
-      () => (isUpload ? plugin.startUpload(stable) : plugin.startDownload(stable)),
-      isHandle,
-    )
-    if (response.status === 'error' || response.value.transferId !== id) {
-      contexts.delete(id)
-      return response.status === 'error' ? response : failure(BRIDGE)
-    }
-    return response
   }
   return Object.freeze({
     deviceName: (): Promise<OperationResult<string>> =>
@@ -445,7 +218,6 @@ export function createHttpTransferBridge(
       )
       if (result.status === 'success') {
         device = undefined
-        contexts.clear()
       }
       return result
     },
@@ -465,32 +237,6 @@ export function createHttpTransferBridge(
         () => plugin.requestNotifications(),
         (value): value is boolean => typeof value === 'boolean',
       ),
-    async current(): Promise<OperationResult<CurrentTransfer | null>> {
-      const response = await invoke(
-        () => plugin.current(),
-        (value): value is CurrentTransfer | null =>
-          value === null ||
-          (typeof value === 'object' &&
-            Object.keys(value).length === 3 &&
-            'options' in value &&
-            'isUpload' in value &&
-            'device' in value &&
-            isStartOptions(value.options) &&
-            typeof value.isUpload === 'boolean' &&
-            isBatchDeviceDescriptor(value.device) &&
-            value.device.device.platform === 'windows'),
-      )
-      if (response.status === 'success' && response.value !== null) {
-        const value = structuredClone(response.value)
-        device ??= structuredClone(value.device)
-        contexts.set(value.options.request.transferId, {
-          options: value.options,
-          isUpload: value.isUpload,
-          remoteDeviceId: value.device.device.deviceId,
-        })
-      }
-      return response
-    },
     async listRemoteRoots(): Promise<OperationResult<readonly DirectoryReference[]>> {
       const result = await invoke(() => plugin.listRemoteRoots(), isRootList)
       return result.status === 'success' &&
@@ -513,83 +259,6 @@ export function createHttpTransferBridge(
         (result.value.rootId !== rootId || result.value.parentId !== parentId)
         ? failure(BRIDGE)
         : result
-    },
-    startDownload: (options: TransferStartOptions): Promise<OperationResult<TransferHandle>> =>
-      start(options, false),
-    startUpload: (options: TransferStartOptions): Promise<OperationResult<TransferHandle>> =>
-      start(options, true),
-    query: (transferId: string): Promise<OperationResult<BatchState>> =>
-      query(transferId, false, false),
-    queryRemote: (
-      transferId: string,
-      shouldRefresh = false,
-    ): Promise<OperationResult<BatchState>> => query(transferId, true, shouldRefresh),
-    getManifest,
-    async cancel(transferId: string): Promise<OperationResult<null>> {
-      if (!contexts.has(transferId)) {
-        return failure(INVALID)
-      }
-      return invoke(
-        () => plugin.cancel({ transferId }),
-        (value): value is null => value === null,
-      )
-    },
-    retryCleanup: (): Promise<OperationResult<boolean>> =>
-      invoke(
-        () => plugin.retryCleanup(),
-        (value): value is boolean => typeof value === 'boolean',
-      ),
-    async subscribe(
-      listener: (state: OperationResult<BatchState>) => void,
-    ): Promise<OperationResult<TransferSubscription>> {
-      if (!isAndroid()) {
-        return failure(UNSUPPORTED)
-      }
-      try {
-        let isActive = true
-        let pending: Promise<void> = Promise.resolve()
-        function notify(state: OperationResult<BatchState>): void {
-          if (!isActive) {
-            return
-          }
-          try {
-            listener(state)
-          } catch {
-            // 订阅者的异常不影响任务结果，状态仍可以用 query 核实。
-          }
-        }
-        const handle = await plugin.addListener('transferState', (state) => {
-          if (!isActive) {
-            return
-          }
-          pending = pending
-            .then(async () => {
-              if (!isActive) {
-                return
-              }
-              const context = isBatchState(state) ? contexts.get(state.transferId) : undefined
-              if (!context) {
-                notify(failure(BRIDGE))
-                return
-              }
-              notify(await validateState(state, context, false))
-            })
-            .catch(() => {
-              notify(failure(BRIDGE))
-            })
-        })
-        return {
-          status: 'success',
-          value: {
-            async remove(): Promise<void> {
-              isActive = false
-              await handle.remove()
-            },
-          },
-        }
-      } catch {
-        return failure(BRIDGE)
-      }
     },
   })
 }

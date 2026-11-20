@@ -1,7 +1,7 @@
 import type { BatchLimits } from './batch-contracts.ts'
 
 // 修改上限时要同步两端、校验函数、设计文档和边界测试。
-/** 批量传输 v1 的固定上限。 */
+/** 设备描述报告的固定上限，复制和备份按同一组上限检查。 */
 export const BATCH_LIMITS = Object.freeze({
   maxFiles: 1024,
   maxFileBytes: 268435456,
@@ -19,7 +19,7 @@ export const BATCH_RESOURCES = Object.freeze({
   maxCacheBytes: 3221225472,
 } as const)
 
-/** 批量任务的期限，分别从任务接受、进入阶段和最近一次网络进展开始计算；轮询不延长期限。 */
+/** 传输任务的期限，分别从进入阶段、任务接受和最近一次网络进展开始计算；轮询不延长期限。 */
 export const BATCH_TIMEOUTS_MS = Object.freeze({
   ready: 600000,
   awaitingContent: 120000,

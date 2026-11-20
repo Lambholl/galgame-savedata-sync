@@ -9,7 +9,6 @@ import static io.github.galgame.savedatasync.TransferSchema.error;
 import static io.github.galgame.savedatasync.TransferSchema.id;
 import static io.github.galgame.savedatasync.TransferSchema.metadata;
 import static io.github.galgame.savedatasync.TransferSchema.require;
-import static io.github.galgame.savedatasync.TransferSchema.state;
 import static io.github.galgame.savedatasync.TransferSchema.string;
 
 import java.io.InputStream;

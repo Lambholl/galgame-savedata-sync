@@ -3,7 +3,6 @@ import test from 'node:test'
 import {
   EMPTY_BACKUP_SETTINGS,
   isSyncBackupSettings,
-  readSyncBackupSettings,
   resolveBackupPolicy,
   withBackupDefaults,
   withBackupPreference,
@@ -61,43 +60,16 @@ test('同一个游戏有两条单独设置时无效', () => {
   assert.equal(isSyncBackupSettings({ ...EMPTY_BACKUP_SETTINGS, projects: [entry, entry] }), false)
 })
 
-test('v2 设置转换为按游戏的设置，同一个游戏保留最后一条', () => {
-  const settings = readSyncBackupSettings({
-    schemaVersion: 2,
-    defaults: { shouldBackup: false, keepCount: 4 },
-    projects: [
-      { projectId: 'game-1', rootId: 'root-old', shouldBackup: true, keepCount: 2 },
-      { projectId: 'game-2', rootId: 'root-a', shouldBackup: false, keepCount: 1 },
-      { projectId: 'game-1', rootId: 'root-new', shouldBackup: true, keepCount: 7 },
-    ],
-  })
-  assert.deepEqual(settings, {
-    schemaVersion: 3,
-    defaults: { shouldBackup: false, keepCount: 4 },
-    projects: [
-      { projectId: 'game-2', shouldBackup: false, keepCount: 1 },
-      { projectId: 'game-1', shouldBackup: true, keepCount: 7 },
-    ],
-  })
-  assert.ok(isSyncBackupSettings(settings))
-})
-
-test('不认识的设置格式视为损坏', () => {
-  assert.equal(readSyncBackupSettings({ schemaVersion: 1, projects: [] }), null)
-  assert.equal(
-    readSyncBackupSettings({
-      schemaVersion: 4,
-      defaults: EMPTY_BACKUP_SETTINGS.defaults,
-      projects: [],
-    }),
-    null,
-  )
-  assert.equal(
-    readSyncBackupSettings({
-      schemaVersion: 2,
-      defaults: EMPTY_BACKUP_SETTINGS.defaults,
-      projects: [{ projectId: 'game-1', shouldBackup: true, keepCount: 2 }],
-    }),
-    null,
-  )
+test('当前格式版本以外的设置视为损坏', () => {
+  assert.equal(isSyncBackupSettings({ schemaVersion: 1, projects: [] }), false)
+  for (const schemaVersion of [2, 4]) {
+    assert.equal(
+      isSyncBackupSettings({
+        schemaVersion,
+        defaults: EMPTY_BACKUP_SETTINGS.defaults,
+        projects: [{ projectId: 'game-1', shouldBackup: true, keepCount: 2 }],
+      }),
+      false,
+    )
+  }
 })

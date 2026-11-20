@@ -1,10 +1,9 @@
 import assert from 'node:assert/strict'
-import { createHash } from 'node:crypto'
 import { writeFileSync } from 'node:fs'
 import { mkdtemp, mkdir, readFile, readdir, realpath, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { isAbsolute, join, relative, sep } from 'node:path'
-import { Readable } from 'node:stream'
+import { PassThrough, Readable } from 'node:stream'
 import { gzipSync, gunzipSync } from 'node:zlib'
 import test from 'node:test'
 import { createWindowsArchiveAdapter } from '../src/main/archive-adapter.ts'
@@ -14,7 +13,13 @@ import { createDirectoryAdapter } from '../src/main/directory-adapter.ts'
 const FIXTURE = JSON.parse(
   await readFile(new URL('./fixtures/archive-v1.json', import.meta.url), 'utf8'),
 )
-const HASH = (bytes) => createHash('sha256').update(bytes).digest('hex')
+/** 夹具清单里的成员，只取接收端用到的字段。 */
+const FIXTURE_FILES = FIXTURE.manifest.files.map((file) => ({
+  fileId: file.fileId,
+  entryId: file.sourceEntryId,
+  sizeBytes: file.sizeBytes,
+  modifiedAt: null,
+}))
 
 async function collect(stream) {
   const chunks = []
@@ -62,66 +67,66 @@ async function setup(
   }
   const selected = unwrap(await source.registerDirectory(root))
   const listing = unwrap(await source.listDirectory(selected.rootId))
-  const entries = names.map((name) => listing.entries.find((entry) => entry.name === name))
-  const request = {
-    protocolVersion: 1,
-    transferId: 'test-batch',
-    sourceRootId: selected.rootId,
-    files: entries.map((entry, index) => ({
+  const files = names.map((name, index) => {
+    const entry = listing.entries.find((item) => item.name === name)
+    return {
       fileId: `f${String(index + 1).padStart(6, '0')}`,
       entryId: entry.entryId,
-    })),
-  }
+      sizeBytes: entry.sizeBytes,
+      modifiedAt: entry.modifiedAt,
+    }
+  })
   const archive = await createWindowsArchiveAdapter(source, privateDirectory, options)
   cleanup.archive = archive
   return {
-    base,
     root,
+    rootId: selected.rootId,
     privateDirectory,
     source,
     archive,
-    request,
+    files,
     names,
     contents,
     cacheRoot: join(privateDirectory, 'transfer-archives-v1'),
   }
 }
 
-function fromArchive(bytes, manifest = FIXTURE.manifest) {
-  return {
-    ...structuredClone(manifest),
-    archive: { ...manifest.archive, sizeBytes: bytes.length, sha256: HASH(bytes) },
-  }
+async function send(fixture, options) {
+  const output = new PassThrough()
+  const [bytes] = await Promise.all([
+    collect(output),
+    fixture.archive.sendFiles(fixture.rootId, fixture.files, output, options),
+  ])
+  return bytes
 }
 
-async function expectFailure(archive, bytes, code, manifest = fromArchive(bytes)) {
+async function expectFailure(archive, bytes, code, files = FIXTURE_FILES) {
   const input = Readable.from([bytes])
   await assert.rejects(
-    archive.receive(manifest, input),
+    archive.receiveFiles(files, input),
     (error) => error instanceof ArchiveError && error.operationError.code === code,
   )
   assert.equal(input.destroyed, true)
 }
 
-test('源快照与原生 gzip1 往返保留内容/mtime，空文件和超过缓冲区的数据都实际读取', async (t) => {
+test('边读边打包的 gzip1 往返保留内容，空文件和超过缓冲区的数据都实际读取，源文件不变', async (t) => {
   const fixture = await setup(t)
   const before = await Promise.all(fixture.names.map((name) => stat(join(fixture.root, name))))
-  const prepared = await fixture.archive.prepare(fixture.request)
-  assert.equal(Object.isFrozen(prepared.manifest), true)
-  const bytes = await collect(await prepared.openArchive())
-  assert.equal(HASH(bytes), prepared.manifest.archive.sha256)
-  assert.equal(bytes.length, prepared.manifest.archive.sizeBytes)
-  assert.equal(gunzipSync(bytes).length, prepared.manifest.archive.tarSizeBytes)
-  const manifest = prepared.manifest
-  await prepared.dispose()
-  const progress = []
-  const received = await fixture.archive.receive(manifest, Readable.from([bytes]), {
-    onProgress: (value) => progress.push(value),
+  const sent = []
+  const bytes = await send(fixture, { onBytes: (value) => sent.push(value) })
+  const tarBytes = fixture.contents.reduce(
+    (sum, content) => sum + 512 + Math.ceil(content.length / 512) * 512,
+    1024,
+  )
+  assert.equal(gunzipSync(bytes).length, tarBytes)
+  const received = []
+  const staged = await fixture.archive.receiveFiles(fixture.files, Readable.from([bytes]), {
+    onBytes: (value) => received.push(value),
   })
-  for (const [index, file] of manifest.files.entries()) {
-    assert.deepEqual(await collect(await received.openFile(file.fileId)), fixture.contents[index])
+  for (const [index, file] of fixture.files.entries()) {
+    assert.deepEqual(await collect(await staged.openFile(file.fileId)), fixture.contents[index])
   }
-  await received.dispose()
+  await staged.dispose()
   for (const [index, name] of fixture.names.entries()) {
     assert.deepEqual(await readFile(join(fixture.root, name)), fixture.contents[index])
     const after = await stat(join(fixture.root, name))
@@ -129,24 +134,23 @@ test('源快照与原生 gzip1 往返保留内容/mtime，空文件和超过缓�
     assert.equal(after.ino, before[index].ino)
   }
   assert.deepEqual(await readdir(fixture.cacheRoot), ['cache-root.json'])
-  assert.ok(progress.length > 0)
+  const total = fixture.contents.reduce((sum, content) => sum + content.length, 0)
+  assert.equal(sent.at(-1), total)
+  assert.equal(received.at(-1), total)
 })
 
 test('解码独立 Python 固定夹具，编码结果解压后匹配独立预期 tar，不能只自我往返', async (t) => {
   const contents = FIXTURE.contentsBase64.map((value) => Buffer.from(value, 'base64'))
-  const { archive, request } = await setup(t, contents)
-  const received = await archive.receive(
-    FIXTURE.manifest,
+  const fixture = await setup(t, contents)
+  const staged = await fixture.archive.receiveFiles(
+    FIXTURE_FILES,
     Readable.from([Buffer.from(FIXTURE.archiveBase64, 'base64')]),
   )
-  for (const [index, file] of FIXTURE.manifest.files.entries()) {
-    assert.deepEqual(await collect(await received.openFile(file.fileId)), contents[index])
+  for (const [index, file] of FIXTURE_FILES.entries()) {
+    assert.deepEqual(await collect(await staged.openFile(file.fileId)), contents[index])
   }
-  await received.dispose()
-  const prepared = await archive.prepare(request)
-  const bytes = await collect(await prepared.openArchive())
-  assert.deepEqual(gunzipSync(bytes), Buffer.from(FIXTURE.tarBase64, 'base64'))
-  await prepared.dispose()
+  await staged.dispose()
+  assert.deepEqual(gunzipSync(await send(fixture)), Buffer.from(FIXTURE.tarBase64, 'base64'))
 })
 
 test('归档成员的穿越、绝对路径、重复、类型/扩展、属主和非规范字段均被拒绝', async (t) => {
@@ -196,7 +200,7 @@ test('归档成员的穿越、绝对路径、重复、类型/扩展、属主和�
   }
 })
 
-test('gzip 严格拒绝可选头、拼接成员、尾随、截断和 CRC/ISIZE 错误，即使压缩体哈希更新', async (t) => {
+test('gzip 严格拒绝可选头、拼接成员、尾随、截断和 CRC/ISIZE 错误', async (t) => {
   const { archive } = await setup(t)
   const original = Buffer.from(FIXTURE.archiveBase64, 'base64')
   const flags = Buffer.from(original)
@@ -222,40 +226,32 @@ test('gzip 严格拒绝可选头、拼接成员、尾随、截断和 CRC/ISIZE �
   }
 })
 
-test('收紧的成员/总原文/tar/压缩体/私有缓存硬限在实际流中执行，不能由清单放宽', async (t) => {
+test('收紧的成员、总原文、tar 和私有缓存上限在解包前或实际流中执行', async (t) => {
   const fixture = await setup(t, [Buffer.alloc(17, 65)])
+  const bytes = await send(fixture)
   for (const quota of [
     { maxFileBytes: 16 },
     { maxTotalFileBytes: 16 },
     { maxTarBytes: 1536 },
-    { maxArchiveBytes: 20 },
-    { maxCacheBytes: 1 },
+    { maxCacheBytes: 16 },
   ]) {
     const archive = await createWindowsArchiveAdapter(fixture.source, fixture.privateDirectory, {
       quota,
     })
-    await assert.rejects(
-      archive.prepare(fixture.request),
-      (error) => error.operationError.code === 'resource-limit',
-    )
+    await expectFailure(archive, bytes, 'resource-limit', fixture.files)
     await archive.retryCleanup()
     assert.deepEqual(await readdir(fixture.cacheRoot), ['cache-root.json'])
   }
-  const archive = await createWindowsArchiveAdapter(fixture.source, fixture.privateDirectory, {
-    quota: { maxTarBytes: FIXTURE.manifest.archive.tarSizeBytes },
-  })
-  const bomb = gzipSync(Buffer.alloc(1024 * 1024), { level: 1 })
-  await expectFailure(archive, bomb, 'resource-limit')
 })
 
-test('源内容读取后的可观察变化被拒绝，归档模块不会写回源', async (t) => {
-  const fixture = await setup(t, [Buffer.from('source')])
-  let changed = false
+test('源内容在发送期间的可观察变化被拒绝，归档模块不会写回源', async (t) => {
+  const fixture = await setup(t, [Buffer.alloc(200000, 65)])
+  let isChanged = false
   await assert.rejects(
-    fixture.archive.prepare(fixture.request, {
-      onProgress(value) {
-        if (value.sourceBytesRead > 0 && !changed) {
-          changed = true
+    send(fixture, {
+      onBytes() {
+        if (!isChanged) {
+          isChanged = true
           writeFileSync(join(fixture.root, fixture.names[0]), 'changed source')
         }
       },
@@ -265,29 +261,21 @@ test('源内容读取后的可观察变化被拒绝，归档模块不会写回�
   assert.equal(await readFile(join(fixture.root, fixture.names[0]), 'utf8'), 'changed source')
   assert.deepEqual(await readdir(fixture.cacheRoot), ['cache-root.json'])
 })
-test('取消源读取或接收时关闭流并清理，预先超时与用户取消分开', async (t) => {
+
+test('取消接收时关闭流并清理，预先超时与用户取消分开', async (t) => {
   const fixture = await setup(t, [Buffer.alloc(100000, 65)])
-  const controller = new AbortController()
-  await assert.rejects(
-    fixture.archive.prepare(fixture.request, {
-      signal: controller.signal,
-      onProgress() {
-        controller.abort()
-      },
-    }),
-    ArchiveCancelledError,
-  )
+  const bytes = await send(fixture)
   const receiving = new AbortController()
   const input = new Readable({
     read() {
-      this.push(Buffer.from(FIXTURE.archiveBase64, 'base64'))
+      this.push(bytes)
       this._read = () => {}
     },
   })
   await assert.rejects(
-    fixture.archive.receive(FIXTURE.manifest, input, {
+    fixture.archive.receiveFiles(fixture.files, input, {
       signal: receiving.signal,
-      onProgress() {
+      onBytes() {
         receiving.abort()
       },
     }),
@@ -296,7 +284,7 @@ test('取消源读取或接收时关闭流并清理，预先超时与用户取�
   assert.equal(input.destroyed, true)
   const timed = AbortSignal.abort(new DOMException('synthetic deadline', 'TimeoutError'))
   await assert.rejects(
-    fixture.archive.prepare(fixture.request, { signal: timed }),
+    fixture.archive.receiveFiles(fixture.files, Readable.from([bytes]), { signal: timed }),
     (error) => error.operationError.code === 'timeout',
   )
   assert.deepEqual(await readdir(fixture.cacheRoot), ['cache-root.json'])

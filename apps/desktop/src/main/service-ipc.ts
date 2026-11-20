@@ -1,13 +1,12 @@
 import type { IpcMain, IpcMainInvokeEvent } from 'electron'
 import { hostname } from 'node:os'
 import { isOpaqueId } from '@savedata-sync/shared'
-import type { DirectoryReference, OperationResult } from '@savedata-sync/shared'
+import type { OperationResult } from '@savedata-sync/shared'
 import { SERVICE_CHANNELS } from '../bridge/service-bridge.ts'
 import type { DesktopServiceSnapshot } from '../bridge/service-bridge.ts'
 import type { WindowsDirectoryAdapter } from './directory-adapter.ts'
 import type { WindowsDiscoveryAdvertiser } from './discovery-advertiser.ts'
 import type { WindowsHttpService } from './http-service.ts'
-import type { WindowsNewFilePublisher } from './new-file-publisher.ts'
 import { toHttpError } from './http-errors.ts'
 import type { ServicePortSettings } from './service-port-settings.ts'
 import { createNetworkAddressReader } from './recommended-address.ts'
@@ -39,10 +38,8 @@ export function registerServiceIpc(
   ipc: Pick<IpcMain, 'handle' | 'removeHandler'>,
   adapter: WindowsDirectoryAdapter,
   service: WindowsHttpService,
-  publisher: WindowsNewFilePublisher,
   options: ServiceIpcOptions,
 ): () => void {
-  const targets = new Map<string, DirectoryReference>()
   const networkAddresses = createNetworkAddressReader()
   let isMutating = false
   // 快照不等待网卡查询：服务运行时带上缓存的地址，还没读到时为 null，状态读取保持即时。
@@ -64,8 +61,6 @@ export function registerServiceIpc(
           : null,
         error: service.getError(),
         discovery: options.advertiser.getState(),
-        targets: [...targets.values()],
-        tasks: service.getStates(),
       },
     }
   }
@@ -135,17 +130,6 @@ export function registerServiceIpc(
             deviceId: adapter.deviceId,
             displayName: localDeviceName(),
           })
-        } else if (action === 'revokeTarget' || action === 'cancel') {
-          const id = argument(args, action === 'cancel' ? 'transferId' : 'rootId')
-          if (!isOpaqueId(id)) {
-            return fail('invalid-request', 'The reference is invalid.')
-          }
-          if (action === 'cancel') {
-            service.cancel(id)
-          } else {
-            await publisher.revoke(id)
-            targets.delete(id)
-          }
         } else {
           if (args.length !== 0) {
             return fail('invalid-request', 'Service parameters are invalid.')
@@ -168,8 +152,6 @@ export function registerServiceIpc(
             if (result.status === 'error') {
               return result
             }
-            await publisher.grant(result.value.rootId)
-            targets.set(result.value.rootId, result.value)
             return { status: 'selected', directory: result.value }
           }
           if (action === 'stop') {
@@ -179,9 +161,6 @@ export function registerServiceIpc(
             } finally {
               await options.advertiser.stop()
             }
-          }
-          if (action === 'cleanup') {
-            await service.retryCleanup()
           }
         }
         return snapshot()

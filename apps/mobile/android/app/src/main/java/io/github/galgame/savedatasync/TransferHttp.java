@@ -23,7 +23,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
-/** 传输用的 HTTP 接口：文件走有限长度的原生流，控制 JSON 单独限额；有副作用的请求只发一次。 */
+/** 传输用的 HTTP 接口：复制内容走原生流，控制 JSON 单独限额；有副作用的请求只发一次。 */
 interface TransferHttp {
   /** 返回复制任务用的客户端：地址相同，带设备头，网络期限 60 秒；默认实现返回自身。 */
   default TransferHttp forSync(String localDeviceId) throws Exception {
@@ -57,23 +57,6 @@ interface TransferHttp {
     return json(method, path, session, body, expected, control);
   }
 
-  InputStream download(
-    String path,
-    String session,
-    ArchiveModel.Descriptor archive,
-    ArchiveControl control,
-    ArchiveModel.Progress progress
-  ) throws Exception;
-
-  Object upload(
-    String path,
-    String session,
-    ArchiveModel.Descriptor archive,
-    InputStream input,
-    ArchiveControl control,
-    ArchiveModel.Progress progress
-  ) throws Exception;
-
   /** 把内容写进请求体的回调。 */
   interface ContentWriter {
     void write(OutputStream output) throws Exception;
@@ -95,7 +78,10 @@ interface TransferHttp {
     throw fail("unsupported-operation");
   }
 
-  /** HTTP 客户端：直连，关闭缓存和重定向，Accept-Encoding 为 identity；请求体用固定长度流发送，只发一次。 */
+  /**
+   * HTTP 客户端：直连，关闭缓存和重定向，Accept-Encoding 为 identity。JSON 请求体用固定长度流发送，
+   * 复制内容用 chunked 发送，都只发一次。
+   */
   final class Client implements TransferHttp {
 
     private static final ScheduledExecutorService WATCH =
@@ -317,7 +303,7 @@ interface TransferHttp {
         return value;
       }
 
-      void headers(boolean hasContent, ArchiveModel.Descriptor archive) throws Exception {
+      void headers(boolean hasContent) throws Exception {
         if (header("Content-Encoding", false) != null) {
           throw fail("invalid-request");
         }
@@ -334,25 +320,11 @@ interface TransferHttp {
         if (length != null && (!length.matches("0|[1-9][0-9]*") || length.length() > 12)) {
           throw fail("invalid-request");
         }
-        if (
-          transfer != null &&
-          (length != null ||
-            !transfer.equalsIgnoreCase("chunked") ||
-            (hasContent && archive != null))
-        ) {
+        if (transfer != null && (length != null || !transfer.equalsIgnoreCase("chunked"))) {
           throw fail("invalid-request");
         }
         if (hasContent) {
           if (!"application/gzip".equals(header("Content-Type", true))) {
-            throw fail("invalid-request");
-          }
-          // 复制内容长度不定，完整性由 gzip 的 CRC 和长度保证；批量传输的定长内容还要核对长度和哈希。
-          if (
-            archive != null &&
-            (length == null ||
-              Long.parseLong(length) != archive.sizeBytes ||
-              !archive.sha256.equals(header("x-archive-sha256", true)))
-          ) {
             throw fail("invalid-request");
           }
         } else {
@@ -371,7 +343,7 @@ interface TransferHttp {
       Object response(int expected) throws Exception {
         int status = connection.getResponseCode();
         progressed();
-        headers(false, null);
+        headers(false);
         InputStream raw = status >= 400 ? connection.getErrorStream() : connection.getInputStream();
         if (raw == null) {
           throw fail("invalid-request");
@@ -488,131 +460,6 @@ interface TransferHttp {
     }
 
     @Override
-    public InputStream download(
-      String path,
-      String session,
-      ArchiveModel.Descriptor archive,
-      ArchiveControl control,
-      ArchiveModel.Progress progress
-    ) throws Exception {
-      Call call = new Call("GET", path, session, control);
-      try {
-        if (call.connection.getResponseCode() != 200) {
-          call.response(200);
-          throw fail("invalid-request");
-        }
-        call.progressed();
-        call.headers(true, archive);
-        InputStream input = call.ownedInput(call.connection.getInputStream());
-        return new FilterInputStream(input) {
-          private long count;
-
-          @Override
-          public int read() throws IOException {
-            byte[] one = new byte[1];
-            int n = read(one, 0, 1);
-            return n < 0 ? -1 : one[0] & 255;
-          }
-
-          @Override
-          public int read(byte[] bytes, int offset, int length) throws IOException {
-            try {
-              control.check();
-              int n = in.read(bytes, offset, Math.min(length, 65536));
-              if (n > 0) {
-                count += n;
-                if (count > archive.sizeBytes) {
-                  throw fail("checksum-mismatch");
-                }
-                call.progressed();
-                if (progress != null) {
-                  progress.update("transferring", count, archive.sizeBytes);
-                }
-              }
-              if (n < 0 && count != archive.sizeBytes) {
-                throw fail("checksum-mismatch");
-              }
-              return n;
-            } catch (Exception cause) {
-              throw call.failure(cause);
-            }
-          }
-
-          @Override
-          public void close() throws IOException {
-            try {
-              super.close();
-            } finally {
-              call.close();
-            }
-          }
-        };
-      } catch (Exception cause) {
-        call.close();
-        throw call.failure(cause);
-      }
-    }
-
-    @Override
-    public Object upload(
-      String path,
-      String session,
-      ArchiveModel.Descriptor archive,
-      InputStream input,
-      ArchiveControl control,
-      ArchiveModel.Progress progress
-    ) throws Exception {
-      Call call = new Call("PUT", path, session, control);
-      try {
-        call.connection.setDoOutput(true);
-        call.connection.setFixedLengthStreamingMode(archive.sizeBytes);
-        call.connection.setRequestProperty("Content-Type", "application/gzip");
-        call.connection.setRequestProperty("x-archive-sha256", archive.sha256);
-        InputStream source = control.track(input);
-        try {
-          OutputStream output = control.track(call.ownedOutput(call.connection.getOutputStream()));
-          try (OutputStream stream = output) {
-            byte[] buffer = new byte[65536];
-            long count = 0;
-            java.security.MessageDigest hash = ArchiveFormat.sha256();
-            int n;
-            while ((n = source.read(buffer)) >= 0) {
-              control.check();
-              if (n == 0 || count > archive.sizeBytes - n) {
-                throw fail("checksum-mismatch");
-              }
-              stream.write(buffer, 0, n);
-              count += n;
-              hash.update(buffer, 0, n);
-              call.progressed();
-              if (progress != null) {
-                progress.update("transferring", count, archive.sizeBytes);
-              }
-            }
-            if (
-              count != archive.sizeBytes || !archive.sha256.equals(ArchiveFormat.hex(hash.digest()))
-            ) {
-              throw fail("checksum-mismatch");
-            }
-          } finally {
-            control.untrack(output);
-          }
-        } finally {
-          try {
-            source.close();
-          } finally {
-            control.untrack(source);
-          }
-        }
-        return call.response(202);
-      } catch (Exception cause) {
-        throw call.failure(cause);
-      } finally {
-        call.close();
-      }
-    }
-
-    @Override
     public InputStream downloadStream(String path, String session, ArchiveControl control)
       throws Exception {
       Call call = new Call("GET", path, session, control);
@@ -622,7 +469,7 @@ interface TransferHttp {
           throw fail("invalid-request");
         }
         call.progressed();
-        call.headers(true, null);
+        call.headers(true);
         InputStream input = call.ownedInput(call.connection.getInputStream());
         return new FilterInputStream(input) {
           @Override

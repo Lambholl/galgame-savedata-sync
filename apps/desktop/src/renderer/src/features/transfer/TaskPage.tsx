@@ -1,28 +1,23 @@
 import { useState } from 'react'
 import { Button, Card, Empty, Space, Tag } from 'antd'
-import type { LibraryGame, LibraryPeer, TransferTask } from '@savedata-sync/shared'
+import type { LibraryGame, LibraryPeer } from '@savedata-sync/shared'
 import type { DesktopCopySummary, DesktopRestoreSummary } from '../../../../bridge/sync-bridge.ts'
-import { TaskView } from './TaskView.tsx'
 import { SyncCopyDetails } from './SyncCopyDetails.tsx'
 import { RestoreDetails } from '../backup/RestoreDetails.tsx'
 import { syncTaskPreview, useT } from '@savedata-sync/shared/ui'
 import { restoreStateTitle } from './sync-display.ts'
 import { formatShortDateTime } from '@savedata-sync/shared'
 
-/** 一个游戏的传输详情页：显示所选或最近一次复制、恢复或批量传输，以及历史记录。 */
+/** 一个游戏的传输详情页：显示所选或最近一次复制或恢复，以及历史记录。 */
 export function TaskPage({
   initialCopyId,
   initialRestoreId,
   projectId,
-  tasks,
   copies,
   restores,
   games,
   peers,
   isActive,
-  isBusy,
-  onCancel,
-  onCleanup,
   onChanged,
   onOpenBackup,
   onRescan,
@@ -30,15 +25,11 @@ export function TaskPage({
   readonly initialCopyId: string | null
   readonly initialRestoreId: string | null
   readonly projectId: string | null
-  readonly tasks: readonly TransferTask[]
   readonly copies: readonly DesktopCopySummary[]
   readonly restores: readonly DesktopRestoreSummary[]
   readonly games: readonly LibraryGame[]
   readonly peers: readonly LibraryPeer[]
   readonly isActive: boolean
-  readonly isBusy: boolean
-  readonly onCancel: (id: string) => void
-  readonly onCleanup: () => void
   readonly onChanged: () => void
   /** shownCopyId 是页面正在显示的那次传输，返回时回到它。 */
   readonly onOpenBackup: (projectId: string, shownCopyId: string | null) => void
@@ -65,7 +56,7 @@ export function TaskPage({
   return (
     // 详情放在居中的窄栏里，结构与移动端相同。
     <div className="task-page">
-      {!tasks.length && !copies.length && !restores.length && (
+      {!copies.length && !restores.length && (
         <Empty
           description={
             projectId
@@ -124,9 +115,6 @@ export function TaskPage({
           </Space>
         </Card>
       ))}
-      {tasks.length > 0 && (
-        <TaskView tasks={tasks} isBusy={isBusy} onCancel={onCancel} onCleanup={onCleanup} />
-      )}
       {restoreId ? (
         <RestoreDetails
           key={restoreId}

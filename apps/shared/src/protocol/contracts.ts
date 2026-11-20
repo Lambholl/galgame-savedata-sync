@@ -1,8 +1,5 @@
 /** 设备描述、发现 TXT 和连接二维码的协议版本。不兼容的变更使用新版本号。 */
-export const PROTOCOL_VERSION = 2
-
-/** 旧批量传输（`/v1/transfers/*`）的协议版本，与 PROTOCOL_VERSION 分别计数。 */
-export const BATCH_PROTOCOL_VERSION = 1
+export const PROTOCOL_VERSION = 3
 
 /** 能力状态。supported 表示平台声明支持，调用仍可能失败。 */
 export type CapabilityState = 'supported' | 'unsupported' | 'unknown'
@@ -19,10 +16,6 @@ export interface EntryCapabilities {
 /** 设备公开的协议能力。 */
 export interface DeviceCapabilities {
   readonly canListRoots: CapabilityState
-  readonly canReadFiles: CapabilityState
-  readonly canReceiveFiles: CapabilityState
-  readonly canQueryTransfers: CapabilityState
-  readonly canCancelTransfers: CapabilityState
 }
 
 /** 设备描述：这次安装的稳定身份和显示信息。 */
@@ -144,9 +137,6 @@ export type DirectorySelectionResult =
   | { readonly status: 'selected'; readonly directory: DirectoryReference }
   | { readonly status: 'cancelled' }
   | { readonly status: 'error'; readonly error: OperationError }
-
-/** 旧批量传输的方向，只在电脑监听、Android 拨号之间使用。复制任务用 SyncDirection。 */
-export type TransferDirection = 'windows-to-android' | 'android-to-windows'
 
 /** 本机已选择的目录引用列表。 */
 export type RootsResponse = OperationResult<readonly DirectoryReference[]>

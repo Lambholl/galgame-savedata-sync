@@ -52,7 +52,7 @@ M-003 把发现、二维码和控制通道按对称角色设计，但实现只�
 1. 监听方运行 HTTP 服务和 `/v1/control`，广播 DNS-SD，显示连接二维码；拨号方从发现列表、扫码（只在移动端）或手动 IP 连接。两端平台不限。
 2. 拨号方编排传输：扫描两端、算计划、在监听方登记任务、上传或下载内容、读取结果。监听方只按请求执行，现有电脑监听、Android 拨号的分工就是这条规则。
 3. 监听方发起传输时，经控制通道发 `sync.prepare`、`sync.confirm`、`sync.cancel` 给拨号方，由拨号方编排；任务观察用 `sync.job`、`sync.job.read`、`sync.job.cancel`。消息和规则沿用现有电脑发起的流程，只是不再限定平台。
-4. 新角色只实现 `/v1/device`、`/v1/catalog`、`/v1/control`、`/v1/roots`、目录列举和 `/v1/sync/*`。旧 v1 批量接口 `/v1/transfers/*` 不在 Android 监听方和电脑拨号方实现。
+4. 新角色只实现 `/v1/device`、`/v1/catalog`、`/v1/control`、`/v1/roots`、目录列举和 `/v1/sync/*`。
 
 ### 协议和版本
 

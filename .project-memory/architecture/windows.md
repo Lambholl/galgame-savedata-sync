@@ -19,7 +19,7 @@ tags: [Windows, 电脑端, 主进程, IPC]
 - [8. 当前扫描](#8-当前扫描)
 - [9. 私有归档](#9-私有归档)
 - [10. HTTP 服务与任务生命周期](#10-http-服务与任务生命周期)
-- [11. 旧 v1 新文件发布与接收](#11-旧-v1-新文件发布与接收)
+- [11. 写入候选残留](#11-写入候选残留)
 - [12. 独立备份与恢复材料](#12-独立备份与恢复材料)
 - [13. 受保护目标写入与本机恢复](#13-受保护目标写入与本机恢复)
 - [14. 同步结果与本机恢复界面](#14-同步结果与本机恢复界面)
@@ -27,9 +27,9 @@ tags: [Windows, 电脑端, 主进程, IPC]
 
 ## 1. 范围与入口
 
-代码在 `apps/desktop`。目录读取模块保持源只读；私有归档负责快照、编解码和缓存清理；HTTP 服务负责设备/目录查询、双向传输及状态/取消。桌面提供服务启停、实际地址/端口、目录选择、任务计划与实际结果、备份设置和本机恢复。
+代码在 `apps/desktop`。目录读取模块保持源只读；私有归档负责编解码和缓存清理；HTTP 服务负责设备/目录查询、目录表交换、控制通道和复制任务。桌面提供服务启停、实际地址/端口、目录选择、任务计划与实际结果、备份设置和本机恢复。
 
-电脑作监听方时提供 HTTP 服务和控制通道，接纳拨号方登记的任务；电脑发起的复制经控制通道交给拨号方，对方须开着应用并保持连接，计划在电脑确认、拨号方执行。电脑也能作拨号方连接另一台设备（[ADR-0004](../decisions/ADR-0004-symmetric-listener-dialer-roles.md)）：用 `bonjour-service` 搜索局域网设备，用 `node:http` 和 `ws` 交换目录表、浏览对方目录、保持控制通道，见[第 2 节](#2-游戏与设备界面)。作拨号方时由 `dialer-sync.ts` 的 `WindowsDialerSync` 编排扫描、计划、任务登记、内容上传和下载、取消和结果读取，职责同 Android `SyncTransferEngine`；也处理对方经控制通道发来的 `sync.prepare`、`sync.confirm`、`sync.cancel`、`sync.job.*`，每 0.5 秒推送 `sync.job` 摘要。它和监听方任务共用进程内的写入名额，同一时间只有一个复制任务写入；`sync-ipc.ts` 按本机是否拨号连着所选设备把发起请求交给它或 `remote-sync-requests.ts`，复制任务列表合并两部分，`DesktopCopySummary.localSide` 标明本机是哪一方，传输页和任务详情据此决定方向和两端位置。旧 v1 批量接口只新建文件，新复制协议按确认计划执行新增、受保护覆盖、跳过和删除多余项。
+电脑作监听方时提供 HTTP 服务和控制通道，接纳拨号方登记的任务；电脑发起的复制经控制通道交给拨号方，对方须开着应用并保持连接，计划在电脑确认、拨号方执行。电脑也能作拨号方连接另一台设备（[ADR-0004](../decisions/ADR-0004-symmetric-listener-dialer-roles.md)）：用 `bonjour-service` 搜索局域网设备，用 `node:http` 和 `ws` 交换目录表、浏览对方目录、保持控制通道，见[第 2 节](#2-游戏与设备界面)。作拨号方时由 `dialer-sync.ts` 的 `WindowsDialerSync` 编排扫描、计划、任务登记、内容上传和下载、取消和结果读取，职责同 Android `SyncTransferEngine`；也处理对方经控制通道发来的 `sync.prepare`、`sync.confirm`、`sync.cancel`、`sync.job.*`，每 0.5 秒推送 `sync.job` 摘要。它和监听方任务共用进程内的写入名额，同一时间只有一个复制任务写入；`sync-ipc.ts` 按本机是否拨号连着所选设备把发起请求交给它或 `remote-sync-requests.ts`，复制任务列表合并两部分，`DesktopCopySummary.localSide` 标明本机是哪一方，传输页和任务详情据此决定方向和两端位置。复制按确认计划执行新增、受保护覆盖、跳过和删除多余项。
 
 Electron 构建显式内联 workspace 共享包，避免 sandbox preload 在运行时 require TypeScript 源码。preload 保留 CJS 输出，contextIsolation/sandbox 开启，Renderer 无 Node 集成。
 
@@ -96,13 +96,13 @@ preload 通过 `window.desktopDirectories` 暴露冻结的 `DesktopDirectoryApi`
 
 拨号由 `window.desktopDialer` 的冻结 `DesktopDialerApi` 提供：`status()`、`watchNearby()`（同时续期局域网搜索）、`connect(addresses, expectedDeviceId)`（最多 16 个地址）、`connectSaved(deviceId)`；断开和忘记设备仍用 `desktopLibrary`。固定通道与响应守卫在 `src/bridge/dialer-bridge.ts`，主进程来源和参数校验在 `src/main/dialer-ipc.ts`。界面只在设备页用 `watchNearby` 轮询，其他页面用 `status`。
 
-服务控制由 `window.desktopService` 的冻结 `DesktopServiceApi` 提供：`status()`、`start(port)`、`randomizePort()`、`stop()`、`chooseTarget()`、`revokeTarget(rootId)`、`cancel(transferId)`、`retryCleanup()`。固定通道与响应守卫在 `src/bridge/service-bridge.ts`，主进程来源/参数校验在 `src/main/service-ipc.ts`。
+服务控制由 `window.desktopService` 的冻结 `DesktopServiceApi` 提供：`status()`、`start(port)`、`randomizePort()`、`stop()`、`chooseTarget()`，以及第 8 节的扫描方法。固定通道与响应守卫在 `src/bridge/service-bridge.ts`，主进程来源/参数校验在 `src/main/service-ipc.ts`。
 
 - `start` 接受 1 到 65535 的整数，本机显式启动后监听 `0.0.0.0`，冲突返回错误。端口保存到应用私有目录，首次生成 49152 到 65535 的随机值；`randomizePort()` 选择并保存另一个端口。
-- 快照含设备 ID、配置端口、实际监听地址与开始监听的时间（Unix 毫秒）、本机 IPv4 地址、运行错误、局域网广播状态、本进程接收根和当前会话任务；没有 sessionId、私有路径或文件内容。
+- 快照含设备 ID、本机设备名、配置端口、实际监听地址与开始监听的时间（Unix 毫秒）、本机 IPv4 地址、运行错误和局域网广播状态；没有 sessionId、私有路径或文件内容。
 - 本机 IPv4 由 `recommended-address.ts` 推荐：用 `route print -4` 查默认路由和 metric，用 `reg query` 查网卡驱动是否标记为物理网卡（NCF_PHYSICAL），按 IP 和 `os.networkInterfaces()` 对应，不启动 PowerShell，通常 0.2–0.3 秒。先取物理网卡且有默认网关的地址，没有时取任意有默认网关的地址，再加 Windows 移动热点 192.168.137.1；排除代理软件常用的 198.18.0.0/15，一个都没有时退回全部可用地址；按推荐顺序、去重，最多 8 个。服务每次启动后在后台重新读取，读到之前为 `null`，设备页显示读取中；之后缓存 30 秒并在后台刷新；查询失败时为空数组。
 - 设备页用设备 ID、实际端口和这组地址生成连接二维码，第一个地址作为显示和复制的地址。已保存的设备按最近连接排序：`library-store.ts` 在每次新连接（目录请求带 `x-sync-connect: 1`）时把该设备移到开头，连接期间的目录刷新不改顺序。
-- `chooseTarget()` 打开原生系统选择器；选中目录后执行 `publisher.grant`，取消保留既有授权。`revokeTarget` 撤销新写入授权并收尾该根的当前发布。全部 Promise 将失败转为脱敏错误。界面每秒读取状态，卸载停止轮询。`cancel()` 保留已经发布的文件。
+- `chooseTarget()` 打开原生系统选择器，选中后登记为本机目录并返回 `DirectorySelectionResult`，取消返回 cancelled。全部 Promise 将失败转为脱敏错误。界面每秒读取状态，卸载停止轮询。
 
 服务开始监听后，`src/main/discovery-advertiser.ts` 用 `@homebridge/ciao` 在局域网广播 `_savedata-sync._tcp`（格式见[共享包](shared-package.md#9-发现与连接二维码)）：实例名取本机名称，SRV 主机名由设备 ID 生成，只发 IPv4，每块网卡只回答这块网卡的地址；网卡增减或地址变化后 ciao 每 15 秒检查一次并重新宣告。停止服务和退出应用时发送 goodbye 包并关闭 UDP 5353 套接字，最多等 3 秒。广播失败不影响 HTTP 服务，快照的 `discovery.status` 为 `failed`，每 30 秒重试。`advertising` 只表示本机已发出宣告，防火墙拦截 UDP 5353 时其他设备仍然搜不到。
 
@@ -130,25 +130,24 @@ HTTP 服务注入 `scanSource: adapter` 后开放 `/v1/sync/capabilities`、`POS
 
 ## 9. 私有归档
 
-`src/main/archive-adapter.ts` 仅供主进程调用，使用内置 fs/stream/zlib/crypto。文件、缓存和流留在原生层，归档对象和文件内容不跨 preload/JS 桥。
+`src/main/archive-adapter.ts` 仅供主进程调用，使用内置 fs/stream/zlib。文件、缓存和流留在原生层，归档对象和文件内容不跨 preload/JS 桥。
 
 | 接口 | 输入/输出 | 所有权与失败 |
 | --- | --- | --- |
 | createWindowsArchiveAdapter(source, privateDirectory, options?) | 目录读取适配器与既有应用私有绝对目录 | 缓存固定放 transfer-archives-v1 子目录，不能与任何已登记源根重叠；启动只清理验证过的孤儿缓存；失败抛脱敏 ArchiveError |
-| archive.prepare(request, options?) | DownloadBatchRequest，返回 WindowsArchive | 按流复制源至私有快照，实测长度/SHA-256 并核实读取后元数据，再打包 gzip1；成功后调用者持有缓存，必须 dispose |
-| archive.receive(manifest, input, options?) | BatchManifest 和原始 Node Readable | 从调用起接管并最终关闭 input；完整保存/校验压缩体及全部原文后才返回句柄 |
-| artifact.manifest | 冻结的本次清单、实际长度/哈希 | 当前任务专用，不持久化为历史基线 |
-| artifact.openArchive() / openFile(fileId) | 只读流；fileId 必须属于本清单 | 调用者必须消费或 destroy；未关闭读流会使 dispose 报 busy；不返回缓存路径 |
-| artifact.dispose() | Promise&lt;void&gt; | 幂等并合并并发清理；失败保留互斥，禁止新任务，允许再次 dispose 或 retryCleanup |
-| archive.retryCleanup() | 重试本缓存根的失败清理 | 不删除其他缓存根或仍在操作/仍有读流的任务；清理成功后才释放进程互斥 |
+| archive.checkStagingSpace(bytes) | 解包原文字节数，返回缓存所在卷和需要的字节数 | 超过缓存预算报 resource-limit，空间不足报 insufficient-space |
+| archive.sendFiles(rootId, files, destination, options?) | 复制计划的文件列表（fileId、entryId、大小、修改日期）和可写流 | 按顺序边读边打包 gzip1 写入 destination，写完结束它；文件的大小或修改日期与计划不同、读取期间被改动时抛 source-changed |
+| archive.receiveFiles(files, input, options?) | 计划的文件列表和原始 Node Readable，返回 WindowsStagedFiles | 从调用起接管并最终关闭 input；按计划逐成员核对并通过 gzip 校验后才返回；失败或取消时清理本次缓存 |
+| staged.openFile(fileId) / dispose() | 只读流；fileId 必须属于本次内容 | 调用者必须消费或 destroy；dispose 后所有方法失效 |
+| archive.retryCleanup() | 重试本缓存根的失败清理 | 不删除仍在使用的文件；清理成功后才释放进程互斥 |
 
-操作 options 可传 signal 和 onProgress。普通 abort 抛 ArchiveCancelledError，TimeoutError signal 映射 timeout；清理也失败时原错误保留，独立 cleanupError=cleanup-failed。进度快照分开源读取、压缩体已暂存、原文校验字节与已校验文件数；只有文件结果表示最终发布。
+操作 options 可传 signal 和 onBytes（累计已打包或已解包的文件内容字节数）。普通 abort 抛 ArchiveCancelledError，TimeoutError signal 映射 timeout；清理也失败时原错误保留，独立 cleanupError=cleanup-failed。
 
-默认执行共享包的每文件/总原文/tar/压缩体上限、64 KiB 显式 IO 缓冲及 3 GiB 私有缓存预算。options.quota 可以进一步收紧本机预算；options.io 仅供受信任主进程注入磁盘空间检查和删除能力。接收登记前检查压缩体、解包原文和整批目标文件的可用空间，缓存与目标同卷时合计峰值，不足返回 `insufficient-space`。满额 1 GiB 双向传输和进程内存实测见[验收标准](../testing/acceptance.md)。
+默认执行共享包的每文件/总原文/tar 上限、64 KiB 显式 IO 缓冲及 3 GiB 私有缓存预算。options.quota 可以进一步收紧本机预算；options.io 仅供受信任主进程注入磁盘空间检查和删除能力。满额 1 GiB 双向传输和进程内存实测见[验收标准](../testing/acceptance.md)。
 
-源快照和解包只写到随机任务目录。根/任务都有所有权标记并检查目录身份，进程内一份活动缓存。清理先核实所有成员，再逐个 unlink 普通文件并 rmdir 空任务目录；拒绝陌生文件、子目录、链接和多重硬链接。
+解包只写到随机任务目录。根/任务都有所有权标记并检查目录身份，进程内一份活动缓存。清理先核实所有成员，再逐个 unlink 普通文件并 rmdir 空任务目录；拒绝陌生文件、子目录、链接和多重硬链接。
 
-归档严格按[传输协议](transfer-protocol.md)的规范化 USTAR 头、顺序 fileId、零填充和两个结束块生成/校验。gzip 限制固定头和单 member，使用原始 DEFLATE 解码并核对实际消耗字节、CRC32/ISIZE、完整 tar 长度及每文件 SHA-256；拒绝拼接、尾随、损坏、截断、链接及扩展头。`test/fixtures/archive-v1.json` 由 Python 标准库独立生成，Node 和 Java 测试共用。
+归档严格按[设备接口与归档格式](transfer-protocol.md#3-归档格式)的规范化 USTAR 头、顺序 fileId、零填充和两个结束块生成/校验。`archive-format.ts` 的 `createStrictGunzip` 自己解析 gzip 头尾：要求固定头和单 member，用原始 DEFLATE 解码并核对它实际消耗的字节数、CRC32/ISIZE；拒绝拼接、尾随、损坏、截断、链接及扩展头。`test/fixtures/archive-v1.json` 由 Python 标准库独立生成，Node 和 Java 测试共用。
 
 ## 10. HTTP 服务与任务生命周期
 
@@ -156,35 +155,18 @@ HTTP 服务注入 `scanSource: adapter` 后开放 `/v1/sync/capabilities`、`POS
 
 | 原生 API | 输入/返回 | 责任 |
 | --- | --- | --- |
-| new WindowsHttpService(source, archive, options?) | 目录读取/归档适配器；可选 publisher、displayName、时钟、仅收紧的期限/会话容量 | 同时有 publisher 及 archive.receive 才启用旧 v1 上传 |
-| service.start({host?, port?}) | 返回实际 host/port/sessionId | 端口冲突明确失败，不换端口重试；每次重新启动生成会话 |
+| new WindowsHttpService(source, options?) | 目录读取适配器；可选 library、displayName、scanSource、sync（写入器、备份、归档）和仅收紧的 `BATCH_TIMEOUTS_MS` 期限 | 注入 scanSource 和 sync 后开放扫描与复制任务 |
+| service.start({host?, port?}) | 返回实际 host/port/sessionId/startedAt | 端口冲突明确失败，不换端口重试；每次重新启动生成会话 |
 | service.getAddress() / getError() | 监听快照或 null；脱敏运行时错误或 null | sessionId 只用于识别服务重启，认证不在这层 |
-| service.stop() | Promise&lt;void&gt; | 停止接纳、关闭连接、取消并等待 worker/缓存清理；失败保留所有权，下次 stop 重试 |
-| service.retryCleanup() | Promise&lt;void&gt; | 主进程明确重试终态缓存；活动任务报 busy；不重放请求或内容 |
+| service.stop() | Promise&lt;void&gt; | 关闭连接，取消并等待任务和缓存清理；并发调用共用同一个 Promise；清理失败时端口已关闭，可以再次 stop |
 
-路由和包络见[传输协议](transfer-protocol.md#4-http-路由与会话)。除了 device 均核对唯一会话头。JSON 严格 UTF-8、无 BOM/重复解码键、深度不超过 128，按实际 UTF-8 字节执行 8 MiB 请求及响应预算；拒绝编码体、trailer、重复头、歧义 CL/TE、非法/重复查询、错误方法和 Range。
+路由和包络见[设备接口与归档格式](transfer-protocol.md#4-http-路由与会话)。除了 device 均核对唯一会话头。JSON 严格 UTF-8、无 BOM/重复解码键、深度不超过 128，按实际 UTF-8 字节执行 8 MiB 请求及响应预算；拒绝编码体、trailer、重复头、歧义 CL/TE、非法/重复查询、错误方法和 Range。请求/响应无进展 60 秒、整个 HTTP 请求 30 分钟、请求头 15 秒及 16 KiB 头预算。
 
-`transfer-registry.ts` 原子接纳后占用单次 ID；下载内容仅 sender ready 可原子领取一次。每个进程仅一个活动批次，覆盖准备、ready、发送、取消和清理。ready 10 分钟、总期限 30 分钟、发送无进展 60 秒，查询不续期；请求/响应无进展 60 秒、整个 HTTP 请求 30 分钟、请求头 15 秒及 16 KiB 头预算。终态保留 10 分钟，已用 ID 保留到服务停止，最多 4096 个。
+复制任务由 `WindowsSyncRegistry` 登记，期限、留存和结果见[复制、备份与恢复约定](sync-copy.md)。失败、取消和超时等待实际 IO 结束再清理；清理失败保留互斥，明确重试成功后才释放。主进程 before-quit 等待 HTTP 服务停止；清理失败显示错误并保留重试机会。
 
-sender 的 sent 表示本机发送流完成，Android 是否接收或发布要看 receiver 的结果。失败、取消和超时等待实际 IO 结束再清理；清理失败保留互斥，明确重试成功后才释放。主进程 before-quit 同时等待 HTTP 服务与发布适配器停止；清理失败显示错误并保留重试机会。
+## 11. 写入候选残留
 
-## 11. 旧 v1 新文件发布与接收
-
-`src/main/new-file-publisher.ts` 的 `WindowsNewFilePublisher` 只供旧 v1 批量接口使用，只在明确授权的专用测试根中创建新文件；应用内的复制与恢复走第 13 节的受保护写入器。写授权只在本进程存活；退出会撤销授权、取消未发布操作并等待候选清理。
-
-| 原生 API | 输入/返回 | 生命周期与失败 |
-| --- | --- | --- |
-| new WindowsNewFilePublisher(source, options?) | 目录适配器；可选 maxFileBytes 及受信任 IO 注入 | 文件预算只能收紧；不支持安全硬链接时失败，不降级覆盖 |
-| grant(rootId) / revoke(rootId) | 已登记本地根 ID | 显式本机授权；撤销等待正在操作的原生 worker |
-| checkTarget(request) | 只读预检，返回物理父目录 dev/ino 与大小写比较键 | 不预留名称，发布时仍重查 |
-| publish(request, input, options?) | 原文 Readable；返回 outcome 与清理状态 | 接管并最终关闭输入；未确认结果为 unknown，不自动重放 |
-| retryCleanup() / stop() | Promise&lt;void&gt; | 清理失败保留身份和进程名额；明确重试成功后释放 |
-
-发布在目标父目录以 `wx` 创建随机 `.savedata-new-<UUID>.tmp` 候选；输入按不超过 64 KiB 分块写入，实测长度/SHA-256、sync 并关闭后，通过 `fs.link(candidate, target)` 排他创建最终名称，再读回复验。其他卷或网络文件系统没有验证，无法安全硬链接时发布失败；特殊 Unicode/8.3 名称的覆盖还没补齐。
-
-注入 publisher 后服务支持 POST uploads 和单次 PUT content。POST 逐项只读预检并以物理父目录/小写名称键检查重复目标，成功后进入 awaiting-content 并返回 201。PUT 校验唯一的 application/gzip、Content-Length 和 x-archive-sha256；`ArchiveReceiveOptions.onArchiveStored` 在压缩体完整落盘且长度/SHA-256 匹配后触发，HTTP 返回 202 的 verifying 快照，归档继续异步完成解包和完整校验后，`upload-receiver.ts` 才按清单顺序发布。整批校验失败时结果全部为 not-attempted/batch-invalid。receiver 等内容期限为 2 分钟，完整消息收齐后即使响应连接丢失，本机仍继续校验和发布。
-
-所有权与写授权只在当前进程内有效。崩溃或强制退出可能留下目标卷候选；复制写入时 `WindowsSyncWriter` 开始写目标目录前删除其中的候选文件，扫描也跳过它们。真实断电及其他文件系统还没验证。
+写入候选只在当前进程内有所有权。崩溃或强制退出可能在目标目录留下 `.savedata-copy-<UUID>.tmp`、`.savedata-new-<UUID>.tmp` 候选；复制写入时 `WindowsSyncWriter` 开始写目标目录前删除其中的候选文件，扫描也跳过它们（[接口约定](api-contracts.md)第 3 节）。真实断电及其他文件系统还没验证。
 
 ## 12. 独立备份与恢复材料
 
@@ -257,7 +239,7 @@ sender 的 sent 表示本机发送流完成，Android 是否接收或发布要�
 
 ## 15. 测试范围
 
-`apps/desktop/test/` 覆盖目录/IPC、归档、HTTP sender/receiver、旧 v1 发布、扫描、备份和受保护写入的最小长期回归，由 `pnpm test` 运行。测试只覆盖公开接口、数据关系、文件安全和关键传输结果；界面、日志文本和内部调用顺序不进入长期测试。临时夹具基于 realpath 的系统临时根。
+`apps/desktop/test/` 覆盖目录/IPC、归档、HTTP 服务、扫描、备份和受保护写入的最小长期回归，由 `pnpm test` 运行。测试只覆盖公开接口、数据关系、文件安全和关键传输结果；界面、日志文本和内部调用顺序不进入长期测试。临时夹具基于 realpath 的系统临时根。
 
 Windows 短路径检查通过 PowerShell 调用 GetShortPathName 生成真实 8.3 别名，并在只影响子进程的 TEMP/TMP 环境中重跑目录与 IPC 用例；卷未生成不同短名时跳过这一项。HTTP 测试使用真实回环 HTTP/TCP，时间边界由注入的时钟和仅收紧的期限验证，不等待实际 30 分钟。
 

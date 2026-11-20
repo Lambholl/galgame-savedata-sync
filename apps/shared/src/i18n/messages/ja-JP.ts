@@ -368,17 +368,10 @@ export const jaJP: Messages = {
   'game.removeTitle': 'ゲームの登録を解除',
   'game.removeText':
     'ゲームの設定、端末の関連付け、このゲームのバックアップを削除します。セーブデータは残ります。',
-  'game.transferRunning': '転送中',
 
   'transfer.started': '転送を開始しました',
   'transfer.remoteScanRequest': ({ device, name }) =>
     `${device} から ${name} のスキャンが要求されました`,
-  'task.loading': '転送の状態を読み込み中',
-  'task.remoteToLocal': '相手の端末 → この端末',
-  'task.localToRemote': 'この端末 → 相手の端末',
-  'task.sent': '送信済み',
-  'task.archiveProgress': ({ done, total }) => `転送済み ${done} / ${total}`,
-  'task.retryCleanup': 'クリーンアップを再試行',
   'task.cleanupPending':
     'ファイルは転送しましたが、一時ファイルが残っています。転送の詳細を確認してください。',
   'backup.status.preparing': '準備中',

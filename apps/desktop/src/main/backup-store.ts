@@ -15,7 +15,6 @@ import {
   isSyncBackupSettings,
   isSyncPlan,
   isSyncSnapshot,
-  readSyncBackupSettings,
   resolveBackupPolicy,
   selectSyncBackupFiles,
   syncPathKey,
@@ -443,7 +442,7 @@ export class WindowsBackupStore {
       }
     })
   }
-  /** 读取备份设置；设置文件不存在时返回默认设置，旧格式转换为当前格式，文件损坏时抛错。 */
+  /** 读取备份设置；设置文件不存在时返回默认设置，文件损坏或不是当前格式版本时抛错。 */
   settings(): Promise<SyncBackupSettings> {
     return this.exclusive(() => this.readSettings())
   }
@@ -451,8 +450,8 @@ export class WindowsBackupStore {
     if (!(await exists(this.settingsFile))) {
       return EMPTY_BACKUP_SETTINGS
     }
-    const value = readSyncBackupSettings(await readBackupJson(this.settingsFile))
-    if (!value) {
+    const value: unknown = await readBackupJson(this.settingsFile)
+    if (!isSyncBackupSettings(value)) {
       throw new ArchiveError('invalid-request', 'Backup settings are damaged.')
     }
     return value

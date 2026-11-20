@@ -6,7 +6,6 @@
     <string name="transfer_stage_ready">受信待ち</string>
     <string name="transfer_stage_awaiting_content">内容待ち</string>
     <string name="transfer_stage_transferring">転送中</string>
-    <string name="transfer_stage_verifying">検証中</string>
     <string name="transfer_stage_writing">書き込み中</string>
     <string name="transfer_stage_backing_up">控えを作成中</string>
     <string name="transfer_stage_cleaning">仕上げ中</string>

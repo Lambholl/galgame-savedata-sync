@@ -4,11 +4,8 @@ import {
   libraryCatalog,
   libraryLinks,
   mergeCatalogLinks,
-  matchesSyncProjectBinding,
   normalizeHttpAddress,
   OperationFailure,
-  resolveSyncProjectBinding,
-  BATCH_PROTOCOL_VERSION,
 } from '@savedata-sync/shared'
 import type {
   BatchDeviceDescriptor,
@@ -17,10 +14,8 @@ import type {
   DirectoryReference,
   LibraryConfig,
   OperationResult,
-  SyncProjectBinding,
 } from '@savedata-sync/shared'
-import { unwrap, taskIsActive } from '@savedata-sync/shared'
-import type { TransferTask, TransferRequest } from '@savedata-sync/shared'
+import { unwrap } from '@savedata-sync/shared'
 import type { MobileLibraryAdapter, MobileSnapshot } from './library-types'
 import { androidDirectories as defaultDirectories } from './directories'
 import {
@@ -30,11 +25,7 @@ import {
 import { CONTROL_CLOSE_DISCONNECTED } from './control-channel'
 import type { AndroidControlApi } from './control-channel'
 import type { AndroidDirectoryApi } from './directory-bridge'
-import type {
-  AndroidTransferApi,
-  CurrentTransfer,
-  TransferStartOptions,
-} from './http-transfer-bridge'
+import type { AndroidTransferApi } from './http-transfer-bridge'
 import { appStorage, loadAppStorage } from './app-storage'
 import { localService as defaultService } from './local-service'
 import type { ListenerPeer, LocalServiceApi, LocalServiceStatus } from './local-service-bridge'
@@ -80,9 +71,6 @@ export function createMobileLibraryAdapter(
   /** 连上后控制通道还没打开过的设备。 */
   const opening = new Set<string>()
   let selectedId: string | null = null
-  let current: CurrentTransfer | null = null
-  let task: TransferTask | null = null
-  let hasRestored = false
   let descriptors: readonly BatchDeviceDescriptor[] = []
   /** 最近一次读到的、和本机服务交换过目录表的设备。 */
   let listenerPeers: readonly ListenerPeer[] = []
@@ -216,7 +204,7 @@ export function createMobileLibraryAdapter(
     return result
   }
   async function hasWork(): Promise<boolean> {
-    return Boolean((task && taskIsActive(task)) || (await dependencies?.hasSyncWork?.()))
+    return Boolean(await dependencies?.hasSyncWork?.())
   }
   async function select(id: string): Promise<BatchDeviceDescriptor> {
     const descriptor = descriptors.find((item) => item.device.deviceId === id)
@@ -229,38 +217,6 @@ export function createMobileLibraryAdapter(
       selectedId = id
     }
     return descriptor
-  }
-  async function refreshTask(): Promise<void> {
-    if (!hasRestored) {
-      current = unwrap(await androidTransfers.current())
-      hasRestored = true
-      if (current) {
-        task = {
-          id: current.options.request.transferId,
-          title: current.device.device.displayName,
-          local: null,
-          remote: null,
-          isUpload: current.isUpload,
-          names: {},
-        }
-      }
-    }
-    if (!current || !task || !taskIsActive(task)) {
-      return
-    }
-    const id = current.options.request.transferId
-    const local = await androidTransfers.query(id)
-    const remote = await androidTransfers.queryRemote(id, true)
-    const manifest = await androidTransfers.getManifest(id)
-    task = {
-      ...task,
-      local: local.status === 'success' ? local.value : task.local,
-      remote: remote.status === 'success' ? remote.value : task.remote,
-      names:
-        manifest.status === 'success'
-          ? Object.fromEntries(manifest.value.files.map((file) => [file.fileId, file.sourceName]))
-          : task.names,
-    }
   }
   async function disconnect(id: string): Promise<void> {
     unwrap(await androidTransfers.disconnectDevice(id))
@@ -297,7 +253,6 @@ export function createMobileLibraryAdapter(
     }
   }
   async function assertCanEditGames(): Promise<void> {
-    await refreshTask()
     if (await hasWork()) {
       throw new OperationFailure(
         'busy',
@@ -305,50 +260,12 @@ export function createMobileLibraryAdapter(
       )
     }
   }
-  async function binding(
-    transfer: TransferRequest,
-    shouldRefresh: boolean,
-  ): Promise<SyncProjectBinding> {
-    const roots = unwrap(await androidDirectories.listRoots())
-    if (shouldRefresh) {
-      unwrap(await exchange(transfer.deviceId, roots))
-    }
-    const device = load().devices.find((item) => item.id === transfer.deviceId)
-    if (!device) {
-      throw new OperationFailure(
-        'not-found',
-        'The device linked to the project was removed. Select it again.',
-      )
-    }
-    const value = unwrap(
-      resolveSyncProjectBinding(
-        load(),
-        roots,
-        {
-          device,
-          isConnected: descriptors.some((item) => item.device.deviceId === transfer.deviceId),
-          games: catalogs.get(transfer.deviceId) ?? [],
-        },
-        transfer.projectId,
-      ),
-    )
-    const sourceRootId = transfer.isUpload ? value.localRootId : value.remoteRootId
-    const targetRootId = transfer.isUpload ? value.remoteRootId : value.localRootId
-    if (sourceRootId !== transfer.sourceRootId || targetRootId !== transfer.targetRootId) {
-      throw new OperationFailure(
-        'task-conflict',
-        'The project directory changed. Reopen the preview.',
-      )
-    }
-    return value
-  }
   return {
     async read(): Promise<MobileSnapshot> {
       load()
       const roots = unwrap(await androidDirectories.listRoots())
       descriptors = unwrap(await androidTransfers.connections())
       const connectedIds = new Set<string>()
-      await refreshTask()
       for (const descriptor of descriptors) {
         const id = descriptor.device.deviceId
         if (!load().devices.some((item) => item.id === id)) {
@@ -425,7 +342,6 @@ export function createMobileLibraryAdapter(
           descriptors
             .map((item) => item.device.deviceId)
             .find((id) => opening.has(id) && !connectedIds.has(id)) ?? null,
-        tasks: task ? [task] : [],
       }
     },
     savedConfig() {
@@ -614,66 +530,6 @@ export function createMobileLibraryAdapter(
       }
       await select(deviceId)
       return androidTransfers.listRemoteDirectory(rootId, parentId)
-    },
-    async start(value: TransferRequest): Promise<void> {
-      const transfer = structuredClone(value)
-      const expected = await binding(transfer, false)
-      const descriptor = await select(transfer.deviceId)
-      if (!unwrap(await androidTransfers.requestNotifications())) {
-        throw new OperationFailure('permission-denied', 'Allow transfer notifications and retry.')
-      }
-      const actual = await binding(transfer, true)
-      if (!matchesSyncProjectBinding(expected, actual)) {
-        throw new OperationFailure(
-          'task-conflict',
-          'The project or device link changed. Reopen the preview.',
-        )
-      }
-      const options: TransferStartOptions = {
-        request: {
-          protocolVersion: BATCH_PROTOCOL_VERSION,
-          transferId: crypto.randomUUID(),
-          sourceRootId: transfer.sourceRootId,
-          files: transfer.files.map((file, index) => ({
-            fileId: `f${String(index + 1).padStart(6, '0')}`,
-            entryId: file.entryId,
-          })),
-        },
-        targetRootId: transfer.targetRootId,
-        targets: transfer.files.map((file, index) => ({
-          fileId: `f${String(index + 1).padStart(6, '0')}`,
-          parentId: transfer.targetParentId,
-          name: transfer.names[file.entryId] ?? file.name,
-        })),
-      }
-      unwrap(
-        await (transfer.isUpload
-          ? androidTransfers.startUpload(options)
-          : androidTransfers.startDownload(options)),
-      )
-      current = { options, isUpload: transfer.isUpload, device: descriptor }
-      hasRestored = true
-      task = {
-        id: options.request.transferId,
-        title: transfer.title,
-        local: null,
-        remote: null,
-        isUpload: transfer.isUpload,
-        names: Object.fromEntries(
-          transfer.files.map((file, index) => [
-            `f${String(index + 1).padStart(6, '0')}`,
-            file.name,
-          ]),
-        ),
-      }
-    },
-    async cancel(id): Promise<void> {
-      unwrap(await androidTransfers.cancel(id))
-    },
-    async cleanup(): Promise<void> {
-      if (!unwrap(await androidTransfers.retryCleanup())) {
-        throw new OperationFailure('cleanup-failed', 'Temporary files still need cleanup.')
-      }
     },
   }
 }

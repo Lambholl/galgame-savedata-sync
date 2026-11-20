@@ -1,10 +1,9 @@
 import { PROTOCOL_VERSION } from './contracts.ts'
 import type { OperationErrorCode } from './contracts.ts'
 
-/** 会话和压缩体校验使用的 HTTP 头。 */
+/** 会话使用的 HTTP 头。 */
 export const HTTP_HEADERS = {
   sessionId: 'x-sync-session-id',
-  archiveSha256: 'x-archive-sha256',
 } as const
 
 /** 固定路由和路由模板；模板参数要先校验，再逐段编码代入。 */
@@ -12,11 +11,6 @@ export const HTTP_ROUTES = {
   device: '/v1/device',
   roots: '/v1/roots',
   entries: '/v1/roots/{rootId}/entries',
-  downloads: '/v1/transfers/downloads',
-  uploads: '/v1/transfers/uploads',
-  manifest: '/v1/transfers/{transferId}/manifest',
-  content: '/v1/transfers/{transferId}/content',
-  transfer: '/v1/transfers/{transferId}',
 } as const
 
 /** 错误码对应的 HTTP 状态。 */

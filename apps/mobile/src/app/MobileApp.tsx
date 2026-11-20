@@ -8,7 +8,6 @@ import {
   emptyLibrary,
   formatConnectionAddress,
   observeSyncJob,
-  taskIsActive,
   toShownError,
   withGameLink,
   withoutGameLink,
@@ -37,7 +36,6 @@ import { PAGE_TITLE_KEYS } from './navigation-types'
 import {
   ErrorText,
   GameActions,
-  legacyTaskPreview,
   restoreTaskPreview,
   syncTaskPreview,
   usePageNavigation,
@@ -55,7 +53,6 @@ import { GamesPage } from '../features/games/GamesPage'
 import { GameSettingsPage } from '../features/games/GameSettingsPage'
 import { SettingsPage } from '../features/settings/SettingsPage'
 import { setAppPreferences, useAppPreferences } from './app-preferences'
-import { TaskPage } from '../features/transfer/TaskPage'
 import { SyncCopyPage } from '../features/transfer/SyncCopyPage'
 import { SyncTaskDetails } from '../features/transfer/SyncTaskDetails'
 import { useSyncTasks } from '../features/transfer/use-sync-tasks'
@@ -369,7 +366,7 @@ export function MobileApp({
   // 连接返回后要等控制通道打开才算在线，这期间仍显示连接中，否则“连接”按钮会再出现一次。
   const opening = peers.find((item) => item.device.id === snapshot?.connectingId) ?? null
   const localRoot = snapshot?.roots.find((item) => item.rootId === game?.rootId) ?? null
-  const isActive = (snapshot?.tasks.some(taskIsActive) ?? false) || syncTasks.isActive
+  const isActive = syncTasks.isActive
   const isDisabled = isBusy || !snapshot
   const copyProjectId = syncTasks.copy?.preview.binding.projectId ?? null
   // 游戏移除后，它已结束的传输和恢复不再放进任务条，否则任务条留着一条名为“未知”的记录。
@@ -401,18 +398,13 @@ export function MobileApp({
     isStripShown(syncTasks.restore?.state.projectId ?? null, restoreObserved.phase)
       ? restoreObserved
       : null
-  const legacy = snapshot?.tasks.find(taskIsActive) ?? snapshot?.tasks.at(-1) ?? null
   const shouldShowCopy =
     copyPreview && (copyPreview.phase === 'running' || restorePreview?.phase !== 'running')
-  const shouldShowLegacy = legacy && (taskIsActive(legacy) || (!copyPreview && !restorePreview))
-  const stripProjectId = shouldShowLegacy
-    ? null
-    : shouldShowCopy
-      ? copyProjectId
-      : (syncTasks.restore?.state.projectId ?? null)
-  const stripTask: TaskStripInfo | null = shouldShowLegacy
-    ? { ...legacyTaskPreview(legacy, t), gameName: legacy.title }
-    : shouldShowCopy && copyPreview
+  const stripProjectId = shouldShowCopy
+    ? copyProjectId
+    : (syncTasks.restore?.state.projectId ?? null)
+  const stripTask: TaskStripInfo | null =
+    shouldShowCopy && copyPreview
       ? {
           ...copyPreview,
           gameName:
@@ -968,9 +960,7 @@ export function MobileApp({
         task={stripTask}
         onOpenGame={openGame}
         onOpenTasks={() =>
-          !shouldShowLegacy && !shouldShowCopy && stripProjectId
-            ? openBackup(stripProjectId)
-            : openTasks(stripProjectId)
+          !shouldShowCopy && stripProjectId ? openBackup(stripProjectId) : openTasks(stripProjectId)
         }
       />
     )
@@ -1036,39 +1026,29 @@ export function MobileApp({
     )
   } else if (page === 'task') {
     body = (
-      <>
-        <SyncTaskDetails
-          projectId={taskProjectId}
-          sync={sync}
-          copy={taskProjectId === null ? syncTasks.copy : syncTasks.projectCopy}
-          isLoading={syncTasks.isProjectCopyLoading}
-          restore={
-            taskProjectId === null || syncTasks.restore?.state.projectId === taskProjectId
-              ? syncTasks.restore
-              : null
-          }
-          games={config.games}
-          peers={peers}
-          errors={syncTasks.errors}
-          peerInitiatedJobIds={peerInitiatedJobIds}
-          onChanged={() => syncTasks.reload()}
-          onRescan={(projectId, deviceId, direction) => {
-            setGameId(projectId)
-            setPeerId(deviceId)
-            setSyncDirection(direction)
-            navigation.open('sync')
-          }}
-          onBackup={openBackup}
-        />
-        {taskProjectId === null && Boolean(snapshot?.tasks.length) && (
-          <TaskPage
-            tasks={snapshot?.tasks ?? []}
-            isBusy={isBusy}
-            onCancel={(id) => run(() => adapter.cancel(id))}
-            onCleanup={() => run(() => adapter.cleanup())}
-          />
-        )}
-      </>
+      <SyncTaskDetails
+        projectId={taskProjectId}
+        sync={sync}
+        copy={taskProjectId === null ? syncTasks.copy : syncTasks.projectCopy}
+        isLoading={syncTasks.isProjectCopyLoading}
+        restore={
+          taskProjectId === null || syncTasks.restore?.state.projectId === taskProjectId
+            ? syncTasks.restore
+            : null
+        }
+        games={config.games}
+        peers={peers}
+        errors={syncTasks.errors}
+        peerInitiatedJobIds={peerInitiatedJobIds}
+        onChanged={() => syncTasks.reload()}
+        onRescan={(projectId, deviceId, direction) => {
+          setGameId(projectId)
+          setPeerId(deviceId)
+          setSyncDirection(direction)
+          navigation.open('sync')
+        }}
+        onBackup={openBackup}
+      />
     )
   } else if (page === 'backup') {
     body = game ? (

@@ -11,7 +11,6 @@ import {
   BATCH_RESOURCES,
   BATCH_TIMEOUTS_MS,
   HTTP_HEADERS,
-  isReceiveBatchRequest,
   PROTOCOL_VERSION,
   SYNC_CAPABILITIES_VERSION,
   SYNC_LIMITS,
@@ -20,7 +19,6 @@ import {
   isOpaqueId,
 } from '@savedata-sync/shared'
 import type {
-  BatchState,
   DeviceDescriptor,
   OperationError,
   OperationResult,
@@ -33,9 +31,6 @@ import type { WindowsArchiveAdapter } from './archive-adapter.ts'
 import type { WindowsDirectoryAdapter } from './directory-adapter.ts'
 import { HttpOperationError, toHttpError } from './http-errors.ts'
 import { inspectHttpRequest, readHttpJson, sendHttpFailure, sendHttpJson } from './http-wire.ts'
-import { WindowsTransferRegistry } from './transfer-registry.ts'
-import type { TransferRegistryOptions } from './transfer-registry.ts'
-import type { WindowsNewFilePublisher } from './new-file-publisher.ts'
 import type { DesktopLibrary } from './library-store.ts'
 import { WindowsSyncScanner } from './sync-scanner.ts'
 import type { WindowsScanSource } from './sync-scanner.ts'
@@ -47,8 +42,6 @@ import type { WindowsBackupStore } from './backup-store.ts'
 import { hasTargetOperation } from './target-operation.ts'
 
 type HttpDirectorySource = Pick<WindowsDirectoryAdapter, 'deviceId' | 'listRoots' | 'listDirectory'>
-type HttpArchiveProvider = Pick<WindowsArchiveAdapter, 'prepare' | 'retryCleanup'> &
-  Partial<Pick<WindowsArchiveAdapter, 'receive'>>
 
 /** 监听选项；缺省时监听回环地址和动态端口。 */
 export interface HttpListenOptions {
@@ -65,14 +58,13 @@ export interface HttpListenerAddress {
   readonly startedAt: number
 }
 
-/** HTTP 服务的选项；限额和时钟的含义同 TransferRegistryOptions。 */
-export interface WindowsHttpOptions extends Omit<TransferRegistryOptions, 'receiver'> {
-  /** 接收前核实目标并恢复写授权；reject 时拒绝本次传输。 */
-  readonly authorizeTarget?: (rootId: string) => Promise<void>
+/** HTTP 服务的选项。 */
+export interface WindowsHttpOptions {
+  /** 复制任务的期限，只能比 BATCH_TIMEOUTS_MS 的对应项短。 */
+  readonly timeouts?: Partial<{ readonly [Key in keyof typeof BATCH_TIMEOUTS_MS]: number }>
   readonly library?: DesktopLibrary
   readonly displayName?: string
   readonly scanSource?: WindowsScanSource
-  readonly publisher?: Pick<WindowsNewFilePublisher, 'checkTarget' | 'publish' | 'retryCleanup'>
   readonly sync?: {
     readonly writer: WindowsSyncWriter
     readonly backups: WindowsBackupStore
@@ -83,14 +75,12 @@ export interface WindowsHttpOptions extends Omit<TransferRegistryOptions, 'recei
   }
 }
 
-/** 本机 v1 HTTP 服务，提供批量传输、复制任务、远程复制请求和控制通道。提供发布适配器时才接收上传。 */
+/** 本机 v1 HTTP 服务，提供设备信息、目录浏览、目录表交换、复制任务、远程复制请求和控制通道。 */
 export class WindowsHttpService {
   private readonly source: HttpDirectorySource
-  private readonly archive: HttpArchiveProvider
   private readonly options: WindowsHttpOptions
   private readonly sockets = new Set<Socket>()
   private server: Server | null = null
-  private registry: WindowsTransferRegistry | null = null
   private address: HttpListenerAddress | null = null
   private stopping: Promise<void> | null = null
   private starting: Promise<HttpListenerAddress> | null = null
@@ -100,13 +90,8 @@ export class WindowsHttpService {
   private remoteRequests: WindowsRemoteSyncRequests | null = null
   private control: ControlHub | null = null
 
-  constructor(
-    source: HttpDirectorySource,
-    archive: HttpArchiveProvider,
-    options: WindowsHttpOptions = {},
-  ) {
+  constructor(source: HttpDirectorySource, options: WindowsHttpOptions = {}) {
     this.source = source
-    this.archive = archive
     this.options = options
     if (options.scanSource && options.scanSource.deviceId !== source.deviceId) {
       throw new HttpOperationError(
@@ -123,7 +108,7 @@ export class WindowsHttpService {
    * @throws HttpOperationError 已在运行、清理未完成或端口冲突时抛出。
    */
   start(options: HttpListenOptions = {}): Promise<HttpListenerAddress> {
-    if (this.server || this.registry || this.starting || this.stopping) {
+    if (this.server || this.starting || this.stopping) {
       throw new HttpOperationError(
         'busy',
         'The local service is already running or is cleaning up.',
@@ -150,10 +135,6 @@ export class WindowsHttpService {
     return this.runtimeError ? { ...this.runtimeError } : null
   }
 
-  /** 返回当前会话的批量传输状态；读取不延长任务期限。 */
-  getStates(): readonly BatchState[] {
-    return this.registry?.getStates() ?? []
-  }
   /** 返回当前会话复制任务在本机这一端的状态，包括本机作为接收端和发送端的任务。 */
   getSyncStates(): readonly SyncJobState[] {
     return this.syncRegistry?.getStates() ?? []
@@ -238,13 +219,13 @@ export class WindowsHttpService {
     }
     return this.syncRegistry
   }
-  /** 判断是否有批量传输、复制任务、本机恢复或待清理的资源。 */
+  /** 判断是否有复制任务、本机恢复或待清理的资源。 */
   hasWork(): boolean {
     return hasTargetOperation()
   }
-  /** 判断是否有正在运行的批量传输或复制任务。 */
+  /** 判断是否有正在运行的复制任务。 */
   hasRunningNetworkWork(): boolean {
-    return Boolean(this.registry?.hasRunningWork() || this.syncRegistry?.hasRunningWork())
+    return Boolean(this.syncRegistry?.hasRunningWork())
   }
 
   /** 开始扫描一个本机根目录。 */
@@ -272,27 +253,6 @@ export class WindowsHttpService {
     return this.scanner
   }
 
-  /** 取消批量传输，已发布的文件保留；任务不存在时抛错。 */
-  cancel(transferId: string): BatchState {
-    if (!this.registry) {
-      throw new HttpOperationError('not-found', 'The service has not started.')
-    }
-    return this.registry.cancel(transferId)
-  }
-
-  /** 重试失败的缓存清理。 */
-  async retryCleanup(): Promise<void> {
-    if (this.syncRegistry?.hasWork()) {
-      await this.syncRegistry.retryCleanup()
-    }
-    if (this.registry) {
-      await this.registry.retryCleanup()
-    } else {
-      await this.archive.retryCleanup()
-      await this.options.publisher?.retryCleanup()
-    }
-  }
-
   /** 停止服务：关闭所有连接，取消并等待任务和缓存清理；并发调用共用同一个 Promise。清理失败时端口已关闭，可以再次 stop。 */
   stop(): Promise<void> {
     if (!this.stopping) {
@@ -305,21 +265,6 @@ export class WindowsHttpService {
 
   private async listen(host: string, port: number): Promise<HttpListenerAddress> {
     this.scanner = this.options.scanSource ? new WindowsSyncScanner(this.options.scanSource) : null
-    const registry = new WindowsTransferRegistry(this.archive, {
-      ...this.options,
-      ...(this.options.publisher && this.archive.receive
-        ? {
-            receiver: {
-              archive: {
-                receive: this.archive.receive.bind(this.archive),
-                retryCleanup: this.archive.retryCleanup.bind(this.archive),
-              },
-              publisher: this.options.publisher,
-            },
-          }
-        : {}),
-    })
-    this.registry = registry
     if (this.options.library) {
       const control = new ControlHub()
       this.control = control
@@ -371,7 +316,7 @@ export class WindowsHttpService {
       (request, response) => {
         request.setTimeout(BATCH_TIMEOUTS_MS.networkIdle, () => request.destroy())
         response.setTimeout(BATCH_TIMEOUTS_MS.networkIdle, () => response.destroy())
-        this.handle(request, response, registry, sessionId).catch((error: unknown) =>
+        this.handle(request, response, sessionId).catch((error: unknown) =>
           sendHttpFailure(response, error),
         )
       },
@@ -423,14 +368,12 @@ export class WindowsHttpService {
       })
     } catch (error) {
       this.server = null
-      await registry.stop()
       await this.syncRegistry?.stop()
       this.syncRegistry = null
       this.remoteRequests = null
       this.stopControl()
       await this.scanner?.stop()
       this.scanner = null
-      this.registry = null
       throw new HttpOperationError(
         'io-failure',
         'Cannot listen on the specified address and port. Check whether the port is in use.',
@@ -473,14 +416,10 @@ export class WindowsHttpService {
     for (const socket of this.sockets) {
       socket.destroy()
     }
-    const registry = this.registry
     this.remoteRequests = null
     this.stopControl()
-    // registry.stop 在同步部分就停止接纳并发送 abort，之后才等待原生 worker。
-    const stopping = registry?.stop() ?? Promise.resolve()
     const results = await Promise.allSettled([
       closed,
-      stopping,
       this.syncRegistry?.stop(),
       this.scanner?.stop(),
     ])
@@ -490,7 +429,6 @@ export class WindowsHttpService {
         throw toHttpError(result.reason)
       }
     }
-    this.registry = null
     this.scanner = null
     this.syncRegistry = null
     this.options.library?.stop()
@@ -522,7 +460,6 @@ export class WindowsHttpService {
   private async handle(
     request: IncomingMessage,
     response: ServerResponse,
-    registry: WindowsTransferRegistry,
     sessionId: string,
   ): Promise<void> {
     const route = inspectHttpRequest(request)
@@ -594,14 +531,7 @@ export class WindowsHttpService {
         deviceId: this.source.deviceId,
         displayName: this.options.displayName ?? hostname(),
         platform: 'windows',
-        capabilities: {
-          canListRoots: 'supported',
-          canReadFiles: 'supported',
-          canReceiveFiles:
-            this.options.publisher && this.archive.receive ? 'supported' : 'unsupported',
-          canQueryTransfers: 'supported',
-          canCancelTransfers: 'supported',
-        },
+        capabilities: { canListRoots: 'supported' },
       }
       sendHttpJson(response, 200, {
         status: 'success',
@@ -667,62 +597,13 @@ export class WindowsHttpService {
         status: 'success',
         value: await this.options.library.exchange(
           value,
-          registry.getStates().some((item) => item.status === 'running') ||
-            Boolean(this.syncRegistry?.hasWork()),
+          Boolean(this.syncRegistry?.hasWork()),
           request.headers['x-sync-connect'] === '1',
         ),
       })
       return
     }
-    if (route.kind === 'downloads') {
-      const value = await readHttpJson(request)
-      if (!request.complete || response.destroyed) {
-        return
-      }
-      sendHttpJson(response, 202, { status: 'success', value: registry.registerDownload(value) })
-      return
-    }
-    if (route.kind === 'uploads') {
-      const value = await readHttpJson(request)
-      if (!request.complete || response.destroyed) {
-        return
-      }
-      if (this.options.authorizeTarget) {
-        if (!isReceiveBatchRequest(value)) {
-          throw new HttpOperationError('invalid-request', 'The receive request is invalid.')
-        }
-        await this.options.authorizeTarget(value.targetRootId)
-      }
-      sendHttpJson(response, 201, {
-        status: 'success',
-        value: await registry.registerUpload(value),
-      })
-      return
-    }
-    if (!route.id) {
-      throw new HttpOperationError('invalid-request', 'The task ID is invalid.')
-    }
-    if (route.kind === 'manifest') {
-      sendHttpJson(response, 200, { status: 'success', value: registry.getManifest(route.id) })
-      return
-    }
-    if (route.kind === 'content') {
-      if (request.method === 'PUT') {
-        sendHttpJson(response, 202, {
-          status: 'success',
-          value: await registry.receiveContent(route.id, request, response),
-        })
-      } else {
-        await registry.sendContent(route.id, response)
-      }
-      return
-    }
-    const state =
-      request.method === 'DELETE' ? registry.cancel(route.id) : registry.getState(route.id)
-    sendHttpJson(response, request.method === 'DELETE' && state.status === 'running' ? 202 : 200, {
-      status: 'success',
-      value: state,
-    })
+    throw new HttpOperationError('invalid-request', 'The HTTP request format is invalid.')
   }
 
   private sendResult(response: ServerResponse, result: OperationResult<unknown>): void {

@@ -12,14 +12,6 @@ export class PublicationError extends Error {
   }
 }
 
-/** 表示发布被取消。 */
-export class PublicationCancelledError extends Error {
-  constructor() {
-    super('New file publication was cancelled.')
-    this.name = 'PublicationCancelledError'
-  }
-}
-
 // 文件系统不支持硬链接时直接报错，不退回 rename 或复制：这两种方式都可能覆盖目标。
 /** 把任意错误转成 PublicationError；文件系统不支持硬链接时错误码为 unsupported-operation。 */
 export function toPublicationError(error: unknown): PublicationError {

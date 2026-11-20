@@ -61,25 +61,7 @@ public class ArchiveAdapterTest {
     return result;
   }
 
-  private ArchiveAdapter.Artifact prepare(ArchiveAdapter adapter, byte[]... contents)
-    throws Exception {
-    return prepare(adapter, new ArchiveControl(), null, contents);
-  }
-
-  private ArchiveAdapter.Artifact prepare(
-    ArchiveAdapter adapter,
-    ArchiveControl control,
-    ArchiveModel.Progress progress,
-    byte[]... contents
-  ) throws Exception {
-    List<ArchiveModel.Source> sources = new ArrayList<>();
-    for (int i = 0; i < contents.length; i++) {
-      sources.add(source(i, contents[i], true));
-    }
-    return adapter.prepare("test-transfer", "test-device", "test-root", sources, control, progress);
-  }
-
-  private ArchiveModel.Source source(int i, byte[] bytes, boolean isUnknown) {
+  private static ArchiveModel.Source source(int i, byte[] bytes) {
     return new ArchiveModel.Source() {
       @Override
       public ArchiveModel.Observation observe(ArchiveControl control) {
@@ -88,7 +70,7 @@ public class ArchiveAdapterTest {
           "entry-" + i,
           i % 2 == 0 ? null : "parent-1",
           "存档 😀 " + i + ".sav",
-          isUnknown ? null : (long) bytes.length,
+          (long) bytes.length,
           null
         );
       }
@@ -100,8 +82,37 @@ public class ArchiveAdapterTest {
     };
   }
 
-  private static String hash(byte[] bytes) {
-    return ArchiveFormat.hex(ArchiveFormat.sha256().digest(bytes));
+  private static List<ArchiveAdapter.Outgoing> outgoing(List<ArchiveModel.Source> sources)
+    throws Exception {
+    List<ArchiveAdapter.Outgoing> files = new ArrayList<>();
+    for (ArchiveModel.Source source : sources) {
+      ArchiveModel.Observation observed = source.observe(new ArchiveControl());
+      files.add(new ArchiveAdapter.Outgoing(source, observed.entryId, observed.size, null));
+    }
+    return files;
+  }
+
+  private static byte[] send(
+    ArchiveAdapter adapter,
+    ArchiveControl control,
+    ArchiveModel.Progress progress,
+    byte[]... contents
+  ) throws Exception {
+    List<ArchiveModel.Source> sources = new ArrayList<>();
+    for (int i = 0; i < contents.length; i++) {
+      sources.add(source(i, contents[i]));
+    }
+    ByteArrayOutputStream output = new ByteArrayOutputStream();
+    adapter.sendFiles(outgoing(sources), output, control, progress);
+    return output.toByteArray();
+  }
+
+  private static List<Long> sizes(byte[]... contents) {
+    List<Long> result = new ArrayList<>();
+    for (byte[] content : contents) {
+      result.add((long) content.length);
+    }
+    return result;
   }
 
   private static byte[] collect(InputStream input) throws IOException {
@@ -127,43 +138,13 @@ public class ArchiveAdapterTest {
     return Base64.getDecoder().decode(match.group(1));
   }
 
-  private byte[][] contents() {
+  private static byte[][] contents() {
     byte[] binary = new byte[513];
     for (int i = 0; i < 512; i++) {
       binary[i] = (byte) i;
     }
     binary[512] = '!';
     return new byte[][] { new byte[0], "固定夹具".getBytes(StandardCharsets.UTF_8), binary };
-  }
-
-  private ArchiveModel.Manifest manifest(byte[] archive) {
-    List<ArchiveModel.PreparedFile> files = new ArrayList<>();
-    byte[][] contents = contents();
-    for (int i = 0; i < contents.length; i++) {
-      files.add(
-        new ArchiveModel.PreparedFile(
-          ArchiveModel.id(i),
-          new ArchiveModel.Observation(
-            "identity-" + i,
-            "fixture-" + (i + 1),
-            null,
-            "固定夹具 " + (i + 1) + ".sav",
-            null,
-            null
-          ),
-          contents[i].length,
-          hash(contents[i])
-        )
-      );
-    }
-    return new ArchiveModel.Manifest(
-      "fixed-fixture",
-      "fixture-source",
-      "fixture-root",
-      files,
-      525,
-      new ArchiveModel.Descriptor(archive.length, 4096, hash(archive))
-    );
   }
 
   private static byte[] gzip(byte[] bytes) throws IOException {
@@ -174,10 +155,18 @@ public class ArchiveAdapterTest {
     return out.toByteArray();
   }
 
-  private void reject(ArchiveAdapter adapter, byte[] bytes, String code) throws Exception {
-    ArchiveFailure failure = assertThrows(ArchiveFailure.class, () ->
-      adapter.receive(manifest(bytes), new ByteArrayInputStream(bytes), new ArchiveControl(), null)
+  private static ArchiveAdapter.Staged receive(ArchiveAdapter adapter, byte[] bytes)
+    throws Exception {
+    return adapter.receiveFiles(
+      sizes(contents()),
+      new ByteArrayInputStream(bytes),
+      new ArchiveControl(),
+      null
     );
+  }
+
+  private static void reject(ArchiveAdapter adapter, byte[] bytes, String code) {
+    ArchiveFailure failure = assertThrows(ArchiveFailure.class, () -> receive(adapter, bytes));
     assertEquals(code, failure.code);
     assertNull(failure.cleanupFailure);
   }
@@ -187,80 +176,55 @@ public class ArchiveAdapterTest {
     ArchiveAdapter adapter = adapter();
     byte[] bytes = fixtureBytes("archiveBase64");
     assertEquals(438, bytes.length);
-    assertEquals("5a5ce8f22d561895ce0e149e470b6e743efb964b6625525b6b99ec6095000779", hash(bytes));
-    try (
-      ArchiveAdapter.Artifact artifact = adapter.receive(
-        manifest(bytes),
-        new ByteArrayInputStream(bytes),
-        new ArchiveControl(),
-        null
-      )
-    ) {
+    try (ArchiveAdapter.Staged staged = receive(adapter, bytes)) {
       for (int i = 0; i < 3; i++) {
-        assertArrayEquals(contents()[i], collect(artifact.openFile(ArchiveModel.id(i))));
+        assertArrayEquals(contents()[i], collect(staged.openFile(ArchiveModel.id(i))));
       }
     }
-    try (ArchiveAdapter.Artifact artifact = prepare(adapter, contents())) {
-      byte[] encoded = collect(artifact.openArchive());
-      assertArrayEquals(
-        fixtureBytes("tarBase64"),
-        collect(new GZIPInputStream(new ByteArrayInputStream(encoded)))
-      );
-      assertEquals(encoded.length, artifact.manifest.archive.sizeBytes);
-      assertEquals(hash(encoded), artifact.manifest.archive.sha256);
-      // 供 verify-archive-interop.mjs 使用 Windows 原生 receiver 复验 Java 产物。
-      Path report = new java.io.File("build/reports/archive-interop").toPath();
-      Files.createDirectories(report);
-      Files.write(report.resolve("java.gz"), encoded);
-    }
+    byte[] encoded = send(adapter, new ArchiveControl(), null, contents());
+    assertArrayEquals(
+      fixtureBytes("tarBase64"),
+      collect(new GZIPInputStream(new ByteArrayInputStream(encoded)))
+    );
+    // 供 verify-archive-interop.mjs 用电脑端的接收实现复验 Java 产物。
+    Path report = new java.io.File("build/reports/archive-interop").toPath();
+    Files.createDirectories(report);
+    Files.write(report.resolve("java.gz"), encoded);
   }
 
   @Test
-  public void unknownLengthEmptyAndLargeContentUseBoundedReadsAndMonotoneProgress()
-    throws Exception {
+  public void emptyAndLargeContentRoundTripWithBoundedReadsAndMonotoneProgress() throws Exception {
     ArchiveAdapter adapter = adapter();
     byte[] large = new byte[131073];
     new java.util.Random(13).nextBytes(large);
-    java.util.Map<String, Long> counters = new java.util.HashMap<>();
+    long[] last = { 0 };
     ArchiveModel.Progress progress = (stage, done, total) -> {
-      assertTrue(done >= counters.getOrDefault(stage, 0L));
-      counters.put(stage, done);
+      assertEquals("transferring", stage);
+      assertTrue(done >= last[0]);
+      last[0] = done;
       if (total != null) {
         assertTrue(done <= total);
       }
     };
-    byte[] archive;
-    ArchiveModel.Manifest manifest;
+    byte[] archive = send(adapter, new ArchiveControl(), progress, new byte[0], large);
+    assertEquals(large.length, last[0]);
+    last[0] = 0;
     try (
-      ArchiveAdapter.Artifact artifact = prepare(
-        adapter,
-        new ArchiveControl(),
-        progress,
-        new byte[0],
-        large
-      )
-    ) {
-      manifest = artifact.manifest;
-      archive = collect(artifact.openArchive());
-      assertEquals(large.length, manifest.totalFileBytes);
-      assertThrows(UnsupportedOperationException.class, () -> manifest.files.clear());
-    }
-    counters.clear();
-    try (
-      ArchiveAdapter.Artifact received = adapter.receive(
-        manifest,
+      ArchiveAdapter.Staged staged = adapter.receiveFiles(
+        sizes(new byte[0], large),
         new ByteArrayInputStream(archive),
         new ArchiveControl(),
         progress
       )
     ) {
-      assertArrayEquals(large, collect(received.openFile("f000002")));
-      assertArrayEquals(new byte[0], collect(received.openFile("f000001")));
+      assertEquals(large.length, last[0]);
+      assertArrayEquals(large, collect(staged.openFile("f000002")));
+      assertArrayEquals(new byte[0], collect(staged.openFile("f000001")));
     }
     ArchiveModel.Source bounded = new ArchiveModel.Source() {
       @Override
       public ArchiveModel.Observation observe(ArchiveControl control) throws Exception {
-        return source(0, large, true).observe(control);
+        return source(0, large).observe(control);
       }
 
       @Override
@@ -274,25 +238,22 @@ public class ArchiveAdapterTest {
         };
       }
     };
-    try (
-      ArchiveAdapter.Artifact ignored = adapter.prepare(
-        "t",
-        "d",
-        "r",
-        Collections.singletonList(bounded),
-        new ArchiveControl(),
-        null
-      )
-    ) {
-      assertEquals(large.length, ignored.manifest.totalFileBytes);
-    }
+    ByteArrayOutputStream output = new ByteArrayOutputStream();
+    adapter.sendFiles(
+      outgoing(Collections.singletonList(bounded)),
+      output,
+      new ArchiveControl(),
+      null
+    );
+    byte[] tar = collect(new GZIPInputStream(new ByteArrayInputStream(output.toByteArray())));
+    assertArrayEquals(large, Arrays.copyOfRange(tar, 512, 512 + large.length));
   }
 
   @Test
   public void tarMemberNamesTypesEveryHeaderFieldPaddingAndTerminationAreStrict() throws Exception {
     ArchiveAdapter adapter = adapter();
     byte[] tar = fixtureBytes("tarBase64");
-    // 覆盖名称和路径穿越、所有元数据字段、扩展和链接、prefix 及保留区；重算压缩体哈希。
+    // 覆盖名称和路径穿越、所有元数据字段、扩展和链接、prefix、保留区、填充和结束块。
     for (int offset : new int[] {
       0,
       7,
@@ -363,56 +324,66 @@ public class ArchiveAdapterTest {
     byte[] xflOs = bytes.clone();
     xflOs[8] = 0;
     xflOs[9] = 3;
-    try (
-      ArchiveAdapter.Artifact ignored = adapter.receive(
-        manifest(xflOs),
-        new ByteArrayInputStream(xflOs),
-        new ArchiveControl(),
-        null
-      )
-    ) {
-      assertEquals(3, ignored.manifest.files.size());
+    try (ArchiveAdapter.Staged staged = receive(adapter, xflOs)) {
+      assertArrayEquals(contents()[1], collect(staged.openFile("f000002")));
     }
   }
 
   @Test
-  public void fileAndTotalActualStreamLimitsAcceptEqualityAndRejectOneMoreByte() throws Exception {
+  public void fileAndTotalLimitsAcceptEqualityAndRejectOneMoreByte() throws Exception {
+    byte[] three = send(adapter(), new ArchiveControl(), null, new byte[3]);
+    byte[] four = send(adapter(), new ArchiveControl(), null, new byte[4]);
     for (boolean isTotalLimit : new boolean[] { false, true }) {
       ArchiveModel.Limits limits = new ArchiveModel.Limits(
         2,
         isTotalLimit ? 100 : 3,
         isTotalLimit ? 3 : 100,
         10000,
-        10000,
         10000
       );
       ArchiveAdapter adapter = adapter(limits, new ArchiveCache.Io() {});
-      try (ArchiveAdapter.Artifact good = prepare(adapter, new byte[3])) {
-        assertEquals(3, good.manifest.totalFileBytes);
+      try (
+        ArchiveAdapter.Staged good = adapter.receiveFiles(
+          sizes(new byte[3]),
+          new ByteArrayInputStream(three),
+          new ArchiveControl(),
+          null
+        )
+      ) {
+        assertNotNull(good);
       }
       assertEquals(
         "resource-limit",
-        assertThrows(ArchiveFailure.class, () -> prepare(adapter, new byte[4])).code
+        assertThrows(ArchiveFailure.class, () ->
+          adapter.receiveFiles(
+            sizes(new byte[4]),
+            new ByteArrayInputStream(four),
+            new ArchiveControl(),
+            null
+          )
+        ).code
       );
     }
+    ArchiveAdapter small = adapter(
+      new ArchiveModel.Limits(2, 3, 100, 10000, 10000),
+      new ArchiveCache.Io() {}
+    );
+    assertEquals(
+      "resource-limit",
+      assertThrows(ArchiveFailure.class, () ->
+        send(small, new ArchiveControl(), null, new byte[4])
+      ).code
+    );
   }
 
   @Test
-  public void cancellationAtEveryStageClosesInputAndAllowsNextTaskAfterCleanup() throws Exception {
-    for (String stage : new String[] { "preparing", "archiving", "receiving", "verifying" }) {
+  public void cancellationWhileSendingOrReceivingClosesInputAndAllowsNextTask() throws Exception {
+    for (boolean isReceiving : new boolean[] { false, true }) {
       ArchiveAdapter adapter = adapter();
       ArchiveControl control = new ArchiveControl();
-      ArchiveModel.Progress progress = (current, done, total) -> {
-        if (current.equals(stage)) {
-          control.cancel();
-        }
-      };
+      ArchiveModel.Progress progress = (stage, done, total) -> control.cancel();
       ArchiveFailure failure;
-      if (stage.equals("preparing") || stage.equals("archiving")) {
-        failure = assertThrows(ArchiveFailure.class, () ->
-          prepare(adapter, control, progress, contents())
-        );
-      } else {
+      if (isReceiving) {
         byte[] bytes = fixtureBytes("archiveBase64");
         AtomicBoolean closed = new AtomicBoolean();
         InputStream input = new ByteArrayInputStream(bytes) {
@@ -422,14 +393,18 @@ public class ArchiveAdapterTest {
           }
         };
         failure = assertThrows(ArchiveFailure.class, () ->
-          adapter.receive(manifest(bytes), input, control, progress)
+          adapter.receiveFiles(sizes(contents()), input, control, progress)
         );
         assertTrue(closed.get());
+      } else {
+        failure = assertThrows(ArchiveFailure.class, () ->
+          send(adapter, control, progress, contents())
+        );
       }
       assertTrue(failure.isCancelled);
       assertNull(failure.cleanupFailure);
-      try (ArchiveAdapter.Artifact good = prepare(adapter, new byte[0])) {
-        assertEquals(0, good.manifest.totalFileBytes);
+      try (ArchiveAdapter.Staged good = receive(adapter, fixtureBytes("archiveBase64"))) {
+        assertNotNull(good);
       }
     }
   }
@@ -449,27 +424,18 @@ public class ArchiveAdapterTest {
         }
       }
     );
-    byte[] broken = fixtureBytes("archiveBase64");
+    byte[] good = fixtureBytes("archiveBase64");
+    byte[] broken = good.clone();
     broken[0] = 0;
-    ArchiveFailure failure = assertThrows(ArchiveFailure.class, () ->
-      adapter.receive(
-        manifest(broken),
-        new ByteArrayInputStream(broken),
-        new ArchiveControl(),
-        null
-      )
-    );
+    ArchiveFailure failure = assertThrows(ArchiveFailure.class, () -> receive(adapter, broken));
     assertEquals("invalid-archive", failure.code);
     assertEquals("cleanup-failed", failure.cleanupFailure.code);
-    assertEquals(
-      "busy",
-      assertThrows(ArchiveFailure.class, () -> prepare(adapter, new byte[0])).code
-    );
+    assertEquals("busy", assertThrows(ArchiveFailure.class, () -> receive(adapter, good)).code);
     fail.set(false);
     adapter.retryCleanup();
     adapter.retryCleanup();
-    try (ArchiveAdapter.Artifact good = prepare(adapter, new byte[0])) {
-      assertNotNull(good);
+    try (ArchiveAdapter.Staged staged = receive(adapter, good)) {
+      assertNotNull(staged);
     }
   }
 }

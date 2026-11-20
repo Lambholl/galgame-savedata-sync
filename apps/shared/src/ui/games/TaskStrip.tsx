@@ -14,7 +14,7 @@ import './games.css'
 
 /** 根页面的一条传输或恢复摘要。 */
 export interface TaskStripInfo extends TaskPreview {
-  /** 任务所属的游戏名，或没有关联游戏的批量传输任务的标题。 */
+  /** 任务所属的游戏名。 */
   readonly gameName: string
 }
 

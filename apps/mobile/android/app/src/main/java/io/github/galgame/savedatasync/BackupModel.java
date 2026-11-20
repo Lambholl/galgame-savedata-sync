@@ -8,7 +8,6 @@ import static io.github.galgame.savedatasync.TransferJson.map;
 import static io.github.galgame.savedatasync.TransferJson.object;
 import static io.github.galgame.savedatasync.TransferSchema.fileId;
 import static io.github.galgame.savedatasync.TransferSchema.id;
-import static io.github.galgame.savedatasync.TransferSchema.manifest;
 import static io.github.galgame.savedatasync.TransferSchema.nullable;
 import static io.github.galgame.savedatasync.TransferSchema.number;
 import static io.github.galgame.savedatasync.TransferSchema.one;
@@ -261,33 +260,25 @@ final class BackupModel {
   }
 
   /**
-   * 校验备份设置：全局设置加按游戏的单独设置；格式不符时抛错。
+   * 校验备份设置：全局设置加按游戏的单独设置；格式不符或 schemaVersion 不是 SETTINGS_VERSION 时抛错。
    *
-   * <p>v2 格式按游戏和目录单独设置，读入时转换为 v3：同一个游戏有多条时保留数组里最后一条，即最近一次修改的那条。
-   *
-   * @return v3 格式的设置。
+   * @return 重新组装的设置，不带原对象里的其他字段。
    */
   static Map<String, Object> settings(Object raw) throws Exception {
     Map<String, Object> value = shape(raw, "schemaVersion", "defaults", "projects");
-    final boolean isLegacy = number(value.get("schemaVersion"), 2, SETTINGS_VERSION) == 2;
+    number(value.get("schemaVersion"), SETTINGS_VERSION, SETTINGS_VERSION);
     Map<String, Object> defaults = policy(value.get("defaults"));
     List<Object> projects = list(value.get("projects"));
     require(projects.size() <= 128);
-    Map<String, Object> latest = new LinkedHashMap<>();
+    Map<String, Object> byProject = new LinkedHashMap<>();
     for (Object entry : projects) {
-      Map<String, Object> item = isLegacy
-        ? shape(entry, "projectId", "rootId", "shouldBackup", "keepCount")
-        : shape(entry, "projectId", "shouldBackup", "keepCount");
+      Map<String, Object> item = shape(entry, "projectId", "shouldBackup", "keepCount");
       String project = id(item.get("projectId"));
-      if (isLegacy) {
-        id(item.get("rootId"));
-      }
       Map<String, Object> custom = policy(
         object("shouldBackup", item.get("shouldBackup"), "keepCount", item.get("keepCount"))
       );
-      require(isLegacy || !latest.containsKey(project));
-      latest.remove(project);
-      latest.put(
+      require(!byProject.containsKey(project));
+      byProject.put(
         project,
         object(
           "projectId",
@@ -305,7 +296,7 @@ final class BackupModel {
       "defaults",
       defaults,
       "projects",
-      new ArrayList<>(latest.values())
+      new ArrayList<>(byProject.values())
     );
   }
 

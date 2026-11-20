@@ -8,7 +8,6 @@ import static io.github.galgame.savedatasync.TransferSchema.directory;
 import static io.github.galgame.savedatasync.TransferSchema.error;
 import static io.github.galgame.savedatasync.TransferSchema.fileId;
 import static io.github.galgame.savedatasync.TransferSchema.id;
-import static io.github.galgame.savedatasync.TransferSchema.manifest;
 import static io.github.galgame.savedatasync.TransferSchema.metadata;
 import static io.github.galgame.savedatasync.TransferSchema.nullable;
 import static io.github.galgame.savedatasync.TransferSchema.number;
@@ -371,7 +370,7 @@ final class BackupStore implements AutoCloseable {
     return map(copy(find(projectId, backupId).manifest));
   }
 
-  /** 读取备份设置；设置文件不存在时返回默认设置，旧格式转换为当前格式，文件损坏时抛错。 */
+  /** 读取备份设置；设置文件不存在时返回默认设置，文件损坏或不是当前格式版本时抛错。 */
   synchronized Map<String, Object> settings() throws Exception {
     alive();
     return exists(settingsFile)

@@ -1,5 +1,4 @@
 import { OperationFailure, unwrap } from '@savedata-sync/shared'
-import type { Translate } from '@savedata-sync/shared'
 import type { DesktopLibraryAdapter, DesktopSnapshot } from './library-types.ts'
 import { desktopSync } from './sync-adapter.ts'
 
@@ -16,7 +15,7 @@ export function createDesktopLibraryAdapter(): DesktopLibraryAdapter {
     return { library, service, directories, dialer }
   }
   return {
-    async read(t: Translate, shouldWatchNearby: boolean): Promise<DesktopSnapshot> {
+    async read(shouldWatchNearby: boolean): Promise<DesktopSnapshot> {
       const api = apis()
       const sync = desktopSync()
       const [library, service, dialer, roots, copies, restores, activity] = await Promise.all([
@@ -54,16 +53,6 @@ export function createDesktopLibraryAdapter(): DesktopLibraryAdapter {
           ipv4Addresses: status.listener ? status.listener.ipv4Addresses : [],
           discovery: status.discovery,
         },
-        tasks: status.tasks.map((local) => ({
-          id: local.transferId,
-          title: t(
-            local.direction === 'android-to-windows' ? 'task.remoteToLocal' : 'task.localToRemote',
-          ),
-          local,
-          remote: null,
-          isUpload: local.direction === 'android-to-windows',
-          names: {},
-        })),
         copies: unwrap(copies),
         restores: unwrap(restores),
         hasActiveOperation: unwrap(activity),
@@ -90,12 +79,6 @@ export function createDesktopLibraryAdapter(): DesktopLibraryAdapter {
       return deviceId === null
         ? api.directories.listDirectory(rootId, parentId)
         : api.library.directory(deviceId, rootId, parentId)
-    },
-    async cancel(id): Promise<void> {
-      unwrap(await apis().service.cancel(id))
-    },
-    async cleanup(): Promise<void> {
-      unwrap(await apis().service.retryCleanup())
     },
     async service(shouldStart, port): Promise<void> {
       const api = apis()

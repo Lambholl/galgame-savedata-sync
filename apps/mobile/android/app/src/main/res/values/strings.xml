@@ -8,7 +8,6 @@
     <string name="transfer_stage_ready">等待接收</string>
     <string name="transfer_stage_awaiting_content">等待内容</string>
     <string name="transfer_stage_transferring">正在传输</string>
-    <string name="transfer_stage_verifying">正在校验</string>
     <string name="transfer_stage_writing">正在写入</string>
     <string name="transfer_stage_backing_up">正在备份</string>
     <string name="transfer_stage_cleaning">正在收尾</string>

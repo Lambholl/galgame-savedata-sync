@@ -15,7 +15,6 @@ import static io.github.galgame.savedatasync.TransferSchema.number;
 import static io.github.galgame.savedatasync.TransferSchema.one;
 import static io.github.galgame.savedatasync.TransferSchema.require;
 import static io.github.galgame.savedatasync.TransferSchema.shape;
-import static io.github.galgame.savedatasync.TransferSchema.state;
 import static io.github.galgame.savedatasync.TransferSchema.string;
 import static io.github.galgame.savedatasync.TransferSchema.text;
 
@@ -534,7 +533,7 @@ final class SyncTransferEngine implements AutoCloseable {
       Map<String, Object> binding = preparation.binding;
       TransferEngine.SyncConnection connection = preparation.connection;
       transport.refreshSync(connection, binding, preparation.control);
-      // 能力版本和固定上限必须先协商；批量接口不能承担覆盖。
+      // 开始复制前先取对方的能力版本和固定上限，两端一致才继续。
       Object advertised;
       try {
         advertised = connection.http.json(
