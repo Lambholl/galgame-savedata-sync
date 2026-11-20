@@ -120,10 +120,6 @@ final class ArchiveModel {
     return ((size + 511) / 512) * 512;
   }
 
-  static boolean hash(String value) {
-    return value != null && value.matches("[a-f0-9]{64}");
-  }
-
   static boolean text(String value) {
     if (
       value == null ||

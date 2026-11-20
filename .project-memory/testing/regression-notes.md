@@ -19,4 +19,4 @@ tags: [回归测试, 当前状态]
 | Android 监听方传输 | open | 临时 JVM 测试已通过（不在仓库里）：在回环地址上运行真实的 `ListenerServer`，扫描器和目录用内存假实现，模拟拨号方经 HTTP 和控制通道操作。覆盖拨号方上传到监听方、拨号方从监听方下载、监听方经控制通道发起、本机取消，以及上传途中断开和 16 MiB 下载途中断开（都按 network-failure 失败）。未测：Android 拨号方 `SyncTransferEngine` 实际连 Android 监听方、真实 SAF 目录、真机两端发起和 Activity 销毁、应用在后台时对方登记任务能否启动前台服务 | WP-52 的 Android 与 Android 组合 |
 | 依赖版本统一 | 桌面包已复核，Android 仪器测试未在设备上运行 | APK 依赖强制升级：kotlin-stdlib 2.2.0、kotlinx-coroutines 1.9.0、concurrent-futures 1.2.0、jspecify 1.0.1；设备测试平台的 gRPC 升到 1.69.1。electron-builder 用到的 plist、semver、ci-info、sax 被 overrides 合并。已通过构建和单元测试，桌面包打包后能启动和连接；仪器测试只构建未在设备上运行 | 运行仪器测试 |
 
-界面检查结果不转成 DOM、选择器或颜色断言。模板、主题、基准和重复失败场景不在回归范围。只为覆盖边缘场景的未测项（折叠屏、旧版 WebView、协议版本不同的真实设备等）不登记。
+模板、主题、基准和重复失败场景不在回归范围。只为覆盖边缘场景的未测项（折叠屏、旧版 WebView、协议版本不同的真实设备等）不登记。

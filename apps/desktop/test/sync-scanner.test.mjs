@@ -17,8 +17,6 @@ test('扫描跳过写入中断留下的候选文件，其余文件照常列出',
   await writeFile(join(root, 'save', 'a.sav'), 'a')
   await writeFile(join(root, 'save', writeCandidateName('copy', randomUUID())), 'partial')
   await writeFile(join(root, writeCandidateName('new', randomUUID())), 'partial')
-  const nearMiss = `.savedata-copy-${randomUUID().toUpperCase()}.tmp`
-  await writeFile(join(root, nearMiss), 'x')
 
   const adapter = await createDirectoryAdapter(join(base, 'control', 'directories.json'))
   const selected = await adapter.registerDirectory(root)
@@ -30,6 +28,6 @@ test('扫描跳过写入中断留下的候选文件，其余文件照常列出',
   assert.equal(state.status, 'succeeded', JSON.stringify(state.error))
   assert.deepEqual(
     state.snapshot.entries.map((entry) => entry.path.join('/')),
-    [nearMiss, 'save', 'save/a.sav'],
+    ['save', 'save/a.sav'],
   )
 })

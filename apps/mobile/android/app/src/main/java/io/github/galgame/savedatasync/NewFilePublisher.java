@@ -10,7 +10,6 @@ import static io.github.galgame.savedatasync.PublicationModel.nameKey;
 import java.io.Closeable;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -394,12 +393,11 @@ final class NewFilePublisher {
     ArchiveModel.Progress progress,
     ArchiveControl control
   ) throws Exception {
-    MessageDigest digest = request.sha256 == null ? null : MessageDigest.getInstance("SHA-256");
     InputStream input = track(job, source.open());
     try {
       OutputStream output = track(job, owned.openOutput(request.sizeBytes, control));
       try {
-        transfer(input, output, request, digest, progress, "writing", control);
+        transfer(input, output, request, progress, "writing", control);
         output.flush();
       } finally {
         close(job, output);
@@ -438,7 +436,6 @@ final class NewFilePublisher {
     InputStream input,
     OutputStream output,
     Request request,
-    MessageDigest digest,
     ArchiveModel.Progress progress,
     String stage,
     ArchiveControl control
@@ -467,31 +464,15 @@ final class NewFilePublisher {
       if (output != null) {
         output.write(buffer, 0, read);
       }
-      if (digest != null) {
-        digest.update(buffer, 0, read);
-      }
       count += read;
       if (progress != null) {
         progress.update(stage, count, request.sizeBytes);
       }
     }
     control.check();
-    if (
-      count != request.sizeBytes || (digest != null && !hex(digest.digest()).equals(request.sha256))
-    ) {
-      throw new ArchiveFailure(
-        "checksum-mismatch",
-        "The actual file length or SHA-256 does not match."
-      );
+    if (count != request.sizeBytes) {
+      throw new ArchiveFailure("checksum-mismatch", "The actual file length does not match.");
     }
-  }
-
-  static String hex(byte[] bytes) {
-    StringBuilder result = new StringBuilder();
-    for (byte b : bytes) {
-      result.append(String.format(java.util.Locale.ROOT, "%02x", b & 255));
-    }
-    return result.toString();
   }
 
   static ArchiveFailure failure(Exception cause) {

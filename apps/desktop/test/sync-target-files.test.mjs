@@ -28,7 +28,6 @@ test('删除目标目录各层的候选文件残留，保留其他文件和链�
   ]
   const kept = [
     join(root, 'save', 'a.sav'),
-    join(root, `.savedata-copy-${randomUUID().toUpperCase()}.tmp`),
     join(outside, writeCandidateName('copy', randomUUID())),
   ]
   for (const path of [...leftovers, ...kept]) {

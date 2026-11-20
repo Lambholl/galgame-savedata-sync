@@ -1,7 +1,7 @@
 ---
 doc_type: implementation-notes
 status: active
-updated: 2026-11-17
+updated: 2026-11-21
 tags: [实现细节]
 ---
 
@@ -66,8 +66,8 @@ tags: [实现细节]
 | Android 直接读写文件 | 目录访问只经 `DocumentAccess`：有所有文件访问权限、目录属于系统存储提供者且不是卷根时用 `FileDocumentAccess` 按路径读写，否则用 `SafDocumentAccess`；卷根经 SAF 显示卷名，按路径给不出相同名称，所以留给 SAF。文档 ID 按提供者格式 `卷 ID:相对路径` 拼出，修改时间截到秒（提供者报告 `File.lastModified()` 只到秒），同一目录两种实现的条目 ID 和扫描快照完全相同。`open` 只接受 r 和 rw，不用 `parseMode`（它让 rw 带上新建）。真机实测（一层 503 个文件、97 MiB）：扫描约 2.2～2.4 秒，SAF 约 4.7～5.0 秒；列出这层目录直接读写约 0.4～0.7 秒，SAF 约 0.5 秒，因为每个条目要 stat 和 access 两次系统调用。覆盖或删除一个已有条目时列两次父目录：确认身份时一次（同一份列表同时核对完全同名和名称等价），写入前核对一次；这层目录覆盖 3 个小文件约 3 秒。授予权限时进程不重启 | DocumentAccess、SafDocumentAccess、FileDocumentAccess、DirectoryStore、AllFilesAccessPlugin；platform/all-files-access.ts |
 | Java 私有归档 | 按复制计划边读源文件边生成规范 USTAR/gzip1，读取前后复核 SAF 观察值；提前打开后面的文件（经 SAF 打开一个文件要几十毫秒），进度只在调用线程报告；接收时显式原始 inflater 消耗边界及 CRC/ISIZE/物理 EOF，逐成员核对和精确 tar 结束通过才返回解包结果。原生模型不承担网络 JSON 解码 | ArchiveAdapter.java、ArchiveModel.java、ArchiveFormat.java、DirectoryArchiveSource.java；architecture/android.md |
 | Java 缓存 | 可信 Context 先解析系统私有路径别名；其下缓存标记/随机任务/链接及未知条目失败关闭；进程任务独占直到句柄释放或清理成功，主错误和清理错误分别报告，可重试和启动孤儿恢复；64 KiB 实际流预算，取消关闭源/查询；缓存文件不单独 fsync，进程中断后任务本来就要重来 | ArchiveCache.java、ArchiveControl.java、ArchiveFailure.java、ArchiveAdapterTest.java、ArchiveSafTest.java、scripts/verify-archive-interop.mjs |
-| Java 单文件发布 | 系统 WRITE 与本次进程 grant 是两道授权；preflight 无写入；创建前后枚举/名称等价/新 ID/父目录核实，提供者改名时停止；保持空新文件 FD 身份，以 rw 不截断打开并再次核实设备/inode/零长度；64 KiB 计数/SHA 写流，关闭同步后完整回读、EOF、身份/名称/元数据前后检查后成功 | NewFilePublisher.java、DirectoryPublicationBackend.java、PublicationModel.java；architecture/android.md |
-| Java 发布结果与清理 | 原生 PublicationJson 输出单文件结果和清理状态，错误脱敏、unknown 不自动重放；失败/取消仅清理确知新建且身份匹配条目，关闭流/删除失败保留资源与进程名额至 retryCleanup；已确认成功不因晚取消或关闭失败删除；归档和发布名额独立 | PublicationJson.java、NewFilePublisherTest.java；TC-008 |
+| Java 单文件发布 | 系统 WRITE 与本次进程 grant 是两道授权；preflight 无写入；创建前后枚举/名称等价/新 ID/父目录核实，提供者改名时停止；保持空新文件 FD 身份，以 rw 不截断打开并再次核实设备/inode/零长度；64 KiB 计数写流，字节数和请求不符时按 `checksum-mismatch` 失败；关闭同步后完整回读、EOF、身份/名称/元数据前后检查后成功 | NewFilePublisher.java、DirectoryPublicationBackend.java、PublicationModel.java；architecture/android.md |
+| Java 发布结果与清理 | `NewFilePublisher.publish` 以 `PublicationModel.Result` 返回单文件结果和清理状态，只带错误码，unknown 不自动重放；失败/取消仅清理确知新建且身份匹配条目，关闭流/删除失败保留资源与进程名额至 retryCleanup；已确认成功不因晚取消或关闭失败删除；归档和发布名额独立 | PublicationModel.java、NewFilePublisherTest.java；TC-008 |
 | Android 原生 HTTP/通知 | TransferJson 严格 UTF-8/重复键/安全整数及有界 JSON，TransferSchema 核对设备描述、目录列表和错误信封；无代理/缓存/重定向/自动解压，连接和默认网络无进展等待 5 秒、初次握手总期限 5 秒。`SyncTransferRuntime` 应用级持有复制任务，dataSync 服务持续通知保持传输；Activity 暂停或销毁不取消，完成/显式取消与清理后停止 | Transfer*.java、HttpTransfersPlugin、DirectoryRuntime、TS 桥；architecture/android.md |
 | 重载 | Android 不按前后台状态停止轮询，原生目录/HTTP/扫描不设可见性门禁；重载按任务 ID 查询同一原生任务；系统提供的桌面 userData 先 realpath，再进行私有缓存检查 | apps/mobile/src/app、features、components、platform；apps/desktop/src/renderer/src、bridge、main |
 | 固定依赖 | React 18 / TypeScript 5.9；pnpm 10.34.8；精确锁定版本和 lockfile，保留严格 peer 检查 | package.json、pnpm-lock.yaml、pnpm-workspace.yaml |

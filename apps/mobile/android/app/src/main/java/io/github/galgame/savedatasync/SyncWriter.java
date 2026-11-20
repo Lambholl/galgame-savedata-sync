@@ -496,7 +496,6 @@ final class SyncWriter implements AutoCloseable {
         parent,
         name,
         number(entry.get("sizeBytes"), 0, BackupModel.MAX_FILE),
-        null,
         nullable(entry.get("modifiedAt"), -BackupModel.MAX_DATE, BackupModel.MAX_DATE)
       );
       PublicationModel.Result result = backend

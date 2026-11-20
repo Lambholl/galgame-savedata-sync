@@ -221,30 +221,14 @@ public class NewFilePublisherTest {
     return p;
   }
 
-  private static String hash(byte[] bytes) {
-    return NewFilePublisher.hex(ArchiveFormat.sha256().digest(bytes));
-  }
-
   private static Request request(String name, byte[] bytes) {
-    return new Request("f000001", "root-1", null, name, bytes.length, hash(bytes));
+    return new Request("f000001", "root-1", null, name, bytes.length, null);
   }
 
   private Result run(NewFilePublisher p, byte[] bytes) throws Exception {
     return p.publish(
       request("存档 😀.sav", bytes),
       () -> new ByteArrayInputStream(bytes),
-      null,
-      new ArchiveControl()
-    );
-  }
-
-  /** 输入内容与请求的哈希不同。 */
-  private Result runMismatch(NewFilePublisher p) throws Exception {
-    byte[] other = BYTES.clone();
-    other[0] ^= 1;
-    return p.publish(
-      request("存档 😀.sav", BYTES),
-      () -> new ByteArrayInputStream(other),
       null,
       new ArchiveControl()
     );
@@ -265,7 +249,7 @@ public class NewFilePublisherTest {
   }
 
   @Test
-  public void succeedsAfterWriteCloseAndMatchingHash() throws Exception {
+  public void succeedsAfterWriteAndClose() throws Exception {
     Fake b = new Fake();
     NewFilePublisher p = publisher(b);
     List<String> stages = new ArrayList<>();
@@ -281,7 +265,6 @@ public class NewFilePublisherTest {
     assertEquals("succeeded", result.status);
     assertEquals("complete", result.cleanup);
     assertEquals(4, result.bytesWritten);
-    assertEquals(hash(BYTES), result.sha256);
     assertEquals("存档.sav", result.entry.name);
     assertTrue(result.residualEntries.isEmpty());
     assertArrayEquals(BYTES, b.nodes.get("new-1").bytes);
@@ -321,14 +304,13 @@ public class NewFilePublisherTest {
       assertEquals(name, "invalid-request", f.code);
     }
     for (Request r : Arrays.asList(
-      new Request("bad/", "root-1", null, "a", 0, hash(BYTES)),
-      new Request("f000001", "root-1", "../", "a", 0, hash(BYTES)),
-      new Request("f000001", "root-1", null, "a", -1, hash(BYTES)),
-      new Request("f000001", "root-1", null, "a", 0, "BAD"),
-      new Request("f000001", "root-1", null, "a", 268435457L, hash(BYTES)),
-      new Request("f1", "root-1", null, "a", 0, hash(BYTES)),
-      new Request("f000000", "root-1", null, "a", 0, hash(BYTES)),
-      new Request("f001025", "root-1", null, "a", 0, hash(BYTES))
+      new Request("bad/", "root-1", null, "a", 0, null),
+      new Request("f000001", "root-1", "../", "a", 0, null),
+      new Request("f000001", "root-1", null, "a", -1, null),
+      new Request("f000001", "root-1", null, "a", 268435457L, null),
+      new Request("f1", "root-1", null, "a", 0, null),
+      new Request("f000000", "root-1", null, "a", 0, null),
+      new Request("f001025", "root-1", null, "a", 0, null)
     )) {
       assertThrows(ArchiveFailure.class, () ->
         p.publish(r, () -> new ByteArrayInputStream(BYTES), null, new ArchiveControl())
@@ -351,14 +333,6 @@ public class NewFilePublisherTest {
       assertArrayEquals(BYTES, b.nodes.get("existing").bytes);
     }
     assertEquals(nameKey("é.sav"), nameKey("e\u0301.SAV")); // 右边是 e 加组合重音的分解形式。
-  }
-
-  @Test
-  public void inputHashMismatchCannotSucceed() throws Exception {
-    Fake b = new Fake();
-    NewFilePublisher p = publisher(b);
-    assertEquals("checksum-mismatch", runMismatch(p).errorCode);
-    assertTrue(b.nodes.isEmpty());
   }
 
   @Test
@@ -398,7 +372,13 @@ public class NewFilePublisherTest {
     Fake b = new Fake();
     b.shouldFailCleanup = true;
     NewFilePublisher p = publisher(b);
-    Result r = runMismatch(p);
+    // 输入比请求的字节数少一个字节，写入在长度核对时失败。
+    Result r = p.publish(
+      request("存档 😀.sav", BYTES),
+      () -> new ByteArrayInputStream(BYTES, 0, BYTES.length - 1),
+      null,
+      new ArchiveControl()
+    );
     assertEquals("failed", r.status);
     assertEquals("incomplete", r.cleanup);
     assertEquals("cleanup-failed", r.cleanupError);
