@@ -19,8 +19,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 
 /**
- * 本机服务：提供 /v1/device、/v1/catalog、/v1/roots、目录列举和 /v1/control，请求、会话和头的检查规则与电脑服务相同，
- * 复制接口答复 unsupported-operation。
+ * 本机服务：提供 /v1/device、/v1/catalog、/v1/roots、目录列举、/v1/control 和 /v1/sync，请求、会话和头的检查规则与电脑服务相同。
+ * 没有给出 {@link Sync} 时复制接口答复 unsupported-operation。
  */
 final class ListenerServer {
 
@@ -44,6 +44,23 @@ final class ListenerServer {
     void changed();
   }
 
+  /** 复制任务用到的本机能力。 */
+  interface Sync {
+    SyncTransferEngine.Local local();
+
+    /** 复制内容的打包和解包；与本机其他复制任务共用。 */
+    ArchiveAdapter archives();
+
+    /** 本次服务专用的扫描器，服务停止时关闭。 */
+    SyncScanner scanner();
+
+    /** 本机作为拨号方是否有复制任务或待清理的资源。 */
+    boolean isBusy();
+
+    /** 拨号方登记了任务；见 {@link ListenerSyncJobs.Events#registered}。 */
+    void registered(String jobId, String projectId, boolean isPeerInitiated);
+  }
+
   /** 同时保持的最多连接数；超出的新连接直接关闭。 */
   static final int MAX_CONNECTIONS = 16;
   /** 网络无进展的最长等待（毫秒），与电脑服务的 networkIdle 相同。 */
@@ -62,6 +79,8 @@ final class ListenerServer {
   });
   private final ListenerControl control;
   private final ListenerLibrary library;
+  private final ListenerSyncJobs jobs;
+  private final ListenerSyncRequests requests;
   private final Set<Socket> sockets = ConcurrentHashMap.newKeySet();
   private final ServerSocket server;
   private final String sessionId = UUID.randomUUID().toString();
@@ -81,9 +100,78 @@ final class ListenerServer {
     InetAddress address,
     int port
   ) throws IOException {
+    this(host, store, changes, listener, null, address, port);
+  }
+
+  /**
+   * 在 address 的 port 端口开始监听，并在新线程上接受连接。
+   *
+   * @param sync 复制任务用到的本机能力；为 null 时复制接口答复 unsupported-operation。
+   * @throws IOException 端口被占用或无法监听时抛出。
+   */
+  ListenerServer(
+    Host host,
+    ListenerLibrary.Store store,
+    ListenerLibrary.Changes changes,
+    Listener listener,
+    Sync sync,
+    InetAddress address,
+    int port
+  ) throws IOException {
     this.host = host;
-    this.control = new ListenerControl(timer, (peerId, isOpen) -> listener.changed());
+    this.control = new ListenerControl(timer, (peerId, isOpen) -> {
+      if (!isOpen && requests() != null) {
+        requests().closed(peerId);
+      }
+      listener.changed();
+    });
     this.library = new ListenerLibrary(store, host, control, changes);
+    if (sync == null) {
+      jobs = null;
+      requests = null;
+    } else {
+      ListenerSyncJobs[] holder = new ListenerSyncJobs[1];
+      requests = new ListenerSyncRequests(
+        library,
+        control,
+        new ListenerSyncRequests.Host() {
+          @Override
+          public String deviceId() {
+            return host.deviceId();
+          }
+
+          @Override
+          public boolean isBusy() {
+            return sync.isBusy() || holder[0].busy();
+          }
+
+          @Override
+          public boolean hasJob(String jobId) {
+            return holder[0].has(jobId);
+          }
+        }
+      );
+      jobs = new ListenerSyncJobs(
+        sync.local(),
+        sync.archives(),
+        sync.scanner(),
+        library,
+        control,
+        requests::isAwaiting,
+        sync::registered
+      );
+      holder[0] = jobs;
+      ListenerSyncRequests remote = requests;
+      ListenerSyncJobs local = jobs;
+      control.events((peerId, method, body) -> {
+        if ("sync.report".equals(method)) {
+          remote.report(peerId, body);
+        } else if ("sync.job".equals(method)) {
+          remote.observe(peerId, body);
+          local.observe(peerId, body);
+        }
+      });
+    }
     ServerSocket socket = new ServerSocket();
     try {
       socket.setReuseAddress(false);
@@ -91,6 +179,9 @@ final class ListenerServer {
     } catch (IOException cause) {
       socket.close();
       timer.shutdownNow();
+      if (jobs != null) {
+        jobs.stop();
+      }
       throw cause;
     }
     this.server = socket;
@@ -122,9 +213,22 @@ final class ListenerServer {
     return control;
   }
 
-  /** 关闭监听和全部连接；可以重复调用。 */
+  /** 本次服务里拨号方登记的复制任务；没有给出 {@link Sync} 时为 null。 */
+  ListenerSyncJobs jobs() {
+    return jobs;
+  }
+
+  /** 本机经控制通道请拨号方开始的复制请求；没有给出 {@link Sync} 时为 null。 */
+  ListenerSyncRequests requests() {
+    return requests;
+  }
+
+  /** 关闭监听和全部连接，取消本次服务里的复制任务，任务的清理在后台完成；可以重复调用。 */
   void stop() {
     isStopped = true;
+    if (jobs != null) {
+      jobs.stop();
+    }
     control.stop();
     library.reset();
     try {
@@ -203,6 +307,9 @@ final class ListenerServer {
           "The service session changed. Read device information again."
         );
       }
+      if (route.kind.startsWith("sync-")) {
+        return sync(socket, request, route, output);
+      }
       switch (route.kind) {
         case "control":
           upgrade(socket, request, input, output);
@@ -227,6 +334,84 @@ final class ListenerServer {
     } catch (ArchiveFailure failure) {
       ListenerHttp.sendFailure(output, failure.code, failure.getMessage());
       return false;
+    }
+  }
+
+  /** 处理复制接口的请求；返回 true 表示连接可以继续读下一个请求。 */
+  private boolean sync(
+    Socket socket,
+    ListenerHttp.Request request,
+    ListenerHttp.Route route,
+    OutputStream output
+  ) throws Exception {
+    if (jobs == null) {
+      throw new ArchiveFailure("unsupported-operation", "This device does not accept copy tasks.");
+    }
+    String peerId = request.header(DEVICE_HEADER);
+    boolean isPeerRequired =
+      "sync-project".equals(route.kind) ||
+      "sync-jobs".equals(route.kind) ||
+      "sync-job".equals(route.kind) ||
+      "sync-job-content".equals(route.kind);
+    if (peerId != null || isPeerRequired) {
+      if (!DocumentValues.isId(peerId)) {
+        throw new ArchiveFailure("invalid-request", "The sync device ID is invalid.");
+      }
+      library.touch(peerId);
+    }
+    try {
+      switch (route.kind) {
+        case "sync-capabilities":
+          ListenerHttp.sendSuccess(output, 200, jobs.capabilities());
+          return true;
+        case "sync-scans":
+          Object scan = ListenerHttp.readJson(request);
+          if (!request.isBodyComplete()) {
+            return false;
+          }
+          ListenerHttp.sendSuccess(output, 202, jobs.startScan(scan));
+          return true;
+        case "sync-scan":
+          boolean isScanCancel = "DELETE".equals(request.method);
+          Map<String, Object> scanState = isScanCancel
+            ? jobs.cancelScan(route.id)
+            : jobs.scan(route.id);
+          ListenerHttp.sendSuccess(
+            output,
+            isScanCancel && "running".equals(scanState.get("status")) ? 202 : 200,
+            scanState
+          );
+          return true;
+        case "sync-project":
+          ListenerHttp.sendSuccess(output, 200, jobs.project(route.id, peerId));
+          return true;
+        case "sync-jobs":
+          Object job = ListenerHttp.readJson(request);
+          if (!request.isBodyComplete()) {
+            return false;
+          }
+          ListenerHttp.sendSuccess(output, 201, jobs.register(job, peerId));
+          return true;
+        case "sync-job":
+          boolean isJobCancel = "DELETE".equals(request.method);
+          Map<String, Object> jobState = isJobCancel
+            ? jobs.cancel(route.id, peerId)
+            : jobs.get(route.id, peerId);
+          ListenerHttp.sendSuccess(
+            output,
+            isJobCancel && "running".equals(jobState.get("status")) ? 202 : 200,
+            jobState
+          );
+          return true;
+        default:
+          if ("GET".equals(request.method)) {
+            return jobs.sendContent(route.id, peerId, output, socket);
+          }
+          ListenerHttp.sendSuccess(output, 202, jobs.receive(route.id, peerId, request, socket));
+          return true;
+      }
+    } catch (DirectoryFailure failure) {
+      throw ArchiveFailure.from(failure);
     }
   }
 

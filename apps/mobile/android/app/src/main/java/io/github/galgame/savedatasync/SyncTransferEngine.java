@@ -105,7 +105,8 @@ final class SyncTransferEngine implements AutoCloseable {
   );
 
   // 打包阶段两端都可能报授权失效，界面按阶段推断不出是哪一端，要在这里注明。
-  // 电脑不产生 authorization-expired，转述电脑的错误时已注明 listener，所以没注明的授权失效都是本机目录。
+  // 转述监听方任务状态里的错误时已注明 listener，其余没注明的授权失效按本机目录处理。监听方是 Android 时，
+  // 它在 HTTP 应答里直接返回的授权失效也会落到这里。
   /** 返回任务错误该注明的一端（dialer 或 listener）；分不出时为 null。 */
   private static String failedDevice(ArchiveFailure failure) {
     if (failure.device != null || !DEVICE_ERRORS.contains(failure.code)) {
@@ -677,6 +678,8 @@ final class SyncTransferEngine implements AutoCloseable {
         preparation.id,
         "direction",
         preparation.direction,
+        "localSide",
+        "dialer",
         "binding",
         binding,
         "source",

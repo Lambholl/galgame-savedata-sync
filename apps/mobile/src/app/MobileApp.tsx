@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { ActionSheet, Button } from 'antd-mobile'
 import { DownloadOutlined, MoreOutlined, PlusOutlined, ScanOutlined } from '@ant-design/icons'
 import { EmptyState } from '../components/EmptyState'
@@ -136,8 +136,8 @@ export function MobileApp({
     readonly restoreId: string
     readonly sourceName: string
   } | null>(null)
-  // 比较页打开时的方向：从任务详情重新扫描时沿用那次传输的方向，从其它入口打开用默认方向。
-  const [syncDirection, setSyncDirection] = useState<SyncDirection>('listener-to-dialer')
+  // 比较页打开时的方向：从任务详情重新扫描时沿用那次传输的方向；null 表示复制到本机，由比较页按连接角色换算。
+  const [syncDirection, setSyncDirection] = useState<SyncDirection | null>(null)
   // 设备页正在连接的设备 ID，行内显示转圈；run 结束时清空。
   const [connectingId, setConnectingId] = useState<string | null>(null)
   // 本机服务正在启动或停止；run 结束时清空。
@@ -148,7 +148,7 @@ export function MobileApp({
   const generation = useRef(0)
   const backHandler = useRef<() => boolean>(() => false)
   const transferNotices = useRef(new Map<string, string>())
-  // 原生任务不记录发起方，只在本次运行期间记住电脑发起的任务。
+  // 原生任务不记录发起方，只在本次运行期间记住对方发起的任务。
   const [peerInitiatedJobIds, setPeerInitiatedJobIds] = useState<ReadonlySet<string>>(
     () => new Set(),
   )
@@ -444,6 +444,21 @@ export function MobileApp({
     },
     [appMessage, reloadTasks, t],
   )
+  /** 对方开始的传输和本机发起的一样结束当前流程，打开任务详情，详情返回游戏页。 */
+  function openPeerJob(jobId: string, projectId: string): void {
+    announceStart(jobId)
+    setPeerInitiatedJobIds((ids) => new Set(ids).add(jobId))
+    // 应用在后台时也只切页面：Android 不允许后台应用把自己切到前台，进度看传输通知。
+    syncTasks
+      .refreshCopy()
+      .catch(() => undefined)
+      .finally(() => {
+        setTaskProjectId(projectId)
+        setIsGameMenuOpen(false)
+        setIsTransferMenuOpen(false)
+        navigation.finishFlow('task')
+      })
+  }
   useRemoteSync(sync, androidControl, online?.device.id ?? null, isActive, {
     onScan: (_requestId, projectId) => {
       const name = config.games.find((item) => item.id === projectId)?.name ?? t('common.unknown')
@@ -456,23 +471,18 @@ export function MobileApp({
         slot: 'remote-sync-scan',
       })
     },
-    onStarted: (jobId, projectId) => {
-      announceStart(jobId)
-      setPeerInitiatedJobIds((ids) => new Set(ids).add(jobId))
-      // 电脑发起的传输和本机发起的一样结束当前流程，详情返回游戏页。应用在后台时也只切页面：
-      // Android 不允许后台应用把自己切到前台，进度看传输通知。
-      syncTasks
-        .refreshCopy()
-        .catch(() => undefined)
-        .finally(() => {
-          setTaskProjectId(projectId)
-          setIsGameMenuOpen(false)
-          setIsTransferMenuOpen(false)
-          navigation.finishFlow('task')
-        })
-    },
+    onStarted: openPeerJob,
     onFailure: showSyncFailure,
   })
+  const peerJobStarted = useRef(openPeerJob)
+  useLayoutEffect(() => {
+    peerJobStarted.current = openPeerJob
+  })
+  // 本机作为监听方时，对方直接开始的任务由本机服务通知。
+  useEffect(
+    () => sync.onPeerJobStarted((jobId, projectId) => peerJobStarted.current(jobId, projectId)),
+    [sync],
+  )
   const importable = peers
     .filter((item) => item.isConnected)
     .flatMap((peer) =>
@@ -979,7 +989,7 @@ export function MobileApp({
         onUnlink={unlinkGame}
         onTransfer={(deviceId) => {
           setPeerId(deviceId)
-          setSyncDirection('listener-to-dialer')
+          setSyncDirection(null)
           navigation.open('sync')
         }}
         onManageDevices={() => navigation.open('devices')}
@@ -996,6 +1006,7 @@ export function MobileApp({
         localRoot={localRoot}
         deviceName={snapshot?.deviceName ?? null}
         peerId={peerId}
+        isLocalListener={snapshot?.listenerPeerIds.includes(peerId) ?? false}
         initialDirection={syncDirection}
         isPlan={page === 'sync-plan'}
         isDisabled={isDisabled || isActive}
@@ -1134,7 +1145,7 @@ export function MobileApp({
           caption={`${localRoot?.displayName ?? t('game.noFolder')} · ${t('game.linkCount', { count: game?.links.length ?? 0 })}`}
           isRemoveDisabled={isActive}
           onTransfer={() => {
-            setSyncDirection('listener-to-dialer')
+            setSyncDirection(null)
             go('sync')
           }}
           onSettings={() => go('edit')}

@@ -40,6 +40,7 @@ final class ListenerHttp {
     Pattern.CASE_INSENSITIVE
   );
   private static final Map<Integer, String> REASONS = new HashMap<>();
+  private static final byte[] CRLF = { '\r', '\n' };
 
   static {
     REASONS.put(101, "Switching Protocols");
@@ -278,22 +279,67 @@ final class ListenerHttp {
     } else if (segments.size() == 2 && "control".equals(resource) && "GET".equals(method)) {
       kind = "control";
     } else if ("sync".equals(resource)) {
-      // 本机服务不接纳复制任务，按电脑服务没开启复制时的方式答复 unsupported-operation。
-      kind = "sync";
+      kind = syncKind(method, segments);
     } else {
       throw fail("invalid-request");
     }
     if (!"entries".equals(kind) && parentId != null) {
       throw fail("invalid-request");
     }
+    boolean isContentUpload = "sync-job-content".equals(kind) && "PUT".equals(method);
+    // 复制内容边打包边发送，事先不知道长度。
+    if (isContentUpload && !"chunked".equals(encoding)) {
+      throw fail("invalid-request");
+    }
     if (
       !"catalog".equals(kind) &&
-      !"sync".equals(kind) &&
+      !"sync-scans".equals(kind) &&
+      !"sync-jobs".equals(kind) &&
+      !isContentUpload &&
       (encoding != null || (length != null && !"0".equals(length)))
     ) {
       throw fail("invalid-request");
     }
-    return new Route(kind, "entries".equals(kind) ? id : null, parentId);
+    String routeId = "entries".equals(kind) ? id : kind.startsWith("sync-") ? action : null;
+    return new Route(kind, routeId, parentId);
+  }
+
+  /** 复制接口的路由，规则与电脑服务的 inspectHttpRequest 相同；不认识时抛出 invalid-request。 */
+  private static String syncKind(String method, List<String> segments) throws ArchiveFailure {
+    String id = segments.size() > 2 ? segments.get(2) : null;
+    boolean isRead = "GET".equals(method);
+    if (segments.size() == 3 && "capabilities".equals(id) && isRead) {
+      return "sync-capabilities";
+    }
+    if (segments.size() == 3 && "scans".equals(id) && "POST".equals(method)) {
+      return "sync-scans";
+    }
+    if (segments.size() == 3 && "jobs".equals(id) && "POST".equals(method)) {
+      return "sync-jobs";
+    }
+    String action = segments.size() > 3 ? segments.get(3) : null;
+    if (!DocumentValues.isId(action)) {
+      throw fail("invalid-request");
+    }
+    boolean isQuery = isRead || "DELETE".equals(method);
+    if (segments.size() == 4 && "scans".equals(id) && isQuery) {
+      return "sync-scan";
+    }
+    if (segments.size() == 4 && "projects".equals(id) && isRead) {
+      return "sync-project";
+    }
+    if (segments.size() == 4 && "jobs".equals(id) && isQuery) {
+      return "sync-job";
+    }
+    if (
+      segments.size() == 5 &&
+      "jobs".equals(id) &&
+      "content".equals(segments.get(4)) &&
+      (isRead || "PUT".equals(method))
+    ) {
+      return "sync-job-content";
+    }
+    throw fail("invalid-request");
   }
 
   /** 按 UTF-8 严格解码百分号编码；isQuery 时把 + 当作空格。 */
@@ -401,7 +447,8 @@ final class ListenerHttp {
         "status",
         "error",
         "error",
-        object("code", code, "message", message, "canRetry", !"invalid-request".equals(code))
+        // 与电脑服务相同不给重试提示：能否重试由客户端按错误码和任务状态判断。
+        object("code", code, "message", message, "canRetry", false)
       ),
       true
     );
@@ -419,6 +466,73 @@ final class ListenerHttp {
       ).getBytes(StandardCharsets.US_ASCII)
     );
     output.flush();
+  }
+
+  /**
+   * 以 chunked 编码发送 200 响应的输出流。第一次写入或 {@link #finish} 时先发响应头；close 不写结束块，也不关闭下层的流。
+   */
+  static final class ChunkedOutput extends OutputStream {
+
+    private final OutputStream output;
+    private final String contentType;
+    private boolean isStarted;
+
+    ChunkedOutput(OutputStream output, String contentType) {
+      this.output = output;
+      this.contentType = contentType;
+    }
+
+    /** 响应头是否已经发出；发出后出错只能关闭连接，不能再回错误包络。 */
+    boolean isStarted() {
+      return isStarted;
+    }
+
+    private void start() throws IOException {
+      if (isStarted) {
+        return;
+      }
+      isStarted = true;
+      output.write(
+        (
+          "HTTP/1.1 200 OK\r\nContent-Type: " +
+          contentType +
+          "\r\nTransfer-Encoding: chunked\r\nCache-Control: no-store\r\n\r\n"
+        ).getBytes(StandardCharsets.US_ASCII)
+      );
+    }
+
+    @Override
+    public void write(int value) throws IOException {
+      write(new byte[] { (byte) value }, 0, 1);
+    }
+
+    @Override
+    public void write(byte[] bytes, int offset, int length) throws IOException {
+      start();
+      if (length == 0) {
+        return;
+      }
+      output.write((Integer.toHexString(length) + "\r\n").getBytes(StandardCharsets.US_ASCII));
+      output.write(bytes, offset, length);
+      output.write(CRLF);
+    }
+
+    @Override
+    public void flush() throws IOException {
+      output.flush();
+    }
+
+    /** 写结束块并刷新；之后这条连接可以接着读下一个请求。 */
+    void finish() throws IOException {
+      start();
+      output.write("0\r\n\r\n".getBytes(StandardCharsets.US_ASCII));
+      output.flush();
+    }
+
+    @Override
+    public void close() {
+      // 下层是连接的输出流，由连接线程管理；结束块只由 finish 写出。
+    }
   }
 
   /** 错误码对应的 HTTP 状态；network-failure 等没有对应状态的按 500。 */

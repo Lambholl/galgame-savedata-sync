@@ -1,6 +1,7 @@
 import {
   isOpaqueId,
   isOperationResult,
+  isPreviewLocalSource,
   isSyncPreparationPreview,
   isSyncPreparationState,
   isSyncProjectBinding,
@@ -33,6 +34,10 @@ export interface SyncTransferNativePlugin {
   cancel(options: { jobId: string }): Promise<unknown>
   release(options: { preparationId: string }): Promise<unknown>
   retryCleanup(): Promise<unknown>
+  addListener(
+    event: 'peerJobStarted',
+    callback: (event: unknown) => void,
+  ): Promise<{ remove(): Promise<void> }>
 }
 /** 复制任务接口。所有方法的失败都以错误结果返回。 */
 export interface AndroidSyncTransferApi {
@@ -61,6 +66,12 @@ export interface AndroidSyncTransferApi {
   release(preparationId: string): Promise<OperationResult<null>>
   /** 重试复制任务的缓存清理。 */
   retryCleanup(): Promise<OperationResult<null>>
+  /**
+   * 订阅对方开始的复制任务：本机作为监听方、对方没经本机请求就登记了任务时调用 listener，projectId 是本机的项目。
+   *
+   * @returns 撤销订阅的函数。
+   */
+  onPeerJobStarted(listener: (jobId: string, projectId: string) => void): () => void
 }
 function failure(
   code: 'invalid-request' | 'io-failure' | 'unsupported-operation',
@@ -78,12 +89,12 @@ function failure(
   }
 }
 function request(preview: SyncPreparationPreview): SyncJobRequest {
-  const isUpload = preview.direction === 'dialer-to-listener'
+  const isLocalSource = isPreviewLocalSource(preview)
   return {
     schemaVersion: 1,
     jobId: preview.preparationId,
-    sourceProjectId: isUpload ? preview.binding.projectId : preview.binding.remoteProjectId,
-    targetProjectId: isUpload ? preview.binding.remoteProjectId : preview.binding.projectId,
+    sourceProjectId: isLocalSource ? preview.binding.projectId : preview.binding.remoteProjectId,
+    targetProjectId: isLocalSource ? preview.binding.remoteProjectId : preview.binding.projectId,
     plan: syncPlanFromPreview(preview),
   }
 }
@@ -96,7 +107,10 @@ export function createSyncTransferBridge(
   plugin: SyncTransferNativePlugin,
   isAndroid: () => boolean,
 ): AndroidSyncTransferApi {
+  /** 按准备 ID 和任务 ID 记住的预览；本机作为监听方时两者不同，任务 ID 是预览里的 preparationId。 */
   const previews = new Map<string, SyncPreparationPreview>()
+  const peerJobListeners = new Set<(jobId: string, projectId: string) => void>()
+  let isSubscribed = false
   async function invoke<T>(
     work: () => Promise<unknown>,
     guard: (value: unknown) => value is T,
@@ -111,14 +125,16 @@ export function createSyncTransferBridge(
       return failure('io-failure')
     }
   }
-  function remember(value: SyncPreparationPreview): void {
-    if (!previews.has(value.preparationId) && previews.size >= 32) {
-      const oldest = previews.keys().next().value
-      if (oldest !== undefined) {
-        previews.delete(oldest)
+  function remember(value: SyncPreparationPreview, id = value.preparationId): void {
+    for (const key of new Set([id, value.preparationId])) {
+      if (!previews.has(key) && previews.size >= 64) {
+        const oldest = previews.keys().next().value
+        if (oldest !== undefined) {
+          previews.delete(oldest)
+        }
       }
+      previews.set(key, structuredClone(value))
     }
-    previews.set(value.preparationId, structuredClone(value))
   }
   async function preview(preparationId: string): Promise<OperationResult<SyncPreparationPreview>> {
     if (!isOpaqueId(preparationId)) {
@@ -126,11 +142,13 @@ export function createSyncTransferBridge(
     }
     const result = await invoke(
       () => plugin.preview({ preparationId }),
+      // 本机作为监听方时用请求 ID 查到的预览带的是计划 ID。
       (value): value is SyncPreparationPreview =>
-        isSyncPreparationPreview(value) && value.preparationId === preparationId,
+        isSyncPreparationPreview(value) &&
+        (value.preparationId === preparationId || value.localSide === 'listener'),
     )
     if (result.status === 'success') {
-      remember(result.value)
+      remember(result.value, preparationId)
     }
     return result
   }
@@ -151,7 +169,7 @@ export function createSyncTransferBridge(
     }
     const expected = request(restored.value),
       state = raw.value
-    const localRole = restored.value.direction === 'dialer-to-listener' ? 'sender' : 'receiver'
+    const localRole = isPreviewLocalSource(restored.value) ? 'sender' : 'receiver'
     return state.jobId === jobId &&
       state.local.role === localRole &&
       matchesSyncJobState(state.local, expected) &&
@@ -230,9 +248,9 @@ export function createSyncTransferBridge(
       ) {
         return failure('invalid-request')
       }
-      remember(chosen)
+      remember(chosen, preparationId)
       return validate(
-        preparationId,
+        chosen.preparationId,
         await invoke(() => plugin.execute({ preparationId, plan }), isSyncTransferState),
       )
     },
@@ -275,5 +293,28 @@ export function createSyncTransferBridge(
         () => plugin.retryCleanup(),
         (value): value is null => value === null,
       ),
+    onPeerJobStarted(listener) {
+      if (!isSubscribed && isAndroid()) {
+        isSubscribed = true
+        plugin
+          .addListener('peerJobStarted', (event) => {
+            if (
+              typeof event === 'object' &&
+              event !== null &&
+              'jobId' in event &&
+              'projectId' in event &&
+              isOpaqueId(event.jobId) &&
+              isOpaqueId(event.projectId)
+            ) {
+              for (const item of [...peerJobListeners]) {
+                item(event.jobId, event.projectId)
+              }
+            }
+          })
+          .catch((cause: unknown) => console.error('Failed to listen for peer sync tasks', cause))
+      }
+      peerJobListeners.add(listener)
+      return () => peerJobListeners.delete(listener)
+    },
   }
 }

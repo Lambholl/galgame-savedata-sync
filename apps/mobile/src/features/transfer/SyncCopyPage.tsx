@@ -3,6 +3,7 @@ import { ActionSheet } from 'antd-mobile'
 import { RightOutlined } from '@ant-design/icons'
 import {
   compareSnapshots,
+  isPreviewLocalSource,
   isSyncWriteEntry,
   syncPlanFromPreview,
   toShownError,
@@ -37,6 +38,7 @@ export function SyncCopyPage({
   localRoot,
   deviceName,
   peerId,
+  isLocalListener,
   initialDirection,
   isPlan,
   isDisabled,
@@ -54,8 +56,10 @@ export function SyncCopyPage({
   readonly localRoot: DirectoryReference | null
   readonly deviceName: string | null
   readonly peerId: string
-  /** 页面打开时的传输方向，之后由页面里的翻转按钮改变。 */
-  readonly initialDirection: SyncDirection
+  /** 所选设备连着本机服务，本机是监听方；否则本机是拨号方。 */
+  readonly isLocalListener: boolean
+  /** 页面打开时的传输方向，之后由页面里的翻转按钮改变；null 表示从所选设备复制到本机。 */
+  readonly initialDirection: SyncDirection | null
   readonly isPlan: boolean
   readonly isDisabled: boolean
   /** 有传输或恢复在进行时不发起新的扫描。 */
@@ -70,7 +74,18 @@ export function SyncCopyPage({
   readonly onFailure: (error: ShownError) => void
 }): React.JSX.Element {
   const t = useT()
-  const [direction, setDirection] = useState<SyncDirection>(initialDirection)
+  // 方向按连接角色命名：复制到本机时由对方这一端指向本机这一端。
+  const [direction, setDirection] = useState<SyncDirection>(
+    initialDirection ?? (isLocalListener ? 'dialer-to-listener' : 'listener-to-dialer'),
+  )
+  // 换成角色不同的设备时保持复制到本机还是复制到对方不变。
+  const [wasLocalListener, setWasLocalListener] = useState(isLocalListener)
+  if (wasLocalListener !== isLocalListener) {
+    setWasLocalListener(isLocalListener)
+    setDirection(direction === 'listener-to-dialer' ? 'dialer-to-listener' : 'listener-to-dialer')
+  }
+  const localSide = isLocalListener ? 'listener' : 'dialer'
+  const isLocalSource = isPreviewLocalSource({ direction, localSide })
   const [preparation, setPreparation] = useState<SyncPreparationState | null>(null)
   const [preview, setPreview] = useState<SyncPreparationPreview | null>(null)
   /** 扫描失败的原因；null 表示没有失败。 */
@@ -266,29 +281,35 @@ export function SyncCopyPage({
   }
   const remoteName =
     peer?.device.name ?? t(game.links.length > 0 ? 'transfer.pickPeerTitle' : 'common.unknown')
+  const remotePlatform = peer?.device.platform ?? 'windows'
   const localEnd: PlanEndpoint = { name: t('transfer.local'), kind: 'mobile' }
-  const remoteEnd: PlanEndpoint = { name: remoteName, kind: 'pc' }
+  const remoteEnd: PlanEndpoint = {
+    name: remoteName,
+    kind: remotePlatform === 'android' ? 'mobile' : 'pc',
+  }
+  const remoteDevice = {
+    name: remoteName,
+    caption: '',
+    isOnline: peer ? isConnected : null,
+    rootName: remote?.root?.displayName ?? '—',
+    platform: remotePlatform,
+  }
+  const localDevice = {
+    name: t('transfer.local'),
+    caption: deviceName ?? '',
+    isOnline: null,
+    rootName: localRoot?.displayName ?? '—',
+    platform: 'android' as const,
+  }
   return (
     <>
       {/* 打开计划时只隐藏比较区，返回后文件夹位置和筛选保持不变。 */}
       <div className="transfer-fill" hidden={isPlan}>
         <TransferComparison
           key={peerId}
-          listener={{
-            name: remoteName,
-            caption: '',
-            isOnline: peer ? isConnected : null,
-            rootName: remote?.root?.displayName ?? '—',
-            platform: 'windows',
-          }}
-          dialer={{
-            name: t('transfer.local'),
-            caption: deviceName ?? '',
-            isOnline: null,
-            rootName: localRoot?.displayName ?? '—',
-            platform: 'android',
-          }}
-          remoteSide="listener"
+          listener={isLocalListener ? localDevice : remoteDevice}
+          dialer={isLocalListener ? remoteDevice : localDevice}
+          remoteSide={isLocalListener ? 'dialer' : 'listener'}
           direction={direction}
           status={status}
           isLocked={isDisabled || isStarting}
@@ -307,13 +328,13 @@ export function SyncCopyPage({
       {isPlan && plan ? (
         <PlanConfirm
           plan={plan}
-          source={direction === 'dialer-to-listener' ? localEnd : remoteEnd}
-          target={direction === 'dialer-to-listener' ? remoteEnd : localEnd}
+          source={isLocalSource ? localEnd : remoteEnd}
+          target={isLocalSource ? remoteEnd : localEnd}
           backupKeepCount={preview?.backupKeepCount ?? null}
           notice={
             <>
               {hasChanged ? <p className="notice notice-error">{t('transfer.planStale')}</p> : null}
-              {direction === 'listener-to-dialer' ? <ModifiedDateNotice plan={plan} /> : null}
+              {isLocalSource ? null : <ModifiedDateNotice plan={plan} />}
             </>
           }
           action={{

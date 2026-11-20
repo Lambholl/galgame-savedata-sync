@@ -20,7 +20,7 @@ import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-/** 复制任务的原生插件：准备和预览、确认、状态、取消和释放。 */
+/** 复制任务的原生插件：准备和预览、确认、状态、取消和释放；对方开始任务时发出 peerJobStarted 事件。 */
 @CapacitorPlugin(name = "SyncTransfers")
 public class SyncTransfersPlugin extends Plugin {
 
@@ -85,28 +85,28 @@ public class SyncTransfersPlugin extends Plugin {
   public void prepare(PluginCall call) {
     submit(call, runtime -> {
       Map<String, Object> value = arguments(call, "binding", "direction");
-      return runtime.engine.prepare(value.get("binding"), string(value.get("direction")));
+      return runtime.prepare(value.get("binding"), string(value.get("direction")));
     });
   }
 
   @PluginMethod
   public void queryPreparation(PluginCall call) {
     submit(call, runtime ->
-      runtime.engine.preparationState(id(arguments(call, "preparationId").get("preparationId")))
+      runtime.preparationState(id(arguments(call, "preparationId").get("preparationId")))
     );
   }
 
   @PluginMethod
   public void preview(PluginCall call) {
     submit(call, runtime ->
-      runtime.engine.preview(id(arguments(call, "preparationId").get("preparationId")))
+      runtime.preview(id(arguments(call, "preparationId").get("preparationId")))
     );
   }
 
   @PluginMethod
   public void cancelPreparation(PluginCall call) {
     submit(call, runtime ->
-      runtime.engine.cancelPreparation(id(arguments(call, "preparationId").get("preparationId")))
+      runtime.cancelPreparation(id(arguments(call, "preparationId").get("preparationId")))
     );
   }
 
@@ -123,7 +123,7 @@ public class SyncTransfersPlugin extends Plugin {
     submit(call, runtime -> {
       Map<String, Object> value = arguments(call, "jobId", "shouldRefresh");
       require(value.get("shouldRefresh") instanceof Boolean);
-      return runtime.engine.query(id(value.get("jobId")), (Boolean) value.get("shouldRefresh"));
+      return runtime.query(id(value.get("jobId")), (Boolean) value.get("shouldRefresh"));
     });
   }
 
@@ -131,28 +131,24 @@ public class SyncTransfersPlugin extends Plugin {
   public void current(PluginCall call) {
     submit(call, runtime -> {
       arguments(call);
-      return runtime.engine.current();
+      return runtime.current();
     });
   }
 
   @PluginMethod
   public void latest(PluginCall call) {
-    submit(call, runtime ->
-      runtime.engine.latest(id(arguments(call, "projectId").get("projectId")))
-    );
+    submit(call, runtime -> runtime.latest(id(arguments(call, "projectId").get("projectId"))));
   }
 
   @PluginMethod
   public void cancel(PluginCall call) {
-    submit(call, runtime ->
-      runtime.engine.cancel(id(arguments(call, "jobId").get("jobId")), false)
-    );
+    submit(call, runtime -> runtime.cancelJob(id(arguments(call, "jobId").get("jobId"))));
   }
 
   @PluginMethod
   public void release(PluginCall call) {
     submit(call, runtime -> {
-      runtime.engine.release(id(arguments(call, "preparationId").get("preparationId")));
+      runtime.release(id(arguments(call, "preparationId").get("preparationId")));
       return null;
     });
   }
@@ -161,9 +157,23 @@ public class SyncTransfersPlugin extends Plugin {
   public void retryCleanup(PluginCall call) {
     submit(call, runtime -> {
       arguments(call);
-      runtime.engine.retryCleanup();
+      runtime.retryCleanup();
       return null;
     });
+  }
+
+  @Override
+  public void load() {
+    try {
+      SyncTransferRuntime.get(getContext()).events((jobId, projectId) -> {
+        JSObject data = new JSObject();
+        data.put("jobId", jobId);
+        data.put("projectId", projectId);
+        notifyListeners("peerJobStarted", data);
+      });
+    } catch (Exception unavailable) {
+      // 目录存储打不开时复制也无法进行，各方法调用时会报告错误。
+    }
   }
 
   @Override

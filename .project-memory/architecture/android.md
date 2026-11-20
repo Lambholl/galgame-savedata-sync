@@ -1,7 +1,7 @@
 ---
 doc_type: architecture
 status: active
-updated: 2026-11-20
+updated: 2026-11-21
 tags: [Android, 移动端, SAF, 原生插件]
 ---
 
@@ -27,7 +27,7 @@ tags: [Android, 移动端, SAF, 原生插件]
 
 ## 1. 界面入口
 
-Android 可作拨号方和监听方。作拨号方时原生层连接监听方、编排扫描、计划和任务，并执行监听方经控制通道交来的传输。作监听方时由设备页的“本机服务”开关启动自写的 HTTP 和 WebSocket 服务，用 NsdManager 广播并显示连接二维码，服务开着时由 `connectedDevice` 前台服务和常驻通知保持（[ADR-0004](../decisions/ADR-0004-symmetric-listener-dialer-roles.md)，见第 14 节）。监听方目前提供连接、目录表交换和双方目录浏览；复制任务的 `/v1/sync/*` 还返回 `unsupported-operation`。
+Android 可作拨号方和监听方。作拨号方时原生层连接监听方、编排扫描、计划和任务，并执行监听方经控制通道交来的传输。作监听方时由设备页的“本机服务”开关启动自写的 HTTP 和 WebSocket 服务，用 NsdManager 广播并显示连接二维码，服务开着时由 `connectedDevice` 前台服务和常驻通知保持（[ADR-0004](../decisions/ADR-0004-symmetric-listener-dialer-roles.md)，见第 14 节）。监听方提供连接、目录表交换、双方目录浏览和复制任务的 `/v1/sync/*`；本机作监听方时发起的传输经控制通道交给拨号方执行（第 11 节）。
 
 移动界面在 `apps/mobile/src/app`、`features`、`components` 和 `styles`，使用 antd-mobile；平台接入位于 `src/platform/library-adapter.ts`。界面只从 `@savedata-sync/shared` 引入协议、配置、任务类型和纯数据规则。Android 返回键和系统主题位于 `src/app`；SAF、HTTP 传输桥和配置持久化位于 `src/platform`。
 
@@ -203,6 +203,12 @@ Windows → Android（监听方 → 拨号方）：使用移动端目标项目�
 
 确认执行后才使用 dataSync 服务和持续通知；插件销毁不会中断任务。任务总期限 30 分钟，预览/终态最多保留 10 分钟、各最多 32 份，已用任务 ID 最多 4096 个。
 
+`SyncTransferRuntime` 同时是监听方任务的入口，按对方设备选路：本机服务的控制通道连着这台设备时，准备、预览、执行走 `ListenerSyncRequests`，任务的查询、取消、清理重试走 `ListenerSyncJobs`；否则走拨号方的 `SyncTransferEngine`。`ListenerLibrary` 在本机拨号时拒绝目录表交换，所以同一台对方设备不会同时是两种角色。监听方的预览 `localSide` 为 `listener`，网页层用共享包的 `isPreviewLocalSource` 判断本机是发送端还是接收端。
+
+拨号方在本机登记任务时同样启动 `TransferService`，由 dataSync 持续通知保持；任务由对方发起时插件发 `peerJobStarted`（`jobId`、`projectId`），网页层切到该任务的传输详情（REQ-023）。目标授权核对按名额归属分开：`ListenerSyncJobs` 持有名额时由它核对任务上下文，否则交给 `SyncTransferEngine`。
+
+已知缺口：Android 作拨号方时，`SyncTransferEngine` 只在转述监听方任务状态里的错误时注明 listener，其余 authorization-expired 都按本机目录处理。对方是 Android 监听方、在 HTTP 回复里直接返回 authorization-expired 时，界面会把对方目录的授权失效显示成本机目录。
+
 ## 12. 局域网设备搜索
 
 `src/platform/device-discovery.ts` 导出 `deviceDiscovery`，用 NsdManager 搜索 `_savedata-sync._tcp` 服务，格式见[共享包](shared-package.md#9-发现与连接二维码)。
@@ -228,7 +234,9 @@ Windows → Android（监听方 → 拨号方）：使用移动端目标项目�
 
 | 类 | 职责 |
 | --- | --- |
-| `ListenerServer` | 在 `0.0.0.0` 的保存端口监听，最多 16 条连接，空闲 60 秒（控制通道 45 秒）关闭。路由 `/v1/device`、`/v1/catalog`、`/v1/roots`、`/v1/roots/<rootId>/entries`、`/v1/control`；除 `/v1/device` 外都核对 `x-sync-session-id`，控制通道还要求已交换目录表的 `x-sync-device-id`，不满足返回 403。`/v1/sync/*` 返回 `unsupported-operation` |
+| `ListenerServer` | 在 `0.0.0.0` 的保存端口监听，最多 16 条连接，空闲 60 秒（控制通道 45 秒）关闭。路由 `/v1/device`、`/v1/catalog`、`/v1/roots`、`/v1/roots/<rootId>/entries`、`/v1/control`；除 `/v1/device` 外都核对 `x-sync-session-id`，控制通道还要求已交换目录表的 `x-sync-device-id`，不满足返回 403。`/v1/sync/*`（能力、扫描、项目描述、任务登记、内容 GET 和 PUT、查询和取消）同样核对会话，并要求 `x-sync-device-id` 是已交换目录表的设备；扫描和任务的 DELETE 在进行中时回 202，内容 GET 用 chunked 200，PUT 只接受 chunked 并回 202 |
+| `ListenerSyncJobs` | 对应电脑 `WindowsSyncRegistry`：拨号方登记的复制任务，本机可以是接收端或发送端。本机接收时内容只接受一次，边收边解包到私有缓存，收齐后由 `SyncWriter` 写入；本机发送时重新扫描核对来源，内容只能读取一次。从登记到写入和缓存清理结束占用 `TargetOperation` 名额。期限与电脑相同：ready 10 分钟、等内容 2 分钟、总期限 30 分钟、网络无进展 60 秒；终态保留 10 分钟，最多 32 个任务、4096 个已用 ID，只在内存中。错误回复的 `canRetry` 一律为 false，与电脑服务相同。停止服务时立即返回，中止当前任务后在后台线程最多等 30 秒完成清理 |
+| `ListenerSyncRequests` | 对应电脑 `remote-sync-requests.ts`：本机作监听方时发起的传输。经控制通道发 `sync.prepare` 请拨号方扫描，收 `sync.report` 的计划后由用户确认，再发 `sync.confirm`，拨号方执行并在本机登记任务；同一时间只保留一个请求。拨号方以 invalid-request 或 not-found 拒绝确认（计划已过期）时按 not-found 返回，界面重新准备 |
 | `ListenerHttp` | HTTP/1.1 请求解析和回复，规则与电脑服务相同：头名重复、Content-Encoding、Range、Expect、Content-Length 与 chunked 冲突、chunk 扩展和 trailer 都按 invalid-request 拒绝；JSON 请求体最多 8 MiB |
 | `ListenerSocket` | 服务端 WebSocket（RFC 6455），只收文本帧，单条最多 8 MiB；关闭时先发关闭帧，最多等 2 秒回应 |
 | `ListenerControl` | 控制通道监听端：同一时间一条连接，同一设备的新连接以 4002 取代旧连接，主动断开用 4001。每 15 秒 ping，请求 8 秒超时 |
@@ -240,13 +248,13 @@ Windows → Android（监听方 → 拨号方）：使用移动端目标项目�
 
 目录表交换在原生层完成，Activity 销毁后对方仍能连接。游戏库配置因此有两个写入方：`AppStoragePlugin.readLibrary` / `writeLibrary` 加同一把锁，原生层写入后发 `libraryChanged`，`library-adapter` 重新读入配置并丢掉缓存。读快照时还会补登记连着本机、配置里却没有的设备，防止网页的旧缓存覆盖原生层刚写入的设备。
 
-`src/platform/local-service.ts` 导出 `localService`（桥接在 `local-service-bridge.ts`）：status、start、stop、randomizePort、peers、disconnectPeer、peerDirectory、catalogChanged，以及 `serviceState`、`libraryChanged` 两个事件。`library-adapter` 把连着本机的设备并入快照的 peers：控制通道连着即在线，游戏取对方最近发来的目录表；浏览这台设备的目录走 `peerDirectory`，断开和删除走 `disconnectPeer`，修改本机游戏后发 `catalog.changed`。打开开关前申请通知权限，没有授权时不启动。
+`src/platform/local-service.ts` 导出 `localService`（桥接在 `local-service-bridge.ts`）：status、start、stop、randomizePort、peers、disconnectPeer、peerDirectory、catalogChanged，以及 `serviceState`、`libraryChanged` 两个事件。`library-adapter` 把连着本机的设备并入快照的 peers，并在 `listenerPeerIds` 列出它们的设备 ID，传输页据此按本机是监听方决定方向和两端位置：控制通道连着即在线，游戏取对方最近发来的目录表；浏览这台设备的目录走 `peerDirectory`，断开和删除走 `disconnectPeer`，修改本机游戏后发 `catalog.changed`。打开开关前申请通知权限，没有授权时不启动。
 
 声明 `FOREGROUND_SERVICE_CONNECTED_DEVICE`，以及该前台服务类型要求的前置权限之一 `CHANGE_WIFI_MULTICAST_STATE`。
 
 ## 15. 测试范围
 
-`pnpm test` 运行最小 TS 桥检查（请求/响应边界、结果上下文和订阅清理）。`ListenerServerTest` 在 JVM 回环地址上运行真实的本机服务，覆盖 HTTP 解析边界、目录表交换、控制通道和一台设备一条连接的规则，以及 Android 拨号方 `TransferEngine` 连接、交换、浏览后被 4001 断开。`pnpm android:test` 同步 Web 工程，生成 Windows 原生归档供 Java 消费，执行 Java 单元测试、Android lint、调试与仪器测试 APK 构建，最后验证 Windows/JVM 归档互通；不连接设备。
+`pnpm test` 运行最小 TS 桥检查（请求/响应边界、结果上下文和订阅清理）。`ListenerServerTest` 在 JVM 回环地址上运行真实的本机服务，覆盖 HTTP 解析边界、目录表交换、控制通道和一台设备一条连接的规则，以及 Android 拨号方 `TransferEngine` 连接、交换、浏览后被 4001 断开。监听方 `/v1/sync/*` 和控制通道发起的传输没有长期测试，验证情况见[回归状态](../testing/regression-notes.md)。`pnpm android:test` 同步 Web 工程，生成 Windows 原生归档供 Java 消费，执行 Java 单元测试、Android lint、调试与仪器测试 APK 构建，最后验证 Windows/JVM 归档互通；不连接设备。
 
 设备测试有 3 项，安装两个调试 APK 后用 `adb shell am instrument -w ... io.github.galgame.savedatasync.test/androidx.test.runner.AndroidJUnitRunner` 运行：
 

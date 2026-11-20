@@ -32,6 +32,11 @@ final class ListenerControl {
     void changed(String peerId, boolean isOpen);
   }
 
+  /** 对方发来的事件，外层格式和方法名已校验，body 未校验；回调在连接的读线程上执行，抛出的异常被忽略。 */
+  interface Events {
+    void event(String peerId, String method, Object body);
+  }
+
   /** 本机断开这台设备，对方不要重连。 */
   static final int CLOSE_DISCONNECTED = 4001;
   /** 同一设备的新连接取代旧连接。 */
@@ -70,6 +75,7 @@ final class ListenerControl {
   private final ScheduledFuture<?> heartbeat;
   private Peer current;
   private boolean isStopped;
+  private volatile Events events;
 
   ListenerControl(ScheduledExecutorService timer, Listener listener) {
     this.timer = timer;
@@ -130,6 +136,11 @@ final class ListenerControl {
     }
     listener.changed(peerId, true);
     return socket;
+  }
+
+  /** 设置事件的接收者；null 表示丢弃事件。 */
+  void events(Events value) {
+    events = value;
   }
 
   /** 与 peerId 的控制连接是否打开。 */
@@ -328,9 +339,22 @@ final class ListenerControl {
         number(message.get("v"), 1, 1);
         one(type, "event");
         TransferSchema.require(EVENTS.contains(message.get("method")));
+        dispatch(peer, (String) message.get("method"), message.get("body"));
       }
     } catch (Exception invalid) {
       peer.socket.close(1008, "invalid-message");
+    }
+  }
+
+  private void dispatch(Peer peer, String method, Object body) {
+    Events receiver = events;
+    if (receiver == null) {
+      return;
+    }
+    try {
+      receiver.event(peer.id, method, body);
+    } catch (RuntimeException ignored) {
+      // 事件内容由接收者校验，内容不对只丢弃这一条，不断开连接。
     }
   }
 }

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Button } from 'antd-mobile'
 import { ReloadOutlined, StopOutlined } from '@ant-design/icons'
-import { observeSyncJob, toShownError } from '@savedata-sync/shared'
+import { isPreviewLocalSource, observeSyncJob, toShownError } from '@savedata-sync/shared'
 import type { LibraryGame, LibraryPeer, ShownError, SyncDirection } from '@savedata-sync/shared'
 import { SyncTaskSummary, useT } from '@savedata-sync/shared/ui'
 import { useFailureMessage } from '../../app/failure-message'
@@ -83,9 +83,12 @@ export function SyncTaskDetails({
   const isRunning =
     state &&
     observeSyncJob(state.local, state.remote, state.remoteError !== null).phase === 'running'
-  const mobileEnd: PlanEndpoint = { name: t('transfer.local'), kind: 'mobile' }
-  const pcEnd: PlanEndpoint = { name: peer?.device.name ?? t('common.unknown'), kind: 'pc' }
-  const isUpload = copy?.preview.direction === 'dialer-to-listener'
+  const localEnd: PlanEndpoint = { name: t('transfer.local'), kind: 'mobile' }
+  const remoteEnd: PlanEndpoint = {
+    name: peer?.device.name ?? t('common.unknown'),
+    kind: peer?.device.platform === 'android' ? 'mobile' : 'pc',
+  }
+  const isLocalSource = copy ? isPreviewLocalSource(copy.preview) : false
   const failure = error ?? errors[0] ?? null
   // 失败用 Message 提示一次；读不到任务时正文留一个重试入口。
   const [showFailure, failureHolder] = useFailureMessage()
@@ -125,15 +128,15 @@ export function SyncTaskDetails({
           <SyncTaskSummary
             key={state.jobId}
             gameName={game?.name ?? t('common.unknown')}
-            source={isUpload ? mobileEnd : pcEnd}
-            target={isUpload ? pcEnd : mobileEnd}
+            source={isLocalSource ? localEnd : remoteEnd}
+            target={isLocalSource ? remoteEnd : localEnd}
             local={state.local}
             remote={state.remote}
             remoteError={state.remoteError}
             onRetryCleanup={
               isRunning || !state.local.cleanupError ? null : () => act(() => sync.cleanupCopy())
             }
-            // 备份建在被写入的一端；本机发送时备份在电脑上，这里不提供入口。
+            // 备份建在被写入的一端；本机发送时备份在对方设备上，这里不提供入口。
             onViewBackup={
               state.local.role === 'receiver' ? () => onBackup(binding.projectId) : null
             }

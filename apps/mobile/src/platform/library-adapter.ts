@@ -420,6 +420,7 @@ export function createMobileLibraryAdapter(
           isConnected: connectedIds.has(device.id),
           games: catalogs.get(device.id) ?? [],
         })),
+        listenerPeerIds: listenerPeers.map((peer) => peer.deviceId),
         connectingId:
           descriptors
             .map((item) => item.device.deviceId)

@@ -1,7 +1,7 @@
 ---
 doc_type: module-status
 status: active
-updated: 2026-11-20
+updated: 2026-11-21
 tags: [模块状态, 开发进度]
 ---
 
@@ -18,7 +18,7 @@ tags: [模块状态, 开发进度]
 
 | 模块 | 状态 | 负责人 | 相关文件 | 边界与风险 | 下一步 |
 | --- | --- | --- | --- | --- | --- |
-| Android 本机服务（监听方） | done | 开发 | Android `Listener*.java`、`LocalServicePlugin.java`；移动 `platform/local-service*.ts`、`library-adapter.ts`、`features/devices/DevicesPage.tsx` | 连接、目录表交换、目录浏览、广播和设备页已实现，JVM 测试和自动检查通过；复制任务还不接受；发现、扫码、手动连接和熄屏、Doze 下的监听还没在真机上验证 | WP-51 实现传输；WP-52 真机验证 |
+| Android 本机服务（监听方） | done | 开发 | Android `Listener*.java`、`LocalServicePlugin.java`、`SyncTransferRuntime.java`；移动 `platform/local-service*.ts`、`library-adapter.ts`、`sync-transfer-bridge.ts`、`features/devices/DevicesPage.tsx`、`features/transfer/` | 连接、目录表交换、目录浏览、广播、设备页和复制任务（`/v1/sync/*`、本机发起经控制通道交给拨号方、对方发起时打开详情）已实现，自动检查通过；传输只有临时 JVM 测试，没有长期测试。发现、扫码、手动连接、传输和熄屏、Doze 下的监听都还没在真机上验证；对方 Android 监听方的目录授权失效会显示成本机目录 | WP-52 真机验证 |
 
 ## 2. 状态说明
 

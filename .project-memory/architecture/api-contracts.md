@@ -1,7 +1,7 @@
 ---
 doc_type: api-contracts
 status: active
-updated: 2026-11-20
+updated: 2026-11-21
 tags: [API, 接口约定]
 ---
 
@@ -20,7 +20,7 @@ tags: [API, 接口约定]
 
 ## 1. 状态与范围
 
-本文记录当前接口。连接分监听方和拨号方：监听方提供 HTTP 服务和 `/v1/control`，拨号方连接并编排传输，监听方发起的传输经控制通道交给拨号方（[ADR-0004](../decisions/ADR-0004-symmetric-listener-dialer-roles.md)）。当前电脑既能作监听方，也能作拨号方连接另一台电脑并传输；Android 原生层作拨号方，也能作监听方提供连接、目录表交换和目录浏览；Android 作监听方时还不接受复制任务（`/v1/sync/*` 返回 `unsupported-operation`）。下文写“电脑”“移动端”的地方是当前实现，规则按监听方和拨号方理解。平台说明见 [Windows 平台层](windows.md)、[Android 平台层](android.md)，共享字段与线格式见[共享包](shared-package.md)。
+本文记录当前接口。连接分监听方和拨号方：监听方提供 HTTP 服务和 `/v1/control`，拨号方连接并编排传输，监听方发起的传输经控制通道交给拨号方（[ADR-0004](../decisions/ADR-0004-symmetric-listener-dialer-roles.md)）。当前电脑既能作监听方，也能作拨号方连接另一台电脑并传输；Android 原生层同样能作拨号方和监听方，作监听方时提供连接、目录表交换、目录浏览和 `/v1/sync/*`，本机发起的传输经控制通道交给拨号方。下文写“电脑”“移动端”的地方是当前实现，规则按监听方和拨号方理解。平台说明见 [Windows 平台层](windows.md)、[Android 平台层](android.md)，共享字段与线格式见[共享包](shared-package.md)。
 
 已接入：游戏与设备配置、三页导航、并列目录视图、受保护覆盖、可选的目标多余条目删除、写入前全量备份、本机恢复和两端发起。发现与连接二维码的格式在 `apps/shared` 定义（第 8 节）：监听方广播并显示二维码，拨号方搜索和扫码（扫码只在移动端）；改址自动重连的安排见[路线图](../project/roadmap.md)。
 
@@ -51,9 +51,9 @@ tags: [API, 接口约定]
 
 双向复制协议：监听方提供只读项目设置、任务登记、单次内容上传（chunked PUT）及源准备/单次内容 GET、查询/取消；内容是按计划写文件顺序排列的 tar.gz 流，发送端边读边打包，接收端边收边解包到私有目录。接收端登记任务后立即开始备份，备份与传输同时进行，备份完成且内容收齐后重新核对目标再写入：拨号方 → 监听方由监听方完成，监听方 → 拨号方由拨号方完成。监听方在备份或等待内容阶段接收上传；内容没收齐时任务失败，一项都不写；备份或核对先失败时监听方中止接收，上传方得到 task-conflict。一端停下会关掉内容连接，另一端只能看到连接断开，所以用户取消时先通知对端取消再停下本机：拨号方发起时先 DELETE 监听方的任务（监听方无回应时最多等 5 秒），监听方发起时在等待拨号方回应期间，本机任务因连接断开中止也记为取消。拨号方上传连接断开后最多等 5 秒，让监听方自己按连接断开结束，仍在等内容才按网络中断结束并取消监听方的任务。任务固定当前会话扫描、双向项目关联、设备/根及目标备份设置；实际同步通信更新既有设备在线时间。监听方源准备异步返回 preparing，扫描资源释放后发布 ready，发送完成只报告 sent。拨号方下载前合计缓存/备份/已知同卷增量，写入器借用确认时的名额和时间并重新扫描目标；完整 receiver 结果与发送状态分开。全任务保持进程互斥至清理结束，回执丢失只查询，内容不重放，零文件没有归档。Android 的 SyncTransfers 有限桥分开普通扫描准备、同次确认、状态及取消/释放，只有确认执行启动传输通知；页面重建后可取回原生预览核对结果。本机恢复经本地桥提供，没有远端恢复入口。完整字段与期限见[复制、备份与恢复约定](sync-copy.md)第 6、7 节。
 
-设备间控制走 WebSocket `/v1/control`，文件内容走 HTTP 路由。拨号方先完成 `POST /v1/catalog` 交换，再带 `x-sync-session-id` 和 `x-sync-device-id` 升级；监听方核对会话、设备已交换目录表、未停用、未被断开且没有另一台设备在线，不满足返回 403。消息格式对称，双方都能发请求、回应答、推事件：`{v:1, type:request|response|event, id?, method, body|result}`，单条最多 8 MiB，只收文本帧，JSON 严格解析（重复键、非法 UTF-8 关闭 1007，格式不符关闭 1008）。请求方法有 `directory.list`、`sync.prepare`、`sync.confirm`、`sync.cancel`、`sync.job.read`、`sync.job.cancel`，事件有 `catalog.changed`、`sync.report` 和 `sync.job`；请求 8 秒无应答即失败。监听方每 15 秒 ping，一个周期无 pong 就断开。关闭码 4001 表示监听方断开了这台设备，拨号方不再重连；4002 表示同一设备的新连接取代旧连接；其他关闭时拨号方 2 秒后重连。格式和守卫在 `apps/shared/src/control`，电脑 `control-hub.ts`（ws）监听、`dialer-control.ts`（ws）拨号，移动端 `ControlClient.java`（Java-WebSocket）拨号，网页经 `platform/control-channel.ts` 收发。两端须同版，没有轮询回退。一台设备同一时刻只有一条控制连接：作为监听方被连着，或作为拨号方连着别人；拨号方连着别人时，本机监听服务对新的 `POST /v1/catalog` 返回 `busy`。已实现电脑监听、移动端拨号，以及电脑监听、电脑拨号（连接和读取目录）；其余组合在 M-005 实现（REQ-022）。
+设备间控制走 WebSocket `/v1/control`，文件内容走 HTTP 路由。拨号方先完成 `POST /v1/catalog` 交换，再带 `x-sync-session-id` 和 `x-sync-device-id` 升级；监听方核对会话、设备已交换目录表、未停用、未被断开且没有另一台设备在线，不满足返回 403。消息格式对称，双方都能发请求、回应答、推事件：`{v:1, type:request|response|event, id?, method, body|result}`，单条最多 8 MiB，只收文本帧，JSON 严格解析（重复键、非法 UTF-8 关闭 1007，格式不符关闭 1008）。请求方法有 `directory.list`、`sync.prepare`、`sync.confirm`、`sync.cancel`、`sync.job.read`、`sync.job.cancel`，事件有 `catalog.changed`、`sync.report` 和 `sync.job`；请求 8 秒无应答即失败。监听方每 15 秒 ping，一个周期无 pong 就断开。关闭码 4001 表示监听方断开了这台设备，拨号方不再重连；4002 表示同一设备的新连接取代旧连接；其他关闭时拨号方 2 秒后重连。格式和守卫在 `apps/shared/src/control`，电脑 `control-hub.ts`（ws）监听、`dialer-control.ts`（ws）拨号，移动端 `ControlClient.java`（Java-WebSocket）拨号，网页经 `platform/control-channel.ts` 收发。两端须同版，没有轮询回退。一台设备同一时刻只有一条控制连接：作为监听方被连着，或作为拨号方连着别人；拨号方连着别人时，本机监听服务对新的 `POST /v1/catalog` 返回 `busy`。两端都能作监听方和拨号方，四种组合都已实现（REQ-022）；Android 监听方的传输还没在真机上验证，见[回归状态](../testing/regression-notes.md)。
 
-监听方发起的复制经控制通道交给拨号方，复用拨号方的扫描与执行（当前即电脑发起、移动端执行）。电脑 `remote-sync-requests.ts` 同时只保留一个请求：发起时发 `sync.prepare {requestId, projectId, direction}`，拨号方应答后开始扫描，用 `sync.report` 回报 preparing、ready（附计划）或 failed。拨号方有传输刚结束时最多等 2 秒再判断是否 busy；新扫描取代还没结束的旧扫描，等待期间被取消或被更新请求取代的 `sync.prepare` 只应答、不扫描；ready 计划须是对应项目、方向、设备和根的覆盖复制。`sync.report` 附的计划固定 `shouldDeleteExtras=false`，监听方确认后发 `sync.confirm {requestId, shouldDeleteExtras}`，两端用同一批快照各自算出选定的计划；拨号方执行并应答 `{jobId}`，jobId 等于 planId 时记为 running；之后的进度和结果来自下面的任务观察。监听方取消发 `sync.cancel`，拨号方取消并释放本机扫描；控制连接断开时未确认的请求记为失败，已确认的请求记为结果待确认，拨号方重连后由摘要更新。电脑的有限 desktopSync 桥提供 remoteRequest/startRemote/remotePlan/confirmRemote/cancelRemote。
+监听方发起的复制经控制通道交给拨号方，复用拨号方的扫描与执行。电脑 `remote-sync-requests.ts` 和 Android `ListenerSyncRequests` 同时只保留一个请求：发起时发 `sync.prepare {requestId, projectId, direction}`，拨号方应答后开始扫描，用 `sync.report` 回报 preparing、ready（附计划）或 failed。拨号方有传输刚结束时最多等 2 秒再判断是否 busy；新扫描取代还没结束的旧扫描，等待期间被取消或被更新请求取代的 `sync.prepare` 只应答、不扫描；ready 计划须是对应项目、方向、设备和根的覆盖复制。`sync.report` 附的计划固定 `shouldDeleteExtras=false`，监听方确认后发 `sync.confirm {requestId, shouldDeleteExtras}`，两端用同一批快照各自算出选定的计划；拨号方执行并应答 `{jobId}`，jobId 等于 planId 时记为 running；之后的进度和结果来自下面的任务观察。监听方取消发 `sync.cancel`，拨号方取消并释放本机扫描；控制连接断开时未确认的请求记为失败，已确认的请求记为结果待确认，拨号方重连后由摘要更新。电脑的有限 desktopSync 桥提供 remoteRequest/startRemote/remotePlan/confirmRemote/cancelRemote。
 
 任务观察对两种发起方式、两个方向相同。版本：`/v1/sync/capabilities.schemaVersion` 为 7，是唯一的版本门槛，版本不符的对端在创建任务前得到“请更新两端”；控制消息 `v` 为 1。`SyncJobState.schemaVersion` 为 5，含 `failureStage`（失败、取消或待确认时停在哪个阶段，取值为 cleaning、done 以外的阶段；成功、已发送或没有记录时为 null，清理和终态更新不改写它）。`SyncTransferState` 为 1。
 

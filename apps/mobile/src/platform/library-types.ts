@@ -20,6 +20,8 @@ export interface MobileSnapshot {
   /** 本机服务的状态；读取失败或不在 Android 上运行时为 null。 */
   readonly service: LocalServiceStatus | null
   readonly peers: readonly LibraryPeer[]
+  /** 本次服务里和本机服务交换过目录表的设备 ID：对这些设备本机是监听方。 */
+  readonly listenerPeerIds: readonly string[]
   /** 已经连上、控制通道还没打开过的设备 ID，这台设备在 peers 里还不算在线；没有时为 null。 */
   readonly connectingId: string | null
   readonly roots: readonly DirectoryReference[]

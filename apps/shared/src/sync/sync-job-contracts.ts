@@ -84,8 +84,11 @@ export interface SyncPreparationState {
 /** 准备完成后的预览：两端快照和绑定，可以还原出计划。 */
 export interface SyncPreparationPreview {
   readonly schemaVersion: 1
+  /** 还原出的计划的 planId，开始后也是任务 ID。 */
   readonly preparationId: string
   readonly direction: SyncDirection
+  /** 本机在这次传输里是监听方还是拨号方；binding 的 local 一侧就是这一端。 */
+  readonly localSide: 'listener' | 'dialer'
   readonly binding: SyncProjectBinding
   readonly source: SyncSnapshot
   readonly target: SyncSnapshot

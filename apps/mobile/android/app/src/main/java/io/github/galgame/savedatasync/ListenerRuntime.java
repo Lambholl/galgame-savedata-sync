@@ -130,6 +130,11 @@ final class ListenerRuntime {
     return server != null;
   }
 
+  /** 正在运行的服务；没运行时为 null。 */
+  synchronized ListenerServer server() {
+    return server;
+  }
+
   /** 是否有设备连着本机服务的控制通道。 */
   synchronized boolean hasPeer() {
     return server != null && server.control().peerId() != null;
@@ -174,8 +179,21 @@ final class ListenerRuntime {
    */
   void start() throws ArchiveFailure {
     ListenerServer created;
+    ListenerServer.Sync sync;
+    try {
+      sync = SyncTransferRuntime.get(context).listenerSync();
+    } catch (Exception cause) {
+      fail("io-failure", "The local copy service could not start.");
+      throw new ArchiveFailure(
+        "io-failure",
+        "The local copy service could not start.",
+        false,
+        cause
+      );
+    }
     synchronized (this) {
       if (server != null) {
+        close(sync.scanner());
         return;
       }
       try {
@@ -194,10 +212,12 @@ final class ListenerRuntime {
           },
           this::libraryChanged,
           this::peerChanged,
+          sync,
           InetAddress.getByAddress(new byte[4]),
           port()
         );
       } catch (IOException cause) {
+        close(sync.scanner());
         fail(
           "io-failure",
           "Cannot listen on the port. Check whether it is in use or choose another port."
@@ -254,6 +274,14 @@ final class ListenerRuntime {
     advertiser.stop();
     ListenerService.finish(context);
     stateChanged();
+  }
+
+  private static void close(SyncScanner scanner) {
+    try {
+      scanner.close();
+    } catch (Exception ignored) {
+      // 扫描器还没开始任何扫描，只持有内存里的状态。
+    }
   }
 
   private synchronized void fail(String code, String message) {

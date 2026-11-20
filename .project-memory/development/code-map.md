@@ -1,7 +1,7 @@
 ---
 doc_type: code-map
 status: active
-updated: 2026-11-20
+updated: 2026-11-21
 tags: [代码地图]
 ---
 
@@ -96,8 +96,8 @@ Java 源码都在 `apps/mobile/android/app/src/main/java/io/github/galgame/saved
 | `SyncScanner.java`、`DirectorySyncSource.java`、`SyncScansPlugin.java`；移动 `platform/sync-scan-bridge.ts`、`sync-scans.ts` | 本次递归扫描（取大小和修改日期，提供者不报大小时读一遍计数）、取消和有限扫描桥 | 普通只读操作，不加保活或前后台处理；结果只存内存并校验 rootId/scanId，内容和 URI 不跨桥 |
 | `BackupStore/Model/Files.java`、`AndroidBackupIo.java`、`SyncBackupsPlugin.java`；移动 `platform/backup-bridge.ts`、`backups.ts` | 用户可手动管理的持久备份、按份数轮换、恢复材料引用和有限本机查询 | 写 `Android/data/<包名>/files/backups`，设置留在内部目录；真实身份和链接数用 Os.lstat 检查；数据不跨桥；供 SyncWriter 复用 |
 | `SyncPlanModel.java`、`SyncWriter.java`、`DirectorySyncBackend.java`、`SyncWriteRuntime.java`、`SyncWritesPlugin.java`、`TargetOperation.java`；移动 `platform/sync-write-bridge.ts`、`sync-writes.ts` | 确认计划的独立复核、SAF 目录创建/受保护覆盖与本机恢复、应用级任务及有限桥 | 整批复核和备份后写入，接收远端内容时等内容收齐并重新核对目标；常规 FD 身份/rw/最终长度，写后设来源的修改日期；旧传输共用互斥，恢复预览与结果各有查询入口；应用不判断前后台 |
-| `SyncJobModel.java`、`SyncTransferEngine/Runtime.java`、`SyncTransfersPlugin.java`；移动 `platform/sync-transfer-bridge.ts`、`sync-transfers.ts`；Windows `main/sync-registry.ts`、`upload-body.ts` | 双向复制的普通扫描准备、同次确认、边打包边上传或边下载边解包、接收端与传输并行的备份、保护后写入及实际结果查询 | 登记和内容各一次，回执丢失只查询；两端任务共用原生名额，只有实际传输保持通知，长源读取通过原生心跳确认通信；页面重建按 ID 查询，不恢复或重放 |
+| `SyncJobModel.java`、`SyncTransferEngine/Runtime.java`、`SyncTransfersPlugin.java`；移动 `platform/sync-transfer-bridge.ts`、`sync-transfers.ts`；Windows `main/sync-registry.ts`、`upload-body.ts` | 双向复制的普通扫描准备、同次确认、边打包边上传或边下载边解包、接收端与传输并行的备份、保护后写入及实际结果查询；`SyncTransferRuntime` 按对方设备把请求交给拨号方编排或本机服务的监听方任务 | 登记和内容各一次，回执丢失只查询；两端任务共用原生名额，只有实际传输保持通知，长源读取通过原生心跳确认通信；页面重建按 ID 查询，不恢复或重放 |
 | `DeviceDiscoveryPlugin.java`、`DiscoveryBrowser.java`；移动 `platform/device-discovery.ts` | 局域网 DNS-SD 搜索：NsdManager 搜索与解析、按订阅者启停的 TS 桥，以及按设备 ID 限时查找的 `findDevice` | 原生只给实例名、端口、IPv4 和 TXT 文本，TXT 在 TS 用 shared 校验；状态在原生单个 worker 线程上 |
-| `ListenerServer/Http/Socket/Control/Library.java`、`ListenerAdvertiser.java`、`ListenerRuntime.java`、`ListenerService.java`、`LocalServicePlugin.java`；`src/test/.../ListenerServerTest.java` | 本机服务（监听方）：HTTP/1.1 和 WebSocket 服务、控制通道监听端、目录表交换、NsdManager 广播、前台服务和网页接口 | 每条连接一个线程；同一时间一台设备在线，本机拨号时对新连接返回 busy；目录表交换在原生层写配置（经 `AppStoragePlugin` 的锁），Activity 销毁后仍能连接；接口见 [Android 平台层](../architecture/android.md#14-本机服务监听方) |
+| `ListenerServer/Http/Socket/Control/Library.java`、`ListenerSyncJobs.java`、`ListenerSyncRequests.java`、`ListenerAdvertiser.java`、`ListenerRuntime.java`、`ListenerService.java`、`LocalServicePlugin.java`；`src/test/.../ListenerServerTest.java` | 本机服务（监听方）：HTTP/1.1 和 WebSocket 服务、控制通道监听端、目录表交换、`/v1/sync/*` 任务登记和内容收发、本机发起的传输经控制通道交给拨号方、NsdManager 广播、前台服务和网页接口 | 每条连接一个线程；同一时间一台设备在线，本机拨号时对新连接返回 busy；目录表交换在原生层写配置（经 `AppStoragePlugin` 的锁），Activity 销毁后仍能连接；接口见 [Android 平台层](../architecture/android.md#14-本机服务监听方) |
 | `QrScannerPlugin.java`、`QrCameraSession.java`、`QrFrameDecoder.java`；移动 `platform/qr-scanner.ts`、`features/devices/ScanPage.tsx` | 扫码：相机权限、取景、逐帧识别二维码，扫到后交给 `connectCandidates` | 原生只给二维码原文，内容在 TS 用 shared 的 `parseConnectionQrText` 校验；相机绑定 Activity 生命周期，取景画面在透明的 WebView 下面，页面用 html 上的 `camera-live` 让出背景 |
 | `apps/mobile/android/app/src/test/`、`src/androidTest/` | Java 纯边界与 3 条设备路径：目录读取、归档互通、实际目录快照 | 独立私有夹具与真实选择器授权；真实源只读 |

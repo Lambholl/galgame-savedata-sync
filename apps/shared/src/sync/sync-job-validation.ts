@@ -289,6 +289,7 @@ export function isSyncPreparationPreview(value: unknown): value is SyncPreparati
       'schemaVersion',
       'preparationId',
       'direction',
+      'localSide',
       'binding',
       'source',
       'target',
@@ -299,6 +300,7 @@ export function isSyncPreparationPreview(value: unknown): value is SyncPreparati
     value.schemaVersion !== 1 ||
     !isOpaqueId(value.preparationId) ||
     !direction(value.direction) ||
+    !isOneOf(value.localSide, ['listener', 'dialer']) ||
     !isSyncProjectBinding(value.binding) ||
     !isSyncSnapshot(value.source) ||
     !isSyncSnapshot(value.target) ||
@@ -308,27 +310,35 @@ export function isSyncPreparationPreview(value: unknown): value is SyncPreparati
   ) {
     return false
   }
-  const isUpload = value.direction === 'dialer-to-listener'
+  // hasShape 只收窄出字段名，字段值仍是 unknown，传不进 isPreviewLocalSource，这里按同一规则直接比较。
+  const isLocalSource =
+    (value.direction === 'dialer-to-listener') === (value.localSide === 'dialer')
   return (
     value.source.deviceId ===
-      (isUpload ? value.binding.localDeviceId : value.binding.remoteDeviceId) &&
-    value.source.rootId === (isUpload ? value.binding.localRootId : value.binding.remoteRootId) &&
+      (isLocalSource ? value.binding.localDeviceId : value.binding.remoteDeviceId) &&
+    value.source.rootId ===
+      (isLocalSource ? value.binding.localRootId : value.binding.remoteRootId) &&
     value.target.deviceId ===
-      (isUpload ? value.binding.remoteDeviceId : value.binding.localDeviceId) &&
-    value.target.rootId === (isUpload ? value.binding.remoteRootId : value.binding.localRootId)
+      (isLocalSource ? value.binding.remoteDeviceId : value.binding.localDeviceId) &&
+    value.target.rootId === (isLocalSource ? value.binding.remoteRootId : value.binding.localRootId)
   )
 }
-/** 从预览还原计划；计划的项目 ID 取目标端的本机项目 ID。 */
+/** 判断预览里本机是否是发送端：拨号方在 dialer-to-listener 时发送，监听方在 listener-to-dialer 时发送。 */
+export function isPreviewLocalSource(
+  preview: Pick<SyncPreparationPreview, 'direction' | 'localSide'>,
+): boolean {
+  return (preview.direction === 'dialer-to-listener') === (preview.localSide === 'dialer')
+}
+/** 从预览还原计划；计划的项目 ID 取目标端的项目 ID。 */
 export function syncPlanFromPreview(preview: SyncPreparationPreview): SyncPlan {
   if (!isSyncPreparationPreview(preview)) {
     throw new OperationFailure('invalid-request', 'The sync preview context is invalid.')
   }
   return createSyncPlan({
     planId: preview.preparationId,
-    projectId:
-      preview.direction === 'dialer-to-listener'
-        ? preview.binding.remoteProjectId
-        : preview.binding.projectId,
+    projectId: isPreviewLocalSource(preview)
+      ? preview.binding.remoteProjectId
+      : preview.binding.projectId,
     operation: 'copy',
     direction: preview.direction,
     shouldBackup: preview.shouldBackup,

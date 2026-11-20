@@ -70,6 +70,12 @@ export interface MobileSyncAdapter {
   cancelCopy(id: string): Promise<void>
   /** 重试复制任务的缓存清理。 */
   cleanupCopy(): Promise<void>
+  /**
+   * 订阅对方开始的复制任务：本机作为监听方、对方没经本机请求就开始了任务时调用 listener，projectId 是本机的项目。
+   *
+   * @returns 撤销订阅的函数。
+   */
+  onPeerJobStarted(listener: (jobId: string, projectId: string) => void): () => void
   /** 读取这个游戏当前目录的备份。 */
   backups(projectId: string): Promise<MobileBackupDetails>
   /** 读取全局与各游戏的备份设置，不需要游戏目录。 */
@@ -247,6 +253,9 @@ export function createMobileSyncAdapter(
     },
     async cleanupCopy() {
       unwrap(await copies.retryCleanup())
+    },
+    onPeerJobStarted(listener) {
+      return copies.onPeerJobStarted(listener)
     },
     async backups(projectId) {
       const root = await local(projectId)

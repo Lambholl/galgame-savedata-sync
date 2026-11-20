@@ -1,7 +1,7 @@
 ---
 doc_type: architecture
 status: active
-updated: 2026-11-19
+updated: 2026-11-21
 tags: [共享包, 数据模型, 守卫]
 ---
 
@@ -125,7 +125,7 @@ withGameLink、withoutGameLink、createImportedGame 返回新的游戏配置，�
 
 `isSyncApplyResult` 校验逐项结果、备份 ID 和独立清理错误。`matchesSyncApplyResult(result, plan)` 核对完整写入集合、顺序、成功项长度/哈希及默认保护；失败/取消后只允许未执行项。目录成功不携带文件字节，未知结果必须使用 result-unknown。权限、实际内容、备份有效性、会话期限、资源释放和真实写入仍由平台模块处理。
 
-`SyncJobRequest` 固定两端项目及完整计划；`matchesSyncJobManifest` 核对源引用、原名/父目录/日期和指纹，`matchesSyncJobState` 核对角色、计数及完整实际结果。Windows 源 preparing 完成后以 ready 等待单次内容 GET，零文件计划不提交归档。`SyncPreparationPreview` 通过 `syncPlanFromPreview` 生成同一份计划，plan.projectId 使用目标端本机项目 ID；`SyncTransferState` 分别保存本机及远端状态，sender sent 不表示 receiver 成功。`SyncJobDigest` 是 `SyncJobState` 去掉逐项结果的有界摘要，由 `isSyncJobDigest` 和 `matchesSyncJobDigest` 校验；`observeSyncJob(local, remote, hasRemoteError)` 把两个角色合成总体状态、阶段、当前段百分比、失败阶段和计数，两端的详情、横条、历史和提示都读它。准备、任务、清单和结果分开查询，协议统一见[复制、备份与恢复约定](sync-copy.md)。
+`SyncJobRequest` 固定两端项目及完整计划；`matchesSyncJobManifest` 核对源引用、原名/父目录/日期和指纹，`matchesSyncJobState` 核对角色、计数及完整实际结果。Windows 源 preparing 完成后以 ready 等待单次内容 GET，零文件计划不提交归档。`SyncPreparationPreview` 的 `localSide` 标明本机是监听方还是拨号方，`isPreviewLocalSource` 据此和方向判断本机是否是发送端；`syncPlanFromPreview` 生成同一份计划，plan.projectId 使用目标端的项目 ID；`SyncTransferState` 分别保存本机及远端状态，sender sent 不表示 receiver 成功。`SyncJobDigest` 是 `SyncJobState` 去掉逐项结果的有界摘要，由 `isSyncJobDigest` 和 `matchesSyncJobDigest` 校验；`observeSyncJob(local, remote, hasRemoteError)` 把两个角色合成总体状态、阶段、当前段百分比、失败阶段和计数，两端的详情、横条、历史和提示都读它。准备、任务、清单和结果分开查询，协议统一见[复制、备份与恢复约定](sync-copy.md)。
 
 ## 9. 发现与连接二维码
 

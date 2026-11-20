@@ -294,7 +294,7 @@ public class TransferService extends Service {
   public void onTimeout(int startId, int foregroundServiceType) {
     SyncTransferRuntime sync = SyncTransferRuntime.peek();
     if (sync != null && sync.busy()) {
-      sync.cancel(sync.engine.activeId(), true);
+      sync.cancel(sync.activeId(), true);
     } else if (runtime != null) {
       runtime.cancel(runtime.engine.activeId(), true);
     }
@@ -311,7 +311,7 @@ public class TransferService extends Service {
     }
     SyncTransferRuntime sync = SyncTransferRuntime.peek();
     if (sync != null && sync.busy()) {
-      sync.cancel(sync.engine.activeId(), false);
+      sync.cancel(sync.activeId(), false);
     }
     ready(new IllegalStateException("The foreground transfer service has ended."));
     super.onDestroy();

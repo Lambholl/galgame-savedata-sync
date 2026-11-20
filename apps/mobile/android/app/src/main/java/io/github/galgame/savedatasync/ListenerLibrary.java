@@ -297,6 +297,113 @@ final class ListenerLibrary {
       });
   }
 
+  /**
+   * 本机项目与 peerId 的关联：对端项目 ID、本机根目录 ID 和对端根目录 ID，依次放在数组里。
+   *
+   * @return 项目没选目录、没有关联这台设备、对端目录表里没有关联的项目或它没选目录时返回 null。
+   */
+  synchronized String[] link(String projectId, String peerId) throws Exception {
+    Map<String, Object> game = find(list(config().get("games")), projectId);
+    Peer peer = runtime.get(peerId);
+    if (game == null || game.get("rootId") == null || peer == null) {
+      return null;
+    }
+    for (Object item : list(game.get("links"))) {
+      Map<String, Object> link = map(item);
+      if (peerId.equals(link.get("deviceId"))) {
+        Map<String, Object> remote = find(
+          list(peer.hello.get("games")),
+          (String) link.get("gameId")
+        );
+        Object root = remote == null ? null : remote.get("root");
+        return root == null
+          ? null
+          : new String[] {
+              (String) link.get("gameId"),
+              (String) game.get("rootId"),
+              (String) map(root).get("rootId"),
+            };
+      }
+    }
+    return null;
+  }
+
+  /**
+   * 核对项目与对端的双向关联和公开根目录：本机项目用 localRootId、关联 peerId 的 remoteProjectId，对端目录表也关联回来，
+   * 对端项目的根目录是 remoteRootId、属于 peerId 且已授权；设备已保存、没停用、本会话交换过目录表且没被本机断开。
+   *
+   * @throws ArchiveFailure 任一项不符时抛出 session-mismatch。
+   */
+  synchronized void verifyProject(
+    String projectId,
+    String peerId,
+    String remoteProjectId,
+    String localRootId,
+    String remoteRootId
+  ) throws Exception {
+    boolean isLinked;
+    try {
+      Map<String, Object> config = config();
+      Map<String, Object> game = find(list(config.get("games")), projectId);
+      Map<String, Object> device = find(list(config.get("devices")), peerId);
+      Peer peer = runtime.get(peerId);
+      Map<String, Object> remote =
+        peer == null ? null : find(list(peer.hello.get("games")), remoteProjectId);
+      Object root = remote == null ? null : remote.get("root");
+      Object excluded = game == null ? null : game.get("excludedDevices");
+      isLinked =
+        game != null &&
+        localRootId.equals(game.get("rootId")) &&
+        device != null &&
+        !Boolean.TRUE.equals(device.get("isBlocked")) &&
+        peer != null &&
+        !disconnected.contains(peerId) &&
+        (excluded == null || !list(excluded).contains(peerId)) &&
+        list(game.get("links")).contains(object("deviceId", peerId, "gameId", remoteProjectId)) &&
+        list(peer.hello.get("links")).contains(
+          object("localGameId", remoteProjectId, "remoteGameId", projectId)
+        ) &&
+        root != null &&
+        remoteRootId.equals(map(root).get("rootId")) &&
+        peerId.equals(map(root).get("deviceId")) &&
+        "granted".equals(map(root).get("authorization"));
+    } catch (ArchiveFailure invalid) {
+      isLinked = false;
+    }
+    if (!isLinked) {
+      throw new ArchiveFailure(
+        "session-mismatch",
+        "The project link or device directory changed. Confirm again."
+      );
+    }
+  }
+
+  /**
+   * 核对 peerId 仍是本会话连着本机的设备，复制请求和内容到达时调用。
+   *
+   * @throws ArchiveFailure 设备没保存、已停用、本会话没交换过目录表或被本机断开时抛出 session-mismatch，另一台设备在用或本机在拨号时抛出 busy。
+   */
+  synchronized void touch(String peerId) throws Exception {
+    Map<String, Object> saved = find(list(config().get("devices")), peerId);
+    if (
+      saved == null ||
+      Boolean.TRUE.equals(saved.get("isBlocked")) ||
+      !runtime.containsKey(peerId) ||
+      disconnected.contains(peerId)
+    ) {
+      throw new ArchiveFailure(
+        "session-mismatch",
+        "The device connection changed. Reconnect the device."
+      );
+    }
+    if (hasOtherPeer(peerId) || host.isDialing()) {
+      throw new ArchiveFailure(
+        "busy",
+        "This device is connected to another device. Disconnect it first."
+      );
+    }
+  }
+
   /** 清空会话内的对端状态。 */
   synchronized void reset() {
     runtime.clear();
