@@ -84,7 +84,8 @@ Android 端最低支持 Android 11（API 30），编译目标为 API 36。前端
 | `pnpm desktop:package` | 打包 Windows x64 免安装版 |
 | `pnpm android:sync` | 构建移动端前端资源并同步到 Android 原生工程 |
 | `pnpm android:build` | 构建 debug APK；加 `--release` 构建签名后的 release APK |
-| `pnpm android:test` | 运行 Java 单元测试、Android lint、测试 APK 构建及 Windows/Java 归档互通检查（无需连接真机） |
+| `pnpm android:unit` | 运行 Java 单元测试和 Windows/Java 归档互通检查（无需连接真机），复用 Gradle 后台进程，适合修改 Java 代码后反复运行 |
+| `pnpm android:test` | 在 `pnpm android:unit` 的基础上另跑 Android lint、构建调试 APK 和测试 APK，每次启动新的 Gradle 进程，适合发版前执行 |
 | `pnpm android:open` | 使用 Android Studio 打开原生工程 |
 | `pnpm security:node` | 审计 npm 依赖及 Node、pnpm 安全基线 |
 | `pnpm security:android` | 解析 Android 全部 Maven 依赖并查询 OSV 安全公告 |
@@ -112,7 +113,7 @@ pnpm android:open
 
 在 Android Studio 中连接开启了 USB 调试的手机即可直接运行；同时连接多台设备时，命令行可通过 `adb -s <serial>` 指定设备。更换测试设备后，需在应用中重新选择并授予存档目录权限。
 
-`pnpm android:test` 仅在本地执行，端到端同步流程需在两台真机上验收，具体方法见项目记忆中的 Android 平台层文档。
+`pnpm android:unit` 和 `pnpm android:test` 仅在本地执行，端到端同步流程需在两台真机上验收，具体方法见项目记忆中的 Android 平台层文档。
 
 Android 原生工程由 Capacitor 管理，Manifest 中启用了明文 HTTP（用于局域网设备直连），并声明了 `dataSync` 前台服务（用于在用户发起传输时保持后台运行）。
 

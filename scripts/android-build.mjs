@@ -24,6 +24,7 @@ const isWindows = process.platform === 'win32'
 const command = isWindows ? 'cmd.exe' : './gradlew'
 const isInventory = process.argv.includes('--inventory')
 const isTest = process.argv.includes('--test')
+const isUnitTest = process.argv.includes('--unit-test')
 const isRelease = process.argv.includes('--release')
 const gradleArgs = isInventory
   ? [
@@ -33,20 +34,23 @@ const gradleArgs = isInventory
       'writeDependencyInventory',
       '--console=plain',
     ]
-  : isTest
-    ? [
-        '--no-daemon',
-        ':app:testDebugUnitTest',
-        ':app:lintDebug',
-        ':app:assembleDebug',
-        ':app:assembleDebugAndroidTest',
-        '--console=plain',
-      ]
-    : isCheckstyle
-      ? // pnpm lint 经常运行，保留 Gradle 后台进程，免去每次约 17 秒的启动时间。
-        // 检查前可能还没执行 android:sync，:app 缺少生成的文件时无法配置，所以只配置根项目。
-        ['--configure-on-demand', ':javaCheckstyle', '--console=plain']
-      : ['--no-daemon', isRelease ? ':app:assembleRelease' : ':app:assembleDebug']
+  : isUnitTest
+    ? // 改 Java 时会反复运行，和 Checkstyle 一样复用 Gradle 后台进程。
+      [':app:testDebugUnitTest', '--console=plain']
+    : isTest
+      ? [
+          '--no-daemon',
+          ':app:testDebugUnitTest',
+          ':app:lintDebug',
+          ':app:assembleDebug',
+          ':app:assembleDebugAndroidTest',
+          '--console=plain',
+        ]
+      : isCheckstyle
+        ? // pnpm lint 经常运行，保留 Gradle 后台进程，免去每次约 17 秒的启动时间。
+          // 检查前可能还没执行 android:sync，:app 缺少生成的文件时无法配置，所以只配置根项目。
+          ['--configure-on-demand', ':javaCheckstyle', '--console=plain']
+        : ['--no-daemon', isRelease ? ':app:assembleRelease' : ':app:assembleDebug']
 // 显式相对路径：设置 NoDefaultCurrentDirectoryInExePath 时，cmd 不在当前目录查找裸名。
 const args = isWindows ? ['/d', '/c', '.\\gradlew.bat', ...gradleArgs] : gradleArgs
 const proxyOptions = gradleProxy

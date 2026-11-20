@@ -133,6 +133,8 @@ export default defineConfig(
       '**/.reports/**',
       'docs/design/**',
       'apps/mobile/android/**',
+      // Agent 工具在 .claude/worktrees/ 下放其他分支的完整工作区，检查它们会让 lint 时间翻倍。
+      '.claude/**',
     ],
   },
   { linterOptions: { reportUnusedDisableDirectives: 'error' } },
