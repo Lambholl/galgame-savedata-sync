@@ -148,6 +148,10 @@ export function MobileApp({
   const generation = useRef(0)
   const backHandler = useRef<() => boolean>(() => false)
   const transferNotices = useRef(new Map<string, string>())
+  // 原生任务不记录发起方，只在本次运行期间记住电脑发起的任务。
+  const [peerInitiatedJobIds, setPeerInitiatedJobIds] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  )
   const showSyncFailure = useCallback(
     (failure: ShownError) => {
       appMessage.show({
@@ -454,6 +458,7 @@ export function MobileApp({
     },
     onStarted: (jobId, projectId) => {
       announceStart(jobId)
+      setPeerInitiatedJobIds((ids) => new Set(ids).add(jobId))
       // 电脑发起的传输和本机发起的一样结束当前流程，详情返回游戏页。应用在后台时也只切页面：
       // Android 不允许后台应用把自己切到前台，进度看传输通知。
       syncTasks
@@ -1034,6 +1039,7 @@ export function MobileApp({
           games={config.games}
           peers={peers}
           errors={syncTasks.errors}
+          peerInitiatedJobIds={peerInitiatedJobIds}
           onChanged={() => syncTasks.reload()}
           onRescan={(projectId, deviceId, direction) => {
             setGameId(projectId)

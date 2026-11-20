@@ -10,7 +10,7 @@ import type {
 } from '@savedata-sync/shared'
 import { useT } from '@savedata-sync/shared/ui'
 import { useFailureMessage } from '../../app/failure-message'
-import { allFilesAccess } from '../../platform/all-files-access'
+import { useAllFilesAccess } from '../../app/use-all-files-access'
 import type { MobileSyncAdapter } from '../../platform/sync-adapter'
 import { BackupPolicyFields } from '../../components/BackupPolicyFields'
 import { ChoiceItem } from '../../components/ChoiceItem'
@@ -65,45 +65,11 @@ export function SettingsPage({
       isCurrent = false
     }
   }, [sync, version, t])
-  /** 是否有所有文件访问权限；查询中或不在 Android 上为 null。 */
-  const [isDirectGranted, setIsDirectGranted] = useState<boolean | null>(null)
-  const [isOpeningSettings, setIsOpeningSettings] = useState(false)
-  useEffect(() => {
-    let isCurrent = true
-    function refresh(): void {
-      allFilesAccess
-        .status()
-        .then((state) => {
-          if (isCurrent) {
-            setIsDirectGranted(state?.isGranted ?? null)
-          }
-        })
-        .catch((cause: unknown) => {
-          console.error('Failed to read all-files access state', cause)
-        })
-    }
-    // 用户也可能从系统设置直接改权限，回到应用时重新查询。
-    function onVisibilityChange(): void {
-      if (document.visibilityState === 'visible') {
-        refresh()
-      }
-    }
-    refresh()
-    document.addEventListener('visibilitychange', onVisibilityChange)
-    return () => {
-      isCurrent = false
-      document.removeEventListener('visibilitychange', onVisibilityChange)
-    }
-  }, [])
+  const directAccess = useAllFilesAccess()
   function openDirectAccessSettings(): void {
-    setIsOpeningSettings(true)
-    allFilesAccess
-      .openSettings()
-      .then((state) => setIsDirectGranted(state?.isGranted ?? null))
-      .catch((cause: unknown) => {
-        setBackupError({ context: t('directAccess.openFailed'), error: toShownError(cause) })
-      })
-      .finally(() => setIsOpeningSettings(false))
+    directAccess.openSettings().catch((cause: unknown) => {
+      setBackupError({ context: t('directAccess.openFailed'), error: toShownError(cause) })
+    })
   }
   function changePolicy(next: SyncBackupPolicy): void {
     setPolicy(next)
@@ -150,13 +116,13 @@ export function SettingsPage({
           <BackupPolicyFields policy={policy} isDisabled={false} onChange={changePolicy} />
         </List>
       ) : null}
-      {isDirectGranted !== null && (
+      {directAccess.isGranted !== null && (
         <List mode="card" header={t('settings.storage')}>
           {/* 应用不能自己开关这项权限，开关只反映当前状态，点按跳到系统授权页。 */}
           <SwitchItem
             title={t('settings.directAccess')}
-            isChecked={isDirectGranted}
-            isDisabled={isOpeningSettings}
+            isChecked={directAccess.isGranted}
+            isDisabled={directAccess.isOpening}
             onChange={openDirectAccessSettings}
           />
         </List>

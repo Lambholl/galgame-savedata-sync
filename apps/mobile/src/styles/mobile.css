@@ -893,6 +893,9 @@ html.camera-live .app-heading {
   border: 1px solid var(--ss-warn);
   margin-top: 14px;
 }
+.date-notice {
+  margin-bottom: 12px;
+}
 
 .mobile-sheet {
   border-radius: var(--ss-r-lg) var(--ss-r-lg) 0 0;

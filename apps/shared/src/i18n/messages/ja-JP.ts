@@ -87,6 +87,9 @@ export const jaJP: Messages = {
   'transfer.planUnavailable': 'この転送計画は使用できません。転送画面に戻って更新してください。',
   'transfer.remoteBusy': ({ name }) => `別の転送が確定しており、${name} での開始を待っています。`,
   'transfer.planStale': 'ゲームまたは保存先が変更されました。戻って更新してから転送してください。',
+  'transfer.dateNotice': ({ count }) =>
+    `「全ファイルへのアクセス」が許可されていないため、今回書き込む ${count} 件のファイルは更新日時を保持できません。次回の比較でも内容が異なると表示されます。`,
+  'transfer.dateNoticeAction': '有効にする',
 
   'compare.differs': ({ count }) => `内容が異なる項目 ${count} 件`,
   'compare.onlySource': ({ count }) => `転送元のみ ${count} 件`,

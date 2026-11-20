@@ -22,6 +22,7 @@ import type { MobileSyncAdapter } from '../../platform/sync-adapter'
 import type { Confirmation } from '../../app/navigation-types'
 import { FloatingAction } from '../../components/FloatingAction'
 import { PlanConfirm } from './PlanConfirm'
+import { ModifiedDateNotice } from './ModifiedDateNotice'
 
 const POLL_INTERVAL_MS = 700
 
@@ -310,7 +311,10 @@ export function SyncCopyPage({
           target={direction === 'dialer-to-listener' ? remoteEnd : localEnd}
           backupKeepCount={preview?.backupKeepCount ?? null}
           notice={
-            hasChanged ? <p className="notice notice-error">{t('transfer.planStale')}</p> : null
+            <>
+              {hasChanged ? <p className="notice notice-error">{t('transfer.planStale')}</p> : null}
+              {direction === 'listener-to-dialer' ? <ModifiedDateNotice plan={plan} /> : null}
+            </>
           }
           action={{
             label: t('transfer.start'),

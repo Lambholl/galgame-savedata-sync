@@ -84,6 +84,9 @@ export const zhCN = {
     `目标的全部 ${count} 项都会被删除，而且已关闭写入前备份，删除后无法恢复。仍要开始？`,
   'transfer.planUnavailable': '本次计划不可用，请返回传输存档页刷新。',
   'transfer.planStale': '游戏或目录已变化，请返回刷新后再传输。',
+  'transfer.dateNotice': ({ count }: { count: number }): string =>
+    `未开启“所有文件访问权限”，本次写入的 ${count} 个文件无法保留修改日期，下次比较时仍会显示为内容不同。`,
+  'transfer.dateNoticeAction': '开启权限',
   'transfer.remoteBusy': ({ name }: { name: string }): string =>
     `另一项传输已确认，正在等待 ${name} 开始。`,
 

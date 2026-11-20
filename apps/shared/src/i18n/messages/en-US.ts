@@ -86,6 +86,9 @@ export const enUS: Messages = {
     `All ${count} items on the target will be deleted. Backup before writing is off, so they cannot be restored. Start anyway?`,
   'transfer.planUnavailable': 'This plan is no longer available. Go back and refresh.',
   'transfer.planStale': 'The game or a folder changed. Go back and refresh before transferring.',
+  'transfer.dateNotice': ({ count }) =>
+    `"All files access" is not enabled. The ${count} files written in this transfer cannot keep their modified dates and will still appear as different in the next comparison.`,
+  'transfer.dateNoticeAction': 'Turn on',
   'transfer.remoteBusy': ({ name }) =>
     `Another transfer is confirmed and waiting for ${name} to start.`,
 

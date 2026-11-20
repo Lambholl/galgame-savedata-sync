@@ -14,6 +14,7 @@ import type {
 import { Panel } from '../../components/Panel'
 import { FloatingAction } from '../../components/FloatingAction'
 import { TechnicalDetails } from './TechnicalDetails'
+import { ModifiedDateNotice } from './ModifiedDateNotice'
 
 const RESTORE_STATUS = {
   preparing: 'backup.status.preparing',
@@ -37,6 +38,7 @@ export function SyncTaskDetails({
   games,
   peers,
   errors,
+  peerInitiatedJobIds,
   onChanged,
   onRescan,
   onBackup,
@@ -50,6 +52,8 @@ export function SyncTaskDetails({
   readonly games: readonly LibraryGame[]
   readonly peers: readonly LibraryPeer[]
   readonly errors: readonly ShownError[]
+  /** 本次运行期间由对方设备发起的任务 ID。 */
+  readonly peerInitiatedJobIds: ReadonlySet<string>
   readonly onChanged: () => void
   /** 用这次传输的游戏、设备和方向重新比较。 */
   readonly onRescan: (projectId: string, deviceId: string, direction: SyncDirection) => void
@@ -114,6 +118,10 @@ export function SyncTaskDetails({
       )}
       {copy && state && binding ? (
         <>
+          {/* 本机发起时这条提示已在计划页显示过；对方发起时本机没有计划页，在这里显示。 */}
+          {state.local.role === 'receiver' && peerInitiatedJobIds.has(state.jobId) ? (
+            <ModifiedDateNotice plan={copy.plan} />
+          ) : null}
           <SyncTaskSummary
             key={state.jobId}
             gameName={game?.name ?? t('common.unknown')}

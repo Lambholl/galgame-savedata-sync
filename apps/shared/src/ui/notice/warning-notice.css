@@ -1,0 +1,17 @@
+/* 警告条里的按钮用琥珀实底，和浅色警告条区分开，一眼能看出是按钮。 */
+.ss-warning-notice .ant-btn {
+  min-width: 0;
+  height: 28px;
+  min-height: 0;
+  padding-inline: 12px;
+  font-weight: 600;
+}
+.ss-warning-notice .ant-btn:not(:disabled):not(.ant-btn-disabled),
+.ss-warning-notice .ant-btn:not(:disabled):not(.ant-btn-disabled):hover,
+.ss-warning-notice .ant-btn:not(:disabled):not(.ant-btn-disabled):active {
+  background: var(--ss-warn);
+  color: var(--ss-warn-soft);
+}
+.ss-warning-notice .ant-btn:not(:disabled):not(.ant-btn-disabled):hover {
+  filter: brightness(1.08);
+}

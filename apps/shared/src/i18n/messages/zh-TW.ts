@@ -81,6 +81,9 @@ export const zhTW: Messages = {
     `目標的全部 ${count} 項都會被刪除，而且已關閉寫入前備份，刪除後無法復原。仍要開始嗎？`,
   'transfer.planUnavailable': '本次計畫無法使用，請回到傳輸存檔頁重新整理。',
   'transfer.planStale': '遊戲或目錄已變更，請返回重新整理後再傳輸。',
+  'transfer.dateNotice': ({ count }) =>
+    `未開啟「所有檔案存取權」，本次寫入的 ${count} 個檔案無法保留修改日期，下次比較時仍會顯示為內容不同。`,
+  'transfer.dateNoticeAction': '開啟權限',
   'transfer.remoteBusy': ({ name }) => `另一項傳輸已確認，正在等待 ${name} 開始。`,
 
   'compare.differs': ({ count }) => `${count} 個內容不同`,
