@@ -26,7 +26,7 @@ tags: [编码规范]
 | 语言 | TypeScript（共享包、电脑端、移动端网页层）；Android 原生用 Java，不引入 Kotlin；脚本用 `.mjs` |
 | 注释语言 | 中文；代码标识、API 名称和工具指令保留原文 |
 | 工具配置 | `.editorconfig`、`.gitattributes`、`.prettierrc.json`、`.prettierignore`、`eslint.config.mjs`、`tsconfig.base.json`、`apps/mobile/android/checkstyle.xml` |
-| 检查入口 | `pnpm check`：文本编码、Prettier、ESLint、Checkstyle（需要 JDK）、类型检查和两端构建；`pnpm format` 自动修复 |
+| 检查入口 | `pnpm check` 依次运行类型检查、ESLint、Checkstyle（需要 JDK）、两端构建、文本编码和 Prettier，某一步失败即停止。文本编码和 Prettier 放最后：这两类问题不影响类型和 lint 的判断，不能挡住前面的结果。`pnpm format` 自动修复 |
 | 许可证和作者署名 | AGPL-3.0，见根目录 `LICENSE`；源码不加版权头，不新增版权主体；第三方版权与许可声明保留原文 |
 | 界面约定 | 设计变量、组件选用、尺寸和反馈规则见[界面约定](../development/ui-conventions.md) |
 

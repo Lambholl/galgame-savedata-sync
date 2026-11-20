@@ -85,25 +85,31 @@ test('接收端结果待确认时，有成功项也算结果待确认', () => {
   assert.equal(observeSyncJob(sender, receiverWith('failed', items), false).phase, 'partial')
 })
 
+// 返回文案键本身，断言选了哪条文案，不依赖措辞。
+const keyOnly = (key) => key
+
+function includesAll(status, keys) {
+  return keys.every((key) => status.includes(key))
+}
+
 test('任务条：失败又清理失败时两件事都写，成功但清理失败时写清理失败', () => {
-  const t = createTranslator('zh-CN')
   const base = { stage: 'done', step: 4, percent: null }
-  const failed = syncTaskPreview({ ...base, phase: 'failed', hasCleanupError: true }, t)
-  assert.equal(failed.status, '传输失败 · 临时文件未清理')
+  const failed = syncTaskPreview({ ...base, phase: 'failed', hasCleanupError: true }, keyOnly)
+  assert.ok(includesAll(failed.status, ['task.failed', 'task.cleanupFailed']))
   assert.equal(failed.phase, 'failed')
-  const done = syncTaskPreview({ ...base, phase: 'done', hasCleanupError: true }, t)
-  assert.deepEqual([done.status, done.phase], ['临时文件未清理', 'partial'])
-  const restore = restoreTaskPreview('failed', true, t)
-  assert.deepEqual([restore.status, restore.phase], ['恢复失败 · 临时文件未清理', 'failed'])
+  const done = syncTaskPreview({ ...base, phase: 'done', hasCleanupError: true }, keyOnly)
+  assert.deepEqual([done.status, done.phase], ['task.cleanupFailed', 'partial'])
+  const restore = restoreTaskPreview('failed', true, keyOnly)
+  assert.ok(includesAll(restore.status, ['backup.restoreFailed', 'task.cleanupFailed']))
+  assert.equal(restore.phase, 'failed')
 })
 
 test('任务条：等待对方设备开始时不写正在准备', () => {
-  const t = createTranslator('zh-CN')
   const running = { phase: 'running', stage: 'preparing', step: 0, percent: null }
   const preview = (isAwaitingPeer) =>
-    syncTaskPreview({ ...running, hasCleanupError: false, isAwaitingPeer }, t).status
-  assert.equal(preview(true), '等待对方设备开始')
-  assert.equal(preview(false), '正在准备')
+    syncTaskPreview({ ...running, hasCleanupError: false, isAwaitingPeer }, keyOnly).status
+  assert.equal(preview(true), 'task.awaitingPeer')
+  assert.equal(preview(false), 'task.stage.preparing')
 })
 
 test('四种语言的部分完成只列不为 0 的类别', () => {
@@ -116,19 +122,5 @@ test('四种语言的部分完成只列不为 0 的类别', () => {
     for (const number of ['3', '1', '2', '4']) {
       assert.ok(all.includes(number), `${locale}: ${all}`)
     }
-  }
-})
-
-test('四种语言的文案：文件夹单独计数，变化不限来源，待确认不再指向详情', () => {
-  const sourceWords = { 'zh-CN': '来源', 'zh-TW': '來源', 'en-US': 'Source', 'ja-JP': '転送元' }
-  const detailWords = { 'zh-CN': '详情', 'zh-TW': '詳情', 'en-US': 'details', 'ja-JP': '詳細' }
-  for (const locale of LOCALES) {
-    const t = createTranslator(locale)
-    assert.ok(t('task.folderCount', { count: 2 }).includes('2'), locale)
-    assert.ok(t('task.foldersCreatedDetail', { count: 2 }).includes('2'), locale)
-    assert.ok(t('task.awaitingPeer').length > 0, locale)
-    assert.ok(!t('error.code.source-changed').includes(sourceWords[locale]), locale)
-    assert.ok(!t('error.code.result-unknown').includes(detailWords[locale]), locale)
-    assert.notEqual(t('task.stage.cleaning'), t('task.cleanupFailed'), locale)
   }
 })

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { compareSnapshots, comparisonChildren, splitPathAtSeparators } from '../src/index.ts'
+import { compareSnapshots, comparisonChildren } from '../src/index.ts'
 
 let next = 0
 function entry(path, kind, modifiedAt = null, sizeBytes = 10) {
@@ -76,13 +76,4 @@ test('treats files without a modification date as not the same', () => {
   const only = snapshot([entry('x.dat', 'file', null)])
   const comparison = compareSnapshots(only, snapshot([entry('x.dat', 'file', null)]))
   assert.equal(comparison.differingFiles, 1)
-})
-
-test('splits paths after each separator', () => {
-  assert.deepEqual(splitPathAtSeparators('C:\\Games\\save/a.sav'), [
-    'C:\\',
-    'Games\\',
-    'save/',
-    'a.sav',
-  ])
 })

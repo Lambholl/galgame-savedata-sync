@@ -12,7 +12,7 @@
     "dev:desktop": "pnpm --filter @savedata-sync/desktop dev",
     "dev:mobile": "pnpm --filter @savedata-sync/mobile dev",
     "build": "pnpm -r build",
-    "check": "node scripts/check-text.mjs && prettier . --check --cache && pnpm lint && pnpm typecheck && pnpm build",
+    "check": "pnpm typecheck && pnpm lint && pnpm build && node scripts/check-text.mjs && prettier . --check --cache",
     "format": "eslint . --fix && prettier . --write --cache",
     "lint": "eslint . --cache --max-warnings 0 && node scripts/android-build.mjs --checkstyle",
     "typecheck": "pnpm -r typecheck",

@@ -28,4 +28,6 @@ jobs:
           cache: gradle
       - run: pnpm install --frozen-lockfile
       - run: pnpm check
-      - run: pnpm android:build
+      # pnpm check 已构建移动端网页，这里只同步到 Android 工程再构建 debug APK，不重复构建网页。
+      - run: pnpm --filter @savedata-sync/mobile exec cap sync android
+      - run: node scripts/android-build.mjs

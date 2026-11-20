@@ -75,7 +75,7 @@ Android 端最低支持 Android 11（API 30），编译目标为 API 36。前端
 | --- | --- |
 | `pnpm dev:desktop` | 启动桌面端开发模式 |
 | `pnpm dev:mobile` | 在浏览器中启动移动端前端开发服务器 |
-| `pnpm check` | 提交前全量检查：文本编码、代码格式、ESLint、Checkstyle（需 JDK）、类型检查及两端构建 |
+| `pnpm check` | 提交前全量检查，依次运行类型检查、ESLint 和 Checkstyle（需 JDK）、两端构建、文本编码和代码格式检查，某一步失败即停止 |
 | `pnpm format` | 自动修复可修复的 ESLint 问题并格式化代码 |
 | `pnpm lint` / `pnpm typecheck` / `pnpm build` | 单独运行 `pnpm check` 中的对应检查 |
 | `pnpm test` | 运行脚本、共享包、桌面端和移动端前端测试（无需 Android 工具） |
@@ -214,7 +214,7 @@ git push --atomic origin master v0.3.0
 4. 使用 Secrets 中的签名配置构建 Android release APK，校验签名并生成 `SHA256SUMS.txt`。
 5. 将产物上传为保留 7 天的 Actions artifact，并创建草稿 GitHub Release。
 
-发布前请在草稿 Release 页面补充已知问题、安装限制及不兼容改动说明。日常分支 push 和 PR 仅运行 `pnpm check` 和 `pnpm android:build`，不保留构建产物。
+发布前请在草稿 Release 页面补充已知问题、安装限制及不兼容改动说明。日常分支 push 和 PR 仅运行 `pnpm check` 和 Android debug 构建（直接使用 `pnpm check` 构建的移动端网页资源），不保留构建产物。
 
 ## 依赖安全检查
 
