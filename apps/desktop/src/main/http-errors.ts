@@ -5,10 +5,19 @@ import type { OperationError } from '@savedata-sync/shared'
 export class HttpOperationError extends Error {
   readonly operationError: OperationError
 
-  constructor(code: OperationError['code'], message: string, cause?: unknown) {
+  /** @param device 出错的目录在哪一端；不传时 operationError 不带 device。 */
+  constructor(
+    code: OperationError['code'],
+    message: string,
+    cause?: unknown,
+    device?: OperationError['device'],
+  ) {
     super(message, { cause })
     this.name = 'HttpOperationError'
-    this.operationError = { code, message, canRetry: false }
+    this.operationError =
+      device === undefined
+        ? { code, message, canRetry: false }
+        : { code, message, canRetry: false, device }
   }
 }
 

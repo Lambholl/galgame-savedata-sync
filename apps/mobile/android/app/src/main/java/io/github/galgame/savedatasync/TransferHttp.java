@@ -409,7 +409,16 @@ interface TransferHttp {
           if (errorStatus(code) != status) {
             throw fail("invalid-request");
           }
-          throw new ArchiveFailure(code, code, false, null, "HTTP " + status + " / " + code);
+          ArchiveFailure failure = new ArchiveFailure(
+            code,
+            code,
+            false,
+            null,
+            "HTTP " + status + " / " + code
+          );
+          // TransferSchema.error 已核对 device 只能是 listener 或 dialer，没注明时为 null。
+          failure.device = (String) error.get("device");
+          throw failure;
         }
         return TransferSchema.unwrap(envelope);
       }

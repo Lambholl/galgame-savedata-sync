@@ -440,18 +440,18 @@ final class ListenerHttp {
    * 发送错误包络，状态码按错误码取，与共享 HTTP_ERROR_STATUS 一致。响应附 Connection: close，套接字由调用方关闭。
    */
   static void sendFailure(OutputStream output, String code, String message) throws Exception {
-    sendJson(
-      output,
-      status(code),
-      object(
-        "status",
-        "error",
-        "error",
-        // 与电脑服务相同不给重试提示：能否重试由客户端按错误码和任务状态判断。
-        object("code", code, "message", message, "canRetry", false)
-      ),
-      true
-    );
+    sendFailure(output, code, message, null);
+  }
+
+  /** 同 {@link #sendFailure(OutputStream, String, String)}，device 不为 null 时在错误里注明出错的目录在哪一端。 */
+  static void sendFailure(OutputStream output, String code, String message, String device)
+    throws Exception {
+    // 与电脑服务相同不给重试提示：能否重试由客户端按错误码和任务状态判断。
+    Map<String, Object> error = object("code", code, "message", message, "canRetry", false);
+    if (device != null) {
+      error.put("device", device);
+    }
+    sendJson(output, status(code), object("status", "error", "error", error), true);
   }
 
   /** 发送只有状态行和响应头、没有响应体的响应。响应附 Connection: close，套接字由调用方关闭。 */

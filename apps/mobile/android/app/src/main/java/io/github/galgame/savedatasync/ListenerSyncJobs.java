@@ -522,6 +522,15 @@ final class ListenerSyncJobs {
     );
   }
 
+  // 内容请求失败时错误直接回在 HTTP 应答里，拨号方分不出是哪一端的目录；登记之后的文件、目录和存储访问
+  // 都发生在本机，这里注明 listener。
+  private static ArchiveFailure located(ArchiveFailure failure) {
+    if (failure.device == null && SyncTransferEngine.DEVICE_ERRORS.contains(failure.code)) {
+      failure.device = "listener";
+    }
+    return failure;
+  }
+
   /** 把异常转成任务错误；结果待确认只在写入时出现，准备阶段的按读写失败记录。 */
   private static Map<String, Object> known(Exception cause) {
     ArchiveFailure failure = ArchiveFailure.from(cause);
@@ -720,11 +729,13 @@ final class ListenerSyncJobs {
       }
       Map<String, Object> error =
         task.state.get("error") == null ? null : map(task.state.get("error"));
-      throw new ArchiveFailure(
-        error == null ? "network-failure" : string(error.get("code")),
-        error == null
-          ? "This send operation was aborted. Query the actual status."
-          : string(error.get("message"))
+      throw located(
+        new ArchiveFailure(
+          error == null ? "network-failure" : string(error.get("code")),
+          error == null
+            ? "This send operation was aborted. Query the actual status."
+            : string(error.get("message"))
+        )
       );
     }
   }
@@ -820,7 +831,7 @@ final class ListenerSyncJobs {
       // 写入器可能还在备份，中止它，任务按内容的错误结束。
       abort(task, known(cause));
       task.content.completeExceptionally(cause);
-      throw reply;
+      throw located(reply);
     }
   }
 

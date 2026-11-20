@@ -332,7 +332,7 @@ final class ListenerServer {
           );
       }
     } catch (ArchiveFailure failure) {
-      ListenerHttp.sendFailure(output, failure.code, failure.getMessage());
+      ListenerHttp.sendFailure(output, failure.code, failure.getMessage(), failure.device);
       return false;
     }
   }
@@ -411,7 +411,10 @@ final class ListenerServer {
           return true;
       }
     } catch (DirectoryFailure failure) {
-      throw ArchiveFailure.from(failure);
+      // 这里的目录失败都来自本机目录，注明 listener，拨号方才不会显示成它自己的目录。
+      ArchiveFailure located = ArchiveFailure.from(failure);
+      located.device = "listener";
+      throw located;
     }
   }
 

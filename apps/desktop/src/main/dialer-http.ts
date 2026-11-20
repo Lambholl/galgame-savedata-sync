@@ -81,7 +81,12 @@ async function readReply(response: IncomingMessage, expectedStatus: number): Pro
   }
   if (typeof parsed === 'object' && parsed !== null && 'status' in parsed) {
     if (parsed.status === 'error' && 'error' in parsed && isOperationError(parsed.error)) {
-      throw new HttpOperationError(parsed.error.code, parsed.error.message)
+      throw new HttpOperationError(
+        parsed.error.code,
+        parsed.error.message,
+        undefined,
+        parsed.error.device,
+      )
     }
     if (
       parsed.status === 'success' &&

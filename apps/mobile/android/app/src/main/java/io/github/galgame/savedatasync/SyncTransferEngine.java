@@ -89,24 +89,26 @@ final class SyncTransferEngine implements AutoCloseable {
   private static final long REPORT_INTERVAL = TimeUnit.SECONDS.toNanos(1);
   /** 上传连接断开后等电脑自行结束的最长时间。 */
   private static final long UPLOAD_SETTLE_WAIT = TimeUnit.SECONDS.toNanos(5);
-  /** 能归到某一端的错误码；shared 的 locateSyncError 是同一份清单。 */
-  private static final Set<String> DEVICE_ERRORS = new HashSet<>(
-    java.util.Arrays.asList(
-      "authorization-expired",
-      "permission-denied",
-      "not-found",
-      "not-readable",
-      "unsupported-operation",
-      "name-conflict",
-      "path-outside-root",
-      "insufficient-space",
-      "io-failure"
+  /** 能归到某一端的错误码，都是文件、目录和存储访问失败；shared 的 locateSyncError 是同一份清单。 */
+  static final Set<String> DEVICE_ERRORS = java.util.Collections.unmodifiableSet(
+    new HashSet<>(
+      java.util.Arrays.asList(
+        "authorization-expired",
+        "permission-denied",
+        "not-found",
+        "not-readable",
+        "unsupported-operation",
+        "name-conflict",
+        "path-outside-root",
+        "insufficient-space",
+        "io-failure"
+      )
     )
   );
 
   // 打包阶段两端都可能报授权失效，界面按阶段推断不出是哪一端，要在这里注明。
-  // 转述监听方任务状态里的错误时已注明 listener，其余没注明的授权失效按本机目录处理。监听方是 Android 时，
-  // 它在 HTTP 应答里直接返回的授权失效也会落到这里。
+  // 转述监听方任务状态里的错误、监听方在 HTTP 错误应答里注明了 device 时，failure.device 已经有值；
+  // 其余没注明的授权失效都来自本机目录。
   /** 返回任务错误该注明的一端（dialer 或 listener）；分不出时为 null。 */
   private static String failedDevice(ArchiveFailure failure) {
     if (failure.device != null || !DEVICE_ERRORS.contains(failure.code)) {

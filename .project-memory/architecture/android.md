@@ -207,7 +207,7 @@ Windows → Android（监听方 → 拨号方）：使用移动端目标项目�
 
 拨号方在本机登记任务时同样启动 `TransferService`，由 dataSync 持续通知保持；任务由对方发起时插件发 `peerJobStarted`（`jobId`、`projectId`），网页层切到该任务的传输详情（REQ-023）。目标授权核对按名额归属分开：`ListenerSyncJobs` 持有名额时由它核对任务上下文，否则交给 `SyncTransferEngine`。
 
-已知缺口：Android 作拨号方时，`SyncTransferEngine` 只在转述监听方任务状态里的错误时注明 listener，其余 authorization-expired 都按本机目录处理。对方是 Android 监听方、在 HTTP 回复里直接返回 authorization-expired 时，界面会把对方目录的授权失效显示成本机目录。
+错误归属：内容 GET 和 PUT 失败时错误直接回在 HTTP 应答里，`ListenerSyncJobs` 给其中文件、目录和存储访问类的错误码（`SyncTransferEngine.DEVICE_ERRORS`）注明 `device: listener`，`ListenerServer` 把本机的 `DirectoryFailure` 同样注明 listener。Android 拨号方 `TransferHttp` 保留 HTTP 错误里的 device；没注明的授权失效由 `SyncTransferEngine` 按本机目录处理。
 
 ## 12. 局域网设备搜索
 
