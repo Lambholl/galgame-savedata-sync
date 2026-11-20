@@ -12,6 +12,7 @@ import type { MobileSyncAdapter } from '../../platform/sync-adapter'
 interface ActiveRequest {
   readonly requestId: string
   readonly deviceId: string
+  readonly projectId: string
   preparationId: string | null
   isReady: boolean
   jobId: string | null
@@ -37,7 +38,7 @@ export function useRemoteSync(
   isBusy: boolean,
   handlers: {
     readonly onScan: (requestId: string, projectId: string) => void
-    readonly onStarted: (jobId: string) => void
+    readonly onStarted: (jobId: string, projectId: string) => void
     readonly onFailure: (error: ShownError) => void
   },
 ): void {
@@ -168,6 +169,7 @@ export function useRemoteSync(
         const item: ActiveRequest = {
           requestId: body.requestId,
           deviceId: from,
+          projectId: body.projectId,
           preparationId: null,
           isReady: false,
           jobId: null,
@@ -193,7 +195,7 @@ export function useRemoteSync(
         try {
           const state = await sync.execute(id, body.shouldDeleteExtras)
           item.jobId = state.jobId
-          events.current.onStarted(state.jobId)
+          events.current.onStarted(state.jobId, item.projectId)
           watch(item, state.jobId).catch(() => undefined)
           return { status: 'success', value: { jobId: state.jobId } }
         } catch (cause) {

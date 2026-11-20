@@ -138,10 +138,22 @@ export function DesktopApp({
   }, [])
   // 只由 refresh 写入，和 snapshot state 同步更新。
   const snapshotRef = useRef(snapshot)
+  // refresh 发现对方发起的传输时调用，要用到最新的导航和页面上下文。
+  const openPeerTransfer = useRef<(projectId: string, jobId: string) => void>(() => undefined)
   const refresh = useCallback(async (): Promise<void> => {
     const version = ++generation.current
     const value = await adapter.read(t, pageRef.current === 'devices')
     if (version === generation.current) {
+      const previous = snapshotRef.current
+      // 打开应用时已经在进行的传输不算刚开始，不切页面。
+      const started = previous
+        ? value.copies.find(
+            (item) =>
+              item.isPeerInitiated &&
+              item.phase === 'running' &&
+              !previous.copies.some((old) => old.jobId === item.jobId),
+          )
+        : undefined
       if (
         snapshotRef.current?.peers.some(
           (peer) =>
@@ -153,6 +165,9 @@ export function DesktopApp({
       }
       snapshotRef.current = value
       setSnapshot(value)
+      if (started) {
+        openPeerTransfer.current(started.projectId, started.jobId)
+      }
       if (value.warning) {
         showError({ code: null, message: value.warning })
       }
@@ -579,6 +594,13 @@ export function DesktopApp({
     showTask(projectId, copyId, restoreId)
     navigation.open('task')
   }
+  // 对方发起的传输和本机发起的一样结束当前流程，详情返回游戏页。窗口最小化时也只切页面，不还原、不抢焦点。
+  useLayoutEffect(() => {
+    openPeerTransfer.current = (projectId, jobId) => {
+      showTask(projectId, jobId, null)
+      navigation.finishFlow('task')
+    }
+  })
   function openBackup(projectId: string, sourceContext?: PageContext): void {
     setGameId(projectId)
     navigation.open('backup', sourceContext)

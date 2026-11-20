@@ -386,6 +386,7 @@ export class WindowsDialerSync implements DialerSyncHandler {
         updatedAt: Math.max(job.state.updatedAt, job.remote?.updatedAt ?? 0),
         hasCleanupError,
         isAwaitingPeer: false,
+        isPeerInitiated: job.preparation.listenerRequestId !== null,
       }
     })
   }

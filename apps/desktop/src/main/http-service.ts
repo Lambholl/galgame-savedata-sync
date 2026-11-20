@@ -332,6 +332,7 @@ export class WindowsHttpService {
           source: this.options.scanSource,
           deviceId: this.source.deviceId,
           control,
+          isOwnJob: (jobId) => this.remoteRequests?.isAwaiting(jobId) ?? false,
           ...(this.options.timeouts ? { timeouts: this.options.timeouts } : {}),
         })
         this.syncRegistry = jobs

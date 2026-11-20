@@ -45,6 +45,8 @@ export interface DesktopCopySummary {
   readonly hasCleanupError: boolean
   /** 已经确认、移动端还没开始这次传输。 */
   readonly isAwaitingPeer: boolean
+  /** 这次传输由对方设备发起。 */
+  readonly isPeerInitiated: boolean
 }
 /** 本机恢复任务列表的一行。 */
 export interface DesktopRestoreSummary {
@@ -210,6 +212,7 @@ const COPY_FIELDS = [
   'updatedAt',
   'hasCleanupError',
   'isAwaitingPeer',
+  'isPeerInitiated',
 ]
 const RESTORE_FIELDS = [
   'restoreId',
@@ -253,6 +256,7 @@ export function isDesktopCopySummary(value: unknown): value is DesktopCopySummar
     typeof value.hasCleanupError === 'boolean' &&
     typeof value.isAwaitingPeer === 'boolean' &&
     (!value.isAwaitingPeer || value.phase === 'running') &&
+    typeof value.isPeerInitiated === 'boolean' &&
     (value.phase === 'running' ? value.stage !== 'done' : value.stage === 'done')
   )
 }

@@ -452,7 +452,20 @@ export function MobileApp({
         slot: 'remote-sync-scan',
       })
     },
-    onStarted: announceStart,
+    onStarted: (jobId, projectId) => {
+      announceStart(jobId)
+      // 电脑发起的传输和本机发起的一样结束当前流程，详情返回游戏页。应用在后台时也只切页面：
+      // Android 不允许后台应用把自己切到前台，进度看传输通知。
+      syncTasks
+        .refreshCopy()
+        .catch(() => undefined)
+        .finally(() => {
+          setTaskProjectId(projectId)
+          setIsGameMenuOpen(false)
+          setIsTransferMenuOpen(false)
+          navigation.finishFlow('task')
+        })
+    },
     onFailure: showSyncFailure,
   })
   const importable = peers

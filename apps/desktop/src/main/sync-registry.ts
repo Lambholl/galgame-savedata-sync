@@ -60,6 +60,8 @@ export interface WindowsSyncRegistryOptions {
   readonly deviceId: string
   /** 读取对端结果、转发取消；对端的进度摘要由 observe 送入。 */
   readonly control: Pick<ControlHub, 'isOpen' | 'request'>
+  /** 判断 jobId 是否是本机经控制通道发起、等拨号方登记的任务。 */
+  readonly isOwnJob: (jobId: string) => boolean
   readonly timeouts?: Partial<{ readonly [Key in keyof typeof BATCH_TIMEOUTS_MS]: number }>
 }
 /** 读取对端结果失败后，隔多久再试一次。 */
@@ -105,6 +107,7 @@ interface SyncTask {
   remoteReadAt: number
   /** 最后一次收到摘要的时间；移动端进行中每秒至少推送一次，久未收到就是结果待确认。 */
   remoteSeenAt: number
+  readonly isPeerInitiated: boolean
 }
 function failureStageOf(stage: SyncJobState['stage']): SyncFailureStage | null {
   return stage === 'cleaning' || stage === 'done' ? null : stage
@@ -239,6 +242,7 @@ export class WindowsSyncRegistry {
         updatedAt: Math.max(task.state.updatedAt, task.remote?.updatedAt ?? task.state.updatedAt),
         hasCleanupError,
         isAwaitingPeer: false,
+        isPeerInitiated: task.isPeerInitiated,
       }
     })
   }
@@ -595,6 +599,7 @@ export class WindowsSyncRegistry {
       isReadingRemote: false,
       remoteReadAt: 0,
       remoteSeenAt: performance.now(),
+      isPeerInitiated: !this.options.isOwnJob(request.jobId),
       state: {
         schemaVersion: SYNC_JOB_SCHEMA_VERSION,
         jobId: request.jobId,

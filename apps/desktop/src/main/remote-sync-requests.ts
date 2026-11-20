@@ -391,8 +391,14 @@ export class WindowsRemoteSyncRequests {
         hasCleanupError,
         // 移动端报告任务状态前，本机角色的进度是占位的，界面写等待对方开始，不写正在打包。
         isAwaitingPeer: phase === 'running' && remote === null,
+        isPeerInitiated: false,
       },
     }
+  }
+
+  /** 判断 jobId 是否是本机已确认、等对方登记的任务。 */
+  isAwaiting(jobId: string): boolean {
+    return Boolean(this.current?.isAwaitingJob && this.current.plan?.planId === jobId)
   }
 
   /** 取消移动端正在开始的任务；移动端还没建立任务时抛出 not-found 错误。 */

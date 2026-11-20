@@ -244,7 +244,7 @@ sender 的 sent 表示本机发送流完成，Android 是否接收或发布要�
 | 方法 | 输入与结果 |
 | --- | --- |
 | `activity()` | 返回进程内目标操作或清理占用状态，用于配置编辑保护 |
-| `copies()` | 最多 32 份 `DesktopCopySummary`；`isAwaitingPeer` 只在已确认、移动端还没登记任务时为 true，此时 phase 必为 running |
+| `copies()` | 最多 32 份 `DesktopCopySummary`；`isAwaitingPeer` 只在已确认、移动端还没登记任务时为 true，此时 phase 必为 running；`isPeerInitiated` 为 true 表示任务由对方设备发起：监听方任务看登记时是否匹配本机已确认、等对方登记的请求，拨号方任务看是否来自监听方的 `sync.prepare` |
 | `copyPlan(jobId)` / `copyState(jobId)` | 分别返回 `SyncJobRequest` 和含本机、对端两个角色的 `SyncTransferState` |
 | `cancelCopy(jobId)` / `cleanupCopy(jobId)` | 取消先通知移动端再停止本机；清理成功返回 null |
 | `restores()` | 最多 32 份 `DesktopRestoreSummary`，含状态、阶段、清理标记和 `isWorking` |
