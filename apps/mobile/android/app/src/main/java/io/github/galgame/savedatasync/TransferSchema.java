@@ -286,7 +286,7 @@ final class TransferSchema {
     }
     id(device.get("deviceId"));
     text(device.get("displayName"));
-    require("windows".equals(device.get("platform")));
+    one(device.get("platform"), "windows", "android");
     Map<String, Object> capabilities = shape(
       device.get("capabilities"),
       "canListRoots",

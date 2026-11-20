@@ -13,14 +13,16 @@ const NATIVE =
   Capacitor.getPlatform() === 'android' ? registerPlugin<AppStoragePlugin>('AppStorage') : null
 const cache = new Map<string, string>()
 
-/** 把已保存的配置读进内存；读取失败时 reject。 */
+/** 从原生存储读入已保存的配置，替换内存里的值，可以重复调用；没有原生插件时直接完成，读取失败时 reject。 */
 export async function loadAppStorage(): Promise<void> {
   if (!NATIVE) {
     return
   }
   for (const key of KEYS) {
     const { value } = await NATIVE.read({ key })
-    if (value !== null) {
+    if (value === null) {
+      cache.delete(key)
+    } else {
       cache.set(key, value)
     }
   }

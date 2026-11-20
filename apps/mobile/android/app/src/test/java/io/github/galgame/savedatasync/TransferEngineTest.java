@@ -581,6 +581,11 @@ public class TransferEngineTest {
         public List<ArchiveModel.Source> sources(String root, List<Object> files) {
           return TransferEngineTest.this.sources(root);
         }
+
+        @Override
+        public boolean hasListenerPeer() {
+          return false;
+        }
       },
       null,
       10000,

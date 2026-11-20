@@ -1,7 +1,7 @@
 ---
 doc_type: architecture
 status: active
-updated: 2026-11-19
+updated: 2026-11-20
 tags: [Android, 移动端, SAF, 原生插件]
 ---
 
@@ -22,11 +22,12 @@ tags: [Android, 移动端, SAF, 原生插件]
 - [11. 双向复制编排](#11-双向复制编排)
 - [12. 局域网设备搜索](#12-局域网设备搜索)
 - [13. 扫码连接](#13-扫码连接)
-- [14. 测试范围](#14-测试范围)
+- [14. 本机服务（监听方）](#14-本机服务监听方)
+- [15. 测试范围](#15-测试范围)
 
 ## 1. 界面入口
 
-Android 目前只作拨号方：原生层连接监听方、编排扫描、计划和任务，并执行监听方经控制通道交来的传输。M-005 增加 Android 作监听方：自写的 HTTP 和 WebSocket 服务、NsdManager 注册服务、连接二维码，以及设备页的“本机服务”部分；服务开着时由 `connectedDevice` 前台服务和常驻通知保持（[ADR-0004](../decisions/ADR-0004-symmetric-listener-dialer-roles.md)）。
+Android 可作拨号方和监听方。作拨号方时原生层连接监听方、编排扫描、计划和任务，并执行监听方经控制通道交来的传输。作监听方时由设备页的“本机服务”开关启动自写的 HTTP 和 WebSocket 服务，用 NsdManager 广播并显示连接二维码，服务开着时由 `connectedDevice` 前台服务和常驻通知保持（[ADR-0004](../decisions/ADR-0004-symmetric-listener-dialer-roles.md)，见第 14 节）。监听方目前提供连接、目录表交换和双方目录浏览；复制任务的 `/v1/sync/*` 还返回 `unsupported-operation`。
 
 移动界面在 `apps/mobile/src/app`、`features`、`components` 和 `styles`，使用 antd-mobile；平台接入位于 `src/platform/library-adapter.ts`。界面只从 `@savedata-sync/shared` 引入协议、配置、任务类型和纯数据规则。Android 返回键和系统主题位于 `src/app`；SAF、HTTP 传输桥和配置持久化位于 `src/platform`。
 
@@ -37,7 +38,7 @@ Android 目前只作拨号方：原生层连接监听方、编排扫描、计划
 
 可保存多台电脑，一个游戏可关联多台设备，同一时间只连接一台。游戏名称、目录引用和设备关联自动保存到本机网页存储，平台路径和授权留在原生层。添加电脑时默认使用对端的系统计算机名称；移动端向电脑报告系统设备名称，读取不到时使用型号；已有自定义设备名称继续保留。
 
-设备页分“已保存的设备”和“附近的设备”两组，不显示本机服务。已保存的设备按最近连接排序，每次连上把该设备移到开头；设备名不能选中。附近的设备来自局域网设备搜索，只列没有保存过的设备；已保存的设备被搜到、且搜到的地址里有保存的地址时，在已保存的列表里标“在附近”，地址变了时显示搜到的地址；协议版本不同的设备置灰并提示两台都更新。已有设备连接或正在连接时，其他连接按钮变灰，点击只提示先断开当前设备。连接附近的设备时，`connectCandidates` 按推荐顺序逐个尝试候选地址，并核对设备 ID。
+设备页最上面是本机服务卡片，下面分“已保存的设备”和“附近的设备”两组。已保存的设备按最近连接排序，每次连上把该设备移到开头；设备名不能选中。附近的设备来自局域网设备搜索，只列没有保存过的设备，不列本机自己的广播；已保存的设备被搜到、且搜到的地址里有保存的地址时，在已保存的列表里标“在附近”，地址变了时显示搜到的地址；协议版本不同的设备置灰并提示两台都更新。已有设备连接（包括连着本机服务的设备）或正在连接时，其他连接按钮变灰，点击只提示先断开当前设备。连接附近的设备时，`connectCandidates` 按推荐顺序逐个尝试候选地址，并核对设备 ID。
 
 点已保存设备的“连接”时，如果附近已经搜到这台设备、搜到的地址里却没有保存的地址，就直接连搜到的地址，最后再试保存的地址。其他情况连保存的地址，同时在后台用 `findDevice` 按设备 ID 查找 5 秒（`DEVICE_LOOKUP_MS`），该行只显示连接中，保存的地址连上就停止查找。连不上、超时或这个地址上是另一台设备时，查到了就依次连它广播的地址，连上后保存的地址换成实际连上的地址，游戏关联按设备 ID 保存，不受影响。没查到时按保存地址的连接失败提示。查找只在点连接时进行。
 
@@ -47,7 +48,7 @@ Android 目前只作拨号方：原生层连接监听方、编排扫描、计划
 
 目录设置显示完整路径。系统存储目录显示文件系统路径，第三方文档提供者显示其可读目录层级或完整文档地址；地址只供显示，实际文件操作仍通过 SAF 引用完成。
 
-适配层 `createMobileLibraryAdapter` 可注入 directories、transfers、storage 和 hasSyncWork，默认使用真实原生桥与本机存储；正式入口传入复制/恢复活动查询，编辑配置和空闲失联处理会核对这些任务。发起传输会检查当前项目的两端目录，确认通知权限后再刷新电脑目录表。活动传输结束后再修改游戏目录或关联。手动改 IP 和重启保留原项目映射，连接地址属于另一设备时停止连接。
+适配层 `createMobileLibraryAdapter` 可注入 directories、transfers、control、storage、reloadStorage、service 和 hasSyncWork，默认使用真实原生桥与本机存储；正式入口传入复制/恢复活动查询，编辑配置和空闲失联处理会核对这些任务。发起传输会检查当前项目的两端目录，确认通知权限后再刷新电脑目录表。活动传输结束后再修改游戏目录或关联。手动改 IP 和重启保留原项目映射，连接地址属于另一设备时停止连接。
 
 ## 2. 复制与备份页面
 
@@ -221,9 +222,31 @@ Windows → Android（监听方 → 拨号方）：使用移动端目标项目�
 
 原生部分是 `QrScannerPlugin`、`QrCameraSession`（CameraX）和 `QrFrameDecoder`（ZXing）。取景画面是插在透明 WebView 下面的 `PreviewView`（TextureView 模式）；相机打开后 `ScanPage` 在 html 上加 `camera-live`，由 `mobile.css` 让出页面背景。解码只开 QR 格式和 `ALSO_INVERTED`，监听方深色主题的反色码走翻转路径；识别用完整的分析帧，取景框只是对准提示。
 
-## 14. 测试范围
+## 14. 本机服务（监听方）
 
-`pnpm test` 运行最小 TS 桥检查（请求/响应边界、结果上下文和订阅清理）。`pnpm android:test` 同步 Web 工程，生成 Windows 原生归档供 Java 消费，执行 Java 单元测试、Android lint、调试与仪器测试 APK 构建，最后验证 Windows/JVM 归档互通；不连接设备。
+原生部分只用 JDK 和 Android SDK，每条连接一个线程：
+
+| 类 | 职责 |
+| --- | --- |
+| `ListenerServer` | 在 `0.0.0.0` 的保存端口监听，最多 16 条连接，空闲 60 秒（控制通道 45 秒）关闭。路由 `/v1/device`、`/v1/catalog`、`/v1/roots`、`/v1/roots/<rootId>/entries`、`/v1/control`；除 `/v1/device` 外都核对 `x-sync-session-id`，控制通道还要求已交换目录表的 `x-sync-device-id`，不满足返回 403。`/v1/sync/*` 返回 `unsupported-operation` |
+| `ListenerHttp` | HTTP/1.1 请求解析和回复，规则与电脑服务相同：头名重复、Content-Encoding、Range、Expect、Content-Length 与 chunked 冲突、chunk 扩展和 trailer 都按 invalid-request 拒绝；JSON 请求体最多 8 MiB |
+| `ListenerSocket` | 服务端 WebSocket（RFC 6455），只收文本帧，单条最多 8 MiB；关闭时先发关闭帧，最多等 2 秒回应 |
+| `ListenerControl` | 控制通道监听端：同一时间一条连接，同一设备的新连接以 4002 取代旧连接，主动断开用 4001。每 15 秒 ping，请求 8 秒超时 |
+| `ListenerLibrary` | 目录表交换，规则与电脑监听方相同：屏蔽的设备 permission-denied；被断开的设备要带 `x-sync-connect: 1` 重新连接，否则 session-mismatch；本机正在拨号或已有别的设备在线时 busy；最多 32 台设备。新连接把设备移到已保存列表开头，合并对方的关联后写入配置。经控制通道 `directory.list` 浏览对方目录，父目录必须是本会话读到过的条目 |
+| `ListenerAdvertiser` | NsdManager 注册 `_savedata-sync._tcp`，TXT 与电脑相同；注册失败 30 秒后重试，停止服务时注销 |
+| `ListenerRuntime` | 应用 Context 持有的单例：开关和端口保存在 SharedPreferences（`local-service`），首次生成 49152–65535 的随机端口，服务停止时才能换端口。本机地址优先 Wi-Fi 和以太网，再是热点，排除移动网络、VPN、回环、链路本地和 198.18/15，最多 8 个 |
+| `ListenerService` | `connectedDevice` 前台服务，常驻通知显示推荐地址和连着的设备，带“停止”操作。不导出、`stopWithTask=false`、START_NOT_STICKY，没有开机启动 |
+| `LocalServicePlugin` | 网页接口；`handleOnResume` 时开关开着而服务没在运行（进程被系统结束过）就重新启动，启动失败则关掉开关 |
+
+目录表交换在原生层完成，Activity 销毁后对方仍能连接。游戏库配置因此有两个写入方：`AppStoragePlugin.readLibrary` / `writeLibrary` 加同一把锁，原生层写入后发 `libraryChanged`，`library-adapter` 重新读入配置并丢掉缓存。读快照时还会补登记连着本机、配置里却没有的设备，防止网页的旧缓存覆盖原生层刚写入的设备。
+
+`src/platform/local-service.ts` 导出 `localService`（桥接在 `local-service-bridge.ts`）：status、start、stop、randomizePort、peers、disconnectPeer、peerDirectory、catalogChanged，以及 `serviceState`、`libraryChanged` 两个事件。`library-adapter` 把连着本机的设备并入快照的 peers：控制通道连着即在线，游戏取对方最近发来的目录表；浏览这台设备的目录走 `peerDirectory`，断开和删除走 `disconnectPeer`，修改本机游戏后发 `catalog.changed`。打开开关前申请通知权限，没有授权时不启动。
+
+声明 `FOREGROUND_SERVICE_CONNECTED_DEVICE`，以及该前台服务类型要求的前置权限之一 `CHANGE_WIFI_MULTICAST_STATE`。
+
+## 15. 测试范围
+
+`pnpm test` 运行最小 TS 桥检查（请求/响应边界、结果上下文和订阅清理）。`ListenerServerTest` 在 JVM 回环地址上运行真实的本机服务，覆盖 HTTP 解析边界、目录表交换、控制通道和一台设备一条连接的规则，以及 Android 拨号方 `TransferEngine` 连接、交换、浏览后被 4001 断开。`pnpm android:test` 同步 Web 工程，生成 Windows 原生归档供 Java 消费，执行 Java 单元测试、Android lint、调试与仪器测试 APK 构建，最后验证 Windows/JVM 归档互通；不连接设备。
 
 设备测试有 3 项，安装两个调试 APK 后用 `adb shell am instrument -w ... io.github.galgame.savedatasync.test/androidx.test.runner.AndroidJUnitRunner` 运行：
 

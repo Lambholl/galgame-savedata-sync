@@ -50,6 +50,9 @@ final class TransferEngine {
     String deviceId();
 
     List<ArchiveModel.Source> sources(String rootId, List<Object> selections) throws Exception;
+
+    /** 是否有设备连着本机服务的控制通道。 */
+    boolean hasListenerPeer();
   }
 
   interface Listener {
@@ -264,7 +267,14 @@ final class TransferEngine {
   Map<String, Object> connect(TransferHttp client, ArchiveControl control) throws Exception {
     synchronized (this) {
       available();
-      if (active != null || TargetOperation.hasWork() || isConnecting || !connections.isEmpty()) {
+      // 本机同一时间只和一台设备保持控制通道，有设备连着本机服务时也不能再拨号。
+      if (
+        active != null ||
+        TargetOperation.hasWork() ||
+        isConnecting ||
+        !connections.isEmpty() ||
+        local.hasListenerPeer()
+      ) {
         throw fail("busy");
       }
       isConnecting = true;
@@ -313,6 +323,11 @@ final class TransferEngine {
     if (client != null) {
       client.close();
     }
+  }
+
+  /** 本机是否作为拨号方连着或正在连接别的设备。 */
+  synchronized boolean isDialing() {
+    return isConnecting || !connections.isEmpty();
   }
 
   synchronized List<Object> connections() throws Exception {

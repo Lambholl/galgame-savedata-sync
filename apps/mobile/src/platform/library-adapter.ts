@@ -35,7 +35,9 @@ import type {
   CurrentTransfer,
   TransferStartOptions,
 } from './http-transfer-bridge'
-import { appStorage } from './app-storage'
+import { appStorage, loadAppStorage } from './app-storage'
+import { localService as defaultService } from './local-service'
+import type { ListenerPeer, LocalServiceApi, LocalServiceStatus } from './local-service-bridge'
 
 /** 游戏库适配器的依赖。 */
 export interface MobileLibraryDependencies {
@@ -43,6 +45,9 @@ export interface MobileLibraryDependencies {
   readonly transfers: AndroidTransferApi
   readonly control: AndroidControlApi
   readonly storage: Pick<Storage, 'getItem' | 'setItem'>
+  /** 把原生层保存的配置重新读进 storage。 */
+  readonly reloadStorage: () => Promise<void>
+  readonly service: LocalServiceApi
   readonly hasSyncWork: () => Promise<boolean>
 }
 
@@ -52,6 +57,8 @@ const CONTROL_GRACE_MS = 10000
 /**
  * 创建移动游戏库适配器。设备是否在线以控制通道是否打开为准；
  * 目录表只在本机或对方变化时重新交换；控制通道断开超过 CONTROL_GRACE_MS 且没有任务时断开这台设备。
+ * 连着本机服务的设备由原生层交换目录表并写入配置；它们和拨号连上的设备一样出现在快照里，可以浏览目录、断开和删除，
+ * 配置里缺少的会补登记。
  */
 export function createMobileLibraryAdapter(
   dependencies?: Partial<MobileLibraryDependencies>,
@@ -60,6 +67,8 @@ export function createMobileLibraryAdapter(
   const androidTransfers = dependencies?.transfers ?? defaultTransfers
   const control = dependencies?.control ?? defaultControl
   const storage = dependencies?.storage ?? appStorage
+  const reloadStorage = dependencies?.reloadStorage ?? loadAppStorage
+  const service = dependencies?.service ?? defaultService
   let config: LibraryConfig | undefined
   let deviceName: string | null = null
   const catalogs = new Map<string, readonly CatalogGame[]>()
@@ -75,6 +84,8 @@ export function createMobileLibraryAdapter(
   let task: TransferTask | null = null
   let hasRestored = false
   let descriptors: readonly BatchDeviceDescriptor[] = []
+  /** 最近一次读到的、和本机服务交换过目录表的设备。 */
+  let listenerPeers: readonly ListenerPeer[] = []
   function load(): LibraryConfig {
     if (config) {
       return config
@@ -99,6 +110,57 @@ export function createMobileLibraryAdapter(
     }
     storage.setItem(CONFIG_KEY, JSON.stringify(value))
     config = value
+  }
+  /** 重新读入原生层保存的配置，丢掉内存里的旧配置。 */
+  async function reload(): Promise<void> {
+    await reloadStorage()
+    config = undefined
+  }
+  const changeListeners = new Set<() => void>()
+  function notify(): void {
+    for (const listener of [...changeListeners]) {
+      listener()
+    }
+  }
+  service.onState(notify)
+  // 本机服务交换目录表时在原生层改写配置；这里要及时换掉缓存，否则下次保存会覆盖原生层写入的设备和关联。
+  service.onLibraryChanged(() => {
+    reload()
+      .then(notify)
+      .catch((cause: unknown) => console.error('Failed to reload the game library', cause))
+  })
+  function isListenerPeer(id: string): boolean {
+    return listenerPeers.some((peer) => peer.deviceId === id)
+  }
+  /** 读取本机服务的状态和连着本机的设备；读不到时按服务未运行处理。 */
+  async function readService(): Promise<LocalServiceStatus | null> {
+    const status = await service.status()
+    const value = status.status === 'success' ? status.value : null
+    const peers = value?.listener ? await service.peers() : null
+    listenerPeers = peers?.status === 'success' ? peers.value : []
+    if (listenerPeers.some((peer) => !load().devices.some((item) => item.id === peer.deviceId))) {
+      // 原生层写入配置后、通知到达之前读到的是旧配置；先重新读入，仍然缺少的设备才补登记。
+      await reload()
+    }
+    for (const peer of listenerPeers) {
+      if (!load().devices.some((item) => item.id === peer.deviceId)) {
+        save({
+          ...load(),
+          devices: [
+            {
+              id: peer.deviceId,
+              name: peer.name,
+              platform: peer.platform,
+              address: null,
+              isBlocked: false,
+            },
+            ...load().devices,
+          ],
+        })
+      }
+      catalogs.set(peer.deviceId, peer.games)
+    }
+    return value
   }
   control.onState((id, state) => {
     if (state.isOpen) {
@@ -336,6 +398,12 @@ export function createMobileLibraryAdapter(
           await disconnect(id)
         }
       }
+      const serviceStatus = await readService()
+      for (const peer of listenerPeers) {
+        if (peer.isOpen) {
+          connectedIds.add(peer.deviceId)
+        }
+      }
       // 只在读到后缓存；一次失败不影响连接和任务，下次再读。
       if (deviceName === null) {
         const name = await androidTransfers.deviceName()
@@ -345,6 +413,7 @@ export function createMobileLibraryAdapter(
         warning: null,
         config: load(),
         deviceName,
+        service: serviceStatus,
         roots,
         peers: load().devices.map((device) => ({
           device,
@@ -360,6 +429,10 @@ export function createMobileLibraryAdapter(
     },
     savedConfig() {
       return load()
+    },
+    subscribe(listener) {
+      changeListeners.add(listener)
+      return () => changeListeners.delete(listener)
     },
     async saveGames(games): Promise<void> {
       await assertCanEditGames()
@@ -381,6 +454,23 @@ export function createMobileLibraryAdapter(
         )
       }
       save({ ...load(), games })
+      // 通知不保证送达：连着本机的设备下次连接时仍会重新交换。
+      await service.catalogChanged()
+    },
+    async service(action): Promise<void> {
+      if (action === 'start') {
+        if (!unwrap(await androidTransfers.requestNotifications())) {
+          throw new OperationFailure(
+            'permission-denied',
+            'Allow notifications to keep the local service running.',
+          )
+        }
+        unwrap(await service.start())
+      } else if (action === 'stop') {
+        unwrap(await service.stop())
+      } else {
+        unwrap(await service.randomizePort())
+      }
     },
     chooseDirectory() {
       return androidTransfers.chooseTarget()
@@ -457,7 +547,11 @@ export function createMobileLibraryAdapter(
     },
     async device(id, action, name, address): Promise<void> {
       if (action === 'disconnect') {
-        await disconnect(id)
+        if (isListenerPeer(id)) {
+          unwrap(await service.disconnectPeer(id))
+        } else {
+          await disconnect(id)
+        }
         return
       }
       if (action === 'allow') {
@@ -471,6 +565,11 @@ export function createMobileLibraryAdapter(
       if (action === 'forget') {
         if (descriptors.some((item) => item.device.deviceId === id)) {
           await disconnect(id)
+        }
+        if (isListenerPeer(id)) {
+          unwrap(await service.disconnectPeer(id))
+          listenerPeers = listenerPeers.filter((peer) => peer.deviceId !== id)
+          catalogs.delete(id)
         }
         save({
           ...load(),
@@ -508,6 +607,9 @@ export function createMobileLibraryAdapter(
     async directory(deviceId, rootId, parentId) {
       if (deviceId === null) {
         return androidDirectories.listDirectory(rootId, parentId)
+      }
+      if (isListenerPeer(deviceId)) {
+        return service.peerDirectory(deviceId, rootId, parentId)
       }
       await select(deviceId)
       return androidTransfers.listRemoteDirectory(rootId, parentId)

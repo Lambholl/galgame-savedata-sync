@@ -32,5 +32,5 @@ tags: [测试规范]
 | `pnpm android:test` 只在改了 Android 原生代码、准备发布或维护者要求时跑 | 需要 JDK 和 Android SDK，一次要一两分钟以上 | Android 原生 |
 | 测试只用合成数据和系统临时目录，不读写真实存档 | 测试失败不能损坏存档 | 全部自动化测试 |
 | 归档格式的跨语言夹具 `apps/desktop/test/fixtures/archive-v1.json` 由 Python 标准库独立生成，Node 和 Java 测试共用；`scripts/verify-archive-interop.mjs` 在 `pnpm android:test` 里核对两端互通 | 两端编解码器各自实现，要有和实现无关的预期 | 归档 |
-| 需要真机的测试只有 3 项（SAF 选择与读取、归档夹具互通、实际 SAF 两轮快照），运行方法见 [Android 平台层](../architecture/android.md#14-测试范围) | 授权和提供者行为只能在设备上验证 | Android 设备 |
+| 需要真机的测试只有 3 项（SAF 选择与读取、归档夹具互通、实际 SAF 两轮快照），运行方法见 [Android 平台层](../architecture/android.md#15-测试范围) | 授权和提供者行为只能在设备上验证 | Android 设备 |
 | 同步功能的真机验收按[验收标准](../testing/acceptance.md)在两台设备上做，换设备时重新选择目录，不沿用另一台设备的结论 | 提供者、系统版本和目录授权因设备而异 | 跨端验收 |

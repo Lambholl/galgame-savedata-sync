@@ -660,6 +660,17 @@ html.camera-live .app-heading {
 .device-list {
   margin: 0;
 }
+.device-service {
+  margin-bottom: 12px;
+}
+/* 二维码弹层：二维码和地址居中排列。 */
+.device-qr {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 12px;
+}
 /* 长按打开管理，不弹系统的长按菜单。 */
 .device-saved {
   -webkit-touch-callout: none;

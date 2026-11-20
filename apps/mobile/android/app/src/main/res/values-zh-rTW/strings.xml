@@ -17,4 +17,10 @@
     <string name="transfer_title_receiving">%1$s：接收檔案</string>
     <string name="transfer_cancel">取消傳輸</string>
     <string name="transfer_retry_cleanup">重試清理</string>
+    <string name="service_channel">本機服務</string>
+    <string name="service_title">%1$s：本機服務已開啟</string>
+    <string name="service_waiting">%1$s · 等待連線</string>
+    <string name="service_connected">%1$s · 已連線 %2$s</string>
+    <string name="service_no_address">沒有可用的區域網路位址，連上 Wi-Fi 後再連線</string>
+    <string name="service_stop">停止</string>
 </resources>

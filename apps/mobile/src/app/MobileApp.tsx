@@ -140,6 +140,8 @@ export function MobileApp({
   const [syncDirection, setSyncDirection] = useState<SyncDirection>('listener-to-dialer')
   // 设备页正在连接的设备 ID，行内显示转圈；run 结束时清空。
   const [connectingId, setConnectingId] = useState<string | null>(null)
+  // 本机服务正在启动或停止；run 结束时清空。
+  const [serviceChange, setServiceChange] = useState<'starting' | 'stopping' | null>(null)
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null)
   const [interruptedWrites, setInterruptedWrites] = useState<readonly InterruptedWrite[]>([])
   const operating = useRef(false)
@@ -274,6 +276,16 @@ export function MobileApp({
       clearTimeout(timer)
     }
   }, [refresh, invalidate, showError])
+  // 有设备连上或断开本机服务时立即刷新，不等下一次轮询。
+  useEffect(
+    () =>
+      adapter.subscribe(() => {
+        if (!operating.current) {
+          refresh().catch((cause: unknown) => showError(toShownError(cause)))
+        }
+      }),
+    [adapter, refresh, showError],
+  )
   useEffect(() => backButton?.subscribe(() => backHandler.current()), [backButton])
   // 游戏名要等配置读到才有；已移除的游戏没有可提示的目录，标记直接清除。
   const hasLoaded = snapshot !== null
@@ -323,6 +335,7 @@ export function MobileApp({
         operating.current = false
         setIsBusy(false)
         setConnectingId(null)
+        setServiceChange(null)
       })
   }
   // 页面重建后第一次读取要等目录和连接查完，这之前先用本机保存的配置，游戏和设备名不会显示成“未知”。
@@ -666,6 +679,17 @@ export function MobileApp({
       }
     }
   }
+  function toggleService(): void {
+    const status = snapshot?.service
+    if (!status) {
+      return
+    }
+    const isRunning = status.listener !== null
+    run(async () => {
+      setServiceChange(isRunning ? 'stopping' : 'starting')
+      await adapter.service(isRunning ? 'stop' : 'start')
+    })
+  }
   function disconnectDevice(peer: LibraryPeer): void {
     run(() => adapter.device(peer.device.id, 'disconnect'))
   }
@@ -877,6 +901,8 @@ export function MobileApp({
   if (page === 'devices') {
     body = (
       <DevicesPage
+        service={snapshot?.service ?? null}
+        serviceChange={serviceChange}
         peers={peers}
         online={online}
         connectingId={connectingId ?? opening?.device.id ?? null}
@@ -887,6 +913,8 @@ export function MobileApp({
         onManageDevice={deviceEditor}
         onConnectNearby={connectNearby}
         onBlocked={showConnectBlocked}
+        onToggleService={toggleService}
+        onRandomizePort={() => run(() => adapter.service('randomize-port'))}
       />
     )
   } else if (page === 'scan') {

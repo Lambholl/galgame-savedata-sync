@@ -22,6 +22,7 @@ public class AppStoragePlugin extends Plugin {
   private static final Set<String> KEYS = Collections.singleton(LIBRARY);
   /** 一个值的最大长度；配置只含 ID、名称和目录引用，正常远小于此上限。 */
   private static final int MAX_LENGTH = 4 * 1024 * 1024;
+  private static final Object LIBRARY_LOCK = new Object();
 
   /** 从已保存的配置读取游戏名；找不到或配置不可读时返回 null。 */
   static String gameName(Context context, String projectId) {
@@ -45,8 +46,28 @@ public class AppStoragePlugin extends Plugin {
     return null;
   }
 
-  private SharedPreferences store() {
-    return getContext().getSharedPreferences(FILE, Context.MODE_PRIVATE);
+  private static SharedPreferences store(Context context) {
+    return context.getSharedPreferences(FILE, Context.MODE_PRIVATE);
+  }
+
+  /** 读取游戏库配置的 JSON 文本；从没保存过时返回 null。 */
+  static String readLibrary(Context context) {
+    synchronized (LIBRARY_LOCK) {
+      return store(context).getString(LIBRARY, null);
+    }
+  }
+
+  /**
+   * 保存游戏库配置的 JSON 文本，同步写入存储后返回；线程安全，与 {@link #readLibrary} 互斥。
+   *
+   * @throws ArchiveFailure 写入失败时抛出 io-failure。
+   */
+  static void writeLibrary(Context context, String value) throws ArchiveFailure {
+    synchronized (LIBRARY_LOCK) {
+      if (!store(context).edit().putString(LIBRARY, value).commit()) {
+        throw new ArchiveFailure("io-failure", "The game configuration cannot be saved.");
+      }
+    }
   }
 
   @PluginMethod
@@ -57,7 +78,7 @@ public class AppStoragePlugin extends Plugin {
       return;
     }
     JSObject result = new JSObject();
-    String value = store().getString(key, null);
+    String value = readLibrary(getContext());
     result.put("value", value == null ? JSObject.NULL : value);
     call.resolve(result);
   }
@@ -70,7 +91,9 @@ public class AppStoragePlugin extends Plugin {
       call.reject("invalid-request");
       return;
     }
-    if (!store().edit().putString(key, value).commit()) {
+    try {
+      writeLibrary(getContext(), value);
+    } catch (ArchiveFailure failed) {
       call.reject("io-failure");
       return;
     }

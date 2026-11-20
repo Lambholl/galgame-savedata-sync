@@ -17,4 +17,10 @@
     <string name="transfer_title_receiving">%1$s：ファイルを受信中</string>
     <string name="transfer_cancel">転送を中止</string>
     <string name="transfer_retry_cleanup">一時ファイルの削除を再試行</string>
+    <string name="service_channel">この端末のサービス</string>
+    <string name="service_title">%1$s：この端末のサービスが有効</string>
+    <string name="service_waiting">%1$s · 接続を待っています</string>
+    <string name="service_connected">%1$s · %2$s と接続中</string>
+    <string name="service_no_address">LAN のアドレスがありません。Wi-Fi に接続してください</string>
+    <string name="service_stop">停止</string>
 </resources>

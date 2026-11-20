@@ -1,11 +1,15 @@
+import { useEffect, useState } from 'react'
 import { Button, List, SpinLoading } from 'antd-mobile'
 import { AndroidOutlined, DesktopOutlined } from '@ant-design/icons'
-import { formatConnectionAddress } from '@savedata-sync/shared'
+import { createConnectionQrText, formatConnectionAddress } from '@savedata-sync/shared'
 import type { DeviceDescriptor, LibraryPeer } from '@savedata-sync/shared'
-import { useT } from '@savedata-sync/shared/ui'
+import { ConnectionQr, ServiceHero, useT } from '@savedata-sync/shared/ui'
+import type { ServiceHeroState } from '@savedata-sync/shared/ui'
 import { EmptyState } from '../../components/EmptyState'
+import { Sheet } from '../../components/Sheet'
 import { useLongPress } from '../../components/use-long-press'
 import type { DiscoveredDevice } from '../../platform/device-discovery'
+import type { LocalServiceStatus } from '../../platform/local-service-bridge'
 import { useNearbyDevices } from './use-nearby-devices'
 
 function PlatformIcon({
@@ -53,12 +57,17 @@ function ConnectButton({
   )
 }
 
+/** 复制地址后，复制按钮显示对勾的时长。 */
+const COPIED_MS = 1500
+
 /**
- * 设备页：已保存的设备和局域网里搜到的附近设备两组列表。页面打开期间一直在搜索，离开页面即停止。
+ * 设备页：上面是本机服务卡片，下面是已保存的设备和局域网里搜到的附近设备两组列表。页面打开期间一直在搜索，离开页面即停止。
  * 附近的设备只列还没保存的；已保存的设备在附近搜到时，在已保存的列表里标“在附近”，地址变了时显示搜到的地址。
  * 点按或长按已保存设备的整行打开管理。
  */
 export function DevicesPage({
+  service,
+  serviceChange,
   peers,
   online,
   connectingId,
@@ -69,7 +78,13 @@ export function DevicesPage({
   onManageDevice,
   onConnectNearby,
   onBlocked,
+  onToggleService,
+  onRandomizePort,
 }: {
+  /** 本机服务的状态；读不到时为 null，不显示本机服务卡片。 */
+  readonly service: LocalServiceStatus | null
+  /** 正在执行的启动或停止请求；没有时为 null。 */
+  readonly serviceChange: 'starting' | 'stopping' | null
   readonly peers: readonly LibraryPeer[]
   /** 当前连着的设备；没有连接时为 null。 */
   readonly online: LibraryPeer | null
@@ -86,11 +101,35 @@ export function DevicesPage({
   readonly onConnectNearby: (device: DiscoveredDevice) => void
   /** 已有连接时点了连接，提示先断开 name 那台设备。 */
   readonly onBlocked: (name: string) => void
+  /** 按下本机服务的开关。 */
+  readonly onToggleService: () => void
+  /** 服务停止时换一个随机端口。 */
+  readonly onRandomizePort: () => void
 }): React.JSX.Element {
   const t = useT()
   const nearby = useNearbyDevices()
+  const [isQrOpen, setIsQrOpen] = useState(false)
+  const [isCopied, setIsCopied] = useState(false)
+  useEffect(() => {
+    if (!isCopied) {
+      return undefined
+    }
+    const timer = setTimeout(() => setIsCopied(false), COPIED_MS)
+    return () => clearTimeout(timer)
+  }, [isCopied])
+  const listener = service?.listener ?? null
+  const addresses = service?.ipv4Addresses ?? []
+  const serviceAddress = listener && addresses[0] ? `${addresses[0]}:${listener.port}` : null
+  const qrText =
+    service && listener && addresses.length
+      ? createConnectionQrText({ deviceId: service.deviceId, port: listener.port, addresses })
+      : null
+  const serviceState: ServiceHeroState = serviceChange ?? (listener ? 'running' : 'stopped')
   const savedIds = new Set(peers.map((peer) => peer.device.id))
-  const nearbyDevices = nearby.snapshot.devices.filter((device) => !savedIds.has(device.deviceId))
+  // 本机服务开着时本机也在广播，搜索结果里会有本机自己。
+  const nearbyDevices = nearby.snapshot.devices.filter(
+    (device) => !savedIds.has(device.deviceId) && device.deviceId !== service?.deviceId,
+  )
   const nearbySaved = new Map(
     nearby.snapshot.devices
       .filter((device) => savedIds.has(device.deviceId))
@@ -114,6 +153,43 @@ export function DevicesPage({
   })
   return (
     <>
+      {service ? (
+        <div className="device-service">
+          <ServiceHero
+            state={serviceState}
+            address={serviceAddress}
+            isAddressLoading={false}
+            startedAt={listener?.startedAt ?? null}
+            connectedName={
+              peers.find((peer) => peer.isConnected && peer.device.id === service.peerId)?.device
+                .name ?? null
+            }
+            discovery={service.discovery}
+            qrText={qrText}
+            isCopied={isCopied}
+            isToggleDisabled={isDisabled}
+            portEditor={
+              <span className="device-inline">
+                {t('service.port')}
+                <strong className="ss-copyable">{service.configuredPort}</strong>
+                <Button size="small" disabled={isDisabled} onClick={onRandomizePort}>
+                  {t('service.randomizePort')}
+                </Button>
+              </span>
+            }
+            onToggle={onToggleService}
+            onCopy={() => {
+              if (serviceAddress) {
+                navigator.clipboard
+                  .writeText(serviceAddress)
+                  .then(() => setIsCopied(true))
+                  .catch(() => undefined)
+              }
+            }}
+            onShowQr={() => setIsQrOpen(true)}
+          />
+        </div>
+      ) : null}
       {peers.length ? (
         <div className="device-saved" {...longPress}>
           <List mode="card" header={t('device.saved')} className="device-list">
@@ -257,6 +333,18 @@ export function DevicesPage({
           )}
         </List>
       )}
+      <Sheet
+        isOpen={qrText !== null && isQrOpen}
+        title={t('service.qrTitle')}
+        onClose={() => setIsQrOpen(false)}
+      >
+        {qrText ? (
+          <div className="device-qr">
+            <ConnectionQr text={qrText} size={240} label={t('service.qrTitle')} />
+            <span className="ss-copyable">{serviceAddress}</span>
+          </div>
+        ) : null}
+      </Sheet>
     </>
   )
 }

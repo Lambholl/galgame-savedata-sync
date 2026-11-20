@@ -9,6 +9,7 @@ import type {
   TransferRequest,
   TransferTask,
 } from '@savedata-sync/shared'
+import type { LocalServiceStatus } from './local-service-bridge'
 
 /** 游戏库、设备、目录和任务的快照。 */
 export interface MobileSnapshot {
@@ -16,6 +17,8 @@ export interface MobileSnapshot {
   readonly config: LibraryConfig
   /** 本机系统名称；读取失败时为 null。 */
   readonly deviceName: string | null
+  /** 本机服务的状态；读取失败或不在 Android 上运行时为 null。 */
+  readonly service: LocalServiceStatus | null
   readonly peers: readonly LibraryPeer[]
   /** 已经连上、控制通道还没打开过的设备 ID，这台设备在 peers 里还不算在线；没有时为 null。 */
   readonly connectingId: string | null
@@ -29,8 +32,12 @@ export interface MobileLibraryAdapter {
   read(): Promise<MobileSnapshot>
   /** 同步读出本机保存的游戏和设备配置，不查目录和连接；配置损坏时抛错。 */
   savedConfig(): LibraryConfig
+  /** 订阅本机服务的状态变化和它对配置的改写，两者发生时调用 listener；返回的函数撤销订阅。 */
+  subscribe(listener: () => void): () => void
   /** 用 games 替换全部本机游戏。 */
   saveGames(games: readonly LibraryGame[]): Promise<void>
+  /** 启动或停止本机服务，或在服务停止时换一个随机端口；启动前申请通知权限，没有授权时 reject permission-denied。 */
+  service(action: 'start' | 'stop' | 'randomize-port'): Promise<void>
   /** 打开系统目录选择器并登记所选目录。 */
   chooseDirectory(): Promise<DirectorySelectionResult>
   /** 连接 address 并保存设备；resolve 对方的设备名（已保存过的用保存的名称）。 */

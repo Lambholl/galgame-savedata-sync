@@ -20,7 +20,7 @@ tags: [API, 接口约定]
 
 ## 1. 状态与范围
 
-本文记录当前接口。连接分监听方和拨号方：监听方提供 HTTP 服务和 `/v1/control`，拨号方连接并编排传输，监听方发起的传输经控制通道交给拨号方（[ADR-0004](../decisions/ADR-0004-symmetric-listener-dialer-roles.md)）。当前电脑既能作监听方，也能作拨号方连接另一台电脑并传输；Android 原生层只作拨号方，Android 监听在 M-005 实现。下文写“电脑”“移动端”的地方是当前实现，规则按监听方和拨号方理解。平台说明见 [Windows 平台层](windows.md)、[Android 平台层](android.md)，共享字段与线格式见[共享包](shared-package.md)。
+本文记录当前接口。连接分监听方和拨号方：监听方提供 HTTP 服务和 `/v1/control`，拨号方连接并编排传输，监听方发起的传输经控制通道交给拨号方（[ADR-0004](../decisions/ADR-0004-symmetric-listener-dialer-roles.md)）。当前电脑既能作监听方，也能作拨号方连接另一台电脑并传输；Android 原生层作拨号方，也能作监听方提供连接、目录表交换和目录浏览；Android 作监听方时还不接受复制任务（`/v1/sync/*` 返回 `unsupported-operation`）。下文写“电脑”“移动端”的地方是当前实现，规则按监听方和拨号方理解。平台说明见 [Windows 平台层](windows.md)、[Android 平台层](android.md)，共享字段与线格式见[共享包](shared-package.md)。
 
 已接入：游戏与设备配置、三页导航、并列目录视图、受保护覆盖、可选的目标多余条目删除、写入前全量备份、本机恢复和两端发起。发现与连接二维码的格式在 `apps/shared` 定义（第 8 节）：监听方广播并显示二维码，拨号方搜索和扫码（扫码只在移动端）；改址自动重连的安排见[路线图](../project/roadmap.md)。
 
@@ -179,7 +179,8 @@ Android 桥提供 `connections`、`selectDevice`、`disconnectDevice`、`exchang
 格式在 `apps/shared/src/connection`，字段和函数见 [共享包](shared-package.md#9-发现与连接二维码)。两种格式都由监听方提供、拨号方读取，不按平台区分；扫码只在移动端提供。拿到的地址只用来连接，连接后仍用 `/v1/device` 核对设备 ID，设备 ID 不一致时不替换已保存的设备。
 
 - DNS-SD：服务类型 `_savedata-sync._tcp`，实例名是截到 63 个 UTF-8 字节的显示名，TXT 为 `v`、`id`、`pf`。地址和端口取 SRV 与 A 记录，拨号方只用 IPv4。
-- 二维码：`savedata-sync://connect?v=1&id=<设备 ID>&p=<端口>&a=<IPv4>,…`，1–8 个地址按推荐顺序排列，拨号方依次尝试。电脑端设备页在服务运行时显示，载荷取服务快照的 `deviceId`、实际端口和 `listener.ipv4Addresses`；没有地址时不显示二维码。虚拟机、Hyper-V、代理软件的虚拟网卡不进二维码：其他设备访问不到，列出来会暴露本机内部网络，扫码端还会去连它所在网络里碰巧同址的主机。
+- 二维码：`savedata-sync://connect?v=1&id=<设备 ID>&p=<端口>&a=<IPv4>,…`，1–8 个地址按推荐顺序排列，拨号方依次尝试。两端设备页在本机服务运行时显示，载荷取服务快照的 `deviceId`、实际端口和 `listener.ipv4Addresses`；没有地址时不显示二维码。虚拟机、Hyper-V、代理软件的虚拟网卡不进二维码：其他设备访问不到，列出来会暴露本机内部网络，扫码端还会去连它所在网络里碰巧同址的主机。
 - 电脑端广播：HTTP 服务监听期间由主进程广播，停止服务或退出应用时发 goodbye 包。SRV 主机名是 `savedata-sync-<设备 ID>`（小写，`_` 换成 `-`），不用显示名；只发 A 记录，每块网卡只回答这块网卡的地址。实例名重名时自动加序号。广播失败时 HTTP 服务照常运行，服务快照的 `discovery` 显示失败并每 30 秒重试；防火墙拦截 UDP 5353 时本机察觉不到。实现见 [Windows 平台层](windows.md#6-有限-ipc-与服务控制)。
+- Android 广播：本机服务运行期间用 NsdManager 注册，TXT 的 `pf` 为 `android`，注册失败 30 秒后重试，停止服务时注销；二维码地址优先 Wi-Fi 和以太网，再是热点，不含移动网络和 VPN。实现见 [Android 平台层](android.md#14-本机服务监听方)。
 - Android 搜索：只在有页面订阅时用 NsdManager 搜索，Activity 停止时暂停；结果只含 IPv4 地址，TXT 由 `parseDiscoveryTxt` 校验后按设备 ID 合并，协议版本不同的只保留实例名。接口见[Android 平台层](android.md#12-局域网设备搜索)。
 - 版本：两种格式的 `v` 都是 `PROTOCOL_VERSION`。版本不同时解析结果为 `unsupported-version`，其余字段不解析；不合法时为 `invalid`。

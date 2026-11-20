@@ -17,4 +17,10 @@
     <string name="transfer_title_receiving">%1$s: Receiving files</string>
     <string name="transfer_cancel">Cancel transfer</string>
     <string name="transfer_retry_cleanup">Retry cleanup</string>
+    <string name="service_channel">Local service</string>
+    <string name="service_title">%1$s: local service on</string>
+    <string name="service_waiting">%1$s · Waiting for a connection</string>
+    <string name="service_connected">%1$s · Connected to %2$s</string>
+    <string name="service_no_address">No LAN address. Connect to Wi-Fi first.</string>
+    <string name="service_stop">Stop</string>
 </resources>

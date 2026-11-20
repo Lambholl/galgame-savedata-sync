@@ -70,6 +70,12 @@ final class TransferRuntime {
           }
           return result;
         }
+
+        @Override
+        public boolean hasListenerPeer() {
+          ListenerRuntime listener = ListenerRuntime.peek();
+          return listener != null && listener.hasPeer();
+        }
       },
       value -> {
         for (WeakReference<TransferEngine.Listener> reference : listeners) {

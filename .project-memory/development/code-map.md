@@ -78,6 +78,7 @@ tags: [代码地图]
 | `apps/mobile/src/features/transfer`、`src/platform` | 双端目录比较、手动连接、方向、计划和原生任务显示 | 当前层浏览；两列独立滚动，时间精确到分钟；业务不判断前后台，重载后查询同一原生传输任务；源文件内容不经过网页 |
 | `apps/mobile/src/components/PageSlide.tsx`、`apps/mobile/src/app/press-feedback.ts` | 移动端的切页平移和按下遮罩 | 桌面端的交互效果写在 desktop.css；shared 的 pressable.css 只定义遮罩的形状 |
 | `apps/mobile/src/platform/directory-bridge.ts`、`directories.ts`、`test/` | 受限 TS 桥、原生绑定与数据模型检查 | 网页预览不支持；只传公开 DTO/ID，没有内容或写入方法 |
+| `apps/mobile/src/platform/local-service-bridge.ts`、`local-service.ts`、`features/devices/DevicesPage.tsx` | 本机服务桥（开关、端口、状态、连着本机的设备、目录读取和事件）与设备页的本机服务卡片 | 结果按共享格式校验；`library-adapter.ts` 把连着本机的设备并入快照，收到 `libraryChanged` 后重新读入配置 |
 | `apps/mobile/src/platform/http-transfer-bridge.ts`、`http-transfers.ts` | 有限 TS 任务桥与 native 当前上下文/角色/结果校验、顺序事件订阅 | 浏览器不支持；通知和目标授权是显式动作，任务和清单只存本进程；订阅 remove 不取消传输 |
 
 ## 5. Android 原生
@@ -86,7 +87,7 @@ Java 源码都在 `apps/mobile/android/app/src/main/java/io/github/galgame/saved
 
 | 路径 | 作用 | 重要约定 |
 | --- | --- | --- |
-| `apps/mobile/android/` | Capacitor 生成的原生工程与项目 Wrapper | minSdk 29、compile/target 36；Manifest 允许明文 HTTP；包含用户发起传输使用的 dataSync 前台服务 |
+| `apps/mobile/android/` | Capacitor 生成的原生工程与项目 Wrapper | minSdk 29、compile/target 36；Manifest 允许明文 HTTP；包含用户发起传输使用的 dataSync 前台服务和本机服务使用的 connectedDevice 前台服务 |
 | `apps/mobile/android/app/src/main/java/io/github/galgame/savedatasync/` | Java 目录选择（DirectoriesPlugin、DirectoryStore）、权限/配置恢复、当前层元数据和原生流 | URI 留在原生层，原生流由调用者关闭；配置不保存条目或哈希 |
 | `DocumentAccess.java`、`SafDocumentAccess.java`、`FileDocumentAccess.java`；`AllFilesAccessPlugin.java`、移动 `platform/all-files-access.ts`、设置页 | 统一的目录访问接口及 SAF、按路径两种实现；所有文件访问权限状态与系统授权页入口 | 上层只经 `DirectoryStore.access(tree)` 取实现，见 ADR-0003 |
 | `ArchiveAdapter.java`、`ArchiveModel.java`、`ArchiveFormat.java`、`ArchiveCache.java`、`ArchiveControl.java`、`ArchiveFailure.java`、`DirectoryArchiveSource.java`；`src/test/.../ArchiveAdapterTest.java`、`src/androidTest/.../ArchiveSafTest.java` | Java 私有源快照、严格 USTAR/单 gzip、固定预算/取消/期限与缓存归属/恢复/重试；SAF 读取后复核；格式回归和设备快照 | 不做 JSON/HTTP/目标发布，文件内容不跨桥；句柄关闭读流后 close；进程独占覆盖待清理资源；夹具与 Windows 共用；缺少实际目录授权时测试失败而不是跳过 |
@@ -97,5 +98,6 @@ Java 源码都在 `apps/mobile/android/app/src/main/java/io/github/galgame/saved
 | `SyncPlanModel.java`、`SyncWriter.java`、`DirectorySyncBackend.java`、`SyncWriteRuntime.java`、`SyncWritesPlugin.java`、`TargetOperation.java`；移动 `platform/sync-write-bridge.ts`、`sync-writes.ts` | 确认计划的独立复核、SAF 目录创建/受保护覆盖与本机恢复、应用级任务及有限桥 | 整批复核和备份后写入，接收远端内容时等内容收齐并重新核对目标；常规 FD 身份/rw/最终长度，写后设来源的修改日期；旧传输共用互斥，恢复预览与结果各有查询入口；应用不判断前后台 |
 | `SyncJobModel.java`、`SyncTransferEngine/Runtime.java`、`SyncTransfersPlugin.java`；移动 `platform/sync-transfer-bridge.ts`、`sync-transfers.ts`；Windows `main/sync-registry.ts`、`upload-body.ts` | 双向复制的普通扫描准备、同次确认、边打包边上传或边下载边解包、接收端与传输并行的备份、保护后写入及实际结果查询 | 登记和内容各一次，回执丢失只查询；两端任务共用原生名额，只有实际传输保持通知，长源读取通过原生心跳确认通信；页面重建按 ID 查询，不恢复或重放 |
 | `DeviceDiscoveryPlugin.java`、`DiscoveryBrowser.java`；移动 `platform/device-discovery.ts` | 局域网 DNS-SD 搜索：NsdManager 搜索与解析、按订阅者启停的 TS 桥，以及按设备 ID 限时查找的 `findDevice` | 原生只给实例名、端口、IPv4 和 TXT 文本，TXT 在 TS 用 shared 校验；状态在原生单个 worker 线程上 |
+| `ListenerServer/Http/Socket/Control/Library.java`、`ListenerAdvertiser.java`、`ListenerRuntime.java`、`ListenerService.java`、`LocalServicePlugin.java`；`src/test/.../ListenerServerTest.java` | 本机服务（监听方）：HTTP/1.1 和 WebSocket 服务、控制通道监听端、目录表交换、NsdManager 广播、前台服务和网页接口 | 每条连接一个线程；同一时间一台设备在线，本机拨号时对新连接返回 busy；目录表交换在原生层写配置（经 `AppStoragePlugin` 的锁），Activity 销毁后仍能连接；接口见 [Android 平台层](../architecture/android.md#14-本机服务监听方) |
 | `QrScannerPlugin.java`、`QrCameraSession.java`、`QrFrameDecoder.java`；移动 `platform/qr-scanner.ts`、`features/devices/ScanPage.tsx` | 扫码：相机权限、取景、逐帧识别二维码，扫到后交给 `connectCandidates` | 原生只给二维码原文，内容在 TS 用 shared 的 `parseConnectionQrText` 校验；相机绑定 Activity 生命周期，取景画面在透明的 WebView 下面，页面用 html 上的 `camera-live` 让出背景 |
 | `apps/mobile/android/app/src/test/`、`src/androidTest/` | Java 纯边界与 3 条设备路径：目录读取、归档互通、实际目录快照 | 独立私有夹具与真实选择器授权；真实源只读 |

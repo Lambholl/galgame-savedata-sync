@@ -17,6 +17,10 @@
         <service android:name=".TransferService" android:exported="false"
             android:foregroundServiceType="dataSync" android:stopWithTask="false" />
 
+        <!-- 本机服务开着时保持监听；connectedDevice 没有运行时长上限，dataSync 只留给传输。 -->
+        <service android:name=".ListenerService" android:exported="false"
+            android:foregroundServiceType="connectedDevice" android:stopWithTask="false" />
+
         <activity
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode|navigation|density"
             android:name=".MainActivity"
@@ -49,6 +53,9 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
+    <!-- connectedDevice 类型的前台服务要求声明的前置权限之一。 -->
+    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
     <uses-permission android:name="android.permission.CAMERA" />
     <!-- 所有文件访问权限：有授权时按路径读写系统存储里的游戏目录，比经 SAF 快；没有授权时照常走 SAF。 -->
     <uses-permission

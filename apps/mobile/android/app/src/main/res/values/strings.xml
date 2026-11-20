@@ -19,4 +19,10 @@
     <string name="transfer_title_receiving">%1$s：接收文件</string>
     <string name="transfer_cancel">取消传输</string>
     <string name="transfer_retry_cleanup">重试清理</string>
+    <string name="service_channel">本机服务</string>
+    <string name="service_title">%1$s：本机服务已开启</string>
+    <string name="service_waiting">%1$s · 等待连接</string>
+    <string name="service_connected">%1$s · 已连接 %2$s</string>
+    <string name="service_no_address">没有可用的局域网地址，连上 Wi-Fi 后再连接</string>
+    <string name="service_stop">停止</string>
 </resources>
