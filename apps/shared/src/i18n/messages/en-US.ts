@@ -74,16 +74,11 @@ export const enUS: Messages = {
   'transfer.compareCancelled': 'Comparison cancelled.',
   'transfer.start': 'Start transfer',
   'transfer.startNote': 'Quit the game before you start',
-  'transfer.noBackupTitle': 'No backup this time',
-  'transfer.noBackupText':
-    'Backup before writing is off, so this transfer will not preserve the current files in the target folder. Start the transfer anyway?',
-  'transfer.noBackupDeleteText': ({ count }) =>
-    `Backup before writing is off, so the target's current files will not be saved, and the ${count} deleted items cannot be restored. Start anyway?`,
   'transfer.wipeTitle': 'Source folder is empty',
   'transfer.wipeBackupText': ({ count }) =>
     `All ${count} items on the target will be deleted. They are backed up first. Start anyway?`,
   'transfer.wipeNoBackupText': ({ count }) =>
-    `All ${count} items on the target will be deleted. Backup before writing is off, so they cannot be restored. Start anyway?`,
+    `All ${count} items on the target will be deleted. Start anyway?`,
   'transfer.planUnavailable': 'This plan is no longer available. Go back and refresh.',
   'transfer.planStale': 'The game or a folder changed. Go back and refresh before transferring.',
   'transfer.dateNotice': ({ count }) =>
@@ -114,7 +109,7 @@ export const enUS: Messages = {
   'plan.stat.delete': 'Delete',
   'plan.backupOn': ({ count }) =>
     `Back up before writing · keep ${count} ${count === 1 ? 'copy' : 'copies'}`,
-  'plan.backupOff': 'No backup; write directly',
+  'plan.backupOff': 'No backup before writing',
   'plan.transferSize': ({ size }) => `Transfer ${size}`,
   'plan.group.replace': ({ count }) => `Overwrite ${count}`,
   'plan.group.replaceHint': 'Open a file to compare both sides',
@@ -197,9 +192,9 @@ export const enUS: Messages = {
   'task.viewBackup': 'View backups',
   'write.interruptedTitle': 'Last write was interrupted',
   'write.interruptedNoBackup': ({ name }) =>
-    `The app closed while writing "${name}". Files may be incomplete.`,
+    `The app closed while writing "${name}". Files may be incomplete. Transfer them again.`,
   'write.interruptedWithBackup': ({ name }) =>
-    `The app closed while writing "${name}". Files may be incomplete. You can restore them from a backup.`,
+    `The app closed while writing "${name}". Files may be incomplete. Transfer them again or restore them from a backup.`,
   'task.rescan': 'Scan again',
   'task.readFailed': 'Could not read the transfer status',
   'task.history': 'Earlier transfers',

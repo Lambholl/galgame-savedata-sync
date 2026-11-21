@@ -106,6 +106,8 @@ interface WriteJob {
   readonly candidates: Set<SyncCandidate>
   worker: Promise<SyncApplyResult> | null
   isRunning: boolean
+  /** 写入前已按计划重扫并比对过目标。 */
+  hasVerifiedTarget: boolean
 }
 /** 预检时比对目标用的条目属性。 */
 interface TargetEntryKey {
@@ -310,6 +312,7 @@ export class WindowsSyncWriter {
       candidates: new Set(),
       worker: null,
       isRunning: true,
+      hasVerifiedTarget: false,
     }
     this.job = job
     this.usedIds.add(value.planId)
@@ -341,7 +344,11 @@ export class WindowsSyncWriter {
     const root = await this.source.locateNativeDirectory(job.plan.target.rootId)
     job.locations.set(syncPathKey([]), root)
     await access(root.path, constants.W_OK)
-    await this.verifyTarget(job)
+    // 备份前重扫是为了让备份就是确认时的目标；不备份时只在写入前重扫一次。
+    if (job.plan.shouldBackup && selectSyncBackupFiles(job.plan).length > 0) {
+      await this.verifyTarget(job)
+      job.hasVerifiedTarget = true
+    }
     await this.checkSpace(job.plan)
     await this.check(job)
   }
@@ -624,7 +631,9 @@ export class WindowsSyncWriter {
       }
       if (material?.ready) {
         await untilAborted(material.ready(), job.signal)
-        // 等内容期间目标可能被改动，这些改动不在备份里，要按计划再比对一次才能写入。
+      }
+      if (material?.ready || !job.hasVerifiedTarget) {
+        // 等内容期间目标可能被改动，这些改动不在备份里；不备份时这是写入前唯一一次比对。
         await this.verifyTarget(job)
         await this.check(job)
       }

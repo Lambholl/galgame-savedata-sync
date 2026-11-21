@@ -6,7 +6,6 @@ import {
   HistoryOutlined,
   MobileOutlined,
   SafetyOutlined,
-  StopOutlined,
 } from '@ant-design/icons'
 import type { SyncEntry, SyncPlan, SyncPlanEntry } from '../../sync/sync-contracts.ts'
 import { fileKindOf } from '../../sync/snapshot-compare.ts'
@@ -228,8 +227,8 @@ export function SyncPlanSummary({
               : t('plan.backupOn', { count: backupKeepCount })}
           </span>
         ) : (
-          <span className="is-off">
-            <StopOutlined />
+          <span>
+            <SafetyOutlined />
             {t('plan.backupOff')}
           </span>
         )}

@@ -123,9 +123,6 @@
 .ss-metaline .is-on {
   color: var(--ss-ok);
 }
-.ss-metaline .is-off {
-  color: var(--ss-danger);
-}
 
 .ss-banner {
   display: flex;

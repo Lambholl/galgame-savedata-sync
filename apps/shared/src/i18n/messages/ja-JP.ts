@@ -74,16 +74,11 @@ export const jaJP: Messages = {
   'transfer.compareCancelled': '比較をキャンセルしました。',
   'transfer.start': '転送を開始',
   'transfer.startNote': '開始する前にゲームを終了してください',
-  'transfer.noBackupTitle': '今回はバックアップしません',
-  'transfer.noBackupText':
-    '書き込み前のバックアップが無効になっています。今回の転送では転送先の現在のファイルをバックアップしません。このまま転送を開始しますか？',
-  'transfer.noBackupDeleteText': ({ count }) =>
-    `書き込み前のバックアップが無効になっています。転送先の現在のファイルはバックアップされず、削除する ${count} 件も元に戻せません。このまま開始しますか？`,
   'transfer.wipeTitle': '転送元のフォルダーは空です',
   'transfer.wipeBackupText': ({ count }) =>
     `転送先の ${count} 件がすべて削除されます。削除の前にバックアップします。このまま開始しますか？`,
   'transfer.wipeNoBackupText': ({ count }) =>
-    `転送先の ${count} 件がすべて削除されます。書き込み前のバックアップが無効なので、元に戻せません。このまま開始しますか？`,
+    `転送先の ${count} 件がすべて削除されます。このまま開始しますか？`,
   'transfer.planUnavailable': 'この転送計画は使用できません。転送画面に戻って更新してください。',
   'transfer.remoteBusy': ({ name }) => `別の転送が確定しており、${name} での開始を待っています。`,
   'transfer.planStale': 'ゲームまたは保存先が変更されました。戻って更新してから転送してください。',
@@ -112,7 +107,7 @@ export const jaJP: Messages = {
   'plan.stat.keep': '保持',
   'plan.stat.delete': '削除',
   'plan.backupOn': ({ count }) => `書き込み前にバックアップ · ${count} 件保持`,
-  'plan.backupOff': 'バックアップせずに書き込む',
+  'plan.backupOff': '書き込み前のバックアップなし',
   'plan.transferSize': ({ size }) => `転送 ${size}`,
   'plan.group.replace': ({ count }) => `上書き ${count}`,
   'plan.group.replaceHint': '開いて転送元と転送先を比較',
@@ -191,9 +186,9 @@ export const jaJP: Messages = {
   'task.viewBackup': 'バックアップを表示',
   'write.interruptedTitle': '前回の書き込みは中断されました',
   'write.interruptedNoBackup': ({ name }) =>
-    `「${name}」の書き込み中にアプリが閉じられたため、ファイルが不完全な可能性があります。`,
+    `「${name}」の書き込み中にアプリが閉じられたため、ファイルが不完全な可能性があります。もう一度転送してください。`,
   'write.interruptedWithBackup': ({ name }) =>
-    `「${name}」の書き込み中にアプリが閉じられたため、ファイルが不完全な可能性があります。バックアップから復元できます。`,
+    `「${name}」の書き込み中にアプリが閉じられたため、ファイルが不完全な可能性があります。もう一度転送するか、バックアップから復元してください。`,
   'task.rescan': '再スキャン',
   'task.readFailed': '転送の状態を読み取れません',
   'task.history': '過去の転送',

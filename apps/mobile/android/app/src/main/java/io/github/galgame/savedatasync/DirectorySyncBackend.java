@@ -14,7 +14,6 @@ import android.system.Os;
 import android.system.OsConstants;
 import android.system.StructStat;
 import java.io.Closeable;
-import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -196,17 +195,44 @@ final class DirectorySyncBackend implements SyncWriter.Backend {
     return selected;
   }
 
-  /** 在子项里找名称完全相同的条目；没有时返回 null，同名的不止一个时抛出 name-conflict。 */
-  private static DirectoryStore.Snapshot exact(List<DirectoryStore.Snapshot> children, String name)
-    throws ArchiveFailure {
-    DirectoryStore.Snapshot value = null;
-    for (DirectoryStore.Snapshot child : children) {
-      if (child.name.equals(name)) {
-        if (value != null) {
-          throw new ArchiveFailure("name-conflict", "The target contains duplicate names.");
-        }
-        value = child;
-      }
+  /** 返回 expected 引用的条目的文档 ID；条目不是在 directory 下枚举到的时抛出 source-changed。 */
+  private String documentId(
+    DirectoryStore.PublicationDirectory directory,
+    Map<String, Object> expected
+  ) throws Exception {
+    return store.documentId(directory.rootId, directory.parentId, string(expected.get("entryId")));
+  }
+
+  /**
+   * 查询 directory 里一个文档当前的属性。
+   *
+   * @throws ArchiveFailure 文档已不存在或名称不再是 name（source-changed）。
+   */
+  private DirectoryStore.Snapshot observe(
+    DirectoryStore.PublicationDirectory directory,
+    String documentId,
+    String name,
+    ArchiveControl control
+  ) throws Exception {
+    // 只查这一个文档，不列父目录：父目录有几百个文件时，每个文件列一次会让耗时随文件数平方增长。
+    // 写入期间同一目录新出现的等价名称留给下次比较发现。
+    Signal signal = control.track(new Signal());
+    DirectoryStore.Snapshot value;
+    try {
+      value = store.access(directory.tree).query(directory.tree, documentId, signal.value);
+    } catch (java.io.FileNotFoundException missing) {
+      throw new ArchiveFailure(
+        "source-changed",
+        "The target entry no longer exists.",
+        false,
+        missing
+      );
+    } finally {
+      control.untrack(signal);
+    }
+    control.check();
+    if (!value.name.equals(name)) {
+      throw new ArchiveFailure("source-changed", "The target name changed.");
     }
     return value;
   }
@@ -284,19 +310,18 @@ final class DirectorySyncBackend implements SyncWriter.Backend {
     Map<String, Object> expected,
     ArchiveControl control
   ) throws Exception {
-    DirectoryStore.PublicationDirectory directory = locate(rootId, parentId, false, control);
+    DirectoryStore.PublicationDirectory directory = store.registeredDirectory(rootId, parentId);
     List<String> path = BackupModel.path(expected.get("path"));
     String name = path.get(path.size() - 1);
     final boolean isDirectory = expected.get("kind").equals("directory");
-    List<DirectoryStore.Snapshot> siblings = children(directory, control);
-    DirectoryStore.Snapshot value = exact(siblings, name);
-    if (value == null) {
-      throw new ArchiveFailure("source-changed", "The entry to be deleted no longer exists.");
-    }
-    named(siblings, name, value.documentId);
+    DirectoryStore.Snapshot value = observe(
+      directory,
+      documentId(directory, expected),
+      name,
+      control
+    );
     // 文件夹里的子项刚被删过，它的修改时间已经变了，只核对身份和类型。
     if (
-      !store.publicationEntry(directory, value).entryId.equals(expected.get("entryId")) ||
       value.isDirectory != isDirectory ||
       value.isVirtual ||
       (!isDirectory &&
@@ -354,18 +379,18 @@ final class DirectorySyncBackend implements SyncWriter.Backend {
     }
   }
 
-  /** 用独立的控制回读条目是否还在，晚到的取消不影响结果；读不到时返回 null。 */
+  /** 用独立的取消信号回读名为 name 的文档是否还在，晚到的取消不影响结果；读不到时返回 null。 */
   private Boolean stillExists(
     DirectoryStore.PublicationDirectory directory,
     String name,
     String documentId
   ) {
     try {
-      for (DirectoryStore.Snapshot child : children(directory, new ArchiveControl())) {
-        if (child.name.equals(name) && child.documentId.equals(documentId)) {
-          return true;
-        }
-      }
+      return store
+        .access(directory.tree)
+        .query(directory.tree, documentId, new CancellationSignal())
+        .name.equals(name);
+    } catch (java.io.FileNotFoundException gone) {
       return false;
     } catch (Exception unreadable) {
       return null;
@@ -406,92 +431,88 @@ final class DirectorySyncBackend implements SyncWriter.Backend {
     ArchiveControl control,
     boolean requireWrite
   ) throws Exception {
-    DirectoryStore.PublicationDirectory directory = locate(rootId, parentId, false, control);
+    // 用扫描时登记的父目录引用，不向提供者重新查询父目录；按路径的文档 ID 在父目录被改名或移走后打开会失败。
+    DirectoryStore.PublicationDirectory directory = store.registeredDirectory(rootId, parentId);
     List<String> path = BackupModel.path(expected.get("path"));
     String name = path.get(path.size() - 1);
-    List<DirectoryStore.Snapshot> siblings = children(directory, control);
-    DirectoryStore.Snapshot value = exact(siblings, name);
-    if (value == null) {
-      throw new ArchiveFailure("source-changed", "The file to be overwritten no longer exists.");
-    }
-    named(siblings, name, value.documentId);
-    if (
-      !store.publicationEntry(directory, value).entryId.equals(expected.get("entryId")) ||
-      value.isDirectory ||
-      value.isVirtual ||
-      (requireWrite && (value.flags & Document.FLAG_SUPPORTS_WRITE) == 0) ||
-      !Objects.equals(
-        value.modified,
-        nullable(expected.get("modifiedAt"), -BackupModel.MAX_DATE, BackupModel.MAX_DATE)
-      ) ||
-      (value.size != null &&
-        value.size.longValue() != number(expected.get("sizeBytes"), 0, 9007199254740991L))
-    ) {
+    String id = documentId(directory, expected);
+    Existing result;
+    try {
+      result = new Existing(directory, id, requireWrite ? "rw" : "r", control);
+    } catch (java.io.FileNotFoundException missing) {
       throw new ArchiveFailure(
         "source-changed",
-        "The target identity, type, write permission, or attributes changed."
+        "The target entry no longer exists.",
+        false,
+        missing
       );
     }
-    return new Existing(directory, value, control);
+    try {
+      DirectoryStore.Snapshot value = result.access.describe(id, result.baseline);
+      if (value == null) {
+        // 经 SAF 打开时 fstat 给不出提供者报告的名称和修改时间，要另外查询这个文档。
+        value = observe(directory, id, name, control);
+      }
+      if (
+        !value.name.equals(name) ||
+        value.isDirectory ||
+        value.isVirtual ||
+        (requireWrite && (value.flags & Document.FLAG_SUPPORTS_WRITE) == 0) ||
+        !Objects.equals(
+          value.modified,
+          nullable(expected.get("modifiedAt"), -BackupModel.MAX_DATE, BackupModel.MAX_DATE)
+        ) ||
+        (value.size != null &&
+          value.size.longValue() != number(expected.get("sizeBytes"), 0, 9007199254740991L))
+      ) {
+        throw new ArchiveFailure(
+          "source-changed",
+          "The target identity, type, write permission, or attributes changed."
+        );
+      }
+      return result;
+    } catch (Exception cause) {
+      result.close();
+      throw cause;
+    }
   }
 
   private final class Existing implements SyncWriter.Replacement {
 
     final DirectoryStore.PublicationDirectory directory;
     final String id;
-    final String name;
     final DocumentAccess access;
-    final DirectoryStore.Snapshot original;
     final ParcelFileDescriptor identity;
     final StructStat baseline;
     ParcelFileDescriptor writable;
-    boolean isWriting;
 
+    /**
+     * 以 mode 打开文档 id 作为身份句柄；只有以 rw 打开时才能调用 {@link #output}。
+     *
+     * @throws ArchiveFailure 打开的不是独立的常规文件（unsupported-operation）。
+     */
     Existing(
       DirectoryStore.PublicationDirectory directory,
-      DirectoryStore.Snapshot value,
+      String id,
+      String mode,
       ArchiveControl control
     ) throws Exception {
       this.directory = directory;
-      id = value.documentId;
-      name = value.name;
-      original = value;
+      this.id = id;
       access = store.access(directory.tree);
-      identity = descriptor("r", control, null);
-      try {
-        baseline = Os.fstat(identity.getFileDescriptor());
-      } catch (Exception cause) {
-        identity.close();
-        throw cause;
-      }
-    }
-
-    private ParcelFileDescriptor descriptor(
-      String mode,
-      ArchiveControl control,
-      StructStat expected
-    ) throws Exception {
       Signal signal = control.track(new Signal());
       ParcelFileDescriptor fd = null;
       try {
         fd = access.open(directory.tree, id, mode, signal.value);
-        StructStat value = Os.fstat(fd.getFileDescriptor());
-        if (!OsConstants.S_ISREG(value.st_mode) || value.st_nlink != 1) {
+        baseline = Os.fstat(fd.getFileDescriptor());
+        if (!OsConstants.S_ISREG(baseline.st_mode) || baseline.st_nlink != 1) {
           throw new ArchiveFailure(
             "unsupported-operation",
             "The provider did not return an independent regular file."
           );
         }
-        if (
-          expected != null && (value.st_dev != expected.st_dev || value.st_ino != expected.st_ino)
-        ) {
-          throw new ArchiveFailure(
-            "source-changed",
-            "The target file descriptor identity changed."
-          );
-        }
         control.check();
-        return fd;
+        identity = fd;
       } catch (Exception cause) {
         if (fd != null) {
           fd.close();
@@ -503,63 +524,21 @@ final class DirectorySyncBackend implements SyncWriter.Backend {
     }
 
     @Override
-    public void verify(ArchiveControl control) throws Exception {
-      DirectoryStore.Snapshot current = named(children(directory, control), name, id);
-      if (
-        current.isDirectory ||
-        current.isVirtual ||
-        (current.flags & Document.FLAG_SUPPORTS_WRITE) == 0
-      ) {
-        throw new ArchiveFailure(
-          "unsupported-operation",
-          "The target type or write capability changed."
-        );
-      }
-      try (ParcelFileDescriptor fd = descriptor("r", control, baseline)) {
-        StructStat stat = Os.fstat(fd.getFileDescriptor());
-        if (
-          !isWriting &&
-          (stat.st_size != baseline.st_size ||
-            stat.st_mtime != baseline.st_mtime ||
-            stat.st_ctime != baseline.st_ctime ||
-            !Objects.equals(current.size, original.size) ||
-            !Objects.equals(current.modified, original.modified))
-        ) {
-          throw new ArchiveFailure("source-changed", "The target content attributes changed.");
-        }
-      }
-    }
-
-    @Override
-    public InputStream read(ArchiveControl control) throws Exception {
-      verify(control);
-      return new ParcelFileDescriptor.AutoCloseInputStream(descriptor("r", control, baseline));
-    }
-
-    @Override
     public OutputStream output(ArchiveControl control) throws Exception {
-      verify(control);
-      ParcelFileDescriptor fd = descriptor("rw", control, baseline);
-      try {
-        StructStat stat = Os.fstat(fd.getFileDescriptor());
-        if (
-          stat.st_size != baseline.st_size ||
-          stat.st_mtime != baseline.st_mtime ||
-          stat.st_ctime != baseline.st_ctime
-        ) {
-          throw new ArchiveFailure(
-            "source-changed",
-            "The target changed while opening in rw mode."
-          );
-        }
-        Os.lseek(fd.getFileDescriptor(), 0, OsConstants.SEEK_SET);
-        writable = fd;
-        isWriting = true;
-        return new ParcelFileDescriptor.AutoCloseOutputStream(fd);
-      } catch (Exception cause) {
-        fd.close();
-        throw cause;
+      // 直接写 replacement 时以 rw 打开的 identity，不再查询提供者或重新打开：经 SAF 每次要 10～20 毫秒。
+      // 这段时间里同一路径的文件被换掉时，内容写进旧文件，靠 fstat 只能发现旧文件本身被改过。
+      control.check();
+      StructStat stat = Os.fstat(identity.getFileDescriptor());
+      if (
+        stat.st_size != baseline.st_size ||
+        stat.st_mtime != baseline.st_mtime ||
+        stat.st_ctime != baseline.st_ctime
+      ) {
+        throw new ArchiveFailure("source-changed", "The target changed before writing.");
       }
+      Os.lseek(identity.getFileDescriptor(), 0, OsConstants.SEEK_SET);
+      writable = identity;
+      return new ParcelFileDescriptor.AutoCloseOutputStream(identity);
     }
 
     @Override

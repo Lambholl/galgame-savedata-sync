@@ -1,12 +1,12 @@
 import type { ReactElement } from 'react'
-import { RightOutlined, SafetyOutlined, StopOutlined } from '@ant-design/icons'
+import { RightOutlined, SafetyOutlined } from '@ant-design/icons'
 import { PathText } from '../path-text/PathText.tsx'
 import { useT } from '../i18n/i18n-context.ts'
 import './backup.css'
 
 /** BackupPolicyBlock 的参数。 */
 export interface BackupPolicyBlockProps {
-  /** 写入前备份是否开启；关闭时整块变红。 */
+  /** 写入前备份是否开启；关闭时盾牌图标为灰色。 */
   readonly isEnabled: boolean
   /** 开启时保留的份数。 */
   readonly keepCount: number
@@ -37,7 +37,9 @@ export function BackupPolicyBlock({
       disabled={!onEdit}
       onClick={onEdit ?? undefined}
     >
-      <span className="ss-policy-icon">{isEnabled ? <SafetyOutlined /> : <StopOutlined />}</span>
+      <span className="ss-policy-icon">
+        <SafetyOutlined />
+      </span>
       <span className="ss-policy-body">
         <b>{isEnabled ? t('backup.on') : t('backup.off')}</b>
         <small>

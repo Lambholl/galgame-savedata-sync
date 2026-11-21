@@ -3,6 +3,7 @@ package io.github.galgame.savedatasync;
 import android.net.Uri;
 import android.os.CancellationSignal;
 import android.os.ParcelFileDescriptor;
+import android.system.StructStat;
 import java.io.InputStream;
 import java.util.List;
 
@@ -42,6 +43,17 @@ interface DocumentAccess {
    */
   ParcelFileDescriptor open(Uri tree, String documentId, String mode, CancellationSignal signal)
     throws Exception;
+
+  /**
+   * 由按 documentId 打开的文件描述符的 fstat 结果给出文档属性，名称、类型、大小和修改时间与 {@link #query} 返回的相同。
+   *
+   * <p>能力标志按可写给出，能否写入以打开模式为准。
+   *
+   * @return 实现由 fstat 给不出这些属性时返回 null，调用者改用 {@link #query}。
+   */
+  default DirectoryStore.Snapshot describe(String documentId, StructStat stat) {
+    return null;
+  }
 
   /**
    * 在目录下新建一个空文件或空文件夹，返回新文档的 ID。

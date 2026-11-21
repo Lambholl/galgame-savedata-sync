@@ -233,13 +233,13 @@ final class BackupModel {
   /** 备份设置的格式版本，与 shared 的 SyncBackupSettings.schemaVersion 保持一致。 */
   static final int SETTINGS_VERSION = 3;
 
-  /** 没有设置文件时的设置：全局开启、保留 3 份，没有单独设置的游戏。 */
+  /** 没有设置文件时的设置：全局关闭、打开后保留 KEEP_DEFAULT 份，没有单独设置的游戏。 */
   static Map<String, Object> emptySettings() {
     return object(
       "schemaVersion",
       SETTINGS_VERSION,
       "defaults",
-      policy(true, KEEP_DEFAULT),
+      policy(false, KEEP_DEFAULT),
       "projects",
       new ArrayList<>()
     );

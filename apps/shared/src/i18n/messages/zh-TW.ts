@@ -70,15 +70,10 @@ export const zhTW: Messages = {
   'transfer.compareCancelled': '已取消比較。',
   'transfer.start': '開始傳輸',
   'transfer.startNote': '開始前請先關閉正在執行的遊戲',
-  'transfer.noBackupTitle': '本次不備份',
-  'transfer.noBackupText': '已關閉寫入前備份，本次不會保留目標目錄目前的檔案。仍要開始傳輸嗎？',
-  'transfer.noBackupDeleteText': ({ count }) =>
-    `已關閉寫入前備份，本次不會保留目標目錄目前的檔案，刪除的 ${count} 項也無法復原。仍要開始嗎？`,
   'transfer.wipeTitle': '來源目錄是空的',
   'transfer.wipeBackupText': ({ count }) =>
     `目標的全部 ${count} 項都會被刪除，刪除前會先備份。仍要開始嗎？`,
-  'transfer.wipeNoBackupText': ({ count }) =>
-    `目標的全部 ${count} 項都會被刪除，而且已關閉寫入前備份，刪除後無法復原。仍要開始嗎？`,
+  'transfer.wipeNoBackupText': ({ count }) => `目標的全部 ${count} 項都會被刪除。仍要開始嗎？`,
   'transfer.planUnavailable': '本次計畫無法使用，請回到傳輸存檔頁重新整理。',
   'transfer.planStale': '遊戲或目錄已變更，請返回重新整理後再傳輸。',
   'transfer.dateNotice': ({ count }) =>
@@ -106,7 +101,7 @@ export const zhTW: Messages = {
   'plan.stat.keep': '保留',
   'plan.stat.delete': '刪除',
   'plan.backupOn': ({ count }) => `寫入前備份 · 保留 ${count} 份`,
-  'plan.backupOff': '不備份，直接寫入',
+  'plan.backupOff': '寫入前不備份',
   'plan.transferSize': ({ size }) => `傳輸 ${size}`,
   'plan.group.replace': ({ count }) => `覆寫 ${count}`,
   'plan.group.replaceHint': '點開比較兩端',
@@ -183,9 +178,10 @@ export const zhTW: Messages = {
   'task.cancel': '取消傳輸',
   'task.viewBackup': '查看備份',
   'write.interruptedTitle': '上次寫入被中斷',
-  'write.interruptedNoBackup': ({ name }) => `「${name}」寫入時應用程式被關閉，檔案可能不完整。`,
+  'write.interruptedNoBackup': ({ name }) =>
+    `「${name}」寫入時應用程式被關閉，檔案可能不完整，請重新傳輸。`,
   'write.interruptedWithBackup': ({ name }) =>
-    `「${name}」寫入時應用程式被關閉，檔案可能不完整。可以從備份還原。`,
+    `「${name}」寫入時應用程式被關閉，檔案可能不完整，請重新傳輸或從備份還原。`,
   'task.rescan': '重新掃描',
   'task.readFailed': '讀取傳輸狀態失敗',
   'task.history': '歷史傳輸',

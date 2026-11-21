@@ -334,6 +334,52 @@ final class DirectoryStore {
     return entry;
   }
 
+  /**
+   * 返回已枚举条目的文档 ID。
+   *
+   * @param parentId 条目所在目录的 entryId，根目录为 null。
+   * @throws DirectoryFailure 条目引用不存在或已过期（not-found），或条目不是在 parentId 下枚举到的（source-changed）。
+   */
+  synchronized String documentId(String rootId, String parentId, String entryId)
+    throws DirectoryFailure {
+    Entry entry = requireEntry(rootId, entryId);
+    if (!java.util.Objects.equals(entry.parentId, parentId)) {
+      throw new DirectoryFailure(
+        "source-changed",
+        "The entry is not in the expected parent directory."
+      );
+    }
+    return entry.documentId;
+  }
+
+  /**
+   * 由枚举时登记的引用给出发布目录。返回的目录可能已被移走或失去授权，之后的读写会因此失败。
+   *
+   * @param parentId 目录的 entryId，根目录为 null。
+   * @throws DirectoryFailure 根或 parentId 的引用不存在或已过期（not-found）。
+   */
+  synchronized PublicationDirectory registeredDirectory(String rootId, String parentId)
+    throws DirectoryFailure {
+    Root root = findRoot(rootId);
+    if (parentId == null) {
+      return new PublicationDirectory(
+        rootId,
+        null,
+        DocumentsContract.getTreeDocumentId(root.uri),
+        root.name,
+        root.uri
+      );
+    }
+    Entry parent = requireEntry(rootId, parentId);
+    return new PublicationDirectory(
+      rootId,
+      parentId,
+      parent.documentId,
+      parent.snapshot.name,
+      root.uri
+    );
+  }
+
   /** 发布目录的位置，含提供者 URI，只在原生层使用。 */
   static final class PublicationDirectory implements NewFilePublisher.Directory {
 

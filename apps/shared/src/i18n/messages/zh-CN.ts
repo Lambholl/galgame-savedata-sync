@@ -73,15 +73,11 @@ export const zhCN = {
   'transfer.compareCancelled': '比较已取消。',
   'transfer.start': '开始传输',
   'transfer.startNote': '开始前请先退出正在运行的游戏',
-  'transfer.noBackupTitle': '本次不备份',
-  'transfer.noBackupText': '已关闭写入前备份，本次不会保留目标目录的当前文件。仍要开始传输吗？',
-  'transfer.noBackupDeleteText': ({ count }: { count: number }): string =>
-    `已关闭写入前备份，本次不会保留目标目录的当前文件，删除的 ${count} 项也无法恢复。仍要开始？`,
   'transfer.wipeTitle': '来源目录是空的',
   'transfer.wipeBackupText': ({ count }: { count: number }): string =>
     `目标的全部 ${count} 项都会被删除，删除前会先备份。仍要开始？`,
   'transfer.wipeNoBackupText': ({ count }: { count: number }): string =>
-    `目标的全部 ${count} 项都会被删除，而且已关闭写入前备份，删除后无法恢复。仍要开始？`,
+    `目标的全部 ${count} 项都会被删除。仍要开始？`,
   'transfer.planUnavailable': '本次计划不可用，请返回传输存档页刷新。',
   'transfer.planStale': '游戏或目录已变化，请返回刷新后再传输。',
   'transfer.dateNotice': ({ count }: { count: number }): string =>
@@ -111,7 +107,7 @@ export const zhCN = {
   'plan.stat.keep': '保留',
   'plan.stat.delete': '删除',
   'plan.backupOn': ({ count }: { count: number }): string => `写入前备份 · 保留 ${count} 份`,
-  'plan.backupOff': '不备份，直接写入',
+  'plan.backupOff': '写入前不备份',
   'plan.transferSize': ({ size }: { size: string }): string => `传输 ${size}`,
   'plan.group.replace': ({ count }: { count: number }): string => `覆盖 ${count}`,
   'plan.group.replaceHint': '点开对比两端',
@@ -201,9 +197,9 @@ export const zhCN = {
   'task.viewBackup': '查看备份',
   'write.interruptedTitle': '上次写入被中断',
   'write.interruptedNoBackup': ({ name }: { name: string }): string =>
-    `“${name}”写入时应用被关闭，文件可能不完整。`,
+    `“${name}”写入时应用被关闭，文件可能不完整，请重新传输。`,
   'write.interruptedWithBackup': ({ name }: { name: string }): string =>
-    `“${name}”写入时应用被关闭，文件可能不完整。可以从备份恢复。`,
+    `“${name}”写入时应用被关闭，文件可能不完整，请重新传输或从备份恢复。`,
   'task.rescan': '重新扫描',
   'task.readFailed': '读取传输状态失败',
   'task.history': '历史传输',

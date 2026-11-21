@@ -52,13 +52,9 @@ final class SyncWriter implements AutoCloseable {
   }
 
   interface Replacement extends Closeable {
-    InputStream read(ArchiveControl control) throws Exception;
-
     OutputStream output(ArchiveControl control) throws Exception;
 
     void finish(long size, ArchiveControl control) throws Exception;
-
-    void verify(ArchiveControl control) throws Exception;
 
     /** 写入结束、输出流关闭后，把文件的修改日期设为 modifiedAt（Unix 毫秒）。文件所在位置无法设置时保留原日期。 */
     default void setModified(long modifiedAt, ArchiveControl control) throws Exception {}
@@ -161,6 +157,8 @@ final class SyncWriter implements AutoCloseable {
     final Map<String, String> directories = new LinkedHashMap<>();
     volatile boolean hasTimedOut;
     boolean isRunning = true;
+    boolean isAuthorized;
+    boolean hasVerifiedTarget;
     Object cleanupError;
 
     Job(SyncPlanModel.Plan plan, ArchiveControl control, Execution execution) {
@@ -222,6 +220,17 @@ final class SyncWriter implements AutoCloseable {
   }
 
   private void check(Job job) throws Exception {
+    checkRunning(job);
+    // 授权每个任务只核对一次：核对要向系统和提供者查询，逐个文件核对约占写入时间的三成。
+    // 任务进行中授权被收回时，之后的读写会因为没有权限而失败。
+    if (!job.isAuthorized) {
+      backend.authorize(job.plan, job.control);
+      job.isAuthorized = true;
+      job.control.check();
+    }
+  }
+
+  private static void checkRunning(Job job) throws Exception {
     if (job.hasTimedOut) {
       throw new ArchiveFailure("timeout", "The current write operation timed out.");
     }
@@ -229,8 +238,6 @@ final class SyncWriter implements AutoCloseable {
     if (!TargetOperation.owns(job.token)) {
       throw new ArchiveFailure("task-conflict", "This write operation slot was released.");
     }
-    backend.authorize(job.plan, job.control);
-    job.control.check();
   }
 
   private static Map<String, Object> error(String code, String message) {
@@ -295,7 +302,11 @@ final class SyncWriter implements AutoCloseable {
 
   private void preflight(Job job) throws Exception {
     check(job);
-    verifyTarget(job);
+    // 备份前重扫是为了让备份就是确认时的目标；不备份时只在写入前重扫一次。
+    if (job.plan.shouldBackup && !job.plan.backupFiles.isEmpty()) {
+      verifyTarget(job);
+      job.hasVerifiedTarget = true;
+    }
     for (Map<String, Object> entry : job.plan.target.paths.values()) {
       if (entry.get("kind").equals("directory")) {
         job.directories.put(SyncPlanModel.key(entry.get("path")), string(entry.get("entryId")));
@@ -530,7 +541,7 @@ final class SyncWriter implements AutoCloseable {
     );
     boolean hasWritten = false;
     try {
-      check(job);
+      checkRunning(job);
       InputStream input = track(job, source.open(job.control));
       OutputStream output = null;
       try {
@@ -539,7 +550,7 @@ final class SyncWriter implements AutoCloseable {
         long size = 0;
         long expected = number(entry.get("sizeBytes"), 0, BackupModel.MAX_FILE);
         for (int count; (count = input.read(buffer)) != -1; ) {
-          check(job);
+          checkRunning(job);
           if (count == 0) {
             continue;
           }
@@ -553,7 +564,7 @@ final class SyncWriter implements AutoCloseable {
           hasWritten = true;
           output.write(buffer, 0, count);
         }
-        check(job);
+        checkRunning(job);
         if (size != expected) {
           throw new ArchiveFailure(
             "checksum-mismatch",
@@ -712,8 +723,9 @@ final class SyncWriter implements AutoCloseable {
             "for the file size increase in this operation."
         );
       }
-      if (material != null && material.ready(control)) {
-        // 等内容期间目标可能被改动，这些改动不在备份里，要按计划再比对一次才能写入。
+      boolean hasWaited = material != null && material.ready(control);
+      if (hasWaited || !job.hasVerifiedTarget) {
+        // 等内容期间目标可能被改动，这些改动不在备份里；不备份时这是写入前唯一一次比对。
         verifyTarget(job);
         check(job);
       }

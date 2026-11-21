@@ -15,9 +15,9 @@ export const DEFAULT_BACKUP_KEEP_COUNT = 3
 /** 最多可以单独设置备份策略的游戏数。 */
 export const BACKUP_PREFERENCE_LIMIT = 128
 
-/** 没有设置文件时的全局设置：开启，保留 3 份。 */
+/** 没有设置文件时的全局设置：关闭，打开后保留 DEFAULT_BACKUP_KEEP_COUNT 份。 */
 export const DEFAULT_BACKUP_POLICY: SyncBackupPolicy = Object.freeze({
-  shouldBackup: true,
+  shouldBackup: false,
   keepCount: DEFAULT_BACKUP_KEEP_COUNT,
 })
 

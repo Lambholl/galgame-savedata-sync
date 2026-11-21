@@ -1,4 +1,4 @@
-/* 备份策略状态块：开启为绿色盾牌，关闭整块变红。 */
+/* 备份策略状态块：开启为绿色盾牌，关闭为灰色盾牌。 */
 .ss-policy {
   display: flex;
   align-items: center;
@@ -46,15 +46,9 @@
   color: var(--ss-faint);
   font-size: 12px;
 }
-.ss-policy.is-off {
-  background: var(--ss-danger-soft);
-}
 .ss-policy.is-off .ss-policy-icon {
-  background: var(--ss-danger);
-  color: var(--ss-accent-fg);
-}
-.ss-policy.is-off b {
-  color: var(--ss-danger);
+  background: var(--ss-raised);
+  color: var(--ss-muted);
 }
 
 /* 时间线左侧的日期与时间 */

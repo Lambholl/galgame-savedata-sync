@@ -119,18 +119,27 @@ final class FileDocumentAccess implements DocumentAccess {
     } catch (ErrnoException cause) {
       throw mapped(cause, "Cannot read file attributes");
     }
-    boolean isDirectory = OsConstants.S_ISDIR(stat.st_mode);
     boolean canWrite;
     try {
       canWrite = Os.access(file.getPath(), OsConstants.W_OK);
     } catch (ErrnoException denied) {
       canWrite = false;
     }
+    return snapshot(documentId, file.getName(), stat, canWrite);
+  }
+
+  private static DirectoryStore.Snapshot snapshot(
+    String documentId,
+    String name,
+    StructStat stat,
+    boolean canWrite
+  ) {
+    boolean isDirectory = OsConstants.S_ISDIR(stat.st_mode);
     // 系统存储提供者经 SAF 报告 File.lastModified()，只精确到秒；这里同样截到秒，两种实现的修改时间才相同。
     long modified = stat.st_mtime * 1000;
     return new DirectoryStore.Snapshot(
       documentId,
-      DocumentValues.text(file.getName()),
+      DocumentValues.text(name),
       isDirectory,
       true,
       false,
@@ -138,6 +147,13 @@ final class FileDocumentAccess implements DocumentAccess {
       DocumentValues.modified(modified),
       canWrite ? (isDirectory ? DIRECTORY_FLAGS : FILE_FLAGS) : 0
     );
+  }
+
+  @Override
+  public DirectoryStore.Snapshot describe(String documentId, StructStat stat) {
+    // 文档 ID 是“卷 ID:相对路径”，名称是最后一段；ID 已经过 file() 检查，不含 . 和 .. 段。
+    int start = Math.max(documentId.lastIndexOf('/'), documentId.indexOf(':')) + 1;
+    return snapshot(documentId, documentId.substring(start), stat, true);
   }
 
   @Override
