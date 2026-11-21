@@ -238,8 +238,9 @@ export class DesktopLibrary {
     action: 'disconnect' | 'rename' | 'forget',
     name?: string,
   ): Promise<void> {
-    if (action !== 'rename' && this.dialer?.deviceId() === id) {
-      await this.dialer.disconnect(id)
+    const isDialed = this.dialer?.deviceId() === id
+    if (action !== 'rename' && isDialed) {
+      await this.dialer?.disconnect(id)
     }
     if (action !== 'disconnect') {
       await this.update((current) => ({
@@ -261,7 +262,11 @@ export class DesktopLibrary {
     }
     // 设备名只存在本机，对方保留自己的命名，改名不通知对方。
     if (action !== 'rename') {
-      this.disconnected.add(id)
+      // disconnected 只拦它作为拨号方连本机。本机拨号连着它时不加：本机重新拨号连上后不会清这个集合，
+      // verifyProjectPeer 又在两种角色下都检查它，加了会让之后每次比较都报 session-mismatch。
+      if (!isDialed) {
+        this.disconnected.add(id)
+      }
       this.runtime.delete(id)
       this.control?.disconnect(id)
     }
