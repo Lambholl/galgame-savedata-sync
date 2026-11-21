@@ -18,7 +18,6 @@ tags: [模块状态, 开发进度]
 
 | 模块 | 状态 | 负责人 | 相关文件 | 边界与风险 | 下一步 |
 | --- | --- | --- | --- | --- | --- |
-| Android 本机服务（监听方） | done | 开发 | Android `Listener*.java`、`LocalServicePlugin.java`、`SyncTransferRuntime.java`；移动 `platform/local-service*.ts`、`library-adapter.ts`、`sync-transfer-bridge.ts`、`features/devices/DevicesPage.tsx`、`features/transfer/` | 连接、目录表交换、目录浏览、广播、设备页和复制任务（`/v1/sync/*`、本机发起经控制通道交给拨号方、对方发起时打开详情）已实现，自动检查通过；传输只有临时 JVM 测试，没有长期测试。发现、手动连接和传输已在真机上验证，扫码和熄屏、Doze 下的监听还没验证 | 补真机验证，见[回归状态](../testing/regression-notes.md) |
 
 ## 2. 状态说明
 

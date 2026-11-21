@@ -1,7 +1,7 @@
 ---
 doc_type: project-charter
 status: active
-updated: 2026-11-19
+updated: 2026-11-22
 tags: [项目目标, 成功标准]
 ---
 
@@ -18,7 +18,7 @@ tags: [项目目标, 成功标准]
 
 - 项目目标：在 Windows 电脑与 Android 设备之间，通过局域网手动选择方向同步文件夹，减少游玩 galgame 时手工复制存档的操作。
 - 目标用户：在电脑与 Android 设备之间切换、需要管理多个游戏或文件夹的使用者。
-- 当前阶段：M-004（完整首版）已完成：修复了已知问题，补上备份阶段进度，统一了传输和备份文案，用真实存档完整回归通过，结果见[回归状态](../testing/regression-notes.md)。下一里程碑见[路线图](roadmap.md)。真实存档覆盖在支持范围内开放，范围见[验收标准](../testing/acceptance.md)第 1 节；最低支持 Android 11，见[项目约束](../requirements/constraints.md)。实现见[实现细节](../development/implementation-notes.md)，1 GiB 传输基线见[验收标准](../testing/acceptance.md)第 2 节。
+- 当前阶段：任意两台设备传输已完成，电脑和 Android 都能作监听方或拨号方，验收结论见[验收标准](../testing/acceptance.md)第 3 节。下一里程碑待维护者决定，见[路线图](roadmap.md)。真实存档覆盖在支持范围内开放，范围见[验收标准](../testing/acceptance.md)第 1 节；最低支持 Android 11，见[项目约束](../requirements/constraints.md)。实现见[实现细节](../development/implementation-notes.md)，1 GiB 传输基线见[验收标准](../testing/acceptance.md)第 2 节。
 - 成功标准：见[验收标准](../testing/acceptance.md)。
 - 当前约束：默认不新增或扩写自动化测试。开发验证写入限明确选定的独立合成目标，真实存档不用于故障注入。
 
@@ -46,4 +46,4 @@ tags: [项目目标, 成功标准]
 | 游戏引擎识别或存档格式转换 | 工具仅处理文件夹与文件，不解析存档语义 |
 | 从历史推断方向或新旧 | 产品决定手选方向、只依赖当前状态 |
 | TLS 和数据加密 | 当前产品假设运行于局域网，选用明文 HTTP |
-| Android 后台自动同步与定时保活 | 已发起的活动传输和用户开着的本机服务（M-005）通过带通知的前台服务保持；没有自动调度、开机启动或旧任务重放 |
+| Android 后台自动同步与定时保活 | 已发起的活动传输和用户开着的本机服务通过带通知的前台服务保持；没有自动调度、开机启动或旧任务重放 |
