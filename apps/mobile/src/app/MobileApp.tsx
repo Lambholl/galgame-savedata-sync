@@ -557,9 +557,12 @@ export function MobileApp({
       }
       if (result.status === 'selected') {
         setNewDirectory(result.directory)
-        setNewGameName(
-          (result.directory.parentName ?? result.directory.displayName).trim().slice(0, 128),
-        )
+        // 导入时名称已预填为另一端的游戏名，选目录时保留它，两端名称才对得上。
+        if (!importedGame) {
+          setNewGameName(
+            (result.directory.parentName ?? result.directory.displayName).trim().slice(0, 128),
+          )
+        }
       }
     })
   }
@@ -852,7 +855,7 @@ export function MobileApp({
     }
     setImportedGame({ deviceId: choice.peer.device.id, game: choice.item })
     setNewDirectory(null)
-    setNewGameName('')
+    setNewGameName(choice.item.name)
     showError(null)
     setIsImportOpen(false)
     setIsAddGameOpen(true)
