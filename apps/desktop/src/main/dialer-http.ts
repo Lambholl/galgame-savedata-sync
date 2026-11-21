@@ -26,7 +26,7 @@ export interface DialerRequestOptions {
 
 /** 一次 JSON 请求的选项。 */
 export interface DialerJsonOptions extends DialerRequestOptions {
-  /** 为 true 时带 x-sync-connect: 1，表示新建连接。 */
+  /** 为 true 时带 HTTP_HEADERS.connect: 1，表示新建连接。 */
   readonly isNewConnection?: boolean
   readonly body?: unknown
   /** 期望的成功状态码，默认 200。 */
@@ -134,7 +134,7 @@ export class DialerHttpClient {
       options.body === undefined ? null : Buffer.from(JSON.stringify(options.body), 'utf8')
     const headers = this.headers(options)
     if (options.isNewConnection) {
-      headers['x-sync-connect'] = '1'
+      headers[HTTP_HEADERS.connect] = '1'
     }
     if (body) {
       headers['content-type'] = 'application/json; charset=utf-8'
@@ -185,7 +185,7 @@ export class DialerHttpClient {
   /**
    * 以 chunked 方式 PUT 一份 tar.gz 内容，返回 202 应答的 value。write 把内容写进请求并结束它。
    * 对方在内容收完前就答复时（通常是错误），停止写入并按对方的答复结束。
-   * 60 秒没有收发任何数据时按超时结束。
+   * 超过 BATCH_TIMEOUTS_MS.networkIdle 没有收发任何数据时按超时结束。
    *
    * @throws HttpOperationError 连不上、超时、取消或对方答复错误时抛出；write 先失败时抛出它的错误。
    */
@@ -244,7 +244,8 @@ export class DialerHttpClient {
 
   /**
    * GET 一份 tar.gz 内容，返回应答流；调用方读完或 destroy 它。对方答复错误时读出错误抛出。
-   * 收到应答头之前 8 秒、之后 60 秒没有数据时按超时结束；signal 中断时销毁连接。
+   * 收到应答头之前超过 JSON_TIMEOUT_MS、之后超过 BATCH_TIMEOUTS_MS.networkIdle 没有数据时按超时结束；
+   * signal 中断时销毁连接。
    *
    * @throws HttpOperationError 连不上、超时、取消、内容类型不对或对方答复错误时抛出。
    */

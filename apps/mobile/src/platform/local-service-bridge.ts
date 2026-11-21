@@ -6,6 +6,7 @@ import {
   isOpaqueId,
   isOperationError,
   isOperationResult,
+  LIBRARY_LIMITS,
 } from '@savedata-sync/shared'
 import type {
   CatalogGame,
@@ -107,6 +108,8 @@ const UNSUPPORTED: OperationError = {
   message: 'The local service is available in the Android app.',
   canRetry: false,
 }
+/** 状态里本机 IPv4 地址的最多个数，与原生 ListenerRuntime.MAX_ADDRESSES 相同。 */
+const MAX_SERVICE_ADDRESSES = 8
 const DISCOVERY: readonly unknown[] = ['off', 'starting', 'advertising', 'failed']
 
 function record(value: unknown): value is Record<string, unknown> {
@@ -128,7 +131,7 @@ export function isLocalServiceStatus(value: unknown): value is LocalServiceStatu
         isListeningPort(listener.port) &&
         Number.isSafeInteger(listener.startedAt))) &&
     Array.isArray(value.ipv4Addresses) &&
-    value.ipv4Addresses.length <= 8 &&
+    value.ipv4Addresses.length <= MAX_SERVICE_ADDRESSES &&
     value.ipv4Addresses.every(isIpv4Address) &&
     DISCOVERY.includes(value.discovery) &&
     (value.error === null || isOperationError(value.error)) &&
@@ -139,7 +142,7 @@ export function isLocalServiceStatus(value: unknown): value is LocalServiceStatu
 function isPeers(value: unknown): value is readonly ListenerPeer[] {
   return (
     Array.isArray(value) &&
-    value.length <= 32 &&
+    value.length <= LIBRARY_LIMITS.maxDevices &&
     value.every(
       (item) =>
         record(item) &&

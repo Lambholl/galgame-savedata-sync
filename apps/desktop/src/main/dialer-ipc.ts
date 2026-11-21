@@ -1,6 +1,6 @@
 import type { IpcMain, IpcMainInvokeEvent } from 'electron'
 import { isOpaqueId, normalizeHttpAddress } from '@savedata-sync/shared'
-import { DIALER_CHANNELS } from '../bridge/dialer-bridge.ts'
+import { DIALER_CHANNELS, MAX_DIAL_ADDRESSES } from '../bridge/dialer-bridge.ts'
 import type { WindowsDialer } from './dialer-session.ts'
 import { HttpOperationError, toHttpError } from './http-errors.ts'
 
@@ -53,7 +53,7 @@ export function registerDialerIpc(
           !('addresses' in value) ||
           !Array.isArray(value.addresses) ||
           value.addresses.length === 0 ||
-          value.addresses.length > 16 ||
+          value.addresses.length > MAX_DIAL_ADDRESSES ||
           !value.addresses.every(isNormalizedAddress) ||
           !('expectedDeviceId' in value) ||
           (value.expectedDeviceId !== null && !isOpaqueId(value.expectedDeviceId)) ||

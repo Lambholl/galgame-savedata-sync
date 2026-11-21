@@ -4,11 +4,14 @@ import type { OperationErrorCode } from './contracts.ts'
 /** 会话使用的 HTTP 头。 */
 export const HTTP_HEADERS = {
   sessionId: 'x-sync-session-id',
+  /** 值为 1 时表示拨号方新建连接；连接期间的目录表交换不带这个头。 */
+  connect: 'x-sync-connect',
 } as const
 
 /** 固定路由和路由模板；模板参数要先校验，再逐段编码代入。 */
 export const HTTP_ROUTES = {
   device: '/v1/device',
+  catalog: '/v1/catalog',
   roots: '/v1/roots',
   entries: '/v1/roots/{rootId}/entries',
 } as const

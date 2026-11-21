@@ -239,7 +239,7 @@ Windows → Android（监听方 → 拨号方）：使用移动端目标项目�
 | `ListenerHttp` | HTTP/1.1 请求解析和回复，规则与电脑服务相同：头名重复、Content-Encoding、Range、Expect、Content-Length 与 chunked 冲突、chunk 扩展和 trailer 都按 invalid-request 拒绝；JSON 请求体最多 8 MiB |
 | `ListenerSocket` | 服务端 WebSocket（RFC 6455），只收文本帧，单条最多 8 MiB；关闭时先发关闭帧，最多等 2 秒回应 |
 | `ListenerControl` | 控制通道监听端：同一时间一条连接，同一设备的新连接以 4002 取代旧连接，主动断开用 4001。每 15 秒 ping，请求 8 秒超时 |
-| `ListenerLibrary` | 目录表交换，规则与电脑监听方相同：屏蔽的设备 permission-denied；被断开的设备要带 `x-sync-connect: 1` 重新连接，否则 session-mismatch；本机正在拨号或已有别的设备在线时 busy；最多 32 台设备。新连接把设备移到已保存列表开头，合并对方的关联后写入配置。经控制通道 `directory.list` 浏览对方目录，父目录必须是本会话读到过的条目 |
+| `ListenerLibrary` | 目录表交换，规则与电脑监听方相同：屏蔽的设备 permission-denied；被断开的设备要带 `x-sync-connect: 1` 重新连接，否则 session-mismatch；本机正在拨号或已有别的设备在线时 busy；最多 32 台设备。新连接把设备移到已保存列表开头，合并对方的关联后写入配置。配置的读、改、写在 `ListenerLibrary` 的锁里完成；关闭控制连接和通知网页层配置已变都在锁外进行。经控制通道 `directory.list` 浏览对方目录，父目录必须是本会话读到过的条目 |
 | `ListenerAdvertiser` | NsdManager 注册 `_savedata-sync._tcp`，TXT 与电脑相同；注册失败 30 秒后重试，停止服务时注销 |
 | `ListenerRuntime` | 应用 Context 持有的单例：开关和端口保存在 SharedPreferences（`local-service`），首次生成 49152–65535 的随机端口，服务停止时才能换端口。本机地址优先 Wi-Fi 和以太网，再是热点，排除移动网络、VPN、回环、链路本地和 198.18/15，最多 8 个 |
 | `ListenerService` | `connectedDevice` 前台服务，常驻通知显示推荐地址和连着的设备，带“停止”操作。不导出、`stopWithTask=false`、START_NOT_STICKY，没有开机启动 |

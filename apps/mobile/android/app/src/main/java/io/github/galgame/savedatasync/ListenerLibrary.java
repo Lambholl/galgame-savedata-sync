@@ -22,7 +22,10 @@ import java.util.concurrent.CompletableFuture;
 
 /**
  * 本机作为监听方时的游戏库：处理拨号方提交的目录表，保存设备和关联，答复本机目录表；对端目录表和读到的条目只在本次服务会话内保留。
- * 改写游戏库配置后调用 {@link Changes#changed}。
+ * 改写游戏库配置后，在调用线程上、不持有本对象的锁时调用 {@link Changes#changed}。
+ *
+ * <p>会话内的对端状态和游戏库配置的读改写由本对象的锁保护；持锁时会读写 {@link Store} 和读取 {@link Host#roots}，
+ * 不做网络读写，不调用外部回调。
  */
 final class ListenerLibrary {
 
@@ -61,11 +64,13 @@ final class ListenerLibrary {
     }
   }
 
+  /** 已保存设备的最多台数，也是一个游戏的关联和排除设备的最多条数；与共享 LIBRARY_LIMITS.maxDevices 相同。 */
   private static final int MAX_DEVICES = 32;
-  /** 设备名和游戏名的最大长度（UTF-16 码元），与共享 library.ts 相同。 */
+  /** 设备名和游戏名的最大长度（UTF-16 码元），与共享 LIBRARY_LIMITS.maxNameLength 相同。 */
   static final int MAX_NAME_LENGTH = 128;
-  /** 游戏库和目录表里游戏的最多条数，目录表里关联的最多条数，与共享 library.ts 相同。 */
+  /** 游戏库和目录表里游戏的最多条数，目录表里关联的最多条数；与共享 LIBRARY_LIMITS.maxGames 相同。 */
   private static final int MAX_GAMES = 128;
+  /** 每台对端设备在本会话里记下的已读条目的最多条数。 */
   private static final int MAX_ENTRIES = 32768;
   private final Store store;
   private final Host host;
@@ -88,19 +93,34 @@ final class ListenerLibrary {
    * @throws ArchiveFailure 内容无效时为 invalid-request，设备停用时为 permission-denied，本机断开过它时为
    *     session-mismatch，另一台设备在用或本机正连着别的设备时为 busy，已保存的设备达到 {@link #MAX_DEVICES} 台时为 resource-limit。
    */
-  synchronized Map<String, Object> exchange(Object value, boolean isNewConnection)
-    throws Exception {
+  Map<String, Object> exchange(Object value, boolean isNewConnection) throws Exception {
     Map<String, Object> body = map(value);
     if (body.containsKey("goodbye")) {
       TransferSchema.shape(body, "deviceId", "goodbye");
       require(Boolean.TRUE.equals(body.get("goodbye")));
       String peerId = id(body.get("deviceId"));
-      runtime.remove(peerId);
-      disconnected.remove(peerId);
+      synchronized (this) {
+        runtime.remove(peerId);
+        disconnected.remove(peerId);
+      }
       control.disconnect(peerId);
       return object("games", new ArrayList<>(), "links", new ArrayList<>());
     }
     Map<String, Object> hello = hello(body);
+    Map<String, Object> reply;
+    boolean isChanged;
+    synchronized (this) {
+      isChanged = accept(hello, isNewConnection);
+      reply = local((String) hello.get("deviceId"));
+    }
+    if (isChanged) {
+      changes.changed();
+    }
+    return reply;
+  }
+
+  /** 登记 hello 的设备并保存设备和关联；返回配置是否改变。调用前必须持有本对象的锁。 */
+  private boolean accept(Map<String, Object> hello, boolean isNewConnection) throws Exception {
     String peerId = (String) hello.get("deviceId");
     Map<String, Object> config = config();
     Map<String, Object> saved = find(list(config.get("devices")), peerId);
@@ -119,7 +139,10 @@ final class ListenerLibrary {
       );
     }
     if (saved == null && list(config.get("devices")).size() >= MAX_DEVICES) {
-      throw new ArchiveFailure("resource-limit", "At most 32 devices can be saved.");
+      throw new ArchiveFailure(
+        "resource-limit",
+        "At most " + MAX_DEVICES + " devices can be saved."
+      );
     }
     Peer previous = runtime.get(peerId);
     runtime.put(
@@ -164,8 +187,7 @@ final class ListenerLibrary {
     }
     Map<String, Object> next = new LinkedHashMap<>(config);
     next.put("devices", devices);
-    save(mergeLinks(next, peerId, links), config);
-    return local(peerId);
+    return save(mergeLinks(next, peerId, links), config);
   }
 
   /** 本机发给 peerId 的目录表：本机游戏和与它的关联。 */
@@ -211,9 +233,11 @@ final class ListenerLibrary {
   }
 
   /** 断开 peerId：以 {@link ListenerControl#CLOSE_DISCONNECTED} 关闭控制通道，之后它只能以新连接重新交换目录表。 */
-  synchronized void disconnect(String peerId) {
-    disconnected.add(peerId);
-    runtime.remove(peerId);
+  void disconnect(String peerId) {
+    synchronized (this) {
+      disconnected.add(peerId);
+      runtime.remove(peerId);
+    }
     control.disconnect(peerId);
   }
 
@@ -427,21 +451,24 @@ final class ListenerLibrary {
     } catch (ArchiveFailure invalid) {
       throw new ArchiveFailure(
         "io-failure",
-        "The game configuration is damaged. Preserve app data and inspect it."
+        "The game configuration is damaged. Preserve app data and inspect it.",
+        false,
+        invalid
       );
     }
     return map(value);
   }
 
-  private void save(Map<String, Object> next, Map<String, Object> previous) throws Exception {
+  /** 保存 next；返回配置是否改变。 */
+  private boolean save(Map<String, Object> next, Map<String, Object> previous) throws Exception {
     // 网页层读到不符合 isLibraryConfig 的配置会当作损坏，所以写入前先校验。
     checkConfig(next);
     byte[] bytes = TransferJson.bytes(next);
     if (Arrays.equals(bytes, TransferJson.bytes(previous))) {
-      return;
+      return false;
     }
     store.write(new String(bytes, StandardCharsets.UTF_8));
-    changes.changed();
+    return true;
   }
 
   private static Map<String, Object> find(List<Object> items, String id) throws ArchiveFailure {

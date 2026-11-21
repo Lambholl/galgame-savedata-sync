@@ -6,10 +6,9 @@ import {
   isListeningPort,
   parseDiscoveryTxt,
 } from '@savedata-sync/shared'
+import { NEARBY_LEASE_MS } from '../bridge/dialer-bridge.ts'
 import type { DesktopNearbyDevice, DesktopNearbyState } from '../bridge/dialer-bridge.ts'
 
-/** 停止续期后搜索保持的时长。 */
-const LEASE_MS = 10_000
 /** 搜索期间多久重新发一次查询；mDNS 应答方只在被问到或上线时宣告。 */
 const QUERY_INTERVAL_MS = 4_000
 
@@ -39,7 +38,7 @@ function serviceAddresses(service: Service): readonly string[] {
 }
 
 /**
- * 在局域网搜索监听方（DNS-SD `_savedata-sync._tcp`）。续期后搜索，停止续期 10 秒后停止并释放 UDP 5353；
+ * 在局域网搜索监听方（DNS-SD `_savedata-sync._tcp`）。续期后搜索，停止续期超过 NEARBY_LEASE_MS 后停止并释放 UDP 5353；
  * 按设备 ID 查找期间也保持搜索。
  */
 export class WindowsDiscoveryBrowser {
@@ -57,7 +56,7 @@ export class WindowsDiscoveryBrowser {
 
   /** 续期并返回当前结果；没在搜索时开始搜索。 */
   watch(): DesktopNearbyState {
-    this.leaseUntil = Date.now() + LEASE_MS
+    this.leaseUntil = Date.now() + NEARBY_LEASE_MS
     this.ensure()
     this.scheduleStop()
     return this.state()

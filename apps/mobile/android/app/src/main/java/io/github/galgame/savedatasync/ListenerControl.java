@@ -37,11 +37,13 @@ final class ListenerControl {
     void event(String peerId, String method, Object body);
   }
 
-  /** 本机断开这台设备，对方不要重连。 */
+  /** 本机断开这台设备，对方不要重连；与共享 CONTROL_CLOSE_CODES.disconnected 相同。 */
   static final int CLOSE_DISCONNECTED = 4001;
-  /** 同一设备的新连接取代旧连接。 */
+  /** 同一设备的新连接取代旧连接；与共享 CONTROL_CLOSE_CODES.replaced 相同。 */
   static final int CLOSE_REPLACED = 4002;
+  /** 心跳间隔；与共享 CONTROL_LIMITS.pingIntervalMs 相同。 */
   static final long PING_INTERVAL_MS = 15000;
+  /** 请求等待应答的期限；与共享 CONTROL_LIMITS.requestTimeoutMs 相同。 */
   static final long REQUEST_TIMEOUT_MS = 8000;
   private static final List<String> REQUESTS = Arrays.asList(
     "directory.list",

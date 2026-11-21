@@ -4,6 +4,18 @@ import { isOpaqueId } from '../protocol/protocol.ts'
 import { isArrayOf } from '../validation/data-validation.ts'
 import { OperationFailure } from '../result.ts'
 
+/** 游戏库配置和目录表的数量与长度上限，两端相同。 */
+export const LIBRARY_LIMITS = {
+  /** 设备名和游戏名的最大长度，单位是 UTF-16 码元。 */
+  maxNameLength: 128,
+  /** 已保存设备的最多台数，也是一个游戏的关联和排除设备的最多条数。 */
+  maxDevices: 32,
+  /** 游戏库和目录表里游戏的最多条数，也是目录表里关联的最多条数。 */
+  maxGames: 128,
+  /** 已保存设备地址的最大长度。 */
+  maxAddressLength: 256,
+} as const
+
 /** 一个本机游戏：目录引用和对端关联。 */
 export interface LibraryGame {
   readonly id: string
@@ -71,7 +83,7 @@ function text(value: unknown): value is string {
   return (
     typeof value === 'string' &&
     value.trim().length > 0 &&
-    value.length <= 128 &&
+    value.length <= LIBRARY_LIMITS.maxNameLength &&
     Array.from(value).every((character) => character.charCodeAt(0) >= 32)
   )
 }
@@ -92,7 +104,9 @@ export function isSavedDevice(value: unknown): value is SavedDevice {
     text(value.name) &&
     isPlatform(value.platform) &&
     typeof value.isBlocked === 'boolean' &&
-    (value.address === null || (typeof value.address === 'string' && value.address.length <= 256))
+    (value.address === null ||
+      (typeof value.address === 'string' &&
+        value.address.length <= LIBRARY_LIMITS.maxAddressLength))
   )
 }
 /** 校验整份游戏库配置。 */
@@ -101,9 +115,9 @@ export function isLibraryConfig(value: unknown): value is LibraryConfig {
     !record(value) ||
     value.schemaVersion !== 2 ||
     !Array.isArray(value.games) ||
-    value.games.length > 128 ||
+    value.games.length > LIBRARY_LIMITS.maxGames ||
     !Array.isArray(value.devices) ||
-    value.devices.length > 32 ||
+    value.devices.length > LIBRARY_LIMITS.maxDevices ||
     !isArrayOf(value.devices, isSavedDevice)
   ) {
     return false
@@ -119,12 +133,12 @@ export function isLibraryConfig(value: unknown): value is LibraryConfig {
         text(item.name) &&
         (item.rootId === null || isOpaqueId(item.rootId)) &&
         Array.isArray(item.links) &&
-        item.links.length <= 32 &&
+        item.links.length <= LIBRARY_LIMITS.maxDevices &&
         isArrayOf(item.links, isLink) &&
         unique(item.links, (link) => link.deviceId) &&
         (item.excludedDevices === undefined ||
           (Array.isArray(item.excludedDevices) &&
-            item.excludedDevices.length <= 32 &&
+            item.excludedDevices.length <= LIBRARY_LIMITS.maxDevices &&
             isArrayOf(item.excludedDevices, isOpaqueId))),
     )
   ) {
@@ -152,11 +166,11 @@ function isCatalogLink(value: unknown): value is CatalogLink {
 function catalog(value: Record<string, unknown>): boolean {
   return (
     Array.isArray(value.games) &&
-    value.games.length <= 128 &&
+    value.games.length <= LIBRARY_LIMITS.maxGames &&
     isArrayOf(value.games, isCatalogGame) &&
     unique(value.games, (item) => item.id) &&
     Array.isArray(value.links) &&
-    value.links.length <= 128 &&
+    value.links.length <= LIBRARY_LIMITS.maxGames &&
     isArrayOf(value.links, isCatalogLink) &&
     unique(value.links, (item) => item.localGameId)
   )
@@ -190,7 +204,7 @@ export function isLibraryPeer(value: unknown): value is LibraryPeer {
     isSavedDevice(value.device) &&
     typeof value.isConnected === 'boolean' &&
     Array.isArray(value.games) &&
-    value.games.length <= 128 &&
+    value.games.length <= LIBRARY_LIMITS.maxGames &&
     isArrayOf(value.games, isCatalogGame)
   )
 }

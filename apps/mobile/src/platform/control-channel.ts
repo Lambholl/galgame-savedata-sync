@@ -22,9 +22,6 @@ export interface ControlState {
   readonly isOpen: boolean
   readonly code: number
 }
-/** 对方主动断开时使用的关闭码，表示不要再等待重连。 */
-export const CONTROL_CLOSE_DISCONNECTED = 4001
-
 type RequestHandler<M extends ControlRequestMethod> = (
   deviceId: string,
   body: ControlRequestBodies[M],

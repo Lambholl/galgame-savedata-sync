@@ -30,16 +30,16 @@ export function useAllFilesAccess(): AllFilesAccessStatus {
         })
     }
     // 用户也可能从系统设置直接改权限，回到应用时重新查询。
-    function onVisibilityChange(): void {
+    function handleVisibilityChange(): void {
       if (document.visibilityState === 'visible') {
         refresh()
       }
     }
     refresh()
-    document.addEventListener('visibilitychange', onVisibilityChange)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
     return () => {
       isCurrent = false
-      document.removeEventListener('visibilitychange', onVisibilityChange)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
   }, [])
   async function openSettings(): Promise<void> {

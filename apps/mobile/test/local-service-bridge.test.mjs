@@ -59,7 +59,7 @@ function fixture(overrides = {}) {
   return { plugin, handlers, calls }
 }
 
-test('本机服务桥接校验状态、连入设备和目录结果', async () => {
+test('本机服务桥接返回格式正确的原生结果，并把参数原样交给原生方法', async () => {
   const { plugin, calls } = fixture()
   const service = createLocalService(plugin, () => true)
   assert.deepEqual(await service.status(), { status: 'success', value: status })
@@ -71,9 +71,14 @@ test('本机服务桥接校验状态、连入设备和目录结果', async () =>
     { deviceId: 'phone-b', rootId: 'root-b', parentId: null },
     { deviceId: 'phone-b' },
   ])
+})
+
+test('本机服务桥接拒绝无效的目录 ID，不调用原生方法', async () => {
+  const { plugin, calls } = fixture()
+  const service = createLocalService(plugin, () => true)
   const invalid = await service.peerDirectory('phone-b', '../root', null)
   assert.equal(invalid.status === 'error' && invalid.error.code, 'invalid-request')
-  assert.equal(calls.length, 2)
+  assert.equal(calls.length, 0)
 })
 
 test('本机服务桥接拒绝格式不对或与请求不符的原生结果', async () => {
@@ -111,7 +116,7 @@ test('本机服务桥接拒绝格式不对或与请求不符的原生结果', as
   assert.equal(moved.status === 'error' && moved.error.code, 'io-failure')
 })
 
-test('本机服务桥接转发原生事件，不在 Android 上时不可用', async () => {
+test('本机服务桥接转发原生事件，撤销订阅后不再通知', async () => {
   const { plugin, handlers } = fixture()
   const service = createLocalService(plugin, () => true)
   let states = 0
@@ -124,7 +129,9 @@ test('本机服务桥接转发原生事件，不在 Android 上时不可用', as
   stopState()
   handlers.get('serviceState')()
   assert.deepEqual([states, changes], [1, 1])
+})
 
+test('本机服务桥接不在 Android 上时返回 unsupported-operation，不订阅原生事件', async () => {
   const browser = fixture()
   const unavailable = createLocalService(browser.plugin, () => false)
   unavailable.onState(() => undefined)

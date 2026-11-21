@@ -4,6 +4,7 @@ import type { Duplex } from 'node:stream'
 import { WebSocketServer } from 'ws'
 import type { RawData, WebSocket } from 'ws'
 import {
+  CONTROL_CLOSE_CODES,
   CONTROL_LIMITS,
   isControlEventBody,
   isControlMessage,
@@ -20,11 +21,6 @@ import type {
 } from '@savedata-sync/shared'
 import { HttpOperationError, toHttpError } from './http-errors.ts'
 import { inspectJsonKeys } from './http-wire.ts'
-
-/** 本机主动断开设备时的关闭码，表示对方不要重连。 */
-export const CONTROL_CLOSE_DISCONNECTED = 4001
-/** 同一设备的新连接取代旧连接。 */
-const CONTROL_CLOSE_REPLACED = 4002
 
 interface Pending {
   readonly method: ControlRequestMethod
@@ -140,9 +136,9 @@ export class ControlHub {
     }
   }
 
-  /** 用 CONTROL_CLOSE_DISCONNECTED 关闭与这台设备的连接。 */
+  /** 用 CONTROL_CLOSE_CODES.disconnected 关闭与这台设备的连接。 */
   disconnect(peerId: string): void {
-    this.peers.get(peerId)?.socket.close(CONTROL_CLOSE_DISCONNECTED, 'disconnected')
+    this.peers.get(peerId)?.socket.close(CONTROL_CLOSE_CODES.disconnected, 'disconnected')
   }
 
   /** 停止心跳并终止全部连接。 */
@@ -155,7 +151,7 @@ export class ControlHub {
   }
 
   private attach(peerId: string, socket: WebSocket): void {
-    this.peers.get(peerId)?.socket.close(CONTROL_CLOSE_REPLACED, 'replaced')
+    this.peers.get(peerId)?.socket.close(CONTROL_CLOSE_CODES.replaced, 'replaced')
     const peer: Peer = { socket, pending: new Map(), isAlive: true }
     this.peers.set(peerId, peer)
     socket.on('pong', () => {

@@ -5,6 +5,7 @@ import {
   isCatalogHello,
   isLibraryConfig,
   isOpaqueId,
+  LIBRARY_LIMITS,
   libraryCatalog,
   libraryLinks,
   mergeCatalogLinks,
@@ -312,8 +313,11 @@ export class DesktopLibrary {
     ) {
       throw new HttpOperationError('busy', BUSY_MESSAGE)
     }
-    if (!saved && this.config.devices.length >= 32) {
-      throw new HttpOperationError('resource-limit', 'At most 32 devices can be saved.')
+    if (!saved && this.config.devices.length >= LIBRARY_LIMITS.maxDevices) {
+      throw new HttpOperationError(
+        'resource-limit',
+        `At most ${LIBRARY_LIMITS.maxDevices} devices can be saved.`,
+      )
     }
     const previous = this.runtime.get(hello.deviceId)
     this.runtime.set(hello.deviceId, {
@@ -449,8 +453,11 @@ ${item.entryId}`)
     if (saved?.isBlocked) {
       throw new HttpOperationError('permission-denied', 'This device is disabled.')
     }
-    if (!saved && this.config.devices.length >= 32) {
-      throw new HttpOperationError('resource-limit', 'At most 32 devices can be saved.')
+    if (!saved && this.config.devices.length >= LIBRARY_LIMITS.maxDevices) {
+      throw new HttpOperationError(
+        'resource-limit',
+        `At most ${LIBRARY_LIMITS.maxDevices} devices can be saved.`,
+      )
     }
     this.dialed = { deviceId, reply: structuredClone(reply) }
     this.runtime.delete(deviceId)
@@ -460,7 +467,7 @@ ${item.entryId}`)
         ? { ...existing, ...(isNewConnection ? { address } : {}) }
         : {
             id: deviceId,
-            name: displayName.trim().slice(0, 128),
+            name: displayName.trim().slice(0, LIBRARY_LIMITS.maxNameLength),
             platform,
             address,
             isBlocked: false,

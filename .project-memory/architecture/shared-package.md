@@ -57,7 +57,7 @@ tags: [共享包, 数据模型, 守卫]
 | /v1/roots | GET | 200，RootsResponse，只返回本机已选择根 |
 | /v1/roots/{rootId}/entries | GET；可选 parentId 查询参数，省略为 null | 200，DirectoryResponse，当前层清单 |
 
-`/v1/catalog`、`/v1/control` 和 `/v1/sync/*` 的格式在 `src/library`、`src/control` 和 `src/sync`，见[接口约定](api-contracts.md)和[复制、备份与恢复约定](sync-copy.md)。JSON 使用 OperationResult 互斥包络。复制内容按单次完整 gzip 传输，不设 Content-Encoding，也不提供解压、重定向、Range、续传或自动重放。目录 parentId 按查询参数规则解码一次。
+`/v1/catalog`（`HTTP_ROUTES.catalog`）、`/v1/control` 和 `/v1/sync/*` 的格式在 `src/library`、`src/control` 和 `src/sync`，见[接口约定](api-contracts.md)和[复制、备份与恢复约定](sync-copy.md)。拨号方新建连接时的目录表交换带 `x-sync-connect: 1`（`HTTP_HEADERS.connect`）；控制通道的自定义关闭码是 `CONTROL_CLOSE_CODES`，游戏库配置和目录表的数量与名称长度上限是 `LIBRARY_LIMITS`。Android 原生不能导入共享包，对应常量写在 `ListenerControl`、`ListenerLibrary` 等类里，注释注明与哪个共享常量相同，改值时一起改。JSON 使用 OperationResult 互斥包络。复制内容按单次完整 gzip 传输，不设 Content-Encoding，也不提供解压、重定向、Range、续传或自动重放。目录 parentId 按查询参数规则解码一次。
 
 `BATCH_LIMITS` 固定最多 1024 文件、单文件 256 MiB、原文合计 1 GiB、tar 1 GiB+1 MiB、电脑接收的压缩体 1088 MiB、单个 JSON 8 MiB、每端一个活动任务、每会话 4096 个已接纳任务 ID。`BATCH_RESOURCES` 为 64 KiB 显式 IO 缓冲和 3 GiB 私有缓存；`BATCH_TIMEOUTS_MS` 为发送端 ready 等待 10 分钟、等内容 2 分钟、总期限 30 分钟、网络无进展 60 秒、终态保留 10 分钟。这里只提供常量，计时/限流/缓存/ID 生命周期由平台实现。
 

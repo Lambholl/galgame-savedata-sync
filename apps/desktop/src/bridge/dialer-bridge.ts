@@ -7,6 +7,11 @@ import {
 } from '@savedata-sync/shared'
 import type { DeviceDescriptor, OperationResult } from '@savedata-sync/shared'
 
+/** 停止续期局域网搜索后，搜索还保持的时长。 */
+export const NEARBY_LEASE_MS = 10_000
+/** 一次连接最多尝试的地址个数。 */
+export const MAX_DIAL_ADDRESSES = 16
+
 /** 局域网里搜到的一台监听方。 */
 export interface DesktopNearbyDevice {
   /** TXT 记录里的设备 ID，未经连接核实。 */
@@ -60,11 +65,11 @@ export interface DesktopDialResult {
 export interface DesktopDialerApi {
   /** 读取状态，不续期搜索。 */
   status(): Promise<OperationResult<DesktopDialerSnapshot>>
-  /** 读取状态并续期局域网搜索；没在搜索时开始搜索，停止续期 10 秒后停止。 */
+  /** 读取状态并续期局域网搜索；没在搜索时开始搜索，停止续期超过 NEARBY_LEASE_MS 后停止。 */
   watchNearby(): Promise<OperationResult<DesktopDialerSnapshot>>
   /**
    * 依次连接 addresses 里的地址，连上一个就停。expectedDeviceId 不为 null 时，连到别的设备算失败。
-   * 地址是 `IP:端口` 或 `http://IP:端口`。
+   * 地址是 `IP:端口` 或 `http://IP:端口`，1 到 MAX_DIAL_ADDRESSES 个，否则返回 invalid-request。
    */
   connect(
     addresses: readonly string[],
@@ -186,7 +191,7 @@ export function createDialerBridge(
       }
       if (
         normalized.length === 0 ||
-        normalized.length > 16 ||
+        normalized.length > MAX_DIAL_ADDRESSES ||
         (expectedDeviceId !== null && !isOpaqueId(expectedDeviceId))
       ) {
         return Promise.resolve(invalid)

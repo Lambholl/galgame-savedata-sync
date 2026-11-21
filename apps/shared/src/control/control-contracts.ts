@@ -13,6 +13,13 @@ export const CONTROL_LIMITS = {
   /** 心跳间隔；一个间隔内没有回应时连接按断开处理。 */
   pingIntervalMs: 15000,
 } as const
+/** 控制通道的自定义关闭码。 */
+export const CONTROL_CLOSE_CODES = {
+  /** 监听方断开了这台拨号方，拨号方不要重连。 */
+  disconnected: 4001,
+  /** 同一台拨号方的新连接取代了这条连接。 */
+  replaced: 4002,
+} as const
 
 /** sync.prepare 的请求体：请执行方扫描指定游戏并生成计划。 */
 export interface RemoteSyncPrepare {

@@ -342,9 +342,17 @@ public class ListenerServerTest {
       large.append("x-filler-").append(i).append(": 1\r\n");
     }
     assertEquals(413, send(large.append("\r\n").toString()).status);
+  }
+
+  @Test
+  public void rootsWithoutSessionAnswerSessionMismatch() throws Exception {
     Reply session = send("GET /v1/roots HTTP/1.1\r\nHost: a\r\n\r\n");
     assertEquals(409, session.status);
     assertEquals("session-mismatch", errorCode(session));
+  }
+
+  @Test
+  public void syncWithoutCopyCapabilityAnswersUnsupported() throws Exception {
     Reply sync = send(
       "GET /v1/sync/capabilities HTTP/1.1\r\nHost: a\r\nx-sync-session-id: " +
         server.sessionId() +
@@ -401,36 +409,95 @@ public class ListenerServerTest {
   }
 
   @Test
-  public void catalogRejectsInvalidHelloAndBusyStates() throws Exception {
+  public void catalogRejectsRootOfAnotherDevice() throws Exception {
     Map<String, Object> foreign = hello("pc-1");
     foreign.put(
       "games",
       Collections.singletonList(object("id", "g", "name", "G", "root", root("someone-else", "r")))
     );
     assertEquals(400, catalog(foreign, true).status);
+  }
+
+  @Test
+  public void catalogIsBusyWhileDialing() throws Exception {
     isDialing.set(true);
     Reply busy = catalog(hello("pc-1"), true);
     assertEquals(429, busy.status);
     assertEquals("busy", errorCode(busy));
-    isDialing.set(false);
+  }
+
+  @Test
+  public void catalogIsBusyWhileAnotherDeviceHoldsControl() throws Exception {
+    assertEquals(200, catalog(hello("pc-1"), true).status);
+    control("pc-1").opened.get(5, TimeUnit.SECONDS);
+    assertEquals("busy", errorCode(catalog(hello("pc-2"), true)));
+  }
+
+  @Test
+  public void disconnectedDeviceExchangesAgainOnlyAsNewConnection() throws Exception {
     assertEquals(200, catalog(hello("pc-1"), true).status);
     Client first = control("pc-1");
     first.opened.get(5, TimeUnit.SECONDS);
-    assertEquals("busy", errorCode(catalog(hello("pc-2"), true)));
     server.library().disconnect("pc-1");
-    assertEquals(4001, (int) first.closed.get(5, TimeUnit.SECONDS));
+    assertEquals(ListenerControl.CLOSE_DISCONNECTED, (int) first.closed.get(5, TimeUnit.SECONDS));
     assertEquals("session-mismatch", errorCode(catalog(hello("pc-1"), false)));
     assertEquals(200, catalog(hello("pc-1"), true).status);
   }
 
   @Test
-  public void controlRequiresCatalogAndAnswersDirectoryRequests() throws Exception {
+  public void controlRejectsDeviceWithoutCatalog() throws Exception {
     Client stranger = control("pc-1");
     assertTrue(stranger.closed.get(5, TimeUnit.SECONDS) != 1000);
     assertFalse(stranger.opened.isDone());
+  }
+
+  @Test
+  public void peersShowOpenControl() throws Exception {
+    assertEquals(200, catalog(hello("pc-1"), true).status);
+    control("pc-1").opened.get(5, TimeUnit.SECONDS);
+    List<Object> peers = server.library().peers();
+    assertEquals(Boolean.TRUE, map(peers.get(0)).get("isOpen"));
+  }
+
+  @Test
+  public void directoryReadsListingThroughControl() throws Exception {
     assertEquals(200, catalog(hello("pc-1"), true).status);
     Client client = control("pc-1");
     client.opened.get(5, TimeUnit.SECONDS);
+    answerDirectories(client);
+    Map<String, Object> listing = map(
+      server.library().directory("pc-1", "pc-root", null).get(5, TimeUnit.SECONDS)
+    );
+    assertEquals("pc-root", listing.get("rootId"));
+  }
+
+  @Test
+  public void directoryRejectsParentNotReadInSession() throws Exception {
+    assertEquals(200, catalog(hello("pc-1"), true).status);
+    control("pc-1").opened.get(5, TimeUnit.SECONDS);
+    ExecutionException unknownParent = assertThrows(ExecutionException.class, () ->
+      server.library().directory("pc-1", "pc-root", "never-read").get(5, TimeUnit.SECONDS)
+    );
+    assertEquals("invalid-request", ((ArchiveFailure) unknownParent.getCause()).code);
+  }
+
+  @Test
+  public void directoryTimesOutWhenPeerDoesNotAnswer() throws Exception {
+    assertEquals(200, catalog(hello("pc-1"), true).status);
+    Client client = control("pc-1");
+    client.opened.get(5, TimeUnit.SECONDS);
+    answerDirectories(client);
+    server.library().directory("pc-1", "pc-root", null).get(5, TimeUnit.SECONDS);
+    // 读过的目录可以作为下一层的父目录：请求照常发出，对方不答复时经过 ListenerControl.REQUEST_TIMEOUT_MS 超时。
+    client.onText = text -> {};
+    ExecutionException timeout = assertThrows(ExecutionException.class, () ->
+      server.library().directory("pc-1", "pc-root", "dir-1").get(12, TimeUnit.SECONDS)
+    );
+    assertEquals("timeout", ((ArchiveFailure) timeout.getCause()).code);
+  }
+
+  /** 让 client 对每条 directory.list 请求答复一层只有 dir-1 一个子目录的列表。 */
+  private static void answerDirectories(Client client) {
     client.onText = text -> {
       try {
         Map<String, Object> message = map(
@@ -502,26 +569,10 @@ public class ListenerServerTest {
         throw new IllegalStateException(cause);
       }
     };
-    Map<String, Object> listing = map(
-      server.library().directory("pc-1", "pc-root", null).get(5, TimeUnit.SECONDS)
-    );
-    assertEquals("pc-root", listing.get("rootId"));
-    ExecutionException unknownParent = assertThrows(ExecutionException.class, () ->
-      server.library().directory("pc-1", "pc-root", "never-read").get(5, TimeUnit.SECONDS)
-    );
-    assertEquals("invalid-request", ((ArchiveFailure) unknownParent.getCause()).code);
-    // 读过的目录可以作为下一层的父目录：请求照常发出，对方不答复时经过 ListenerControl.REQUEST_TIMEOUT_MS 超时。
-    client.onText = text -> {};
-    ExecutionException timeout = assertThrows(ExecutionException.class, () ->
-      server.library().directory("pc-1", "pc-root", "dir-1").get(12, TimeUnit.SECONDS)
-    );
-    assertEquals("timeout", ((ArchiveFailure) timeout.getCause()).code);
-    List<Object> peers = server.library().peers();
-    assertEquals(Boolean.TRUE, map(peers.get(0)).get("isOpen"));
   }
 
   @Test
-  public void controlAnswersPeerRequestsAndClosesOnInvalidMessages() throws Exception {
+  public void controlAnswersPeerRequestsWithUnsupportedOperation() throws Exception {
     assertEquals(200, catalog(hello("pc-1"), true).status);
     Client client = control("pc-1");
     client.opened.get(5, TimeUnit.SECONDS);
@@ -539,12 +590,24 @@ public class ListenerServerTest {
       "unsupported-operation",
       map(map(response.get("result")).get("error")).get("code")
     );
+  }
+
+  @Test
+  public void controlClosesOnBinaryMessage() throws Exception {
+    assertEquals(200, catalog(hello("pc-1"), true).status);
+    Client client = control("pc-1");
+    client.opened.get(5, TimeUnit.SECONDS);
     client.send(ByteBuffer.wrap(new byte[] { 1 }));
     assertEquals(1003, (int) client.closed.get(5, TimeUnit.SECONDS));
-    Client second = control("pc-1");
-    second.opened.get(5, TimeUnit.SECONDS);
-    second.send("{\"v\":1,\"v\":1}");
-    assertEquals(1007, (int) second.closed.get(5, TimeUnit.SECONDS));
+  }
+
+  @Test
+  public void controlClosesOnDuplicateJsonKeys() throws Exception {
+    assertEquals(200, catalog(hello("pc-1"), true).status);
+    Client client = control("pc-1");
+    client.opened.get(5, TimeUnit.SECONDS);
+    client.send("{\"v\":1,\"v\":1}");
+    assertEquals(1007, (int) client.closed.get(5, TimeUnit.SECONDS));
   }
 
   @Test
@@ -554,10 +617,17 @@ public class ListenerServerTest {
     first.opened.get(5, TimeUnit.SECONDS);
     Client second = control("pc-1");
     second.opened.get(5, TimeUnit.SECONDS);
-    assertEquals(4002, (int) first.closed.get(5, TimeUnit.SECONDS));
+    assertEquals(ListenerControl.CLOSE_REPLACED, (int) first.closed.get(5, TimeUnit.SECONDS));
     assertTrue(server.control().isOpen("pc-1"));
+  }
+
+  @Test
+  public void goodbyeClosesControlAsDisconnected() throws Exception {
+    assertEquals(200, catalog(hello("pc-1"), true).status);
+    Client client = control("pc-1");
+    client.opened.get(5, TimeUnit.SECONDS);
     assertEquals(200, catalog(object("deviceId", "pc-1", "goodbye", true), false).status);
-    assertTrue(second.closed.get(5, TimeUnit.SECONDS) == 4001);
+    assertEquals(ListenerControl.CLOSE_DISCONNECTED, (int) client.closed.get(5, TimeUnit.SECONDS));
   }
 
   @Test

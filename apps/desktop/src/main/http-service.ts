@@ -598,7 +598,7 @@ export class WindowsHttpService {
         value: await this.options.library.exchange(
           value,
           Boolean(this.syncRegistry?.hasWork()),
-          request.headers['x-sync-connect'] === '1',
+          request.headers[HTTP_HEADERS.connect] === '1',
         ),
       })
       return

@@ -22,6 +22,9 @@ import type {
 import { HttpOperationError, toHttpError } from './http-errors.ts'
 import { inspectJsonKeys } from './http-wire.ts'
 
+/** WebSocket 握手的期限。 */
+const HANDSHAKE_TIMEOUT_MS = 5000
+
 /** 控制通道的回调。 */
 export interface DialerControlEvents {
   /** 握手完成时调用。 */
@@ -56,7 +59,7 @@ export class DialerControlSocket {
       headers: { [HTTP_HEADERS.sessionId]: sessionId, [SYNC_DEVICE_HEADER]: localDeviceId },
       maxPayload: CONTROL_LIMITS.maxMessageBytes,
       perMessageDeflate: false,
-      handshakeTimeout: 5000,
+      handshakeTimeout: HANDSHAKE_TIMEOUT_MS,
       followRedirects: false,
     })
     this.socket.on('open', () => {
@@ -99,7 +102,7 @@ export class DialerControlSocket {
   /**
    * 向监听方发一条事件。
    *
-   * @throws HttpOperationError 通道没打开时抛 network-failure，事件超过 8 MiB 时抛 resource-limit。
+   * @throws HttpOperationError 通道没打开时抛 network-failure，事件超过 CONTROL_LIMITS.maxMessageBytes 时抛 resource-limit。
    */
   emit<M extends ControlEventMethod>(method: M, body: ControlEventBodies[M]): void {
     if (!this.isOpen()) {

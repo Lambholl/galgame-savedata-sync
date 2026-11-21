@@ -39,7 +39,10 @@ final class ListenerRuntime {
   private static final String SETTINGS = "local-service";
   private static final String PORT = "port";
   private static final String ENABLED = "enabled";
+  /** 状态里本机 IPv4 地址的最多个数。 */
   private static final int MAX_ADDRESSES = 8;
+  /** 等前台服务启动的最长时间（秒）。 */
+  private static final long LAUNCH_WAIT_SECONDS = 5;
   /** 随机端口的范围：IANA 动态端口。 */
   private static final int MIN_PORT = 49152;
   private static final int MAX_PORT = 65535;
@@ -91,7 +94,7 @@ final class ListenerRuntime {
             .toString();
           return list(TransferJson.parse(json.getBytes(StandardCharsets.UTF_8)));
         } catch (DirectoryFailure failure) {
-          throw new ArchiveFailure(failure.code, failure.getMessage());
+          throw new ArchiveFailure(failure.code, failure.getMessage(), false, failure);
         }
       }
 
@@ -103,7 +106,7 @@ final class ListenerRuntime {
             .toString();
           return map(TransferJson.parse(json.getBytes(StandardCharsets.UTF_8)));
         } catch (DirectoryFailure failure) {
-          throw new ArchiveFailure(failure.code, failure.getMessage());
+          throw new ArchiveFailure(failure.code, failure.getMessage(), false, failure);
         }
       }
 
@@ -229,7 +232,7 @@ final class ListenerRuntime {
     }
     try {
       // 在调用线程上等：服务在主线程进入前台，插件方法不在主线程运行。
-      ListenerService.launch(context).get(5, TimeUnit.SECONDS);
+      ListenerService.launch(context).get(LAUNCH_WAIT_SECONDS, TimeUnit.SECONDS);
     } catch (Exception cause) {
       synchronized (this) {
         if (server == created) {

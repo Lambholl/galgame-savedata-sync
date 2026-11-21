@@ -135,7 +135,7 @@ interface Preparation {
   /** 监听方发起时它的请求 ID；本机发起时为 null。 */
   readonly listenerRequestId: string | null
   status: 'preparing' | 'ready' | 'failed' | 'cancelled'
-  /** 准备好的计划，shouldDeleteExtras 为 false。 */
+  /** 准备好的计划，shouldDeleteExtras 为 false；确认后换成确认的计划，取消后为 null。 */
   plan: SyncPlan | null
   backupKeepCount: number | null
   error: OperationError | null
@@ -261,7 +261,7 @@ function route(template: string, key: string, value: string): string {
 /**
  * 本机作为拨号方的复制：扫描两端、生成计划、在监听方登记任务、上传或下载内容并读取结果。
  * 本机和监听方都可以发起；监听方发起时经控制通道请求本机扫描和执行。
- * 准备和任务只存在内存中，结束后保留 10 分钟、各最多 32 份；任务从确认到清理结束占用写入名额。
+ * 准备和任务只存在内存中，结束后保留 RETENTION_MS、各最多 MAX_RETAINED 份；任务从确认到清理结束占用写入名额。
  */
 export class WindowsDialerSync implements DialerSyncHandler {
   private readonly options: WindowsDialerSyncOptions
@@ -406,7 +406,7 @@ export class WindowsDialerSync implements DialerSyncHandler {
   }
 
   /**
-   * 任务两个角色的状态。对方结果待确认且本机已结束时，在后台补读一次对方状态，最多每 5 秒一次。
+   * 任务两个角色的状态。对方结果待确认且本机已结束时，在后台补读一次对方状态，间隔至少 RECOVER_INTERVAL_MS。
    *
    * @throws HttpOperationError 任务不存在或已过保留期时抛 not-found。
    */
@@ -418,13 +418,14 @@ export class WindowsDialerSync implements DialerSyncHandler {
       job.remoteError !== null &&
       performance.now() - job.recoveredAt >= RECOVER_INTERVAL_MS
     ) {
+      // recover 自己记下读取失败，不会 reject。
       this.recover(job).catch(() => undefined)
     }
     return this.transferState(job)
   }
 
   /**
-   * 用户取消任务：先请监听方取消（最多等 5 秒），再停下本机，两端都记为取消。
+   * 用户取消任务：先请监听方取消（最多等 SHORT_TIMEOUT_MS），再停下本机，两端都记为取消。
    * 本机已结束而监听方还在运行时，在后台请监听方取消。
    *
    * @throws HttpOperationError 任务不存在时抛 not-found。
@@ -439,6 +440,7 @@ export class WindowsDialerSync implements DialerSyncHandler {
       }
       job.controller.abort()
     } else if (job.wasRemoteAttempted) {
+      // cancelRemote 自己记下读取失败，不会 reject。
       this.cancelRemote(job).catch(() => undefined)
     }
     return this.transferState(job)
@@ -648,10 +650,12 @@ export class WindowsDialerSync implements DialerSyncHandler {
     }
     this.preparations.set(preparation.id, preparation)
     this.preparing = preparation
+    // runPreparation 把失败记进准备的状态，不会 reject。
     this.runPreparation(preparation, superseded).catch(() => undefined)
     return preparation
   }
 
+  /** 扫描两端并生成计划，结果和失败都记进 preparation；不会 reject。 */
   private async runPreparation(
     preparation: Preparation,
     superseded: Preparation | null,
@@ -756,6 +760,7 @@ export class WindowsDialerSync implements DialerSyncHandler {
       }
     } finally {
       if (preparation.remoteScanId !== null) {
+        // cancelRemoteScan 不会 reject。
         this.cancelRemoteScan(preparation, preparation.remoteScanId).catch(() => undefined)
       }
     }
@@ -871,6 +876,7 @@ export class WindowsDialerSync implements DialerSyncHandler {
     return value
   }
 
+  /** 请监听方取消扫描；不会 reject。 */
   private async cancelRemoteScan(preparation: Preparation, scanId: string): Promise<void> {
     const { connection } = preparation
     try {
@@ -1015,7 +1021,9 @@ export class WindowsDialerSync implements DialerSyncHandler {
         if (cause === undefined) {
           resolve()
         } else {
-          reject(cause instanceof Error ? cause : new Error('Receiving the content failed.'))
+          reject(
+            cause instanceof Error ? cause : new Error('Receiving the content failed.', { cause }),
+          )
         }
       }
     })
@@ -1141,11 +1149,13 @@ export class WindowsDialerSync implements DialerSyncHandler {
       await this.handleFailure(job, cause)
     } finally {
       job.isWriting = false
+      // 正常结束和 handleFailure 都会写入终态；两者都没写入时按读写失败结束，否则任务会一直显示进行中。
       if (job.state.status === 'running') {
+        const stopped = new HttpOperationError('io-failure', 'The sync task stopped unexpectedly.')
         if (isSending) {
-          this.terminal(job, 'failed', knownError(new Error('io-failure')))
+          this.terminal(job, 'failed', knownError(stopped))
         } else {
-          this.receiverFailed(job, new Error('io-failure'))
+          this.receiverFailed(job, stopped)
         }
       }
       await this.cleanup(job)
@@ -1228,11 +1238,11 @@ export class WindowsDialerSync implements DialerSyncHandler {
   /** 把监听方报告的失败转成本机任务的错误，文件访问类的错误注明在监听方；监听方没报错时为 task-conflict。 */
   private remoteFailure(job: Job, message: string): HttpOperationError {
     const error = job.remote?.error
-    const failure = new HttpOperationError(error?.code ?? 'task-conflict', message)
-    if (error) {
-      Object.assign(failure, { operationError: withDevice(failure.operationError, 'listener') })
+    if (!error) {
+      return new HttpOperationError('task-conflict', message)
     }
-    return failure
+    const device = DEVICE_ERRORS.has(error.code) ? 'listener' : undefined
+    return new HttpOperationError(error.code, message, undefined, device)
   }
 
   private isRemoteRunning(job: Job): boolean {
@@ -1275,6 +1285,7 @@ export class WindowsDialerSync implements DialerSyncHandler {
               this.accept(job, value)
             }
           })
+          // 这次刷新只为显示备份进度：读不到时下一轮再读，状态不对时由上传的回执报错。
           .catch(() => undefined)
       }
     }, UPLOAD_TARGET_REFRESH_MS)
@@ -1686,7 +1697,7 @@ export class WindowsDialerSync implements DialerSyncHandler {
     job.remoteError = null
   }
 
-  /** 用 5 秒期限读一次监听方的状态；读不到时把它的结果记为待确认。 */
+  /** 以 SHORT_TIMEOUT_MS 为期限读一次监听方的状态；读不到时把它的结果记为待确认。不会 reject。 */
   private recover(job: Job): Promise<void> {
     job.recovering ??= (async () => {
       job.recoveredAt = performance.now()
@@ -1722,7 +1733,7 @@ export class WindowsDialerSync implements DialerSyncHandler {
     }
   }
 
-  /** 请监听方取消并等它结束，最多 5 秒；读不到时把它的结果记为待确认。 */
+  /** 请监听方取消并等它结束，最多 SHORT_TIMEOUT_MS；读不到时把它的结果记为待确认。不会 reject。 */
   private async cancelRemote(job: Job): Promise<void> {
     const deadline = AbortSignal.timeout(SHORT_TIMEOUT_MS)
     try {
@@ -1807,10 +1818,11 @@ export class WindowsDialerSync implements DialerSyncHandler {
     const { connection } = job.preparation
     connection.http
       .json('GET', this.jobPath(job), { ...this.headers(connection), timeoutMs: SHORT_TIMEOUT_MS })
+      // 心跳只让监听方记录在线时间，读取失败不影响本机写入。
       .catch(() => undefined)
   }
 
-  /** 推送有变化的任务摘要；进行中的任务没有变化也每秒推送一次，作为在线信号。 */
+  /** 推送有变化的任务摘要；进行中的任务没有变化时也每隔 REPORT_INTERVAL_MS 推送一次，作为在线信号。 */
   private report(now: number): void {
     const deviceId = this.options.dialer.deviceId()
     for (const job of this.jobs.values()) {

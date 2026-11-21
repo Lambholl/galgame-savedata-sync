@@ -65,8 +65,10 @@ final class ListenerSyncJobs {
   static final long RETENTION_NANOS = TimeUnit.MINUTES.toNanos(10);
   /** 读取对端结果失败后，隔多久再试一次。 */
   static final long REMOTE_READ_RETRY_NANOS = TimeUnit.SECONDS.toNanos(5);
-  /** 确认的扫描结果的有效期（毫秒）。 */
+  /** 确认的扫描结果的有效期（毫秒），与共享 SYNC_LIMITS.snapshotLifetimeMs 相同。 */
   static final long SNAPSHOT_LIFETIME_MS = 600000;
+  /** 停止时等待任务结束和清理的最长时间（秒）。 */
+  static final long STOP_WAIT_SECONDS = 30;
   static final int MAX_TASKS = 32;
   static final int MAX_USED_IDS = 4096;
   private static final String CONTENT_TYPE = "application/gzip";
@@ -1795,7 +1797,7 @@ final class ListenerSyncJobs {
   }
 
   /**
-   * 停止接受任务并取消进行中的任务，立即返回；后台线程最多等 30 秒让任务结束和清理，然后关闭扫描器。可以重复调用。
+   * 停止接受任务并取消进行中的任务，立即返回；后台线程最多等 {@link #STOP_WAIT_SECONDS} 秒让任务结束和清理，然后关闭扫描器。可以重复调用。
    */
   void stop() {
     Task task;
@@ -1820,7 +1822,7 @@ final class ListenerSyncJobs {
 
   private void awaitStop() {
     try {
-      if (!worker.awaitTermination(30, TimeUnit.SECONDS)) {
+      if (!worker.awaitTermination(STOP_WAIT_SECONDS, TimeUnit.SECONDS)) {
         worker.shutdownNow();
       }
       retryCleanup();

@@ -1,6 +1,8 @@
 import { hostname } from 'node:os'
 import {
+  CONTROL_CLOSE_CODES,
   HTTP_ROUTES,
+  LIBRARY_LIMITS,
   PROTOCOL_VERSION,
   isBatchDeviceDescriptor,
   isCatalogReply,
@@ -25,11 +27,11 @@ import type { WindowsDiscoveryBrowser } from './discovery-browser.ts'
 import { HttpOperationError, toHttpError } from './http-errors.ts'
 import type { DesktopLibrary, LibraryDialer } from './library-store.ts'
 
-const CATALOG_ROUTE = '/v1/catalog'
 /** 读取设备信息的期限；地址不对时尽快换下一个。 */
 const DEVICE_TIMEOUT_MS = 5000
 /** 告别请求的期限；对方多半已经不在，不能拖住断开和退出。 */
 const GOODBYE_TIMEOUT_MS = 2000
+/** 控制通道异常断开后两次重连的间隔。 */
 const RECONNECT_DELAY_MS = 2000
 /** 控制通道异常断开后保留会话的时长。 */
 const CONTROL_GRACE_MS = 10_000
@@ -41,8 +43,6 @@ const RELOCATABLE_CODES: readonly OperationErrorCode[] = [
   'timeout',
   'session-mismatch',
 ]
-const CLOSE_DISCONNECTED = 4001
-const CLOSE_REPLACED = 4002
 
 /** 监听方发给拨号方传输引擎的控制请求。 */
 export type DialerSyncMethod = Exclude<ControlRequestMethod, 'directory.list'>
@@ -110,7 +110,7 @@ function errorCode(error: unknown): OperationErrorCode {
 
 /**
  * 本机作为拨号方的连接，同一时间只连一台设备；连着时对方可以读取本机游戏的目录。
- * 控制通道异常断开时每 2 秒重连，10 秒内没恢复就断开；对方以 4001（断开）或 4002（被替换）关闭时立即断开。
+ * 控制通道异常断开超过 CONTROL_GRACE_MS 仍没恢复时断开；对方以 CONTROL_CLOSE_CODES 里的关闭码关闭时立即断开。
  */
 export class WindowsDialer implements LibraryDialer {
   private session: DialSession | null = null
@@ -127,7 +127,8 @@ export class WindowsDialer implements LibraryDialer {
     private readonly browser: Pick<WindowsDiscoveryBrowser, 'state' | 'watch' | 'find'>,
     displayName?: string,
   ) {
-    this.localName = (displayName ?? hostname()).trim().slice(0, 128) || 'Windows'
+    this.localName =
+      (displayName ?? hostname()).trim().slice(0, LIBRARY_LIMITS.maxNameLength) || 'Windows'
   }
 
   /** 连接状态和附近的设备，不续期搜索。 */
@@ -163,7 +164,7 @@ export class WindowsDialer implements LibraryDialer {
 
   /**
    * 连接已保存的设备。附近搜到它在别的地址时先连搜到的地址；否则连保存的地址，
-   * 同时按设备 ID 查找 5 秒，保存的地址连不上时再连查到的地址。
+   * 同时按设备 ID 查找最多 LOOKUP_TIMEOUT_MS，保存的地址连不上时再连查到的地址。
    *
    * @returns 连上的不是保存的地址时 isRelocated 为 true。
    * @throws HttpOperationError 设备没保存、已停用，或所有地址都连不上时抛出。
@@ -467,7 +468,7 @@ export class WindowsDialer implements LibraryDialer {
     isNewConnection: boolean,
   ): Promise<CatalogReply> {
     const catalog = await this.library.localCatalog(peerId)
-    const reply = await http.json('POST', CATALOG_ROUTE, {
+    const reply = await http.json('POST', HTTP_ROUTES.catalog, {
       sessionId,
       isNewConnection,
       body: {
@@ -488,7 +489,7 @@ export class WindowsDialer implements LibraryDialer {
 
   private async goodbye(http: DialerHttpClient, sessionId: string): Promise<void> {
     try {
-      await http.json('POST', CATALOG_ROUTE, {
+      await http.json('POST', HTTP_ROUTES.catalog, {
         sessionId,
         body: { deviceId: this.adapter.deviceId, goodbye: true },
         timeoutMs: GOODBYE_TIMEOUT_MS,
@@ -524,7 +525,7 @@ export class WindowsDialer implements LibraryDialer {
       return
     }
     this.sync?.closed(session.deviceId)
-    if (code === CLOSE_DISCONNECTED || code === CLOSE_REPLACED) {
+    if (code === CONTROL_CLOSE_CODES.disconnected || code === CONTROL_CLOSE_CODES.replaced) {
       this.release(session, false)
       return
     }

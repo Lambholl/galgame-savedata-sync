@@ -1,4 +1,5 @@
 import {
+  CONTROL_CLOSE_CODES,
   emptyLibrary,
   isLibraryConfig,
   libraryCatalog,
@@ -22,7 +23,6 @@ import {
   androidControl as defaultControl,
   androidTransfers as defaultTransfers,
 } from './http-transfers'
-import { CONTROL_CLOSE_DISCONNECTED } from './control-channel'
 import type { AndroidControlApi } from './control-channel'
 import type { AndroidDirectoryApi } from './directory-bridge'
 import type { AndroidTransferApi } from './http-transfer-bridge'
@@ -159,7 +159,7 @@ export function createMobileLibraryAdapter(
       if (!closedSince.has(id)) {
         closedSince.set(id, Date.now())
       }
-      if (state.code === CONTROL_CLOSE_DISCONNECTED) {
+      if (state.code === CONTROL_CLOSE_CODES.disconnected) {
         dropped.add(id)
       }
     }
