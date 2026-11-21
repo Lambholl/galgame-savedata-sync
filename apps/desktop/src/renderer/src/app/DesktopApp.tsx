@@ -143,13 +143,13 @@ export function DesktopApp({
     const value = await adapter.read(pageRef.current === 'devices')
     if (version === generation.current) {
       const previous = snapshotRef.current
-      // 打开应用时已经在进行的传输不算刚开始，不切页面。
+      // 打开应用时已有的任务不算刚开始，不切页面。
+      // 不要求任务还在 running：短传输可能在两次轮询之间就结束，窗口最小化或被遮挡时
+      // Chromium 还会把轮询拖到几十秒一次，第一次看到时任务常已结束。
       const started = previous
         ? value.copies.find(
             (item) =>
-              item.isPeerInitiated &&
-              item.phase === 'running' &&
-              !previous.copies.some((old) => old.jobId === item.jobId),
+              item.isPeerInitiated && !previous.copies.some((old) => old.jobId === item.jobId),
           )
         : undefined
       if (
