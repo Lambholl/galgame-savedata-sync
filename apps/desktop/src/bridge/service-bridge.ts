@@ -150,7 +150,7 @@ function isSnapshot(value: unknown): value is DesktopServiceSnapshot {
 /**
  * 用 invoke 创建冻结的 DesktopServiceApi。
  *
- * @returns invoke 失败或返回格式不对时，对应方法返回 io-failure 错误结果。
+ * @returns invoke 失败或返回格式不对时，对应方法返回 internal-error 错误结果。
  */
 export function createServiceBridge(
   invoke: (channel: string, ...args: unknown[]) => Promise<unknown>,
@@ -158,7 +158,7 @@ export function createServiceBridge(
   const failure = {
     status: 'error' as const,
     error: {
-      code: 'io-failure' as const,
+      code: 'internal-error' as const,
       message: '本地服务响应无效，请重新读取状态。',
       canRetry: false,
     },

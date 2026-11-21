@@ -134,7 +134,7 @@ function invalid(): OperationResult<never> {
 /**
  * 用 invoke 创建冻结的 DesktopBackupApi。
  *
- * @returns 返回值的格式或游戏与请求不符时，对应方法返回 io-failure 错误结果。
+ * @returns 返回值的格式或游戏与请求不符时，对应方法返回 invalid-request 错误结果。
  */
 export function createBackupBridge(
   invoke: (channel: string, ...args: unknown[]) => Promise<unknown>,

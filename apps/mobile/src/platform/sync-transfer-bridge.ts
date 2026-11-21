@@ -74,7 +74,7 @@ export interface AndroidSyncTransferApi {
   onPeerJobStarted(listener: (jobId: string, projectId: string) => void): () => void
 }
 function failure(
-  code: 'invalid-request' | 'io-failure' | 'unsupported-operation',
+  code: 'invalid-request' | 'internal-error' | 'unsupported-operation',
 ): OperationResult<never> {
   return {
     status: 'error',
@@ -120,9 +120,9 @@ export function createSyncTransferBridge(
     }
     try {
       const result = await work()
-      return isOperationResult(result, guard) ? result : failure('io-failure')
+      return isOperationResult(result, guard) ? result : failure('internal-error')
     } catch {
-      return failure('io-failure')
+      return failure('internal-error')
     }
   }
   function remember(value: SyncPreparationPreview, id = value.preparationId): void {
@@ -175,7 +175,7 @@ export function createSyncTransferBridge(
       matchesSyncJobState(state.local, expected) &&
       (state.remote === null || matchesSyncJobState(state.remote, expected))
       ? raw
-      : failure('io-failure')
+      : failure('internal-error')
   }
   async function query(
     jobId: string,

@@ -393,7 +393,7 @@ export class WindowsHttpService {
     })
     const address = server.address()
     if (!address || typeof address === 'string') {
-      throw new HttpOperationError('io-failure', 'The local listening address is unavailable.')
+      throw new HttpOperationError('internal-error', 'The local listening address is unavailable.')
     }
     this.address = { host: address.address, port: address.port, sessionId, startedAt: Date.now() }
     return { ...this.address }

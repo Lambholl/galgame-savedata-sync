@@ -58,9 +58,9 @@ export function useRemoteSync(
         control.emit(item.deviceId, 'sync.report', value).catch(() => undefined)
       }
     }
-    /** 回报扫描失败；保留原错误码，没有错误码时按读写失败回报。 */
+    /** 回报扫描失败；保留原错误码，没有错误码时按应用内部错误回报。 */
     function fail(item: ActiveRequest, error: ShownError): void {
-      const code = error.code ?? 'io-failure'
+      const code = error.code ?? 'internal-error'
       const device = error.device ? { device: error.device } : {}
       report(item, {
         requestId: item.requestId,
@@ -117,7 +117,10 @@ export function useRemoteSync(
           backupKeepCount: preview.backupKeepCount,
         })
       } else {
-        fail(item, state.error ?? { code: 'io-failure', message: 'The mobile device scan failed.' })
+        fail(
+          item,
+          state.error ?? { code: 'internal-error', message: 'The mobile device scan failed.' },
+        )
         await release(item)
       }
     }
@@ -205,7 +208,7 @@ export function useRemoteSync(
             events.current.onFailure(error)
           }
           await release(item)
-          return failure(error.code ?? 'io-failure', error.message)
+          return failure(error.code ?? 'internal-error', error.message)
         }
       }),
       control.onRequest('sync.cancel', async (from, body) => {

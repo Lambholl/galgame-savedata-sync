@@ -408,6 +408,8 @@ export const jaJP: Messages = {
   'error.code.insufficient-space': '保存領域が足りません。',
   'error.code.io-failure':
     'ファイルの読み書きに失敗しました。保存先を利用できるか確認してください。',
+  'error.code.internal-error':
+    'アプリ内部でエラーが発生しました。もう一度お試しください。続く場合はアプリを再起動してください。',
   'error.code.cleanup-failed': '一時ファイルが残っています。あとでクリーンアップを再試行できます。',
   'error.code.result-unknown': '結果はまだ確認できていません。',
 }

@@ -699,7 +699,7 @@ export class WindowsDialerSync implements DialerSyncHandler {
       preparation.remoteScanId = null
       if (remote.status !== 'succeeded' || !remote.snapshot) {
         throw new HttpOperationError(
-          remote.error?.code ?? 'io-failure',
+          remote.error?.code ?? 'internal-error',
           remote.error
             ? 'The device directory scan is incomplete.'
             : 'The device scan was cancelled.',
@@ -904,7 +904,7 @@ export class WindowsDialerSync implements DialerSyncHandler {
       checkArchiveAbort(signal)
       if (state.status !== 'succeeded' || !state.snapshot) {
         throw new HttpOperationError(
-          state.error?.code ?? 'io-failure',
+          state.error?.code ?? 'internal-error',
           state.error?.message ?? 'The local directory scan is incomplete.',
         )
       }
@@ -1149,9 +1149,12 @@ export class WindowsDialerSync implements DialerSyncHandler {
       await this.handleFailure(job, cause)
     } finally {
       job.isWriting = false
-      // 正常结束和 handleFailure 都会写入终态；两者都没写入时按读写失败结束，否则任务会一直显示进行中。
+      // 正常结束和 handleFailure 都会写入终态；两者都没写入时按应用内部错误结束，否则任务会一直显示进行中。
       if (job.state.status === 'running') {
-        const stopped = new HttpOperationError('io-failure', 'The sync task stopped unexpectedly.')
+        const stopped = new HttpOperationError(
+          'internal-error',
+          'The sync task stopped unexpectedly.',
+        )
         if (isSending) {
           this.terminal(job, 'failed', knownError(stopped))
         } else {

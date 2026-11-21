@@ -83,7 +83,7 @@ public class SyncBackupsPlugin extends Plugin {
           } catch (Exception invalid) {
             call.resolve(
               new DirectoryFailure(
-                "io-failure",
+                "internal-error",
                 "The backup query response failed.",
                 invalid
               ).result()

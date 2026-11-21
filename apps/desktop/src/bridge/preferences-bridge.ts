@@ -25,7 +25,7 @@ function invalid(): OperationResult<never> {
 /**
  * 用 invoke 创建冻结的 DesktopPreferencesApi。
  *
- * @returns invoke 失败或返回格式不对时，对应方法返回 io-failure 错误结果。
+ * @returns invoke 失败或返回格式不对时，对应方法返回 invalid-request 错误结果。
  */
 export function createPreferencesBridge(
   invoke: (channel: string, ...args: unknown[]) => Promise<unknown>,

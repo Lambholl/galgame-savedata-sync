@@ -406,6 +406,8 @@ export const enUS: Messages = {
   'error.code.insufficient-space': 'Not enough storage space.',
   'error.code.io-failure':
     'Reading or writing files failed. Make sure the folder is still accessible.',
+  'error.code.internal-error':
+    'Something went wrong inside the app. Try again, and restart the app if it keeps failing.',
   'error.code.cleanup-failed': 'Temporary files were not fully cleaned up. You can retry later.',
   'error.code.result-unknown': 'The result is not confirmed yet.',
   'settings.backup': 'Backup',

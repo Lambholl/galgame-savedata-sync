@@ -64,7 +64,7 @@ public class DirectoriesPlugin extends Plugin {
       });
     } catch (RejectedExecutionException cause) {
       call.resolve(
-        new DirectoryFailure("io-failure", "The app is closed. Open it again.", cause).result()
+        new DirectoryFailure("internal-error", "The app is closed. Open it again.", cause).result()
       );
     }
   }

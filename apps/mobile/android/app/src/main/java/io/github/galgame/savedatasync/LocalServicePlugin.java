@@ -80,7 +80,7 @@ public class LocalServicePlugin extends Plugin {
             );
           } catch (Exception invalid) {
             call.resolve(
-              new DirectoryFailure("io-failure", "The local service is unavailable.").result()
+              new DirectoryFailure("internal-error", "The local service is unavailable.").result()
             );
           }
         }

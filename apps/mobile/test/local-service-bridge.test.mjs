@@ -95,7 +95,7 @@ test('本机服务桥接拒绝格式不对或与请求不符的原生结果', as
   ]
   for (const overrides of cases) {
     const result = await createLocalService(fixture(overrides).plugin, () => true).status()
-    assert.equal(result.status === 'error' && result.error.code, 'io-failure')
+    assert.equal(result.status === 'error' && result.error.code, 'internal-error')
   }
   const peers = await createLocalService(
     fixture({
@@ -103,7 +103,7 @@ test('本机服务桥接拒绝格式不对或与请求不符的原生结果', as
     }).plugin,
     () => true,
   ).peers()
-  assert.equal(peers.status === 'error' && peers.error.code, 'io-failure')
+  assert.equal(peers.status === 'error' && peers.error.code, 'internal-error')
   const moved = await createLocalService(
     fixture({
       peerDirectory: async () => ({
@@ -113,7 +113,7 @@ test('本机服务桥接拒绝格式不对或与请求不符的原生结果', as
     }).plugin,
     () => true,
   ).peerDirectory('phone-b', 'root-b', null)
-  assert.equal(moved.status === 'error' && moved.error.code, 'io-failure')
+  assert.equal(moved.status === 'error' && moved.error.code, 'internal-error')
 })
 
 test('本机服务桥接转发原生事件，撤销订阅后不再通知', async () => {

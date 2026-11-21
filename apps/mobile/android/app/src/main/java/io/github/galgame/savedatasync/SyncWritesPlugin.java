@@ -72,7 +72,7 @@ public class SyncWritesPlugin extends Plugin {
           } catch (Exception invalid) {
             call.resolve(
               new DirectoryFailure(
-                "io-failure",
+                "internal-error",
                 "The restore response is invalid.",
                 invalid
               ).result()

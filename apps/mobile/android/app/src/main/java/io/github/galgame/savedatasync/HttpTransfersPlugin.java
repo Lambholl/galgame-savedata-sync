@@ -150,7 +150,7 @@ public class HttpTransfersPlugin extends Plugin {
             call.resolve(json(object("status", "error", "error", failure)));
           } catch (Exception invalid) {
             call.resolve(
-              new DirectoryFailure("io-failure", "The task service is unavailable.").result()
+              new DirectoryFailure("internal-error", "The task service is unavailable.").result()
             );
           }
         } finally {

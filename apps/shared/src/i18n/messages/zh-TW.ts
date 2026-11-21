@@ -382,6 +382,7 @@ export const zhTW: Messages = {
   'error.code.port-unavailable': '監聽連接埠已被占用，請換一個連接埠後重試。',
   'error.code.insufficient-space': '儲存空間不足。',
   'error.code.io-failure': '讀寫檔案失敗，請確認目錄仍可存取。',
+  'error.code.internal-error': '應用程式內部出錯，請重試；仍然失敗時重新啟動應用程式。',
   'error.code.cleanup-failed': '暫存檔案沒有清理乾淨，可以稍後重試清理。',
   'error.code.result-unknown': '結果尚未確認。',
 }

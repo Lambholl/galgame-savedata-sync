@@ -65,7 +65,7 @@ public class SyncScansPlugin extends Plugin {
           } catch (Exception invalid) {
             call.resolve(
               new DirectoryFailure(
-                "io-failure",
+                "internal-error",
                 "The scan service response failed.",
                 invalid
               ).result()

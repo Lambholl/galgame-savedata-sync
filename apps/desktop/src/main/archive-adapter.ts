@@ -66,7 +66,7 @@ function createLimiter(
 async function* binaryChunks(source: AsyncIterable<unknown>): AsyncGenerator<Buffer> {
   for await (const chunk of source) {
     if (!Buffer.isBuffer(chunk)) {
-      throw new ArchiveError('io-failure', 'Native streams must provide binary data.')
+      throw new ArchiveError('internal-error', 'Native streams must provide binary data.')
     }
     for (let offset = 0; offset < chunk.length; offset += BATCH_RESOURCES.maxBufferBytes) {
       yield chunk.subarray(offset, offset + BATCH_RESOURCES.maxBufferBytes)

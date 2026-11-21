@@ -154,14 +154,14 @@ function isDialResult(value: unknown): value is DesktopDialResult {
 /**
  * 用 invoke 创建冻结的 DesktopDialerApi。
  *
- * @returns invoke 失败或返回格式不对时，对应方法返回 io-failure 错误结果。
+ * @returns invoke 失败或返回格式不对时，对应方法返回 internal-error 错误结果。
  */
 export function createDialerBridge(
   invoke: (channel: string, ...args: unknown[]) => Promise<unknown>,
 ): DesktopDialerApi {
   const failure = {
     status: 'error' as const,
-    error: { code: 'io-failure' as const, message: '连接状态无效，请重试。', canRetry: true },
+    error: { code: 'internal-error' as const, message: '连接状态无效，请重试。', canRetry: true },
   }
   const invalid = {
     status: 'error' as const,

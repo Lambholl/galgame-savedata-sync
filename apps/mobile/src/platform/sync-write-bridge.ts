@@ -80,7 +80,7 @@ function shape(value: unknown, fields: readonly string[]): value is Record<strin
   )
 }
 function invalid(
-  code: 'invalid-request' | 'io-failure' | 'unsupported-operation',
+  code: 'invalid-request' | 'internal-error' | 'unsupported-operation',
 ): OperationResult<never> {
   return {
     status: 'error',
@@ -158,9 +158,9 @@ export function createSyncWriteBridge(
     }
     try {
       const result = await work()
-      return isOperationResult(result, guard) ? result : invalid('io-failure')
+      return isOperationResult(result, guard) ? result : invalid('internal-error')
     } catch {
-      return invalid('io-failure')
+      return invalid('internal-error')
     }
   }
   async function preview(restoreId: string): Promise<OperationResult<SyncPlan>> {
@@ -187,7 +187,7 @@ export function createSyncWriteBridge(
       !isOpaqueId(value.planId) ||
       !isOpaqueId(value.projectId)
     ) {
-      return invalid('io-failure')
+      return invalid('internal-error')
     }
     const plan = createSyncPlan({
       planId: value.planId,
@@ -216,7 +216,7 @@ export function createSyncWriteBridge(
         ([key, expectedValue]) => value[key as keyof AndroidRestoreState] !== expectedValue,
       )
     ) {
-      return invalid('io-failure')
+      return invalid('internal-error')
     }
     if (value.result !== null) {
       let plan = plans.get(value.restoreId)
@@ -233,7 +233,7 @@ export function createSyncWriteBridge(
         plan.source.rootId !== value.backupId ||
         !matchesSyncApplyResult(value.result, plan)
       ) {
-        return invalid('io-failure')
+        return invalid('internal-error')
       }
     }
     return result

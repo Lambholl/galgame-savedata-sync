@@ -405,6 +405,7 @@ export const zhCN = {
   'error.code.port-unavailable': '监听端口被占用，请换一个端口后重试。',
   'error.code.insufficient-space': '存储空间不足。',
   'error.code.io-failure': '读写文件失败，请确认目录仍可访问。',
+  'error.code.internal-error': '应用内部出错，请重试；仍然失败时重启应用。',
   'error.code.cleanup-failed': '临时文件没有清理干净，可以稍后重试清理。',
   'error.code.result-unknown': '结果尚未确认。',
 }

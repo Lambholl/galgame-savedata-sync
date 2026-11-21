@@ -178,7 +178,8 @@ final class ListenerRuntime {
   /**
    * 打开开关：在保存的端口监听 0.0.0.0，启动前台服务和局域网广播。已在运行时不做任何事。
    *
-   * @throws ArchiveFailure 端口被占用或系统不允许启动前台服务时抛出 io-failure，开关状态不变。
+   * @throws ArchiveFailure 端口被占用时抛出 port-unavailable，同步服务或前台服务启动不了时抛出
+   *     internal-error，开关状态不变。
    */
   void start() throws ArchiveFailure {
     ListenerServer created;
@@ -186,9 +187,9 @@ final class ListenerRuntime {
     try {
       sync = SyncTransferRuntime.get(context).listenerSync();
     } catch (Exception cause) {
-      fail("io-failure", "The local copy service could not start.");
+      fail("internal-error", "The local copy service could not start.");
       throw new ArchiveFailure(
-        "io-failure",
+        "internal-error",
         "The local copy service could not start.",
         false,
         cause
@@ -241,8 +242,13 @@ final class ListenerRuntime {
       }
       created.stop();
       ListenerService.finish(context);
-      fail("io-failure", "The system did not allow the local service to start.");
-      throw new ArchiveFailure("io-failure", "The local service could not start.", false, cause);
+      fail("internal-error", "The system did not allow the local service to start.");
+      throw new ArchiveFailure(
+        "internal-error",
+        "The local service could not start.",
+        false,
+        cause
+      );
     }
     settings.edit().putBoolean(ENABLED, true).apply();
     advertiser.start(host.displayName(), host.deviceId(), created.port());

@@ -82,7 +82,7 @@ export function createMobileLibraryAdapter(
     const value: unknown = raw === null ? emptyLibrary() : JSON.parse(raw)
     if (!isLibraryConfig(value)) {
       throw new OperationFailure(
-        'io-failure',
+        'internal-error',
         'The game configuration is damaged. Preserve app data and inspect it.',
       )
     }

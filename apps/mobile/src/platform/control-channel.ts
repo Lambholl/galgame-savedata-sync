@@ -65,7 +65,7 @@ export function createControlChannel(
   async function send(deviceId: string, message: ControlMessage): Promise<void> {
     const result = await plugin.sendControl({ deviceId, message: JSON.stringify(message) })
     if (!isOperationResult(result, (value): value is null => value === null)) {
-      throw new OperationFailure('io-failure', 'The control message send result is invalid.')
+      throw new OperationFailure('internal-error', 'The control message send result is invalid.')
     }
     if (result.status === 'error') {
       throw new OperationFailure(result.error.code, result.error.message)
@@ -89,12 +89,12 @@ export function createControlChannel(
           ? await handler(deviceId, message.body).catch((cause: unknown) => ({
               status: 'error' as const,
               error: {
-                code: 'io-failure' as const,
+                code: cause instanceof OperationFailure ? cause.code : ('internal-error' as const),
                 message:
                   cause instanceof Error
                     ? cause.message
                     : 'The mobile device failed to process the request.',
-                canRetry: false,
+                canRetry: false as const,
               },
             }))
           : failure('unsupported-operation', 'The mobile device does not handle this request.')

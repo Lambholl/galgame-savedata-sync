@@ -99,7 +99,7 @@ export interface LocalServiceApi {
 }
 
 const BRIDGE_ERROR: OperationError = {
-  code: 'io-failure',
+  code: 'internal-error',
   message: 'The local service response is invalid or the connection failed.',
   canRetry: false,
 }

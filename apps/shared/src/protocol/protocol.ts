@@ -40,6 +40,7 @@ export const HTTP_ERROR_STATUS = {
   'port-unavailable': null,
   'insufficient-space': 507,
   'io-failure': 500,
+  'internal-error': 500,
   'cleanup-failed': 500,
   'result-unknown': 404,
 } as const satisfies Readonly<Record<OperationErrorCode, number | null>>

@@ -34,7 +34,7 @@ export interface AndroidDirectoryApi {
 }
 
 const BRIDGE_ERROR: OperationError = {
-  code: 'io-failure',
+  code: 'internal-error',
   message: 'The directory service response is invalid or the connection failed.',
   canRetry: false,
 }

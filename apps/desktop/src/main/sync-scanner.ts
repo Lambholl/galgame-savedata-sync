@@ -215,7 +215,7 @@ export class WindowsSyncScanner {
       this.check(job)
       const snapshot = this.snapshot(job, null)
       if (!isSyncSnapshot(snapshot)) {
-        throw new HttpOperationError('io-failure', 'The scan result format is invalid.')
+        throw new HttpOperationError('internal-error', 'The scan result format is invalid.')
       }
       if (Buffer.byteLength(JSON.stringify(snapshot), 'utf8') > BATCH_LIMITS.maxJsonBytes - 4096) {
         throw new HttpOperationError('resource-limit', 'The scan manifest exceeds transfer limits.')

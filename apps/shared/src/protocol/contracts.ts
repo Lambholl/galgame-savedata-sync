@@ -100,6 +100,7 @@ export type OperationErrorCode =
   | 'port-unavailable'
   | 'insufficient-space'
   | 'io-failure'
+  | 'internal-error'
   | 'cleanup-failed'
   | 'result-unknown'
 

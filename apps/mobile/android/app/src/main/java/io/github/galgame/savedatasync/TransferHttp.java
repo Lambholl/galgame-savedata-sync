@@ -594,6 +594,7 @@ interface TransferHttp {
         case "insufficient-space":
           return 507;
         case "io-failure":
+        case "internal-error":
         case "cleanup-failed":
           return 500;
         default:

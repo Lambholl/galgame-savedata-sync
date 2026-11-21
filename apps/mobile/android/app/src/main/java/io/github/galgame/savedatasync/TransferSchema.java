@@ -20,8 +20,8 @@ final class TransferSchema {
     "invalid-request protocol-mismatch session-mismatch task-conflict invalid-archive " +
     "resource-limit busy timeout permission-denied authorization-expired not-found " +
     "not-readable unsupported-operation name-conflict path-outside-root source-changed " +
-    "checksum-mismatch network-failure insufficient-space io-failure cleanup-failed " +
-    "result-unknown";
+    "checksum-mismatch network-failure insufficient-space io-failure internal-error " +
+    "cleanup-failed result-unknown";
 
   private TransferSchema() {}
 

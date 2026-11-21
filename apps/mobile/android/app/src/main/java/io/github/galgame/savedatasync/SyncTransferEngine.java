@@ -1076,9 +1076,9 @@ final class SyncTransferEngine implements AutoCloseable {
         job.ended = System.nanoTime();
         if (job.state.get("status").equals("running")) {
           if (job.preparation.upload()) {
-            terminal(job, "failed", "io-failure", null);
+            terminal(job, "failed", "internal-error", null);
           } else {
-            receiverFailed(job, fail("io-failure"));
+            receiverFailed(job, fail("internal-error"));
           }
         }
         if (job.hasLease && job.state.get("cleanupError") == null) {

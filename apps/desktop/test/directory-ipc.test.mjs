@@ -107,14 +107,14 @@ test('preload 拒绝畸形返回和连接失败，非法引用不发 IPC 请求'
     requests += 1
     return { status: 'success', value: [] }
   })
-  assert.equal((await malformed.chooseDirectory()).error.code, 'io-failure')
-  assert.equal((await malformed.listDirectory('root-1')).error.code, 'io-failure')
+  assert.equal((await malformed.chooseDirectory()).error.code, 'internal-error')
+  assert.equal((await malformed.listDirectory('root-1')).error.code, 'internal-error')
   assert.equal((await malformed.listDirectory('../outside')).error.code, 'invalid-request')
   assert.equal(requests, 2)
   const disconnected = createDirectoryBridge(async () => {
     throw new Error('private message')
   })
-  assert.equal((await disconnected.chooseDirectory()).error.code, 'io-failure')
-  assert.equal((await disconnected.listRoots()).error.code, 'io-failure')
-  assert.equal((await disconnected.listDirectory('root-1')).error.code, 'io-failure')
+  assert.equal((await disconnected.chooseDirectory()).error.code, 'internal-error')
+  assert.equal((await disconnected.listRoots()).error.code, 'internal-error')
+  assert.equal((await disconnected.listDirectory('root-1')).error.code, 'internal-error')
 })

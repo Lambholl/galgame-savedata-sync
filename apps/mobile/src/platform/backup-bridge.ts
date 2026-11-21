@@ -122,7 +122,7 @@ function isListing(value: unknown): value is AndroidBackupList {
   )
 }
 function failure(
-  code: 'invalid-request' | 'unsupported-operation' | 'io-failure',
+  code: 'invalid-request' | 'unsupported-operation' | 'internal-error',
 ): OperationResult<never> {
   return {
     status: 'error',
@@ -139,7 +139,7 @@ function failure(
 /**
  * 用原生插件创建 AndroidBackupApi。
  *
- * @returns 返回值的格式、游戏或备份与请求不符时，对应方法返回 io-failure 错误结果。
+ * @returns 返回值的格式、游戏或备份与请求不符时，对应方法返回 internal-error 错误结果。
  */
 export function createBackupBridge(
   plugin: BackupNativePlugin,
@@ -154,9 +154,9 @@ export function createBackupBridge(
     }
     try {
       const value = await work()
-      return isOperationResult(value, guard) ? value : failure('io-failure')
+      return isOperationResult(value, guard) ? value : failure('internal-error')
     } catch {
-      return failure('io-failure')
+      return failure('internal-error')
     }
   }
   return Object.freeze({

@@ -28,7 +28,7 @@ export interface AndroidSyncScanApi {
 }
 
 function failure(
-  code: 'invalid-request' | 'unsupported-operation' | 'io-failure',
+  code: 'invalid-request' | 'unsupported-operation' | 'internal-error',
   message: string,
 ): OperationResult<never> {
   return { status: 'error', error: { code, message, canRetry: false } }
@@ -54,9 +54,9 @@ export function createSyncScanBridge(
       const value = await work()
       return isOperationResult(value, guard)
         ? value
-        : failure('io-failure', 'The native scan response is invalid. Read it again.')
+        : failure('internal-error', 'The native scan response is invalid. Read it again.')
     } catch {
-      return failure('io-failure', 'The native scan service is unavailable. Read it again.')
+      return failure('internal-error', 'The native scan service is unavailable. Read it again.')
     }
   }
   async function task(
@@ -77,7 +77,7 @@ export function createSyncScanBridge(
       value.status === 'success' &&
       value.value[action === 'start' ? 'rootId' : 'scanId'] !== id
     ) {
-      return failure('io-failure', 'The scan result does not match this request.')
+      return failure('internal-error', 'The scan result does not match this request.')
     }
     return value
   }

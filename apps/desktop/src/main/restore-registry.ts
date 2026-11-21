@@ -216,7 +216,7 @@ export class WindowsRestoreRegistry {
       checkArchiveAbort(job.controller.signal)
       if (!current.snapshot) {
         throw new HttpOperationError(
-          current.error?.code ?? 'io-failure',
+          current.error?.code ?? 'internal-error',
           current.error?.message ?? 'The current directory scan is incomplete.',
         )
       }

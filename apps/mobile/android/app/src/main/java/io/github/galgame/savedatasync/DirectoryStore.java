@@ -99,7 +99,7 @@ final class DirectoryStore {
       }
     } catch (Exception cause) {
       throw new DirectoryFailure(
-        "io-failure",
+        "internal-error",
         "The directory configuration cannot be restored. Preserve it and inspect its format.",
         cause
       );

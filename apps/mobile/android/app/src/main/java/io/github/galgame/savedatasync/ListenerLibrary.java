@@ -450,7 +450,7 @@ final class ListenerLibrary {
       checkConfig(value);
     } catch (ArchiveFailure invalid) {
       throw new ArchiveFailure(
-        "io-failure",
+        "internal-error",
         "The game configuration is damaged. Preserve app data and inspect it.",
         false,
         invalid

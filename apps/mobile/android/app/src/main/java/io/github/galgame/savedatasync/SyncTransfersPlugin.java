@@ -69,7 +69,11 @@ public class SyncTransfersPlugin extends Plugin {
             );
           } catch (Exception invalid) {
             call.resolve(
-              new DirectoryFailure("io-failure", "The copy response is invalid.", invalid).result()
+              new DirectoryFailure(
+                "internal-error",
+                "The copy response is invalid.",
+                invalid
+              ).result()
             );
           }
         }

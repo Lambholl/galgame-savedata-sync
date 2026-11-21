@@ -660,7 +660,7 @@ export class WindowsSyncRegistry {
       checkArchiveAbort(task.controller.signal)
       if (state.status !== 'succeeded' || !state.snapshot) {
         throw new HttpOperationError(
-          state.error?.code ?? 'io-failure',
+          state.error?.code ?? 'internal-error',
           state.error?.message ?? 'Source directory verification is incomplete.',
         )
       }

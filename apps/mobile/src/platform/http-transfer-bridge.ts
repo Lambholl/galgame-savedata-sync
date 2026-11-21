@@ -78,7 +78,7 @@ const INVALID: OperationError = {
   canRetry: false,
 }
 const BRIDGE: OperationError = {
-  code: 'io-failure',
+  code: 'internal-error',
   message: 'The response does not match this operation.',
   canRetry: false,
 }

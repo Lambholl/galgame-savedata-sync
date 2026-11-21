@@ -45,6 +45,7 @@ final class ArchiveFailure extends IOException {
         cause
       );
     }
+    // 文档提供方在文件不可访问时也会抛运行时异常，和程序缺陷分不开，这里统一按读写失败处理。
     return new ArchiveFailure("io-failure", "Local archive I/O failed.", false, cause);
   }
 }

@@ -21,7 +21,11 @@ export class HttpOperationError extends Error {
   }
 }
 
-/** 把任意错误转成 HttpOperationError；已知的适配层错误保留错误码，其余错误换成通用的脱敏错误。 */
+/**
+ * 把任意错误转成 HttpOperationError。
+ *
+ * 已知的适配层错误保留错误码；带 syscall 的 Node 系统调用错误转成 io-failure，其余错误转成 internal-error，消息都换成通用的脱敏文本。
+ */
 export function toHttpError(error: unknown): HttpOperationError {
   if (error instanceof HttpOperationError) {
     return error
@@ -32,5 +36,8 @@ export function toHttpError(error: unknown): HttpOperationError {
       return new HttpOperationError(value.code, value.message, error)
     }
   }
-  return new HttpOperationError('io-failure', 'The local service operation failed.', error)
+  if (error instanceof Error && 'syscall' in error) {
+    return new HttpOperationError('io-failure', 'The local service operation failed.', error)
+  }
+  return new HttpOperationError('internal-error', 'The local service operation failed.', error)
 }

@@ -34,7 +34,7 @@ export interface DesktopDirectoryApi {
 }
 
 const BRIDGE_ERROR: OperationError = {
-  code: 'io-failure',
+  code: 'internal-error',
   message: '目录服务响应无效或连接失败。',
   canRetry: false,
 }
@@ -54,7 +54,7 @@ function isRootList(value: unknown): value is readonly DirectoryReference[] {
 /**
  * 用 invoke 创建冻结的 DesktopDirectoryApi。
  *
- * @returns invoke 失败或返回格式不对时，对应方法返回 io-failure 错误结果。
+ * @returns invoke 失败或返回格式不对时，对应方法返回 internal-error 错误结果。
  */
 export function createDirectoryBridge(
   invoke: (channel: string, ...args: unknown[]) => Promise<unknown>,
