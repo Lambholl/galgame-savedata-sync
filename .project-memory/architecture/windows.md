@@ -244,4 +244,4 @@ HTTP 服务注入 `scanSource: adapter` 后开放 `/v1/sync/capabilities`、`POS
 
 Windows 短路径检查通过 PowerShell 调用 GetShortPathName 生成真实 8.3 别名，并在只影响子进程的 TEMP/TMP 环境中重跑目录与 IPC 用例；卷未生成不同短名时跳过这一项。HTTP 测试使用真实回环 HTTP/TCP，时间边界由注入的时钟和仅收紧的期限验证，不等待实际 30 分钟。
 
-实际桌面窗口、系统选择器、Android LAN 双向、取消、清理重试和界面结果已在真机上验收，见[验收标准](../testing/acceptance.md)。电脑拨号没有长期测试。连接的验证情况见[回归状态](../testing/regression-notes.md)；传输在两个进程间用合成目录验证过两个方向、两端发起、删除多出条目、关闭备份、取消和断网，真实存档和两台电脑间的真实网络随 WP-52 回归。
+实际桌面窗口、系统选择器、Android LAN 双向、取消、清理重试和界面结果已在真机上验收，见[验收标准](../testing/acceptance.md)。电脑拨号没有长期测试。连接的验证情况见[回归状态](../testing/regression-notes.md)；传输在两个进程间用合成目录验证过两个方向、两端发起、删除多出条目、关闭备份、取消和断网，真实存档已在同一台电脑的两个实例间验证，两台电脑间的真实网络还没验证。

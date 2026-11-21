@@ -111,8 +111,8 @@ M-003 把发现、二维码和控制通道按对称角色设计，但实现只�
 
 ### 待验证
 
-- Android 熄屏、Doze 状态下，开着前台服务的监听能否被局域网设备连上、NsdManager 广播是否持续；连不上时再考虑 Wi-Fi 锁。实现已完成，在 WP-52 用真机验证。
-- 应用在后台、只有 `connectedDevice` 前台服务在运行时，对方登记任务能否启动 `TransferService`（dataSync）。Android 12 起限制从后台启动前台服务；启动失败时任务照常运行，只是没有传输通知保持。实现已完成，在 WP-52 用真机验证。
+- Android 熄屏、Doze 状态下，开着前台服务的监听能否被局域网设备连上、NsdManager 广播是否持续；连不上时再考虑 Wi-Fi 锁。实现已完成，还没在真机上验证，见[回归状态](../testing/regression-notes.md)。
+- 应用在后台、只有 `connectedDevice` 前台服务在运行时，对方登记任务能否启动 `TransferService`（dataSync）。Android 12 起限制从后台启动前台服务；启动失败时任务照常运行，只是没有传输通知保持。实现已完成，还没在真机上验证，见[回归状态](../testing/regression-notes.md)。
 ## 替代方案
 
 | 方案 | 优点 | 缺点 | 结果 |

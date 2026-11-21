@@ -153,10 +153,7 @@ export function createHttpTransferBridge(
       invoke(
         () => plugin.connections(),
         (value): value is readonly BatchDeviceDescriptor[] =>
-          Array.isArray(value) &&
-          value.length <= 1 &&
-          value.every(isBatchDeviceDescriptor) &&
-          value.every((item) => item.device.platform === 'windows'),
+          Array.isArray(value) && value.length <= 1 && value.every(isBatchDeviceDescriptor),
       ),
     async selectDevice(deviceId: string): Promise<OperationResult<BatchDeviceDescriptor>> {
       if (!isOpaqueId(deviceId)) {
@@ -164,10 +161,7 @@ export function createHttpTransferBridge(
       }
       const result = await invoke(() => plugin.selectDevice({ deviceId }), isBatchDeviceDescriptor)
       if (result.status === 'success') {
-        if (
-          result.value.device.deviceId !== deviceId ||
-          result.value.device.platform !== 'windows'
-        ) {
+        if (result.value.device.deviceId !== deviceId) {
           return failure(BRIDGE)
         }
         device = structuredClone(result.value)
@@ -204,9 +198,6 @@ export function createHttpTransferBridge(
         true,
       )
       if (response.status === 'success') {
-        if (response.value.device.platform !== 'windows') {
-          return failure({ ...BRIDGE, message: BRIDGE.code })
-        }
         device = structuredClone(response.value)
       }
       return response

@@ -233,7 +233,7 @@ export function DevicesPage({
                       </Button>
                     ) : isConnecting ? (
                       <SpinLoading style={{ '--size': '20px' }} />
-                    ) : peer.device.address ? (
+                    ) : peer.device.address || found ? (
                       <ConnectButton
                         blockedBy={blockedBy}
                         isDisabled={isDisabled || isActive}
