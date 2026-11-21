@@ -323,7 +323,6 @@ export const zhTW: Messages = {
   'device.connecting': '正在連線…',
   'device.disconnectFirst': ({ name }: { name: string }): string => `先中斷 ${name} 的連線`,
   'device.nearby': '附近的裝置',
-  'device.nearbyHere': '在附近',
   'device.nearbyEmpty': '沒有找到',
   'device.nearbyOutdated': '版本不同，兩台裝置都更新後才能連線',
   'device.nearbyFailed': '無法搜尋附近的裝置',

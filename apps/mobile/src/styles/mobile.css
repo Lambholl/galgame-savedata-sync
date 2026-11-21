@@ -663,6 +663,28 @@ html.camera-live .app-heading {
 .device-service {
   margin-bottom: 12px;
 }
+/* 服务停止时的端口设置：标签、端口号和换随机端口的图标按钮排成一行，窄屏也放得下。 */
+.device-port {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.device-port-random {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--ss-r-sm);
+  background: transparent;
+  color: var(--ss-muted);
+  font-size: 18px;
+}
+.device-port-random:disabled {
+  opacity: 0.4;
+}
 /* 二维码弹层：二维码和地址居中排列。 */
 .device-qr {
   display: flex;
@@ -675,7 +697,9 @@ html.camera-live .app-heading {
 .device-saved {
   -webkit-touch-callout: none;
 }
+/* 设备图标只靠颜色表示状态：蓝色是在线（附近搜到或已连接），灰色是离线，右下角的绿点是已连接。 */
 .device-icon {
+  position: relative;
   display: grid;
   place-items: center;
   width: 40px;
@@ -685,9 +709,22 @@ html.camera-live .app-heading {
   color: var(--ss-accent);
   font-size: 20px;
 }
-.device-icon.is-online {
-  background: var(--ss-accent);
-  color: var(--ss-accent-fg);
+/* 离线用灰底：列表卡片本身是 group 色（浅色主题为白色），图标底色不能用同一个变量。 */
+.device-icon.is-offline {
+  background: var(--ss-raised);
+  color: var(--ss-muted);
+}
+/* 绿点外圈用列表卡片的底色描边，和图标的蓝底分开。 */
+.device-icon.is-connected::after {
+  content: '';
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--ss-group);
+  border-radius: 50%;
+  background: var(--ss-ok);
 }
 /* SpinLoading 的 svg 默认是行内元素，按基线排在行框里，图标比自己的方框偏下，和旁边的文字对不齐。 */
 .adm-spin-loading-svg {
@@ -698,23 +735,6 @@ html.camera-live .app-heading {
   display: flex;
   align-items: center;
   gap: 6px;
-}
-.device-ok {
-  color: var(--ss-ok);
-}
-/* 已保存的设备在附近搜到：圆点加文字，不只靠颜色区分。 */
-.device-near {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  color: var(--ss-ok);
-}
-.device-near::before {
-  content: '';
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: currentColor;
 }
 .device-warn {
   color: var(--ss-warn);

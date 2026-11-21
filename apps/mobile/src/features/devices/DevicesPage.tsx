@@ -3,7 +3,7 @@ import { Button, List, SpinLoading } from 'antd-mobile'
 import { AndroidOutlined, DesktopOutlined } from '@ant-design/icons'
 import { createConnectionQrText, formatConnectionAddress } from '@savedata-sync/shared'
 import type { DeviceDescriptor, LibraryPeer } from '@savedata-sync/shared'
-import { ConnectionQr, ServiceHero, useT } from '@savedata-sync/shared/ui'
+import { ConnectionQr, ServiceHero, ShuffleIcon, useT } from '@savedata-sync/shared/ui'
 import type { ServiceHeroState } from '@savedata-sync/shared/ui'
 import { EmptyState } from '../../components/EmptyState'
 import { Sheet } from '../../components/Sheet'
@@ -160,23 +160,27 @@ export function DevicesPage({
             address={serviceAddress}
             isAddressLoading={false}
             startedAt={listener?.startedAt ?? null}
-            connectedName={
-              peers.find((peer) => peer.isConnected && peer.device.id === service.peerId)?.device
-                .name ?? null
-            }
             discovery={service.discovery}
             qrText={qrText}
             isCopied={isCopied}
             isToggleDisabled={isDisabled}
             portEditor={
-              <span className="device-inline">
+              <span className="device-port">
                 {t('service.port')}
                 <strong className="ss-copyable">{service.configuredPort}</strong>
-                <Button size="small" disabled={isDisabled} onClick={onRandomizePort}>
-                  {t('service.randomizePort')}
-                </Button>
+                <button
+                  type="button"
+                  className="device-port-random"
+                  aria-label={t('service.randomizePort')}
+                  title={t('service.randomizePort')}
+                  disabled={isDisabled}
+                  onClick={onRandomizePort}
+                >
+                  <ShuffleIcon />
+                </button>
               </span>
             }
+            isCompact
             onToggle={onToggleService}
             onCopy={() => {
               if (serviceAddress) {
@@ -205,28 +209,13 @@ export function DevicesPage({
                   key={peer.device.id}
                   data-device-id={peer.device.id}
                   prefix={
-                    <span className={`device-icon${peer.isConnected ? ' is-online' : ''}`}>
+                    <span
+                      className={`device-icon${peer.isConnected ? ' is-connected' : found === undefined ? ' is-offline' : ''}`}
+                    >
                       <PlatformIcon platform={peer.device.platform} />
                     </span>
                   }
-                  description={
-                    peer.isConnected ? (
-                      <span className="device-ok">
-                        {address
-                          ? `${t('transfer.connected')} · ${address}`
-                          : t('transfer.connected')}
-                      </span>
-                    ) : isConnecting ? (
-                      t('device.connecting')
-                    ) : found !== undefined ? (
-                      <span className="device-inline">
-                        <span className="device-near">{t('device.nearbyHere')}</span>
-                        {nearbyAddress}
-                      </span>
-                    ) : (
-                      address
-                    )
-                  }
+                  description={peer.isConnected ? address : nearbyAddress}
                   arrow={false}
                   extra={
                     peer.isConnected ? (

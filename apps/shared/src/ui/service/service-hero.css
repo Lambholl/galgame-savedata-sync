@@ -4,6 +4,7 @@
  *   720px 及以上：信息 | 二维码 | 开关；
  *   520～719px：信息 | 开关，二维码收进地址旁的按钮；
  *   520px 以下：标题和运行信息在左、开关在右，地址单独占一整行，不会被开关压住。
+ * 紧凑排版（is-compact）在这三档之上缩小开关和边距，二维码总是收进按钮，见文件末尾。
  */
 
 .ss-service-hero {
@@ -24,7 +25,7 @@
 
 /* 文字始终画在开关光晕上面。 */
 .ss-service-info,
-.ss-service-title,
+.ss-service-head,
 .ss-service-address,
 .ss-service-port,
 .ss-service-meta {
@@ -37,6 +38,13 @@
   display: flex;
   flex-direction: column;
   gap: 14px;
+}
+/* 标题和状态胶囊：一行放不下时胶囊换到标题下面，不伸到开关底下。 */
+.ss-service-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
 }
 .ss-service-title {
   display: flex;
@@ -59,6 +67,7 @@
   border-radius: var(--ss-r-pill);
   font-size: 13px;
   font-weight: 600;
+  white-space: nowrap;
   background: var(--ss-group);
   color: var(--ss-muted);
 }
@@ -326,7 +335,7 @@
   .ss-service-info {
     display: contents;
   }
-  .ss-service-title {
+  .ss-service-head {
     grid-area: head;
     align-self: end;
   }
@@ -336,9 +345,17 @@
     flex-wrap: wrap;
     gap: 12px 20px;
   }
+  /*
+   * 地址独占一行，字号按最长的 IPv4 地址加端口（21 个字符，约 10.9em）一行放得下来算：
+   * 卡片宽减去左右内边距（48px）和复制、二维码两个按钮及间距（86px），再除以 11em。
+   */
   .ss-service-address {
     grid-area: address;
-    font-size: clamp(20px, 7cqi, 30px);
+    font-size: min(30px, calc((100cqi - 134px) / 11));
+  }
+  /* 紧凑排版的左右内边距是 38px。 */
+  .ss-service-hero.is-compact .ss-service-address {
+    font-size: min(30px, calc((100cqi - 124px) / 11));
   }
   /* 停止时没有运行信息，端口放在标题下面、开关左边，卡片只剩开关那么高。 */
   .ss-service-port {
@@ -351,4 +368,29 @@
     grid-area: toggle;
     margin: 6px 6px 0 0;
   }
+}
+
+/*
+ * 紧凑排版：卡片圆角和下方列表卡片一致，开关 88px。
+ * 开关连光晕约 112px，360px 宽的手机上左边还剩约 185px，四种语言的标题加最长的状态胶囊都放得下一行。
+ * 选择器比按宽度切换的档位多一层，任何宽度下都优先。
+ */
+.ss-service-hero.is-compact {
+  border-radius: var(--ss-r-md);
+}
+.ss-service-hero.is-compact .ss-service-body {
+  padding: 18px 18px 18px 20px;
+}
+.ss-service-hero.is-compact .ss-service-qr-button {
+  display: grid;
+}
+.ss-service-hero.is-compact .ss-service-toggle-slot::before {
+  inset: -12px;
+}
+.ss-service-hero.is-compact .ss-service-toggle {
+  width: 88px;
+  height: 88px;
+}
+.ss-service-hero.is-compact .ss-service-toggle-icon {
+  font-size: 34px;
 }

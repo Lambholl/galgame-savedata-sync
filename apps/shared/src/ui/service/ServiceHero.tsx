@@ -30,8 +30,6 @@ export interface ServiceHeroProps {
   readonly isAddressLoading: boolean
   /** 开始监听的时间（Unix 毫秒），运行时据此显示运行时长；服务停止时为 null。 */
   readonly startedAt: number | null
-  /** 当前连着本机的设备名；没有连接时为 null，显示“—”。 */
-  readonly connectedName: string | null
   /** 局域网广播状态，运行时显示在运行信息里；off 时不显示这一项。 */
   readonly discovery: ServiceDiscoveryStatus
   /** 连接二维码的内容；为 null 时不显示二维码和二维码按钮。 */
@@ -42,11 +40,13 @@ export interface ServiceHeroProps {
   readonly isToggleDisabled: boolean
   /** 服务停止时显示在地址位置的端口设置。 */
   readonly portEditor: ReactNode
+  /** 紧凑排版：开关缩小，卡片圆角和内边距收小，二维码不论卡片多宽都收进地址旁的按钮。 */
+  readonly isCompact: boolean
   /** 按下主开关：服务停止时启动，运行时停止。 */
   readonly onToggle: () => void
   /** 复制推荐地址。 */
   readonly onCopy: () => void
-  /** 点按二维码按钮；卡片太窄放不下二维码时，这个按钮显示在地址旁。 */
+  /** 点按二维码按钮；卡片太窄放不下二维码或 isCompact 时，这个按钮显示在地址旁。 */
   readonly onShowQr: () => void
 }
 
@@ -103,20 +103,20 @@ function useUptime(startedAt: number | null): string | null {
 }
 
 /**
- * 本机服务卡片：标题和状态胶囊、推荐地址、运行时长、连着的设备和局域网广播状态，右侧是二维码和主开关。
- * 服务停止时地址换成端口设置。排版按卡片宽度切换三档。
+ * 本机服务卡片：标题和状态胶囊、推荐地址、运行时长和局域网广播状态，右侧是二维码和主开关。
+ * 服务停止时地址换成端口设置。排版按卡片宽度切换三档，isCompact 时开关和卡片边距另用小一号的尺寸。
  */
 export function ServiceHero({
   state,
   address,
   isAddressLoading,
   startedAt,
-  connectedName,
   discovery,
   qrText,
   isCopied,
   isToggleDisabled,
   portEditor,
+  isCompact,
   onToggle,
   onCopy,
   onShowQr,
@@ -126,13 +126,16 @@ export function ServiceHero({
   const isTransitioning = state === 'starting' || state === 'stopping'
   const uptime = useUptime(isRunning ? startedAt : null)
   const discoveryLabel = DISCOVERY_LABELS[discovery]
+  const hasInlineQr = isRunning && !isCompact
   return (
-    <section className={`ss-service-hero is-${state}`}>
+    <section className={`ss-service-hero is-${state}${isCompact ? ' is-compact' : ''}`}>
       <div className="ss-service-body">
         <div className="ss-service-info">
-          <div className="ss-service-title">
-            <WifiOutlined />
-            {t('service.title')}
+          <div className="ss-service-head">
+            <div className="ss-service-title">
+              <WifiOutlined />
+              {t('service.title')}
+            </div>
             <span className={`ss-service-pill is-${state}`}>{t(STATE_LABELS[state])}</span>
           </div>
           {isRunning ? (
@@ -176,10 +179,6 @@ export function ServiceHero({
                 <dt>{t('service.uptime')}</dt>
                 <dd>{uptime}</dd>
               </div>
-              <div>
-                <dt>{t('transfer.connected')}</dt>
-                <dd>{connectedName ?? '—'}</dd>
-              </div>
               {discoveryLabel ? (
                 <div>
                   <dt>{t('service.discovery')}</dt>
@@ -191,7 +190,7 @@ export function ServiceHero({
             </dl>
           ) : null}
         </div>
-        {isRunning && isAddressLoading ? (
+        {hasInlineQr && isAddressLoading ? (
           <div className="ss-service-qr">
             {/* 和二维码同样大小，读到地址后二维码出现在原处，卡片不跳动。 */}
             <div className="ss-connection-qr-placeholder" aria-hidden="true">
@@ -199,7 +198,7 @@ export function ServiceHero({
             </div>
           </div>
         ) : null}
-        {isRunning && !isAddressLoading && qrText !== null ? (
+        {hasInlineQr && !isAddressLoading && qrText !== null ? (
           <div className="ss-service-qr">
             <ConnectionQr text={qrText} size={132} label={t('service.qrTitle')} />
           </div>

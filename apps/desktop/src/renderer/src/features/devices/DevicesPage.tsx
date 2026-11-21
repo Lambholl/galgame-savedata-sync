@@ -1,9 +1,9 @@
 import { useState } from 'react'
-import { Button, Card, Empty, Flex, InputNumber, Listy, Modal, Spin, Tag, Tooltip } from 'antd'
+import { Button, Card, Empty, Flex, InputNumber, Modal, Spin, Tooltip } from 'antd'
 import { AndroidOutlined, DesktopOutlined, PlusOutlined } from '@ant-design/icons'
 import { createConnectionQrText, formatConnectionAddress } from '@savedata-sync/shared'
 import type { DeviceDescriptor, LibraryPeer } from '@savedata-sync/shared'
-import { ConnectionQr, ServiceHero, useT } from '@savedata-sync/shared/ui'
+import { ConnectionQr, ServiceHero, ShuffleIcon, useT } from '@savedata-sync/shared/ui'
 import type { ServiceHeroState } from '@savedata-sync/shared/ui'
 import type {
   DesktopDialerSnapshot,
@@ -134,29 +134,37 @@ export function DevicesPage({
           address={address}
           isAddressLoading={addresses === null}
           startedAt={listener?.startedAt ?? null}
-          connectedName={online?.device.name ?? null}
           discovery={service.discovery.status}
           qrText={qrText}
           isCopied={address !== null && copied === address}
           isToggleDisabled={isDisabled || (!listener && !isPortValid)}
           portEditor={
-            <Flex align="center" gap="small" className="library-port">
-              {t('service.port')}
-              <InputNumber
-                size="large"
-                aria-label={t('service.port')}
-                min={1}
-                max={65535}
-                precision={0}
-                value={port}
-                readOnly={isBusy}
-                onChange={onPortChange}
-              />
-              <Button size="large" disabled={isBusy} onClick={onRandomizePort}>
-                {t('service.randomizePort')}
-              </Button>
+            <Flex align="center" wrap gap="small" className="library-port">
+              <span className="library-port-label">{t('service.port')}</span>
+              <Flex align="center" gap="small">
+                <InputNumber
+                  size="large"
+                  aria-label={t('service.port')}
+                  min={1}
+                  max={65535}
+                  precision={0}
+                  value={port}
+                  readOnly={isBusy}
+                  onChange={onPortChange}
+                />
+                <Tooltip title={t('service.randomizePort')}>
+                  <Button
+                    size="large"
+                    icon={<ShuffleIcon />}
+                    aria-label={t('service.randomizePort')}
+                    disabled={isBusy}
+                    onClick={onRandomizePort}
+                  />
+                </Tooltip>
+              </Flex>
             </Flex>
           }
+          isCompact={false}
           onToggle={onToggleService}
           onCopy={() => address && onCopyAddress(address)}
           onShowQr={() => setIsQrOpen(true)}
@@ -175,41 +183,27 @@ export function DevicesPage({
       </div>
       <Card className="library-device-list">
         {peers.length ? (
-          <Listy<LibraryPeer>
-            items={[...peers]}
-            rowKey={(peer) => peer.device.id}
-            itemRender={(peer) => {
+          <Flex vertical>
+            {peers.map((peer) => {
               const id = peer.device.id
               const isDialed = session?.deviceId === id
-              const isPending = isDialed && !peer.isConnected
               const nearbyHere = found.get(id)
               const caption = nearbyHere
-                ? `${t('device.nearbyHere')} · ${nearbyAddress(nearbyHere)}`
+                ? nearbyAddress(nearbyHere)
                 : peer.device.address
                   ? formatConnectionAddress(peer.device.address)
                   : peer.isConnected
                     ? null
                     : t('device.waitingMobile')
               return (
-                <Flex align="center" gap={12} className="library-device-row">
-                  <span className={`library-device-icon${peer.isConnected ? ' is-online' : ''}`}>
+                <Flex key={id} align="center" gap={12} className="library-device-row">
+                  <span
+                    className={`library-device-icon${peer.isConnected ? ' is-connected' : nearbyHere ? '' : ' is-offline'}`}
+                  >
                     <PlatformIcon platform={peer.device.platform} />
                   </span>
                   <Flex vertical className="library-device-info">
-                    <Flex align="center" gap="small">
-                      <strong className="library-device-name ss-copyable">
-                        {peer.device.name}
-                      </strong>
-                      {peer.isConnected ? (
-                        <Tag color="success" className="library-device-state">
-                          {t('transfer.connected')}
-                        </Tag>
-                      ) : isPending ? (
-                        <Tag color="processing" className="library-device-state">
-                          {t('device.connecting')}
-                        </Tag>
-                      ) : null}
-                    </Flex>
+                    <strong className="library-device-name ss-copyable">{peer.device.name}</strong>
                     {caption ? <span className="library-device-caption">{caption}</span> : null}
                   </Flex>
                   {peer.isConnected || isDialed ? (
@@ -233,8 +227,8 @@ export function DevicesPage({
                   </Button>
                 </Flex>
               )
-            }}
-          />
+            })}
+          </Flex>
         ) : (
           <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('device.emptyPc')} />
         )}

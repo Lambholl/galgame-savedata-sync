@@ -344,7 +344,6 @@ export const zhCN = {
   'device.connecting': '正在连接…',
   'device.disconnectFirst': ({ name }: { name: string }): string => `先断开 ${name}`,
   'device.nearby': '附近的设备',
-  'device.nearbyHere': '在附近',
   'device.nearbyEmpty': '没有找到',
   'device.nearbyOutdated': '版本不同，两台设备都更新后才能连接',
   'device.nearbyFailed': '无法搜索附近的设备',

@@ -152,14 +152,20 @@ body {
 .library-device-list .ant-card-body {
   padding-block: 4px;
 }
+/*
+ * 设备列表用普通行，不用 antd Listy：设备不会多到需要虚拟化。
+ * 行本身不能点，只有行内的按钮能点，所以行不加悬停反馈。
+ */
 .library-device-row {
   width: 100%;
+  padding-block: 12px;
 }
-/* Listy 给每一行都画下边线，最后一行的线贴着卡片底边，多出一道。 */
-.library-device-list .ant-listy-item:last-child {
-  border-bottom: 0;
+.library-device-row + .library-device-row {
+  border-top: 1px solid var(--ss-line);
 }
+/* 设备图标只靠颜色表示状态：蓝色是在线（附近搜到或已连接），灰色是离线，右下角的绿点是已连接。 */
 .library-device-icon {
+  position: relative;
   flex: none;
   display: grid;
   place-items: center;
@@ -170,9 +176,22 @@ body {
   color: var(--ss-accent);
   font-size: 20px;
 }
-.library-device-icon.is-online {
-  background: var(--ss-accent);
-  color: var(--ss-accent-fg);
+/* 离线用灰底：设备列表卡片本身是 group 色（浅色主题为白色），图标底色不能用同一个变量。 */
+.library-device-icon.is-offline {
+  background: var(--ss-raised);
+  color: var(--ss-muted);
+}
+/* 绿点外圈用列表卡片的底色描边，和图标的蓝底分开。 */
+.library-device-icon.is-connected::after {
+  content: '';
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--ss-group);
+  border-radius: 50%;
+  background: var(--ss-ok);
 }
 .library-device-info {
   flex: 1;
@@ -182,17 +201,17 @@ body {
   min-width: 0;
   overflow-wrap: anywhere;
 }
-.library-device-state.ant-tag {
-  flex: none;
-  margin-inline-end: 0;
-}
 .library-device-caption {
   color: var(--ss-muted);
   font-size: 13px;
   font-variant-numeric: tabular-nums;
 }
+/* 服务停止时的端口设置：放不下一行时输入框和随机按钮一起换到下一行，标签本身不断开。 */
 .library-port {
   font-size: 16px;
+}
+.library-port-label {
+  white-space: nowrap;
 }
 .library-qr-address {
   font-size: 18px;
