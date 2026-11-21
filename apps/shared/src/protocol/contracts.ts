@@ -97,6 +97,7 @@ export type OperationErrorCode =
   | 'source-changed'
   | 'checksum-mismatch'
   | 'network-failure'
+  | 'port-unavailable'
   | 'insufficient-space'
   | 'io-failure'
   | 'cleanup-failed'

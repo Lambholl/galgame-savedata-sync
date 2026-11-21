@@ -403,6 +403,8 @@ export const jaJP: Messages = {
     'ファイルのチェックサムが一致しません。もう一度転送してください。',
   'error.code.network-failure':
     'ネットワーク接続が切れました。両端末が同じネットワークに接続されているか確認して、もう一度お試しください。',
+  'error.code.port-unavailable':
+    '待ち受けポートが使用中です。別のポートに変更してから、もう一度お試しください。',
   'error.code.insufficient-space': '保存領域が足りません。',
   'error.code.io-failure':
     'ファイルの読み書きに失敗しました。保存先を利用できるか確認してください。',

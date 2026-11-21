@@ -37,6 +37,7 @@ export const HTTP_ERROR_STATUS = {
   'source-changed': 409,
   'checksum-mismatch': 422,
   'network-failure': null,
+  'port-unavailable': null,
   'insufficient-space': 507,
   'io-failure': 500,
   'cleanup-failed': 500,

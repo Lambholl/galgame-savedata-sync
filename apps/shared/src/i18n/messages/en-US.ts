@@ -402,6 +402,7 @@ export const enUS: Messages = {
   'error.code.checksum-mismatch': 'File verification failed. Transfer again.',
   'error.code.network-failure':
     'The network connection dropped. Make sure both devices are on the same network and try again.',
+  'error.code.port-unavailable': 'The listening port is in use. Choose another port and try again.',
   'error.code.insufficient-space': 'Not enough storage space.',
   'error.code.io-failure':
     'Reading or writing files failed. Make sure the folder is still accessible.',

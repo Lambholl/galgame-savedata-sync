@@ -402,6 +402,7 @@ export const zhCN = {
   'error.code.source-changed': '传输期间有文件发生了变化，请重新预览。',
   'error.code.checksum-mismatch': '文件校验不一致，请重新传输。',
   'error.code.network-failure': '网络连接中断，请确认两端在同一网络后重试。',
+  'error.code.port-unavailable': '监听端口被占用，请换一个端口后重试。',
   'error.code.insufficient-space': '存储空间不足。',
   'error.code.io-failure': '读写文件失败，请确认目录仍可访问。',
   'error.code.cleanup-failed': '临时文件没有清理干净，可以稍后重试清理。',

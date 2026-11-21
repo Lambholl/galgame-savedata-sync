@@ -152,7 +152,7 @@ HTTP 服务注入 `scanSource: adapter` 后开放 `/v1/sync/capabilities`、`POS
 
 ## 10. HTTP 服务与任务生命周期
 
-`src/main/http-service.ts` 的 `WindowsHttpService` 构造时不监听网络。应用初始化目录/归档/服务对象，用户点服务按钮后通过有限 IPC 启动，退出时等待 stop。原生 API 缺省回环地址和动态端口；自动化 HTTP 检查使用 127.0.0.1。
+`src/main/http-service.ts` 的 `WindowsHttpService` 构造时不监听网络。应用初始化目录/归档/服务对象，用户点服务按钮后通过有限 IPC 启动，监听失败（端口被占用或在系统保留的端口段里）报 `port-unavailable`，退出时等待 stop。原生 API 缺省回环地址和动态端口；自动化 HTTP 检查使用 127.0.0.1。
 
 | 原生 API | 输入/返回 | 责任 |
 | --- | --- | --- |

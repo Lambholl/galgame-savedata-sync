@@ -379,6 +379,7 @@ export const zhTW: Messages = {
   'error.code.source-changed': '傳輸期間有檔案發生了變化，請重新預覽。',
   'error.code.checksum-mismatch': '檔案校驗不一致，請重新傳輸。',
   'error.code.network-failure': '網路連線中斷，請確認兩端在同一網路後重試。',
+  'error.code.port-unavailable': '監聽連接埠已被占用，請換一個連接埠後重試。',
   'error.code.insufficient-space': '儲存空間不足。',
   'error.code.io-failure': '讀寫檔案失敗，請確認目錄仍可存取。',
   'error.code.cleanup-failed': '暫存檔案沒有清理乾淨，可以稍後重試清理。',

@@ -174,7 +174,9 @@ final class ListenerServer {
     }
     ServerSocket socket = new ServerSocket();
     try {
-      socket.setReuseAddress(false);
+      // 停服时本机先关闭的连接要在 TIME_WAIT 里停留约一分钟，不复用地址时这段时间内绑定失败。
+      // Linux 上地址复用不允许两个套接字同时监听同一端口，端口被别的应用占用时仍然绑定失败。
+      socket.setReuseAddress(true);
       socket.bind(new InetSocketAddress(address, port), 16);
     } catch (IOException cause) {
       socket.close();

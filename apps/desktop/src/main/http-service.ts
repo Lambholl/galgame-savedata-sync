@@ -374,8 +374,9 @@ export class WindowsHttpService {
       this.stopControl()
       await this.scanner?.stop()
       this.scanner = null
+      // Windows 保留的端口段报 EACCES 而不是 EADDRINUSE，两种都靠换端口解决。
       throw new HttpOperationError(
-        'io-failure',
+        'port-unavailable',
         'Cannot listen on the specified address and port. Check whether the port is in use.',
         error,
       )

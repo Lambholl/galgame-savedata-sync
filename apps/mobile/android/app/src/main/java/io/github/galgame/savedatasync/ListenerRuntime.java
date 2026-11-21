@@ -222,10 +222,10 @@ final class ListenerRuntime {
       } catch (IOException cause) {
         close(sync.scanner());
         fail(
-          "io-failure",
+          "port-unavailable",
           "Cannot listen on the port. Check whether it is in use or choose another port."
         );
-        throw new ArchiveFailure("io-failure", "Cannot listen on the port.", false, cause);
+        throw new ArchiveFailure("port-unavailable", "Cannot listen on the port.", false, cause);
       }
       server = created;
       error = null;

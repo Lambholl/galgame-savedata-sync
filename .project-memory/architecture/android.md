@@ -237,7 +237,7 @@ Windows → Android（监听方 → 拨号方）：使用移动端目标项目�
 
 | 类 | 职责 |
 | --- | --- |
-| `ListenerServer` | 在 `0.0.0.0` 的保存端口监听，最多 16 条连接，空闲 60 秒（控制通道 45 秒）关闭。路由 `/v1/device`、`/v1/catalog`、`/v1/roots`、`/v1/roots/<rootId>/entries`、`/v1/control`；除 `/v1/device` 外都核对 `x-sync-session-id`，控制通道还要求已交换目录表的 `x-sync-device-id`，不满足返回 403。`/v1/sync/*`（能力、扫描、项目描述、任务登记、内容 GET 和 PUT、查询和取消）同样核对会话，并要求 `x-sync-device-id` 是已交换目录表的设备；扫描和任务的 DELETE 在进行中时回 202，内容 GET 用 chunked 200，PUT 只接受 chunked 并回 202 |
+| `ListenerServer` | 在 `0.0.0.0` 的保存端口监听，开启地址复用，停服后马上重开不受 TIME_WAIT 的旧连接影响；绑定失败报 `port-unavailable`。最多 16 条连接，空闲 60 秒（控制通道 45 秒）关闭。路由 `/v1/device`、`/v1/catalog`、`/v1/roots`、`/v1/roots/<rootId>/entries`、`/v1/control`；除 `/v1/device` 外都核对 `x-sync-session-id`，控制通道还要求已交换目录表的 `x-sync-device-id`，不满足返回 403。`/v1/sync/*`（能力、扫描、项目描述、任务登记、内容 GET 和 PUT、查询和取消）同样核对会话，并要求 `x-sync-device-id` 是已交换目录表的设备；扫描和任务的 DELETE 在进行中时回 202，内容 GET 用 chunked 200，PUT 只接受 chunked 并回 202 |
 | `ListenerSyncJobs` | 对应电脑 `WindowsSyncRegistry`：拨号方登记的复制任务，本机可以是接收端或发送端。本机接收时内容只接受一次，边收边解包到私有缓存，收齐后由 `SyncWriter` 写入；本机发送时重新扫描核对来源，内容只能读取一次。从登记到写入和缓存清理结束占用 `TargetOperation` 名额。期限与电脑相同：ready 10 分钟、等内容 2 分钟、总期限 30 分钟、网络无进展 60 秒；终态保留 10 分钟，最多 32 个任务、4096 个已用 ID，只在内存中。错误回复的 `canRetry` 一律为 false，与电脑服务相同。停止服务时立即返回，中止当前任务后在后台线程最多等 30 秒完成清理 |
 | `ListenerSyncRequests` | 对应电脑 `remote-sync-requests.ts`：本机作监听方时发起的传输。经控制通道发 `sync.prepare` 请拨号方扫描，收 `sync.report` 的计划后由用户确认，再发 `sync.confirm`，拨号方执行并在本机登记任务；同一时间只保留一个请求。拨号方以 invalid-request 或 not-found 拒绝确认（计划已过期）时按 not-found 返回，界面重新准备 |
 | `ListenerHttp` | HTTP/1.1 请求解析和回复，规则与电脑服务相同：头名重复、Content-Encoding、Range、Expect、Content-Length 与 chunked 冲突、chunk 扩展和 trailer 都按 invalid-request 拒绝；JSON 请求体最多 8 MiB |

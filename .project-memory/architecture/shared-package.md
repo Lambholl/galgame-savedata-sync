@@ -63,7 +63,7 @@ tags: [共享包, 数据模型, 守卫]
 
 `BATCH_ARCHIVE` 固定受限 USTAR、gzip level 1 和 application/gzip；成员名仅 fileId。tar 头、填充、结束、gzip 单 member/CRC/ISIZE 由原生编解码器检查。当前预算按首轮实现设定，产品规模和峰值内存还没实测。
 
-HTTP_ERROR_STATUS 映射错误码到 HTTP 状态，包括 session-mismatch/task-conflict/plan-expired=409、invalid-archive=422、resource-limit=413、busy=429、timeout=408；network-failure 的 HTTP 状态为 null。session-mismatch 和 result-unknown 均禁止 canRetry=true；其他 canRetry 也只允许核实当前状态后由用户新建操作。
+HTTP_ERROR_STATUS 映射错误码到 HTTP 状态，包括 session-mismatch/task-conflict/plan-expired=409、invalid-archive=422、resource-limit=413、busy=429、timeout=408；network-failure 和 port-unavailable 的 HTTP 状态为 null；port-unavailable 只在本机服务监听失败时出现，不经 HTTP 发给对端。session-mismatch 和 result-unknown 均禁止 canRetry=true；其他 canRetry 也只允许核实当前状态后由用户新建操作。
 
 ## 5. 资源及跨语言责任
 
