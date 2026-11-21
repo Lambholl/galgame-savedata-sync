@@ -107,7 +107,7 @@ preload 通过 `window.desktopDirectories` 暴露冻结的 `DesktopDirectoryApi`
 
 服务开始监听后，`src/main/discovery-advertiser.ts` 用 `@homebridge/ciao` 在局域网广播 `_savedata-sync._tcp`（格式见[共享包](shared-package.md#9-发现与连接二维码)）：实例名取本机名称，SRV 主机名由设备 ID 生成，只发 IPv4，每块网卡只回答这块网卡的地址；网卡增减或地址变化后 ciao 每 15 秒检查一次并重新宣告。停止服务和退出应用时发送 goodbye 包并关闭 UDP 5353 套接字，最多等 3 秒。广播失败不影响 HTTP 服务，快照的 `discovery.status` 为 `failed`，每 30 秒重试。`advertising` 只表示本机已发出宣告，防火墙拦截 UDP 5353 时其他设备仍然搜不到。
 
-`src/main/discovery-browser.ts` 用 `bonjour-service` 搜索 `_savedata-sync._tcp`，和 ciao 广播在同一进程里同时使用 UDP 5353。搜索在续期后进行，停止续期 10 秒后停止并关闭套接字；按设备 ID 查找期间也保持搜索。mDNS 应答方只在被问到或上线时宣告，所以搜索期间每 4 秒重新查询。结果排除本机设备 ID，同一设备 ID 只保留一项；TXT 协议版本不同的设备只列出实例名，界面显示为版本不同。无法开始搜索时状态为 `failed`，下次续期再试。
+`src/main/discovery-browser.ts` 用 `bonjour-service` 搜索 `_savedata-sync._tcp`，和 ciao 广播在同一进程里同时使用 UDP 5353。搜索在续期后进行，停止续期 10 秒后停止并关闭套接字；按设备 ID 查找期间也保持搜索。mDNS 应答方只在被问到或上线时宣告，所以搜索期间每 4 秒重新查询。搜到的服务要请求 `/v1/device` 得到 200 才出现在结果里，每次重新查询时一并重新探测，已出现的服务连续 2 次失败后去掉；离开的设备不一定发出 goodbye 包，原因见 [Android 平台层](android.md#12-局域网设备搜索)。结果排除本机设备 ID，同一设备 ID 只保留一项；TXT 协议版本不同的设备只列出实例名，界面显示为版本不同。无法开始搜索时状态为 `failed`，下次续期再试。
 
 ## 7. 配置与路径边界
 

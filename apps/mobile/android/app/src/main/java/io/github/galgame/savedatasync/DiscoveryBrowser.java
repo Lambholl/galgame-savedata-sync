@@ -6,8 +6,12 @@ import android.net.nsd.NsdServiceInfo;
 import android.os.Build;
 import androidx.annotation.NonNull;
 import androidx.annotation.RequiresApi;
+import java.io.IOException;
+import java.net.HttpURLConnection;
 import java.net.Inet4Address;
 import java.net.InetAddress;
+import java.net.Proxy;
+import java.net.URL;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.nio.charset.CodingErrorAction;
@@ -20,9 +24,11 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -35,8 +41,11 @@ import org.json.JSONObject;
  * API 34 及以上对每个服务注册 ServiceInfoCallback，地址变化时持续更新；更低版本只能逐个调用 resolveService，
  * 同一时间只解析一个服务，解析后的结果不再更新。
  *
- * <p>全部状态只在内部单线程 worker 上读写；NsdManager 回调先转到 worker 再处理。结果变化时在 worker 线程调用
- * {@link Listener}。
+ * <p>解析出的服务要请求 {@code /v1/device} 得到 200 才出现在结果里，搜索期间每 {@link #PROBE_INTERVAL_MS}
+ * 重新探测一次；已出现的服务连续 {@link #MAX_PROBE_FAILURES} 次探测失败后从结果里去掉。
+ *
+ * <p>全部状态只在内部单线程 worker 上读写；NsdManager 回调和探测结果先转到 worker 再处理。结果变化时在 worker
+ * 线程调用 {@link Listener}。
  */
 final class DiscoveryBrowser {
 
@@ -56,9 +65,23 @@ final class DiscoveryBrowser {
 
   private static final int MAX_RESOLVE_ATTEMPTS = 3;
 
+  /** 探测请求的连接超时和读取超时。 */
+  private static final int PROBE_TIMEOUT_MS = 2_000;
+
+  /** 搜索期间重新探测已解析服务的间隔。 */
+  private static final long PROBE_INTERVAL_MS = 5_000;
+
+  /**
+   * 已出现在结果里的服务连续探测失败这么多次才去掉，Wi-Fi 偶尔丢包时不闪烁。还没出现过的服务第一次探测成功才加入。
+   */
+  private static final int MAX_PROBE_FAILURES = 2;
+
   private final NsdManager nsd;
   private final Listener listener;
   private final ScheduledExecutorService worker = Executors.newSingleThreadScheduledExecutor();
+
+  /** 执行阻塞的探测请求；结果再交回 worker。 */
+  private final ExecutorService probes = Executors.newFixedThreadPool(4);
 
   /**
    * 交给 NsdManager 的回调执行器。worker 结束后 NsdManager 仍可能送来已在途的回调，直接交给 worker 会在系统线程抛出
@@ -111,6 +134,7 @@ final class DiscoveryBrowser {
     post(() -> {
       isRequested = false;
       apply();
+      probes.shutdownNow();
       worker.shutdown();
     });
   }
@@ -131,6 +155,7 @@ final class DiscoveryBrowser {
       try {
         nsd.discoverServices(SERVICE_TYPE, NsdManager.PROTOCOL_DNS_SD, session.discovery);
       } catch (IllegalArgumentException | IllegalStateException failure) {
+        session.close();
         session = null;
       }
       listener.onChanged(snapshot());
@@ -145,7 +170,7 @@ final class DiscoveryBrowser {
    * 当前搜索状态和已解析的服务。
    *
    * <p>status 取值：searching 正在搜索；stopped 没有要求搜索；paused Activity 在后台；failed 系统拒绝开始搜索，
-   * 再次调用 start 或 Activity 回到前台时重试。services 只包含已解析出端口和至少一个 IPv4 地址的服务，每项为
+   * 再次调用 start 或 Activity 回到前台时重试。services 只包含已解析出端口和至少一个 IPv4 地址、并且探测确认在线的服务，每项为
    * name（实例名）、port、addresses（IPv4 字符串）和 txt（键到 UTF-8 文本值，没有值或值不是合法 UTF-8 的键被省略）。
    */
   JSONObject snapshot() {
@@ -160,7 +185,7 @@ final class DiscoveryBrowser {
     JSONArray services = new JSONArray();
     if (session != null) {
       for (Service service : session.services.values()) {
-        if (service.port > 0 && !service.addresses.isEmpty()) {
+        if (service.isAlive && service.port > 0 && !service.addresses.isEmpty()) {
           services.put(service.toJson());
         }
       }
@@ -172,13 +197,19 @@ final class DiscoveryBrowser {
     }
   }
 
-  /** 一轮搜索：持有 NsdManager 的发现监听器、找到的服务和 API 34 以下的解析队列。只在 worker 线程读写。 */
+  /** 一轮搜索：持有 NsdManager 的发现监听器、找到的服务、API 34 以下的解析队列和探测定时器。只在 worker 线程读写。 */
   private final class Session {
 
     private final Map<String, Service> services = new LinkedHashMap<>();
     private final Deque<Service> pendingResolves = new ArrayDeque<>();
     private Service resolving;
     private boolean isClosed;
+    private final ScheduledFuture<?> probeTimer = worker.scheduleWithFixedDelay(
+      this::probeAll,
+      PROBE_INTERVAL_MS,
+      PROBE_INTERVAL_MS,
+      TimeUnit.MILLISECONDS
+    );
 
     /** NsdManager 在自己的线程回调，这里只把事件转到 worker；本轮结束后到达的事件被丢弃。 */
     private final NsdManager.DiscoveryListener discovery = new NsdManager.DiscoveryListener() {
@@ -262,6 +293,7 @@ final class DiscoveryBrowser {
           }
           service.update(info.getPort(), info.getHostAddresses(), info.getAttributes());
           listener.onChanged(snapshot());
+          probe(service);
         }
 
         @Override
@@ -330,6 +362,7 @@ final class DiscoveryBrowser {
           info.getAttributes()
         );
         listener.onChanged(snapshot());
+        probe(service);
       }
       resolveFinished(service);
     }
@@ -362,9 +395,54 @@ final class DiscoveryBrowser {
       }
     }
 
+    private void probeAll() {
+      for (Service service : services.values()) {
+        probe(service);
+      }
+    }
+
+    /** 在 probes 线程探测一个已解析的服务；同一服务上一次探测还没结束时跳过。 */
+    private void probe(Service service) {
+      if (isClosed || service.isProbing || service.port <= 0 || service.addresses.isEmpty()) {
+        return;
+      }
+      service.isProbing = true;
+      int port = service.port;
+      List<String> addresses = service.addresses;
+      try {
+        probes.execute(() -> {
+          boolean isReachable = isListening(addresses, port);
+          post(() -> probed(service, isReachable));
+        });
+      } catch (RejectedExecutionException closed) {
+        service.isProbing = false;
+      }
+    }
+
+    private void probed(Service service, boolean isReachable) {
+      service.isProbing = false;
+      if (isClosed || services.get(service.name) != service) {
+        return;
+      }
+      boolean wasAlive = service.isAlive;
+      if (isReachable) {
+        service.probeFailures = 0;
+        service.isAlive = true;
+      } else {
+        service.probeFailures++;
+        if (!wasAlive || service.probeFailures >= MAX_PROBE_FAILURES) {
+          service.isAlive = false;
+        }
+      }
+      if (service.isAlive != wasAlive) {
+        listener.onChanged(snapshot());
+      }
+    }
+
     /** 停止搜索并注销全部 ServiceInfoCallback；API 34 以下正在进行的解析无法取消，回调到达后被丢弃。 */
     private void close() {
       isClosed = true;
+      probeTimer.cancel(false);
       for (Service service : services.values()) {
         service.unwatch();
       }
@@ -389,6 +467,11 @@ final class DiscoveryBrowser {
     private List<String> addresses = Collections.emptyList();
     private Map<String, String> txt = Collections.emptyMap();
     private NsdManager.ServiceInfoCallback callback;
+    /** 最近的探测确认它在线；只有在线的服务出现在结果里。 */
+    private boolean isAlive;
+    private boolean isProbing;
+    /** 上次探测成功以来连续失败的次数。 */
+    private int probeFailures;
 
     Service(NsdServiceInfo found) {
       this.found = found;
@@ -437,6 +520,38 @@ final class DiscoveryBrowser {
         throw new IllegalStateException(impossible);
       }
     }
+  }
+
+  /**
+   * 依次请求各地址的 {@code /v1/device}，任一地址回 200 时返回 true。在调用线程阻塞，每个地址最多等
+   * {@link #PROBE_TIMEOUT_MS} 连接、再等同样久读取。
+   */
+  private static boolean isListening(List<String> addresses, int port) {
+    for (String address : addresses) {
+      HttpURLConnection connection = null;
+      try {
+        connection = (HttpURLConnection) new URL(
+          "http",
+          address,
+          port,
+          "/v1/device"
+        ).openConnection(Proxy.NO_PROXY);
+        connection.setConnectTimeout(PROBE_TIMEOUT_MS);
+        connection.setReadTimeout(PROBE_TIMEOUT_MS);
+        connection.setUseCaches(false);
+        connection.setRequestProperty("Connection", "close");
+        if (connection.getResponseCode() == HttpURLConnection.HTTP_OK) {
+          return true;
+        }
+      } catch (IOException unreachable) {
+        /* 这个地址连不上或没有应答，试下一个。 */
+      } finally {
+        if (connection != null) {
+          connection.disconnect();
+        }
+      }
+    }
+    return false;
   }
 
   /** TXT 值按 UTF-8 严格解码；没有值（只有键）或不是合法 UTF-8 时返回 null。 */

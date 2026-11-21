@@ -1,7 +1,9 @@
+import { get as httpGet } from 'node:http'
 import { Bonjour } from 'bonjour-service'
 import type { Browser, Service } from 'bonjour-service'
 import {
   DISCOVERY_SERVICE,
+  HTTP_ROUTES,
   isIpv4Address,
   isListeningPort,
   parseDiscoveryTxt,
@@ -9,8 +11,60 @@ import {
 import { NEARBY_LEASE_MS } from '../bridge/dialer-bridge.ts'
 import type { DesktopNearbyDevice, DesktopNearbyState } from '../bridge/dialer-bridge.ts'
 
-/** 搜索期间多久重新发一次查询；mDNS 应答方只在被问到或上线时宣告。 */
+/** 搜索期间多久重新发一次查询并重新探测；mDNS 应答方只在被问到或上线时宣告。 */
 const QUERY_INTERVAL_MS = 4_000
+
+/** 探测请求从连接到收到状态行的最长等待。 */
+const PROBE_TIMEOUT_MS = 2_000
+
+/** 已出现在结果里的服务连续探测失败这么多次才去掉，Wi-Fi 偶尔丢包时不闪烁。还没出现过的服务第一次探测成功才加入。 */
+const MAX_PROBE_FAILURES = 2
+
+/** 一个服务的探测状态。 */
+interface Liveness {
+  /** 最近的探测确认它在线；只有在线的服务出现在结果里。 */
+  isAlive: boolean
+  isProbing: boolean
+  /** 上次探测成功以来连续失败的次数。 */
+  failures: number
+}
+
+/** 探测状态的键：同一实例名换了端口或地址时按新服务重新探测。 */
+function livenessKey(service: Service, addresses: readonly string[]): string {
+  return `${service.name}|${service.port}|${addresses.join(',')}`
+}
+
+/** 请求 address:port 的 /v1/device，回 200 时为 true；连不上、超时或其他状态时为 false。 */
+function isListening(address: string, port: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const request = httpGet(
+      {
+        host: address,
+        port,
+        path: HTTP_ROUTES.device,
+        agent: false,
+        timeout: PROBE_TIMEOUT_MS,
+        headers: { connection: 'close' },
+      },
+      (response) => {
+        response.resume()
+        resolve(response.statusCode === 200)
+      },
+    )
+    request.on('timeout', () => request.destroy())
+    request.on('error', () => resolve(false))
+  })
+}
+
+/** 依次探测各地址，任一地址在线时为 true。 */
+async function isAnyListening(addresses: readonly string[], port: number): Promise<boolean> {
+  for (const address of addresses) {
+    if (await isListening(address, port)) {
+      return true
+    }
+  }
+  return false
+}
 
 /** 把 TXT 的值统一成字符串；bonjour-service 可能给出 Buffer。 */
 function txtRecord(value: unknown): Record<string, string> | null {
@@ -40,6 +94,9 @@ function serviceAddresses(service: Service): readonly string[] {
 /**
  * 在局域网搜索监听方（DNS-SD `_savedata-sync._tcp`）。续期后搜索，停止续期超过 NEARBY_LEASE_MS 后停止并释放 UDP 5353；
  * 按设备 ID 查找期间也保持搜索。
+ *
+ * 搜到的服务要请求 `/v1/device` 得到 200 才出现在结果里，搜索期间每 QUERY_INTERVAL_MS 重新探测一次；
+ * 已出现的服务连续 MAX_PROBE_FAILURES 次探测失败后从结果里去掉。
  */
 export class WindowsDiscoveryBrowser {
   private bonjour: Bonjour | null = null
@@ -50,6 +107,9 @@ export class WindowsDiscoveryBrowser {
   private stopTimer: NodeJS.Timeout | null = null
   private status: DesktopNearbyState['status'] = 'off'
   private readonly listeners = new Set<() => void>()
+  private readonly liveness = new Map<string, Liveness>()
+  /** 每轮搜索加一；关闭后才到的探测结果按轮次丢弃。 */
+  private generation = 0
 
   /** @param localDeviceId 本机设备 ID，搜索结果里排除它。 */
   constructor(private readonly localDeviceId: string) {}
@@ -78,7 +138,8 @@ export class WindowsDiscoveryBrowser {
         txt.status !== 'valid' ||
         txt.identity.deviceId === this.localDeviceId ||
         !isListeningPort(port) ||
-        addresses.length === 0
+        addresses.length === 0 ||
+        !this.liveness.get(livenessKey(service, addresses))?.isAlive
       ) {
         continue
       }
@@ -163,9 +224,8 @@ export class WindowsDiscoveryBrowser {
       const bonjour = new Bonjour({}, () => undefined)
       const browser = bonjour.find({ type: DISCOVERY_SERVICE.name, protocol: 'tcp' })
       const changed = (): void => {
-        for (const listener of [...this.listeners]) {
-          listener()
-        }
+        this.probeAll()
+        this.notify()
       }
       browser.on('up', changed)
       browser.on('down', changed)
@@ -181,6 +241,7 @@ export class WindowsDiscoveryBrowser {
         } catch {
           /* 发送查询失败时下一轮再试；已有结果按 TTL 过期。 */
         }
+        this.probeAll()
       }, QUERY_INTERVAL_MS)
       this.queryTimer.unref()
     } catch (error) {
@@ -188,6 +249,69 @@ export class WindowsDiscoveryBrowser {
       this.close()
       this.status = 'failed'
     }
+  }
+
+  private notify(): void {
+    for (const listener of [...this.listeners]) {
+      listener()
+    }
+  }
+
+  /** 探测当前全部服务，并丢掉已经不在搜索结果里的探测状态。 */
+  private probeAll(): void {
+    const keys = new Set<string>()
+    for (const service of this.browser?.services ?? []) {
+      const addresses = serviceAddresses(service)
+      const txt = parseDiscoveryTxt(txtRecord(service.txt))
+      if (
+        txt.status !== 'valid' ||
+        txt.identity.deviceId === this.localDeviceId ||
+        !isListeningPort(service.port) ||
+        addresses.length === 0
+      ) {
+        continue
+      }
+      const key = livenessKey(service, addresses)
+      keys.add(key)
+      this.probe(key, addresses, service.port)
+    }
+    for (const key of this.liveness.keys()) {
+      if (!keys.has(key)) {
+        this.liveness.delete(key)
+      }
+    }
+  }
+
+  /** 探测一个服务；同一服务上一次探测还没结束时跳过。在线状态变化时通知查找中的调用方。 */
+  private probe(key: string, addresses: readonly string[], port: number): void {
+    const known = this.liveness.get(key) ?? { isAlive: false, isProbing: false, failures: 0 }
+    this.liveness.set(key, known)
+    if (known.isProbing) {
+      return
+    }
+    known.isProbing = true
+    const generation = this.generation
+    isAnyListening(addresses, port)
+      .then((isReachable) => {
+        known.isProbing = false
+        if (generation !== this.generation || this.liveness.get(key) !== known) {
+          return
+        }
+        const wasAlive = known.isAlive
+        if (isReachable) {
+          known.failures = 0
+          known.isAlive = true
+        } else {
+          known.failures++
+          if (!wasAlive || known.failures >= MAX_PROBE_FAILURES) {
+            known.isAlive = false
+          }
+        }
+        if (known.isAlive !== wasAlive) {
+          this.notify()
+        }
+      })
+      .catch((error: unknown) => console.error('LAN device probe failed', error))
   }
 
   private scheduleStop(): void {
@@ -224,6 +348,8 @@ export class WindowsDiscoveryBrowser {
     }
     this.browser = null
     this.bonjour = null
+    this.liveness.clear()
+    this.generation++
     this.status = 'off'
   }
 }

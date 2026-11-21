@@ -221,7 +221,7 @@ Windows → Android（监听方 → 拨号方）：使用移动端目标项目�
 
 结果 status 为 `searching`、`failed` 或 `unavailable`（浏览器预览）。同一设备 ID 出现在多个实例名下时合并；不合法的服务丢弃，协议版本不同的只把实例名放进 incompatibleNames。
 
-原生部分是 `DeviceDiscoveryPlugin` 和 `DiscoveryBrowser`（全部状态在一个 worker 线程上）。API 34 及以上对每个服务注册 ServiceInfoCallback；更低版本用 resolveService 逐个解析，10 秒没有回调就跳过，FAILURE_ALREADY_ACTIVE 隔 1 秒重试，最多 3 次。只保留 IPv4 地址。Activity 停止时暂停搜索并清空结果，回到前台时重新搜索。网页重载后原生搜索可能还在进行而没有订阅者，模块加载时先停止一次。系统 NsdService 负责组播，应用不申请 MulticastLock。
+原生部分是 `DeviceDiscoveryPlugin` 和 `DiscoveryBrowser`（全部状态在一个 worker 线程上）。API 34 及以上对每个服务注册 ServiceInfoCallback；更低版本用 resolveService 逐个解析，10 秒没有回调就跳过，FAILURE_ALREADY_ACTIVE 隔 1 秒重试，最多 3 次。只保留 IPv4 地址。解析出的服务要请求 `/v1/device` 得到 200 才出现在结果里，搜索期间每 5 秒重新探测，已出现的服务连续 2 次失败后去掉，所以停止服务的设备最多约 10 秒后从结果里消失。离开的设备不一定发出 goodbye 包（断网、断电，也有系统注销广播后不发 goodbye、继续应答查询的），只靠 mDNS 记录过期要等很久，所以用探测判断是否在线。Activity 停止时暂停搜索并清空结果，回到前台时重新搜索。网页重载后原生搜索可能还在进行而没有订阅者，模块加载时先停止一次。系统 NsdService 负责组播，应用不申请 MulticastLock。
 
 ## 13. 扫码连接
 
