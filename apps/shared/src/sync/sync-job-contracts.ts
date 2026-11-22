@@ -12,8 +12,6 @@ export interface SyncProjectDescriptor {
   readonly deviceId: string
   readonly rootId: string
   readonly shouldBackup: boolean
-  /** 目标端这个游戏实际生效的保留份数。 */
-  readonly backupKeepCount: number
 }
 
 /** 复制任务的登记请求；jobId 等于 plan.planId。 */
@@ -95,8 +93,6 @@ export interface SyncPreparationPreview {
   readonly shouldBackup: boolean
   /** 开始前为 false；开始后是这次任务确认时的选择。 */
   readonly shouldDeleteExtras: boolean
-  /** 被写入一端的保留份数，不分传输方向。 */
-  readonly backupKeepCount: number
 }
 
 /**

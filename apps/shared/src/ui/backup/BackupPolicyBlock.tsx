@@ -8,7 +8,7 @@ import './backup.css'
 export interface BackupPolicyBlockProps {
   /** 写入前备份是否开启；关闭时盾牌图标为灰色。 */
   readonly isEnabled: boolean
-  /** 开启时保留的份数。 */
+  /** 每个游戏保留的备份份数。 */
   readonly keepCount: number
   /** 这个游戏单独设置；false 表示跟随全局设置。 */
   readonly isCustom: boolean
@@ -27,9 +27,14 @@ export function BackupPolicyBlock({
   onEdit,
 }: BackupPolicyBlockProps): ReactElement {
   const t = useT()
-  const caption = `${isCustom ? t('backup.customSetting') : t('backup.followGlobal')} · ${
-    isEnabled ? t('backup.keep', { count: keepCount }) : t('backup.offHint')
-  }`
+  const parts = [
+    isCustom ? t('backup.customSetting') : t('backup.followGlobal'),
+    t('backup.keep', { count: keepCount }),
+  ]
+  if (!isEnabled) {
+    parts.push(t('backup.offHint'))
+  }
+  const caption = parts.join(' · ')
   return (
     <button
       type="button"

@@ -1,6 +1,5 @@
 import { isOpaqueId } from '../protocol/protocol.ts'
 import { isDirectoryListing, isOperationError, isOperationResult } from '../protocol/validation.ts'
-import { isBackupKeepCount } from '../sync/backup-retention.ts'
 import { isSyncJobDigest, isSyncJobState } from '../sync/sync-job-validation.ts'
 import { isSyncPlan } from '../sync/sync-plan-validation.ts'
 import { hasShape, isOneOf, isRecord } from '../validation/data-validation.ts'
@@ -106,11 +105,7 @@ export function isRemoteSyncReport(value: unknown): value is RemoteSyncReport {
     return hasShape(value, ['requestId', 'status'])
   }
   if (value.status === 'ready') {
-    return (
-      hasShape(value, ['requestId', 'status', 'plan', 'backupKeepCount']) &&
-      isSyncPlan(value.plan) &&
-      isBackupKeepCount(value.backupKeepCount)
-    )
+    return hasShape(value, ['requestId', 'status', 'plan']) && isSyncPlan(value.plan)
   }
   return (
     value.status === 'failed' &&

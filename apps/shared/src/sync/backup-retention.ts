@@ -6,16 +6,16 @@ import type {
   SyncBackupSettings,
 } from './sync-contracts.ts'
 
-/** 每个游戏保留写入前备份份数的下限。 */
+/** 每个游戏保留备份份数的下限。 */
 export const BACKUP_KEEP_COUNT_MIN = 1
-/** 每个游戏保留写入前备份份数的上限。 */
-export const BACKUP_KEEP_COUNT_MAX = 10
-/** 每个游戏默认保留的写入前备份份数。 */
+/** 每个游戏保留备份份数的上限。 */
+export const BACKUP_KEEP_COUNT_MAX = 4096
+/** 每个游戏默认保留的备份份数。 */
 export const DEFAULT_BACKUP_KEEP_COUNT = 3
 /** 最多可以单独设置备份策略的游戏数。 */
 export const BACKUP_PREFERENCE_LIMIT = 128
 
-/** 没有设置文件时的全局设置：关闭，打开后保留 DEFAULT_BACKUP_KEEP_COUNT 份。 */
+/** 没有设置文件时的全局设置：写入前自动备份关闭，默认保留 DEFAULT_BACKUP_KEEP_COUNT 份。 */
 export const DEFAULT_BACKUP_POLICY: SyncBackupPolicy = Object.freeze({
   shouldBackup: false,
   keepCount: DEFAULT_BACKUP_KEEP_COUNT,

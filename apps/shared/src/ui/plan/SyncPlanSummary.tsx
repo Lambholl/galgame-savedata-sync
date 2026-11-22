@@ -32,8 +32,6 @@ export interface SyncPlanSummaryProps {
   readonly source: PlanEndpoint
   /** 被写入的一端。 */
   readonly target: PlanEndpoint
-  /** 被写入一端开启写入前备份时保留的份数；为 null 时只说明会备份。 */
-  readonly backupKeepCount: number | null
 }
 
 type Group = 'replace' | 'create' | 'keep' | 'delete'
@@ -65,12 +63,7 @@ function issueText(plan: SyncPlan, t: Translate): string | null {
  * 相同的文件只给数量，问题显示成一条横幅。删除只在目标有的条目时，第三个数字和第三组用红色；
  * 来源目录为空时多一条横幅。
  */
-export function SyncPlanSummary({
-  plan,
-  source,
-  target,
-  backupKeepCount,
-}: SyncPlanSummaryProps): ReactElement {
+export function SyncPlanSummary({ plan, source, target }: SyncPlanSummaryProps): ReactElement {
   const t = useT()
   const [openKey, setOpenKey] = useState<string | null>(null)
   const sources = new Map(plan.source.entries.map((item) => [item.entryId, item]))
@@ -222,9 +215,7 @@ export function SyncPlanSummary({
         ) : plan.shouldBackup ? (
           <span className="is-on">
             <SafetyOutlined />
-            {backupKeepCount === null
-              ? t('plan.backupOnPlain')
-              : t('plan.backupOn', { count: backupKeepCount })}
+            {t('plan.backupOnPlain')}
           </span>
         ) : (
           <span>

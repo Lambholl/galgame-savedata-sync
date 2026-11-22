@@ -37,8 +37,6 @@ export type RemoteSyncReport =
       readonly requestId: string
       readonly status: 'ready'
       readonly plan: SyncPlan
-      /** 被写入一端的保留份数，随预览取得。 */
-      readonly backupKeepCount: number
     }
   | { readonly requestId: string; readonly status: 'failed'; readonly error: OperationError }
 

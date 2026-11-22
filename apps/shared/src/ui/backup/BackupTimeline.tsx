@@ -1,6 +1,7 @@
 import type { ReactElement } from 'react'
 import { Button } from 'antd'
 import { formatBytes } from '../../i18n/format.ts'
+import type { SyncBackupReason } from '../../sync/sync-contracts.ts'
 import { useLocale, useT } from '../i18n/i18n-context.ts'
 import '../devices/devices.css'
 import './backup.css'
@@ -11,8 +12,8 @@ export interface BackupItem {
   readonly id: string
   /** 创建时间（毫秒）。 */
   readonly createdAt: number
-  /** 由什么触发：传输前或恢复前。 */
-  readonly reason: 'copy' | 'restore'
+  /** 由什么触发：传输前、恢复前或手动备份。 */
+  readonly reason: SyncBackupReason
   /** 文件数。 */
   readonly fileCount: number
   /** 文件总字节数。 */

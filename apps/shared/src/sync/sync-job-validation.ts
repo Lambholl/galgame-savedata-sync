@@ -10,7 +10,6 @@ import {
   isTimestamp,
 } from '../validation/data-validation.ts'
 import { isSyncProjectBinding } from '../library/project-binding.ts'
-import { isBackupKeepCount } from './backup-retention.ts'
 import { isSyncPlan } from './sync-plan-validation.ts'
 import { isSyncApplyResult, matchesSyncApplyResult } from './sync-result-validation.ts'
 import { isSyncSnapshot } from './sync-validation.ts'
@@ -49,18 +48,10 @@ function hasJsonBudget(value: unknown): boolean {
 /** 校验目标端项目元数据。 */
 export function isSyncProjectDescriptor(value: unknown): value is SyncProjectDescriptor {
   return (
-    hasShape(value, [
-      'schemaVersion',
-      'projectId',
-      'deviceId',
-      'rootId',
-      'shouldBackup',
-      'backupKeepCount',
-    ]) &&
+    hasShape(value, ['schemaVersion', 'projectId', 'deviceId', 'rootId', 'shouldBackup']) &&
     value.schemaVersion === 1 &&
     [value.projectId, value.deviceId, value.rootId].every(isOpaqueId) &&
-    typeof value.shouldBackup === 'boolean' &&
-    isBackupKeepCount(value.backupKeepCount)
+    typeof value.shouldBackup === 'boolean'
   )
 }
 /** 校验复制任务的登记请求：计划可以执行、operation 为 copy，planId 等于 jobId，项目 ID 等于目标项目。 */
@@ -295,7 +286,6 @@ export function isSyncPreparationPreview(value: unknown): value is SyncPreparati
       'target',
       'shouldBackup',
       'shouldDeleteExtras',
-      'backupKeepCount',
     ]) ||
     value.schemaVersion !== 1 ||
     !isOpaqueId(value.preparationId) ||
@@ -305,8 +295,7 @@ export function isSyncPreparationPreview(value: unknown): value is SyncPreparati
     !isSyncSnapshot(value.source) ||
     !isSyncSnapshot(value.target) ||
     typeof value.shouldBackup !== 'boolean' ||
-    typeof value.shouldDeleteExtras !== 'boolean' ||
-    !isBackupKeepCount(value.backupKeepCount)
+    typeof value.shouldDeleteExtras !== 'boolean'
   ) {
     return false
   }

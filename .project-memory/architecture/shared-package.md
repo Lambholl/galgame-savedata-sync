@@ -97,7 +97,7 @@ withGameLink、withoutGameLink、createImportedGame 返回新的游戏配置，�
 
 计划器复制输入快照，按固定路径顺序给出操作，父目录先创建；不会修改输入、执行 IO、按时间选方向或查询历史。待传字节统计本次写入文件；备份开启且有写入时，备份字节统计目标目录的全部文件，包括未变化和仅存在于目标的文件，并校验文件数、单文件大小和总大小。`selectSyncBackupFiles(plan)` 返回这个集合；备份关闭、无写入或目标没有文件时返回空集合。未知或无法表示为安全整数的字节数为 null。`isSyncPlan` 重新推导完整计划；执行前用 `matchesSyncPlan(value, input)` 对照调用方保存的本次上下文，不能只校验 planId 或 canExecute。
 
-`isSyncBackupManifest` 检查独立备份格式、连续 fileId、文件指纹、路径关系和预算；`isSyncBackupSettings` 检查项目/rootId 设置唯一性，没有设置文件时两端都用全局关闭的默认设置（`EMPTY_BACKUP_SETTINGS`，Android 是 `BackupModel.emptySettings`）。备份列表只用于恢复，比较器不读取备份。
+`isSyncBackupManifest` 检查独立备份格式、触发原因（`copy`、`restore` 或 `manual`，由 `isSyncBackupReason` 校验）、连续 fileId、路径关系和预算；`isSyncManualBackupState` 校验本机手动备份异步任务的状态、阶段、字节进度与终态约束；`isSyncBackupSettings` 检查项目设置唯一性与保留份数范围（`1–4096`，由 `BACKUP_KEEP_COUNT_MIN`、`BACKUP_KEEP_COUNT_MAX` 定义），没有设置文件时两端都用全局关闭的默认设置（`EMPTY_BACKUP_SETTINGS`，Android 是 `BackupModel.emptySettings`）。备份列表只用于恢复，比较器不读取备份。
 
 `isSyncApplyResult` 校验逐项结果、备份 ID 和独立清理错误。`matchesSyncApplyResult(result, plan)` 核对完整写入集合、顺序、成功项长度/哈希及默认保护；失败/取消后只允许未执行项。目录成功不携带文件字节，未知结果必须使用 result-unknown。权限、实际内容、备份有效性、会话期限、资源释放和真实写入仍由平台模块处理。
 

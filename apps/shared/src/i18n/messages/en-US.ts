@@ -107,8 +107,6 @@ export const enUS: Messages = {
   'plan.stat.replace': 'Overwrite',
   'plan.stat.keep': 'Keep',
   'plan.stat.delete': 'Delete',
-  'plan.backupOn': ({ count }) =>
-    `Back up before writing · keep ${count} ${count === 1 ? 'copy' : 'copies'}`,
   'plan.backupOff': 'No backup before writing',
   'plan.transferSize': ({ size }) => `Transfer ${size}`,
   'plan.group.replace': ({ count }) => `Overwrite ${count}`,
@@ -249,10 +247,21 @@ export const enUS: Messages = {
   'backup.list': 'Backups',
   'backup.reason.copy': 'Before transfer',
   'backup.reason.restore': 'Before restore',
+  'backup.reason.manual': 'Manual backup',
   'backup.files': ({ count, size }) => `${count} ${count === 1 ? 'file' : 'files'} · ${size}`,
   'backup.restore': 'Restore',
   'backup.none':
-    'No backups yet. When backup before writing is on, a transfer that writes files preserves the current target folder.',
+    'No backups yet. You can back up the current save folder now, or turn on backup before writing so transfers save it automatically.',
+  'backup.manualStart': 'Back up now',
+  'backup.manualScanning': 'Reading current files…',
+  'backup.manualRunning': 'Backing up…',
+  'backup.manualRunningBytes': ({ copied, total }) => `Backing up ${copied} / ${total}`,
+  'backup.manualDone': 'Backup complete',
+  'backup.manualDoneDetail': ({ count }) =>
+    count === 1 ? '1 file backed up' : `${count} files backed up`,
+  'backup.manualEmpty': 'No files in this folder to back up',
+  'backup.manualCancelled': 'Backup cancelled',
+  'backup.manualFailed': 'Backup failed',
   'backup.incomplete': ({ count }) =>
     count === 1 ? '1 backup is incomplete' : `${count} backups are incomplete`,
   'backup.cleanup': 'Clean up',

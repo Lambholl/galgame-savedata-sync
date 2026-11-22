@@ -6,6 +6,7 @@ import {
   isArrayOf,
   isByteCount,
   isNullable,
+  isOneOf,
   isRecord,
   isTimestamp,
 } from '../validation/data-validation.ts'
@@ -13,9 +14,11 @@ import { SYNC_CAPABILITIES_VERSION, SYNC_LIMITS, SYNC_SCHEMA_VERSION } from './s
 import type {
   SyncBackupFile,
   SyncBackupManifest,
+  SyncBackupReason,
   SyncIncompleteBackup,
   SyncCapabilities,
   SyncEntry,
+  SyncManualBackupState,
   SyncPlanInput,
   SyncScanState,
   SyncScanRequest,
@@ -238,6 +241,11 @@ export function isSyncIncompleteBackup(value: unknown): value is SyncIncompleteB
   )
 }
 
+/** 校验备份的触发原因。 */
+export function isSyncBackupReason(value: unknown): value is SyncBackupReason {
+  return value === 'copy' || value === 'restore' || value === 'manual'
+}
+
 /** 校验备份清单：fileId 连续，路径互不相同，文件数在上限以内。 */
 export function isSyncBackupManifest(value: unknown): value is SyncBackupManifest {
   if (
@@ -257,7 +265,7 @@ export function isSyncBackupManifest(value: unknown): value is SyncBackupManifes
     !isOpaqueId(value.deviceId) ||
     !isOpaqueId(value.rootId) ||
     !isTimestamp(value.createdAt) ||
-    (value.reason !== 'copy' && value.reason !== 'restore') ||
+    !isSyncBackupReason(value.reason) ||
     !Array.isArray(value.files) ||
     value.files.length === 0 ||
     value.files.length > BATCH_LIMITS.maxFiles ||
@@ -286,4 +294,92 @@ export function isSyncBackupManifest(value: unknown): value is SyncBackupManifes
         segment.length > 0 && (index === 0 || !paths.has(syncNameKey(file.path.slice(0, index)))),
     ),
   )
+}
+
+/** 校验本机手动备份的任务状态及其阶段、进度与结果关系。 */
+export function isSyncManualBackupState(value: unknown): value is SyncManualBackupState {
+  if (
+    !hasShape(value, [
+      'schemaVersion',
+      'taskId',
+      'projectId',
+      'rootId',
+      'status',
+      'stage',
+      'updatedAt',
+      'isCancelRequested',
+      'bytesCopied',
+      'totalBytes',
+      'backupId',
+      'fileCount',
+      'error',
+      'cleanupError',
+    ]) ||
+    value.schemaVersion !== SYNC_SCHEMA_VERSION ||
+    !isOpaqueId(value.taskId) ||
+    !isOpaqueId(value.projectId) ||
+    !isOpaqueId(value.rootId) ||
+    !isOneOf(value.status, ['running', 'succeeded', 'empty', 'failed', 'cancelled']) ||
+    !isOneOf(value.stage, ['scanning', 'backing-up', 'done']) ||
+    !isTimestamp(value.updatedAt) ||
+    typeof value.isCancelRequested !== 'boolean' ||
+    !isByteCount(value.totalBytes) ||
+    value.totalBytes > BATCH_LIMITS.maxTotalFileBytes ||
+    !isByteCount(value.bytesCopied) ||
+    value.bytesCopied > value.totalBytes ||
+    !isNullable(value.backupId, isOpaqueId) ||
+    !isNullable(
+      value.fileCount,
+      (count): count is number =>
+        isByteCount(count) && count >= 1 && count <= BATCH_LIMITS.maxFiles,
+    ) ||
+    !isNullable(value.error, isOperationError) ||
+    !isNullable(
+      value.cleanupError,
+      (item): item is NonNullable<SyncManualBackupState['cleanupError']> =>
+        isOperationError(item) && item.code === 'cleanup-failed',
+    )
+  ) {
+    return false
+  }
+  if (value.status === 'running') {
+    return (
+      value.stage !== 'done' &&
+      (value.stage !== 'scanning' || (value.totalBytes === 0 && value.bytesCopied === 0)) &&
+      value.backupId === null &&
+      value.fileCount === null &&
+      value.error === null &&
+      value.cleanupError === null
+    )
+  }
+  if (value.stage !== 'done') {
+    return false
+  }
+  if (value.status === 'succeeded') {
+    return (
+      value.backupId !== null &&
+      value.fileCount !== null &&
+      value.bytesCopied === value.totalBytes &&
+      value.error === null
+    )
+  }
+  if (value.status === 'empty') {
+    return (
+      value.backupId === null &&
+      value.fileCount === null &&
+      value.totalBytes === 0 &&
+      value.bytesCopied === 0 &&
+      value.error === null &&
+      value.cleanupError === null
+    )
+  }
+  if (value.status === 'cancelled') {
+    return (
+      value.backupId === null &&
+      value.fileCount === null &&
+      value.error === null &&
+      value.isCancelRequested
+    )
+  }
+  return value.backupId === null && value.fileCount === null && value.error !== null
 }

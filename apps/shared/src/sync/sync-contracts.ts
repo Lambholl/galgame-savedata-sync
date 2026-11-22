@@ -145,7 +145,10 @@ export interface SyncBackupFile {
   readonly modifiedAt: number | null
 }
 
-/** 一份已提交的写入前备份的清单。 */
+/** 备份的触发原因：传输前、恢复前或手动备份。 */
+export type SyncBackupReason = 'copy' | 'restore' | 'manual'
+
+/** 一份已提交备份的清单。 */
 export interface SyncBackupManifest {
   readonly schemaVersion: typeof SYNC_SCHEMA_VERSION
   readonly backupId: string
@@ -153,8 +156,37 @@ export interface SyncBackupManifest {
   readonly deviceId: string
   readonly rootId: string
   readonly createdAt: number
-  readonly reason: 'copy' | 'restore'
+  readonly reason: SyncBackupReason
   readonly files: readonly SyncBackupFile[]
+}
+
+/** 本机手动备份的运行状态。 */
+export type SyncManualBackupStatus = 'running' | 'succeeded' | 'empty' | 'failed' | 'cancelled'
+
+/** 本机手动备份的工作阶段。 */
+export type SyncManualBackupStage = 'scanning' | 'backing-up' | 'done'
+
+/** 本机手动备份的任务状态。 */
+export interface SyncManualBackupState {
+  readonly schemaVersion: typeof SYNC_SCHEMA_VERSION
+  readonly taskId: string
+  readonly projectId: string
+  readonly rootId: string
+  readonly status: SyncManualBackupStatus
+  readonly stage: SyncManualBackupStage
+  readonly updatedAt: number
+  readonly isCancelRequested: boolean
+  /** 已复制进备份的字节数。 */
+  readonly bytesCopied: number
+  /** 本次要备份的总字节数；扫描完成前或目录为空时为 0。 */
+  readonly totalBytes: number
+  /** 成功提交后的备份 ID；未成功或目录为空时为 null。 */
+  readonly backupId: string | null
+  /** 成功提交后的备份文件数；未成功或目录为空时为 null。 */
+  readonly fileCount: number | null
+  readonly error: OperationError | null
+  /** 备份已提交但轮换失败，或失败、取消后清理暂存失败时的错误。 */
+  readonly cleanupError: OperationError | null
 }
 
 /** 没有提交清单的残留备份；occupiedBytes 是它占用的字节数，读不到时为 null。 */
