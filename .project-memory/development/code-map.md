@@ -87,7 +87,7 @@ Java 源码都在 `apps/mobile/android/app/src/main/java/io/github/galgame/saved
 
 | 路径 | 作用 | 重要约定 |
 | --- | --- | --- |
-| `apps/mobile/android/` | Capacitor 生成的原生工程与项目 Wrapper | minSdk 29、compile/target 36；Manifest 允许明文 HTTP；包含用户发起传输使用的 dataSync 前台服务和本机服务使用的 connectedDevice 前台服务 |
+| `apps/mobile/android/` | Capacitor 生成的原生工程与项目 Wrapper | minSdk 30、compile/target 36；Manifest 允许明文 HTTP；包含用户发起传输使用的 dataSync 前台服务和本机服务使用的 connectedDevice 前台服务 |
 | `apps/mobile/android/app/src/main/java/io/github/galgame/savedatasync/` | Java 目录选择（DirectoriesPlugin、DirectoryStore）、权限/配置恢复、当前层元数据和原生流 | URI 留在原生层，原生流由调用者关闭；配置不保存条目或哈希 |
 | `DocumentAccess.java`、`SafDocumentAccess.java`、`FileDocumentAccess.java`；`AllFilesAccessPlugin.java`、移动 `platform/all-files-access.ts`、设置页 | 统一的目录访问接口及 SAF、按路径两种实现；所有文件访问权限状态与系统授权页入口 | 上层只经 `DirectoryStore.access(tree)` 取实现，见 ADR-0003 |
 | `ArchiveAdapter.java`、`ArchiveModel.java`、`ArchiveFormat.java`、`ArchiveCache.java`、`ArchiveControl.java`、`ArchiveFailure.java`、`DirectoryArchiveSource.java`；`src/test/.../ArchiveAdapterTest.java`、`src/androidTest/.../ArchiveSafTest.java` | Java 边读边打包、边收边解包的严格 USTAR/单 gzip、固定预算/取消/期限与缓存归属/恢复/重试；SAF 读取前后复核；格式回归和设备往返 | 不做 JSON/HTTP/目标写入，文件内容不跨桥；`Staged` 关闭读流后 close；进程独占覆盖待清理资源；夹具与 Windows 共用；缺少实际目录授权时测试失败而不是跳过 |
