@@ -396,7 +396,6 @@ export function TransferPage({
               plan={current}
               source={isUpload ? peerEnd : localEnd}
               target={isUpload ? localEnd : peerEnd}
-              backupKeepCount={shown?.backupKeepCount ?? null}
             />
           ) : null}
         </PlanDrawer>

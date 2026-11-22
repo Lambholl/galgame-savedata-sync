@@ -137,7 +137,6 @@ interface Preparation {
   status: 'preparing' | 'ready' | 'failed' | 'cancelled'
   /** 准备好的计划，shouldDeleteExtras 为 false；确认后换成确认的计划，取消后为 null。 */
   plan: SyncPlan | null
-  backupKeepCount: number | null
   error: OperationError | null
   remoteScanId: string | null
   wasCancelRequested: boolean
@@ -634,7 +633,6 @@ export class WindowsDialerSync implements DialerSyncHandler {
       listenerRequestId,
       status: 'preparing',
       plan: null,
-      backupKeepCount: null,
       error: null,
       remoteScanId: null,
       wasCancelRequested: false,
@@ -744,7 +742,6 @@ export class WindowsDialerSync implements DialerSyncHandler {
         throw new HttpOperationError('resource-limit', 'The plan exceeds the size limit.')
       }
       preparation.plan = plan
-      preparation.backupKeepCount = isSending ? descriptor.backupKeepCount : policy.keepCount
       this.settlePreparation(preparation, 'ready', null)
     } catch (cause) {
       const isCancelled =
@@ -782,12 +779,11 @@ export class WindowsDialerSync implements DialerSyncHandler {
     if (requestId === null) {
       return
     }
-    if (status === 'ready' && preparation.plan && preparation.backupKeepCount !== null) {
+    if (status === 'ready' && preparation.plan) {
       this.emitReport(preparation, {
         requestId,
         status: 'ready',
         plan: preparation.plan,
-        backupKeepCount: preparation.backupKeepCount,
       })
     } else if (status === 'failed' && error) {
       this.emitReport(preparation, { requestId, status: 'failed', error })
@@ -939,7 +935,6 @@ export class WindowsDialerSync implements DialerSyncHandler {
       projectId: preparation.projectId,
       peerId: preparation.peerId,
       direction: preparation.direction,
-      backupKeepCount: preparation.backupKeepCount,
     }
     if (!job) {
       return {

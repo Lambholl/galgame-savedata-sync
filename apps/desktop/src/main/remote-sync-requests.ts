@@ -184,7 +184,6 @@ export class WindowsRemoteSyncRequests {
         status: 'waiting',
         jobId: null,
         error: null,
-        backupKeepCount: null,
         updatedAt: this.now(),
       },
       remoteProjectId: remote.id,
@@ -302,7 +301,7 @@ export class WindowsRemoteSyncRequests {
     } else if (report.status === 'ready' && (status === 'waiting' || status === 'preparing')) {
       if (this.matchesPlan(entry, report.plan)) {
         entry.plan = report.plan
-        this.update(entry, { status: 'ready', backupKeepCount: report.backupKeepCount })
+        this.update(entry, { status: 'ready' })
       } else {
         this.fail(entry, {
           code: 'invalid-request',

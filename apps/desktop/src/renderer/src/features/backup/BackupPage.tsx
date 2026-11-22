@@ -1,6 +1,11 @@
-import { useEffect, useRef, useState } from 'react'
-import { Button, Empty, Form, Modal, Switch } from 'antd'
-import { DeleteOutlined, FolderOpenOutlined, HistoryOutlined } from '@ant-design/icons'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { Button, Empty, Form, Modal, Progress, Switch } from 'antd'
+import {
+  CloudUploadOutlined,
+  DeleteOutlined,
+  FolderOpenOutlined,
+  HistoryOutlined,
+} from '@ant-design/icons'
 import {
   formatBytes,
   formatShortDateTime,
@@ -14,6 +19,7 @@ import type {
   ShownError,
   SyncBackupManifest,
   SyncBackupPolicy,
+  SyncManualBackupState,
 } from '@savedata-sync/shared'
 import type { DesktopBackupInfo, DesktopBackupList } from '../../../../bridge/backup-bridge.ts'
 import {
@@ -24,6 +30,7 @@ import {
   cleanupIncompleteBackups,
   useT,
 } from '@savedata-sync/shared/ui'
+import { useAppMessage } from '../../app/app-message.ts'
 import { useFailureMessage } from '../../app/failure-message.ts'
 import { desktopBackups, desktopSync } from '../../platform/sync-adapter.ts'
 import { SETTING_FORM } from '../settings/setting-form.ts'
@@ -71,8 +78,16 @@ export function BackupPage({
   const [mode, setMode] = useState<PolicyMode>('follow')
   const [draft, setDraft] = useState<SyncBackupPolicy | null>(null)
   const [isDeleteOpen, setIsDeleteOpen] = useState(false)
+  const [manualTask, setManualTask] = useState<SyncManualBackupState | null>(null)
+  const [isStartingManual, setIsStartingManual] = useState(false)
+  const [isCancellingManual, setIsCancellingManual] = useState(false)
   const isCurrent = useRef(true)
   const saving = useRef(Promise.resolve())
+  const handledManualId = useRef<string | null>(null)
+  const onChangedRef = useRef(onChanged)
+  useLayoutEffect(() => {
+    onChangedRef.current = onChanged
+  }, [onChanged])
   useEffect(() => {
     isCurrent.current = true
     return () => {
@@ -90,12 +105,121 @@ export function BackupPage({
   const manifest = shownManifest?.manifest ?? null
   const manifestError = shownManifest?.error ?? null
   const isReading = selectedKey !== null && shownManifest === null
+  const activeManual = manualTask?.projectId === projectId ? manualTask : null
+  const isManualRunning = activeManual?.status === 'running'
+  const runningManualId = isManualRunning ? activeManual.taskId : null
   // 失败用 Message 提示一次；读不到列表时正文留一个重试入口。
+  const [appMessage, messageHolder] = useAppMessage()
   const [showFailure, failureHolder] = useFailureMessage()
   const failure = error ?? manifestError
   useEffect(() => {
     showFailure(failure?.error ?? null, failure?.context ?? null)
   }, [failure, showFailure])
+  useEffect(() => {
+    if (!projectId) {
+      return
+    }
+    let hasResult = true
+    void desktopBackups()
+      .currentManual()
+      .then((result) => {
+        const current = unwrap(result)
+        if (hasResult && current?.projectId === projectId) {
+          setManualTask(current)
+        }
+      })
+      .catch(() => {
+        /* 仅恢复进行中的本机手动备份展示；查询失败时不影响备份列表读取。 */
+      })
+    return () => {
+      hasResult = false
+    }
+  }, [projectId])
+  useEffect(() => {
+    if (!runningManualId) {
+      return
+    }
+    let isPolling = true
+    let timer: ReturnType<typeof setTimeout> | null = null
+    function poll(taskId: string): void {
+      desktopBackups()
+        .manualState(taskId)
+        .then((result) => {
+          const next = unwrap(result)
+          if (!isPolling) {
+            return
+          }
+          setManualTask(next)
+          if (next.status === 'running') {
+            timer = setTimeout(() => poll(taskId), 250)
+            return
+          }
+          setIsCancellingManual(false)
+          if (handledManualId.current !== next.taskId) {
+            handledManualId.current = next.taskId
+            if (next.status === 'succeeded') {
+              const count = next.fileCount ?? 0
+              appMessage.show({
+                type: 'success',
+                content: `${t('backup.manualDone')} · ${t('backup.manualDoneDetail', { count })}`,
+                slot: 'manual-backup',
+              })
+              if (next.backupId) {
+                setSelectedId(next.backupId)
+              }
+              if (next.cleanupError) {
+                setError({
+                  context: t('backup.manualDone'),
+                  error: toShownError(next.cleanupError),
+                })
+              }
+            } else if (next.status === 'empty') {
+              appMessage.show({
+                type: 'info',
+                content: t('backup.manualEmpty'),
+                slot: 'manual-backup',
+              })
+            } else if (next.status === 'cancelled') {
+              appMessage.show({
+                type: 'info',
+                content: t('backup.manualCancelled'),
+                slot: 'manual-backup',
+              })
+              if (next.cleanupError) {
+                setError({
+                  context: t('backup.manualCancelled'),
+                  error: toShownError(next.cleanupError),
+                })
+              }
+            } else {
+              setError({
+                context: t('backup.manualFailed'),
+                error: toShownError(next.error ?? next.cleanupError),
+              })
+            }
+            setVersion((value) => value + 1)
+            onChangedRef.current()
+          }
+        })
+        .catch((cause: unknown) => {
+          if (!isPolling) {
+            return
+          }
+          setManualTask(null)
+          setIsCancellingManual(false)
+          setError({ context: t('backup.manualFailed'), error: toShownError(cause) })
+          setVersion((value) => value + 1)
+          onChangedRef.current()
+        })
+    }
+    timer = setTimeout(() => poll(runningManualId), 250)
+    return () => {
+      isPolling = false
+      if (timer) {
+        clearTimeout(timer)
+      }
+    }
+  }, [runningManualId, appMessage, t])
   useEffect(() => {
     let hasResult = true
     async function read(): Promise<void> {
@@ -252,7 +376,69 @@ export function BackupPage({
       unwrap(await desktopBackups().deleteBackup(item.projectId, item.backupId))
     })
   }
+  function startManualBackup(): void {
+    if (!game || isBusy || isStartingManual || isManualRunning) {
+      return
+    }
+    setIsStartingManual(true)
+    setError(null)
+    void desktopBackups()
+      .startManual(game.id)
+      .then((result) => {
+        const next = unwrap(result)
+        if (isCurrent.current) {
+          setManualTask(next)
+          onChanged()
+        }
+      })
+      .catch((cause: unknown) => {
+        if (isCurrent.current) {
+          setError({ context: t('backup.manualFailed'), error: toShownError(cause) })
+        }
+      })
+      .finally(() => {
+        if (isCurrent.current) {
+          setIsStartingManual(false)
+        }
+      })
+  }
+  function cancelManualBackup(): void {
+    if (!runningManualId || isCancellingManual) {
+      return
+    }
+    setIsCancellingManual(true)
+    void desktopBackups()
+      .cancelManual(runningManualId)
+      .then((result) => {
+        const next = unwrap(result)
+        if (isCurrent.current) {
+          setManualTask(next)
+        }
+      })
+      .catch((cause: unknown) => {
+        if (isCurrent.current) {
+          setIsCancellingManual(false)
+          setError({ context: t('app.actionFailed'), error: toShownError(cause) })
+        }
+      })
+  }
+  const isLocked = isActive || hasRunningWork || isManualRunning || isStartingManual
   const incomplete = listing?.incomplete ?? []
+  const manualProgressText =
+    activeManual?.status === 'running'
+      ? activeManual.stage === 'scanning'
+        ? t('backup.manualScanning')
+        : activeManual.totalBytes > 0
+          ? t('backup.manualRunningBytes', {
+              copied: formatBytes(activeManual.bytesCopied),
+              total: formatBytes(activeManual.totalBytes),
+            })
+          : t('backup.manualRunning')
+      : null
+  const manualPercent =
+    activeManual?.status === 'running' && activeManual.totalBytes > 0
+      ? Math.min(100, Math.round((activeManual.bytesCopied / activeManual.totalBytes) * 100))
+      : 0
   const when = (value: number): string => formatShortDateTime(value)
   let detail: React.ReactNode
   if (selected) {
@@ -267,7 +453,7 @@ export function BackupPage({
             <Button
               danger
               icon={<DeleteOutlined />}
-              disabled={isBusy || isActive || hasRunningWork}
+              disabled={isBusy || isLocked}
               onClick={() => setIsDeleteOpen(true)}
             >
               {t('backup.delete')}
@@ -276,7 +462,7 @@ export function BackupPage({
               type="primary"
               icon={<HistoryOutlined />}
               loading={isBusy}
-              disabled={isActive || hasRunningWork}
+              disabled={isLocked}
               onClick={prepare}
             >
               {t('backup.restore')}
@@ -309,10 +495,51 @@ export function BackupPage({
           keepCount={policy.keepCount}
           isCustom={policy.isCustom}
           location={info?.displayPath ?? null}
-          onEdit={isActive ? null : openPolicy}
+          onEdit={isLocked ? null : openPolicy}
         />
       ) : null}
+      {messageHolder}
       {failureHolder}
+      <div className="backup-actions-bar">
+        <Button
+          type="primary"
+          icon={<CloudUploadOutlined />}
+          loading={isStartingManual}
+          disabled={isBusy || isLocked}
+          onClick={startManualBackup}
+        >
+          {t('backup.manualStart')}
+        </Button>
+        <Button
+          icon={<FolderOpenOutlined />}
+          onClick={() =>
+            run(async () => {
+              unwrap(await desktopBackups().openFolder())
+            })
+          }
+        >
+          {t('backup.openFolder')}
+        </Button>
+      </div>
+      {activeManual?.status === 'running' && manualProgressText ? (
+        <div className="backup-manual-card">
+          <div className="backup-manual-body">
+            <span>{manualProgressText}</span>
+            <Progress
+              percent={manualPercent}
+              status={activeManual.stage === 'scanning' ? 'active' : 'normal'}
+              showInfo={false}
+              size="small"
+            />
+          </div>
+          <Button
+            loading={isCancellingManual || activeManual.isCancelRequested}
+            onClick={cancelManualBackup}
+          >
+            {t('common.cancel')}
+          </Button>
+        </div>
+      ) : null}
       {/* 恢复预览在与传输计划相同的确认抽屉里打开，不改动本页内容。 */}
       {restoreId ? (
         <RestoreDetails
@@ -337,7 +564,7 @@ export function BackupPage({
       {incomplete.length > 0 && (
         <BackupLeftoverNotice
           items={incomplete}
-          isDisabled={isBusy || hasRunningWork}
+          isDisabled={isBusy || isLocked}
           onCleanup={() =>
             run(() =>
               cleanupIncompleteBackups(incomplete, async (id) => {
@@ -352,24 +579,11 @@ export function BackupPage({
           <section>
             <h3 className="group-title">
               {t('backup.list')}
-              <span className="group-title-end">
-                {policy ? (
-                  <small>
-                    {backups.length} / {policy.keepCount}
-                  </small>
-                ) : null}
-                <Button
-                  size="small"
-                  icon={<FolderOpenOutlined />}
-                  onClick={() =>
-                    run(async () => {
-                      unwrap(await desktopBackups().openFolder())
-                    })
-                  }
-                >
-                  {t('backup.openFolder')}
-                </Button>
-              </span>
+              {policy ? (
+                <small>
+                  {backups.length} / {policy.keepCount}
+                </small>
+              ) : null}
             </h3>
             <BackupTimeline
               backups={backups.map((item) => ({
@@ -416,7 +630,7 @@ export function BackupPage({
               <Switch
                 aria-label={t('backup.followGlobal')}
                 checked={mode === 'follow'}
-                disabled={isActive}
+                disabled={isLocked}
                 onChange={(isFollowing) =>
                   // 取消跟随时从当前显示的全局值开始单独设置。
                   isFollowing
@@ -443,7 +657,7 @@ export function BackupPage({
             ) : (
               <BackupPolicyFields
                 policy={draft}
-                isDisabled={isActive}
+                isDisabled={isLocked}
                 onChange={(next) => savePolicy('custom', next)}
               />
             )}

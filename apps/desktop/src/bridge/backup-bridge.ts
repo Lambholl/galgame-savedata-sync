@@ -4,16 +4,20 @@ import {
   isOperationResult,
   isSyncBackupManifest,
   isSyncBackupPolicy,
+  isSyncBackupReason,
   isSyncBackupSettings,
   isSyncIncompleteBackup,
+  isSyncManualBackupState,
   resolveBackupPolicy,
 } from '@savedata-sync/shared'
 import type {
   OperationResult,
   SyncBackupManifest,
   SyncBackupPolicy,
+  SyncBackupReason,
   SyncBackupSettings,
   SyncIncompleteBackup,
+  SyncManualBackupState,
 } from '@savedata-sync/shared'
 
 /** 备份列表的一行：一份备份的摘要。 */
@@ -22,7 +26,7 @@ export interface DesktopBackupSummary {
   readonly projectId: string
   readonly rootId: string
   readonly createdAt: number
-  readonly reason: 'copy' | 'restore'
+  readonly reason: SyncBackupReason
   readonly fileCount: number
   readonly totalFileBytes: number
 }
@@ -61,6 +65,14 @@ export interface DesktopBackupApi {
   deleteGameBackups(projectId: string): Promise<OperationResult<null>>
   /** 在系统文件管理器里打开备份文件夹。 */
   openFolder(): Promise<OperationResult<null>>
+  /** 立即为指定游戏启动一次本机手动备份。 */
+  startManual(projectId: string): Promise<OperationResult<SyncManualBackupState>>
+  /** 返回当前正在运行的本机手动备份状态；没有运行中的任务时返回 null。 */
+  currentManual(): Promise<OperationResult<SyncManualBackupState | null>>
+  /** 按 taskId 读取本机手动备份状态。 */
+  manualState(taskId: string): Promise<OperationResult<SyncManualBackupState>>
+  /** 取消指定的本机手动备份。 */
+  cancelManual(taskId: string): Promise<OperationResult<SyncManualBackupState>>
 }
 /** 备份接口的 IPC 通道名。 */
 export const BACKUP_CHANNELS = {
@@ -74,6 +86,10 @@ export const BACKUP_CHANNELS = {
   deleteBackup: 'backup:delete',
   deleteGameBackups: 'backup:delete-game',
   openFolder: 'backup:open-folder',
+  startManual: 'backup:manual-start',
+  currentManual: 'backup:manual-current',
+  manualState: 'backup:manual-state',
+  cancelManual: 'backup:manual-cancel',
 } as const
 function shape(value: unknown, keys: readonly string[]): value is Record<string, unknown> {
   return (
@@ -99,7 +115,7 @@ function isSummary(value: unknown): value is DesktopBackupSummary {
     typeof value.createdAt === 'number' &&
     Number.isSafeInteger(value.createdAt) &&
     Math.abs(value.createdAt) <= 8.64e15 &&
-    (value.reason === 'copy' || value.reason === 'restore') &&
+    isSyncBackupReason(value.reason) &&
     typeof value.fileCount === 'number' &&
     Number.isSafeInteger(value.fileCount) &&
     value.fileCount > 0 &&
@@ -231,5 +247,39 @@ export function createBackupBridge(
         ? Promise.resolve(invalid())
         : call('deleteGameBackups', [{ projectId }], (value): value is null => value === null),
     openFolder: () => call('openFolder', [], (value): value is null => value === null),
+    startManual: (projectId: string) =>
+      !isOpaqueId(projectId)
+        ? Promise.resolve(invalid())
+        : call(
+            'startManual',
+            [{ projectId }],
+            (value): value is SyncManualBackupState =>
+              isSyncManualBackupState(value) && value.projectId === projectId,
+          ),
+    currentManual: () =>
+      call(
+        'currentManual',
+        [],
+        (value): value is SyncManualBackupState | null =>
+          value === null || isSyncManualBackupState(value),
+      ),
+    manualState: (taskId: string) =>
+      !isOpaqueId(taskId)
+        ? Promise.resolve(invalid())
+        : call(
+            'manualState',
+            [{ taskId }],
+            (value): value is SyncManualBackupState =>
+              isSyncManualBackupState(value) && value.taskId === taskId,
+          ),
+    cancelManual: (taskId: string) =>
+      !isOpaqueId(taskId)
+        ? Promise.resolve(invalid())
+        : call(
+            'cancelManual',
+            [{ taskId }],
+            (value): value is SyncManualBackupState =>
+              isSyncManualBackupState(value) && value.taskId === taskId,
+          ),
   })
 }

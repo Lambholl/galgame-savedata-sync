@@ -513,7 +513,31 @@ body {
   gap: 8px;
 }
 
-/* 备份与恢复：左侧时间线，右侧所选备份或恢复预览 */
+/* 备份与恢复：顶部操作行、手动备份进度条，下方左侧时间线、右侧所选备份或恢复预览 */
+.backup-actions-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.backup-manual-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--ss-line);
+  border-radius: var(--ss-radius-md);
+  background: var(--ss-surface);
+}
+.backup-manual-body {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  color: var(--ss-ink);
+  font-size: 13px;
+}
 .backup-columns {
   display: grid;
   grid-template-columns: minmax(240px, 300px) minmax(0, 1fr);

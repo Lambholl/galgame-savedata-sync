@@ -467,7 +467,6 @@ export class WindowsSyncRegistry {
       deviceId: this.options.deviceId,
       rootId: game.rootId,
       shouldBackup: policy.shouldBackup,
-      backupKeepCount: policy.keepCount,
     }
   }
   private async verify(task: SyncTask): Promise<void> {

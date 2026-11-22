@@ -27,6 +27,7 @@ import type {
   SyncBackupFile,
   SyncBackupManifest,
   SyncBackupPolicy,
+  SyncBackupReason,
   SyncBackupSettings,
   SyncIncompleteBackup,
   SyncEntry,
@@ -183,12 +184,14 @@ async function occupiedBytes(round: BackupRound): Promise<number | null> {
 
 /** 已完整校验、用于恢复的一份备份。release 前这份备份不参加轮换；关闭全部读流后才能 release。 */
 export class WindowsBackupHandle {
+  private readonly store: WindowsBackupStore
+  private readonly round: BackupRound
   private readonly readers = new Set<Readable>()
   private isReleased = false
-  constructor(
-    private readonly store: WindowsBackupStore,
-    private readonly round: BackupRound,
-  ) {}
+  constructor(store: WindowsBackupStore, round: BackupRound) {
+    this.store = store
+    this.round = round
+  }
   /** 备份清单的副本。 */
   get manifest(): SyncBackupManifest {
     return structuredClone(this.round.manifest)
@@ -319,18 +322,29 @@ export class WindowsBackupHandle {
  * 每次操作都按磁盘上的实际目录重新读取，一份备份损坏不影响其他备份；元数据操作、创建和轮换串行执行。
  */
 export class WindowsBackupStore {
+  private readonly source: BackupSource
+  readonly path: string
+  private readonly settingsDirectory: string
+  private readonly gameName: (projectId: string) => string | null
+  private readonly io: BackupDiskIO
   private queue: Promise<void> = Promise.resolve()
   private readonly handles = new Map<WindowsBackupHandle, string>()
   private active: AbortController | null = null
   private stopping: Promise<void> | null = null
   private isClosed = false
   constructor(
-    private readonly source: BackupSource,
-    readonly path: string,
-    private readonly settingsDirectory: string,
-    private readonly gameName: (projectId: string) => string | null,
-    private readonly io: BackupDiskIO,
-  ) {}
+    source: BackupSource,
+    path: string,
+    settingsDirectory: string,
+    gameName: (projectId: string) => string | null,
+    io: BackupDiskIO,
+  ) {
+    this.source = source
+    this.path = path
+    this.settingsDirectory = settingsDirectory
+    this.gameName = gameName
+    this.io = io
+  }
   private get settingsFile(): string {
     return join(this.settingsDirectory, 'backup-settings.json')
   }
@@ -539,7 +553,7 @@ export class WindowsBackupStore {
     }
     throw new ArchiveError('io-failure', 'The backup folder could not be created.')
   }
-  /** 备份计划会覆盖或删除的目标文件；计划不要求备份或没有这类文件时，结果的 manifest 为 null。 */
+  /** 备份计划要求保护的目标文件；计划不要求备份或没有这类文件时，结果的 manifest 为 null。 */
   create(plan: SyncPlan, options: WindowsBackupOptions = {}): Promise<WindowsBackupCommit> {
     if (!isSyncPlan(plan) || !plan.canExecute || plan.target.deviceId !== this.source.deviceId) {
       throw new ArchiveError(
@@ -548,6 +562,66 @@ export class WindowsBackupStore {
       )
     }
     const fixed = structuredClone(plan)
+    const targets = fixed.shouldBackup
+      ? selectSyncBackupFiles(fixed).map((entry) => targetFile(fixed, entry.entryId))
+      : []
+    return this.commitTargets(
+      fixed.projectId,
+      fixed.target.rootId,
+      fixed.operation,
+      targets,
+      options,
+    )
+  }
+  /** 从本机扫描快照备份全部文件；没有文件时结果的 manifest 为 null，快照无效、文件大小未知或超限时抛 ArchiveError。 */
+  createManual(
+    projectId: string,
+    snapshot: SyncSnapshot,
+    options: WindowsBackupOptions = {},
+  ): Promise<WindowsBackupCommit> {
+    if (
+      !isOpaqueId(projectId) ||
+      !isSyncSnapshot(snapshot) ||
+      snapshot.deviceId !== this.source.deviceId ||
+      snapshot.error !== null
+    ) {
+      throw new ArchiveError(
+        'invalid-request',
+        'The backup snapshot is invalid or does not belong to this device.',
+      )
+    }
+    const fixed = structuredClone(snapshot)
+    const targets: Array<SyncEntry & { sizeBytes: number }> = []
+    let totalBytes = 0
+    for (const entry of fixed.entries) {
+      if (entry.kind !== 'file') {
+        continue
+      }
+      if (entry.error !== null || entry.sizeBytes === null) {
+        throw new ArchiveError('invalid-request', 'A file to be backed up has an unknown size.')
+      }
+      if (entry.sizeBytes > BATCH_LIMITS.maxFileBytes) {
+        throw new ArchiveError('resource-limit', 'A file to be backed up exceeds the size limit.')
+      }
+      totalBytes += entry.sizeBytes
+      targets.push({ ...entry, sizeBytes: entry.sizeBytes })
+    }
+    if (targets.length > BATCH_LIMITS.maxFiles || totalBytes > BATCH_LIMITS.maxTotalFileBytes) {
+      throw new ArchiveError(
+        'resource-limit',
+        'The backup exceeds file count or total size limits.',
+      )
+    }
+    targets.sort((left, right) => compareSyncPaths(left.path, right.path))
+    return this.commitTargets(projectId, fixed.rootId, 'manual', targets, options)
+  }
+  private commitTargets(
+    projectId: string,
+    rootId: string,
+    reason: SyncBackupReason,
+    targets: readonly (SyncEntry & { sizeBytes: number })[],
+    options: WindowsBackupOptions,
+  ): Promise<WindowsBackupCommit> {
     return this.exclusive(async () => {
       const controller = new AbortController(),
         signal = operationSignal(controller, options)
@@ -556,12 +630,6 @@ export class WindowsBackupStore {
         hasCommitted = false
       try {
         checkArchiveAbort(signal)
-        if (!fixed.shouldBackup) {
-          return { manifest: null, cleanupError: null }
-        }
-        const targets = selectSyncBackupFiles(fixed).map((entry) =>
-          targetFile(fixed, entry.entryId),
-        )
         if (!targets.length) {
           return { manifest: null, cleanupError: null }
         }
@@ -575,11 +643,11 @@ export class WindowsBackupStore {
         const manifest: SyncBackupManifest = {
           schemaVersion: 1,
           backupId: randomUUID(),
-          projectId: fixed.projectId,
+          projectId,
           deviceId: this.source.deviceId,
-          rootId: fixed.target.rootId,
+          rootId,
           createdAt: Math.max(Date.now(), ...rounds.map((item) => item.manifest.createdAt + 1)),
-          reason: fixed.operation,
+          reason,
           files,
         }
         if (!isSyncBackupManifest(manifest)) {
@@ -594,7 +662,7 @@ export class WindowsBackupStore {
             4096,
         )
         checkArchiveAbort(signal)
-        const path = await this.createRoundDirectory(fixed.projectId, manifest.createdAt)
+        const path = await this.createRoundDirectory(projectId, manifest.createdAt)
         round = {
           path,
           identity: getFileIdentity(await inspectLocalPath(path)),
@@ -602,7 +670,7 @@ export class WindowsBackupStore {
           isComplete: false,
         }
         await writeBackupJson(join(path, UNFINISHED), manifest, this.io)
-        const root = await this.source.locateNativeDirectory(fixed.target.rootId)
+        const root = await this.source.locateNativeDirectory(rootId)
         const directories = new Set<string>()
         let bytesCopied = 0
         for (const file of files) {
@@ -611,7 +679,7 @@ export class WindowsBackupStore {
             await mkdir(dirname(destination), { recursive: true })
             directories.add(dirname(destination))
           }
-          // 扫描后文件被改过时，备份的就不是计划确认的内容，之后的写入会覆盖这些改动，备份里也没有它们。
+          // 扫描后文件被改过时，备份的就不是扫描确认的内容，停止并报错。
           await copyFileChecked(
             join(root.path, ...file.path),
             destination,
@@ -633,7 +701,7 @@ export class WindowsBackupStore {
         hasCommitted = true
         let cleanupError: KnownOperationError | null = null
         try {
-          await this.prune(fixed.projectId)
+          await this.prune(projectId)
         } catch (error) {
           cleanupError = cleanupFailure(error)
         }

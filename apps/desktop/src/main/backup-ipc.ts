@@ -4,6 +4,7 @@ import type { SyncBackupPolicy } from '@savedata-sync/shared'
 import { BACKUP_CHANNELS } from '../bridge/backup-bridge.ts'
 import type { WindowsBackupStore } from './backup-store.ts'
 import type { DesktopLibrary } from './library-store.ts'
+import type { WindowsManualBackupRegistry } from './manual-backup-registry.ts'
 import { HttpOperationError, toHttpError } from './http-errors.ts'
 import { hasTargetOperation } from './target-operation.ts'
 
@@ -16,6 +17,7 @@ export function registerBackupIpc(
   ipc: Pick<IpcMain, 'handle' | 'removeHandler'>,
   store: WindowsBackupStore,
   library: DesktopLibrary,
+  manualBackups: WindowsManualBackupRegistry,
   isTrusted: (event: IpcMainInvokeEvent) => boolean,
   openPath: (path: string) => Promise<string>,
   hasRunningWork: () => boolean = () => false,
@@ -40,6 +42,39 @@ export function registerBackupIpc(
             throw new HttpOperationError('io-failure', 'The backup folder could not be opened.')
           }
           value = null
+        } else if (action === 'currentManual') {
+          if (args.length) {
+            throw new HttpOperationError('invalid-request', 'Backup parameters are invalid.')
+          }
+          value = manualBackups.current()
+        } else if (action === 'startManual') {
+          const input = args[0]
+          if (
+            args.length !== 1 ||
+            typeof input !== 'object' ||
+            input === null ||
+            Array.isArray(input) ||
+            Object.keys(input).length !== 1 ||
+            !isOpaqueId((input as Record<string, unknown>).projectId)
+          ) {
+            throw new HttpOperationError('invalid-request', 'The game reference is invalid.')
+          }
+          value = manualBackups.start((input as { projectId: string }).projectId)
+        } else if (action === 'manualState' || action === 'cancelManual') {
+          const input = args[0]
+          if (
+            args.length !== 1 ||
+            typeof input !== 'object' ||
+            input === null ||
+            Array.isArray(input) ||
+            Object.keys(input).length !== 1 ||
+            !isOpaqueId((input as Record<string, unknown>).taskId)
+          ) {
+            throw new HttpOperationError('invalid-request', 'The backup reference is invalid.')
+          }
+          const taskId = (input as { taskId: string }).taskId
+          value =
+            action === 'manualState' ? manualBackups.state(taskId) : manualBackups.cancel(taskId)
         } else if (action === 'setDefaults') {
           const input = args[0]
           if (

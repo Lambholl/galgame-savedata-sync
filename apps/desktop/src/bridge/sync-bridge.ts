@@ -1,6 +1,5 @@
 import {
   BATCH_LIMITS,
-  isBackupKeepCount,
   isInterruptedWriteList,
   isOpaqueId,
   isOperationError,
@@ -95,8 +94,6 @@ export interface DesktopRemoteRequest {
     | 'cancelled'
   readonly jobId: string | null
   readonly error: OperationError | null
-  /** 移动端回报的计划里，被写入一端的保留份数；还没回报时为 null。 */
-  readonly backupKeepCount: number | null
   readonly updatedAt: number
 }
 /** 复制接口：查看和取消复制任务，本机恢复，以及向已连接的移动端发起复制。 */
@@ -304,10 +301,8 @@ export function isDesktopRemoteRequest(value: unknown): value is DesktopRemoteRe
       'status',
       'jobId',
       'error',
-      'backupKeepCount',
       'updatedAt',
     ]) &&
-    (value.backupKeepCount === null || isBackupKeepCount(value.backupKeepCount)) &&
     [value.requestId, value.projectId, value.peerId].every(isOpaqueId) &&
     member(value.direction, ['dialer-to-listener', 'listener-to-dialer']) &&
     member(value.status, [

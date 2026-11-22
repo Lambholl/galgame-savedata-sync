@@ -21,6 +21,7 @@ import { WindowsDialerSync } from './dialer-sync.ts'
 import { WindowsSyncScanner } from './sync-scanner.ts'
 import { registerDialerIpc } from './dialer-ipc.ts'
 import { createWindowsBackupStore } from './backup-store.ts'
+import { WindowsManualBackupRegistry } from './manual-backup-registry.ts'
 import { registerBackupIpc } from './backup-ipc.ts'
 import { WindowsSyncWriter } from './sync-writer.ts'
 import { WindowsRestoreRegistry } from './restore-registry.ts'
@@ -175,6 +176,11 @@ if (hasInstanceLock) {
         writer: syncWriter,
         library,
       })
+      const manualBackups = new WindowsManualBackupRegistry({
+        source: adapter,
+        backups,
+        library,
+      })
       const discoveryBrowser = new WindowsDiscoveryBrowser(adapter.deviceId)
       const dialer = new WindowsDialer(library, adapter, discoveryBrowser)
       library.attachDialer(dialer)
@@ -200,12 +206,14 @@ if (hasInstanceLock) {
           ipcMain,
           backups,
           library,
+          manualBackups,
           (event) => isTrustedDirectorySender(event, trustedWindows, expectedRendererUrl),
           (path) => shell.openPath(path),
           () =>
             httpService.hasRunningNetworkWork() ||
             dialerSync.hasRunningWork() ||
-            restores.hasRunningWork(),
+            restores.hasRunningWork() ||
+            manualBackups.hasRunningWork(),
         ),
       )
       app.once(
@@ -241,6 +249,7 @@ if (hasInstanceLock) {
           // HTTP 服务停止失败时也要撤下广播；广播的 stop 不会 reject。
           .finally(() => advertiser.stop())
           .then(() => restores.stop())
+          .then(() => manualBackups.stop())
           .then(() => syncWriter.stop())
           .then(async () => {
             // 目标任务释放成功后再关闭备份，清理失败时保留存储供重试。

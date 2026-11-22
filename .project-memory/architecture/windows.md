@@ -177,6 +177,7 @@ HTTP 服务注入 `scanSource: adapter` 后开放 `/v1/sync/capabilities`、`POS
 | --- | --- |
 | `settings()` / `setPreference(projectId, policy)` | 独立 `SyncBackupSettings`；缺少设置项时开启，坏设置拒绝修改并保留原文件 |
 | `create(plan, options?)` | 接受有效、可执行且目标设备匹配的 `SyncPlan`，写入前保存目标目录的全部文件；返回 `{ manifest, cleanupError }`，关闭备份、没有写入或目标没有文件时 manifest 为 null |
+| `createManual(projectId, snapshot, options?)` | 从本机扫描快照立即创建 `reason = 'manual'` 备份；空目录返回 `{ manifest: null, cleanupError: null }` 不建空轮次，提交后按保留份数平级轮换 |
 | `capacity(requiredBytes)` | 预检私有卷剩余空间；可得量未知为 null，不足抛 insufficient-space；不提前删除有效旧轮次换空间 |
 | `list(projectId)` | 返回这个游戏的已提交清单和未完成轮次 ID，包括游戏之前用过的目录的备份；恢复必须 acquire |
 | `acquire(projectId, backupId, options?)` | 完整核对每个原文文件后返回原生句柄；`snapshot()` 为本次恢复建立临时树，`openFile(fileId)` 返回只读 stream 与 verifyUnchanged；消费者关闭读流后 release |
@@ -187,9 +188,11 @@ HTTP 服务注入 `scanSource: adapter` 后开放 `/v1/sync/capabilities`、`POS
 
 创建时清单先写成 `in-progress.json`，每个文件复制前后核对来源的大小和修改日期、核对复制的字节数，复制出的文件带上来源的修改日期；全部完成后原子改名为 `backup.json`。默认期限 30 分钟；不超过 16 MiB 的文件整个读入后写出，更大的按 1 MiB 分块。预算、清单和恢复规则见[复制、备份与恢复约定](sync-copy.md)。
 
-每个游戏保留的份数取备份设置（1–10，默认 3），不分目录，只统计完整的备份。新轮可读后才轮换；活动恢复句柄保护输入轮次。淘汰先把 `backup.json` 改回 `in-progress.json` 再删文件。文件缺失或大小不符的备份和未提交的一样显示为不完整，不能恢复，不挡新备份，须明确清理；读不懂的内容直接忽略，不自动删除。
+每个游戏保留的份数取备份设置（1–4096，默认 3），不分目录，只统计完整的备份；自动备份（`copy`、`restore`）与手动备份（`manual`）平级轮换。新轮可读后才轮换；活动恢复句柄保护输入轮次。淘汰先把 `backup.json` 改回 `in-progress.json` 再删文件。文件缺失或大小不符的备份和未提交的一样显示为不完整，不能恢复，不挡新备份，须明确清理；读不懂的内容直接忽略，不自动删除。
 
-有限 `window.desktopBackups` 只提供 read/list/manifest/setPreference/rotate/cleanupIncomplete/deleteBackup/deleteGameBackups，输入仅为项目、目录、轮次 ID 和布尔开关。read 的 displayPath 仅供位置展示；列表使用摘要，单轮详情才返回完整清单。
+`src/main/manual-backup-registry.ts` 的 `WindowsManualBackupRegistry` 持有本机手动备份异步任务：启动时复核本机游戏目录并占用 `TargetOperation` 名额，扫描当前存档目录并调用 `createManual` 提交，终态按 `BATCH_TIMEOUTS_MS.terminalRetention` 保留供查询，应用退出时随 `stop()` 取消并释放名额。
+
+有限 `window.desktopBackups` 只提供 read/list/manifest/setPreference/setDefaults/rotate/cleanupIncomplete/deleteBackup/deleteGameBackups/openFolder 及手动备份接口 startManual/currentManual/manualState/cancelManual，输入仅为项目、任务、轮次 ID、保留份数和布尔开关。read 的 displayPath 仅供位置展示；列表使用摘要，单轮详情才返回完整清单。
 
 ## 13. 受保护目标写入与本机恢复
 
@@ -215,7 +218,7 @@ HTTP 服务注入 `scanSource: adapter` 后开放 `/v1/sync/capabilities`、`POS
 
 游戏操作菜单的“任务与结果”展示本进程内的复制和恢复任务，计划、来源/目标、备份状态、阶段和逐项实际结果分别显示。电脑发送完成时提示“文件已发送。请在移动端查看写入结果。”；电脑接收才显示本机写入结果。
 
-“备份与恢复”按游戏读取完整备份与未完成轮次。备份默认关闭，开关不弹确认。本机恢复先读取并验证所选备份、扫描当前目录，生成固定预览，用户确认后由主进程执行。恢复前始终备份当前目录的全部文件，目标独有文件保留，恢复总是写进游戏当前的目录。
+“备份与恢复”按游戏读取完整备份与未完成轮次。写入前自动备份默认关闭，开关不弹确认，关闭时备份设置仍显示保留份数（1–4096）。页面提供“立即备份”按钮，点击直接启动本机手动备份（不弹确认、不填备注），显示实时进度与取消按钮，完成后刷新列表并自动选中新备份；空目录时提示当前目录没有文件可备份。本机恢复先读取并验证所选备份、扫描当前目录，生成固定预览，用户确认后由主进程执行。恢复前始终备份当前目录的全部文件，目标独有文件保留，恢复总是写进游戏当前的目录。
 
 `src/main/restore-registry.ts` 的 `WindowsRestoreRegistry` 持有恢复任务。关闭详情、切页或刷新 Renderer 只停止页面轮询；本进程中的任务、预览及实际结果仍可按 ID 查询。网络服务停止不取消本机恢复；应用退出先停止网络编排和恢复，再停止写入器与备份。
 
