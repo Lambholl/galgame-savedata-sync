@@ -4,6 +4,7 @@ export type DataResetItem =
   | 'directories'
   | 'library'
   | 'backup-settings'
+  | 'backup-library'
   | 'service-settings'
   | 'preferences'
 
@@ -13,6 +14,7 @@ export const DATA_RESET_ITEMS: readonly DataResetItem[] = [
   'directories',
   'library',
   'backup-settings',
+  'backup-library',
   'service-settings',
   'preferences',
 ]

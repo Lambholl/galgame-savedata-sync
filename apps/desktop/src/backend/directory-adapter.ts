@@ -96,6 +96,36 @@ export class WindowsDirectoryAdapter {
     this.privateDirectories.add(path)
   }
 
+  /**
+   * 把登记过的私有目录 previous 换成 next；previous 没有登记过时只登记 next。
+   *
+   * @returns 撤销这次替换、恢复原来登记的函数。
+   * @throws DirectoryAccessError next 和已登记的根目录或其他私有目录互相包含时抛出，错误码为 path-outside-root，登记不变。
+   */
+  replacePrivateDirectory(previous: string, next: string): () => void {
+    this.assertCacheIsolated(next)
+    if (
+      [...this.privateDirectories].some(
+        (directory) =>
+          directory !== previous &&
+          (isWithinDirectory(directory, next) || isWithinDirectory(next, directory)),
+      )
+    ) {
+      throw new DirectoryAccessError(
+        'path-outside-root',
+        'The backup library must be separate from the app data folders.',
+      )
+    }
+    const wasRegistered = this.privateDirectories.delete(previous)
+    this.privateDirectories.add(next)
+    return () => {
+      this.privateDirectories.delete(next)
+      if (wasRegistered) {
+        this.privateDirectories.add(previous)
+      }
+    }
+  }
+
   private assertNotPrivate(path: string): void {
     if (
       [...this.privateDirectories].some(

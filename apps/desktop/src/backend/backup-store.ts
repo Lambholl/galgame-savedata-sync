@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { lstat, mkdir, readdir, rename, rm, rmdir, unlink } from 'node:fs/promises'
+import { lstat, mkdir, readdir, realpath, rename, rm, rmdir, unlink } from 'node:fs/promises'
 import type { Dirent } from 'node:fs'
 import { dirname, isAbsolute, join } from 'node:path'
 import type { Readable } from 'node:stream'
@@ -48,11 +48,23 @@ import {
   writeBackupJson,
 } from './backup-files.ts'
 import type { BackupDiskIO } from './backup-files.ts'
+import { BACKUP_LOCATION_FILE, readBackupLocation, saveBackupLocation } from './backup-location.ts'
 
 type BackupSource = Pick<
   WindowsDirectoryAdapter,
-  'deviceId' | 'assertCacheIsolated' | 'excludePrivateDirectory' | 'locateNativeDirectory'
+  | 'deviceId'
+  | 'assertCacheIsolated'
+  | 'excludePrivateDirectory'
+  | 'replacePrivateDirectory'
+  | 'locateNativeDirectory'
 >
+/** 备份库的位置。 */
+export interface WindowsBackupLocation {
+  /** 备份库文件夹的绝对路径。 */
+  readonly path: string
+  /** 是否是用户选择的位置；false 表示默认位置。 */
+  readonly isCustom: boolean
+}
 /** 磁盘上的一轮备份。isComplete 表示已提交且文件齐全；其余情况按不完整显示，可以清理但不能恢复。 */
 interface BackupRound {
   readonly path: string
@@ -93,6 +105,9 @@ function cleanupFailure(error: unknown): KnownOperationError {
     canRetry: false,
     ...(failure instanceof ArchiveError ? { message: failure.operationError.message } : {}),
   }
+}
+function unavailable(cause: unknown): ArchiveError {
+  return new ArchiveError('backup-unavailable', 'The backup library folder is unavailable.', cause)
 }
 function required<T>(value: T | null | undefined): T {
   if (value === null || value === undefined) {
@@ -315,8 +330,8 @@ export class WindowsBackupHandle {
 }
 
 /**
- * 持久备份的存储，目录结构为 backups/游戏名/时间/，内含 backup.json 和按原路径保存的 files/。
- * 每次操作都按磁盘上的实际目录重新读取，一份备份损坏不影响其他备份；元数据操作、创建和轮换串行执行。
+ * 持久备份的存储，目录结构为 备份库/游戏名/时间/，内含 backup.json 和按原路径保存的 files/。
+ * 每次操作都按磁盘上的实际目录重新读取，一份备份损坏不影响其他备份；元数据操作、创建、轮换和更换位置串行执行。
  */
 export class WindowsBackupStore {
   private queue: Promise<void> = Promise.resolve()
@@ -324,13 +339,25 @@ export class WindowsBackupStore {
   private active: AbortController | null = null
   private stopping: Promise<void> | null = null
   private isClosed = false
+  #location: WindowsBackupLocation
   constructor(
     private readonly source: BackupSource,
-    readonly path: string,
+    location: WindowsBackupLocation,
+    private readonly defaultPath: string,
     private readonly settingsDirectory: string,
     private readonly gameName: (projectId: string) => string | null,
     private readonly io: BackupDiskIO,
-  ) {}
+  ) {
+    this.#location = location
+  }
+  /** 当前备份库文件夹的绝对路径。 */
+  get path(): string {
+    return this.#location.path
+  }
+  /** 当前备份库的位置。 */
+  get location(): WindowsBackupLocation {
+    return this.#location
+  }
   private get settingsFile(): string {
     return join(this.settingsDirectory, 'backup-settings.json')
   }
@@ -351,14 +378,89 @@ export class WindowsBackupStore {
     )
     return next
   }
-  /** 返回备份根目录，不存在时重新创建。 */
+  /**
+   * 返回备份库文件夹；默认位置不存在时重新创建。
+   *
+   * @throws ArchiveError 用户选择的位置不存在、不是文件夹或读不到时抛出，错误码为 backup-unavailable；
+   * 备份库和已登记的根目录互相包含时错误码为 path-outside-root。
+   */
   async root(): Promise<string> {
-    this.source.assertCacheIsolated(this.path)
-    await mkdir(this.path, { recursive: true })
-    if (!(await inspectLocalPath(this.path)).isDirectory()) {
+    const { path, isCustom } = this.#location
+    this.source.assertCacheIsolated(path)
+    if (isCustom) {
+      // 用户选的文件夹不见了时不重建：盘符可能已经分给了另一块盘，备份会写到用户不知道的地方。
+      let stats
+      try {
+        stats = await inspectLocalPath(path)
+      } catch (error) {
+        throw unavailable(error)
+      }
+      if (!stats.isDirectory()) {
+        throw unavailable(null)
+      }
+      return path
+    }
+    await mkdir(path, { recursive: true })
+    if (!(await inspectLocalPath(path)).isDirectory()) {
       throw new ArchiveError('invalid-request', 'The backup location is not a directory.')
     }
-    return this.path
+    return path
+  }
+  /** 备份库现在能否使用；默认位置不存在时重新创建。 */
+  async isAvailable(): Promise<boolean> {
+    try {
+      await this.root()
+      return true
+    } catch {
+      // 用不了的原因在读写备份时随错误报告，这里只给界面显示状态。
+      return false
+    }
+  }
+  /**
+   * 把备份库换到 path，保存位置后生效；path 为 null 或等于默认位置时换回默认位置。
+   * 已有的备份留在原来的文件夹，之后只列出新位置里的备份。
+   *
+   * @param path 已存在的文件夹的绝对路径。
+   * @throws ArchiveError path 不是已存在的文件夹时错误码为 invalid-request；和已登记的根目录或应用的私有目录互相包含时为
+   * path-outside-root；有备份正在用于恢复时为 busy；保存位置失败时为 io-failure 等文件系统错误。失败时位置不变。
+   */
+  relocate(path: string | null): Promise<WindowsBackupLocation> {
+    if (path !== null && (typeof path !== 'string' || !isAbsolute(path))) {
+      throw new ArchiveError('invalid-request', 'The backup library location is invalid.')
+    }
+    return this.exclusive(async () => {
+      if (this.handles.size) {
+        throw new ArchiveError('busy', 'A backup is being used for a restore.')
+      }
+      let next: WindowsBackupLocation = { path: this.defaultPath, isCustom: false }
+      if (path !== null) {
+        const canonical = await realpath(path).catch((error: unknown) => {
+          throw new ArchiveError('invalid-request', 'The selected folder does not exist.', error)
+        })
+        if (!(await inspectLocalPath(canonical)).isDirectory()) {
+          throw new ArchiveError('invalid-request', 'The selected entry is not a directory.')
+        }
+        next = { path: canonical, isCustom: canonical !== this.defaultPath }
+      }
+      if (!next.isCustom) {
+        await mkdir(next.path, { recursive: true })
+      }
+      const previous = this.#location
+      const undo = this.source.replacePrivateDirectory(previous.path, next.path)
+      try {
+        await saveBackupLocation(
+          join(this.settingsDirectory, BACKUP_LOCATION_FILE),
+          next.isCustom ? next.path : null,
+        )
+      } catch (error) {
+        undo()
+        throw error
+      }
+      stores.delete(previous.path)
+      stores.add(next.path)
+      this.#location = next
+      return next
+    })
   }
   /** 核对这份备份的文件夹没有被替换。 */
   async inspectRound(round: BackupRound): Promise<void> {
@@ -815,36 +917,50 @@ export class WindowsBackupStore {
 }
 
 /**
- * 初始化备份存储。
+ * 初始化备份存储。settingsDirectory 里有 BACKUP_LOCATION_FILE 时用其中的位置，否则用 defaultDirectory。
  *
- * @param backupDirectory 备份库的绝对路径；可以还不存在，第一次写入备份时创建。
- * @param settingsDirectory 保存备份设置的已有目录的绝对路径。
+ * @param defaultDirectory 默认备份库的绝对路径；可以还不存在，第一次写入备份时创建。
+ * @param settingsDirectory 保存备份设置和备份库位置的已有目录的绝对路径。
  * @param gameName 返回游戏的当前名称，用作新备份的文件夹名；找不到游戏时返回 null。
- * @throws ArchiveError 参数无效、备份库和已登记的同步目录互相包含，或同一备份库已经打开时抛出。
+ * @throws ArchiveError 参数无效、默认位置的备份库和已登记的同步目录互相包含，或同一备份库已经打开时抛出。
+ * @throws Error 备份库位置文件读不懂或读取失败时抛出。
  */
 export async function createWindowsBackupStore(
   source: BackupSource,
-  backupDirectory: string,
+  defaultDirectory: string,
   settingsDirectory: string,
   gameName: (projectId: string) => string | null,
   io: Partial<BackupDiskIO> = {},
 ): Promise<WindowsBackupStore> {
   if (
-    !isAbsolute(backupDirectory) ||
+    !isAbsolute(defaultDirectory) ||
     !isAbsolute(settingsDirectory) ||
     !isOpaqueId(source.deviceId)
   ) {
     throw new ArchiveError('invalid-request', 'Backup initialization parameters are invalid.')
   }
   await inspectLocalPath(settingsDirectory)
-  const path = backupDirectory
-  source.assertCacheIsolated(path)
-  if (stores.has(path)) {
+  const saved = await readBackupLocation(join(settingsDirectory, BACKUP_LOCATION_FILE))
+  // 用户选的位置暂时不可用时按保存的路径记下，root() 会报 backup-unavailable。
+  const customPath = saved === null ? null : await realpath(saved).catch((): string => saved)
+  const location: WindowsBackupLocation =
+    customPath === null || customPath === defaultDirectory
+      ? { path: defaultDirectory, isCustom: false }
+      : { path: customPath, isCustom: true }
+  if (stores.has(location.path)) {
     throw new ArchiveError('busy', 'This backup store is already open.')
   }
-  stores.add(path)
-  source.excludePrivateDirectory(path)
-  return new WindowsBackupStore(source, path, settingsDirectory, gameName, {
+  if (location.isCustom) {
+    try {
+      source.excludePrivateDirectory(location.path)
+    } catch {
+      // 用户选的位置和已登记的根目录互相包含时不登记；root() 拒绝使用它，用户可以在设置里换位置。
+    }
+  } else {
+    source.excludePrivateDirectory(location.path)
+  }
+  stores.add(location.path)
+  return new WindowsBackupStore(source, location, defaultDirectory, settingsDirectory, gameName, {
     ...BACKUP_DISK_IO,
     ...io,
   })

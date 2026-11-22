@@ -9,6 +9,7 @@ import {
   unreadableFileName,
 } from '@savedata-sync/shared'
 import type { DataResetItem } from '@savedata-sync/shared'
+import { isBackupLocationConfig } from './backup-location.ts'
 import { isDeviceIdentity } from './device-identity.ts'
 import { isDirectoryRegistry } from './directory-store.ts'
 import { isServicePortConfig } from './service-port-settings.ts'
@@ -27,6 +28,7 @@ const RULES: Readonly<Record<DataResetItem, DataRule>> = {
   directories: { maxBytes: 1024 * 1024, isValid: isDirectoryRegistry },
   library: { maxBytes: 4 * 1024 * 1024, isValid: isLibraryConfig },
   'backup-settings': { maxBytes: BATCH_LIMITS.maxJsonBytes, isValid: isSyncBackupSettings },
+  'backup-library': { maxBytes: 128 * 1024, isValid: isBackupLocationConfig },
   'service-settings': { maxBytes: 64 * 1024, isValid: isServicePortConfig },
   preferences: { maxBytes: 64 * 1024, isValid: isAppPreferences },
 }

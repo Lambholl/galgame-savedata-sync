@@ -411,7 +411,10 @@ export class WindowsSyncWriter {
       selectSyncBackupFiles(plan).length > 0
         ? (plan.backupFileBytes ?? 0) + 8192 + Buffer.byteLength(JSON.stringify(plan))
         : 0
-    const backupDevice = (await inspectLocalPath(await this.backups.root())).dev
+    // 不需要备份时不碰备份库：用户选的备份库不可用时，关着备份的传输照常进行。
+    const backupDevice = backupBytes
+      ? (await inspectLocalPath(await this.backups.root())).dev
+      : null
     const targetDevice = (await inspectLocalPath(root.path)).dev
     const targetRequired =
       newBytes +
@@ -424,7 +427,7 @@ export class WindowsSyncWriter {
         'The target volume cannot hold both the new content and a complete backup.',
       )
     }
-    if (backupBytes) {
+    if (backupDevice !== null) {
       await this.backups.capacity(
         backupBytes +
           (backupDevice === targetDevice ? newBytes : 0) +

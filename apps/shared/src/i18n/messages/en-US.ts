@@ -205,6 +205,7 @@ export const enUS: Messages = {
   'dataReset.item.directories': 'Save folders: choose them again',
   'dataReset.item.library': 'Games and devices: add them again',
   'dataReset.item.backup-settings': 'Backup settings',
+  'dataReset.item.backup-library': 'Backup library location: changed back to the default location',
   'dataReset.item.service-settings': 'Listening port: changed to a new random port',
   'dataReset.item.preferences': 'Theme and language',
   'dataReset.openFolder': 'Open data folder',
@@ -303,6 +304,19 @@ export const enUS: Messages = {
   'backup.editGlobal': 'Change global setting',
   'backup.policyTitle': ({ name }) => `Backups for ${name}`,
   'backup.saveFailed': 'Could not save backup settings',
+  'backup.libraryLocation': 'Backup library location',
+  'backup.libraryDefault': 'Default location',
+  'backup.libraryUnavailable': 'Unavailable',
+  'backup.changeLibrary': 'Change location',
+  'backup.resetLibrary': 'Restore default location',
+  'backup.chooseLibrary': 'Choose a backup library folder',
+  'backup.changeLibraryTitle': 'Change backup library location',
+  'backup.resetLibraryTitle': 'Restore default location',
+  'backup.changeLibraryText':
+    'Existing backups stay in the old folder and are not moved. After the change, only backups in the new location are listed. Switching back to the old location lists the old backups again.',
+  'backup.libraryOverlaps':
+    'The backup library cannot contain or be inside a save directory or the app data folder. Choose another folder.',
+  'backup.changeLibraryFailed': 'Could not change the backup library location',
   'settings.saveFailed': 'Could not save settings. Try again.',
 
   'app.disconnected': 'Disconnected',
@@ -417,6 +431,8 @@ export const enUS: Messages = {
     'The network connection dropped. Make sure both devices are on the same network and try again.',
   'error.code.port-unavailable': 'The listening port is in use. Choose another port and try again.',
   'error.code.insufficient-space': 'Not enough storage space.',
+  'error.code.backup-unavailable':
+    'The backup library is unavailable. Connect the drive that holds it, or change its location in Settings.',
   'error.code.io-failure':
     'Reading or writing files failed. Make sure the folder is still accessible.',
   'error.code.internal-error':

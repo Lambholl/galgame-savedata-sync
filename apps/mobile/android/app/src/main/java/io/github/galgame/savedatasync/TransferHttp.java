@@ -593,6 +593,8 @@ interface TransferHttp {
           return 501;
         case "insufficient-space":
           return 507;
+        case "backup-unavailable":
+          return 503;
         case "io-failure":
         case "internal-error":
         case "cleanup-failed":

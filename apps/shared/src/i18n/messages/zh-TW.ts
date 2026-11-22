@@ -189,6 +189,7 @@ export const zhTW: Messages = {
   'dataReset.item.directories': '存檔目錄：需要重新選擇',
   'dataReset.item.library': '遊戲和裝置清單：需要重新新增',
   'dataReset.item.backup-settings': '備份設定',
+  'dataReset.item.backup-library': '備份庫位置：已改回預設位置',
   'dataReset.item.service-settings': '監聽連接埠：已換成新的隨機連接埠',
   'dataReset.item.preferences': '主題和語言',
   'dataReset.openFolder': '開啟資料資料夾',
@@ -282,6 +283,19 @@ export const zhTW: Messages = {
   'backup.editGlobal': '修改全域設定',
   'backup.policyTitle': ({ name }) => `${name} 的備份`,
   'backup.saveFailed': '無法儲存備份設定',
+  'backup.libraryLocation': '備份庫位置',
+  'backup.libraryDefault': '預設位置',
+  'backup.libraryUnavailable': '目前無法使用',
+  'backup.changeLibrary': '更換位置',
+  'backup.resetLibrary': '恢復預設位置',
+  'backup.chooseLibrary': '選擇備份庫資料夾',
+  'backup.changeLibraryTitle': '更換備份庫位置',
+  'backup.resetLibraryTitle': '恢復預設位置',
+  'backup.changeLibraryText':
+    '已有的備份留在原來的資料夾，不會搬到新位置。更換後只列出新位置裡的備份；換回原來的位置後，舊備份會重新列出。',
+  'backup.libraryOverlaps':
+    '備份庫不能和存檔目錄或應用程式的資料資料夾互相包含，請選擇其他資料夾。',
+  'backup.changeLibraryFailed': '無法更換備份庫位置',
   'settings.backup': '備份',
   'settings.saveFailed': '無法儲存設定，請重試。',
 
@@ -391,6 +405,8 @@ export const zhTW: Messages = {
   'error.code.network-failure': '網路連線中斷，請確認兩端在同一網路後重試。',
   'error.code.port-unavailable': '監聽連接埠已被占用，請換一個連接埠後重試。',
   'error.code.insufficient-space': '儲存空間不足。',
+  'error.code.backup-unavailable':
+    '備份庫無法使用。請連接備份庫所在的磁碟，或在設定中更換備份庫位置。',
   'error.code.io-failure': '讀寫檔案失敗，請確認目錄仍可存取。',
   'error.code.internal-error': '應用程式內部出錯，請重試；仍然失敗時重新啟動應用程式。',
   'error.code.cleanup-failed': '暫存檔案沒有清理乾淨，可以稍後重試清理。',

@@ -7,19 +7,41 @@ import { HttpOperationError, toHttpError } from './http-errors.ts'
 import { hasTargetOperation } from './target-operation.ts'
 import type { ChannelRegistry } from './channel-registry.ts'
 
+/** 备份接口用到的系统功能。 */
+export interface BackupIpcHost {
+  /** 用系统文件管理器打开路径；打不开时 reject。 */
+  openPath(path: string): Promise<void>
+  /** 打开系统目录选择器；返回选中的绝对路径，取消时返回 null。 */
+  chooseDirectory(): Promise<string | null>
+}
+
 /**
  * 注册备份接口的通道处理函数。
  *
- * @param openPath 用系统文件管理器打开路径；打不开时 reject。
+ * @param hasRunningWork 是否有传输或恢复正在进行；为 true 时拒绝清理备份、移除游戏和更换备份库位置。
  * @returns 移除这些处理函数的函数。
  */
 export function registerBackupIpc(
   ipc: ChannelRegistry,
   store: WindowsBackupStore,
   library: DesktopLibrary,
-  openPath: (path: string) => Promise<void>,
+  host: BackupIpcHost,
   hasRunningWork: () => boolean = () => false,
 ): () => void {
+  const describe = async (): Promise<unknown> => ({
+    displayPath: store.location.path,
+    isCustomLocation: store.location.isCustom,
+    isLocationAvailable: await store.isAvailable(),
+    settings: await store.settings(),
+  })
+  const assertIdle = (): void => {
+    if (hasRunningWork() || hasTargetOperation()) {
+      throw new HttpOperationError(
+        'busy',
+        'Wait for the current file operation to finish before changing the backup library location.',
+      )
+    }
+  }
   for (const [action, channel] of Object.entries(BACKUP_CHANNELS)) {
     ipc.handle(channel, async (...args: unknown[]) => {
       try {
@@ -28,14 +50,28 @@ export function registerBackupIpc(
           if (args.length) {
             throw new HttpOperationError('invalid-request', 'Backup read parameters are invalid.')
           }
-          value = { displayPath: store.path, settings: await store.settings() }
+          value = await describe()
+        } else if (action === 'chooseLocation' || action === 'resetLocation') {
+          if (args.length) {
+            throw new HttpOperationError('invalid-request', 'Backup parameters are invalid.')
+          }
+          assertIdle()
+          const path = action === 'chooseLocation' ? await host.chooseDirectory() : null
+          if (action === 'chooseLocation' && path === null) {
+            value = null
+          } else {
+            // 选择器开着时可能开始了新的传输，选完再查一次。
+            assertIdle()
+            await store.relocate(path)
+            value = await describe()
+          }
         } else if (action === 'openFolder') {
           if (args.length) {
             throw new HttpOperationError('invalid-request', 'Backup parameters are invalid.')
           }
           const folder = await store.root()
           try {
-            await openPath(folder)
+            await host.openPath(folder)
           } catch (cause) {
             throw new HttpOperationError(
               'io-failure',

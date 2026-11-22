@@ -31,9 +31,14 @@ export interface DesktopBackupList {
   readonly backups: readonly DesktopBackupSummary[]
   readonly incomplete: readonly SyncIncompleteBackup[]
 }
-/** 备份位置的显示路径和备份设置。 */
+/** 备份库的位置和状态，以及备份设置。 */
 export interface DesktopBackupInfo {
+  /** 备份库文件夹的绝对路径。 */
   readonly displayPath: string
+  /** 是否是用户选择的位置；false 表示默认位置。 */
+  readonly isCustomLocation: boolean
+  /** 备份库现在能否使用，如所在的磁盘没有连接时为 false。 */
+  readonly isLocationAvailable: boolean
   readonly settings: SyncBackupSettings
 }
 /** 本机备份接口。所有方法的失败都以错误结果返回。 */
@@ -61,6 +66,19 @@ export interface DesktopBackupApi {
   deleteGameBackups(projectId: string): Promise<OperationResult<null>>
   /** 在系统文件管理器里打开备份文件夹。 */
   openFolder(): Promise<OperationResult<null>>
+  /**
+   * 用系统选择器选一个文件夹作为备份库；已有的备份留在原处。
+   *
+   * @returns 选好后返回新的备份库信息，取消选择时返回 null。有传输或恢复在进行时返回 busy；
+   * 选中的文件夹和存档目录或应用的数据文件夹互相包含时返回 path-outside-root。
+   */
+  chooseLocation(): Promise<OperationResult<DesktopBackupInfo | null>>
+  /**
+   * 把备份库换回默认位置；已有的备份留在原处。
+   *
+   * @returns 新的备份库信息。有传输或恢复在进行时返回 busy。
+   */
+  resetLocation(): Promise<OperationResult<DesktopBackupInfo>>
 }
 /** 备份接口的 IPC 通道名。 */
 export const BACKUP_CHANNELS = {
@@ -74,6 +92,8 @@ export const BACKUP_CHANNELS = {
   deleteBackup: 'backup:delete',
   deleteGameBackups: 'backup:delete-game',
   openFolder: 'backup:open-folder',
+  chooseLocation: 'backup:choose-location',
+  resetLocation: 'backup:reset-location',
 } as const
 function shape(value: unknown, keys: readonly string[]): value is Record<string, unknown> {
   return (
@@ -125,6 +145,16 @@ function isListing(value: unknown): value is DesktopBackupList {
       value.incomplete.length + value.backups.length
   )
 }
+function isInfo(value: unknown): value is DesktopBackupInfo {
+  return (
+    shape(value, ['displayPath', 'isCustomLocation', 'isLocationAvailable', 'settings']) &&
+    typeof value.displayPath === 'string' &&
+    value.displayPath.length > 0 &&
+    typeof value.isCustomLocation === 'boolean' &&
+    typeof value.isLocationAvailable === 'boolean' &&
+    isSyncBackupSettings(value.settings)
+  )
+}
 function invalid(): OperationResult<never> {
   return {
     status: 'error',
@@ -155,16 +185,7 @@ export function createBackupBridge(
     return invalid()
   }
   return Object.freeze({
-    read: () =>
-      call(
-        'read',
-        [],
-        (value): value is DesktopBackupInfo =>
-          shape(value, ['displayPath', 'settings']) &&
-          typeof value.displayPath === 'string' &&
-          value.displayPath.length > 0 &&
-          isSyncBackupSettings(value.settings),
-      ),
+    read: () => call('read', [], isInfo),
     list: (projectId: string) =>
       !isOpaqueId(projectId)
         ? Promise.resolve(invalid())
@@ -231,5 +252,17 @@ export function createBackupBridge(
         ? Promise.resolve(invalid())
         : call('deleteGameBackups', [{ projectId }], (value): value is null => value === null),
     openFolder: () => call('openFolder', [], (value): value is null => value === null),
+    chooseLocation: () =>
+      call(
+        'chooseLocation',
+        [],
+        (value): value is DesktopBackupInfo | null => value === null || isInfo(value),
+      ),
+    resetLocation: () =>
+      call(
+        'resetLocation',
+        [],
+        (value): value is DesktopBackupInfo => isInfo(value) && !value.isCustomLocation,
+      ),
   })
 }

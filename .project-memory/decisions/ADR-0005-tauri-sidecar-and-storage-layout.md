@@ -1,7 +1,7 @@
 ---
 doc_type: adr
 status: accepted
-updated: 2026-11-22
+updated: 2026-11-23
 tags: [决策, 电脑端, Tauri, sidecar, 存储目录, 便携模式, 备份库]
 ---
 
@@ -27,7 +27,7 @@ tags: [决策, 电脑端, Tauri, sidecar, 存储目录, 便携模式, 备份库]
 
 ## 状态
 
-accepted。宿主、sidecar、存储目录、Windows 打包和数据文件读不懂时的启动处理已实现；自定义备份库（WP-60）见[工作包登记](../development/work-packages.md)。
+accepted。宿主、sidecar、存储目录、Windows 打包、数据文件读不懂时的启动处理和自定义备份库位置已实现；备份库位置的实现和验证情况见 [Windows 平台层](../architecture/windows.md)第 12、15 节。
 
 ## 替代关系
 

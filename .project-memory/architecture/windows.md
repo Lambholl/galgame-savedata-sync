@@ -1,7 +1,7 @@
 ---
 doc_type: architecture
 status: active
-updated: 2026-11-22
+updated: 2026-11-23
 tags: [Windows, 电脑端, Tauri, sidecar, 存储目录]
 ---
 
@@ -135,8 +135,8 @@ sidecar 可执行文件由 `apps/desktop/scripts/build-sidecar-exe.mjs` 用 `@ya
 | 目录 | Windows 位置 | 内容 |
 | --- | --- | --- |
 | 配置 | `%APPDATA%\galgame-savedata-sync\` | `preferences.json`（主题、语言），第一次保存时创建 |
-| 数据 | `%LOCALAPPDATA%\galgame-savedata-sync\data\` | `identity.json`、`directories.json`、`game-library.json`、`service-settings.json`、`backup-settings.json`、`interrupted-writes/` |
-| 备份库 | `%LOCALAPPDATA%\galgame-savedata-sync\backups\` | 见第 12 节 |
+| 数据 | `%LOCALAPPDATA%\galgame-savedata-sync\data\` | `identity.json`、`directories.json`、`game-library.json`、`service-settings.json`、`backup-settings.json`、`backup-library.json`、`interrupted-writes/` |
+| 备份库 | `%LOCALAPPDATA%\galgame-savedata-sync\backups\` | 默认位置，用户可在设置页换到别的文件夹，见第 12 节 |
 | 缓存 | `%LOCALAPPDATA%\galgame-savedata-sync\cache\` | `transfer-archives-v1/`、`webview/` |
 
 主程序所在文件夹里有 `portable_data` 文件夹时进入便携模式，四个目录换成它下面的 `config`、`data`、`backups`、`cache`；应用不创建 `portable_data`。宿主在 Linux 上按 XDG 目录计算（位置见 ADR-0005），Linux 还没构建和测试。
@@ -147,7 +147,7 @@ sidecar 可执行文件由 `apps/desktop/scripts/build-sidecar-exe.mjs` 用 `@ya
 
 配置写入使用同目录独占临时文件、sync 和 rename；同进程登记串行处理，成功前不更新内存。配置必须位于所选根目录之外。跨外部进程的配置事务或锁不在当前实现内。
 
-启动时 `data-recovery.ts` 先检查 `identity.json`、`directories.json`、`game-library.json`、`backup-settings.json`、`service-settings.json` 和 `preferences.json`：不是普通文件、超过大小上限、不是 UTF-8 编码的 JSON，或者格式和格式版本不符时，把文件改名为 `<名称>.unreadable-<UTC 时间>.<扩展名>`（时间形如 `20261123T081530Z`）留在原目录，各模块随后按文件不存在处理，用默认值启动；身份文件改名后会生成新的设备 ID。读取或改名遇到文件系统错误（如没有权限）时停止初始化，宿主显示 `fatal` 提示后退出。界面经 `window.desktopDataReset`（`list`、`dismiss`、`openFolder`，通道在 `src/bridge/data-reset-bridge.ts`）读出这次启动改了名的数据项，弹一次提示，列出各项的后果；“打开数据文件夹”打开数据目录，只有界面偏好被重置时打开配置目录。读不懂的备份和中断写入标记不走这条路：前者忽略（第 12 节），后者直接删除。
+启动时 `data-recovery.ts` 先检查 `identity.json`、`directories.json`、`game-library.json`、`backup-settings.json`、`backup-library.json`、`service-settings.json` 和 `preferences.json`：不是普通文件、超过大小上限、不是 UTF-8 编码的 JSON，或者格式和格式版本不符时，把文件改名为 `<名称>.unreadable-<UTC 时间>.<扩展名>`（时间形如 `20261123T081530Z`）留在原目录，各模块随后按文件不存在处理，用默认值启动；身份文件改名后会生成新的设备 ID。读取或改名遇到文件系统错误（如没有权限）时停止初始化，宿主显示 `fatal` 提示后退出。界面经 `window.desktopDataReset`（`list`、`dismiss`、`openFolder`，通道在 `src/bridge/data-reset-bridge.ts`）读出这次启动改了名的数据项，弹一次提示，列出各项的后果；“打开数据文件夹”打开数据目录，只有界面偏好被重置时打开配置目录。读不懂的备份和中断写入标记不走这条路：前者忽略（第 12 节），后者直接删除。
 
 每次读取重新检查根身份；路径逐段 lstat，拒绝 symlink/junction，核对 realpath 与根范围，读取句柄再核对身份。文件/目录替换使旧引用失效，需要刷新或明确重新选择。不跟随根内链接；不支持的条目会让该层读取返回错误，不显示成空目录。
 
@@ -203,7 +203,15 @@ HTTP 服务注入 `scanSource: adapter` 后开放 `/v1/sync/capabilities`、`POS
 
 ## 12. 独立备份与恢复材料
 
-`createWindowsBackupStore(adapter, backupDirectory, settingsDirectory, gameName)` 在备份库（第 7 节）初始化独立备份，结构和移动端相同：`<游戏名>/<UTC 时间>/` 内含 `backup.json` 和按原路径保存的 `files/`。`gameName` 只决定新备份的文件夹名，备份归属看 `backup.json` 里的 ID。启动时登记备份库，目录适配器拒绝把它及其父子目录选作同步根。备份库在第一次写入备份时创建；用户可以随时删改这个文件夹，所以每次按实际目录读取，整个文件夹被删后自动重建。设置在数据目录的 `backup-settings.json`。备份不进入同步比较。
+`createWindowsBackupStore(adapter, backupDirectory, settingsDirectory, gameName)` 在备份库初始化独立备份，结构和移动端相同：`<游戏名>/<UTC 时间>/` 内含 `backup.json` 和按原路径保存的 `files/`。`gameName` 只决定新备份的文件夹名，备份归属看 `backup.json` 里的 ID。启动时登记备份库，目录适配器拒绝把它及其父子目录选作同步根。用户可以随时删改备份库文件夹，所以每次按实际目录读取。设置在数据目录的 `backup-settings.json`。备份不进入同步比较。
+
+备份库位置（[ADR-0005](../decisions/ADR-0005-tauri-sidecar-and-storage-layout.md) 第 12–15 条）：
+
+- 默认位置是第 7 节的备份库目录，在第一次写入备份时创建，整个文件夹被删后自动重建。
+- 用户在设置页选了别的文件夹时，真实路径存在数据目录的 `backup-library.json`（`{ schemaVersion: 1, path }`，文件不存在表示默认位置）；换回默认位置时删掉这个文件。备份设置的格式不变。
+- 自定义位置不存在或不是文件夹时，备份库不可用：启动照常，不重建文件夹；列表、打开文件夹和需要备份的传输报 `backup-unavailable`，不改用其他位置。关着备份的传输不碰备份库。
+- 启动时自定义位置和已选同步根互相包含（如位置文件被手动改过）时不登记，每次使用报 `path-outside-root`，设置页同样显示不可用。
+- `relocate(path | null)` 换位置：有备份或恢复句柄打开时报 busy；目标先解析成真实路径并确认是文件夹，再经目录适配器的 `replacePrivateDirectory` 换掉登记的备份库，和已选同步根或其他私有目录互相包含时报 `path-outside-root`；保存位置文件失败时撤回登记。已有备份不搬，只列出当前备份库里的备份。
 
 | 原生方法 | 输入、输出和资源责任 |
 | --- | --- |
@@ -221,7 +229,7 @@ HTTP 服务注入 `scanSource: adapter` 后开放 `/v1/sync/capabilities`、`POS
 
 每个游戏保留的份数取备份设置（1–10，默认 3），不分目录，只统计完整的备份。新轮可读后才轮换；活动恢复句柄保护输入轮次。淘汰先把 `backup.json` 改回 `in-progress.json` 再删文件。文件缺失或大小不符的备份和未提交的一样显示为不完整，不能恢复，不挡新备份，须明确清理；读不懂的内容直接忽略，不自动删除。
 
-有限 `window.desktopBackups` 只提供 read/list/manifest/setPreference/rotate/cleanupIncomplete/deleteBackup/deleteGameBackups，输入仅为项目、目录、轮次 ID 和布尔开关。read 的 displayPath 仅供位置展示；列表使用摘要，单轮详情才返回完整清单。
+有限 `window.desktopBackups` 只提供 read/list/manifest/setPreference/rotate/cleanupIncomplete/deleteBackup/deleteGameBackups/chooseLocation/resetLocation，输入仅为项目、目录、轮次 ID 和布尔开关。read 返回 displayPath（仅供位置展示）、isCustomLocation、isLocationAvailable 和备份设置；列表使用摘要，单轮详情才返回完整清单。chooseLocation 打开系统目录选择器，取消时返回 null；chooseLocation 和 resetLocation 在有传输或恢复进行时报 busy，成功后返回新的 read 结果。设置页在换位置前弹确认框，说明已有备份不搬。
 
 ## 13. 受保护目标写入与本机恢复
 
@@ -281,5 +289,7 @@ Windows 短路径检查通过 PowerShell 调用 GetShortPathName 生成真实 8.
 打包产物在 `PATH` 里没有 `node` 的环境下验证过：免安装版（建了 `portable_data`）和安装版都能打开窗口、启动服务并广播，关闭窗口后主程序和 sidecar 都退出，免安装版的数据只写进 `portable_data`；按当前用户静默安装和卸载验证过，卸载后存储目录保留。后端改用 pkg 打包后只重测了免安装版的打开窗口、启动服务并广播和关闭后退出，安装版没有重测。安装包的模式选择页、UAC 和为所有用户安装还没测。打包产物和移动端的连接与传输还没测；带界面的安装和卸载流程还没走过。电脑拨号没有长期测试，连接和传输的验收结论见[验收标准](../testing/acceptance.md)第 3 节。
 
 数据文件读不懂时的启动处理没有长期测试。用临时脚本经 `startBackend` 验证过：六个数据文件分别是坏 JSON、非 UTF-8、错误的格式版本、字段取值越界或目录时都能启动，原文件改名保留，重置项列表完整，再次启动不重复报告。在开发版的便携模式下验证过界面：提示列出对应项，“打开数据文件夹”打开数据目录，关闭提示后列表清空。打包产物上还没测。
+
+自定义备份库位置没有长期测试。在开发版的便携模式下验证过：经系统选择器换位置后位置文件写入、设置页显示新路径；文件夹改名后显示不可用，列表和打开文件夹报 `backup-unavailable`，文件夹不重建；位置不可用时重启照常；换回默认位置删掉位置文件；位置文件读不懂时按第 7 节改名并提示。备份库不可用时开着备份的传输被拒绝、和同步目录互相包含时的提示、换位置后新备份的写入和恢复，以及 Android 收到 `backup-unavailable` 时的显示还没测。
 
 调试构建的宿主在环境变量 `SAVEDATA_SYNC_DEVTOOLS_PORT` 是端口号时，让 WebView2 在这个端口开放 Chrome DevTools Protocol，可以用 CDP 脚本读写界面；发布构建没有这段代码。

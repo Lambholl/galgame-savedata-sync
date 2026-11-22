@@ -1,4 +1,4 @@
-import { isOperationError } from '@savedata-sync/shared'
+import { isOperationError, nonRetryableError } from '@savedata-sync/shared'
 import type { OperationError } from '@savedata-sync/shared'
 
 /** HTTP 服务的错误：operationError 是脱敏后的错误，原始错误在 cause。 */
@@ -14,10 +14,7 @@ export class HttpOperationError extends Error {
   ) {
     super(message, { cause })
     this.name = 'HttpOperationError'
-    this.operationError =
-      device === undefined
-        ? { code, message, canRetry: false }
-        : { code, message, canRetry: false, device }
+    this.operationError = nonRetryableError(code, message, device)
   }
 }
 

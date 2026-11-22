@@ -1,5 +1,10 @@
 import { useEffect, useRef } from 'react'
-import { observeSyncJob, syncPlanFromPreview, toShownError } from '@savedata-sync/shared'
+import {
+  nonRetryableError,
+  observeSyncJob,
+  syncPlanFromPreview,
+  toShownError,
+} from '@savedata-sync/shared'
 import type {
   OperationError,
   RemoteSyncReport,
@@ -24,7 +29,7 @@ const JOB_MS = 1000
 const SETTLE_MS = 2000
 
 function failure(code: OperationError['code'], message: string) {
-  return { status: 'error', error: { code, message, canRetry: false } } as const
+  return { status: 'error', error: nonRetryableError(code, message) } as const
 }
 function wait(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))

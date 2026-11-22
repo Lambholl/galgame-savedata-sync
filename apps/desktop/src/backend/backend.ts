@@ -25,6 +25,7 @@ import { WindowsDialerSync } from './dialer-sync.ts'
 import { WindowsSyncScanner } from './sync-scanner.ts'
 import { registerDialerIpc } from './dialer-ipc.ts'
 import { createWindowsBackupStore } from './backup-store.ts'
+import { BACKUP_LOCATION_FILE } from './backup-location.ts'
 import { registerBackupIpc } from './backup-ipc.ts'
 import { WindowsSyncWriter } from './sync-writer.ts'
 import { WindowsRestoreRegistry } from './restore-registry.ts'
@@ -56,7 +57,7 @@ export interface BackendOptions {
   readonly configDirectory: string
   /** 设备身份、目录登记、游戏库、端口、备份设置和中断写入标记所在的数据目录。 */
   readonly dataDirectory: string
-  /** 备份库。 */
+  /** 默认备份库；用户在设置里换了位置时改用那个位置。 */
   readonly backupDirectory: string
   /** 传输缓存目录，里面的内容可以随时删除。 */
   readonly cacheDirectory: string
@@ -146,6 +147,7 @@ export async function startBackend(options: BackendOptions): Promise<DesktopBack
       directories: join(dataDirectory, 'directories.json'),
       library: join(dataDirectory, 'game-library.json'),
       'backup-settings': join(dataDirectory, 'backup-settings.json'),
+      'backup-library': join(dataDirectory, BACKUP_LOCATION_FILE),
       'service-settings': join(dataDirectory, 'service-settings.json'),
       preferences: join(configDirectory, 'preferences.json'),
     } as const
@@ -238,7 +240,10 @@ export async function startBackend(options: BackendOptions): Promise<DesktopBack
       router,
       backups,
       library,
-      (path) => host.openPath(path),
+      {
+        openPath: (path) => host.openPath(path),
+        chooseDirectory: () => host.chooseDirectory(translate()('backup.chooseLibrary')),
+      },
       () =>
         httpService.hasRunningNetworkWork() ||
         dialerSync.hasRunningWork() ||

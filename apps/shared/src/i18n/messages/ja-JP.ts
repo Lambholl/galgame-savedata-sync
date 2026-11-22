@@ -199,6 +199,7 @@ export const jaJP: Messages = {
   'dataReset.item.directories': '保存先：選択し直してください',
   'dataReset.item.library': 'ゲームと端末の一覧：追加し直してください',
   'dataReset.item.backup-settings': 'バックアップ設定',
+  'dataReset.item.backup-library': 'バックアップ保存場所：既定の場所に戻しました',
   'dataReset.item.service-settings': '待ち受けポート：新しいランダムなポートに変更しました',
   'dataReset.item.preferences': 'テーマと言語',
   'dataReset.openFolder': 'データフォルダーを開く',
@@ -295,6 +296,19 @@ export const jaJP: Messages = {
   'backup.editGlobal': '全体の設定を変更',
   'backup.policyTitle': ({ name }) => `${name} のバックアップ`,
   'backup.saveFailed': 'バックアップ設定を保存できません',
+  'backup.libraryLocation': 'バックアップ保存場所',
+  'backup.libraryDefault': '既定の場所',
+  'backup.libraryUnavailable': '現在使用できません',
+  'backup.changeLibrary': '場所を変更',
+  'backup.resetLibrary': '既定の場所に戻す',
+  'backup.chooseLibrary': 'バックアップ保存場所のフォルダーを選択',
+  'backup.changeLibraryTitle': 'バックアップ保存場所を変更',
+  'backup.resetLibraryTitle': '既定の場所に戻す',
+  'backup.changeLibraryText':
+    '既存のバックアップは元のフォルダーに残り、新しい場所には移動しません。変更後は新しい場所にあるバックアップだけを表示します。元の場所に戻すと、以前のバックアップが再び表示されます。',
+  'backup.libraryOverlaps':
+    'バックアップ保存場所には、保存先やアプリのデータフォルダーと重ならないフォルダーを選んでください。',
+  'backup.changeLibraryFailed': 'バックアップ保存場所を変更できません',
   'settings.backup': 'バックアップ',
   'settings.saveFailed': '設定を保存できません。もう一度お試しください。',
 
@@ -419,6 +433,8 @@ export const jaJP: Messages = {
   'error.code.port-unavailable':
     '待ち受けポートが使用中です。別のポートに変更してから、もう一度お試しください。',
   'error.code.insufficient-space': '保存領域が足りません。',
+  'error.code.backup-unavailable':
+    'バックアップ保存場所を使用できません。保存場所のドライブを接続するか、設定で場所を変更してください。',
   'error.code.io-failure':
     'ファイルの読み書きに失敗しました。保存先を利用できるか確認してください。',
   'error.code.internal-error':

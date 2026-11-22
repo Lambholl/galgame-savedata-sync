@@ -1,4 +1,9 @@
-import type { ErrorDevice, OperationErrorCode, OperationResult } from './protocol/contracts.ts'
+import type {
+  ErrorDevice,
+  OperationError,
+  OperationErrorCode,
+  OperationResult,
+} from './protocol/contracts.ts'
 import { HTTP_ERROR_STATUS } from './protocol/protocol.ts'
 
 /**
@@ -24,6 +29,18 @@ export class OperationFailure extends Error {
     this.code = code
     this.device = device
   }
+}
+
+/** 构造 canRetry 为 false 的操作错误；device 不传时结果不带 device。 */
+export function nonRetryableError(
+  code: OperationErrorCode,
+  message: string,
+  device?: ErrorDevice,
+): OperationError {
+  const error = device === undefined ? { code, message } : { code, message, device }
+  // code 是联合类型时，TypeScript 只在组合不超过 25 种时把对象逐个对到 OperationError 的分支，错误码比这多；
+  // canRetry 为 false 时每个分支都成立，所以这里可以直接断言。
+  return { ...error, canRetry: false } as OperationError
 }
 
 function isErrorCode(value: unknown): value is OperationErrorCode {
