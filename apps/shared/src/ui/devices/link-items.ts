@@ -47,12 +47,12 @@ export function linkPickerGames(
   game: LibraryGame,
   peer: LibraryPeer | undefined,
 ): readonly LinkPickerGame[] {
-  const key = game.name.trim().toLocaleLowerCase()
+  const key = game.name.trim().toLowerCase()
   return (peer?.games ?? [])
     .map((item) => ({
       id: item.id,
       name: item.name,
-      isRecommended: item.name.trim().toLocaleLowerCase() === key,
+      isRecommended: item.name.trim().toLowerCase() === key,
     }))
     .sort((a, b) => Number(b.isRecommended) - Number(a.isRecommended))
 }

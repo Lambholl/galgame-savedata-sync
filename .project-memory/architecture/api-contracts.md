@@ -1,7 +1,7 @@
 ---
 doc_type: api-contracts
 status: active
-updated: 2026-11-22
+updated: 2026-11-23
 tags: [API, 接口约定]
 ---
 
@@ -65,7 +65,7 @@ tags: [API, 接口约定]
 
 这三项在拨号方由任务引擎处理（Android `SyncTransferEngine`、电脑 `dialer-sync.ts`），不经页面，页面被回收或任务由拨号方发起时同样工作。角色状态互相独立，成功只看接收端的读回结果：`observeSyncJob(local, remote, hasRemoteError)` 合成阶段、当前段百分比、失败阶段和计数，发送端结束而接收端未结束时仍是进行中。结束后的结论依次判断：接收端成功为 done；接收端待确认为 unknown，有成功项也一样，没确认的条目可能已写入；其余有成功项为 partial。界面的部分完成说明只列不为 0 的成功、失败、待确认、未执行，取消和未尝试的条目算未执行；完成说明把文件、新建文件夹和删除分开计数。清理失败时，任务条在传输成功时只写清理失败，其他结论后面接着写清理失败。对端状态不可信（控制通道断开、60 秒没有摘要、结果读取失败）时 `remoteError` 为 result-unknown，本机也结束后显示待确认，新的摘要或结果会清除它。监听方作为接收端还没收到内容时，拨号方摘要报失败或取消就取消监听方这一端；在准备阶段 60 秒没有摘要，按超时结束。
 
-电脑侧 `copyState`、`cancelCopy` 返回 `SyncTransferState`，`DesktopCopySummary` 用 phase、stage、step、percent 表示进度，由主进程计算，详情、游戏进度条、历史和完成提示读同一份，高频更新不携带逐项结果。已确认但拨号方还没登记任务时，`remote-sync-requests.ts` 用同一个 jobId 提供占位的摘要、计划和状态，摘要的 `isAwaitingPeer` 为 true，详情和任务条写“等待对方设备开始”；登记后改由 `WindowsSyncRegistry` 提供。对端未结束的任务不会被留存清理，也算作有运行中的工作。
+电脑侧 `copyState`、`cancelCopy` 返回 `SyncTransferState`，`DesktopCopySummary` 用 phase、stage、step、percent 表示进度，由后端计算，详情、游戏进度条、历史和完成提示读同一份，高频更新不携带逐项结果。已确认但拨号方还没登记任务时，`remote-sync-requests.ts` 用同一个 jobId 提供占位的摘要、计划和状态，摘要的 `isAwaitingPeer` 为 true，详情和任务条写“等待对方设备开始”；登记后改由 `WindowsSyncRegistry` 提供。对端未结束的任务不会被留存清理，也算作有运行中的工作。
 
 备份展示字段和计划的 `shouldDeleteExtras`、`delete-file`、`delete-directory` 由 `/v1/sync/capabilities.schemaVersion` 一起覆盖，两端须同版，封闭 DTO 严格校验。计划动作的执行顺序是新建文件夹（由浅到深）、写文件、删除（由深到浅，同深度按路径），两端必须算出相同顺序。恢复计划固定 `shouldDeleteExtras=true`，将目标目录还原为备份时的内容集合。文件在删除前核对身份、大小和修改日期；文件夹只删空的，Windows 用非递归 `rmdir`，Android 的 `deleteDocument` 会递归，所以先确认文件夹为空。系统已开始删除但结果没能确认时报 result-unknown。
 
@@ -97,11 +97,11 @@ tags: [API, 接口约定]
 | 边界 | 可传递的内容 | 限制 |
 | --- | --- | --- |
 | Android 复制与恢复界面适配器 | createMobileSyncAdapter 从保存配置固定设备/项目/根，提供准备、固定预览、确认执行、当前任务、取消、备份设置和恢复入口；useSyncTasks 只轮询原生所有者 | 通知授权后重查映射，方向或目录变化后重新扫描确认；sender sent 后目标仍运行时继续只读查询同一 ID；页面卸载不取消任务，重建只查询，不重放执行；`interruptedWrites`/`dismissInterruptedWrite` 读取并一次性清除上个进程留下的写入标记；失败、部分、未知与清理结果分开显示，详细参数见 [Android 平台层](android.md) |
-| Windows 同步与恢复界面桥 | desktopSync 提供复制摘要/计划/状态/取消/清理，以及本机恢复准备/预览/确认/状态/取消/清理/释放；DesktopRestoreState 含固定项目/目录/输入备份、阶段、isWorking、实际文件进度及结果/独立清理错误 | 固定 sync:* 通道、受信任窗口/主 frame/URL、封闭 ID 参数、同次原生计划和 8 MiB 响应校验；摘要最多 33 份（32 份已登记任务加一份待移动端登记的任务），准备不占目标名额，确认后持有到清理成功；刷新可查询本进程任务，重启只保留配置/备份和写入标记；`interruptedWrites`/`dismissInterruptedWrite` 读取并一次性清除上个进程留下的标记；电脑发起的桥方法见第 3 节，没有远端恢复；接口及错误见[Windows 平台层](windows.md)第 13、14 节 |
-| Electron preload | chooseDirectory、listRoots、listDirectory；只接受 ID，返回公开 DTO；系统选择器在主进程执行 | 无 fs/shell/Node、绝对路径、内容或写入接口；校验登记窗口、主 frame 与精确 URL；退出移除 handler |
-| Electron 服务桥 | desktopService 的 status/start/randomizePort/stop/chooseTarget 和扫描 startScan/queryScan/cancelScan；状态含 deviceId、deviceName、configuredPort、实际端口与 startedAt（Unix 毫秒）、其他设备可能访问到的本机 IPv4 地址 ipv4Addresses（先取物理网卡且有默认网关的地址，没有时取任意有默认网关的地址，再加 Windows 移动热点 192.168.137.1；排除 198.18.0.0/15；一个都没有时退回全部可用地址；按推荐顺序、去重，最多 8 个）、错误和广播状态；服务启动后地址还在读取时 ipv4Addresses 为 null，查询失败或没有候选时为空数组 | 窗口/主 frame/精确 URL 与参数/DTO 校验；start 端口为 1..65535，显式监听 0.0.0.0；首次生成并保存 49152..65535 随机端口，后续读取既有值；randomizePort 排除当前值并保存，运行时拒绝修改；卸载停止轮询，退出移除 handler |
-| Electron 主进程原生读取 | registerDirectory 登记系统选中路径，listDirectory 返回当前层，openFile 返回本进程只读流 | 配置独立存放，没有历史清单；调用者消费或 destroy 流；逐段拒绝 symlink/junction，重查根/条目/句柄身份；恶意并发命名空间不在原子隔离范围内 |
-| Windows 独立备份与本机桥 | createWindowsBackupStore 的 create/list/settings/setPreference/capacity/acquire/rotate/cleanupIncomplete/stop；desktopBackups 提供只读摘要/单轮清单、设置、显式清理和 openFolder，创建与原生恢复流不跨桥 | userData/backups 与同步根隔离，结构和移动端相同（`<游戏名>/<UTC 时间>/` 内含 backup.json 和按原路径保存的 files/）；内容校验、落盘和回读后提交，按保留份数轮换（默认 3 份）并保护恢复材料引用的轮次；失败创建不返回有效轮次，轮换错误独立；位置 displayPath 仅供展示，IPC 无文件路径参数或内容，openFolder 打开的路径由主进程决定；具体参数和资源责任见[Windows 平台层](windows.md) |
+| Windows 同步与恢复界面桥 | desktopSync 提供复制摘要/计划/状态/取消/清理，以及本机恢复准备/预览/确认/状态/取消/清理/释放；DesktopRestoreState 含固定项目/目录/输入备份、阶段、isWorking、实际文件进度及结果/独立清理错误 | 固定 sync:* 通道、capability 限定的调用页面、封闭 ID 参数、同次原生计划和 8 MiB 响应校验；摘要最多 33 份（32 份已登记任务加一份待移动端登记的任务），准备不占目标名额，确认后持有到清理成功；刷新可查询本进程任务，重启只保留配置/备份和写入标记；`interruptedWrites`/`dismissInterruptedWrite` 读取并一次性清除上个进程留下的标记；电脑发起的桥方法见第 3 节，没有远端恢复；接口及错误见[Windows 平台层](windows.md)第 13、14 节 |
+| 桌面目录桥 | chooseDirectory、listRoots、listDirectory；只接受 ID，返回公开 DTO；系统选择器由 Tauri 宿主应 sidecar 请求打开 | 无 fs/shell/Node、绝对路径、内容或写入接口；页面只能调用 `backend_invoke`，capability 只授权 `main` 窗口 |
+| 桌面服务桥 | desktopService 的 status/start/randomizePort/stop/chooseTarget 和扫描 startScan/queryScan/cancelScan；状态含 deviceId、deviceName、configuredPort、实际端口与 startedAt（Unix 毫秒）、其他设备可能访问到的本机 IPv4 地址 ipv4Addresses（先取物理网卡且有默认网关的地址，没有时取任意有默认网关的地址，再加 Windows 移动热点 192.168.137.1；排除 198.18.0.0/15；一个都没有时退回全部可用地址；按推荐顺序、去重，最多 8 个）、错误和广播状态；服务启动后地址还在读取时 ipv4Addresses 为 null，查询失败或没有候选时为空数组 | 参数/DTO 校验；start 端口为 1..65535，显式监听 0.0.0.0；首次生成并保存 49152..65535 随机端口，后续读取既有值；randomizePort 排除当前值并保存，运行时拒绝修改；卸载停止轮询 |
+| 电脑端后端原生读取 | registerDirectory 登记系统选中路径，listDirectory 返回当前层，openFile 返回本进程只读流 | 配置独立存放，没有历史清单；调用者消费或 destroy 流；逐段拒绝 symlink/junction，重查根/条目/句柄身份；恶意并发命名空间不在原子隔离范围内 |
+| Windows 独立备份与本机桥 | createWindowsBackupStore 的 create/list/settings/setPreference/capacity/acquire/rotate/cleanupIncomplete/stop；desktopBackups 提供只读摘要/单轮清单、设置、显式清理、openFolder、手动备份和更换备份库位置，创建与原生恢复流不跨桥 | 备份库与同步根隔离，结构和移动端相同（`<游戏名>/<UTC 时间>/` 内含 backup.json 和按原路径保存的 files/）；内容校验、落盘和回读后提交，按保留份数轮换（默认 10 份）并保护恢复材料引用的轮次；失败创建不返回有效轮次，轮换错误独立；位置 displayPath 仅供展示，界面通道无文件路径参数或内容，openFolder 打开的路径由后端决定；具体参数和资源责任见[Windows 平台层](windows.md) |
 | Windows 受保护写入与恢复 | WindowsSyncWriter.apply/prepareRestore/checkSpace/retryCleanup/stop；材料为匹配快照和可重复原生读流，返回 SyncApplyResult；WindowsSyncScanner.wait 供原生等待同次扫描 | 整批目标/原文复核、峰值容量及完整备份后创建目录/逐文件发布/回读；复制和本机恢复共用进程写入名额（`TargetOperation`），候选清理失败保留名额，恢复强制备份且引用输入；原生 authorize 核对项目/根，HTTP 和本机恢复编排借用全任务名额并反复核实上下文；接口及资源责任见[Windows 平台层](windows.md)第 13、14 节 |
 | Windows HTTP 原生服务 | WindowsHttpService 显式 start/stop、地址/错误查询；提供设备描述、目录读取、目录表交换、控制通道和 `/v1/sync/*`，复制任务由 `WindowsSyncRegistry` 登记 | 构造及应用启动不监听网络，默认回环；受限 IPC 提供服务控制、扫描和复制摘要；应用退出等待 HTTP 和任务停止；无文件字节跨桥 |
 | Windows 私有归档 | createWindowsArchiveAdapter、checkStagingSpace、sendFiles/receiveFiles、retryCleanup；receiveFiles 返回解包后的 openFile/dispose；source 仍只读；目录流提供 verifyUnchanged 与缓存隔离检查 | 不返回可供 Renderer 使用的路径/句柄；按计划逐成员核对并通过 gzip CRC32、ISIZE 校验后返回私有缓存；HTTP 和目标写入交给上层；调用者关闭流并 dispose，清理失败另报 cleanupError |
@@ -145,9 +145,9 @@ Windows 目录与 IPC 回归包含真实 8.3 短路径环境。真实目录只�
 
 `apps/shared/src/library/library.ts` 定义本机 `LibraryConfig`、公开 `CatalogGame`、游戏关联和目录表交换格式。一个游戏在每台设备对应一个目录，关联多个稳定设备 ID；首期同时连接一个对端，开始后的传输固定原连接。配置不保存文件清单、哈希或平台路径。已保存的设备记录对方平台（`windows` 或 `android`），两端设备页按它显示图标。
 
-Windows 的 `DesktopLibrary` 在应用私有目录原子保存游戏/设备配置，通过有限 `desktopLibrary` IPC 提供读取、保存游戏、设备管理和移动端当前层查询。`POST /v1/catalog` 使用会话头、严格 JSON 边界与独立 DTO 校验；拨号方提交自己的设备 ID、名称、平台、游戏目录表和明确的游戏关联，取回监听方目录表和关联；监听方按提交的平台保存拨号方，拨号方按 `/v1/device` 的平台保存监听方。拨号方只在本机目录表变化或收到 `catalog.changed` 后重新交换；监听方保存游戏后广播 `catalog.changed`；设备名只存本机，改名不通知对方。监听方读拨号方目录经控制通道 `directory.list`，拨号方读监听方目录经 HTTP 目录列举；`directory.list` 应答的根 ID 和父 ID 须与请求一致，父目录必须来自已读条目；同一层的并发读取共用一次请求。移动端原生 `exchangeCatalog` 绑定已连接电脑，原生填写本机设备 ID，不接受任意 URL。电脑作拨号方时由主进程 `dialer-session.ts` 交换目录表，渲染进程只能给出地址或已保存设备的 ID。
+Windows 的 `DesktopLibrary` 在应用私有目录原子保存游戏/设备配置，通过有限的 `desktopLibrary` 通道提供读取、保存游戏、设备管理和移动端当前层查询。`POST /v1/catalog` 使用会话头、严格 JSON 边界与独立 DTO 校验；拨号方提交自己的设备 ID、名称、平台、游戏目录表和明确的游戏关联，取回监听方目录表和关联；监听方按提交的平台保存拨号方，拨号方按 `/v1/device` 的平台保存监听方。拨号方只在本机目录表变化或收到 `catalog.changed` 后重新交换；监听方保存游戏后广播 `catalog.changed`；设备名只存本机，改名不通知对方。监听方读拨号方目录经控制通道 `directory.list`，拨号方读监听方目录经 HTTP 目录列举；`directory.list` 应答的根 ID 和父 ID 须与请求一致，父目录必须来自已读条目；同一层的并发读取共用一次请求。移动端原生 `exchangeCatalog` 绑定已连接电脑，原生填写本机设备 ID，不接受任意 URL。电脑作拨号方时由后端 `dialer-session.ts` 交换目录表，渲染进程只能给出地址或已保存设备的 ID。
 
-在线以控制连接为准：监听方看控制连接是否打开，拨号方看本机控制状态（Android 原生层或电脑主进程）；拨号方控制连接关闭 10 秒（或收到 4001）且没有活动任务时释放连接，活动传输仍保留原任务查询上下文。两端从已连接变为未连接时，通过 antd `message` 提示一次“连接已断开”；持续离线不重复提示，也不增加持久错误条或诊断断开原因。拨号方连接失败也使用同一 `message`，颜色和圆角随本端明暗主题同步。
+在线以控制连接为准：监听方看控制连接是否打开，拨号方看本机控制状态（Android 原生层或电脑端后端）；拨号方控制连接关闭 10 秒（或收到 4001）且没有活动任务时释放连接，活动传输仍保留原任务查询上下文。两端从已连接变为未连接时，通过 antd `message` 提示一次“连接已断开”；持续离线不重复提示，也不增加持久错误条或诊断断开原因。拨号方连接失败也使用同一 `message`，颜色和圆角随本端明暗主题同步。
 
 Android 桥提供 `connections`、`selectDevice`、`disconnectDevice`、`exchangeCatalog`；原生和界面均限制单连接。Activity 重建查询原生连接和当前任务，连接和持续通知见第 4 节“Android 原生连接”“生命周期”。对端主动关联只合并公开元数据，目录写权限来自本机系统选择器；本机解除关联后记录排除项，避免下一次元数据交换自动加回。
 
@@ -165,7 +165,7 @@ Android 桥提供 `connections`、`selectDevice`、`disconnectDevice`、`exchang
 
 - DNS-SD：服务类型 `_savedata-sync._tcp`，实例名是截到 63 个 UTF-8 字节的显示名，TXT 为 `v`、`id`、`pf`。地址和端口取 SRV 与 A 记录，拨号方只用 IPv4。
 - 二维码：`savedata-sync://connect?v=1&id=<设备 ID>&p=<端口>&a=<IPv4>,…`，1–8 个地址按推荐顺序排列，拨号方依次尝试。两端设备页在本机服务运行时显示，载荷取服务快照的 `deviceId`、实际端口和 `listener.ipv4Addresses`；没有地址时不显示二维码。虚拟机、Hyper-V、代理软件的虚拟网卡不进二维码：其他设备访问不到，列出来会暴露本机内部网络，扫码端还会去连它所在网络里碰巧同址的主机。
-- 电脑端广播：HTTP 服务监听期间由主进程广播，停止服务或退出应用时发 goodbye 包。SRV 主机名是 `savedata-sync-<设备 ID>`（小写，`_` 换成 `-`），不用显示名；只发 A 记录，每块网卡只回答这块网卡的地址。实例名重名时自动加序号。广播失败时 HTTP 服务照常运行，服务快照的 `discovery` 显示失败并每 30 秒重试；防火墙拦截 UDP 5353 时本机察觉不到。实现见 [Windows 平台层](windows.md#6-有限-ipc-与服务控制)。
+- 电脑端广播：HTTP 服务监听期间由 sidecar 广播，停止服务或退出应用时发 goodbye 包。SRV 主机名是 `savedata-sync-<设备 ID>`（小写，`_` 换成 `-`），不用显示名；只发 A 记录，每块网卡只回答这块网卡的地址。实例名重名时自动加序号。广播失败时 HTTP 服务照常运行，服务快照的 `discovery` 显示失败并每 30 秒重试；防火墙拦截 UDP 5353 时本机察觉不到。实现见 [Windows 平台层](windows.md#6-界面通道与服务控制)。
 - Android 广播：本机服务运行期间用 NsdManager 注册，TXT 的 `pf` 为 `android`，注册失败 30 秒后重试，停止服务时注销；二维码地址优先 Wi-Fi 和以太网，再是热点，不含移动网络和 VPN。实现见 [Android 平台层](android.md#14-本机服务监听方)。
 - Android 搜索：只在有页面订阅时用 NsdManager 搜索，Activity 停止时暂停；结果只含 IPv4 地址和探测 `/v1/device` 回 200 的服务，TXT 由 `parseDiscoveryTxt` 校验后按设备 ID 合并，协议版本不同的只保留实例名。接口见[Android 平台层](android.md#12-局域网设备搜索)。
 - 版本：两种格式的 `v` 都是 `PROTOCOL_VERSION`。版本不同时解析结果为 `unsupported-version`，其余字段不解析；不合法时为 `invalid`。

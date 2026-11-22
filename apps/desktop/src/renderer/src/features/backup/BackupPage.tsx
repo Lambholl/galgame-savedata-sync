@@ -101,7 +101,7 @@ export function BackupPage({
   const projectId = game?.id ?? null
   const listingKey = `${projectId ?? ''}:${version}`
   const isLoading = loadedListingKey !== listingKey
-  const backups = listing?.backups ?? []
+  const backups = [...(listing?.backups ?? [])].sort((a, b) => b.createdAt - a.createdAt)
   const selected = backups.find((item) => item.backupId === selectedId) ?? backups[0] ?? null
   const selectedKey = selected ? `${selected.projectId}/${selected.backupId}` : null
   const shownManifest = manifestResult?.key === selectedKey ? manifestResult : null

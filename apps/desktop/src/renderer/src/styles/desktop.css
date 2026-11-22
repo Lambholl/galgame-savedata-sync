@@ -342,6 +342,17 @@ body {
   display: flex;
   justify-content: flex-end;
 }
+/* 备份库位置放在备份设置下面，单独成组。 */
+.backup-library-row {
+  margin-top: 12px;
+}
+.backup-library-row .ss-list-row {
+  padding-inline: 18px 18px;
+}
+.backup-library-row .ss-list-link:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
 .settings-form .settings-select {
   width: 200px;
   max-width: 100%;

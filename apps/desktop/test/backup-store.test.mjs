@@ -4,15 +4,15 @@ import { tmpdir } from 'node:os'
 import { isAbsolute, join, relative, sep } from 'node:path'
 import test from 'node:test'
 import { createSyncPlan } from '@savedata-sync/shared'
-import { createDirectoryAdapter } from '../src/main/directory-adapter.ts'
-import { createWindowsBackupStore } from '../src/main/backup-store.ts'
-import { WindowsManualBackupRegistry } from '../src/main/manual-backup-registry.ts'
-import { WindowsSyncScanner } from '../src/main/sync-scanner.ts'
+import { createDirectoryAdapter } from '../src/backend/directory-adapter.ts'
+import { createWindowsBackupStore } from '../src/backend/backup-store.ts'
+import { WindowsManualBackupRegistry } from '../src/backend/manual-backup-registry.ts'
+import { WindowsSyncScanner } from '../src/backend/sync-scanner.ts'
 import {
   acquireTargetOperation,
   hasTargetOperation,
   releaseTargetOperation,
-} from '../src/main/target-operation.ts'
+} from '../src/backend/target-operation.ts'
 
 const unwrap = (result) => {
   assert.equal(result.status, 'success', JSON.stringify(result))
@@ -47,7 +47,12 @@ async function setup(t) {
   const adapter = await createDirectoryAdapter(join(privateDir, 'directories.json'))
   const saveRoot = unwrap(await adapter.registerDirectory(saveDir))
   const emptyRoot = unwrap(await adapter.registerDirectory(emptyDir))
-  const backups = await createWindowsBackupStore(adapter, privateDir, () => '测试游戏')
+  const backups = await createWindowsBackupStore(
+    adapter,
+    join(privateDir, 'backups'),
+    privateDir,
+    () => '测试游戏',
+  )
   cleanups.push(() => backups.stop())
   const scanner = new WindowsSyncScanner(adapter)
   cleanups.push(() => scanner.stop())

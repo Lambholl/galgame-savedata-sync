@@ -5,8 +5,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
 import { writeCandidateName } from '@savedata-sync/shared'
-import { createDirectoryAdapter } from '../src/main/directory-adapter.ts'
-import { WindowsSyncScanner } from '../src/main/sync-scanner.ts'
+import { createDirectoryAdapter } from '../src/backend/directory-adapter.ts'
+import { WindowsSyncScanner } from '../src/backend/sync-scanner.ts'
 
 test('扫描跳过写入中断留下的候选文件，其余文件照常列出', async (t) => {
   // Windows 的 TEMP 可能含 8.3 别名，夹具与适配器须使用一致的真实路径。

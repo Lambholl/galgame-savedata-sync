@@ -39,6 +39,7 @@ export const HTTP_ERROR_STATUS = {
   'network-failure': null,
   'port-unavailable': null,
   'insufficient-space': 507,
+  'backup-unavailable': 503,
   'io-failure': 500,
   'internal-error': 500,
   'cleanup-failed': 500,

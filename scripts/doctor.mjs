@@ -1,8 +1,7 @@
-import { existsSync, readFileSync, readdirSync } from 'node:fs'
-import { createRequire } from 'node:module'
-import { dirname, join } from 'node:path'
+import { existsSync, readdirSync } from 'node:fs'
+import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
-import { getAndroidEnvironment, REPO_ROOT } from './local-environment.mjs'
+import { getAndroidEnvironment } from './local-environment.mjs'
 import { isNodeSecurityBaselineMet } from './toolchain-policy.mjs'
 
 const isWindows = process.platform === 'win32'
@@ -44,20 +43,58 @@ for (const [name, command, isBatch] of [
   addCheck(name, result.ok ? 'ok' : 'fail', result.output || `${command} could not run`)
 }
 
-try {
-  const requireDesktop = createRequire(join(REPO_ROOT, 'apps/desktop/package.json'))
-  const electronRoot = dirname(requireDesktop.resolve('electron/package.json'))
-  const pathFile = join(electronRoot, 'path.txt')
-  const executable = existsSync(pathFile) ? readFileSync(pathFile, 'utf8').trim() : ''
-  const electronPath = executable ? join(electronRoot, 'dist', executable) : ''
+// 电脑端的 Tauri 宿主用 Rust 编译；rustup 默认装在 ~/.cargo/bin，不一定在 PATH 里。
+const cargo = getVersion('cargo')
+addCheck(
+  'Rust (cargo)',
+  cargo.ok ? 'ok' : 'fail',
+  cargo.ok ? cargo.output : 'Install Rust with rustup and add ~/.cargo/bin to PATH',
+)
+
+if (isWindows) {
+  const rustHost = getVersion('rustc', ['-vV']).output.match(/^host:\s*(\S+)/m)?.[1]
   addCheck(
-    'Electron binary',
-    electronPath && existsSync(electronPath) ? 'ok' : 'fail',
-    electronPath ||
-      'Electron runtime not downloaded; run pnpm --filter @savedata-sync/desktop exec electron --version',
+    'Rust MSVC toolchain',
+    rustHost?.endsWith('-pc-windows-msvc') ? 'ok' : 'fail',
+    rustHost ?? 'rustc could not run; install the stable x86_64-pc-windows-msvc toolchain',
   )
-} catch {
-  addCheck('Electron binary', 'fail', 'Run pnpm install; Electron installation must finish')
+  const vswhere = join(
+    process.env['ProgramFiles(x86)'] ?? 'C:\\Program Files (x86)',
+    'Microsoft Visual Studio',
+    'Installer',
+    'vswhere.exe',
+  )
+  const msvc = existsSync(vswhere)
+    ? getVersion(vswhere, [
+        '-latest',
+        '-products',
+        '*',
+        '-requires',
+        'Microsoft.VisualStudio.Component.VC.Tools.x86.x64',
+        '-property',
+        'installationPath',
+      ])
+    : { ok: false, output: '' }
+  addCheck(
+    'MSVC build tools',
+    msvc.ok && msvc.output ? 'ok' : 'fail',
+    msvc.output ||
+      'Install Visual Studio Build Tools with "Desktop development with C++" and a Windows SDK',
+  )
+  // WebView2 运行时登记在 EdgeUpdate 的这个客户端 GUID 下，按机器安装和按用户安装分别在 HKLM 和 HKCU。
+  const webViewClient = 'Microsoft\\EdgeUpdate\\Clients\\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}'
+  const webViewVersion = [
+    `HKLM\\SOFTWARE\\WOW6432Node\\${webViewClient}`,
+    `HKCU\\Software\\${webViewClient}`,
+  ]
+    .map((key) => getVersion('reg', ['query', key, '/v', 'pv']))
+    .map((result) => (result.ok ? result.output.match(/pv\s+REG_SZ\s+(\S+)/)?.[1] : undefined))
+    .find((version) => version && version !== '0.0.0.0')
+  addCheck(
+    'WebView2 Runtime',
+    webViewVersion ? 'ok' : 'fail',
+    webViewVersion ?? 'Install the Microsoft Edge WebView2 Runtime (Evergreen)',
+  )
 }
 
 if (!isDesktopOnly) {

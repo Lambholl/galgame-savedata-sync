@@ -37,7 +37,24 @@ export interface SnapshotComparison {
 }
 
 const IMAGE = /\.(?:png|jpe?g|bmp|webp|gif)$/i
+// 固定用英文规则，排序不随界面语言和系统区域变化。
 const COLLATOR = new Intl.Collator('en', { numeric: true, sensitivity: 'base' })
+
+/** 按名称的自然顺序比较：不分大小写和重音，数字按数值；按此规则相同的名称再按 UTF-16 码元排列。 */
+export function compareNames(left: string, right: string): number {
+  return COLLATOR.compare(left, right) || (left < right ? -1 : left > right ? 1 : 0)
+}
+
+/** 按路径逐段用 compareNames 比较；一条路径是另一条的前缀时短的在前。 */
+export function compareNamePaths(left: readonly string[], right: readonly string[]): number {
+  for (let index = 0; index < Math.min(left.length, right.length); index += 1) {
+    const order = compareNames(left[index] ?? '', right[index] ?? '')
+    if (order !== 0) {
+      return order
+    }
+  }
+  return left.length - right.length
+}
 
 /** 按条目类型和扩展名得出显示用的类型。 */
 export function fileKindOf(name: string, kind: SyncEntry['kind']): FileKind {
@@ -57,7 +74,7 @@ function compareItems(left: CompareItem, right: CompareItem): number {
   if (isLeftDirectory !== (right.kind === 'directory')) {
     return isLeftDirectory ? -1 : 1
   }
-  return COLLATOR.compare(left.name, right.name) || (left.name < right.name ? -1 : 1)
+  return compareNames(left.name, right.name)
 }
 
 /**

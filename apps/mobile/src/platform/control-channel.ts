@@ -4,6 +4,7 @@ import {
   isControlRequestBody,
   isOpaqueId,
   isOperationResult,
+  nonRetryableError,
   OperationFailure,
 } from '@savedata-sync/shared'
 import type {
@@ -88,14 +89,12 @@ export function createControlChannel(
         : handler
           ? await handler(deviceId, message.body).catch((cause: unknown) => ({
               status: 'error' as const,
-              error: {
-                code: cause instanceof OperationFailure ? cause.code : ('internal-error' as const),
-                message:
-                  cause instanceof Error
-                    ? cause.message
-                    : 'The mobile device failed to process the request.',
-                canRetry: false as const,
-              },
+              error: nonRetryableError(
+                cause instanceof OperationFailure ? cause.code : 'internal-error',
+                cause instanceof Error
+                  ? cause.message
+                  : 'The mobile device failed to process the request.',
+              ),
             }))
           : failure('unsupported-operation', 'The mobile device does not handle this request.')
       await send(deviceId, { v: 1, type: 'response', id: message.id, result })

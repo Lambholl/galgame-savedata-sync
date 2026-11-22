@@ -31,12 +31,23 @@ Windows 与 Android 的局域网文件夹同步工具。
 
 | 平台 | 安装包 | 说明 |
 | --- | --- | --- |
-| Windows 10+ | `SavedataSync-<版本>-Portable-x64.exe` | 64 位，免安装，双击即可运行 |
+| Windows 10+ | `SavedataSync-<版本>-Setup-x64.exe` | 64 位安装包，可选择只为自己安装或为所有用户安装（需要管理员权限） |
+| Windows 10+ | `SavedataSync-<版本>-Portable-x64.zip` | 64 位免安装版，解压后运行 `SavedataSync.exe` |
 | Android 11+ | `SavedataSync-<版本>-Android.apk` | 安装时需按系统提示允许安装来自该来源的未知应用 |
 
 **Windows 提示“已保护你的电脑”**
 
 程序未包含数字签名，点击“更多信息”→“仍要运行”即可。
+
+**Windows 版需要 WebView2 运行时**
+
+Windows 11 已自带。Windows 10 上安装包会在缺少时自动下载安装；免安装版打不开时，请先从微软官网安装 Microsoft Edge WebView2 运行时。
+
+**免安装版的数据保存位置**
+
+默认和安装版相同：界面设置保存在 `%APPDATA%\galgame-savedata-sync`，游戏、设备和备份保存在 `%LOCALAPPDATA%\galgame-savedata-sync`。卸载或删除程序后这些数据仍会保留。
+
+如需把数据和程序放在一起（例如放在移动硬盘中），在 `SavedataSync.exe` 所在文件夹中新建名为 `portable_data` 的文件夹，之后所有数据都保存在其中。已有的数据不会自动移入，需要重新添加游戏和设备。
 
 ## 使用
 
@@ -84,7 +95,7 @@ Windows 与 Android 的局域网文件夹同步工具。
 
 需要恢复时，在“备份与恢复”中选择目标备份并点击“恢复”，确认待变更的文件后才会执行写入。恢复会将当前目录还原为该备份的内容（删除多出的文件与空目录），且执行前会自动备份当前文件，因此恢复本身也可撤回。
 
-备份路径如下：电脑端可在“备份与恢复”页点击“打开文件夹”查看；手机端位于 `Android/data/io.github.galgame.savedatasync/files/backups/`（**卸载应用或清除应用数据会一并删除这些备份**）。每份备份均为以时间命名的文件夹，可直接复制导出或删除；若备份中的文件被手动删除，该备份将显示为“不完整”且无法用于恢复。
+备份路径如下：电脑端可在“备份与恢复”页点击“打开文件夹”查看，也可在“设置”中把整个备份文件夹换到其他位置（已有的备份留在原处，换回原位置后会重新列出）；手机端位于 `Android/data/io.github.galgame.savedatasync/files/backups/`（**卸载应用或清除应用数据会一并删除这些备份**）。每份备份均为以时间命名的文件夹，可直接复制导出或删除；若备份中的文件被手动删除，该备份将显示为“不完整”且无法用于恢复。
 
 **Android 直接读写文件**
 
@@ -114,14 +125,15 @@ Windows 与 Android 的局域网文件夹同步工具。
 
 ## 从源码构建
 
-需要 Node.js 22.13+ 和 pnpm 10.34.8；构建 Android 还需要 JDK 21 和 Android SDK。
+需要 Node.js 22.13+ 和 pnpm 10.34.8；运行 Windows 版还需要 Rust（MSVC 工具链），构建 Android 还需要 JDK 21 和 Android SDK。
 
 ```bash
 git clone https://github.com/Lambholl/galgame-savedata-sync.git
 cd galgame-savedata-sync
 pnpm install
 pnpm doctor                     # 检查开发工具是否齐全
-pnpm desktop:package            # Windows 免安装版
+pnpm dev:desktop                # 运行 Windows 开发版
+pnpm desktop:package            # Windows 安装包和免安装版
 pnpm android:build              # Android debug APK
 ```
 

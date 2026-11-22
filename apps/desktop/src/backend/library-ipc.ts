@@ -1,0 +1,100 @@
+import { isOpaqueId } from '@savedata-sync/shared'
+import type { LibraryGame } from '@savedata-sync/shared'
+import { LIBRARY_CHANNELS } from '../bridge/library-bridge.ts'
+import type { DesktopLibrary } from './library-store.ts'
+import type { WindowsHttpService } from './http-service.ts'
+import { HttpOperationError, toHttpError } from './http-errors.ts'
+import type { ChannelRegistry } from './channel-registry.ts'
+
+/**
+ * 注册游戏库接口的通道处理函数。
+ *
+ * @returns 移除这些处理函数的函数。
+ */
+export function registerLibraryIpc(
+  ipc: ChannelRegistry,
+  library: DesktopLibrary,
+  service: WindowsHttpService,
+): () => void {
+  for (const [action, channel] of Object.entries(LIBRARY_CHANNELS)) {
+    ipc.handle(channel, async (...args: unknown[]) => {
+      try {
+        if (action === 'read') {
+          if (args.length !== 0) {
+            throw new HttpOperationError('invalid-request', 'The parameters are invalid.')
+          }
+          return { status: 'success', value: library.snapshot() }
+        }
+        const value = args[0]
+        if (args.length !== 1 || typeof value !== 'object' || value === null) {
+          throw new HttpOperationError('invalid-request', 'The parameters are invalid.')
+        }
+        if (action === 'saveGames') {
+          if (
+            !('games' in value) ||
+            !Array.isArray(value.games) ||
+            Object.keys(value).length !== 1
+          ) {
+            throw new HttpOperationError('invalid-request', 'The game configuration is invalid.')
+          }
+          // 每一项的格式由 store 在落盘前校验。
+          if (service.hasWork()) {
+            throw new HttpOperationError(
+              'busy',
+              'Finish the current transfer before changing game directories or links.',
+            )
+          }
+          await library.saveGames(value.games as readonly LibraryGame[])
+        } else if (action === 'device') {
+          if (
+            !('id' in value) ||
+            !isOpaqueId(value.id) ||
+            !('action' in value) ||
+            !['disconnect', 'rename', 'forget'].includes(String(value.action)) ||
+            Object.keys(value).some((key) => !['id', 'action', 'name'].includes(key))
+          ) {
+            throw new HttpOperationError('invalid-request', 'The device operation is invalid.')
+          }
+          if (service.hasWork()) {
+            throw new HttpOperationError(
+              'busy',
+              'Finish the current transfer before changing devices.',
+            )
+          }
+          const name = 'name' in value ? value.name : undefined
+          if (
+            name !== undefined &&
+            (typeof name !== 'string' || !name.trim() || name.length > 128)
+          ) {
+            throw new HttpOperationError('invalid-request', 'The device name is invalid.')
+          }
+          await library.device(value.id, value.action as 'disconnect' | 'rename' | 'forget', name)
+        } else {
+          if (
+            !('deviceId' in value) ||
+            !isOpaqueId(value.deviceId) ||
+            !('rootId' in value) ||
+            !isOpaqueId(value.rootId) ||
+            !('parentId' in value) ||
+            (value.parentId !== null && !isOpaqueId(value.parentId)) ||
+            Object.keys(value).length !== 3
+          ) {
+            throw new HttpOperationError('invalid-request', 'The directory request is invalid.')
+          }
+          return {
+            status: 'success',
+            value: await library.directory(value.deviceId, value.rootId, value.parentId),
+          }
+        }
+        return { status: 'success', value: library.snapshot() }
+      } catch (error) {
+        return { status: 'error', error: toHttpError(error).operationError }
+      }
+    })
+  }
+  return () => {
+    for (const channel of Object.values(LIBRARY_CHANNELS)) {
+      ipc.removeHandler(channel)
+    }
+  }
+}

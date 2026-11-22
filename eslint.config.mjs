@@ -99,8 +99,7 @@ function namingConvention({ isReact }) {
 const PLATFORM_MODULES = [
   ...builtinModules,
   'node:*',
-  'electron',
-  'electron/*',
+  '@tauri-apps/*',
   '@capacitor/*',
   'react-dom',
   'react-dom/*',
@@ -208,7 +207,7 @@ export default defineConfig(
     files: [
       'eslint.config.mjs',
       '**/vite.config.ts',
-      '**/electron.vite.config.ts',
+      '**/vite.sidecar.config.ts',
       '**/capacitor.config.ts',
     ],
     rules: { 'no-restricted-exports': 'off' },

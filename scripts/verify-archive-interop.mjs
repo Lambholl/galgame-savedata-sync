@@ -2,8 +2,8 @@ import assert from 'node:assert/strict'
 import { mkdir, readFile, readdir, rmdir, unlink, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { PassThrough, Readable } from 'node:stream'
-import { createWindowsArchiveAdapter } from '../apps/desktop/src/main/archive-adapter.ts'
-import { createDirectoryAdapter } from '../apps/desktop/src/main/directory-adapter.ts'
+import { createWindowsArchiveAdapter } from '../apps/desktop/src/backend/archive-adapter.ts'
+import { createDirectoryAdapter } from '../apps/desktop/src/backend/directory-adapter.ts'
 import { REPO_ROOT } from './local-environment.mjs'
 
 // 原生构建前准备 Windows 产物，构建后用 Windows 接收端检验 Java 产物；不连接设备。

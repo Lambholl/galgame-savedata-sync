@@ -9,15 +9,19 @@ import type {
   ThemePreference,
 } from '@savedata-sync/shared'
 import { useT } from '@savedata-sync/shared/ui'
+import type { DesktopBackupInfo } from '../../../../bridge/backup-bridge.ts'
 import { useFailureMessage } from '../../app/failure-message.ts'
+import type { Confirmation } from '../../app/navigation.ts'
+import { ConfirmationDialog } from '../../components/ConfirmationDialog.tsx'
 import { desktopBackups } from '../../platform/sync-adapter.ts'
 import { BackupPolicyFields } from '../backup/BackupPolicyFields.tsx'
+import { BackupLibraryRow } from './BackupLibraryRow.tsx'
 import { SETTING_FORM } from './setting-form.ts'
 import { SettingSelect } from './SettingSelect.tsx'
 
 const THEMES: readonly ThemePreference[] = ['system', 'light', 'dark']
 
-/** 应用设置页：外观与全局备份设置，改动立即保存。 */
+/** 应用设置页：外观、全局备份设置和备份库位置，改动立即保存。 */
 export function SettingsPage({
   preferences,
   onChange,
@@ -28,6 +32,11 @@ export function SettingsPage({
   const t = useT()
   /** 全局备份设置；读取中或读取失败为 null。 */
   const [policy, setPolicy] = useState<SyncBackupPolicy | null>(null)
+  /** 备份库的位置和状态；读取中或读取失败为 null。 */
+  const [library, setLibrary] = useState<DesktopBackupInfo | null>(null)
+  /** 等待确认的更换位置操作。 */
+  const [confirmation, setConfirmation] = useState<Confirmation | null>(null)
+  const [isRelocating, setIsRelocating] = useState(false)
   /** 读取或保存备份设置的失败，连同出错的操作。 */
   const [backupError, setBackupError] = useState<{
     readonly context: string
@@ -46,14 +55,16 @@ export function SettingsPage({
     desktopBackups()
       .read()
       .then((result) => {
-        const { defaults } = unwrap(result).settings
+        const info = unwrap(result)
         if (isCurrent) {
-          setPolicy(defaults)
+          setPolicy(info.settings.defaults)
+          setLibrary(info)
         }
       })
       .catch((cause: unknown) => {
         if (isCurrent) {
           setPolicy(null)
+          setLibrary(null)
           setBackupError({ context: t('backup.readFailed'), error: toShownError(cause) })
         }
       })
@@ -72,6 +83,43 @@ export function SettingsPage({
         setBackupError({ context: t('backup.saveFailed'), error: toShownError(cause) })
         setVersion((value) => value + 1)
       })
+  }
+  /** 先提示已有备份不会搬走，确认后再选文件夹或换回默认位置。 */
+  function askRelocate(action: 'chooseLocation' | 'resetLocation'): void {
+    setConfirmation({
+      title: t(
+        action === 'chooseLocation' ? 'backup.changeLibraryTitle' : 'backup.resetLibraryTitle',
+      ),
+      text: t('backup.changeLibraryText'),
+      work: async () => {
+        const next = unwrap(await desktopBackups()[action]())
+        if (next) {
+          setLibrary(next)
+        }
+      },
+    })
+  }
+  function handleConfirm(): void {
+    const work = confirmation?.work
+    // 先关掉确认框，系统目录选择器打开时界面上不再留着它。
+    setConfirmation(null)
+    if (!work) {
+      return
+    }
+    setIsRelocating(true)
+    setBackupError(null)
+    work()
+      .catch((cause: unknown) => {
+        const error = toShownError(cause)
+        setBackupError({
+          context: t('backup.changeLibraryFailed'),
+          error:
+            error.code === 'path-outside-root'
+              ? { code: null, message: t('backup.libraryOverlaps') }
+              : error,
+        })
+      })
+      .finally(() => setIsRelocating(false))
   }
   return (
     <div className="settings-column">
@@ -112,6 +160,22 @@ export function SettingsPage({
             <BackupPolicyFields policy={policy} isDisabled={false} onChange={changePolicy} />
           </Form>
         ) : null}
+        {library ? (
+          <BackupLibraryRow
+            path={library.displayPath}
+            isCustom={library.isCustomLocation}
+            isAvailable={library.isLocationAvailable}
+            disabled={isRelocating}
+            onChange={() => askRelocate('chooseLocation')}
+            onReset={() => askRelocate('resetLocation')}
+          />
+        ) : null}
+        <ConfirmationDialog
+          confirmation={confirmation}
+          isBusy={false}
+          onCancel={() => setConfirmation(null)}
+          onConfirm={handleConfirm}
+        />
       </section>
       <section className="settings-section">
         <h2>{t('settings.about')}</h2>

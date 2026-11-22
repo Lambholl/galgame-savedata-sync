@@ -1,102 +1,76 @@
-import { access, cp, mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises'
-import { existsSync } from 'node:fs'
-import { dirname, join, resolve } from 'node:path'
+import { execFileSync } from 'node:child_process'
+import { copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
+import { tmpdir } from 'node:os'
+import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { build, Platform, Arch } from 'electron-builder'
-import { resolveAppVersion } from '../../../scripts/app-version.mjs'
+import { SIDECAR_EXTERNAL_BIN, resolveNumericVersion } from './build-sidecar-exe.mjs'
 
 const APP_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
-const REPO_ROOT = resolve(APP_ROOT, '../..')
-const TARGET_NAMES = new Set(['nsis', 'portable'])
+const TAURI_ROOT = join(APP_ROOT, 'src-tauri')
+const RELEASE_DIRECTORY = join(APP_ROOT, 'release')
+/** 与 `tauri.conf.json` 的 `mainBinaryName` 一致。 */
+const MAIN_EXECUTABLE = 'SavedataSync.exe'
+const SIDECAR_EXECUTABLE = 'savedata-sync-backend.exe'
 
 /**
- * 把已构建的资源复制到新的私有暂存目录，打包 Windows 分发包。
- * 成功时输出产物路径；读取、复制、下载或打包失败时非零退出。
+ * 构建 Windows x64 的 NSIS 安装包和免安装 zip，输出到 `apps/desktop/release/`，同名文件被覆盖。
+ * 版本号由 Git tag 推算。成功时输出产物路径；构建或打包失败时非零退出。
  */
 async function main() {
-  if (process.platform !== 'win32') {
-    throw new Error('请在 Windows 上构建此安装包。')
+  if (process.platform !== 'win32' || process.arch !== 'x64') {
+    throw new Error('Windows packages can only be built on Windows x64.')
   }
-  const requestedTargets = [...new Set(process.argv.slice(2))]
-  const targets = requestedTargets.length > 0 ? requestedTargets : ['nsis', 'portable']
-  const invalidTargets = targets.filter((target) => !TARGET_NAMES.has(target))
-  if (invalidTargets.length > 0) {
-    throw new Error(`不支持的 Windows 打包目标：${invalidTargets.join('、')}`)
-  }
-  const metadata = JSON.parse(await readFile(join(APP_ROOT, 'package.json'), 'utf8'))
-  // package.json 的 version 固定为 0.0.0，分发包的版本由 Git tag 推算，与界面显示的版本相同。
-  const version = resolveAppVersion().name
-  const config = JSON.parse(await readFile(join(APP_ROOT, 'electron-builder.json'), 'utf8'))
-  for (const entry of ['out/main/index.js', 'out/preload/index.cjs', 'out/renderer/index.html']) {
-    await access(join(APP_ROOT, entry))
-  }
-
-  const reports = join(REPO_ROOT, '.reports')
-  await mkdir(reports, { recursive: true })
-  const staging = await mkdtemp(join(reports, 'windows-package-'))
-  await cp(join(APP_ROOT, 'out'), join(staging, 'out'), {
-    recursive: true,
-    force: false,
-    errorOnExist: true,
-  })
-  await mkdir(join(staging, 'resources'))
-  await cp(
-    join(APP_ROOT, 'resources', 'app-icon.ico'),
-    join(staging, 'resources', 'app-icon.ico'),
-    {
-      force: false,
-      errorOnExist: true,
-    },
-  )
-  await writeFile(
-    join(staging, 'package.json'),
-    JSON.stringify(
-      {
-        name: metadata.name,
+  const version = resolveNumericVersion()
+  const workDirectory = await mkdtemp(join(tmpdir(), 'savedata-sync-package-'))
+  try {
+    // externalBin 只在打包时登记：登记后 tauri dev 和 cargo build 也会要求 sidecar 可执行文件已经存在。
+    const overridePath = join(workDirectory, 'tauri.package.json')
+    await writeFile(
+      overridePath,
+      JSON.stringify({
         version,
-        description: 'Windows 与 Android 局域网存档同步工具',
-        type: metadata.type,
-        main: metadata.main,
-        dependencies: {},
-      },
-      null,
-      2,
-    ) + '\n',
-    { encoding: 'utf8', flag: 'wx' },
-  )
-  // 空锁文件将打包器限定在暂存项目，避免向上扫描 pnpm 工作区。
-  await writeFile(
-    join(staging, 'package-lock.json'),
-    JSON.stringify({
-      name: metadata.name,
-      version,
-      lockfileVersion: 3,
-      packages: { '': { name: metadata.name, version } },
-    }) + '\n',
-    { encoding: 'utf8', flag: 'wx' },
-  )
+        build: { beforeBuildCommand: 'pnpm build && node scripts/build-sidecar-exe.mjs' },
+        bundle: { active: true, externalBin: [SIDECAR_EXTERNAL_BIN] },
+      }),
+      { encoding: 'utf8', flag: 'wx' },
+    )
+    const tauriCli = createRequire(import.meta.url).resolve('@tauri-apps/cli/tauri.js')
+    execFileSync(process.execPath, [tauriCli, 'build', '--config', overridePath], {
+      cwd: APP_ROOT,
+      stdio: 'inherit',
+    })
 
-  const require = createRequire(import.meta.url)
-  const electronDist = join(dirname(require.resolve('electron/package.json')), 'dist')
-  // 主进程和 preload 已由 electron-vite 打包；分发包无需 pnpm 工作区软链接。
-  const artifacts = await build({
-    projectDir: staging,
-    targets: Platform.WINDOWS.createTarget(targets, Arch.x64),
-    publish: 'never',
-    config: {
-      ...config,
-      electronVersion: metadata.devDependencies.electron,
-      ...(existsSync(join(electronDist, 'electron.exe')) ? { electronDist } : {}),
-      directories: { ...config.directories, app: staging, output: join(APP_ROOT, 'release') },
-    },
-  })
-  for (const artifact of artifacts) {
-    console.log(artifact)
+    await mkdir(RELEASE_DIRECTORY, { recursive: true })
+    const installer = join(RELEASE_DIRECTORY, `SavedataSync-${version}-Setup-x64.exe`)
+    // Tauri 按 `productName_版本_x64-setup.exe` 命名安装包；目录里可能留着旧产品名或旧版本的安装包。
+    const { productName } = JSON.parse(await readFile(join(TAURI_ROOT, 'tauri.conf.json'), 'utf8'))
+    const bundleDirectory = join(TAURI_ROOT, 'target', 'release', 'bundle', 'nsis')
+    await copyFile(join(bundleDirectory, `${productName}_${version}_x64-setup.exe`), installer)
+
+    const portableName = `SavedataSync-${version}-Portable-x64`
+    const staging = join(workDirectory, portableName)
+    await mkdir(staging)
+    const releaseBuild = join(TAURI_ROOT, 'target', 'release')
+    for (const file of [MAIN_EXECUTABLE, SIDECAR_EXECUTABLE]) {
+      await copyFile(join(releaseBuild, file), join(staging, file))
+    }
+    const archive = join(RELEASE_DIRECTORY, `${portableName}.zip`)
+    await rm(archive, { force: true })
+    // 用系统自带的 bsdtar 生成 zip；Git Bash 等环境 PATH 里的 GNU tar 不支持 zip。
+    const systemTar = join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'tar.exe')
+    execFileSync(systemTar, ['-a', '-c', '-f', archive, '-C', workDirectory, portableName], {
+      stdio: 'inherit',
+      windowsHide: true,
+    })
+    console.log(installer)
+    console.log(archive)
+  } finally {
+    await rm(workDirectory, { recursive: true, force: true })
   }
 }
 
 main().catch((error) => {
-  console.error(error instanceof Error ? error.message : 'Windows 打包失败。')
+  console.error(error instanceof Error ? error.message : error)
   process.exitCode = 1
 })

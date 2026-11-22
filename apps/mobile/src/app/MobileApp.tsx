@@ -17,6 +17,7 @@ import {
 import type {
   CatalogGame,
   ConnectionQrPayload,
+  DataResetItem,
   DirectoryReference,
   InterruptedWrite,
   LibraryGame,
@@ -29,6 +30,8 @@ import { deviceDiscovery, findDevice } from '../platform/device-discovery'
 import type { DiscoveredDevice } from '../platform/device-discovery'
 import { ConfirmationDialog } from '../components/ConfirmationDialog.tsx'
 import { InterruptedWriteDialog } from '../components/InterruptedWriteDialog.tsx'
+import { DataResetDialog } from '../components/DataResetDialog.tsx'
+import { dismissDataResets, readDataResets } from '../platform/app-storage'
 import { DeviceEditorDialog } from '../components/DeviceEditorDialog.tsx'
 import { GameMenu } from '../features/games/GameActionSheet'
 import { ImportGameDialog } from '../components/ImportGameDialog.tsx'
@@ -144,6 +147,7 @@ export function MobileApp({
   const [serviceChange, setServiceChange] = useState<'starting' | 'stopping' | null>(null)
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null)
   const [interruptedWrites, setInterruptedWrites] = useState<readonly InterruptedWrite[]>([])
+  const [dataResets, setDataResets] = useState<readonly DataResetItem[]>([])
   const operating = useRef(false)
   const generation = useRef(0)
   const backHandler = useRef<() => boolean>(() => false)
@@ -291,6 +295,23 @@ export function MobileApp({
     [adapter, refresh, showError],
   )
   useEffect(() => backButton?.subscribe(() => backHandler.current()), [backButton])
+  useEffect(() => {
+    let isCurrent = true
+    readDataResets()
+      .then((items) => {
+        if (isCurrent) {
+          setDataResets(items)
+        }
+      })
+      .catch((cause: unknown) => showError(toShownError(cause)))
+    return () => {
+      isCurrent = false
+    }
+  }, [showError])
+  function closeDataResets(): void {
+    setDataResets([])
+    dismissDataResets().catch((cause: unknown) => showError(toShownError(cause)))
+  }
   // 游戏名要等配置读到才有；已移除的游戏没有可提示的目录，标记直接清除。
   const hasLoaded = snapshot !== null
   useEffect(() => {
@@ -881,6 +902,10 @@ export function MobileApp({
     })
   }
   backHandler.current = () => {
+    if (dataResets.length > 0) {
+      closeDataResets()
+      return true
+    }
     if (interruptedWrite) {
       dismissInterruptedWrite()
       return true
@@ -1207,6 +1232,7 @@ export function MobileApp({
           }
         }}
       />
+      <DataResetDialog items={dataResets} onClose={closeDataResets} />
       <InterruptedWriteDialog
         gameName={
           interruptedWrite

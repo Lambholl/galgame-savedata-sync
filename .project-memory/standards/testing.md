@@ -19,7 +19,7 @@ tags: [测试规范]
 | 项目 | 取值 |
 | --- | --- |
 | 验证要回答的问题 | 功能是否按当前需求工作；存档数据会不会丢失或写错 |
-| 相关测试入口 | `pnpm test`：脚本、共享包、电脑端和移动端网页层，不需要 Android 工具。改了 Android 原生代码时另跑 `pnpm android:unit`：Java 单元测试和归档互通核对，复用 Gradle 后台进程 |
+| 相关测试入口 | `pnpm test`：脚本、共享包、电脑端（含 Tauri 宿主的 `cargo test`）和移动端网页层，不需要 Android 工具。改了 Android 原生代码时另跑 `pnpm android:unit`：Java 单元测试和归档互通核对，复用 Gradle 后台进程 |
 | 全量测试入口 | `pnpm test:all`（`pnpm test` 加 `pnpm android:test`，后者在 `android:unit` 之外另跑 Android lint 和两个调试 APK 的构建）；`pnpm check` 和普通 CI 不跑测试 |
 | 测试运行器 | Node 内置测试器加类型擦除；Java 单元测试用 JUnit，仪器测试用 AndroidJUnitRunner |
 | 测试文件命名 | Node 测试是各包 `test/` 下的 `*.test.mjs`；Java 测试是 `*Test.java` |

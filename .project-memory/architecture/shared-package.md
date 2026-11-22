@@ -1,7 +1,7 @@
 ---
 doc_type: architecture
 status: active
-updated: 2026-11-22
+updated: 2026-11-23
 tags: [共享包, 数据模型, 守卫]
 ---
 
@@ -23,7 +23,7 @@ tags: [共享包, 数据模型, 守卫]
 
 `@savedata-sync/shared` 位于 `apps/shared`，从 `src/index.ts` 导出应用名、协议 v1 的本地目录/设备 DTO、设备描述与固定上限、纯数据守卫、协议常量、游戏关联、复制计划与任务数据、控制通道和连接格式。IO、归档编解码、HTTP 服务/客户端、任务存储和实际文件同步分别在各平台模块中。
 
-`@savedata-sync/shared/ui`（`src/ui`）放两端共用的 React 展示组件，例如 PathText；它可以依赖 React、`@ant-design/icons` 与不涉及平台交互的 antd 组件，主入口不得导入它，因此电脑主进程和 node 测试不会加载 React。组件参数逐项声明，不接受样式参数，规则见 [ADR-0002](../decisions/ADR-0002-ui-library-and-shared-rendering.md) 与 `eslint.config.mjs`。
+`@savedata-sync/shared/ui`（`src/ui`）放两端共用的 React 展示组件，例如 PathText；它可以依赖 React、`@ant-design/icons` 与不涉及平台交互的 antd 组件，主入口不得导入它，因此电脑端 sidecar 和 node 测试不会加载 React。组件参数逐项声明，不接受样式参数，规则见 [ADR-0002](../decisions/ADR-0002-ui-library-and-shared-rendering.md) 与 `eslint.config.mjs`。
 
 设备描述、发现 TXT 和连接二维码使用数字 `PROTOCOL_VERSION=3`。本地目录桥使用 DeviceDescriptor、DirectoryReference、EntryMetadata、DirectoryListing 和 DirectorySelectionResult；HTTP 的 DeviceResponse 为 `OperationResult<BatchDeviceDescriptor>`，包装本地 device 并提供 sessionId/limits。应用仍是测试版，协议字段可以不兼容地修改，但两端必须同时更新。
 
@@ -63,7 +63,7 @@ tags: [共享包, 数据模型, 守卫]
 
 `BATCH_ARCHIVE` 固定受限 USTAR、gzip level 1 和 application/gzip；成员名仅 fileId。tar 头、填充、结束、gzip 单 member/CRC/ISIZE 由原生编解码器检查。当前预算按首轮实现设定，产品规模和峰值内存还没实测。
 
-HTTP_ERROR_STATUS 映射错误码到 HTTP 状态，包括 session-mismatch/task-conflict/plan-expired=409、invalid-archive=422、resource-limit=413、busy=429、timeout=408；network-failure 和 port-unavailable 的 HTTP 状态为 null；port-unavailable 只在本机服务监听失败时出现，不经 HTTP 发给对端。io-failure 表示文件、目录或本机存储读写失败；桥收到和请求对不上的返回值、IPC 或原生服务不可用、配置数据损坏、任务没写入终态就结束这类程序内部问题报 internal-error（HTTP 500）。文件访问的异常映射（Android `ArchiveFailure.from`、`DirectoryFailure.from`，电脑 archive、directory、publication 的错误映射）把认不出的异常仍记为 io-failure，因为文档提供方和文件系统在文件不可访问时也会抛运行时异常；电脑 `toHttpError` 只把带 `syscall` 的 Node 系统错误记为 io-failure，其余记为 internal-error。session-mismatch 和 result-unknown 均禁止 canRetry=true；其他 canRetry 也只允许核实当前状态后由用户新建操作。
+HTTP_ERROR_STATUS 映射错误码到 HTTP 状态，包括 session-mismatch/task-conflict/plan-expired=409、invalid-archive=422、resource-limit=413、busy=429、timeout=408、backup-unavailable=503；network-failure 和 port-unavailable 的 HTTP 状态为 null；port-unavailable 只在本机服务监听失败时出现，不经 HTTP 发给对端。io-failure 表示文件、目录或本机存储读写失败；桥收到和请求对不上的返回值、IPC 或原生服务不可用、配置数据损坏、任务没写入终态就结束这类程序内部问题报 internal-error（HTTP 500）。文件访问的异常映射（Android `ArchiveFailure.from`、`DirectoryFailure.from`，电脑 archive、directory、publication 的错误映射）把认不出的异常仍记为 io-failure，因为文档提供方和文件系统在文件不可访问时也会抛运行时异常；电脑 `toHttpError` 只把带 `syscall` 的 Node 系统错误记为 io-failure，其余记为 internal-error。session-mismatch 和 result-unknown 均禁止 canRetry=true；其他 canRetry 也只允许核实当前状态后由用户新建操作。错误码超过 25 个后，TypeScript 对不上以联合类型变量作 code 的错误对象字面量，canRetry 为 false 的错误用 `nonRetryableError(code, message, device?)` 构造。Android 原生按 `TransferSchema.ERROR_CODES` 校验收到的错误码，`TransferHttp.errorStatus` 给出对应 HTTP 状态，新增错误码时一起改。
 
 ## 5. 资源及跨语言责任
 
@@ -81,7 +81,7 @@ HTTP_ERROR_STATUS 映射错误码到 HTTP 状态，包括 session-mismatch/task-
 
 ## 7. 游戏关联与项目绑定
 
-withGameLink、withoutGameLink、createImportedGame 返回新的游戏配置，由各端保存。unwrap 将 OperationResult 的失败转换为带 code 的 OperationFailure，toShownError 转为界面显示的错误。
+withGameLink、withoutGameLink、createImportedGame 返回新的游戏配置，由各端保存。两端保存游戏时，只用 `changedGameRootIds` 列出的、新设或换了根目录的 rootId 核对是否已登记；根目录没变的游戏引用着不存在的目录（如目录登记被重置后）不挡保存，界面里显示为要重新选择目录。unwrap 将 OperationResult 的失败转换为带 code 的 OperationFailure，toShownError 转为界面显示的错误。
 
 `resolveSyncProjectBinding(config, roots, peer, projectId)` 从本机游戏配置、已登记目录和当前对端目录表取得固定项目/设备/目录 ID，离线、失效授权或错位设备返回具体错误。`matchesSyncProjectBinding` 用于异步权限确认后复核映射；设备显示名与 IP 改动不改变关联身份。调用示例见移动端 `src/platform/library-adapter.ts`。
 

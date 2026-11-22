@@ -3,8 +3,10 @@ packages:
   - apps/desktop
   - apps/shared
 
+# 解析新版本时只用发布满 1 天（单位为分钟）的版本：被投毒的版本通常在几小时内下架，范围版本跑 pnpm update 时同样生效。
+minimumReleaseAge: 1440
+
 onlyBuiltDependencies:
-  - electron
   - esbuild
 
 overrides:

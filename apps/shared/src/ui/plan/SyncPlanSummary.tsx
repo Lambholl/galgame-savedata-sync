@@ -8,7 +8,7 @@ import {
   SafetyOutlined,
 } from '@ant-design/icons'
 import type { SyncEntry, SyncPlan, SyncPlanEntry } from '../../sync/sync-contracts.ts'
-import { fileKindOf } from '../../sync/snapshot-compare.ts'
+import { compareNamePaths, fileKindOf } from '../../sync/snapshot-compare.ts'
 import { formatBytes, formatShortDateTime } from '../../i18n/format.ts'
 import type { Translate } from '../../i18n/translate.ts'
 import { FileIcon } from '../files/FileIcon.tsx'
@@ -70,7 +70,9 @@ export function SyncPlanSummary({ plan, source, target }: SyncPlanSummaryProps):
   const targets = new Map(plan.target.entries.map((item) => [item.entryId, item]))
   const groups: Record<Group, PlanRow[]> = { replace: [], create: [], keep: [], delete: [] }
   let same = 0
-  for (const entry of plan.entries) {
+  // plan.entries 是执行顺序（新建由浅到深、删除由深到浅），显示时按路径的自然顺序重排。
+  const entries = [...plan.entries].sort((a, b) => compareNamePaths(a.path, b.path))
+  for (const entry of entries) {
     const row = {
       entry,
       source: sources.get(entry.sourceEntryId ?? ''),

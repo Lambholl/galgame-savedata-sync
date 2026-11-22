@@ -99,6 +99,7 @@ export type OperationErrorCode =
   | 'network-failure'
   | 'port-unavailable'
   | 'insufficient-space'
+  | 'backup-unavailable'
   | 'io-failure'
   | 'internal-error'
   | 'cleanup-failed'

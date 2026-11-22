@@ -10,11 +10,11 @@ import type {
 } from '../../sync/sync-contracts.ts'
 import { observeRestoreTask } from '../../sync/sync-restore-observation.ts'
 import type { SyncTaskPhase } from '../../sync/sync-job-observation.ts'
-import { formatBytes, formatDateTime } from '../../i18n/format.ts'
+import { formatBytes, formatShortDateTime } from '../../i18n/format.ts'
 import { ErrorText } from '../errors/ErrorText.tsx'
 import { errorDetail } from '../errors/error-detail.ts'
 import type { PlanEndpoint } from '../plan/SyncPlanSummary.tsx'
-import { useLocale, useT } from '../i18n/i18n-context.ts'
+import { useT } from '../i18n/i18n-context.ts'
 import { OutcomeList } from './OutcomeList.tsx'
 import { countOutcomes, unsettledOutcomes } from './outcomes.ts'
 import { ProgressRing, Verdict, type VerdictTone } from './TaskHero.tsx'
@@ -78,7 +78,6 @@ export function RestoreSummary({
   renderTechnicalDetails,
 }: RestoreSummaryProps): ReactElement {
   const t = useT()
-  const locale = useLocale()
   const outcomes = result?.outcomes ?? []
   const unsettled = unsettledOutcomes(outcomes)
   const counts = countOutcomes(outcomes)
@@ -96,7 +95,7 @@ export function RestoreSummary({
   const technicalText = [
     `${t('task.techTask')} ${restoreId}`,
     `${t('task.techLocal')} restore/${status}/${stage}`,
-    `${t('task.techUpdated')} ${formatDateTime(updatedAt, locale)}`,
+    `${t('task.techUpdated')} ${formatShortDateTime(updatedAt)}`,
     ...(effectiveError ? [`${t('task.techError')} ${errorDetail(effectiveError)}`] : []),
     ...(effectiveCleanupError
       ? [`${t('task.cleanupFailed')} ${errorDetail(effectiveCleanupError)}`]

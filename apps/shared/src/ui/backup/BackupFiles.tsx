@@ -1,6 +1,6 @@
 import { useState, type ReactElement } from 'react'
 import type { SyncBackupFile } from '../../sync/sync-contracts.ts'
-import { fileKindOf } from '../../sync/snapshot-compare.ts'
+import { compareNames, fileKindOf } from '../../sync/snapshot-compare.ts'
 import { FilePane } from '../files/FilePane.tsx'
 import type { PaneRow } from '../files/FilePane.tsx'
 import { useT } from '../i18n/i18n-context.ts'
@@ -38,9 +38,8 @@ function rowsAt(files: readonly SyncBackupFile[], path: readonly string[]): Pane
       tone: 'same',
     })
   }
-  const byName = (a: { name: string }, b: { name: string }): number => a.name.localeCompare(b.name)
   return [
-    ...[...folders].sort().map((name): PaneRow => ({
+    ...[...folders].sort(compareNames).map((name): PaneRow => ({
       name,
       kind: 'directory',
       path: [...path, name],
@@ -49,7 +48,7 @@ function rowsAt(files: readonly SyncBackupFile[], path: readonly string[]): Pane
       marker: 'none',
       tone: 'same',
     })),
-    ...rows.sort(byName),
+    ...rows.sort((a, b) => compareNames(a.name, b.name)),
   ]
 }
 

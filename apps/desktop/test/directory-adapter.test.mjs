@@ -11,10 +11,10 @@ import {
   writeFile,
 } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { isAbsolute, join, relative, sep } from 'node:path'
+import { dirname, isAbsolute, join, relative, sep } from 'node:path'
 import test from 'node:test'
-import { createDirectoryAdapter } from '../src/main/directory-adapter.ts'
-import { isWithinDirectory } from '../src/main/directory-paths.ts'
+import { createDirectoryAdapter } from '../src/backend/directory-adapter.ts'
+import { isWithinDirectory } from '../src/backend/directory-paths.ts'
 
 async function createFixture(t) {
   // Windows 的 TEMP 可能含 8.3 别名，夹具与适配器须使用一致的真实路径。
@@ -56,8 +56,10 @@ test('登记配置与目录分离，重启保留设备和根 ID，不持久化�
   const listing = value(await adapter.listDirectory(selected.rootId))
   assert.deepEqual(await readdir(root), before)
   const stored = JSON.parse(await readFile(config, 'utf8'))
-  assert.deepEqual(Object.keys(stored).sort(), ['deviceId', 'roots', 'schemaVersion'])
+  assert.deepEqual(Object.keys(stored).sort(), ['roots', 'schemaVersion'])
   assert.equal('entries' in stored, false)
+  const identity = JSON.parse(await readFile(join(dirname(config), 'identity.json'), 'utf8'))
+  assert.deepEqual(identity, { schemaVersion: 1, deviceId: adapter.deviceId })
   const restored = await createDirectoryAdapter(config)
   const roots = value(await restored.listRoots())
   assert.equal(restored.deviceId, adapter.deviceId)

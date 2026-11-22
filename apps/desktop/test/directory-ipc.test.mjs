@@ -4,8 +4,8 @@ import { tmpdir } from 'node:os'
 import { isAbsolute, join, relative, sep } from 'node:path'
 import test from 'node:test'
 import { createDirectoryBridge, DIRECTORY_CHANNELS } from '../src/bridge/directory-bridge.ts'
-import { createDirectoryAdapter } from '../src/main/directory-adapter.ts'
-import { registerDirectoryIpc } from '../src/main/directory-ipc.ts'
+import { createDirectoryAdapter } from '../src/backend/directory-adapter.ts'
+import { registerDirectoryIpc } from '../src/backend/directory-ipc.ts'
 
 async function fixture(t) {
   const temporaryRoot = await realpath(tmpdir())
@@ -29,15 +29,12 @@ async function fixture(t) {
       removeHandler: (channel) => handlers.delete(channel),
     },
     adapter,
-    {
-      choosePath: async () => {
-        selections += 1
-        return selectedPath
-      },
-      isTrustedSender: (event) => event.isTrusted === true,
+    async () => {
+      selections += 1
+      return selectedPath
     },
   )
-  const invoke = async (channel, ...args) => handlers.get(channel)({ isTrusted: true }, ...args)
+  const invoke = async (channel, ...args) => handlers.get(channel)(...args)
   return {
     adapter,
     root,
@@ -69,13 +66,8 @@ test('有限桥可选择和恢复目录，取消不清空既有配置；没有�
   assert.equal(state.handlers.size, 0)
 })
 
-test('IPC 拒绝不可信页面、路径走私及附加参数，拒绝发生在打开选择器前', async (t) => {
+test('通道拒绝路径走私及附加参数，拒绝发生在打开选择器前', async (t) => {
   const state = await fixture(t)
-  for (const channel of Object.values(DIRECTORY_CHANNELS)) {
-    const denied = await state.handlers.get(channel)({ isTrusted: false })
-    assert.equal(denied.error.code, 'permission-denied')
-  }
-  assert.equal(state.selections(), 0)
   assert.equal(
     (await state.invoke(DIRECTORY_CHANNELS.choose, state.root)).error.code,
     'invalid-request',
@@ -99,9 +91,10 @@ test('IPC 拒绝不可信页面、路径走私及附加参数，拒绝发生在�
       .code,
     'invalid-request',
   )
+  assert.equal(state.selections(), 0)
 })
 
-test('preload 拒绝畸形返回和连接失败，非法引用不发 IPC 请求', async () => {
+test('bridge 拒绝畸形返回和连接失败，非法引用不发 IPC 请求', async () => {
   let requests = 0
   const malformed = createDirectoryBridge(async () => {
     requests += 1

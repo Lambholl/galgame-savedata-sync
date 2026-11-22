@@ -3,8 +3,9 @@ import type { Messages } from '../messages.ts'
 /** English (US). */
 export const enUS: Messages = {
   'app.name': 'Savedata Sync',
-  'app.loadUiFailedTitle': 'Startup failed',
-  'app.loadUiFailed': 'Could not load the app interface. Check the build output.',
+  'app.backendStoppedTitle': 'Background service stopped',
+  'app.backendStopped':
+    'The background service stopped unexpectedly. The app will close. Open it again.',
   'app.cleanupFailedTitle': 'Cleanup on exit failed',
   'app.cleanupFailed':
     'Could not release cached or candidate files. Check permissions and try exiting again.',
@@ -193,6 +194,19 @@ export const enUS: Messages = {
     `The app closed while writing "${name}". Files may be incomplete. Transfer them again.`,
   'write.interruptedWithBackup': ({ name }) =>
     `The app closed while writing "${name}". Files may be incomplete. Transfer them again or restore them from a backup.`,
+  'dataReset.title': 'Some settings were reset',
+  'dataReset.intro': 'The following data could not be read and was replaced with defaults.',
+  'dataReset.keptHint':
+    'The files that could not be read were kept under names containing "unreadable".',
+  'dataReset.item.device-identity':
+    'Device ID of this device: a new one was created. Add this device again on your other devices.',
+  'dataReset.item.directories': 'Save folders: choose them again',
+  'dataReset.item.library': 'Games and devices: add them again',
+  'dataReset.item.backup-settings': 'Backup settings',
+  'dataReset.item.backup-library': 'Backup library location: changed back to the default location',
+  'dataReset.item.service-settings': 'Listening port: changed to a new random port',
+  'dataReset.item.preferences': 'Theme and language',
+  'dataReset.openFolder': 'Open data folder',
   'task.rescan': 'Scan again',
   'task.readFailed': 'Could not read the transfer status',
   'task.history': 'Earlier transfers',
@@ -297,6 +311,19 @@ export const enUS: Messages = {
   'backup.editGlobal': 'Change global setting',
   'backup.policyTitle': ({ name }) => `Backups for ${name}`,
   'backup.saveFailed': 'Could not save backup settings',
+  'backup.libraryLocation': 'Backup library location',
+  'backup.libraryDefault': 'Default location',
+  'backup.libraryUnavailable': 'Unavailable',
+  'backup.changeLibrary': 'Change location',
+  'backup.resetLibrary': 'Restore default location',
+  'backup.chooseLibrary': 'Choose a backup library folder',
+  'backup.changeLibraryTitle': 'Change backup library location',
+  'backup.resetLibraryTitle': 'Restore default location',
+  'backup.changeLibraryText':
+    'Existing backups stay in the old folder and are not moved. After the change, only backups in the new location are listed. Switching back to the old location lists the old backups again.',
+  'backup.libraryOverlaps':
+    'The backup library cannot contain or be inside a save directory or the app data folder. Choose another folder.',
+  'backup.changeLibraryFailed': 'Could not change the backup library location',
   'settings.saveFailed': 'Could not save settings. Try again.',
 
   'app.disconnected': 'Disconnected',
@@ -411,6 +438,8 @@ export const enUS: Messages = {
     'The network connection dropped. Make sure both devices are on the same network and try again.',
   'error.code.port-unavailable': 'The listening port is in use. Choose another port and try again.',
   'error.code.insufficient-space': 'Not enough storage space.',
+  'error.code.backup-unavailable':
+    'The backup library is unavailable. Connect the drive that holds it, or change its location in Settings.',
   'error.code.io-failure':
     'Reading or writing files failed. Make sure the folder is still accessible.',
   'error.code.internal-error':
