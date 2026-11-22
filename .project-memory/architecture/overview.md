@@ -96,6 +96,7 @@ tags: [架构总览]
 | --- | --- | --- |
 | 明文 HTTP、手选方向、无历史基线、目录不递归计算大小 | 产品决定；具体约束见[产品需求](../requirements/product.md) | accepted |
 | React 双端技术栈 | React + TypeScript + Vite，Windows Electron + antd，Android Capacitor + antd-mobile | accepted |
+| 电脑端宿主和存储目录 | 改用 Tauri 宿主和 Node sidecar，存储按 Roaming（界面偏好）、Local（数据、备份库）、缓存分开，支持 `portable_data` 便携模式和自定义备份库；迁移完成前仍是 Electron，见 [ADR-0005](../decisions/ADR-0005-tauri-sidecar-and-storage-layout.md) | accepted |
 | 稳定 ID、地址和目录映射解耦 | 改址后保留目录配置；连保存的地址时同时按设备 ID 查找 5 秒（Q-016），原地址连不上又没查到时再手动改址或扫码 | accepted |
 | 首次连接入口 | 发现列表、扫码和手动 IP，三个入口都核对设备 ID | accepted |
 | 连接与传输角色 | 监听方提供服务、拨号方编排传输，方向和两端按角色命名；一台设备同一时刻只有一条连接；见 [ADR-0004](../decisions/ADR-0004-symmetric-listener-dialer-roles.md) | accepted |
@@ -103,4 +104,4 @@ tags: [架构总览]
 | Android 生命周期 | 不判断前后台，只保持传输和用户开着的本机服务；普通操作不处理切后台后的成败。任务由用户显式发起，自动调度不在范围内；连接可用时两端均可发起任务 | accepted |
 | 文件传输格式 | 双向唯一 tar.gz，边打包边发送、边收边解包；内容收齐且备份完成后才逐项写入；见[设备接口与归档格式](transfer-protocol.md) | accepted |
 
-上述结论记录于[开放问题](../requirements/open-questions.md)、[ADR-0002](../decisions/ADR-0002-ui-library-and-shared-rendering.md)和[ADR-0004](../decisions/ADR-0004-symmetric-listener-dialer-roles.md)。参考：[Ant Design](https://ant.design/docs/react/introduce/)、[Ant Design Mobile](https://github.com/ant-design/ant-design-mobile)、[Capacitor Android](https://capacitorjs.com/docs/android)、[Android NSD](https://developer.android.com/develop/connectivity/wifi/use-nsd)、[SAF 文件属性](https://developer.android.com/reference/android/provider/DocumentsContract.Document)。
+上述结论记录于[开放问题](../requirements/open-questions.md)、[ADR-0002](../decisions/ADR-0002-ui-library-and-shared-rendering.md)、[ADR-0004](../decisions/ADR-0004-symmetric-listener-dialer-roles.md)和[ADR-0005](../decisions/ADR-0005-tauri-sidecar-and-storage-layout.md)。参考：[Ant Design](https://ant.design/docs/react/introduce/)、[Ant Design Mobile](https://github.com/ant-design/ant-design-mobile)、[Capacitor Android](https://capacitorjs.com/docs/android)、[Android NSD](https://developer.android.com/develop/connectivity/wifi/use-nsd)、[SAF 文件属性](https://developer.android.com/reference/android/provider/DocumentsContract.Document)。
