@@ -1,23 +1,29 @@
 import { useState } from 'react'
-import { Button, Card, Empty, Space, Tag } from 'antd'
+import { Empty, Tag } from 'antd'
+import { formatShortDateTime } from '@savedata-sync/shared'
 import type { LibraryGame, LibraryPeer } from '@savedata-sync/shared'
+import { restoreObservationPreview, syncTaskPreview, useT } from '@savedata-sync/shared/ui'
 import type { DesktopCopySummary, DesktopRestoreSummary } from '../../../../bridge/sync-bridge.ts'
 import { SyncCopyDetails } from './SyncCopyDetails.tsx'
-import { RestoreDetails } from '../backup/RestoreDetails.tsx'
-import { syncTaskPreview, useT } from '@savedata-sync/shared/ui'
-import { restoreStateTitle } from './sync-display.ts'
-import { formatShortDateTime } from '@savedata-sync/shared'
+import { SyncRestoreDetails } from './SyncRestoreDetails.tsx'
 
-/** 一个游戏的传输详情页：显示所选或最近一次复制或恢复，以及历史记录。 */
+type TaskSelection =
+  { readonly kind: 'copy'; readonly id: string } | { readonly kind: 'restore'; readonly id: string }
+
+type HistoryEntry =
+  | { readonly kind: 'copy'; readonly id: string; readonly item: DesktopCopySummary }
+  | { readonly kind: 'restore'; readonly id: string; readonly item: DesktopRestoreSummary }
+
+/** 一个游戏的传输与恢复详情页：显示所选或最近一次复制或恢复，以及历史记录。 */
 export function TaskPage({
   initialCopyId,
   initialRestoreId,
   projectId,
   copies,
   restores,
+  restoreSources,
   games,
   peers,
-  isActive,
   onChanged,
   onOpenBackup,
   onRescan,
@@ -27,12 +33,17 @@ export function TaskPage({
   readonly projectId: string | null
   readonly copies: readonly DesktopCopySummary[]
   readonly restores: readonly DesktopRestoreSummary[]
+  /** 恢复任务编号到备份来源名称的映射。 */
+  readonly restoreSources: Readonly<Record<string, string>>
   readonly games: readonly LibraryGame[]
   readonly peers: readonly LibraryPeer[]
-  readonly isActive: boolean
   readonly onChanged: () => void
-  /** shownCopyId 是页面正在显示的那次传输，返回时回到它。 */
-  readonly onOpenBackup: (projectId: string, shownCopyId: string | null) => void
+  /** shownCopyId 和 shownRestoreId 是页面正在显示的任务，返回时回到它。 */
+  readonly onOpenBackup: (
+    projectId: string,
+    shownCopyId: string | null,
+    shownRestoreId: string | null,
+  ) => void
   /**
    * 用一次传输的游戏、设备和方向重新比较；isUpload 为 true 表示从该设备复制到本机。
    * shownCopyId 是页面正在显示的那次传输，返回时回到它。
@@ -45,18 +56,40 @@ export function TaskPage({
   ) => void
 }): React.JSX.Element {
   const t = useT()
-  const [copyId, setCopyId] = useState<string | null>(initialCopyId),
-    [restoreId, setRestoreId] = useState<string | null>(initialRestoreId)
-  // 默认显示最近一次传输；点历史记录切换。
-  const copy = copies.find((item) => item.jobId === copyId) ?? copies[copies.length - 1] ?? null
-  function backup(projectId: string): void {
-    setRestoreId(null)
-    onOpenBackup(projectId, copy?.jobId ?? null)
+  const [selection, setSelection] = useState<TaskSelection | null>(() =>
+    initialRestoreId
+      ? { kind: 'restore', id: initialRestoreId }
+      : initialCopyId
+        ? { kind: 'copy', id: initialCopyId }
+        : null,
+  )
+
+  const history: HistoryEntry[] = [
+    ...copies.map((item): HistoryEntry => ({ kind: 'copy', id: item.jobId, item })),
+    ...restores
+      .filter((item) => item.status !== 'preparing' && item.status !== 'ready')
+      .map((item): HistoryEntry => ({ kind: 'restore', id: item.restoreId, item })),
+  ].sort((a, b) => b.item.updatedAt - a.item.updatedAt)
+
+  const current =
+    (selection
+      ? history.find((entry) => entry.kind === selection.kind && entry.id === selection.id)
+      : null) ??
+    history[0] ??
+    null
+
+  function openBackup(targetProjectId: string): void {
+    onOpenBackup(
+      targetProjectId,
+      current?.kind === 'copy' ? current.id : null,
+      current?.kind === 'restore' ? current.id : null,
+    )
   }
+
   return (
     // 详情放在居中的窄栏里，结构与移动端相同。
     <div className="task-page">
-      {!copies.length && !restores.length && (
+      {history.length === 0 ? (
         <Empty
           description={
             projectId
@@ -64,76 +97,80 @@ export function TaskPage({
               : t('task.none')
           }
         />
-      )}
-      {copy ? (
+      ) : null}
+      {current?.kind === 'copy' ? (
         <SyncCopyDetails
-          key={copy.jobId}
-          task={copy}
+          key={`copy:${current.id}`}
+          task={current.item}
           games={games}
           peers={peers}
-          onOpenBackup={backup}
+          onOpenBackup={openBackup}
           onRescan={(rescanProjectId, peerId, isUpload) =>
-            onRescan(rescanProjectId, peerId, isUpload, copy.jobId)
+            onRescan(rescanProjectId, peerId, isUpload, current.id)
           }
           onChanged={onChanged}
         />
       ) : null}
-      {copies.length > 1 && (
+      {current?.kind === 'restore' ? (
+        <SyncRestoreDetails
+          key={`restore:${current.id}`}
+          task={current.item}
+          sourceName={restoreSources[current.id] ?? null}
+          games={games}
+          onOpenBackup={openBackup}
+          onChanged={onChanged}
+        />
+      ) : null}
+      {history.length > 1 ? (
         <section className="task-history">
           <h2>{t('task.history')}</h2>
-          {[...copies].reverse().map((item) => (
-            <button
-              type="button"
-              key={item.jobId}
-              className={`task-history-row ss-pressable${item.jobId === copy?.jobId ? ' is-current' : ''}`}
-              onClick={() => setCopyId(item.jobId)}
-            >
-              <span>
-                {games.find((game) => game.id === item.projectId)?.name ?? t('common.unknown')}
-                <small>
-                  {item.role === 'receiver'
-                    ? `${peers.find((peer) => peer.device.id === item.peerId)?.device.name ?? t('common.unknown')} → ${t('transfer.local')}`
-                    : `${t('transfer.local')} → ${peers.find((peer) => peer.device.id === item.peerId)?.device.name ?? t('common.unknown')}`}{' '}
-                  · {formatShortDateTime(item.updatedAt)}
-                </small>
-              </span>
-              <Tag>{syncTaskPreview(item, t).status}</Tag>
-            </button>
-          ))}
+          {history.map((entry) => {
+            const isSelected = current?.kind === entry.kind && current.id === entry.id
+            if (entry.kind === 'copy') {
+              const item = entry.item
+              const peerName =
+                peers.find((peer) => peer.device.id === item.peerId)?.device.name ??
+                t('common.unknown')
+              return (
+                <button
+                  type="button"
+                  key={`copy:${item.jobId}`}
+                  className={`task-history-row ss-pressable${isSelected ? ' is-current' : ''}`}
+                  onClick={() => setSelection({ kind: 'copy', id: item.jobId })}
+                >
+                  <span>
+                    {games.find((game) => game.id === item.projectId)?.name ?? t('common.unknown')}
+                    <small>
+                      {item.role === 'receiver'
+                        ? `${peerName} → ${t('transfer.local')}`
+                        : `${t('transfer.local')} → ${peerName}`}{' '}
+                      · {formatShortDateTime(item.updatedAt)}
+                    </small>
+                  </span>
+                  <Tag>{syncTaskPreview(item, t).status}</Tag>
+                </button>
+              )
+            }
+            const item = entry.item
+            return (
+              <button
+                type="button"
+                key={`restore:${item.restoreId}`}
+                className={`task-history-row ss-pressable${isSelected ? ' is-current' : ''}`}
+                onClick={() => setSelection({ kind: 'restore', id: item.restoreId })}
+              >
+                <span>
+                  {games.find((game) => game.id === item.projectId)?.name ?? t('common.unknown')}
+                  <small>
+                    {restoreSources[item.restoreId] ?? t('backup.list')} → {t('transfer.local')} ·{' '}
+                    {formatShortDateTime(item.updatedAt)}
+                  </small>
+                </span>
+                <Tag>{restoreObservationPreview(item, t).status}</Tag>
+              </button>
+            )
+          })}
         </section>
-      )}
-      {[...restores].reverse().map((item) => (
-        <Card
-          key={item.restoreId}
-          title={`${games.find((game) => game.id === item.projectId)?.name ?? t('common.unknown')} · ${t('backup.restoreTask')}`}
-          extra={<Tag>{restoreStateTitle(t, item)}</Tag>}
-        >
-          <Space orientation="vertical" className="library-full">
-            <span>{formatShortDateTime(item.updatedAt)}</span>
-            {item.hasCleanupError ? <span>{t('task.cleanupFailed')}</span> : null}
-            <Button onClick={() => setRestoreId(item.restoreId)}>{t('backup.openRestore')}</Button>
-          </Space>
-        </Card>
-      ))}
-      {restoreId ? (
-        <RestoreDetails
-          key={restoreId}
-          restoreId={restoreId}
-          gameName={
-            games.find(
-              (game) =>
-                game.id === restores.find((item) => item.restoreId === restoreId)?.projectId,
-            )?.name ?? t('common.unknown')
-          }
-          sourceName={t('backup.list')}
-          isActive={isActive}
-          onClose={() => {
-            setRestoreId(null)
-            onChanged()
-          }}
-          onChanged={onChanged}
-          onOpenBackup={backup}
-        />
       ) : null}
     </div>
   )

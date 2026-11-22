@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react'
 import { Button, Empty, Skeleton } from 'antd'
 import { OperationFailure, toShownError, unwrap } from '@savedata-sync/shared'
 import type { ShownError } from '@savedata-sync/shared'
-import { CaretRightOutlined, HistoryOutlined, StopOutlined } from '@ant-design/icons'
-import { RestoreSummary, SyncPlanSummary, useT } from '@savedata-sync/shared/ui'
+import { CaretRightOutlined } from '@ant-design/icons'
+import { ErrorText, SyncPlanSummary, useT } from '@savedata-sync/shared/ui'
 import { useFailureMessage } from '../../app/failure-message.ts'
 import { desktopSync } from '../../platform/sync-adapter.ts'
 import { useRestoreDetails } from '../transfer/use-sync-details.ts'
@@ -24,15 +24,15 @@ async function discardRestore(restoreId: string): Promise<void> {
   unwrap(await api.releaseRestore(restoreId))
 }
 
-/** 一次本机恢复的抽屉：待确认时显示恢复预览，确认后显示进度和结果。关闭抽屉不取消已开始的恢复。 */
+/** 一次本机恢复的确认抽屉：展示恢复预览，确认启动后触发 onStarted。 */
 export function RestoreDetails({
   restoreId,
   gameName,
   sourceName,
   isActive,
   onClose,
+  onStarted,
   onChanged,
-  onOpenBackup,
 }: {
   readonly restoreId: string
   /** 抽屉标题右侧的游戏名。 */
@@ -42,9 +42,9 @@ export function RestoreDetails({
   readonly isActive: boolean
   /** 关闭抽屉；准备中或待确认时先取消并释放这次恢复。 */
   readonly onClose: () => void
+  /** 确认恢复并成功启动后触发。 */
+  readonly onStarted: (restoreId: string) => void
   readonly onChanged: () => void
-  /** 打开这次恢复所在游戏的备份页；已经在备份页时为 null。 */
-  readonly onOpenBackup: ((projectId: string) => void) | null
 }): React.JSX.Element {
   const t = useT()
   const resource = useRestoreDetails(restoreId)
@@ -59,11 +59,16 @@ export function RestoreDetails({
     setIsBusy(true)
     setError(null)
     void work()
-      .then(after)
-      .catch((cause: unknown) => setError(toShownError(cause)))
-      .finally(() => {
+      .then(() => {
+        onChanged()
+        after?.()
+      })
+      .catch((cause: unknown) => {
+        setError(toShownError(cause))
         resource.reload()
         onChanged()
+      })
+      .finally(() => {
         setIsBusy(false)
       })
   }
@@ -90,25 +95,10 @@ export function RestoreDetails({
       isLoading: isBusy,
       isDisabled: isActive || !plan.canExecute || state.hasCleanupError,
       onClick: () =>
-        run(async () => void unwrap(await desktopSync().executeRestore(restoreId, plan))),
-    }
-  } else if (state?.status === 'running') {
-    action = {
-      label: t('task.cancel'),
-      icon: <StopOutlined />,
-      isDanger: true,
-      isLoading: false,
-      isDisabled: isBusy,
-      onClick: () => run(async () => void unwrap(await desktopSync().cancelRestore(restoreId))),
-    }
-  } else if (state && state.status !== 'preparing' && onOpenBackup) {
-    action = {
-      label: t('task.viewBackup'),
-      icon: <HistoryOutlined />,
-      isDanger: false,
-      isLoading: false,
-      isDisabled: false,
-      onClick: () => onOpenBackup(state.projectId),
+        run(
+          async () => void unwrap(await desktopSync().executeRestore(restoreId, plan)),
+          () => onStarted(restoreId),
+        ),
     }
   }
   return (
@@ -120,13 +110,14 @@ export function RestoreDetails({
       onClose={close}
     >
       {failureHolder}
-      {!state ? (
-        (resource.isLoading && <Skeleton active />) ||
-        (failure && (
+      {!state || state.status === 'preparing' ? (
+        resource.isLoading || state?.status === 'preparing' ? (
+          <Skeleton active />
+        ) : failure ? (
           <Empty description={t('task.readFailed')}>
             <Button onClick={() => resource.reload()}>{t('common.retry')}</Button>
           </Empty>
-        ))
+        ) : null
       ) : isReady ? (
         <SyncPlanSummary
           key={plan.planId}
@@ -135,20 +126,13 @@ export function RestoreDetails({
           target={{ name: t('transfer.local'), kind: 'pc' }}
         />
       ) : (
-        <RestoreSummary
-          phase={state.status === 'ready' ? 'preparing' : state.status}
-          progress={
-            state.progress.totalFiles > 0
-              ? { done: state.progress.publishedFiles, total: state.progress.totalFiles }
-              : null
-          }
-          result={state.result}
-          error={state.error ?? null}
-          cleanupError={state.cleanupError ?? null}
-          onRetryCleanup={
-            state.hasCleanupError && !state.isWorking
-              ? () => run(async () => void unwrap(await desktopSync().cleanupRestore(restoreId)))
-              : null
+        <Empty
+          description={
+            state.error ? (
+              <ErrorText error={state.error} context={t('backup.restoreFailed')} />
+            ) : (
+              t('backup.restoreCancelled')
+            )
           }
         />
       )}

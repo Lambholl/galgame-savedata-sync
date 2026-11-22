@@ -64,9 +64,9 @@ Android 可作拨号方和监听方。作拨号方时原生层连接监听方、
 
 任务页分别显示移动端与电脑的发送/接收阶段、实际字节和文件计数。移动端发送完后，若电脑仍在写入，页面继续查询同一个任务；目标成功取决于接收端回读结果。失败、部分完成、取消、结果待确认及清理错误分别展示。开始传输、目标实际成功、失败和设备连接成功使用 antd Message；状态轮询不重复提示。
 
-“备份与恢复”显示本机保存位置、写入前备份开关、有效轮次和未完成残留。关闭开关会立即保存；每份备份是一个可以直接删除的文件夹，清除应用数据或卸载应用会一并删除。选择轮次后先核对备份和当前内容，预览并确认恢复；恢复写入前始终会备份当前目录的全部文件。
+“备份与恢复”显示本机保存位置、写入前自动备份策略（关闭自动备份时仍显示保留份数 1–4096）、“立即备份”按钮、有效轮次和未完成残留。点击“立即备份”直接启动本机手动备份（不弹确认、不填备注），显示实时进度与取消按钮，完成后刷新列表；空目录时提示当前目录没有文件可备份。关闭自动备份开关会立即保存；每份备份是一个可以直接删除的文件夹，清除应用数据或卸载应用会一并删除。选择轮次后先核对备份和当前内容，预览并确认恢复；恢复写入前始终会备份当前目录的全部文件。
 
-`src/platform/sync-adapter.ts` 的 `createMobileSyncAdapter(library, dependencies?)` 从持久配置与最新目录表固定项目绑定，在通知授权后再次复核；本机恢复也会在执行前核对保存的项目根。`useSyncTasks` 在应用内持续查询复制和恢复所有者，切换页面不取消任务；`currentCopy/currentRestore` 恢复本进程任务上下文，查询和清理都不自动调用执行。原生备份设置及显式维护与传输、恢复使用同一个目标名额。
+`src/platform/sync-adapter.ts` 的 `createMobileSyncAdapter(library, dependencies?)` 从持久配置与最新目录表固定项目绑定，在通知授权后再次复核；本机恢复和手动备份也会在执行前核对保存的项目根。`useSyncTasks` 在应用内持续查询复制和恢复所有者，切换页面不取消任务；`currentCopy/currentRestore/currentManualBackup` 恢复本进程任务上下文，查询和清理都不自动调用执行。原生备份设置、手动备份及显式维护与传输、恢复使用同一个目标名额。
 
 ## 3. 系统明暗主题与应用图标
 
@@ -164,9 +164,11 @@ SAF 没有通用排他创建或比较后删除原语；这些复核能发现可�
 | `deleteBackup` / `deleteGameBackups` | 删除一份备份，或移除游戏时删除它在所有目录下的备份；被恢复引用时拒绝，失败可重试 |
 | `close` | 取消当前操作、等待文件释放；已提交备份持久保留 |
 
-`BackupModel` 与共享备份 v1 清单一致。多个线程同时复制目标文件，每个文件复制前后核对来源的大小和修改日期、核对复制的字节数；全部完成后原子提交清单。每个游戏保留的份数取备份设置（1–10，默认 3），新轮提交后才轮换。`BackupFiles` 只访问已核实的私有普通文件，身份和链接数由 `Os.lstat` 读取。
+`BackupModel` 与共享备份 v1 清单一致，允许 `copy`、`restore` 与 `manual` 三种原因。多个线程同时复制目标文件，每个文件复制前后核对来源的大小和修改日期、核对复制的字节数；全部完成后原子提交清单。每个游戏保留的份数取备份设置（1–4096，默认 10），自动与手动备份平级轮换，新轮提交后才轮换。`BackupFiles` 只访问已核实的私有普通文件，身份和链接数由 `Os.lstat` 读取。
 
-`src/platform/backups.ts` 导出 `androidBackups`，只提供 read/list/manifest/setPreference/rotate/cleanupIncomplete/deleteBackup/deleteGameBackups，参数只有公开 ID 和布尔开关。
+`DirectoryRuntime.manualBackups(context)` 持有进程内共享的 `ManualBackupRuntime`：启动时占用与传输、恢复相同的 `TargetOperation` 名额，在单工作线程中通过 `SyncScanner.snapshotNow` 扫描当前目录并调用 `BackupStore.create(..., "manual", true, ...)` 提交，终态按 10 分钟保留供查询，Activity 销毁后任务继续。
+
+`src/platform/backups.ts` 导出 `androidBackups`，只提供 read/list/manifest/setPreference/setDefaults/rotate/cleanupIncomplete/deleteBackup/deleteGameBackups 及手动备份接口 startManual/currentManual/manualState/cancelManual，参数只有公开 ID、保留份数和布尔开关。
 
 ## 10. 受保护写入与本机恢复
 
@@ -184,9 +186,9 @@ SAF 没有通用排他创建或比较后删除原语；这些复核能发现可�
 | --- | --- |
 | `bindProject(projectId, rootId)` | 平台层先核对已保存的游戏配置，再绑定已有授权根；活动任务/清理期间拒绝改绑 |
 | `prepareRestore(projectId, rootId, backupId)` | rootId 是游戏当前的目录；返回 preparing 状态和新 restoreId；恢复强制先备份当前内容 |
-| `preview(restoreId)` | 取得固定的源/目标快照；TS 生成同一 planId 的本机恢复计划 |
-| `execute(restoreId, plan)` | 核对项目/根、原生固定预览及完整计划，只执行一次；重复执行返回 task-conflict |
-| `query` / `cancel` / `current` | 查询实际状态、显式取消，或取回本进程最近的 restoreId |
+| `preview(restoreId)` | 取得固定的源/目标快照；TS 生成同一 planId、固定 `shouldDeleteExtras = true` 的本机恢复计划 |
+| `execute(restoreId, plan)` | 核对项目/根、原生固定预览及完整计划，只执行一次；通过 `SyncWriter.Observer` 汇报备份与写入阶段和字节/文件进度；重复执行返回 task-conflict |
+| `query` / `cancel` / `current` | 查询实际状态（含 `stage`、`failureStage`、`updatedAt` 与 `progress`）、显式取消，或取回本进程最近的 restoreId |
 | `release(restoreId)` / `retryCleanup()` | 放弃预览或释放终态数据，明确重试未释放资源 |
 
 ## 11. 双向复制编排

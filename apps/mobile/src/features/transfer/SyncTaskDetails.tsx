@@ -1,9 +1,26 @@
 import { useEffect, useState } from 'react'
 import { Button } from 'antd-mobile'
-import { ReloadOutlined, StopOutlined } from '@ant-design/icons'
-import { isPreviewLocalSource, observeSyncJob, toShownError } from '@savedata-sync/shared'
+import {
+  HistoryOutlined,
+  ReloadOutlined,
+  RightOutlined,
+  StopOutlined,
+  SwapOutlined,
+} from '@ant-design/icons'
+import {
+  isPreviewLocalSource,
+  observeRestoreTask,
+  observeSyncJob,
+  toShownError,
+} from '@savedata-sync/shared'
 import type { LibraryGame, LibraryPeer, ShownError, SyncDirection } from '@savedata-sync/shared'
-import { SyncTaskSummary, useT } from '@savedata-sync/shared/ui'
+import {
+  RestoreSummary,
+  SyncTaskSummary,
+  restoreObservationPreview,
+  syncTaskPreview,
+  useT,
+} from '@savedata-sync/shared/ui'
 import { useFailureMessage } from '../../app/failure-message'
 import type { PlanEndpoint } from '@savedata-sync/shared/ui'
 import type {
@@ -11,30 +28,22 @@ import type {
   MobileRestoreDetails,
   MobileSyncAdapter,
 } from '../../platform/sync-adapter'
-import { Panel } from '../../components/Panel'
 import { FloatingAction } from '../../components/FloatingAction'
 import { TechnicalDetails } from './TechnicalDetails'
 import { ModifiedDateNotice } from './ModifiedDateNotice'
 
-const RESTORE_STATUS = {
-  preparing: 'backup.status.preparing',
-  ready: 'backup.status.ready',
-  running: 'backup.status.running',
-  succeeded: 'backup.restored',
-  failed: 'backup.restoreFailed',
-  cancelled: 'backup.restoreCancelled',
-} as const
-
 /**
- * 一次复制任务的详情：先给结论再给细节，写入是否成功以接收端回读的结果为准。
- * 进行中时可以取消传输，结束后可以重新扫描。
+ * 传输与恢复详情页：复制任务与本机恢复任务共用同一套布局、进度环、步骤条、结果列表与技术详情。
+ * 进行中时可以取消任务，结束后可重新扫描或跳回备份页。
  */
 export function SyncTaskDetails({
   projectId,
+  initialKind,
   sync,
   copy,
   isLoading,
   restore,
+  restoreSourceName,
   games,
   peers,
   errors,
@@ -44,11 +53,15 @@ export function SyncTaskDetails({
   onBackup,
 }: {
   readonly projectId: string | null
+  /** 打开页面时优先展示复制还是恢复；null 时自动按进行中优先。 */
+  readonly initialKind: 'copy' | 'restore' | null
   readonly sync: MobileSyncAdapter
   readonly copy: MobileCopyDetails | null
   /** 这款游戏的记录还没读到，此时不能说它没有记录。 */
   readonly isLoading: boolean
   readonly restore: MobileRestoreDetails | null
+  /** 恢复任务来源备份的显示名；未知时为 null。 */
+  readonly restoreSourceName: string | null
   readonly games: readonly LibraryGame[]
   readonly peers: readonly LibraryPeer[]
   readonly errors: readonly ShownError[]
@@ -60,6 +73,7 @@ export function SyncTaskDetails({
   readonly onBackup: (projectId: string) => void
 }): React.JSX.Element {
   const t = useT()
+  const [selectedKind, setSelectedKind] = useState<'copy' | 'restore' | null>(initialKind)
   const [isBusy, setIsBusy] = useState(false)
   const [error, setError] = useState<ShownError | null>(null)
   function act(work: () => Promise<unknown>): void {
@@ -76,13 +90,41 @@ export function SyncTaskDetails({
       })
       .finally(() => setIsBusy(false))
   }
-  const state = copy?.state
-  const binding = copy?.preview.binding
-  const game = games.find((item) => item.id === binding?.projectId)
+
+  const startedRestore =
+    restore && restore.state.status !== 'preparing' && restore.state.status !== 'ready'
+      ? restore
+      : null
+  const copyState = copy?.state ?? null
+  const binding = copy?.preview.binding ?? null
+  const isCopyRunning =
+    copyState !== null &&
+    observeSyncJob(copyState.local, copyState.remote, copyState.remoteError !== null).phase ===
+      'running'
+  const restoreObservation = startedRestore
+    ? observeRestoreTask({
+        ...startedRestore.state,
+        cleanupError: startedRestore.state.result?.cleanupError ?? null,
+      })
+    : null
+  const isRestoreRunning = restoreObservation?.phase === 'running'
+
+  const shownKind: 'copy' | 'restore' | null =
+    selectedKind === 'restore' && startedRestore
+      ? 'restore'
+      : selectedKind === 'copy' && copy
+        ? 'copy'
+        : isRestoreRunning && !isCopyRunning
+          ? 'restore'
+          : copy
+            ? 'copy'
+            : startedRestore
+              ? 'restore'
+              : null
+
+  const copyGame = games.find((item) => item.id === binding?.projectId)
+  const restoreGame = games.find((item) => item.id === startedRestore?.state.projectId)
   const peer = peers.find((item) => item.device.id === binding?.remoteDeviceId)
-  const isRunning =
-    state &&
-    observeSyncJob(state.local, state.remote, state.remoteError !== null).phase === 'running'
   const localEnd: PlanEndpoint = { name: t('transfer.local'), kind: 'mobile' }
   const remoteEnd: PlanEndpoint = {
     name: peer?.device.name ?? t('common.unknown'),
@@ -95,10 +137,22 @@ export function SyncTaskDetails({
   useEffect(() => {
     showFailure(failure, failure ? t(error ? 'app.actionFailed' : 'task.readFailed') : null)
   }, [failure, error, showFailure, t])
+
+  const copySwitchStatus =
+    copyState !== null
+      ? syncTaskPreview(
+          observeSyncJob(copyState.local, copyState.remote, copyState.remoteError !== null),
+          t,
+        ).status
+      : null
+  const restoreSwitchStatus = restoreObservation
+    ? restoreObservationPreview(restoreObservation, t).status
+    : null
+
   return (
     <div className="page-stack">
       {failureHolder}
-      {!copy && !restore && failure ? (
+      {!copy && !startedRestore && failure ? (
         <div className="empty-state">
           <p>{t('task.readFailed')}</p>
           <Button
@@ -112,38 +166,40 @@ export function SyncTaskDetails({
           </Button>
         </div>
       ) : null}
-      {!copy && !restore && !failure && !isLoading && (
+      {!copy && !startedRestore && !failure && !isLoading ? (
         <p className="notice">
           {projectId
             ? `${games.find((item) => item.id === projectId)?.name ?? t('common.unknown')} · ${t('game.noTask')}`
             : t('task.none')}
         </p>
-      )}
-      {copy && state && binding ? (
+      ) : null}
+      {shownKind === 'copy' && copy && copyState && binding ? (
         <>
           {/* 本机发起时这条提示已在计划页显示过；对方发起时本机没有计划页，在这里显示。 */}
-          {state.local.role === 'receiver' && peerInitiatedJobIds.has(state.jobId) ? (
+          {copyState.local.role === 'receiver' && peerInitiatedJobIds.has(copyState.jobId) ? (
             <ModifiedDateNotice plan={copy.plan} />
           ) : null}
           <SyncTaskSummary
-            key={state.jobId}
-            gameName={game?.name ?? t('common.unknown')}
+            key={copyState.jobId}
+            gameName={copyGame?.name ?? t('common.unknown')}
             source={isLocalSource ? localEnd : remoteEnd}
             target={isLocalSource ? remoteEnd : localEnd}
-            local={state.local}
-            remote={state.remote}
-            remoteError={state.remoteError}
+            local={copyState.local}
+            remote={copyState.remote}
+            remoteError={copyState.remoteError}
             onRetryCleanup={
-              isRunning || !state.local.cleanupError ? null : () => act(() => sync.cleanupCopy())
+              isCopyRunning || !copyState.local.cleanupError
+                ? null
+                : () => act(() => sync.cleanupCopy())
             }
             // 备份建在被写入的一端；本机发送时备份在对方设备上，这里不提供入口。
             onViewBackup={
-              state.local.role === 'receiver' ? () => onBackup(binding.projectId) : null
+              copyState.local.role === 'receiver' ? () => onBackup(binding.projectId) : null
             }
             renderTechnicalDetails={(text) => <TechnicalDetails text={text} />}
           />
-          {isRunning ? <p className="foot-note">{t('task.backgroundNote')}</p> : null}
-          {isRunning ? (
+          {isCopyRunning ? <p className="foot-note">{t('task.backgroundNote')}</p> : null}
+          {isCopyRunning ? (
             <FloatingAction
               color="danger"
               icon={<StopOutlined />}
@@ -151,7 +207,7 @@ export function SyncTaskDetails({
               label={t('task.cancel')}
               isDisabled={isBusy}
               isLoading={false}
-              onClick={() => act(() => sync.cancelCopy(state.jobId))}
+              onClick={() => act(() => sync.cancelCopy(copyState.jobId))}
             />
           ) : (
             <FloatingAction
@@ -168,16 +224,78 @@ export function SyncTaskDetails({
           )}
         </>
       ) : null}
-      {restore ? (
-        <Panel title={t('backup.restoreTask')}>
-          <p>
-            {games.find((item) => item.id === restore.state.projectId)?.name ?? t('common.unknown')}{' '}
-            · {t(RESTORE_STATUS[restore.state.status])}
-          </p>
-          <Button onClick={() => onBackup(restore.state.projectId)}>
-            {t('backup.openRestore')}
-          </Button>
-        </Panel>
+      {shownKind === 'restore' && startedRestore ? (
+        <>
+          <RestoreSummary
+            key={startedRestore.state.restoreId}
+            gameName={restoreGame?.name ?? t('common.unknown')}
+            source={{ name: restoreSourceName ?? t('backup.list'), kind: 'backup' }}
+            target={localEnd}
+            restoreId={startedRestore.state.restoreId}
+            status={startedRestore.state.status}
+            stage={startedRestore.state.stage}
+            failureStage={startedRestore.state.failureStage}
+            updatedAt={startedRestore.state.updatedAt}
+            progress={startedRestore.state.progress}
+            result={startedRestore.state.result}
+            error={startedRestore.state.error}
+            cleanupError={startedRestore.state.result?.cleanupError ?? null}
+            onRetryCleanup={
+              !isRestoreRunning && startedRestore.state.result?.cleanupError && !isBusy
+                ? () => act(() => sync.cleanupRestore())
+                : null
+            }
+            onViewBackup={() => onBackup(startedRestore.state.projectId)}
+            renderTechnicalDetails={(text) => <TechnicalDetails text={text} />}
+          />
+          {isRestoreRunning ? (
+            <FloatingAction
+              color="danger"
+              icon={<StopOutlined />}
+              iconPlacement="start"
+              label={t('backup.cancelRestore')}
+              isDisabled={isBusy}
+              isLoading={false}
+              onClick={() => act(() => sync.cancelRestore(startedRestore.state.restoreId))}
+            />
+          ) : null}
+        </>
+      ) : null}
+      {shownKind === 'copy' && startedRestore && restoreSwitchStatus ? (
+        <div className="ss-task-group">
+          <button
+            type="button"
+            className="ss-task-row ss-pressable"
+            onClick={() => setSelectedKind('restore')}
+          >
+            <span className="ss-task-lead is-accent">
+              <HistoryOutlined />
+            </span>
+            <span className="ss-task-body">
+              {restoreGame?.name ?? t('common.unknown')} · {t('backup.restoreTask')}
+              <small>{restoreSwitchStatus}</small>
+            </span>
+            <RightOutlined className="ss-task-chevron" />
+          </button>
+        </div>
+      ) : null}
+      {shownKind === 'restore' && copy && copySwitchStatus ? (
+        <div className="ss-task-group">
+          <button
+            type="button"
+            className="ss-task-row ss-pressable"
+            onClick={() => setSelectedKind('copy')}
+          >
+            <span className="ss-task-lead is-accent">
+              <SwapOutlined />
+            </span>
+            <span className="ss-task-body">
+              {copyGame?.name ?? t('common.unknown')} · {t('page.task')}
+              <small>{copySwitchStatus}</small>
+            </span>
+            <RightOutlined className="ss-task-chevron" />
+          </button>
+        </div>
       ) : null}
     </div>
   )

@@ -32,7 +32,7 @@ import { DesktopShell } from './DesktopShell.tsx'
 import type { AppPreferencesState } from './use-app-preferences.ts'
 import {
   GameActions,
-  restoreTaskPreview,
+  restoreObservationPreview,
   syncTaskPreview,
   usePageNavigation,
   useT,
@@ -75,6 +75,7 @@ export function DesktopApp({
   const [taskProjectId, setTaskProjectId] = useState<string | null>(null)
   const [taskCopyId, setTaskCopyId] = useState<string | null>(null)
   const [taskRestoreId, setTaskRestoreId] = useState<string | null>(null)
+  const [restoreSources, setRestoreSources] = useState<Readonly<Record<string, string>>>({})
   const [snapshot, setSnapshot] = useState<DesktopSnapshot | null>(null)
   // 失败用 Message 提示一次，不在页面里放横幅。
   const showError = useShowFailure(appMessage)
@@ -328,7 +329,7 @@ export function DesktopApp({
         }
       : restore
         ? {
-            ...restoreTaskPreview(restore.status, restore.hasCleanupError, t),
+            ...restoreObservationPreview(restore, t),
             gameName:
               config.games.find((item) => item.id === restore.projectId)?.name ??
               t('common.unknown'),
@@ -802,15 +803,15 @@ export function DesktopApp({
             (item) => taskProjectId === null || item.projectId === taskProjectId,
           ) ?? []
         }
+        restoreSources={restoreSources}
         games={config.games}
         peers={peers}
-        isActive={isActive}
         onChanged={tasksChanged}
-        onOpenBackup={(projectId, shownCopyId) =>
+        onOpenBackup={(projectId, shownCopyId, shownRestoreId) =>
           openBackup(projectId, {
             ...pageContext,
             taskCopyId: shownCopyId,
-            taskRestoreId: null,
+            taskRestoreId: shownRestoreId,
           })
         }
         onRescan={(projectId, deviceId, isRescanUpload, shownCopyId) => {
@@ -835,6 +836,15 @@ export function DesktopApp({
         hasRunningWork={hasRunningWork}
         onOpenSettings={() => navigation.open('edit')}
         onOpenAppSettings={() => navigation.open('settings')}
+        onRestoreStarted={(restoreId, sourceName) => {
+          setRestoreSources((current) => ({ ...current, [restoreId]: sourceName }))
+          refresh()
+            .catch((cause: unknown) => showError(toShownError(cause)))
+            .finally(() => {
+              showTask(game?.id ?? null, null, restoreId)
+              navigation.open('task')
+            })
+        }}
         onChanged={tasksChanged}
       />
     )

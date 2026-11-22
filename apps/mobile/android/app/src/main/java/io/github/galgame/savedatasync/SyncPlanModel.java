@@ -242,7 +242,7 @@ final class SyncPlanModel {
         isRestore
           ? value.get("direction").equals("local-restore") &&
               shouldBackup &&
-              !shouldDeleteExtras &&
+              shouldDeleteExtras &&
               source.device.equals(target.device)
           : !value.get("direction").equals("local-restore") && !source.device.equals(target.device)
       );

@@ -7,6 +7,7 @@ import {
   createConnectionCandidates,
   emptyLibrary,
   formatConnectionAddress,
+  observeRestoreTask,
   observeSyncJob,
   toShownError,
   withGameLink,
@@ -36,7 +37,7 @@ import { PAGE_TITLE_KEYS } from './navigation-types'
 import {
   ErrorText,
   GameActions,
-  restoreTaskPreview,
+  restoreObservationPreview,
   syncTaskPreview,
   usePageNavigation,
   useT,
@@ -96,6 +97,8 @@ export function MobileApp({
   const t = useT()
   const [appMessage, messageContextHolder] = useAppMessage()
   const [taskProjectId, setTaskProjectId] = useState<string | null>(null)
+  const [taskKind, setTaskKind] = useState<'copy' | 'restore' | null>(null)
+  const [restoreSources, setRestoreSources] = useState<Readonly<Record<string, string>>>({})
   const [gameId, setGameId] = useState('')
   const navigation = usePageNavigation<Page, PageContext>({
     initialPage: 'devices',
@@ -387,9 +390,11 @@ export function MobileApp({
   const copyPreview =
     copyObserved && isStripShown(copyProjectId, copyObserved.phase) ? copyObserved : null
   const restoreObserved = syncTasks.restore
-    ? restoreTaskPreview(
-        syncTasks.restore.state.status,
-        Boolean(syncTasks.restore.state.result?.cleanupError),
+    ? restoreObservationPreview(
+        observeRestoreTask({
+          ...syncTasks.restore.state,
+          cleanupError: syncTasks.restore.state.result?.cleanupError ?? null,
+        }),
         t,
       )
     : null
@@ -779,8 +784,9 @@ export function MobileApp({
     setIsGameMenuOpen(false)
     navigation.open(value)
   }
-  function openTasks(projectId: string | null): void {
+  function openTasks(projectId: string | null, kind: 'copy' | 'restore' | null = null): void {
     setTaskProjectId(projectId)
+    setTaskKind(kind)
     setIsGameMenuOpen(false)
     navigation.open('task')
   }
@@ -962,9 +968,7 @@ export function MobileApp({
         isConnectionKnown={snapshot !== null}
         task={stripTask}
         onOpenGame={openGame}
-        onOpenTasks={() =>
-          !shouldShowCopy && stripProjectId ? openBackup(stripProjectId) : openTasks(stripProjectId)
-        }
+        onOpenTasks={() => openTasks(stripProjectId, shouldShowCopy ? 'copy' : 'restore')}
       />
     )
   } else if (page === 'edit' && game) {
@@ -1023,21 +1027,27 @@ export function MobileApp({
           await syncTasks.refreshCopy().catch(() => undefined)
           // 开始传输结束本次流程：详情返回游戏页，不回比较或计划。
           setTaskProjectId(game.id)
+          setTaskKind('copy')
           navigation.finishFlow('task')
         }}
       />
     )
   } else if (page === 'task') {
+    const taskRestore =
+      taskProjectId === null || syncTasks.restore?.state.projectId === taskProjectId
+        ? syncTasks.restore
+        : null
     body = (
       <SyncTaskDetails
+        key={`${taskProjectId ?? 'all'}/${taskKind ?? 'auto'}`}
         projectId={taskProjectId}
+        initialKind={taskKind}
         sync={sync}
         copy={taskProjectId === null ? syncTasks.copy : syncTasks.projectCopy}
         isLoading={syncTasks.isProjectCopyLoading}
-        restore={
-          taskProjectId === null || syncTasks.restore?.state.projectId === taskProjectId
-            ? syncTasks.restore
-            : null
+        restore={taskRestore}
+        restoreSourceName={
+          taskRestore ? (restoreSources[taskRestore.state.restoreId] ?? null) : null
         }
         games={config.games}
         peers={peers}
@@ -1083,8 +1093,16 @@ export function MobileApp({
         rootId={game?.rootId ?? null}
         sourceName={restoreTarget.sourceName}
         isDisabled={isDisabled || isActive}
+        onStarted={async (restoreId, sourceName) => {
+          setRestoreSources((current) => ({ ...current, [restoreId]: sourceName }))
+          setRestoreTarget(null)
+          // 先读到进行中的恢复再切页，避免详情页短暂显示旧任务。
+          await syncTasks.refreshRestore().catch(() => undefined)
+          setTaskProjectId(game?.id ?? null)
+          setTaskKind('restore')
+          navigation.finishFlow('task')
+        }}
         onChanged={() => syncTasks.reload()}
-        onDone={closeRestore}
         onFailure={showSyncFailure}
       />
     )

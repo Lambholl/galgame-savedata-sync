@@ -756,7 +756,7 @@ export class WindowsSyncWriter {
         operation: 'restore',
         direction: 'local-restore',
         shouldBackup: true,
-        shouldDeleteExtras: false,
+        shouldDeleteExtras: true,
         source: handle.snapshot(),
         target,
       })

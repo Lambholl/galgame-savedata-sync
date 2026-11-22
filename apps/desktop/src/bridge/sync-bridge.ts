@@ -13,6 +13,7 @@ import {
   matchesSyncJobDigest,
   matchesSyncJobState,
   matchesSyncPlan,
+  RESTORE_STEP_DONE,
   SYNC_STEP_DONE,
 } from '@savedata-sync/shared'
 import type {
@@ -24,6 +25,11 @@ import type {
   SyncJobRequest,
   SyncJobState,
   SyncPlan,
+  SyncRestoreFailureStage,
+  SyncRestoreObservation,
+  SyncRestoreProgress,
+  SyncRestoreStage,
+  SyncRestoreStatus,
   SyncTransferState,
 } from '@savedata-sync/shared'
 
@@ -47,28 +53,34 @@ export interface DesktopCopySummary {
   /** 这次传输由对方设备发起。 */
   readonly isPeerInitiated: boolean
 }
-/** 本机恢复任务列表的一行。 */
+/** 本机恢复任务列表的一行；phase 到 percent 是由当前状态与进度合成的结论。 */
 export interface DesktopRestoreSummary {
   readonly restoreId: string
   readonly projectId: string
   readonly rootId: string
   readonly backupId: string
-  readonly status:
-    'preparing' | 'ready' | 'running' | 'succeeded' | 'failed' | 'cancelled' | 'unknown'
-  readonly stage:
-    'preparing' | 'ready' | 'verifying' | 'backing-up' | 'writing' | 'cleaning' | 'done'
+  readonly status: SyncRestoreStatus
+  readonly phase: SyncRestoreObservation['phase']
+  readonly stage: SyncRestoreStage
+  readonly step: SyncRestoreObservation['step']
+  readonly percent: SyncRestoreObservation['percent']
   readonly updatedAt: number
   readonly hasCleanupError: boolean
   readonly isWorking: boolean
 }
-/** 本机恢复任务的完整状态，包括进度、结果和错误。 */
-export interface DesktopRestoreState extends DesktopRestoreSummary {
-  readonly progress: {
-    readonly publishedFiles: number
-    readonly totalFiles: number
-    readonly fileBytesPublished: number
-    readonly totalFileBytes: number | null
-  }
+/** 本机恢复任务的完整状态，包括阶段、进度、结果和错误。 */
+export interface DesktopRestoreState {
+  readonly restoreId: string
+  readonly projectId: string
+  readonly rootId: string
+  readonly backupId: string
+  readonly status: SyncRestoreStatus
+  readonly stage: SyncRestoreStage
+  readonly failureStage: SyncRestoreFailureStage | null
+  readonly updatedAt: number
+  readonly hasCleanupError: boolean
+  readonly isWorking: boolean
+  readonly progress: SyncRestoreProgress
   readonly result: SyncApplyResult | null
   readonly error: OperationError | null
   readonly cleanupError: OperationError | null
@@ -325,15 +337,33 @@ export function isDesktopRemoteRequest(value: unknown): value is DesktopRemoteRe
     time(value.updatedAt)
   )
 }
+const RESTORE_SUMMARY_FIELDS = [...RESTORE_FIELDS, 'phase', 'step', 'percent']
 /** 校验恢复任务摘要。 */
 export function isDesktopRestoreSummary(value: unknown): value is DesktopRestoreSummary {
-  return shape(value, RESTORE_FIELDS) && restoreSummary(value)
+  return (
+    shape(value, RESTORE_SUMMARY_FIELDS) &&
+    restoreSummary(value) &&
+    member(value.phase, ['running', 'done', 'partial', 'failed', 'cancelled', 'unknown']) &&
+    (value.step === null || count(value.step, RESTORE_STEP_DONE)) &&
+    (value.percent === null || count(value.percent, 100))
+  )
 }
 /** 校验恢复任务的完整状态。 */
 export function isDesktopRestoreState(value: unknown): value is DesktopRestoreState {
   if (
-    !shape(value, [...RESTORE_FIELDS, 'progress', 'result', 'error', 'cleanupError']) ||
+    !shape(value, [
+      ...RESTORE_FIELDS,
+      'failureStage',
+      'progress',
+      'result',
+      'error',
+      'cleanupError',
+    ]) ||
     !restoreSummary(value) ||
+    !(
+      value.failureStage === null ||
+      member(value.failureStage, ['preparing', 'backing-up', 'writing'])
+    ) ||
     !(value.error === null || isOperationError(value.error)) ||
     !(
       value.cleanupError === null ||
@@ -346,7 +376,16 @@ export function isDesktopRestoreState(value: unknown): value is DesktopRestoreSt
   }
   const progress = value.progress
   if (
-    !shape(progress, ['publishedFiles', 'totalFiles', 'fileBytesPublished', 'totalFileBytes']) ||
+    !shape(progress, [
+      'backupBytesCopied',
+      'totalBackupBytes',
+      'publishedFiles',
+      'totalFiles',
+      'fileBytesPublished',
+      'totalFileBytes',
+    ]) ||
+    !count(progress.totalBackupBytes, BATCH_LIMITS.maxTotalFileBytes) ||
+    !count(progress.backupBytesCopied, progress.totalBackupBytes) ||
     !count(progress.totalFiles, BATCH_LIMITS.maxFiles) ||
     !count(progress.publishedFiles, progress.totalFiles) ||
     !(

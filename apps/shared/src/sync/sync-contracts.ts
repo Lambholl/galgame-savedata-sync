@@ -120,7 +120,7 @@ export interface SyncPlanInput {
   readonly operation: 'copy' | 'restore'
   readonly direction: SyncDirection | 'local-restore'
   readonly shouldBackup: boolean
-  /** 只在目标有的条目：false 保留，true 删除。恢复计划固定为 false。 */
+  /** 只在目标有的条目：false 保留，true 删除。恢复计划固定为 true。 */
   readonly shouldDeleteExtras: boolean
   readonly source: SyncSnapshot
   readonly target: SyncSnapshot
@@ -235,4 +235,25 @@ export interface SyncApplyResult {
   readonly outcomes: readonly SyncWriteOutcome[]
   readonly error: OperationError | null
   readonly cleanupError: OperationError | null
+}
+
+/** 本机恢复任务的状态。 */
+export type SyncRestoreStatus =
+  'preparing' | 'ready' | 'running' | 'succeeded' | 'failed' | 'cancelled' | 'unknown'
+
+/** 本机恢复任务所处的阶段。 */
+export type SyncRestoreStage =
+  'preparing' | 'ready' | 'verifying' | 'backing-up' | 'writing' | 'cleaning' | 'done'
+
+/** 本机恢复任务失败或中断时所在的阶段。 */
+export type SyncRestoreFailureStage = 'preparing' | 'backing-up' | 'writing'
+
+/** 本机恢复任务在备份与写入阶段的字节和文件计数。 */
+export interface SyncRestoreProgress {
+  readonly backupBytesCopied: number
+  readonly totalBackupBytes: number
+  readonly publishedFiles: number
+  readonly totalFiles: number
+  readonly fileBytesPublished: number
+  readonly totalFileBytes: number | null
 }

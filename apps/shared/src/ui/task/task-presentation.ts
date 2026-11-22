@@ -1,12 +1,17 @@
+import type { MessageKey } from '../../i18n/messages.ts'
 import type { Translate } from '../../i18n/translate.ts'
 import type { SyncJobObservation, SyncTaskPhase } from '../../sync/sync-job-observation.ts'
+import type { SyncRestoreObservation } from '../../sync/sync-restore-observation.ts'
 
-/** 三段进度的本地化键。 */
+/** 复制任务三段进度的本地化键。 */
 export const SYNC_TASK_STEPS = [
   'task.step.backup',
   'task.step.transfer',
   'task.step.write',
 ] as const
+
+/** 恢复任务两段进度的本地化键。 */
+export const RESTORE_TASK_STEPS = ['task.step.backup', 'task.step.write'] as const
 
 /** 编号步骤条所需的数据。 */
 export interface TaskStepProgress {
@@ -14,6 +19,8 @@ export interface TaskStepProgress {
   readonly current: number | null
   /** 当前阶段的完成百分比，未知时使用起始刻度。 */
   readonly percent: number | null
+  /** 各阶段的本地化键；省略时使用 {@link SYNC_TASK_STEPS}。 */
+  readonly labels?: readonly MessageKey[]
 }
 
 /** 任务的短状态。 */
@@ -24,7 +31,7 @@ export interface TaskPreview {
   readonly percent: number | null
   /** 决定图标与语义色的任务状态。 */
   readonly phase: SyncTaskPhase
-  /** 复制任务的三段步骤；恢复用 null。 */
+  /** 各阶段进度；没有步骤条时为 null。 */
   readonly steps: TaskStepProgress | null
 }
 
@@ -73,6 +80,42 @@ export function syncTaskPreview(
 // 传输失败又清理失败时只写清理失败，会让人以为传输本身成功了。
 function withCleanupFailure(status: string, hasCleanupError: boolean, t: Translate): string {
   return hasCleanupError ? `${status} · ${t('task.cleanupFailed')}` : status
+}
+
+/** 由恢复任务的观察结果生成短状态；清理失败的写法同 {@link syncTaskPreview}。 */
+export function restoreObservationPreview(
+  observation: Pick<
+    SyncRestoreObservation,
+    'phase' | 'stage' | 'step' | 'percent' | 'hasCleanupError'
+  >,
+  t: Translate,
+): TaskPreview {
+  const { phase, stage, step, percent, hasCleanupError } = observation
+  const steps: TaskStepProgress = { current: step, percent, labels: RESTORE_TASK_STEPS }
+  if (phase === 'running') {
+    return {
+      status: stage === 'ready' ? t('backup.status.ready') : t(`task.stage.${stage}`),
+      percent,
+      phase,
+      steps,
+    }
+  }
+  if (hasCleanupError && phase === 'done') {
+    return { status: t('task.cleanupFailed'), percent: null, phase: 'partial', steps }
+  }
+  const key = {
+    done: 'backup.restored',
+    partial: 'task.partial',
+    failed: 'backup.restoreFailed',
+    cancelled: 'backup.restoreCancelled',
+    unknown: 'backup.restoreUnknown',
+  } as const
+  return {
+    status: withCleanupFailure(t(key[phase]), hasCleanupError, t),
+    percent: phase === 'done' ? 100 : null,
+    phase,
+    steps,
+  }
 }
 
 /** 恢复任务的状态。 */

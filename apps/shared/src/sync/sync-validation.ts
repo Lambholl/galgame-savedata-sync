@@ -105,7 +105,7 @@ export function isSyncPlanInput(value: unknown): value is SyncPlanInput {
       (value.operation === 'restore' &&
         value.direction === 'local-restore' &&
         value.shouldBackup === true &&
-        value.shouldDeleteExtras === false)) &&
+        value.shouldDeleteExtras === true)) &&
     typeof value.shouldBackup === 'boolean' &&
     typeof value.shouldDeleteExtras === 'boolean' &&
     isSyncSnapshot(value.source) &&

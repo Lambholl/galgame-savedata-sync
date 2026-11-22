@@ -4,8 +4,9 @@ import static io.github.galgame.savedatasync.TransferJson.copy;
 import static io.github.galgame.savedatasync.TransferJson.list;
 import static io.github.galgame.savedatasync.TransferJson.map;
 import static io.github.galgame.savedatasync.TransferJson.object;
-import static io.github.galgame.savedatasync.TransferSchema.error;
 import static io.github.galgame.savedatasync.TransferSchema.id;
+import static io.github.galgame.savedatasync.TransferSchema.nullable;
+import static io.github.galgame.savedatasync.TransferSchema.number;
 import static io.github.galgame.savedatasync.TransferSchema.string;
 
 import android.content.Context;
@@ -40,6 +41,16 @@ final class SyncWriteRuntime implements AutoCloseable {
     ArchiveControl control = new ArchiveControl();
     SyncWriter.Restore restore;
     String status = "preparing";
+    String stage = "preparing";
+    String failureStage;
+    String lastStage = "preparing";
+    long updatedAt = System.currentTimeMillis();
+    long backupBytesCopied;
+    long totalBackupBytes;
+    int publishedFiles;
+    int totalFiles;
+    long fileBytesPublished;
+    Long totalFileBytes;
     Object preview;
     Object result;
     Object error;
@@ -66,6 +77,27 @@ final class SyncWriteRuntime implements AutoCloseable {
             backup,
             "status",
             status,
+            "stage",
+            stage,
+            "failureStage",
+            failureStage,
+            "updatedAt",
+            updatedAt,
+            "progress",
+            object(
+              "backupBytesCopied",
+              backupBytesCopied,
+              "totalBackupBytes",
+              totalBackupBytes,
+              "publishedFiles",
+              publishedFiles,
+              "totalFiles",
+              totalFiles,
+              "fileBytesPublished",
+              fileBytesPublished,
+              "totalFileBytes",
+              totalFileBytes
+            ),
             "result",
             result,
             "error",
@@ -190,6 +222,8 @@ final class SyncWriteRuntime implements AutoCloseable {
           job.control.check();
           job.preview = restore.preview();
           job.status = "ready";
+          job.stage = "ready";
+          job.updatedAt = System.currentTimeMillis();
           settled(job);
         }
       } catch (Exception failure) {
@@ -248,25 +282,112 @@ final class SyncWriteRuntime implements AutoCloseable {
         "The confirmed plan differs from this restore preview."
       );
     }
+    final long totalFiles = number(plan.value.get("transferFileCount"), 0, 1024);
+    final Long totalFileBytes = nullable(
+      plan.value.get("totalFileBytes"),
+      0,
+      BackupModel.MAX_TOTAL
+    );
+    final Long backupBytes = nullable(plan.value.get("backupFileBytes"), 0, BackupModel.MAX_TOTAL);
     job.control = new ArchiveControl();
     job.status = "running";
+    job.stage = "verifying";
+    job.failureStage = null;
+    job.lastStage = "preparing";
+    job.backupBytesCopied = 0;
+    job.totalBackupBytes = backupBytes == null ? 0 : backupBytes;
+    job.publishedFiles = 0;
+    job.totalFiles = (int) totalFiles;
+    job.fileBytesPublished = 0;
+    job.totalFileBytes = totalFileBytes;
+    job.updatedAt = System.currentTimeMillis();
     job.isRunning = true;
     active = job;
+    SyncWriter.Observer observer = new SyncWriter.Observer() {
+      @Override
+      public void stage(String stage) {
+        synchronized (SyncWriteRuntime.this) {
+          if (stage.equals("checking")) {
+            job.stage = "verifying";
+            job.lastStage = "preparing";
+          } else {
+            job.stage = stage;
+            if (stage.equals("backing-up") || stage.equals("writing")) {
+              job.lastStage = stage;
+            }
+          }
+          job.updatedAt = System.currentTimeMillis();
+        }
+      }
+
+      @Override
+      public void backup(long bytesCopied) {
+        synchronized (SyncWriteRuntime.this) {
+          job.backupBytesCopied = Math.min(Math.max(0, bytesCopied), job.totalBackupBytes);
+          job.updatedAt = System.currentTimeMillis();
+        }
+      }
+
+      @Override
+      public void outcome(Map<String, Object> item) throws Exception {
+        if (!"succeeded".equals(item.get("status")) || !SyncPlanModel.isFileWrite(item)) {
+          return;
+        }
+        Long bytes = nullable(item.get("sizeBytes"), 0, BackupModel.MAX_FILE);
+        synchronized (SyncWriteRuntime.this) {
+          job.publishedFiles = Math.min(job.publishedFiles + 1, job.totalFiles);
+          if (bytes != null) {
+            long limit = job.totalFileBytes == null ? BackupModel.MAX_TOTAL : job.totalFileBytes;
+            job.fileBytesPublished = Math.min(job.fileBytesPublished + bytes, limit);
+          }
+          job.updatedAt = System.currentTimeMillis();
+        }
+      }
+    };
     worker.execute(() -> {
       try {
-        Map<String, Object> result = job.restore.apply(plan.value, job.control);
+        Map<String, Object> result = job.restore.apply(plan.value, job.control, observer);
         synchronized (this) {
           job.result = result;
           job.restore = null;
-          boolean isComplete = result.get("error") == null;
+          Object resultError = result.get("error");
+          boolean isUnknown =
+            resultError instanceof Map && "result-unknown".equals(map(resultError).get("code"));
+          boolean isComplete = resultError == null;
           boolean isCancelled = false;
+          int published = 0;
+          long publishedBytes = 0;
           for (Object item : list(result.get("outcomes"))) {
-            String status = string(map(item).get("status"));
+            Map<String, Object> entry = map(item);
+            String status = string(entry.get("status"));
             isComplete &= status.equals("succeeded");
             isCancelled |= status.equals("cancelled");
+            if (status.equals("succeeded") && SyncPlanModel.isFileWrite(entry)) {
+              published++;
+              Long bytes = nullable(entry.get("sizeBytes"), 0, BackupModel.MAX_FILE);
+              if (bytes != null) {
+                publishedBytes += bytes;
+              }
+            }
           }
-          job.status = isComplete ? "succeeded" : isCancelled ? "cancelled" : "failed";
-          job.error = result.get("error");
+          String nextStatus = isUnknown
+            ? "unknown"
+            : isComplete
+              ? "succeeded"
+              : isCancelled
+                ? "cancelled"
+                : "failed";
+          job.status = nextStatus;
+          job.stage = "done";
+          job.failureStage =
+            nextStatus.equals("failed") || nextStatus.equals("unknown") ? job.lastStage : null;
+          job.error = resultError;
+          job.publishedFiles = published;
+          job.fileBytesPublished = publishedBytes;
+          if (isComplete || result.get("backupId") != null) {
+            job.backupBytesCopied = job.totalBackupBytes;
+          }
+          job.updatedAt = System.currentTimeMillis();
           settled(job);
         }
       } catch (Exception failure) {
@@ -294,9 +415,12 @@ final class SyncWriteRuntime implements AutoCloseable {
       }
     }
     job.status = failure.isCancelled ? "cancelled" : "failed";
+    job.stage = "done";
+    job.failureStage = failure.isCancelled ? null : job.lastStage;
     job.error = failure.isCancelled
       ? null
       : object("code", failure.code, "message", failure.getMessage(), "canRetry", false);
+    job.updatedAt = System.currentTimeMillis();
     settled(job);
   }
 
@@ -321,6 +445,9 @@ final class SyncWriteRuntime implements AutoCloseable {
         job.restore = null;
         job.preview = null;
         job.status = "cancelled";
+        job.stage = "done";
+        job.failureStage = null;
+        job.updatedAt = System.currentTimeMillis();
         job.touched = System.nanoTime();
       }
       return job.state();

@@ -30,11 +30,12 @@ export interface TaskStripProps {
 export function TaskStrip({ task, onOpen }: TaskStripProps): ReactElement {
   const isRunning = task.phase === 'running'
   const t = useT()
+  const stepLabels = task.steps?.labels ?? SYNC_TASK_STEPS
   const step = task.steps?.current ?? null
-  const completed = step === null ? 0 : Math.min(step, SYNC_TASK_STEPS.length)
+  const completed = step === null ? 0 : Math.min(step, stepLabels.length)
   const hasCurrent =
     step !== null &&
-    step < SYNC_TASK_STEPS.length &&
+    step < stepLabels.length &&
     (isRunning || task.phase === 'failed' || task.phase === 'partial')
   const hasError = task.phase === 'failed' || task.phase === 'partial'
   const activeCount = completed + (hasCurrent ? 1 : 0)
@@ -46,7 +47,7 @@ export function TaskStrip({ task, onOpen }: TaskStripProps): ReactElement {
     lineHeight: 0,
     '--ss-task-stage-fill': `linear-gradient(to right, ${currentColor} ${currentPercent}%, var(--ss-raised) ${currentPercent}%)`,
   }
-  const colors = SYNC_TASK_STEPS.map((_, index) =>
+  const colors = stepLabels.map((_, index) =>
     index < completed ? 'var(--ss-ok)' : hasError ? 'var(--ss-danger)' : 'var(--ss-accent)',
   )
   const statusText = `${task.status}${isRunning && task.percent !== null ? ` · ${task.percent}%` : ''}`
@@ -76,8 +77,8 @@ export function TaskStrip({ task, onOpen }: TaskStripProps): ReactElement {
         {task.steps ? (
           <Progress
             className="ss-task-strip-progress"
-            steps={SYNC_TASK_STEPS.length}
-            percent={(activeCount / SYNC_TASK_STEPS.length) * 100}
+            steps={stepLabels.length}
+            percent={(activeCount / stepLabels.length) * 100}
             showInfo={false}
             size={[14, 4]}
             strokeColor={colors}
@@ -88,8 +89,8 @@ export function TaskStrip({ task, onOpen }: TaskStripProps): ReactElement {
               body: { width: '100%' },
               track: { flex: 1, width: 0 },
             }}
-            aria-label={SYNC_TASK_STEPS.map((key) => t(key)).join(' / ')}
-            aria-valuemax={SYNC_TASK_STEPS.length}
+            aria-label={stepLabels.map((key) => t(key)).join(' / ')}
+            aria-valuemax={stepLabels.length}
             aria-valuenow={completed + (hasCurrent ? currentPercent / 100 : 0)}
             aria-valuetext={statusText}
           />

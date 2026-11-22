@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { BATCH_LIMITS, SYNC_MODIFIED_TOLERANCE_MS, createSyncPlan } from '../src/index.ts'
+import {
+  BATCH_LIMITS,
+  SYNC_MODIFIED_TOLERANCE_MS,
+  createSyncPlan,
+  isSyncPlan,
+} from '../src/index.ts'
 
 const DATE = 1700000000000
 
@@ -161,6 +166,35 @@ test('复制的两端是同一设备、恢复的两端不是同一设备时阻�
     operation: 'restore',
     direction: 'local-restore',
     shouldBackup: true,
+    shouldDeleteExtras: true,
   })
   assert.deepEqual(issueCodes(restore), ['invalid-context'])
+})
+
+test('恢复计划删除目标目录里多出的文件与目录并保持可校验', () => {
+  const restore = plan(
+    [file('slot1.sav', 20, 200)],
+    [file('slot1.sav', 10, 100), directory('extra-dir'), file('extra-dir/extra.sav', 5, 100)],
+    {
+      operation: 'restore',
+      direction: 'local-restore',
+      shouldBackup: true,
+      shouldDeleteExtras: true,
+      target: snapshot('pc', [
+        file('slot1.sav', 10, 100),
+        directory('extra-dir'),
+        file('extra-dir/extra.sav', 5, 100),
+      ]),
+    },
+  )
+  assert.equal(restore.canExecute, true)
+  assert.equal(isSyncPlan(restore), true)
+  assert.deepEqual(
+    restore.entries.map((entry) => [entry.path.join('/'), entry.action]),
+    [
+      ['slot1.sav', 'replace-file'],
+      ['extra-dir/extra.sav', 'delete-file'],
+      ['extra-dir', 'delete-directory'],
+    ],
+  )
 })

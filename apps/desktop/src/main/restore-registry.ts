@@ -1,6 +1,19 @@
 import { randomUUID } from 'node:crypto'
-import { BATCH_TIMEOUTS_MS, SYNC_LIMITS, isOpaqueId, matchesSyncPlan } from '@savedata-sync/shared'
-import type { OperationError, SyncApplyResult, SyncPlan } from '@savedata-sync/shared'
+import {
+  BATCH_TIMEOUTS_MS,
+  SYNC_LIMITS,
+  isOpaqueId,
+  isSyncFileWrite,
+  matchesSyncPlan,
+  observeRestoreTask,
+  syncJobBackupBytes,
+} from '@savedata-sync/shared'
+import type {
+  OperationError,
+  SyncApplyResult,
+  SyncPlan,
+  SyncRestoreFailureStage,
+} from '@savedata-sync/shared'
 import type { DesktopRestoreState, DesktopRestoreSummary } from '../bridge/sync-bridge.ts'
 import type { WindowsDirectoryAdapter } from './directory-adapter.ts'
 import type { WindowsBackupStore } from './backup-store.ts'
@@ -25,6 +38,7 @@ interface RestoreJob {
   timeout: ReturnType<typeof setTimeout> | null
   settledAt: number
   acceptedAt: number
+  lastStage: SyncRestoreFailureStage
   isWorking: boolean
   hasLease: boolean
   hasTimedOut: boolean
@@ -103,17 +117,23 @@ export class WindowsRestoreRegistry {
   }
   /** 列出恢复任务的摘要。 */
   summaries(): readonly DesktopRestoreSummary[] {
-    return [...this.jobs.values()].map(({ state, isWorking }) => ({
-      restoreId: state.restoreId,
-      projectId: state.projectId,
-      rootId: state.rootId,
-      backupId: state.backupId,
-      status: state.status,
-      stage: state.stage,
-      updatedAt: state.updatedAt,
-      hasCleanupError: state.hasCleanupError,
-      isWorking,
-    }))
+    return [...this.jobs.values()].map(({ state, isWorking }) => {
+      const observation = observeRestoreTask(state)
+      return {
+        restoreId: state.restoreId,
+        projectId: state.projectId,
+        rootId: state.rootId,
+        backupId: state.backupId,
+        status: state.status,
+        phase: observation.phase,
+        stage: state.stage,
+        step: observation.step,
+        percent: observation.percent,
+        updatedAt: state.updatedAt,
+        hasCleanupError: state.hasCleanupError,
+        isWorking,
+      }
+    })
   }
   /** 读取恢复任务的状态；任务不存在时抛错。 */
   state(id: string): DesktopRestoreState {
@@ -164,6 +184,7 @@ export class WindowsRestoreRegistry {
         timeout: null,
         settledAt: 0,
         acceptedAt: 0,
+        lastStage: 'preparing',
         isWorking: true,
         hasLease: false,
         hasTimedOut: false,
@@ -175,10 +196,13 @@ export class WindowsRestoreRegistry {
           backupId,
           status: 'preparing',
           stage: 'preparing',
+          failureStage: null,
           isWorking: true,
           updatedAt: Date.now(),
           hasCleanupError: false,
           progress: {
+            backupBytesCopied: 0,
+            totalBackupBytes: 0,
             publishedFiles: 0,
             totalFiles: 0,
             fileBytesPublished: 0,
@@ -244,6 +268,8 @@ export class WindowsRestoreRegistry {
           status: 'ready',
           stage: 'ready',
           progress: {
+            backupBytesCopied: 0,
+            totalBackupBytes: job.plan ? syncJobBackupBytes(job.plan) : 0,
             publishedFiles: 0,
             fileBytesPublished: 0,
             totalFiles: job.plan?.transferFileCount ?? 0,
@@ -306,8 +332,15 @@ export class WindowsRestoreRegistry {
     job.controller = new AbortController()
     job.hasTimedOut = false
     job.acceptedAt = Date.now()
+    job.lastStage = 'preparing'
     this.confirmed++
-    job.state = { ...job.state, status: 'running', stage: 'verifying', error: null }
+    job.state = {
+      ...job.state,
+      status: 'running',
+      stage: 'verifying',
+      failureStage: null,
+      error: null,
+    }
     this.touch(job)
     this.arm(job)
     job.worker = this.executeNow(job)
@@ -324,11 +357,23 @@ export class WindowsRestoreRegistry {
         lease: { token: job.token, acceptedAt: job.acceptedAt },
         verifyContext: () => this.verify(job),
         onStage: (stage) => {
+          job.lastStage = stage === 'checking' ? 'preparing' : stage
           job.state = { ...job.state, stage: stage === 'checking' ? 'verifying' : stage }
           this.touch(job)
         },
+        onBackupProgress: (bytesCopied) => {
+          const total = job.state.progress.totalBackupBytes
+          job.state = {
+            ...job.state,
+            progress: {
+              ...job.state.progress,
+              backupBytesCopied: Math.min(bytesCopied, total),
+            },
+          }
+          this.touch(job)
+        },
         onOutcome: (outcome) => {
-          if (outcome.status === 'succeeded' && outcome.action !== 'create-directory') {
+          if (outcome.status === 'succeeded' && isSyncFileWrite(outcome.action)) {
             job.state = {
               ...job.state,
               progress: {
@@ -368,26 +413,32 @@ export class WindowsRestoreRegistry {
       result.error === null && result.outcomes.every((item) => item.status === 'succeeded')
     const wasCancelled = result.outcomes.some((item) => item.status === 'cancelled')
     const files = result.outcomes.filter(
-      (item) => item.status === 'succeeded' && item.action !== 'create-directory',
+      (item) => item.status === 'succeeded' && isSyncFileWrite(item.action),
     )
+    const status =
+      result.error?.code === 'result-unknown'
+        ? 'unknown'
+        : hasSucceeded
+          ? 'succeeded'
+          : wasCancelled
+            ? 'cancelled'
+            : 'failed'
     job.hasBackupCleanup = result.cleanupError !== null
     job.state = {
       ...job.state,
-      status:
-        result.error?.code === 'result-unknown'
-          ? 'unknown'
-          : hasSucceeded
-            ? 'succeeded'
-            : wasCancelled
-              ? 'cancelled'
-              : 'failed',
+      status,
       stage: 'done',
+      failureStage: status === 'failed' || status === 'unknown' ? job.lastStage : null,
       result,
       error: result.error,
       cleanupError: result.cleanupError,
       hasCleanupError: result.cleanupError !== null,
       progress: {
         ...job.state.progress,
+        backupBytesCopied:
+          hasSucceeded || result.backupId !== null
+            ? job.state.progress.totalBackupBytes
+            : job.state.progress.backupBytesCopied,
         publishedFiles: files.length,
         fileBytesPublished: files.reduce((sum, item) => sum + (item.sizeBytes ?? 0), 0),
       },
@@ -401,6 +452,7 @@ export class WindowsRestoreRegistry {
       ...job.state,
       status: wasCancelled ? 'cancelled' : 'failed',
       stage: 'done',
+      failureStage: wasCancelled ? null : job.lastStage,
       error: wasCancelled
         ? null
         : toHttpError(

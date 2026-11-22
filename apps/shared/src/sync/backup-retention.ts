@@ -11,7 +11,7 @@ export const BACKUP_KEEP_COUNT_MIN = 1
 /** 每个游戏保留备份份数的上限。 */
 export const BACKUP_KEEP_COUNT_MAX = 4096
 /** 每个游戏默认保留的备份份数。 */
-export const DEFAULT_BACKUP_KEEP_COUNT = 3
+export const DEFAULT_BACKUP_KEEP_COUNT = 10
 /** 最多可以单独设置备份策略的游戏数。 */
 export const BACKUP_PREFERENCE_LIMIT = 128
 

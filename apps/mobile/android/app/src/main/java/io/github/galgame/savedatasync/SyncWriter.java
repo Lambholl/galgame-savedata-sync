@@ -164,7 +164,7 @@ final class SyncWriter implements AutoCloseable {
     Job(SyncPlanModel.Plan plan, ArchiveControl control, Execution execution) {
       this.plan = plan;
       this.control = control;
-      ownToken = execution == null;
+      ownToken = execution == null || execution.token == null;
       token = ownToken ? new Object() : execution.token;
       observer = execution == null ? null : execution.observer;
     }
@@ -914,6 +914,11 @@ final class SyncWriter implements AutoCloseable {
     }
 
     Map<String, Object> apply(Object raw, ArchiveControl control) throws Exception {
+      return apply(raw, control, null);
+    }
+
+    Map<String, Object> apply(Object raw, ArchiveControl control, Observer observer)
+      throws Exception {
       SyncPlanModel.Plan plan = new SyncPlanModel.Plan(raw);
       synchronized (SyncWriter.this) {
         if (
@@ -941,7 +946,9 @@ final class SyncWriter implements AutoCloseable {
       }
       Map<String, Object> result = null;
       try {
-        result = SyncWriter.this.apply(plan.value, this, control);
+        Execution execution =
+          observer == null ? null : new Execution(null, System.currentTimeMillis(), observer);
+        result = SyncWriter.this.apply(plan.value, this, control, execution);
         return result;
       } finally {
         try {

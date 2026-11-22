@@ -526,8 +526,8 @@ body {
   gap: 12px;
   padding: 12px 14px;
   border: 1px solid var(--ss-line);
-  border-radius: var(--ss-radius-md);
-  background: var(--ss-surface);
+  border-radius: var(--ss-r-md);
+  background: var(--ss-group);
 }
 .backup-manual-body {
   display: flex;
@@ -535,7 +535,7 @@ body {
   flex-direction: column;
   gap: 4px;
   min-width: 0;
-  color: var(--ss-ink);
+  color: var(--ss-fg);
   font-size: 13px;
 }
 .backup-columns {

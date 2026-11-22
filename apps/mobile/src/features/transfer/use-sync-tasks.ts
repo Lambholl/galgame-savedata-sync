@@ -7,7 +7,7 @@ import type {
   MobileSyncAdapter,
 } from '../../platform/sync-adapter'
 
-/** 持续读取复制任务；卸载时停止读取，任务继续。 */
+/** 持续读取复制与恢复任务；卸载时停止读取，任务继续。 */
 export function useSyncTasks(
   adapter: MobileSyncAdapter,
   projectId: string | null,
@@ -21,8 +21,10 @@ export function useSyncTasks(
   readonly errors: readonly ShownError[]
   readonly isActive: boolean
   readonly reload: () => void
-  /** 立刻读一次当前任务，读到后才完成；读取失败时拒绝，已有状态不变。 */
+  /** 立刻读一次当前复制任务，读到后才完成；读取失败时拒绝，已有状态不变。 */
   readonly refreshCopy: () => Promise<void>
+  /** 立刻读一次当前恢复任务，读到后才完成；读取失败时拒绝，已有状态不变。 */
+  readonly refreshRestore: () => Promise<void>
 } {
   const [copy, setCopy] = useState<MobileCopyDetails | null>(null)
   const [projectResult, setProjectResult] = useState<{
@@ -47,11 +49,29 @@ export function useSyncTasks(
         return
       }
       const [copyResult, restoreResult, latestResult] = results
+      let isBusyNow = false
       if (copyResult.status === 'fulfilled') {
         setCopy(copyResult.value)
+        if (
+          copyResult.value &&
+          observeSyncJob(
+            copyResult.value.state.local,
+            copyResult.value.state.remote,
+            copyResult.value.state.remoteError !== null,
+          ).phase === 'running'
+        ) {
+          isBusyNow = true
+        }
       }
       if (restoreResult.status === 'fulfilled') {
         setRestore(restoreResult.value)
+        if (
+          restoreResult.value &&
+          (restoreResult.value.state.status === 'preparing' ||
+            restoreResult.value.state.status === 'running')
+        ) {
+          isBusyNow = true
+        }
       }
       if (projectId !== null && latestResult.status === 'fulfilled') {
         setProjectResult({ projectId, copy: latestResult.value })
@@ -61,13 +81,16 @@ export function useSyncTasks(
           result.status === 'rejected' ? [toShownError(result.reason)] : [],
         ),
       )
-      timer = setTimeout(() => {
-        poll().catch((cause: unknown) => {
-          if (isCurrent) {
-            setErrors([toShownError(cause)])
-          }
-        })
-      }, 1500)
+      timer = setTimeout(
+        () => {
+          poll().catch((cause: unknown) => {
+            if (isCurrent) {
+              setErrors([toShownError(cause)])
+            }
+          })
+        },
+        isBusyNow ? 700 : 1500,
+      )
     }
     poll().catch((cause: unknown) => {
       if (isCurrent) {
@@ -98,5 +121,6 @@ export function useSyncTasks(
       Boolean(restore?.state.result?.cleanupError),
     reload: () => setVersion((value) => value + 1),
     refreshCopy: async () => setCopy(await adapter.currentCopy()),
+    refreshRestore: async () => setRestore(await adapter.currentRestore()),
   }
 }

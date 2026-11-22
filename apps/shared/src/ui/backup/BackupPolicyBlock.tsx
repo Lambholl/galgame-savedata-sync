@@ -31,9 +31,6 @@ export function BackupPolicyBlock({
     isCustom ? t('backup.customSetting') : t('backup.followGlobal'),
     t('backup.keep', { count: keepCount }),
   ]
-  if (!isEnabled) {
-    parts.push(t('backup.offHint'))
-  }
   const caption = parts.join(' · ')
   return (
     <button

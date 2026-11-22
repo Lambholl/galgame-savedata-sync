@@ -47,6 +47,7 @@ export function BackupPage({
   hasRunningWork,
   onOpenSettings,
   onOpenAppSettings,
+  onRestoreStarted,
   onChanged,
 }: {
   readonly roots: readonly DirectoryReference[]
@@ -56,6 +57,8 @@ export function BackupPage({
   readonly onOpenSettings: () => void
   /** 打开应用设置，修改全局备份设置。 */
   readonly onOpenAppSettings: () => void
+  /** 确认恢复并开始执行后打开任务详情页。 */
+  readonly onRestoreStarted: (restoreId: string, sourceName: string) => void
   readonly onChanged: () => void
 }): React.JSX.Element {
   const t = useT()
@@ -540,7 +543,7 @@ export function BackupPage({
           </Button>
         </div>
       ) : null}
-      {/* 恢复预览在与传输计划相同的确认抽屉里打开，不改动本页内容。 */}
+      {/* 恢复预览在与传输计划相同的确认抽屉里打开，确认后跳到任务详情页。 */}
       {restoreId ? (
         <RestoreDetails
           key={restoreId}
@@ -552,8 +555,12 @@ export function BackupPage({
             setRestoreId(null)
             refresh()
           }}
+          onStarted={(startedId) => {
+            const label = selected ? when(selected.createdAt) : t('backup.list')
+            setRestoreId(null)
+            onRestoreStarted(startedId, label)
+          }}
           onChanged={onChanged}
-          onOpenBackup={null}
         />
       ) : null}
       {error && !listing && !isLoading ? (

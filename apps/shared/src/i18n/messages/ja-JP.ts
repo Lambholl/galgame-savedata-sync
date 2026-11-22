@@ -233,10 +233,9 @@ export const jaJP: Messages = {
   'game.noRemoteGames': 'この端末にはまだゲームがありません。',
   'game.noDevices': '関連付けられる端末がまだありません。',
 
-  'backup.on': '書き込み前のバックアップは有効です',
-  'backup.off': '書き込み前のバックアップは無効です',
+  'backup.on': '自動バックアップは有効です',
+  'backup.off': '自動バックアップは無効です',
   'backup.keep': ({ count }) => `${count} 件保持`,
-  'backup.offHint': '受信したデータを転送先のファイルに直接書き込みます',
   'backup.location': '保存場所',
   'backup.openFolder': 'フォルダーを開く',
   'backup.list': 'バックアップ',
@@ -246,7 +245,7 @@ export const jaJP: Messages = {
   'backup.files': ({ count, size }) => `${count} 件 · ${size}`,
   'backup.restore': '復元',
   'backup.none':
-    'バックアップはまだありません。現在のセーブデータを今すぐバックアップするか、書き込み前のバックアップを有効にして転送時に自動保存できます。',
+    'バックアップはまだありません。現在のセーブデータを今すぐバックアップするか、自動バックアップを有効にして書き込み前に自動保存できます。',
   'backup.manualStart': '今すぐバックアップ',
   'backup.manualScanning': '現在のファイルを読み取っています…',
   'backup.manualRunning': 'バックアップ中…',
@@ -264,10 +263,9 @@ export const jaJP: Messages = {
   'backup.deleteTitle': 'バックアップを削除',
   'backup.deleteText': ({ time }) =>
     `${time} のバックアップを削除しますか？削除すると、このバックアップからは復元できなくなります。`,
-  'backup.storageNote':
-    'バックアップは、ゲーム名と日時を名前にしたフォルダーに 1 件ずつ保存されます。フォルダーは直接削除できます。アプリのアンインストールやデータの消去を行うと、バックアップも削除されます。',
-  'backup.switch': '書き込み前にバックアップ',
+  'backup.switch': '自動バックアップ',
   'backup.confirmRestore': '復元する',
+  'backup.cancelRestore': '復元をキャンセル',
   'backup.preparing': 'バックアップを確認し、現在のファイルを読み取っています…',
   'backup.restoring': ({ done, total }) => `復元中 ${done} / ${total}`,
   'backup.restored': '復元完了',

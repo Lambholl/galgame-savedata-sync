@@ -238,10 +238,9 @@ export const enUS: Messages = {
   'game.noRemoteGames': 'No games on this device yet.',
   'game.noDevices': 'No devices to link yet.',
 
-  'backup.on': 'Backup before writing is on',
-  'backup.off': 'Backup before writing is off',
+  'backup.on': 'Auto backup is on',
+  'backup.off': 'Auto backup is off',
   'backup.keep': ({ count }) => `keep ${count}`,
-  'backup.offHint': 'Incoming transfers write directly to the target folder',
   'backup.location': 'Location',
   'backup.openFolder': 'Open folder',
   'backup.list': 'Backups',
@@ -251,7 +250,7 @@ export const enUS: Messages = {
   'backup.files': ({ count, size }) => `${count} ${count === 1 ? 'file' : 'files'} · ${size}`,
   'backup.restore': 'Restore',
   'backup.none':
-    'No backups yet. You can back up the current save folder now, or turn on backup before writing so transfers save it automatically.',
+    'No backups yet. You can back up the current save folder now, or turn on auto backup to save it before writing.',
   'backup.manualStart': 'Back up now',
   'backup.manualScanning': 'Reading current files…',
   'backup.manualRunning': 'Backing up…',
@@ -271,10 +270,9 @@ export const enUS: Messages = {
   'backup.deleteTitle': 'Delete backup',
   'backup.deleteText': ({ time }) =>
     `Delete the backup from ${time}? You won't be able to restore from it afterwards.`,
-  'backup.storageNote':
-    'Each backup is a folder named by game and time, and can be deleted directly. Uninstalling the app or clearing its data deletes them.',
-  'backup.switch': 'Backup before writing',
+  'backup.switch': 'Auto backup',
   'backup.confirmRestore': 'Restore',
+  'backup.cancelRestore': 'Cancel restore',
   'backup.preparing': 'Checking the backup and reading current files…',
   'backup.restoring': ({ done, total }) => `Restoring ${done} / ${total}`,
   'backup.restored': 'Restore complete',

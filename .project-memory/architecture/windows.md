@@ -188,7 +188,7 @@ HTTP 服务注入 `scanSource: adapter` 后开放 `/v1/sync/capabilities`、`POS
 
 创建时清单先写成 `in-progress.json`，每个文件复制前后核对来源的大小和修改日期、核对复制的字节数，复制出的文件带上来源的修改日期；全部完成后原子改名为 `backup.json`。默认期限 30 分钟；不超过 16 MiB 的文件整个读入后写出，更大的按 1 MiB 分块。预算、清单和恢复规则见[复制、备份与恢复约定](sync-copy.md)。
 
-每个游戏保留的份数取备份设置（1–4096，默认 3），不分目录，只统计完整的备份；自动备份（`copy`、`restore`）与手动备份（`manual`）平级轮换。新轮可读后才轮换；活动恢复句柄保护输入轮次。淘汰先把 `backup.json` 改回 `in-progress.json` 再删文件。文件缺失或大小不符的备份和未提交的一样显示为不完整，不能恢复，不挡新备份，须明确清理；读不懂的内容直接忽略，不自动删除。
+每个游戏保留的份数取备份设置（1–4096，默认 10），不分目录，只统计完整的备份；自动备份（`copy`、`restore`）与手动备份（`manual`）平级轮换。新轮可读后才轮换；活动恢复句柄保护输入轮次。淘汰先把 `backup.json` 改回 `in-progress.json` 再删文件。文件缺失或大小不符的备份和未提交的一样显示为不完整，不能恢复，不挡新备份，须明确清理；读不懂的内容直接忽略，不自动删除。
 
 `src/main/manual-backup-registry.ts` 的 `WindowsManualBackupRegistry` 持有本机手动备份异步任务：启动时复核本机游戏目录并占用 `TargetOperation` 名额，扫描当前存档目录并调用 `createManual` 提交，终态按 `BATCH_TIMEOUTS_MS.terminalRetention` 保留供查询，应用退出时随 `stop()` 取消并释放名额。
 
@@ -230,9 +230,9 @@ HTTP 服务注入 `scanSource: adapter` 后开放 `/v1/sync/capabilities`、`POS
 | `copies()` | 最多 32 份 `DesktopCopySummary`；`isAwaitingPeer` 只在已确认、移动端还没登记任务时为 true，此时 phase 必为 running；`isPeerInitiated` 为 true 表示任务由对方设备发起：监听方任务看登记时是否匹配本机已确认、等对方登记的请求，拨号方任务看是否来自监听方的 `sync.prepare` |
 | `copyPlan(jobId)` / `copyState(jobId)` | 分别返回 `SyncJobRequest` 和含本机、对端两个角色的 `SyncTransferState` |
 | `cancelCopy(jobId)` / `cleanupCopy(jobId)` | 取消先通知移动端再停止本机；清理成功返回 null |
-| `restores()` | 最多 32 份 `DesktopRestoreSummary`，含状态、阶段、清理标记和 `isWorking` |
+| `restores()` | 最多 32 份 `DesktopRestoreSummary`，含状态、`phase`、阶段、`step`、`percent`、清理标记和 `isWorking` |
 | `prepareRestore(projectId, rootId, backupId)` | rootId 是游戏当前的目录，备份可以来自游戏之前用过的目录；返回 preparing 状态 |
-| `restorePlan(restoreId)` / `restoreState(restoreId)` | 分别返回固定 `SyncPlan` 和 `DesktopRestoreState` |
+| `restorePlan(restoreId)` / `restoreState(restoreId)` | 分别返回固定 `SyncPlan`（`shouldDeleteExtras = true`）和含 `failureStage` 与备份/写入字节计数的 `DesktopRestoreState` |
 | `executeRestore(restoreId, plan)` | 完整且与原生预览一致的可执行计划；接纳后立即返回 running 状态 |
 | `cancelRestore(restoreId)` | 取消准备/未确认预览或请求停止写入 |
 | `cleanupRestore(restoreId)` / `releaseRestore(restoreId)` | 前者重试释放本次候选/输入，后者释放已停止的预览/结果 |

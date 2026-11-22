@@ -244,10 +244,9 @@ export const zhCN = {
   'game.noRemoteGames': '这台设备上还没有游戏。',
   'game.noDevices': '还没有可关联的设备。',
 
-  'backup.on': '写入前备份已开启',
-  'backup.off': '写入前备份已关闭',
+  'backup.on': '自动备份已开启',
+  'backup.off': '自动备份已关闭',
   'backup.keep': ({ count }: { count: number }): string => `保留 ${count} 份`,
-  'backup.offHint': '收到传输时直接写入目标文件',
   'backup.location': '保存位置',
   'backup.openFolder': '打开文件夹',
   'backup.list': '备份',
@@ -257,7 +256,7 @@ export const zhCN = {
   'backup.files': ({ count, size }: { count: number; size: string }): string =>
     `${count} 个文件 · ${size}`,
   'backup.restore': '恢复',
-  'backup.none': '还没有备份。可以立即备份当前存档，或开启写入前备份，在写入文件时自动保存。',
+  'backup.none': '还没有备份。可以立即备份当前存档，或开启自动备份，在写入文件前自动保存。',
   'backup.manualStart': '立即备份',
   'backup.manualScanning': '正在读取当前文件…',
   'backup.manualRunning': '正在备份…',
@@ -276,10 +275,9 @@ export const zhCN = {
   'backup.deleteTitle': '删除备份',
   'backup.deleteText': ({ time }: { time: string }): string =>
     `删除 ${time} 的备份？删除后不能再用它恢复。`,
-  'backup.storageNote':
-    '每份备份是一个文件夹，按游戏名和时间命名，可以直接删除。卸载应用或清除数据会一并删除。',
-  'backup.switch': '写入前备份',
+  'backup.switch': '自动备份',
   'backup.confirmRestore': '确认恢复',
+  'backup.cancelRestore': '取消恢复',
   'backup.preparing': '正在核对备份并读取当前文件…',
   'backup.restoring': ({ done, total }: { done: number; total: number }): string =>
     `正在恢复 ${done} / ${total}`,

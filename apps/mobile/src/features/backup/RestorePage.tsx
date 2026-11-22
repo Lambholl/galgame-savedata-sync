@@ -1,21 +1,20 @@
 import { useState } from 'react'
-import { HistoryOutlined } from '@ant-design/icons'
+import { LoadingOutlined } from '@ant-design/icons'
 import { toShownError } from '@savedata-sync/shared'
 import type { ShownError } from '@savedata-sync/shared'
-import { RestoreSummary, useT } from '@savedata-sync/shared/ui'
+import { ErrorText, useT } from '@savedata-sync/shared/ui'
 import type { MobileRestoreDetails, MobileSyncAdapter } from '../../platform/sync-adapter'
-import { FloatingAction } from '../../components/FloatingAction'
 import { PlanConfirm } from '../transfer/PlanConfirm'
 
-/** 恢复页：待确认时显示恢复预览，确认后在同一页显示进度和结果。 */
+/** 恢复预览页：准备中显示等待提示，就绪后展示恢复计划，确认启动后触发 onStarted。 */
 export function RestorePage({
   sync,
   restore,
   rootId,
   sourceName,
   isDisabled,
+  onStarted,
   onChanged,
-  onDone,
   onFailure,
 }: {
   readonly sync: MobileSyncAdapter
@@ -26,26 +25,33 @@ export function RestorePage({
   /** 计划里来源一端的名称，通常是备份时间。 */
   readonly sourceName: string
   readonly isDisabled: boolean
+  /** 确认恢复并成功启动后触发。 */
+  readonly onStarted: (restoreId: string, sourceName: string) => Promise<void>
   readonly onChanged: () => void
-  readonly onDone: () => void
   readonly onFailure: (error: ShownError) => void
 }): React.JSX.Element {
   const t = useT()
-  const [isBusy, setIsBusy] = useState(false)
+  const [isStarting, setIsStarting] = useState(false)
   const state = restore?.state
   const plan = restore?.plan
-  function run(work: () => Promise<unknown>): void {
-    if (isBusy) {
+
+  function start(restoreId: string): void {
+    if (isStarting) {
       return
     }
-    setIsBusy(true)
-    work()
-      .catch((cause: unknown) => onFailure(toShownError(cause)))
-      .finally(() => {
-        setIsBusy(false)
+    setIsStarting(true)
+    sync
+      .executeRestore(restoreId)
+      .then(() => onStarted(restoreId, sourceName))
+      .catch((cause: unknown) => {
+        onFailure(toShownError(cause))
         onChanged()
       })
+      .finally(() => {
+        setIsStarting(false)
+      })
   }
+
   if (state?.status === 'ready' && plan) {
     const hasFolderChanged = state.rootId !== rootId
     return (
@@ -53,7 +59,6 @@ export function RestorePage({
         plan={plan}
         source={{ name: sourceName, kind: 'backup' }}
         target={{ name: t('transfer.local'), kind: 'mobile' }}
-        backupKeepCount={null}
         notice={
           hasFolderChanged ? (
             <p className="notice notice-warning">{t('backup.folderChanged')}</p>
@@ -62,36 +67,34 @@ export function RestorePage({
         action={{
           label: t('backup.confirmRestore'),
           isDisabled: isDisabled || !plan.canExecute || hasFolderChanged,
-          isLoading: isBusy,
-          onClick: () => run(() => sync.executeRestore(state.restoreId)),
+          isLoading: isStarting,
+          onClick: () => start(state.restoreId),
         }}
       />
     )
   }
-  const phase = !state || state.status === 'ready' ? 'preparing' : state.status
+
+  if (state && state.status !== 'preparing' && state.status !== 'ready') {
+    return (
+      <div className="empty-state">
+        <p>
+          {state.error ? (
+            <ErrorText error={state.error} context={t('backup.restoreFailed')} />
+          ) : (
+            t('backup.restoreCancelled')
+          )}
+        </p>
+      </div>
+    )
+  }
+
   return (
-    <>
-      <RestoreSummary
-        phase={phase}
-        progress={null}
-        result={state?.result ?? null}
-        error={state?.error ?? null}
-        cleanupError={null}
-        onRetryCleanup={
-          state?.result?.cleanupError && !isBusy ? () => run(() => sync.cleanupRestore()) : null
-        }
-      />
-      {phase !== 'preparing' && phase !== 'running' && (
-        <FloatingAction
-          color="primary"
-          icon={<HistoryOutlined />}
-          iconPlacement="start"
-          label={t('task.viewBackup')}
-          isDisabled={isBusy}
-          isLoading={false}
-          onClick={onDone}
-        />
-      )}
-    </>
+    <div className="ss-task">
+      <div className="ss-task-hero">
+        <p className="ss-task-wait">
+          <LoadingOutlined /> {t('backup.preparing')}
+        </p>
+      </div>
+    </div>
   )
 }

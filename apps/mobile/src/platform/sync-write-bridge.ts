@@ -1,10 +1,12 @@
 import {
+  BATCH_LIMITS,
   createSyncPlan,
   isOpaqueId,
   isOperationError,
   isInterruptedWriteList,
   isOperationResult,
   isSyncApplyResult,
+  isSyncFileWrite,
   isSyncPlan,
   isSyncSnapshot,
   matchesSyncApplyResult,
@@ -15,6 +17,10 @@ import type {
   OperationResult,
   SyncApplyResult,
   SyncPlan,
+  SyncRestoreFailureStage,
+  SyncRestoreProgress,
+  SyncRestoreStage,
+  SyncRestoreStatus,
 } from '@savedata-sync/shared'
 
 /** 本机恢复任务的状态；恢复计划用 preview 单独读取。 */
@@ -23,7 +29,11 @@ export interface AndroidRestoreState {
   readonly projectId: string
   readonly rootId: string
   readonly backupId: string
-  readonly status: 'preparing' | 'ready' | 'running' | 'succeeded' | 'failed' | 'cancelled'
+  readonly status: SyncRestoreStatus
+  readonly stage: SyncRestoreStage
+  readonly failureStage: SyncRestoreFailureStage | null
+  readonly updatedAt: number
+  readonly progress: SyncRestoreProgress
   readonly result: SyncApplyResult | null
   readonly error: OperationError | null
 }
@@ -94,12 +104,78 @@ function invalid(
     },
   }
 }
+function member<T extends string>(value: unknown, values: readonly T[]): value is T {
+  return typeof value === 'string' && values.includes(value as T)
+}
+function count(value: unknown, maximum: number): value is number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 && value <= maximum
+}
+function time(value: unknown): value is number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && Math.abs(value) <= 8.64e15
+}
 function isState(value: unknown): value is AndroidRestoreState {
   if (
-    !shape(value, ['restoreId', 'projectId', 'rootId', 'backupId', 'status', 'result', 'error']) ||
+    !shape(value, [
+      'restoreId',
+      'projectId',
+      'rootId',
+      'backupId',
+      'status',
+      'stage',
+      'failureStage',
+      'updatedAt',
+      'progress',
+      'result',
+      'error',
+    ]) ||
     ![value.restoreId, value.projectId, value.rootId, value.backupId].every(isOpaqueId) ||
+    !member(value.status, [
+      'preparing',
+      'ready',
+      'running',
+      'succeeded',
+      'failed',
+      'cancelled',
+      'unknown',
+    ]) ||
+    !member(value.stage, [
+      'preparing',
+      'ready',
+      'verifying',
+      'backing-up',
+      'writing',
+      'cleaning',
+      'done',
+    ]) ||
+    !(
+      value.failureStage === null ||
+      member(value.failureStage, ['preparing', 'backing-up', 'writing'])
+    ) ||
+    !time(value.updatedAt) ||
     !(value.error === null || isOperationError(value.error)) ||
     !(value.result === null || isSyncApplyResult(value.result))
+  ) {
+    return false
+  }
+  const progress = value.progress
+  if (
+    !shape(progress, [
+      'backupBytesCopied',
+      'totalBackupBytes',
+      'publishedFiles',
+      'totalFiles',
+      'fileBytesPublished',
+      'totalFileBytes',
+    ]) ||
+    !count(progress.totalBackupBytes, BATCH_LIMITS.maxTotalFileBytes) ||
+    !count(progress.backupBytesCopied, progress.totalBackupBytes) ||
+    !count(progress.totalFiles, BATCH_LIMITS.maxFiles) ||
+    !count(progress.publishedFiles, progress.totalFiles) ||
+    !(
+      progress.totalFileBytes === null ||
+      count(progress.totalFileBytes, BATCH_LIMITS.maxTotalFileBytes)
+    ) ||
+    !count(progress.fileBytesPublished, progress.totalFileBytes ?? 0)
   ) {
     return false
   }
@@ -113,6 +189,23 @@ function isState(value: unknown): value is AndroidRestoreState {
   }
   if (value.status === 'preparing' || value.status === 'ready' || value.status === 'running') {
     return value.result === null && value.error === null
+  }
+  if (value.status === 'unknown') {
+    return value.error?.code === 'result-unknown'
+  }
+  if (value.error?.code === 'result-unknown') {
+    return false
+  }
+  if (value.result !== null) {
+    const files = value.result.outcomes.filter(
+      (item) => item.status === 'succeeded' && isSyncFileWrite(item.action),
+    )
+    if (
+      files.length !== progress.publishedFiles ||
+      files.reduce((sum, item) => sum + (item.sizeBytes ?? 0), 0) !== progress.fileBytesPublished
+    ) {
+      return false
+    }
   }
   if (value.status === 'succeeded') {
     return (
@@ -195,7 +288,7 @@ export function createSyncWriteBridge(
       operation: 'restore',
       direction: 'local-restore',
       shouldBackup: true,
-      shouldDeleteExtras: false,
+      shouldDeleteExtras: true,
       source: value.source,
       target: value.target,
     })

@@ -1,5 +1,6 @@
 import type { ReactElement } from 'react'
 import { Steps } from 'antd'
+import type { MessageKey } from '../../i18n/messages.ts'
 import type { SyncTaskPhase } from '../../sync/sync-job-observation.ts'
 import { SYNC_TASK_STEPS } from './task-presentation.ts'
 import { useT } from '../i18n/i18n-context.ts'
@@ -13,10 +14,17 @@ export interface TaskStepsProps {
   readonly phase: SyncTaskPhase
   /** 当前步骤的完成百分比；没有计数时使用起始刻度。 */
   readonly percent: number | null
+  /** 各阶段的本地化键；省略时默认使用 {@link SYNC_TASK_STEPS}。 */
+  readonly steps?: readonly MessageKey[]
 }
 
-/** 带编号的三段阶段条。 */
-export function TaskSteps({ step, phase, percent }: TaskStepsProps): ReactElement {
+/** 带编号的阶段条。 */
+export function TaskSteps({
+  step,
+  phase,
+  percent,
+  steps = SYNC_TASK_STEPS,
+}: TaskStepsProps): ReactElement {
   const t = useT()
   const hasError = phase === 'failed' || phase === 'partial'
   return (
@@ -26,7 +34,7 @@ export function TaskSteps({ step, phase, percent }: TaskStepsProps): ReactElemen
         titlePlacement="vertical"
         size="small"
         responsive={false}
-        current={step === null ? -1 : Math.min(step, SYNC_TASK_STEPS.length)}
+        current={step === null ? -1 : Math.min(step, steps.length)}
         percent={percent ?? 0}
         status={
           hasError && step !== null
@@ -37,8 +45,8 @@ export function TaskSteps({ step, phase, percent }: TaskStepsProps): ReactElemen
                 ? 'process'
                 : 'wait'
         }
-        aria-label={SYNC_TASK_STEPS.map((key) => t(key)).join(' / ')}
-        items={SYNC_TASK_STEPS.map((key) => ({ title: t(key) }))}
+        aria-label={steps.map((key) => t(key)).join(' / ')}
+        items={steps.map((key) => ({ title: t(key) }))}
       />
       {hasError && step === null ? (
         <p className="ss-task-stage-missing">{t('task.failureStageMissing')}</p>
