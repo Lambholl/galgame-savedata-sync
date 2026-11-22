@@ -8,6 +8,7 @@ import {
 } from '@ant-design/icons'
 import type { ShownError } from '../../result.ts'
 import type { SyncWriteOutcome } from '../../sync/sync-contracts.ts'
+import { compareNamePaths } from '../../sync/snapshot-compare.ts'
 import { formatBytes } from '../../i18n/format.ts'
 import { ErrorText } from '../errors/ErrorText.tsx'
 import { Expand, ExpandChevron } from '../expand/Expand.tsx'
@@ -42,14 +43,16 @@ export function OutcomeList({
   const locale = useLocale()
   const [isWrittenOpen, setIsWrittenOpen] = useState(false)
   const [isDeletedOpen, setIsDeletedOpen] = useState(false)
-  const succeeded = outcomes.filter((item) => item.status === 'succeeded' && !isDeleteOutcome(item))
-  const deleted = outcomes.filter((item) => item.status === 'succeeded' && isDeleteOutcome(item))
+  // outcomes 是执行顺序，显示时按路径的自然顺序重排。
+  const ordered = [...outcomes].sort((a, b) => compareNamePaths(a.path, b.path))
+  const succeeded = ordered.filter((item) => item.status === 'succeeded' && !isDeleteOutcome(item))
+  const deleted = ordered.filter((item) => item.status === 'succeeded' && isDeleteOutcome(item))
   const { files, folders } = countOutcomes(outcomes)
   const writtenLabel = [
     ...(files > 0 || folders === 0 ? [t('task.fileCount', { count: files })] : []),
     ...(folders > 0 ? [t('task.folderCount', { count: folders })] : []),
   ].join(' · ')
-  const unsettled = unsettledOutcomes(outcomes)
+  const unsettled = unsettledOutcomes(ordered)
   const hasAction = unsettled.length > 0 || cleanupError !== null || remoteError !== null
   return (
     <>

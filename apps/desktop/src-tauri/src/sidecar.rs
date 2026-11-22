@@ -98,7 +98,7 @@ pub struct Sidecar {
 impl Sidecar {
     /// 启动 sidecar，把存储目录和系统语言作为命令行参数传入。
     ///
-    /// 调试版用 PATH 里的 `node` 运行 `out/sidecar/index.mjs`，发布版运行主程序旁边的 sidecar 可执行文件。
+    /// 调试版用 PATH 里的 `node` 运行 `out/sidecar/index.cjs`，发布版运行主程序旁边的 sidecar 可执行文件。
     /// sidecar 的 stderr 继承宿主的 stderr。
     ///
     /// # Errors
@@ -147,7 +147,7 @@ impl Sidecar {
         let mut command = Command::new("node");
         command.arg(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../out/sidecar/index.mjs"
+            "/../out/sidecar/index.cjs"
         ));
         Ok(command)
     }

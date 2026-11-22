@@ -1,7 +1,7 @@
 import type { ReactElement } from 'react'
 import { Button } from 'antd'
-import { formatBytes } from '../../i18n/format.ts'
-import { useLocale, useT } from '../i18n/i18n-context.ts'
+import { formatBytes, formatMonthDay, formatTimeOfDay } from '../../i18n/format.ts'
+import { useT } from '../i18n/i18n-context.ts'
 import '../devices/devices.css'
 import './backup.css'
 
@@ -48,24 +48,17 @@ export interface BackupTimelineProps {
 /** 备份时间线：每行写明日期时间、由什么触发、文件数和大小。 */
 export function BackupTimeline({ backups, action }: BackupTimelineProps): ReactElement {
   const t = useT()
-  const locale = useLocale()
   if (!backups.length) {
     return <p className="ss-list-empty">{t('backup.none')}</p>
   }
-  const day = new Intl.DateTimeFormat(locale, { month: '2-digit', day: '2-digit' })
-  const time = new Intl.DateTimeFormat(locale, {
-    hour: '2-digit',
-    minute: '2-digit',
-    hourCycle: 'h23',
-  })
   return (
     <div className="ss-list">
       {backups.map((item) => {
         const content = (
           <>
             <span className="ss-tl-when">
-              <b>{day.format(item.createdAt)}</b>
-              {time.format(item.createdAt)}
+              <b>{formatMonthDay(item.createdAt)}</b>
+              {formatTimeOfDay(item.createdAt)}
             </span>
             <span className="ss-list-body">
               <b>{t(`backup.reason.${item.reason}`)}</b>

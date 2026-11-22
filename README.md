@@ -31,12 +31,23 @@ Windows 与 Android 的局域网文件夹同步工具。
 
 | 平台 | 安装包 | 说明 |
 | --- | --- | --- |
-| Windows 10+ | `SavedataSync-<版本>-Portable-x64.exe` | 64 位，免安装，双击即可运行 |
+| Windows 10+ | `SavedataSync-<版本>-Setup-x64.exe` | 64 位安装包，可选择只为自己安装或为所有用户安装（需要管理员权限） |
+| Windows 10+ | `SavedataSync-<版本>-Portable-x64.zip` | 64 位免安装版，解压后运行 `SavedataSync.exe` |
 | Android 11+ | `SavedataSync-<版本>-Android.apk` | 安装时需按系统提示允许安装来自该来源的未知应用 |
 
 **Windows 提示“已保护你的电脑”**
 
 程序未包含数字签名，点击“更多信息”→“仍要运行”即可。
+
+**Windows 版需要 WebView2 运行时**
+
+Windows 11 已自带。Windows 10 上安装包会在缺少时自动下载安装；免安装版打不开时，请先从微软官网安装 Microsoft Edge WebView2 运行时。
+
+**免安装版的数据保存位置**
+
+默认和安装版相同：界面设置保存在 `%APPDATA%\galgame-savedata-sync`，游戏、设备和备份保存在 `%LOCALAPPDATA%\galgame-savedata-sync`。卸载或删除程序后这些数据仍会保留。
+
+如需把数据和程序放在一起（例如放在移动硬盘中），在 `SavedataSync.exe` 所在文件夹中新建名为 `portable_data` 的文件夹，之后所有数据都保存在其中。已有的数据不会自动移入，需要重新添加游戏和设备。
 
 ## 使用
 
@@ -122,10 +133,11 @@ cd galgame-savedata-sync
 pnpm install
 pnpm doctor                     # 检查开发工具是否齐全
 pnpm dev:desktop                # 运行 Windows 开发版
+pnpm desktop:package            # Windows 安装包和免安装版
 pnpm android:build              # Android debug APK
 ```
 
-Windows 版的打包正在改为新流程，暂时只能运行开发版。Android APK 位于 `apps/mobile/android/app/build/outputs/apk/`。开发、测试、签名和发布流程见[开发指南](docs/development.md)。
+Windows 构建产物位于 `apps/desktop/release/`，Android APK 位于 `apps/mobile/android/app/build/outputs/apk/`。开发、测试、签名和发布流程见[开发指南](docs/development.md)。
 
 ## 许可证
 

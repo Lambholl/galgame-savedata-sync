@@ -151,11 +151,16 @@ function isUsableAddress(address: string): boolean {
   )
 }
 
+function addressValue(address: string): number {
+  return address.split('.').reduce((value, part) => value * 256 + Number(part), 0)
+}
+
+// 跃点数相同时按网卡名的 UTF-16 码元和地址数值排，只为结果稳定，不用 Intl，不依赖区域数据。
 function byMetric(a: NetworkAddressCandidate, b: NetworkAddressCandidate): number {
   return (
     a.metric - b.metric ||
-    a.interfaceName.localeCompare(b.interfaceName) ||
-    a.address.localeCompare(b.address, 'en', { numeric: true })
+    (a.interfaceName < b.interfaceName ? -1 : a.interfaceName > b.interfaceName ? 1 : 0) ||
+    addressValue(a.address) - addressValue(b.address)
   )
 }
 

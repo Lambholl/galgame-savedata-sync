@@ -45,6 +45,8 @@ jobs:
           distribution: temurin
           java-version: '21'
           cache: gradle
+      # 这里不加 Rust 编译缓存：缓存由普通分支的 CI 写入，发布包里的宿主要从源码完整编译。
+      - run: rustup toolchain install stable --profile minimal --component clippy,rustfmt
       - run: pnpm install --frozen-lockfile
       # 版本号来自 tag。只发布 master 上的提交，master 和 tag 要一起推送（git push --atomic origin master vX.Y.Z），
       # 或者先推送 master；只推送 tag 时这一步失败，推送 master 后重新运行即可。
@@ -88,8 +90,9 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $version = $env:RELEASE_TAG.TrimStart('v')
           New-Item -ItemType Directory -Path release-assets -Force | Out-Null
-          Copy-Item -LiteralPath "apps/desktop/release/SavedataSync-$version-Portable-x64.exe" `
-            -Destination "release-assets/SavedataSync-$version-Portable-x64.exe"
+          foreach ($name in "SavedataSync-$version-Setup-x64.exe", "SavedataSync-$version-Portable-x64.zip") {
+            Copy-Item -LiteralPath "apps/desktop/release/$name" -Destination "release-assets/$name"
+          }
           Copy-Item -LiteralPath "apps/mobile/android/app/build/outputs/apk/release/app-release.apk" `
             -Destination "release-assets/SavedataSync-$version-Android.apk"
           $checksums = Get-ChildItem -LiteralPath release-assets -File |

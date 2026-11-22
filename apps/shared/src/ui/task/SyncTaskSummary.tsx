@@ -4,9 +4,9 @@ import type { ShownError } from '../../result.ts'
 import { ErrorText } from '../errors/ErrorText.tsx'
 import { errorDetail } from '../errors/error-detail.ts'
 import type { SyncJobState } from '../../sync/sync-job-contracts.ts'
-import { formatBytes, formatDateTime } from '../../i18n/format.ts'
+import { formatBytes, formatShortDateTime } from '../../i18n/format.ts'
 import type { PlanEndpoint } from '../plan/SyncPlanSummary.tsx'
-import { useLocale, useT } from '../i18n/i18n-context.ts'
+import { useT } from '../i18n/i18n-context.ts'
 import { OutcomeList } from './OutcomeList.tsx'
 import { countOutcomes, unsettledOutcomes } from './outcomes.ts'
 import { ProgressRing, Verdict, type VerdictTone } from './TaskHero.tsx'
@@ -56,7 +56,6 @@ export function SyncTaskSummary({
   isAwaitingPeer = false,
 }: SyncTaskSummaryProps): ReactElement {
   const t = useT()
-  const locale = useLocale()
   const receiver = local.role === 'receiver' ? local : remote?.role === 'receiver' ? remote : null
   const states = remote ? [local, remote] : [local]
   const result = receiver?.result ?? null
@@ -75,7 +74,7 @@ export function SyncTaskSummary({
     `${t('task.techTask')} ${local.jobId}`,
     `${t('task.techLocal')} ${local.role}/${local.status}/${local.stage}`,
     ...(remote ? [`${t('task.techRemote')} ${remote.role}/${remote.status}/${remote.stage}`] : []),
-    `${t('task.techUpdated')} ${formatDateTime(local.updatedAt, locale)}`,
+    `${t('task.techUpdated')} ${formatShortDateTime(local.updatedAt)}`,
     // 界面只写本地化说明，原始消息与错误码都在这里。
     ...(error ? [`${t('task.techError')} ${errorDetail(error)}`] : []),
     ...(remoteError ? [`${t('task.remoteError')} ${errorDetail(remoteError)}`] : []),

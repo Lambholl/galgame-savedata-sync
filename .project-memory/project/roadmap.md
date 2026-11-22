@@ -29,10 +29,9 @@ tags: [路线图, 里程碑]
 | 优先级 | 事项 | 依赖 | 状态 |
 | --- | --- | --- | --- |
 | P0 | 保持 Android 用户发起传输由持续通知保持、当前状态独立、目录不汇总大小的边界 | [项目约束](../requirements/constraints.md)、[验收标准](../testing/acceptance.md) | active |
-| P1 | 电脑端 Tauri 打包与发布（WP-58）；宿主、sidecar 和存储目录按 [ADR-0005](../decisions/ADR-0005-tauri-sidecar-and-storage-layout.md) 已实现 | Rust 和 MSVC 生成工具 | active |
 | P1 | 数据文件读取失败不阻止启动，两端（WP-59） | 无 | planned |
 | P2 | 自定义备份库位置，只做电脑端（WP-60） | 无 | planned |
-| P3 | 电脑端支持 Linux：存储目录已按 XDG 规划；推荐地址模块（现用 `route print`、`reg query`）、短路径测试和 `Windows*` 命名要另做 | WP-58 | planned |
+| P3 | 电脑端支持 Linux：存储目录已按 XDG 规划；推荐地址模块（现用 `route print`、`reg query`）、短路径测试和 `Windows*` 命名要另做 | 无 | planned |
 | P1 | 游戏封面（REQ-024）：本机选图，按游戏名从网上抓取，从对端导入游戏时一并取对端的封面 | 导入对端封面要改设备接口，字段由维护者确认后再改 | planned |
 | P1 | 手动备份（REQ-025）和计划页的本次传输备份开关（CR-027）；自动备份保持保存目标目录全部文件 | Q-020 | planned |
 | P1 | 测试精简与长期回归：删掉只核对参数取值范围、原样转发参数之类的用例，如“保留份数超出 1–10 的设置无效”；补电脑端备份与恢复、两个电脑端实例经回环地址完整复制、读取已发布版本的游戏库配置和备份清单。`architecture/windows.md` 第 15 节列出的备份和受保护写入测试已随旧批量接口删除，精简时一并改正 | 前三项细化后确定范围 | planned |

@@ -48,7 +48,8 @@ export function TaskPage({
   const [copyId, setCopyId] = useState<string | null>(initialCopyId),
     [restoreId, setRestoreId] = useState<string | null>(initialRestoreId)
   // 默认显示最近一次传输；点历史记录切换。
-  const copy = copies.find((item) => item.jobId === copyId) ?? copies[copies.length - 1] ?? null
+  const copiesByRecent = [...copies].sort((a, b) => b.updatedAt - a.updatedAt)
+  const copy = copies.find((item) => item.jobId === copyId) ?? copiesByRecent[0] ?? null
   function backup(projectId: string): void {
     setRestoreId(null)
     onOpenBackup(projectId, copy?.jobId ?? null)
@@ -81,7 +82,7 @@ export function TaskPage({
       {copies.length > 1 && (
         <section className="task-history">
           <h2>{t('task.history')}</h2>
-          {[...copies].reverse().map((item) => (
+          {copiesByRecent.map((item) => (
             <button
               type="button"
               key={item.jobId}
@@ -102,19 +103,23 @@ export function TaskPage({
           ))}
         </section>
       )}
-      {[...restores].reverse().map((item) => (
-        <Card
-          key={item.restoreId}
-          title={`${games.find((game) => game.id === item.projectId)?.name ?? t('common.unknown')} · ${t('backup.restoreTask')}`}
-          extra={<Tag>{restoreStateTitle(t, item)}</Tag>}
-        >
-          <Space orientation="vertical" className="library-full">
-            <span>{formatShortDateTime(item.updatedAt)}</span>
-            {item.hasCleanupError ? <span>{t('task.cleanupFailed')}</span> : null}
-            <Button onClick={() => setRestoreId(item.restoreId)}>{t('backup.openRestore')}</Button>
-          </Space>
-        </Card>
-      ))}
+      {[...restores]
+        .sort((a, b) => b.updatedAt - a.updatedAt)
+        .map((item) => (
+          <Card
+            key={item.restoreId}
+            title={`${games.find((game) => game.id === item.projectId)?.name ?? t('common.unknown')} · ${t('backup.restoreTask')}`}
+            extra={<Tag>{restoreStateTitle(t, item)}</Tag>}
+          >
+            <Space orientation="vertical" className="library-full">
+              <span>{formatShortDateTime(item.updatedAt)}</span>
+              {item.hasCleanupError ? <span>{t('task.cleanupFailed')}</span> : null}
+              <Button onClick={() => setRestoreId(item.restoreId)}>
+                {t('backup.openRestore')}
+              </Button>
+            </Space>
+          </Card>
+        ))}
       {restoreId ? (
         <RestoreDetails
           key={restoreId}

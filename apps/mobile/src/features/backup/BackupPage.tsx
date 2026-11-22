@@ -155,7 +155,7 @@ export function BackupPage({
         reload()
       })
   }
-  const backups = details?.listing.backups ?? []
+  const backups = [...(details?.listing.backups ?? [])].sort((a, b) => b.createdAt - a.createdAt)
   /** 计划里来源一端的名称：备份时间，找不到这份备份时写“备份”。 */
   function sourceName(backupId: string): string {
     const backup = backups.find((item) => item.backupId === backupId)

@@ -9,6 +9,7 @@
 - [本机工具路径](#本机工具路径)
 - [常用命令](#常用命令)
 - [仓库结构](#仓库结构)
+- [Windows 打包](#windows-打包)
 - [Android 构建与调试](#android-构建与调试)
 - [Android 签名](#android-签名)
   - [生成密钥](#生成密钥)
@@ -30,7 +31,7 @@ pnpm doctor
 pnpm dev:desktop
 ```
 
-- `pnpm doctor` 检查 Node、pnpm、Rust、JDK 和 Android SDK 是否齐全；加上 `--desktop` 参数可只检查桌面端开发环境。
+- `pnpm doctor` 检查 Node、pnpm、Rust、MSVC 生成工具、WebView2 运行时、JDK 和 Android SDK 是否齐全；加上 `--desktop` 参数可只检查桌面端开发环境。
 - `pnpm dev:desktop` 启动桌面端开发模式：先构建后端 sidecar，再启动界面开发服务器（`127.0.0.1:1420`）和 Tauri 宿主。界面代码修改后热更新；`apps/desktop/src-tauri` 的 Rust 代码修改后宿主自动重新编译并重启；后端（`src/backend`、`src/sidecar`）修改后需停止并重新运行该命令。
 - `pnpm dev:mobile` 在浏览器中启动移动端前端页面，适合调试 UI；涉及文件系统访问、局域网传输等依赖 Android 原生插件的功能，需要构建到真机或模拟器中调试。
 
@@ -77,10 +78,11 @@ Android 端最低支持 Android 11（API 30），编译目标为 API 36。前端
 | --- | --- |
 | `pnpm dev:desktop` | 启动桌面端开发模式 |
 | `pnpm dev:mobile` | 在浏览器中启动移动端前端开发服务器 |
-| `pnpm check` | 提交前全量检查，依次运行类型检查、ESLint 和 Checkstyle（需 JDK）、两端构建、文本编码和代码格式检查，某一步失败即停止 |
-| `pnpm format` | 自动修复可修复的 ESLint 问题并格式化代码 |
+| `pnpm desktop:package` | 打包 Windows x64 安装包和免安装 zip，见 [Windows 打包](#windows-打包) |
+| `pnpm check` | 提交前全量检查，依次运行类型检查、ESLint、Checkstyle（需 JDK）和 Clippy、两端构建、文本编码和代码格式检查（Prettier、rustfmt），某一步失败即停止 |
+| `pnpm format` | 自动修复可修复的 ESLint 问题，并用 Prettier 和 rustfmt 格式化代码 |
 | `pnpm lint` / `pnpm typecheck` / `pnpm build` | 单独运行 `pnpm check` 中的对应检查 |
-| `pnpm test` | 运行脚本、共享包、桌面端和移动端前端测试（无需 Android 工具） |
+| `pnpm test` | 运行脚本、共享包、桌面端（含 Tauri 宿主的 Rust 测试）和移动端前端测试（无需 Android 工具） |
 | `pnpm test:all` | 运行 `pnpm test` 和 `pnpm android:test`，适合发版前或大范围改动后执行 |
 | `pnpm doctor` | 检查本地工具链；支持 `--desktop`（跳过 Android 检查）和 `--json`；存在 FAIL 项时返回非零退出码 |
 | `pnpm android:sync` | 构建移动端前端资源并同步到 Android 原生工程 |
@@ -102,6 +104,19 @@ Android 端最低支持 Android 11（API 30），编译目标为 API 36。前端
 | `apps/mobile` | 移动端：React 前端页面及 `android/` 下的 Capacitor 原生工程 |
 | `scripts` | 检查、构建、版本号计算与安全审计脚本 |
 | `.project-memory` | 需求、架构、接口约定与测试状态记录 |
+
+## Windows 打包
+
+`pnpm desktop:package` 在 Windows x64 上构建发布版，产物输出到 `apps/desktop/release/`，均无数字签名：
+
+| 产物 | 说明 |
+| --- | --- |
+| `SavedataSync-<版本>-Setup-x64.exe` | NSIS 安装包，安装时选择只为当前用户安装（`%LOCALAPPDATA%\Savedata Sync`）或为所有用户安装（`%ProgramFiles%\Savedata Sync`，需要管理员权限）；系统缺少 WebView2 运行时时由安装包下载安装 |
+| `SavedataSync-<版本>-Portable-x64.zip` | 免安装版，内含主程序 `SavedataSync.exe` 和后端 `savedata-sync-backend.exe`，不带 `portable_data` 文件夹 |
+
+- 后端 sidecar 用 `@yao-pkg/pkg` 编成 `savedata-sync-backend.exe`，内嵌 pkg-fetch 预编译的 Node 22（只带英文区域数据），版本由 `@yao-pkg/pkg` 的版本决定，和执行打包命令的 `node` 无关。`@yao-pkg/pkg` 在 `apps/desktop/package.json` 里写的是 `^6.x` 范围版本，运行 `pnpm --filter @savedata-sync/desktop update @yao-pkg/pkg` 升级到同主版本的最新版，内嵌 Node 随之更新。首次打包时 pkg-fetch 从 GitHub 下载基础二进制并缓存。
+- 首次打包时 Tauri 从 GitHub 下载 NSIS 工具。
+- `apps/desktop/scripts/build-sidecar-exe.mjs` 可单独生成 sidecar 可执行文件，输出到 `apps/desktop/src-tauri/binaries/`（已被 Git 忽略）。
 
 ## Android 构建与调试
 
@@ -178,7 +193,7 @@ keytool -genkeypair -v -keystore savedata-sync-release.jks -alias savedata-sync 
 - 当配置或备份存储格式变更时，桌面端读到旧配置会报错，需手动删除 `%LOCALAPPDATA%\galgame-savedata-sync\data` 下的旧文件后重新添加游戏；移动端直接卸载重装。
 - 当通信协议变更时，桌面端与移动端需更新至同一版本才能连接。
 
-卸载移动端会清除游戏配置、目录访问授权以及 `Android/data` 下的备份；桌面端删除程序文件后，`%APPDATA%` 和 `%LOCALAPPDATA%` 下 `galgame-savedata-sync` 文件夹里的配置和备份仍会保留。发布包含不兼容变更的版本时，需在 Release 说明中注明处理方式。
+卸载移动端会清除游戏配置、目录访问授权以及 `Android/data` 下的备份；桌面端卸载或删除程序文件后，`%APPDATA%` 和 `%LOCALAPPDATA%` 下 `galgame-savedata-sync` 文件夹里的配置和备份仍会保留（免安装版使用 `portable_data` 文件夹时，数据都在该文件夹中）。发布包含不兼容变更的版本时，需在 Release 说明中注明处理方式。
 
 ## 版本号与发布
 
@@ -195,7 +210,7 @@ keytool -genkeypair -v -keystore savedata-sync-release.jks -alias savedata-sync 
 - 发布 tag 格式必须为 `v<major>.<minor>.<patch>`（每段 0–999 且无前导零），带 `-` 的预发布 tag 不参与计算。
 - 开发版与对应 tag 正式版的 `versionCode` 相同，使用同一签名时可互相覆盖安装。
 - Android Gradle 构建时会调用该版本脚本，需确保 `PATH` 中存在 `node`。
-- 开发模式下版本号仅在启动时计算一次；界面上显示完整版本号。
+- 开发模式下版本号仅在启动时计算一次；Windows 分发包文件名和 exe 文件属性中只保留数字版本号（如 `0.3.0`），界面上显示完整版本号。
 
 ### 发布流程
 
@@ -212,7 +227,7 @@ git push --atomic origin master v0.3.0
 
 1. 校验 tag 格式及其指向的提交是否在 `origin/master` 上。
 2. 运行 `pnpm check` 和 `pnpm test:all`。
-3. 打包 Windows 版。桌面端打包正在改为 Tauri 流程，这一步目前不可用，tag 发布会在这一步失败。
+3. 使用 `pnpm desktop:package` 打包 Windows x64 安装包和免安装 zip。
 4. 使用 Secrets 中的签名配置构建 Android release APK，校验签名并生成 `SHA256SUMS.txt`。
 5. 将产物上传为保留 7 天的 Actions artifact，并创建草稿 GitHub Release。
 

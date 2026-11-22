@@ -36,9 +36,9 @@ tags: [Windows, 电脑端, Tauri, sidecar, 存储目录]
 电脑端由两个进程组成（[ADR-0005](../decisions/ADR-0005-tauri-sidecar-and-storage-layout.md)）：
 
 - Tauri 宿主 `src-tauri`（Rust）：启动 sidecar，收到 `ready` 后打开主窗口，把界面请求经 `backend_invoke` 命令转给 sidecar，并应 sidecar 的 `host-request` 提供目录选择器（`tauri-plugin-dialog`）、打开文件夹（`tauri-plugin-opener`）和窗口明暗。`storage.rs` 算出存储目录，`sidecar.rs` 管理 sidecar 进程和消息，`main.rs` 管窗口和生命周期。应用单实例运行（`tauri-plugin-single-instance`），再次启动时聚焦已有窗口；窗口没有菜单栏。
-- Node sidecar `src/sidecar/index.ts`（构建为 `out/sidecar/index.mjs`）：命令行参数 `--config-dir`、`--data-dir`、`--backup-dir`、`--cache-dir` 必须是绝对路径，`--languages <逗号分隔>` 可选。和宿主在 stdin/stdout 上每行交换一条 UTF-8 JSON，stderr 只写日志。宿主发 `invoke`（通道请求）、`shutdown`（停止服务）和 `host-result`；sidecar 发 `ready`（窗口标题、浅色和深色背景色、意外退出时的提示）、`fatal`（初始化失败，附可直接显示的标题和正文，随后以退出码 1 退出）、`result`、`shutdown-result`（`isStopped` 为 false 时附可直接显示的失败提示，进程继续运行）和 `host-request`（`chooseDirectory`、`openPath`、`setTheme`）。消息格式在 `src/sidecar/protocol.ts`，宿主的解析在 `src-tauri/src/sidecar.rs`，两边一起改。
+- Node sidecar `src/sidecar/index.ts`（构建为 `out/sidecar/index.cjs`）：命令行参数 `--config-dir`、`--data-dir`、`--backup-dir`、`--cache-dir` 必须是绝对路径，`--languages <逗号分隔>` 可选。和宿主在 stdin/stdout 上每行交换一条 UTF-8 JSON，stderr 只写日志。宿主发 `invoke`（通道请求）、`shutdown`（停止服务）和 `host-result`；sidecar 发 `ready`（窗口标题、浅色和深色背景色、意外退出时的提示）、`fatal`（初始化失败，附可直接显示的标题和正文，随后以退出码 1 退出）、`result`、`shutdown-result`（`isStopped` 为 false 时附可直接显示的失败提示，进程继续运行）和 `host-request`（`chooseDirectory`、`openPath`、`setTheme`）。消息格式在 `src/sidecar/protocol.ts`，宿主的解析在 `src-tauri/src/sidecar.rs`，两边一起改。
 
-调试版宿主用 PATH 里的 `node` 运行 `out/sidecar/index.mjs`；发布版运行主程序旁边的 `savedata-sync-backend.exe`（打包见第 3 节）。`vite.sidecar.config.ts` 把 sidecar 打成单个 ESM 文件，第三方包全部打进产物，运行时只依赖 Node 内置模块。
+调试版宿主用 PATH 里的 `node` 运行 `out/sidecar/index.cjs`；发布版运行主程序旁边的 `savedata-sync-backend.exe`（打包见第 3 节）。`vite.sidecar.config.ts` 把 sidecar 打成单个 CommonJS 文件（pkg 直接打包 CommonJS 入口），第三方包全部打进产物，运行时只依赖 Node 内置模块。发布版内嵌的 Node 只带英文区域数据（small-icu），sidecar 和它加载的共享代码不用 `Intl.DateTimeFormat`、`toLocale*` 等依赖区域数据的接口，时间一律用毫秒时间戳或 ISO 8601 传给界面。
 
 生命周期：
 
@@ -75,9 +75,16 @@ tags: [Windows, 电脑端, Tauri, sidecar, 存储目录]
 
 ## 3. 分发包与应用标识
 
-Tauri 宿主的打包还没实现，计划见[工作包登记](../development/work-packages.md)的 WP-58：sidecar 用 Node SEA 编成 `savedata-sync-backend.exe`，发布 NSIS 安装包和免安装 zip。当前没有打包命令，`.github/workflows/release.yml` 的电脑端打包步骤不可用。`tauri.conf.json` 的 `bundle.active` 为 false，`version` 固定为 `0.0.0`；界面显示的版本由 `scripts/app-version.mjs` 按 Git tag 推算。
+`pnpm desktop:package`（`apps/desktop/scripts/package-windows.mjs`）只在 Windows x64 上运行，输出到 `apps/desktop/release/`：
 
-应用标识为 `io.github.galgame.savedatasync`，产品名“存档同步”，主程序文件名 `SavedataSync`。WebView 数据放在缓存目录的 `webview` 子目录；界面不使用 localStorage、IndexedDB 等浏览器存储，删掉这个目录不丢数据。
+- `SavedataSync-<版本>-Setup-x64.exe`：NSIS 安装包，安装时选择只为当前用户安装（`%LOCALAPPDATA%\Savedata Sync`）或为所有用户安装（`%ProgramFiles%\Savedata Sync`，需要管理员权限）；管理员账户启动安装包时先弹出 UAC（NSIS MultiUser 的执行级别为 `Highest`）；界面语言和应用一致，按系统语言在英文、简体中文、繁体中文和日文间选择，都不匹配时用英文；缺少 WebView2 时下载引导程序安装。卸载只删除程序文件，存储目录保留。
+- `SavedataSync-<版本>-Portable-x64.zip`：一个文件夹，内含 `SavedataSync.exe` 和 `savedata-sync-backend.exe`，不带 `portable_data`。
+
+版本号取 `scripts/app-version.mjs` 的推算结果去掉构建元数据，打包时通过 `tauri build --config` 写入；界面显示完整版本。`tauri.conf.json` 的 `version` 固定为 `0.0.0`，`bundle.active` 为 false，打包时才打开并登记 `bundle.externalBin`：登记后 `tauri dev` 和 `cargo build` 也要求 sidecar 可执行文件已经存在。
+
+sidecar 可执行文件由 `apps/desktop/scripts/build-sidecar-exe.mjs` 用 `@yao-pkg/pkg` 生成：先用 pkg 固定的 pkg-fetch 下载预编译的 Node 22 基础二进制（按 pkg-fetch 登记的哈希校验，没有预编译文件时报错，不从源码编译），用 resedit 把文件说明、产品名和版本号改成本应用的（图标和版权声明保留 Node 的），再经 `PKG_NODE_PATH` 交给 pkg 打包 `out/sidecar/index.cjs`，输出到 `src-tauri/binaries/savedata-sync-backend-x86_64-pc-windows-msvc.exe`（Git 忽略）。Tauri 把它复制到主程序旁并改名为 `savedata-sync-backend.exe`。内嵌的 Node 版本由锁文件里的 pkg 版本决定（pkg 6.26.0 对应 Node 22.23.5），和执行打包命令的 Node 无关；`@yao-pkg/pkg` 写范围版本，`pnpm update` 升级 pkg 即可拿到 Node 安全补丁。sidecar 可执行文件约 59 MB，安装包约 18 MiB，免安装 zip 约 25 MB，都没有数字签名。选 pkg 不选 Node SEA：同样内嵌 Node 22，SEA 用的官方 Node 带完整区域数据，可执行文件大约多 30 MB。
+
+应用标识为 `io.github.galgame.savedatasync`，产品名 `Savedata Sync`（安装目录、快捷方式和系统“应用”列表里的名称都用它，不随界面语言变化；窗口标题由 sidecar 按界面语言给出），主程序文件名 `SavedataSync`。WebView 数据放在缓存目录的 `webview` 子目录；界面不使用 localStorage、IndexedDB 等浏览器存储，删掉这个目录不丢数据。
 
 公共原图为仓库根目录的 `assets/app-logo.png`（透明 PNG）。侧栏以 64×64 显示，HTML 图标和界面通过构建引用同一资源。`resources/app-icon.ico` 提供 Windows 多尺寸图标，由 `tauri.conf.json` 的 `bundle.icon` 指定，`tauri-build` 把它写进主程序资源，窗口也使用它。
 
@@ -267,4 +274,6 @@ HTTP 服务注入 `scanSource: adapter` 后开放 `/v1/sync/capabilities`、`POS
 
 Windows 短路径检查通过 PowerShell 调用 GetShortPathName 生成真实 8.3 别名，并在只影响子进程的 TEMP/TMP 环境中重跑目录与 IPC 用例；卷未生成不同短名时跳过这一项。HTTP 测试使用真实回环 HTTP/TCP，时间边界由注入的时钟和仅收紧的期限验证，不等待实际 30 分钟。
 
-实际桌面窗口、系统选择器、Android LAN 双向、取消、清理重试和界面结果在 Electron 宿主上验收过，见[验收标准](../testing/acceptance.md)。Tauri 宿主在 Windows 上验证过：窗口和界面加载、深浅色切换和重启后恢复、系统目录选择器、服务启动和局域网广播、关闭窗口时停止服务后退出、sidecar 意外退出的提示、宿主被强制结束后 sidecar 自行退出，以及安装模式和便携模式的存储位置。和移动端的连接与双向传输在 Tauri 宿主上验收过。宿主的消息解析由 `src-tauri` 的 `cargo test` 覆盖。电脑拨号没有长期测试，连接和传输的验收结论见[验收标准](../testing/acceptance.md)第 3 节。
+实际桌面窗口、系统选择器、Android LAN 双向、取消、清理重试和界面结果在 Electron 宿主上验收过，见[验收标准](../testing/acceptance.md)。Tauri 宿主在 Windows 上验证过：窗口和界面加载、深浅色切换和重启后恢复、系统目录选择器、服务启动和局域网广播、关闭窗口时停止服务后退出、sidecar 意外退出的提示、宿主被强制结束后 sidecar 自行退出，以及安装模式和便携模式的存储位置。和移动端的连接与双向传输在 Tauri 宿主上验收过。宿主的消息解析由 `src-tauri` 的 `cargo test` 覆盖。
+
+打包产物在 `PATH` 里没有 `node` 的环境下验证过：免安装版（建了 `portable_data`）和安装版都能打开窗口、启动服务并广播，关闭窗口后主程序和 sidecar 都退出，免安装版的数据只写进 `portable_data`；按当前用户静默安装和卸载验证过，卸载后存储目录保留。后端改用 pkg 打包后只重测了免安装版的打开窗口、启动服务并广播和关闭后退出，安装版没有重测。安装包的模式选择页、UAC 和为所有用户安装还没测。打包产物和移动端的连接与传输还没测；带界面的安装和卸载流程还没走过。CI 的 Rust 检查和发布工作流的 Tauri 打包还没在 GitHub Actions 上跑过。电脑拨号没有长期测试，连接和传输的验收结论见[验收标准](../testing/acceptance.md)第 3 节。

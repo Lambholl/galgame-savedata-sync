@@ -29,8 +29,8 @@ tags: [代码地图]
 | `scripts/verify-archive-interop.mjs` | 构建前 Windows 准备、构建后 Windows 接收 Java 输出，另支持设备产物及 SAF 原文验证 | 只操作固定报告目录中的合成数据，测试 APK 不包含主机路径配置 |
 | `scripts/security-check.mjs`、`scripts/toolchain-policy.mjs` | npm 全量审计、pnpm 公告与 Node 安全补丁门禁 | 查询失败即失败；安全基线来自已核实的官方发行记录 |
 | `scripts/android-inventory.gradle`、`scripts/security-android.mjs` | 解析 Maven 实际依赖并查询 OSV | 含运行、测试和构建图；未解析依赖导致失败；临时报告在 .reports/ |
-| `.github/workflows/ci.yml` | Windows 工程检查与 Android 构建 CI | Action 固定 commit SHA；只处理分支 push 与 PR，tag 交给发布流程 |
-| `.github/workflows/release.yml`、`scripts/app-version.mjs` | `vX.Y.Z` tag 的版本推算、完整测试、Portable/APK 构建、SHA-256、artifact 和草稿 Release | 版本只来自 Git tag，`app-version.mjs` 供两端 Vite 配置（注入共享包 `APP_VERSION`）和 Android `build.gradle` 共用；tag 必须指向当前提交且在 `origin/master` 上；电脑端打包步骤在 Tauri 打包完成前不可用；Release 说明在 GitHub 页面补充，不进 Git |
+| `.github/workflows/ci.yml` | Windows 工程检查（含 Clippy 和 rustfmt）与 Android 构建 CI | Action 固定 commit SHA；Rust 编译缓存用 rust-cache；只处理分支 push 与 PR，tag 交给发布流程 |
+| `.github/workflows/release.yml`、`scripts/app-version.mjs` | `vX.Y.Z` tag 的版本推算、完整测试、Windows 安装包和免安装 zip、APK 构建、SHA-256、artifact 和草稿 Release | 版本只来自 Git tag，`app-version.mjs` 供两端 Vite 配置（注入共享包 `APP_VERSION`）、Windows 打包和 Android `build.gradle` 共用；tag 必须指向当前提交且在 `origin/master` 上；Rust 不用编译缓存；Release 说明在 GitHub 页面补充，不进 Git |
 
 ## 2. 共享包
 
@@ -51,8 +51,9 @@ tags: [代码地图]
 | --- | --- | --- |
 | `apps/desktop/` | Tauri 宿主 `src-tauri`、后端 `src/backend`、sidecar 入口 `src/sidecar`、bridge `src/bridge` 和独立 antd 界面 `src/renderer` | 界面只能调用 `backend_invoke`，由宿主转给 sidecar |
 | `apps/desktop/src-tauri/src/main.rs`、`sidecar.rs`、`storage.rs`、`capabilities/main.json`、`tauri.conf.json` | 宿主：窗口、单实例、`backend_invoke` 命令、sidecar 进程和消息、平台能力（目录选择器、打开文件夹、明暗）、存储目录和便携模式 | `sidecar.rs` 的消息类型和 `src/sidecar/protocol.ts` 一起改；capability 只授权 `main` 窗口调用 `backend_invoke`；`cargo test` 覆盖消息解析 |
+| `apps/desktop/scripts/package-windows.mjs`、`build-sidecar-exe.mjs` | Windows 打包：sidecar 用 `@yao-pkg/pkg` 编成独立可执行文件，`tauri build` 产出 NSIS 安装包，再打免安装 zip | 只在 Windows x64 上运行；`bundle.externalBin` 只在打包时通过 `--config` 登记，见 [Windows 平台层](../architecture/windows.md#3-分发包与应用标识) |
 | `apps/desktop/src/backend/backend.ts`、`channel-registry.ts` | `startBackend` 初始化配置、数据、备份库、缓存四个目录和各服务，登记全部界面通道，`stop` 按顺序释放；`ChannelRouter` 按通道名分发界面请求 | 后端是纯 Node 代码，平台能力（目录选择器、打开路径、明暗主题）经 `DesktopHost` 由宿主提供；能调用通道的页面由 Tauri capability 限定 |
-| `apps/desktop/src/sidecar/index.ts`、`protocol.ts`、`vite.sidecar.config.ts` | sidecar 入口：从命令行读四个存储目录，stdin/stdout 按行 JSON 与宿主交换消息，构建为 `out/sidecar/index.mjs` | stdout 只写协议消息，`console.log` 改写到 stderr；stdin 关闭时停止服务后退出；第三方包全部打进产物 |
+| `apps/desktop/src/sidecar/index.ts`、`protocol.ts`、`vite.sidecar.config.ts` | sidecar 入口：从命令行读四个存储目录，stdin/stdout 按行 JSON 与宿主交换消息，构建为 `out/sidecar/index.cjs` | stdout 只写协议消息，`console.log` 改写到 stderr；stdin 关闭时停止服务后退出；第三方包全部打进产物 |
 | `apps/desktop/src/renderer/src/app`、`features`、`components`、`styles`、`platform`、`vite.config.ts` | 独立桌面导航、居中弹窗、antd 页面及 bridge 接入；`platform/desktop-bridges.ts` 在 Tauri 窗口里安装各 `window.desktop*` 接口 | 两端源码互不导入；桌面传输页可请求移动端扫描并在电脑确认计划（TransferPage、backend/remote-sync-requests.ts），实际复制由移动端执行 |
 | `apps/desktop/src/backend/directory-adapter.ts`、`directory-store.ts`、`device-identity.ts`、`directory-paths.ts`、`directory-errors.ts` | 目录选择登记、设备身份、当前层元数据、根内原生读流及脱敏错误 | 没有源目录写入 API；拒绝 symlink/junction 与失效身份；配置不保存历史文件索引 |
 | `apps/desktop/src/bridge/directory-bridge.ts`、`src/backend/directory-ipc.ts` | 三个有限目录方法与通道参数、返回校验 | 绝对路径和文件内容不经界面通道 |

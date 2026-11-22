@@ -51,6 +51,52 @@ addCheck(
   cargo.ok ? cargo.output : 'Install Rust with rustup and add ~/.cargo/bin to PATH',
 )
 
+if (isWindows) {
+  const rustHost = getVersion('rustc', ['-vV']).output.match(/^host:\s*(\S+)/m)?.[1]
+  addCheck(
+    'Rust MSVC toolchain',
+    rustHost?.endsWith('-pc-windows-msvc') ? 'ok' : 'fail',
+    rustHost ?? 'rustc could not run; install the stable x86_64-pc-windows-msvc toolchain',
+  )
+  const vswhere = join(
+    process.env['ProgramFiles(x86)'] ?? 'C:\\Program Files (x86)',
+    'Microsoft Visual Studio',
+    'Installer',
+    'vswhere.exe',
+  )
+  const msvc = existsSync(vswhere)
+    ? getVersion(vswhere, [
+        '-latest',
+        '-products',
+        '*',
+        '-requires',
+        'Microsoft.VisualStudio.Component.VC.Tools.x86.x64',
+        '-property',
+        'installationPath',
+      ])
+    : { ok: false, output: '' }
+  addCheck(
+    'MSVC build tools',
+    msvc.ok && msvc.output ? 'ok' : 'fail',
+    msvc.output ||
+      'Install Visual Studio Build Tools with "Desktop development with C++" and a Windows SDK',
+  )
+  // WebView2 运行时登记在 EdgeUpdate 的这个客户端 GUID 下，按机器安装和按用户安装分别在 HKLM 和 HKCU。
+  const webViewClient = 'Microsoft\\EdgeUpdate\\Clients\\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}'
+  const webViewVersion = [
+    `HKLM\\SOFTWARE\\WOW6432Node\\${webViewClient}`,
+    `HKCU\\Software\\${webViewClient}`,
+  ]
+    .map((key) => getVersion('reg', ['query', key, '/v', 'pv']))
+    .map((result) => (result.ok ? result.output.match(/pv\s+REG_SZ\s+(\S+)/)?.[1] : undefined))
+    .find((version) => version && version !== '0.0.0.0')
+  addCheck(
+    'WebView2 Runtime',
+    webViewVersion ? 'ok' : 'fail',
+    webViewVersion ?? 'Install the Microsoft Edge WebView2 Runtime (Evergreen)',
+  )
+}
+
 if (!isDesktopOnly) {
   const { sdkRoot, javaHome, studioPath } = getAndroidEnvironment()
   const java = javaHome ? join(javaHome, 'bin', isWindows ? 'java.exe' : 'java') : 'java'

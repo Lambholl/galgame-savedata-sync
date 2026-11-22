@@ -27,7 +27,7 @@ tags: [决策, 电脑端, Tauri, sidecar, 存储目录, 便携模式, 备份库]
 
 ## 状态
 
-accepted。宿主、sidecar 和存储目录已实现；打包（WP-58）、数据文件损坏时的启动处理（WP-59）和自定义备份库（WP-60）见[工作包登记](../development/work-packages.md)。
+accepted。宿主、sidecar、存储目录和 Windows 打包已实现；数据文件损坏时的启动处理（WP-59）和自定义备份库（WP-60）见[工作包登记](../development/work-packages.md)。
 
 ## 替代关系
 
@@ -47,7 +47,7 @@ accepted。宿主、sidecar 和存储目录已实现；打包（WP-58）、数�
 ### 宿主与后端
 
 1. 电脑端用 Tauri 2 作宿主，界面运行在系统 WebView（Windows 为 WebView2，Linux 为 WebKitGTK）里，React 界面和 bridge 接口不变。
-2. 后端 `apps/desktop/src/backend` 作为 Node sidecar 在独立进程运行；分发时用 Node SEA 编成独立可执行文件，作为 Tauri 的 externalBin。
+2. 后端 `apps/desktop/src/backend` 作为 Node sidecar 在独立进程运行；分发时用 `@yao-pkg/pkg` 编成独立可执行文件（内嵌只带英文区域数据的 Node），作为 Tauri 的 externalBin。
 3. 宿主和 sidecar 经 stdin/stdout 每行交换一条 UTF-8 JSON，格式在 `src/sidecar/protocol.ts`。界面只能调用一个 Tauri 命令，由它把通道请求转给 sidecar；capability 限定只有主窗口里的应用页面能调用。sidecar 不为界面开本地端口。
 4. 目录选择器、打开文件夹、窗口明暗由 Rust 宿主应 sidecar 的 `host-request` 提供。
 5. 关闭窗口时宿主先请求 sidecar 停止服务，成功后退出；失败时显示 sidecar 给出的提示并保持运行。sidecar 意外退出时宿主提示后退出。宿主退出或崩溃导致 stdin 关闭时，sidecar 停止服务后自行退出。
