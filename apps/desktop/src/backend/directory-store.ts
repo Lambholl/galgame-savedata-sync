@@ -39,7 +39,8 @@ function isStoredDirectory(value: unknown): value is StoredDirectory {
   )
 }
 
-function isRegistry(value: unknown): value is DirectoryRegistry {
+/** 校验目录配置文件的内容：格式版本、各根目录的字段，以及 rootId 不重复。 */
+export function isDirectoryRegistry(value: unknown): value is DirectoryRegistry {
   if (
     !isRecord(value) ||
     Object.keys(value).length !== 2 ||
@@ -103,7 +104,7 @@ export async function loadDirectoryRegistry(configPath: string): Promise<Directo
       )
     }
     const value: unknown = JSON.parse(await handle.readFile('utf8'))
-    if (!isRegistry(value)) {
+    if (!isDirectoryRegistry(value)) {
       throw new DirectoryAccessError(
         'invalid-request',
         'The directory configuration format or version is invalid.',

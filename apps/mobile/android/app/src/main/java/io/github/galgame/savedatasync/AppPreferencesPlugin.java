@@ -19,15 +19,9 @@ import java.util.Locale;
 @CapacitorPlugin(name = "AppPreferences")
 public class AppPreferencesPlugin extends Plugin {
 
-  private static final String FILE = "app-preferences";
-  private static final List<String> THEMES = Arrays.asList("system", "light", "dark");
-  private static final List<String> LOCALES = Arrays.asList(
-    "system",
-    "zh-CN",
-    "zh-TW",
-    "en-US",
-    "ja-JP"
-  );
+  static final String FILE = "app-preferences";
+  static final List<String> THEMES = Arrays.asList("system", "light", "dark");
+  static final List<String> LOCALES = Arrays.asList("system", "zh-CN", "zh-TW", "en-US", "ja-JP");
 
   private static SharedPreferences store(Context context) {
     return context.getSharedPreferences(FILE, Context.MODE_PRIVATE);

@@ -1,6 +1,19 @@
 import { randomInt, randomUUID } from 'node:crypto'
 import { readFile, rename, unlink, writeFile } from 'node:fs/promises'
 
+/** 校验端口设置文件的内容：port 是 1 到 65535 的整数。 */
+export function isServicePortConfig(value: unknown): value is { readonly port: number } {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'port' in value &&
+    typeof value.port === 'number' &&
+    Number.isInteger(value.port) &&
+    value.port >= 1 &&
+    value.port <= 65535
+  )
+}
+
 /** 监听端口的设置。 */
 export class ServicePortSettings {
   private port = 0
@@ -11,15 +24,7 @@ export class ServicePortSettings {
   async load(): Promise<void> {
     try {
       const value: unknown = JSON.parse(await readFile(this.file, 'utf8'))
-      if (
-        typeof value !== 'object' ||
-        value === null ||
-        !('port' in value) ||
-        typeof value.port !== 'number' ||
-        !Number.isInteger(value.port) ||
-        value.port < 1 ||
-        value.port > 65535
-      ) {
+      if (!isServicePortConfig(value)) {
         throw new Error('The local service port configuration is invalid.')
       }
       this.port = value.port

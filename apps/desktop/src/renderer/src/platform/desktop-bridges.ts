@@ -1,5 +1,6 @@
 import { invoke, isTauri } from '@tauri-apps/api/core'
 import { createBackupBridge } from '../../../bridge/backup-bridge.ts'
+import { createDataResetBridge } from '../../../bridge/data-reset-bridge.ts'
 import { createDialerBridge } from '../../../bridge/dialer-bridge.ts'
 import { createDirectoryBridge } from '../../../bridge/directory-bridge.ts'
 import { createLibraryBridge } from '../../../bridge/library-bridge.ts'
@@ -24,5 +25,6 @@ export function installDesktopBridges(): void {
     desktopService: { value: createServiceBridge(callBackend) },
     desktopDirectories: { value: createDirectoryBridge(callBackend) },
     desktopPreferences: { value: createPreferencesBridge(callBackend) },
+    desktopDataReset: { value: createDataResetBridge(callBackend) },
   })
 }

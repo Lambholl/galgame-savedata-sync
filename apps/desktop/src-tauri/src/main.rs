@@ -102,17 +102,37 @@ fn create_main_window(
     webview_directory: PathBuf,
 ) -> tauri::Result<()> {
     // 先隐藏创建，按实际明暗设好背景色后再显示。
-    let window = WebviewWindowBuilder::new(app, MAIN_WINDOW, WebviewUrl::App("index.html".into()))
+    let builder = WebviewWindowBuilder::new(app, MAIN_WINDOW, WebviewUrl::App("index.html".into()))
         .title(title)
         .inner_size(1100.0, 760.0)
         .min_inner_size(720.0, 520.0)
         .theme(state.theme())
         .data_directory(webview_directory)
-        .visible(false)
-        .build()?;
+        .visible(false);
+    #[cfg(debug_assertions)]
+    let builder = with_devtools_port(builder);
+    let window = builder.build()?;
     update_background(&window, state);
     window.show()?;
     window.set_focus()
+}
+
+/// 环境变量 `SAVEDATA_SYNC_DEVTOOLS_PORT` 是端口号时，让 WebView2 在这个端口开放 Chrome DevTools Protocol。
+#[cfg(debug_assertions)]
+fn with_devtools_port<'a>(
+    builder: WebviewWindowBuilder<'a, tauri::Wry, AppHandle>,
+) -> WebviewWindowBuilder<'a, tauri::Wry, AppHandle> {
+    match std::env::var("SAVEDATA_SYNC_DEVTOOLS_PORT")
+        .ok()
+        .and_then(|value| value.parse::<u16>().ok())
+    {
+        // wry 总会给 WebView2 传浏览器参数，环境变量 WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS 因此不起作用；
+        // 这里设了参数后 wry 不再传它的默认参数，所以照抄一份。
+        Some(port) => builder.additional_browser_args(&format!(
+            "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --autoplay-policy=no-user-gesture-required --remote-debugging-port={port}"
+        )),
+        None => builder,
+    }
 }
 
 fn handle_host_request(app: &AppHandle, state: &Arc<HostState>, id: u64, request: HostRequest) {

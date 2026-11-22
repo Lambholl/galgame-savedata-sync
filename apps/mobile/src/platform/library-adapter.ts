@@ -1,4 +1,5 @@
 import {
+  changedGameRootIds,
   CONTROL_CLOSE_CODES,
   emptyLibrary,
   isLibraryConfig,
@@ -360,9 +361,10 @@ export function createMobileLibraryAdapter(
         )
       }
       const roots = unwrap(await androidDirectories.listRoots())
+      // 只查新设或换了的根目录：目录登记重置后，其他游戏还引用着已不存在的目录，它们不能挡住这次保存。
       if (
-        games.some(
-          (game) => game.rootId !== null && !roots.some((root) => root.rootId === game.rootId),
+        changedGameRootIds(load().games, games).some(
+          (rootId) => !roots.some((root) => root.rootId === rootId),
         )
       ) {
         throw new OperationFailure(

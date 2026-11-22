@@ -5,12 +5,13 @@ import { isOpaqueId } from '@savedata-sync/shared'
 import { DirectoryAccessError } from './directory-errors.ts'
 
 /** 设备身份文件（schema 1）：这次安装的稳定设备 ID。 */
-interface DeviceIdentity {
+export interface DeviceIdentity {
   readonly schemaVersion: 1
   readonly deviceId: string
 }
 
-function isDeviceIdentity(value: unknown): value is DeviceIdentity {
+/** 校验设备身份文件的内容。 */
+export function isDeviceIdentity(value: unknown): value is DeviceIdentity {
   return (
     typeof value === 'object' &&
     value !== null &&

@@ -535,6 +535,10 @@ small {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
+/* 只有一个按钮时占满整行，不留半行空白。 */
+.action-row.equal > :only-child {
+  grid-column: 1 / -1;
+}
 .action-row > .adm-button {
   min-width: var(--mobile-icon-target);
 }
@@ -954,6 +958,10 @@ html.camera-live .app-heading {
 }
 .confirmation-text {
   margin-bottom: 14px;
+}
+ul.confirmation-text {
+  margin-top: 0;
+  padding-left: 20px;
 }
 .pane-error {
   color: var(--ss-danger);

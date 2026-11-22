@@ -23,6 +23,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import org.json.JSONArray;
+import org.json.JSONException;
 import org.json.JSONObject;
 
 /**
@@ -34,6 +35,10 @@ final class DirectoryStore {
 
   // 已保存的目录配置在这个文件里，改名会读不到。
   static final String PREFERENCES = "saf-directories-v1";
+  /** 目录登记在 {@link #PREFERENCES} 里的键。 */
+  static final String REGISTRY = "registry";
+  /** 目录登记的格式版本。 */
+  static final int REGISTRY_VERSION = 2;
   private final ContentResolver resolver;
   private final SafDocumentAccess saf;
   private final FileDocumentAccess files;
@@ -53,7 +58,7 @@ final class DirectoryStore {
     this(context, PREFERENCES);
   }
 
-  /** 创建登记表，根目录授权保存在名为 preferencesName 的 SharedPreferences。 */
+  /** 创建登记表，根目录授权保存在名为 preferencesName 的 SharedPreferences，设备 ID 由 {@link DeviceIdentity} 提供。 */
   DirectoryStore(Context context, String preferencesName) throws DirectoryFailure {
     this.context = context.getApplicationContext();
     resolver = this.context.getContentResolver();
@@ -61,42 +66,16 @@ final class DirectoryStore {
     files = new FileDocumentAccess(this.context);
     preferences = context.getSharedPreferences(preferencesName, Context.MODE_PRIVATE);
     try {
-      String saved = preferences.getString("registry", null);
+      deviceId = DeviceIdentity.load(this.context);
+      String saved = preferences.getString(REGISTRY, null);
       if (saved == null) {
-        deviceId = UUID.randomUUID().toString();
-        persist();
         return;
       }
-      JSONObject registry = new JSONObject(saved);
-      if (
-        registry.length() != 3 ||
-        !(registry.get("schemaVersion") instanceof Integer) ||
-        registry.getInt("schemaVersion") != 1 ||
-        !DocumentValues.isId(registry.get("deviceId"))
-      ) {
+      SavedRegistry registry = SavedRegistry.parse(saved);
+      if (registry == null || !registry.isComplete) {
         throw new IllegalArgumentException("Unknown registry");
       }
-      deviceId = registry.getString("deviceId");
-      JSONArray records = registry.getJSONArray("roots");
-      Set<String> ids = new HashSet<>();
-      Set<String> uris = new HashSet<>();
-      for (int index = 0; index < records.length(); index++) {
-        JSONObject record = records.getJSONObject(index);
-        if (
-          record.length() != 3 ||
-          !(record.get("rootId") instanceof String) ||
-          !(record.get("treeUri") instanceof String) ||
-          !(record.get("displayName") instanceof String)
-        ) {
-          throw new IllegalArgumentException("Invalid root fields");
-        }
-        String id = record.getString("rootId");
-        Uri uri = treeUri(record.getString("treeUri"));
-        if (!DocumentValues.isId(id) || !ids.add(id) || !uris.add(uri.toString())) {
-          throw new IllegalArgumentException("Invalid root reference");
-        }
-        roots.add(new Root(id, uri, DocumentValues.text(record.getString("displayName"))));
-      }
+      roots.addAll(registry.roots);
     } catch (Exception cause) {
       throw new DirectoryFailure(
         "internal-error",
@@ -120,19 +99,8 @@ final class DirectoryStore {
   }
 
   private void persist() throws Exception {
-    JSONArray records = new JSONArray();
-    for (Root root : roots) {
-      JSONObject record = new JSONObject();
-      record.put("rootId", root.id);
-      record.put("treeUri", root.uri.toString());
-      record.put("displayName", root.name);
-      records.put(record);
-    }
-    JSONObject registry = new JSONObject();
-    registry.put("schemaVersion", 1);
-    registry.put("deviceId", deviceId);
-    registry.put("roots", records);
-    if (!preferences.edit().putString("registry", registry.toString()).commit()) {
+    String registry = new SavedRegistry(roots, true).serialize();
+    if (!preferences.edit().putString(REGISTRY, registry).commit()) {
       throw new IOException("Registry save failed");
     }
   }
@@ -677,6 +645,85 @@ final class DirectoryStore {
     value.put("modifiedAt", snapshot.modified == null ? JSONObject.NULL : snapshot.modified);
     value.put("capabilities", capabilities);
     return value;
+  }
+
+  /** 已保存的目录登记里读得出的部分。 */
+  static final class SavedRegistry {
+
+    /** 格式正确、rootId 和目录 URI 都不重复的根目录。 */
+    final List<Root> roots;
+    /** 是否每一条根目录都格式正确且不重复。 */
+    final boolean isComplete;
+
+    private SavedRegistry(List<Root> roots, boolean isComplete) {
+      this.roots = roots;
+      this.isComplete = isComplete;
+    }
+
+    /**
+     * 解析已保存的目录登记，跳过格式不对或重复的根目录。
+     *
+     * @return 不是 JSON 对象、格式版本不是 {@link #REGISTRY_VERSION}、或者没有 roots 数组时返回 null。
+     */
+    static SavedRegistry parse(String saved) {
+      JSONObject registry;
+      try {
+        registry = new JSONObject(saved);
+      } catch (JSONException unreadable) {
+        return null;
+      }
+      Object version = registry.opt("schemaVersion");
+      JSONArray records = registry.optJSONArray("roots");
+      if (
+        !(version instanceof Integer) || (Integer) version != REGISTRY_VERSION || records == null
+      ) {
+        return null;
+      }
+      List<Root> roots = new ArrayList<>();
+      Set<String> ids = new HashSet<>();
+      Set<String> uris = new HashSet<>();
+      boolean isComplete = true;
+      for (int index = 0; index < records.length(); index++) {
+        try {
+          JSONObject record = records.getJSONObject(index);
+          if (
+            record.length() != 3 ||
+            !(record.get("rootId") instanceof String) ||
+            !(record.get("treeUri") instanceof String) ||
+            !(record.get("displayName") instanceof String)
+          ) {
+            throw new IllegalArgumentException("Invalid root fields");
+          }
+          String id = record.getString("rootId");
+          Uri uri = treeUri(record.getString("treeUri"));
+          if (!DocumentValues.isId(id) || ids.contains(id) || uris.contains(uri.toString())) {
+            throw new IllegalArgumentException("Invalid root reference");
+          }
+          ids.add(id);
+          uris.add(uri.toString());
+          roots.add(new Root(id, uri, DocumentValues.text(record.getString("displayName"))));
+        } catch (Exception invalid) {
+          isComplete = false;
+        }
+      }
+      return new SavedRegistry(roots, isComplete);
+    }
+
+    /** 按当前格式版本 {@link #REGISTRY_VERSION} 写出这些根目录。 */
+    String serialize() throws JSONException {
+      JSONArray records = new JSONArray();
+      for (Root root : roots) {
+        JSONObject record = new JSONObject();
+        record.put("rootId", root.id);
+        record.put("treeUri", root.uri.toString());
+        record.put("displayName", root.name);
+        records.put(record);
+      }
+      JSONObject registry = new JSONObject();
+      registry.put("schemaVersion", REGISTRY_VERSION);
+      registry.put("roots", records);
+      return registry.toString();
+    }
   }
 
   private static final class Root {

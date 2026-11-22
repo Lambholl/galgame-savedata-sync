@@ -24,6 +24,8 @@ public class MainActivity extends BridgeActivity {
   @Override
   public void onCreate(Bundle savedInstanceState) {
     applyOrientationPolicy(getResources().getConfiguration());
+    // 在读取主题和创建插件之前处理读不懂的私有数据，后面的模块都按没有保存过的数据启动。
+    AppDataRecovery.checkOnce(this);
     // 先按已保存主题设置夜间模式，窗口背景和启动画面随之取 values / values-night。
     AppPreferencesPlugin.applyStoredTheme(this);
     SplashScreen splash = SplashScreen.installSplashScreen(this);

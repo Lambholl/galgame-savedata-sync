@@ -36,8 +36,8 @@ final class ListenerRuntime {
     void libraryChanged();
   }
 
-  private static final String SETTINGS = "local-service";
-  private static final String PORT = "port";
+  static final String SETTINGS = "local-service";
+  static final String PORT = "port";
   private static final String ENABLED = "enabled";
   /** 状态里本机 IPv4 地址的最多个数。 */
   private static final int MAX_ADDRESSES = 8;

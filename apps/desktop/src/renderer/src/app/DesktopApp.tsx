@@ -13,6 +13,7 @@ import {
 } from '@savedata-sync/shared'
 import type {
   CatalogGame,
+  DataResetItem,
   DirectoryReference,
   InterruptedWrite,
   LibraryGame,
@@ -21,9 +22,10 @@ import type {
 import type { DesktopSnapshot } from '../platform/library-types.ts'
 import type { DesktopDialResult, DesktopNearbyDevice } from '../../../bridge/dialer-bridge.ts'
 import { createDesktopLibraryAdapter } from '../platform/library-adapter.ts'
-import { desktopBackups, desktopSync } from '../platform/sync-adapter.ts'
+import { desktopBackups, desktopDataReset, desktopSync } from '../platform/sync-adapter.ts'
 import { ConfirmationDialog } from '../components/ConfirmationDialog.tsx'
 import { InterruptedWriteDialog } from '../components/InterruptedWriteDialog.tsx'
+import { DataResetDialog } from '../components/DataResetDialog.tsx'
 import { DeviceEditorDialog } from '../features/devices/DeviceEditorDialog.tsx'
 import { AddDeviceDialog } from '../features/devices/AddDeviceDialog.tsx'
 import { GameActionDialog } from '../features/games/GameActionDialog.tsx'
@@ -120,6 +122,7 @@ export function DesktopApp({
   useEffect(() => () => clearTimeout(copiedTimer.current), [])
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null)
   const [interruptedWrites, setInterruptedWrites] = useState<readonly InterruptedWrite[]>([])
+  const [dataResets, setDataResets] = useState<readonly DataResetItem[]>([])
   const [connectingId, setConnectingId] = useState<string | null>(null)
   const [isAddDeviceOpen, setIsAddDeviceOpen] = useState(false)
   const [addressDraft, setAddressDraft] = useState('')
@@ -238,6 +241,20 @@ export function DesktopApp({
       })
     }
   }, [snapshot, appMessage, t])
+  useEffect(() => {
+    let isCurrent = true
+    desktopDataReset()
+      .list()
+      .then((result) => {
+        if (isCurrent) {
+          setDataResets(unwrap(result))
+        }
+      })
+      .catch((cause: unknown) => showError(toShownError(cause)))
+    return () => {
+      isCurrent = false
+    }
+  }, [showError])
   // 游戏名要等配置读到才有；已移除的游戏没有可提示的目录，标记直接清除。
   const hasLoaded = snapshot !== null
   useEffect(() => {
@@ -931,6 +948,22 @@ export function DesktopApp({
           if (confirmation) {
             run(confirmation.work)
           }
+        }}
+      />
+      <DataResetDialog
+        items={dataResets}
+        onOpenFolder={() => {
+          desktopDataReset()
+            .openFolder()
+            .then(unwrap)
+            .catch((cause: unknown) => showError(toShownError(cause)))
+        }}
+        onClose={() => {
+          setDataResets([])
+          desktopDataReset()
+            .dismiss()
+            .then(unwrap)
+            .catch((cause: unknown) => showError(toShownError(cause)))
         }}
       />
       <InterruptedWriteDialog

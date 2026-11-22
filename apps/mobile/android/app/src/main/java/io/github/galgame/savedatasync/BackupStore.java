@@ -60,6 +60,8 @@ final class BackupStore implements AutoCloseable {
     String gameName(String projectId);
   }
 
+  /** 备份设置在私有目录里的文件名。 */
+  static final String SETTINGS_FILE = "backup-settings.json";
   private static final Set<Path> OPEN = new HashSet<>();
   private static final String COMMITTED = "backup.json";
   private static final String UNFINISHED = "in-progress.json";
@@ -122,7 +124,7 @@ final class BackupStore implements AutoCloseable {
     files = new BackupFiles(io);
     settingsDirectory = privateDirectory.toAbsolutePath().normalize();
     files.directory(settingsDirectory);
-    settingsFile = settingsDirectory.resolve("backup-settings.json");
+    settingsFile = settingsDirectory.resolve(SETTINGS_FILE);
     synchronized (OPEN) {
       if (!OPEN.add(settingsDirectory)) {
         watcher.shutdownNow();

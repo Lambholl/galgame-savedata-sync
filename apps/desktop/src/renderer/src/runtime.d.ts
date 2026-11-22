@@ -5,6 +5,7 @@ import type { DesktopDialerApi } from '../../bridge/dialer-bridge'
 import type { DesktopBackupApi } from '../../bridge/backup-bridge'
 import type { DesktopSyncApi } from '../../bridge/sync-bridge'
 import type { DesktopPreferencesApi } from '../../bridge/preferences-bridge'
+import type { DesktopDataResetApi } from '../../bridge/data-reset-bridge'
 
 declare global {
   interface Window {
@@ -15,5 +16,6 @@ declare global {
     readonly desktopBackups?: DesktopBackupApi
     readonly desktopSync?: DesktopSyncApi
     readonly desktopPreferences?: DesktopPreferencesApi
+    readonly desktopDataReset?: DesktopDataResetApi
   }
 }

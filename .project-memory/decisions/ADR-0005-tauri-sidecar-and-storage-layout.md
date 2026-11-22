@@ -27,7 +27,7 @@ tags: [决策, 电脑端, Tauri, sidecar, 存储目录, 便携模式, 备份库]
 
 ## 状态
 
-accepted。宿主、sidecar、存储目录和 Windows 打包已实现；数据文件损坏时的启动处理（WP-59）和自定义备份库（WP-60）见[工作包登记](../development/work-packages.md)。
+accepted。宿主、sidecar、存储目录、Windows 打包和数据文件读不懂时的启动处理已实现；自定义备份库（WP-60）见[工作包登记](../development/work-packages.md)。
 
 ## 替代关系
 
@@ -68,7 +68,7 @@ accepted。宿主、sidecar、存储目录和 Windows 打包已实现；数据�
 | 传输缓存、WebView 数据 | `%LOCALAPPDATA%\galgame-savedata-sync\cache\` | `~/.cache/galgame-savedata-sync/` |
 
 8. Roaming 只放和机器无关的界面偏好。设备身份、目录登记（含 dev/ino 身份）和游戏库只对本机有效，放 Local。
-9. 设备身份单独存一个文件 `identity.json`，不和目录登记放在一起；其他数据文件损坏时设备 ID 保持不变。数据文件损坏或版本不符时的处理见 WP-59。
+9. 设备身份单独存一个文件 `identity.json`，不和目录登记放在一起；其他数据文件损坏时设备 ID 保持不变。数据文件读不懂（损坏或格式版本不符）时改名为 `<名称>.unreadable-<UTC 时间>.<扩展名>` 留在原处，用默认值启动，界面提示一次并给出打开数据目录的入口；只有读取或改名遇到文件系统错误时才停止启动。
 10. 缓存根下的内容随时可以删除，应用下次需要时重建。
 
 ### 便携模式

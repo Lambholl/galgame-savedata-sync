@@ -208,6 +208,16 @@ export function isLibraryPeer(value: unknown): value is LibraryPeer {
     isArrayOf(value.games, isCatalogGame)
   )
 }
+/** 列出 next 里新设或换了根目录的游戏所引用的 rootId；按游戏 ID 比较，根目录和 previous 相同的游戏不列出。 */
+export function changedGameRootIds(
+  previous: readonly LibraryGame[],
+  next: readonly LibraryGame[],
+): readonly string[] {
+  const saved = new Map(previous.map((game) => [game.id, game.rootId]))
+  return next.flatMap((game) =>
+    game.rootId !== null && game.rootId !== saved.get(game.id) ? [game.rootId] : [],
+  )
+}
 /** 返回没有游戏和设备的游戏库配置。 */
 export function emptyLibrary(): LibraryConfig {
   return { schemaVersion: 2, games: [], devices: [] }

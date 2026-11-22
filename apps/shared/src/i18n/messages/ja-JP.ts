@@ -190,6 +190,18 @@ export const jaJP: Messages = {
     `「${name}」の書き込み中にアプリが閉じられたため、ファイルが不完全な可能性があります。もう一度転送してください。`,
   'write.interruptedWithBackup': ({ name }) =>
     `「${name}」の書き込み中にアプリが閉じられたため、ファイルが不完全な可能性があります。もう一度転送するか、バックアップから復元してください。`,
+  'dataReset.title': '一部の設定がリセットされました',
+  'dataReset.intro': '次のデータを読み取れなかったため、既定値に戻しました。',
+  'dataReset.keptHint':
+    '読み取れなかったファイルは、名前に「unreadable」を含む形で残してあります。',
+  'dataReset.item.device-identity':
+    'この端末の ID：新しく作成しました。ほかの端末でこの端末を追加し直してください',
+  'dataReset.item.directories': '保存先：選択し直してください',
+  'dataReset.item.library': 'ゲームと端末の一覧：追加し直してください',
+  'dataReset.item.backup-settings': 'バックアップ設定',
+  'dataReset.item.service-settings': '待ち受けポート：新しいランダムなポートに変更しました',
+  'dataReset.item.preferences': 'テーマと言語',
+  'dataReset.openFolder': 'データフォルダーを開く',
   'task.rescan': '再スキャン',
   'task.readFailed': '転送の状態を読み取れません',
   'task.history': '過去の転送',

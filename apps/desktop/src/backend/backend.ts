@@ -32,6 +32,8 @@ import { InterruptedWriteStore } from './interrupted-writes.ts'
 import { registerSyncIpc } from './sync-ipc.ts'
 import { AppPreferencesStore } from './preferences-store.ts'
 import { registerPreferencesIpc } from './preferences-ipc.ts'
+import { setAsideUnreadableData } from './data-recovery.ts'
+import { registerDataResetIpc } from './data-reset-ipc.ts'
 
 /** 后端需要宿主提供的平台能力。 */
 export interface DesktopHost {
@@ -138,18 +140,26 @@ export async function startBackend(options: BackendOptions): Promise<DesktopBack
     const dataDirectory = await prepare(options.dataDirectory)
     const backupDirectory = await prepare(options.backupDirectory)
     const cacheDirectory = await prepare(options.cacheDirectory)
+    stage = 'data-files'
+    const files = {
+      'device-identity': join(dataDirectory, 'identity.json'),
+      directories: join(dataDirectory, 'directories.json'),
+      library: join(dataDirectory, 'game-library.json'),
+      'backup-settings': join(dataDirectory, 'backup-settings.json'),
+      'service-settings': join(dataDirectory, 'service-settings.json'),
+      preferences: join(configDirectory, 'preferences.json'),
+    } as const
+    // 读不懂的文件先改名留在原处，下面各模块按文件不存在处理，用默认值启动。
+    const resets = await setAsideUnreadableData(files)
     stage = 'directories'
-    const adapter = await createDirectoryAdapter(
-      join(dataDirectory, 'directories.json'),
-      join(dataDirectory, 'identity.json'),
-    )
+    const adapter = await createDirectoryAdapter(files.directories, files['device-identity'])
     for (const path of [configDirectory, dataDirectory, cacheDirectory]) {
       adapter.excludePrivateDirectory(path)
     }
     stage = 'archive-cache'
     const archive = await createWindowsArchiveAdapter(adapter, cacheDirectory)
     stage = 'library'
-    const library = new DesktopLibrary(join(dataDirectory, 'game-library.json'), adapter)
+    const library = new DesktopLibrary(files.library, adapter)
     await library.load()
     stage = 'backups'
     const backups = await createWindowsBackupStore(
@@ -179,12 +189,12 @@ export async function startBackend(options: BackendOptions): Promise<DesktopBack
       },
     })
     stage = 'preferences'
-    const preferences = new AppPreferencesStore(join(configDirectory, 'preferences.json'))
+    const preferences = new AppPreferencesStore(files.preferences)
     await preferences.load()
     preferencesStore = preferences
     host.setTheme(preferences.get().theme)
     stage = 'service-settings'
-    const portSettings = new ServicePortSettings(join(dataDirectory, 'service-settings.json'))
+    const portSettings = new ServicePortSettings(files['service-settings'])
     await portSettings.load()
     stage = 'services'
     const httpService = new WindowsHttpService(adapter, {
@@ -217,6 +227,12 @@ export async function startBackend(options: BackendOptions): Promise<DesktopBack
     const chooseDirectory = (): Promise<string | null> =>
       host.chooseDirectory(translate()('game.chooseFolder'))
     registerPreferencesIpc(router, preferences, (value) => host.setTheme(value.theme))
+    // 只有界面偏好在配置目录，其余数据项都在数据目录。
+    registerDataResetIpc(router, resets, () =>
+      host.openPath(
+        resets.some((item) => item !== 'preferences') ? dataDirectory : configDirectory,
+      ),
+    )
     registerSyncIpc(router, httpService, dialerSync, restores, interruptedWrites)
     registerBackupIpc(
       router,

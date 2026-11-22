@@ -145,7 +145,9 @@ sidecar 可执行文件由 `apps/desktop/scripts/build-sidecar-exe.mjs` 用 `@ya
 
 `identity.json`（schemaVersion=1）只保存设备 ID。`directories.json`（schemaVersion=2）保存 roots：内部根记录仅含 rootId、规范路径和 bigint dev/ino 的字符串身份；绝对路径不传到 Renderer，也不写进项目记忆。条目 ID/相对路径映射只在本进程内有效，不保存历史元数据或哈希，重启后重新枚举。
 
-配置写入使用同目录独占临时文件、sync 和 rename；同进程登记串行处理，成功前不更新内存。配置必须位于所选根目录之外。数据文件损坏或版本未知时停止初始化，宿主显示 `fatal` 提示后退出；读不懂的数据文件不阻止启动的处理在 [WP-59](../development/work-packages.md)。跨外部进程的配置事务或锁不在当前实现内。
+配置写入使用同目录独占临时文件、sync 和 rename；同进程登记串行处理，成功前不更新内存。配置必须位于所选根目录之外。跨外部进程的配置事务或锁不在当前实现内。
+
+启动时 `data-recovery.ts` 先检查 `identity.json`、`directories.json`、`game-library.json`、`backup-settings.json`、`service-settings.json` 和 `preferences.json`：不是普通文件、超过大小上限、不是 UTF-8 编码的 JSON，或者格式和格式版本不符时，把文件改名为 `<名称>.unreadable-<UTC 时间>.<扩展名>`（时间形如 `20261123T081530Z`）留在原目录，各模块随后按文件不存在处理，用默认值启动；身份文件改名后会生成新的设备 ID。读取或改名遇到文件系统错误（如没有权限）时停止初始化，宿主显示 `fatal` 提示后退出。界面经 `window.desktopDataReset`（`list`、`dismiss`、`openFolder`，通道在 `src/bridge/data-reset-bridge.ts`）读出这次启动改了名的数据项，弹一次提示，列出各项的后果；“打开数据文件夹”打开数据目录，只有界面偏好被重置时打开配置目录。读不懂的备份和中断写入标记不走这条路：前者忽略（第 12 节），后者直接删除。
 
 每次读取重新检查根身份；路径逐段 lstat，拒绝 symlink/junction，核对 realpath 与根范围，读取句柄再核对身份。文件/目录替换使旧引用失效，需要刷新或明确重新选择。不跟随根内链接；不支持的条目会让该层读取返回错误，不显示成空目录。
 
@@ -276,4 +278,8 @@ Windows 短路径检查通过 PowerShell 调用 GetShortPathName 生成真实 8.
 
 实际桌面窗口、系统选择器、Android LAN 双向、取消、清理重试和界面结果在 Electron 宿主上验收过，见[验收标准](../testing/acceptance.md)。Tauri 宿主在 Windows 上验证过：窗口和界面加载、深浅色切换和重启后恢复、系统目录选择器、服务启动和局域网广播、关闭窗口时停止服务后退出、sidecar 意外退出的提示、宿主被强制结束后 sidecar 自行退出，以及安装模式和便携模式的存储位置。和移动端的连接与双向传输在 Tauri 宿主上验收过。宿主的消息解析由 `src-tauri` 的 `cargo test` 覆盖。
 
-打包产物在 `PATH` 里没有 `node` 的环境下验证过：免安装版（建了 `portable_data`）和安装版都能打开窗口、启动服务并广播，关闭窗口后主程序和 sidecar 都退出，免安装版的数据只写进 `portable_data`；按当前用户静默安装和卸载验证过，卸载后存储目录保留。后端改用 pkg 打包后只重测了免安装版的打开窗口、启动服务并广播和关闭后退出，安装版没有重测。安装包的模式选择页、UAC 和为所有用户安装还没测。打包产物和移动端的连接与传输还没测；带界面的安装和卸载流程还没走过。CI 的 Rust 检查和发布工作流的 Tauri 打包还没在 GitHub Actions 上跑过。电脑拨号没有长期测试，连接和传输的验收结论见[验收标准](../testing/acceptance.md)第 3 节。
+打包产物在 `PATH` 里没有 `node` 的环境下验证过：免安装版（建了 `portable_data`）和安装版都能打开窗口、启动服务并广播，关闭窗口后主程序和 sidecar 都退出，免安装版的数据只写进 `portable_data`；按当前用户静默安装和卸载验证过，卸载后存储目录保留。后端改用 pkg 打包后只重测了免安装版的打开窗口、启动服务并广播和关闭后退出，安装版没有重测。安装包的模式选择页、UAC 和为所有用户安装还没测。打包产物和移动端的连接与传输还没测；带界面的安装和卸载流程还没走过。电脑拨号没有长期测试，连接和传输的验收结论见[验收标准](../testing/acceptance.md)第 3 节。
+
+数据文件读不懂时的启动处理没有长期测试。用临时脚本经 `startBackend` 验证过：六个数据文件分别是坏 JSON、非 UTF-8、错误的格式版本、字段取值越界或目录时都能启动，原文件改名保留，重置项列表完整，再次启动不重复报告。在开发版的便携模式下验证过界面：提示列出对应项，“打开数据文件夹”打开数据目录，关闭提示后列表清空。打包产物上还没测。
+
+调试构建的宿主在环境变量 `SAVEDATA_SYNC_DEVTOOLS_PORT` 是端口号时，让 WebView2 在这个端口开放 Chrome DevTools Protocol，可以用 CDP 脚本读写界面；发布构建没有这段代码。

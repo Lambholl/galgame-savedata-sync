@@ -81,7 +81,7 @@ HTTP_ERROR_STATUS 映射错误码到 HTTP 状态，包括 session-mismatch/task-
 
 ## 7. 游戏关联与项目绑定
 
-withGameLink、withoutGameLink、createImportedGame 返回新的游戏配置，由各端保存。unwrap 将 OperationResult 的失败转换为带 code 的 OperationFailure，toShownError 转为界面显示的错误。
+withGameLink、withoutGameLink、createImportedGame 返回新的游戏配置，由各端保存。两端保存游戏时，只用 `changedGameRootIds` 列出的、新设或换了根目录的 rootId 核对是否已登记；根目录没变的游戏引用着不存在的目录（如目录登记被重置后）不挡保存，界面里显示为要重新选择目录。unwrap 将 OperationResult 的失败转换为带 code 的 OperationFailure，toShownError 转为界面显示的错误。
 
 `resolveSyncProjectBinding(config, roots, peer, projectId)` 从本机游戏配置、已登记目录和当前对端目录表取得固定项目/设备/目录 ID，离线、失效授权或错位设备返回具体错误。`matchesSyncProjectBinding` 用于异步权限确认后复核映射；设备显示名与 IP 改动不改变关联身份。调用示例见移动端 `src/platform/library-adapter.ts`。
 

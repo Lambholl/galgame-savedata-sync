@@ -1,6 +1,7 @@
 import { readFile, rename, writeFile } from 'node:fs/promises'
 import { randomUUID } from 'node:crypto'
 import {
+  changedGameRootIds,
   emptyLibrary,
   isCatalogHello,
   isLibraryConfig,
@@ -208,7 +209,7 @@ export class DesktopLibrary {
   /**
    * 用 games 替换全部本机游戏，并通知已连接的设备。
    *
-   * @throws HttpOperationError 配置无效或游戏引用了未登记的根目录时抛出。
+   * @throws HttpOperationError 配置无效，或者新设、换了根目录的游戏引用了未登记的根目录时抛出。
    */
   async saveGames(games: readonly LibraryGame[]): Promise<void> {
     if (!isLibraryConfig({ ...this.config, games })) {
@@ -221,9 +222,10 @@ export class DesktopLibrary {
     if (roots.status === 'error') {
       throw new HttpOperationError(roots.error.code, roots.error.message)
     }
+    // 只查新设或换了的根目录：目录登记重置后，其他游戏还引用着已不存在的目录，它们不能挡住这次保存。
     if (
-      games.some(
-        (game) => game.rootId !== null && !roots.value.some((root) => root.rootId === game.rootId),
+      changedGameRootIds(this.config.games, games).some(
+        (rootId) => !roots.value.some((root) => root.rootId === rootId),
       )
     ) {
       throw new HttpOperationError('not-found', 'Select a registered local save directory.')

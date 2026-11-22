@@ -17,8 +17,8 @@ import org.json.JSONObject;
 @CapacitorPlugin(name = "AppStorage")
 public class AppStoragePlugin extends Plugin {
 
-  private static final String FILE = "app-storage";
-  private static final String LIBRARY = "savedata-sync:library:1";
+  static final String FILE = "app-storage";
+  static final String LIBRARY = "savedata-sync:library:1";
   private static final Set<String> KEYS = Collections.singleton(LIBRARY);
   /** 一个值的最大长度；配置只含 ID、名称和目录引用，正常远小于此上限。 */
   private static final int MAX_LENGTH = 4 * 1024 * 1024;
@@ -97,6 +97,19 @@ public class AppStoragePlugin extends Plugin {
       call.reject("io-failure");
       return;
     }
+    call.resolve();
+  }
+
+  @PluginMethod
+  public void dataResets(PluginCall call) {
+    JSObject result = new JSObject();
+    result.put("items", new JSONArray(AppDataRecovery.resets()));
+    call.resolve(result);
+  }
+
+  @PluginMethod
+  public void dismissDataResets(PluginCall call) {
+    AppDataRecovery.dismiss();
     call.resolve();
   }
 }

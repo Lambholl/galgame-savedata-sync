@@ -1,9 +1,13 @@
 import { Capacitor, registerPlugin } from '@capacitor/core'
+import { isDataResetList } from '@savedata-sync/shared'
+import type { DataResetItem } from '@savedata-sync/shared'
 
 /** 应用配置存储的原生插件，只接受登记过的键。 */
 interface AppStoragePlugin {
   read(options: { key: string }): Promise<{ value: string | null }>
   write(options: { key: string; value: string }): Promise<void>
+  dataResets(): Promise<{ items: unknown }>
+  dismissDataResets(): Promise<void>
 }
 
 /** 需要原生保存的键；与 AppStoragePlugin.java 的登记表一致。 */
@@ -43,4 +47,25 @@ export const appStorage: Pick<Storage, 'getItem' | 'setItem'> = {
       console.error('Failed to save native app storage', key, error)
     })
   },
+}
+
+/**
+ * 列出这次启动时因读不懂而改用默认值的数据项；dismissDataResets 之后返回空列表，没有原生插件时也返回空列表。
+ *
+ * @throws Error 原生层返回的内容格式不对时抛出。
+ */
+export async function readDataResets(): Promise<readonly DataResetItem[]> {
+  if (!NATIVE) {
+    return []
+  }
+  const { items } = await NATIVE.dataResets()
+  if (!isDataResetList(items)) {
+    throw new Error('The native data reset list is invalid.')
+  }
+  return items
+}
+
+/** 清空重置项列表；没有原生插件时直接完成。 */
+export async function dismissDataResets(): Promise<void> {
+  await NATIVE?.dismissDataResets()
 }
