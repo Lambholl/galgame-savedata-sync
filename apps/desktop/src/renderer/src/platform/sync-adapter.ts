@@ -2,7 +2,7 @@ import type { DesktopSyncApi } from '../../../bridge/sync-bridge.ts'
 import type { DesktopBackupApi } from '../../../bridge/backup-bridge.ts'
 import { OperationFailure } from '@savedata-sync/shared'
 
-/** 返回桌面的复制接口；preload 没有提供时抛出 unsupported-operation 错误。 */
+/** 返回桌面的复制接口；宿主没有提供时抛出 unsupported-operation 错误。 */
 export function desktopSync(): DesktopSyncApi {
   if (!window.desktopSync) {
     throw new OperationFailure(
@@ -12,7 +12,7 @@ export function desktopSync(): DesktopSyncApi {
   }
   return window.desktopSync
 }
-/** 返回桌面的备份接口；preload 没有提供时抛出 unsupported-operation 错误。 */
+/** 返回桌面的备份接口；宿主没有提供时抛出 unsupported-operation 错误。 */
 export function desktopBackups(): DesktopBackupApi {
   if (!window.desktopBackups) {
     throw new OperationFailure(

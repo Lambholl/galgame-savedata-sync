@@ -815,29 +815,36 @@ export class WindowsBackupStore {
 }
 
 /**
- * 在 privateDirectory 下初始化备份存储。
+ * 初始化备份存储。
  *
- * @param privateDirectory 应用私有目录的绝对路径。
+ * @param backupDirectory 备份库的绝对路径；可以还不存在，第一次写入备份时创建。
+ * @param settingsDirectory 保存备份设置的已有目录的绝对路径。
  * @param gameName 返回游戏的当前名称，用作新备份的文件夹名；找不到游戏时返回 null。
+ * @throws ArchiveError 参数无效、备份库和已登记的同步目录互相包含，或同一备份库已经打开时抛出。
  */
 export async function createWindowsBackupStore(
   source: BackupSource,
-  privateDirectory: string,
+  backupDirectory: string,
+  settingsDirectory: string,
   gameName: (projectId: string) => string | null,
   io: Partial<BackupDiskIO> = {},
 ): Promise<WindowsBackupStore> {
-  if (!isAbsolute(privateDirectory) || !isOpaqueId(source.deviceId)) {
+  if (
+    !isAbsolute(backupDirectory) ||
+    !isAbsolute(settingsDirectory) ||
+    !isOpaqueId(source.deviceId)
+  ) {
     throw new ArchiveError('invalid-request', 'Backup initialization parameters are invalid.')
   }
-  await inspectLocalPath(privateDirectory)
-  const path = join(privateDirectory, 'backups')
+  await inspectLocalPath(settingsDirectory)
+  const path = backupDirectory
   source.assertCacheIsolated(path)
   if (stores.has(path)) {
     throw new ArchiveError('busy', 'This backup store is already open.')
   }
   stores.add(path)
   source.excludePrivateDirectory(path)
-  return new WindowsBackupStore(source, path, privateDirectory, gameName, {
+  return new WindowsBackupStore(source, path, settingsDirectory, gameName, {
     ...BACKUP_DISK_IO,
     ...io,
   })

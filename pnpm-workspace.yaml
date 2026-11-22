@@ -4,7 +4,6 @@ packages:
   - apps/shared
 
 onlyBuiltDependencies:
-  - electron
   - esbuild
 
 overrides:

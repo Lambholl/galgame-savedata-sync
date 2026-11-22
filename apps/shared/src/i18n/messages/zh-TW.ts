@@ -3,8 +3,8 @@ import type { Messages } from '../messages.ts'
 /** 繁體中文（台灣用語）。 */
 export const zhTW: Messages = {
   'app.name': '存檔同步',
-  'app.loadUiFailedTitle': '啟動失敗',
-  'app.loadUiFailed': '無法載入應用程式介面，請檢查建置結果。',
+  'app.backendStoppedTitle': '背景服務已停止',
+  'app.backendStopped': '背景服務意外停止，應用程式將結束。請重新開啟應用程式。',
   'app.cleanupFailedTitle': '結束清理失敗',
   'app.cleanupFailed': '無法釋放快取或候選檔案，請檢查權限後重試結束應用程式。',
   'app.initializeFailedTitle': '初始化失敗',

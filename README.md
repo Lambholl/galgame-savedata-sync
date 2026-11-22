@@ -114,18 +114,18 @@ Windows 与 Android 的局域网文件夹同步工具。
 
 ## 从源码构建
 
-需要 Node.js 22.13+ 和 pnpm 10.34.8；构建 Android 还需要 JDK 21 和 Android SDK。
+需要 Node.js 22.13+ 和 pnpm 10.34.8；运行 Windows 版还需要 Rust（MSVC 工具链），构建 Android 还需要 JDK 21 和 Android SDK。
 
 ```bash
 git clone https://github.com/Lambholl/galgame-savedata-sync.git
 cd galgame-savedata-sync
 pnpm install
 pnpm doctor                     # 检查开发工具是否齐全
-pnpm desktop:package            # Windows 免安装版
+pnpm dev:desktop                # 运行 Windows 开发版
 pnpm android:build              # Android debug APK
 ```
 
-Windows 构建产物位于 `apps/desktop/release/`，Android APK 位于 `apps/mobile/android/app/build/outputs/apk/`。开发、测试、签名和发布流程见[开发指南](docs/development.md)。
+Windows 版的打包正在改为新流程，暂时只能运行开发版。Android APK 位于 `apps/mobile/android/app/build/outputs/apk/`。开发、测试、签名和发布流程见[开发指南](docs/development.md)。
 
 ## 许可证
 

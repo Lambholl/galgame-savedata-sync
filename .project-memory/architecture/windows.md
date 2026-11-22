@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 updated: 2026-11-22
-tags: [Windows, 电脑端, 主进程, IPC]
+tags: [Windows, 电脑端, Tauri, sidecar, 存储目录]
 ---
 
 # Windows 平台层
@@ -14,7 +14,7 @@ tags: [Windows, 电脑端, 主进程, IPC]
 - [3. 分发包与应用标识](#3-分发包与应用标识)
 - [4. 系统明暗主题](#4-系统明暗主题)
 - [5. 目录适配器](#5-目录适配器)
-- [6. 有限 IPC 与服务控制](#6-有限-ipc-与服务控制)
+- [6. 界面通道与服务控制](#6-界面通道与服务控制)
 - [7. 配置与路径边界](#7-配置与路径边界)
 - [8. 当前扫描](#8-当前扫描)
 - [9. 私有归档](#9-私有归档)
@@ -31,18 +31,26 @@ tags: [Windows, 电脑端, 主进程, IPC]
 
 电脑作监听方时提供 HTTP 服务和控制通道，接纳拨号方登记的任务；电脑发起的复制经控制通道交给拨号方，对方须开着应用并保持连接，计划在电脑确认、拨号方执行。电脑也能作拨号方连接另一台设备（[ADR-0004](../decisions/ADR-0004-symmetric-listener-dialer-roles.md)）：用 `bonjour-service` 搜索局域网设备，用 `node:http` 和 `ws` 交换目录表、浏览对方目录、保持控制通道，见[第 2 节](#2-游戏与设备界面)。作拨号方时由 `dialer-sync.ts` 的 `WindowsDialerSync` 编排扫描、计划、任务登记、内容上传和下载、取消和结果读取，职责同 Android `SyncTransferEngine`；也处理对方经控制通道发来的 `sync.prepare`、`sync.confirm`、`sync.cancel`、`sync.job.*`，每 0.5 秒推送 `sync.job` 摘要。它和监听方任务共用进程内的写入名额，同一时间只有一个复制任务写入；`sync-ipc.ts` 按本机是否拨号连着所选设备把发起请求交给它或 `remote-sync-requests.ts`，复制任务列表合并两部分，`DesktopCopySummary.localSide` 标明本机是哪一方，传输页和任务详情据此决定方向和两端位置。复制按确认计划执行新增、受保护覆盖、跳过和删除多余项。
 
-后端代码在 `src/backend`，不依赖 Electron。`backend.ts` 的 `startBackend` 接收数据目录、系统语言列表和宿主接口 `DesktopHost`（目录选择器、打开路径、设置明暗主题），初始化全部服务并把界面通道登记到 `ChannelRouter`；`stop` 按“拨号方任务、拨号连接、HTTP 服务和广播、本机恢复、写入器、备份”的顺序释放，失败可以重试。调用方是否可信由宿主在分发前检查，各 `*-ipc.ts` 只校验参数。
+后端代码在 `src/backend`，是纯 Node 代码。`backend.ts` 的 `startBackend` 接收配置、数据、备份库、缓存四个目录（第 7 节）、系统语言列表和宿主接口 `DesktopHost`（目录选择器、打开路径、设置明暗主题），初始化全部服务并把界面通道登记到 `ChannelRouter`；`stop` 按“拨号方任务、拨号连接、HTTP 服务和广播、本机恢复、写入器、备份”的顺序释放，失败可以重试。各 `*-ipc.ts` 只校验参数，能调用通道的页面由 Tauri capability 限定。
 
-后端有两个宿主入口：
+电脑端由两个进程组成（[ADR-0005](../decisions/ADR-0005-tauri-sidecar-and-storage-layout.md)）：
 
-- Electron 入口 `src/main/index.ts`：用 `ipcMain.handle` 把固定通道转给 `ChannelRouter`，并提供 `DesktopHost`。
-- sidecar 入口 `src/sidecar/index.ts`（构建为 `out/sidecar/index.mjs`）：命令行 `--data-dir <目录> [--languages <逗号分隔>]`，和宿主在 stdin/stdout 上每行交换一条 UTF-8 JSON，stderr 只写日志。宿主发 `invoke`（通道请求）、`shutdown`（停止服务）和 `host-result`；sidecar 发 `ready`（附窗口标题）、`fatal`（初始化失败，附可直接显示的标题和正文，随后以退出码 1 退出）、`result`、`shutdown-result`（`isStopped` 为 false 时附可直接显示的失败提示，进程继续运行）和 `host-request`（`chooseDirectory`、`openPath`、`setTheme`）。stdin 关闭时 sidecar 停止服务后退出。消息格式在 `src/sidecar/protocol.ts`。
+- Tauri 宿主 `src-tauri`（Rust）：启动 sidecar，收到 `ready` 后打开主窗口，把界面请求经 `backend_invoke` 命令转给 sidecar，并应 sidecar 的 `host-request` 提供目录选择器（`tauri-plugin-dialog`）、打开文件夹（`tauri-plugin-opener`）和窗口明暗。`storage.rs` 算出存储目录，`sidecar.rs` 管理 sidecar 进程和消息，`main.rs` 管窗口和生命周期。应用单实例运行（`tauri-plugin-single-instance`），再次启动时聚焦已有窗口；窗口没有菜单栏。
+- Node sidecar `src/sidecar/index.ts`（构建为 `out/sidecar/index.mjs`）：命令行参数 `--config-dir`、`--data-dir`、`--backup-dir`、`--cache-dir` 必须是绝对路径，`--languages <逗号分隔>` 可选。和宿主在 stdin/stdout 上每行交换一条 UTF-8 JSON，stderr 只写日志。宿主发 `invoke`（通道请求）、`shutdown`（停止服务）和 `host-result`；sidecar 发 `ready`（窗口标题、浅色和深色背景色、意外退出时的提示）、`fatal`（初始化失败，附可直接显示的标题和正文，随后以退出码 1 退出）、`result`、`shutdown-result`（`isStopped` 为 false 时附可直接显示的失败提示，进程继续运行）和 `host-request`（`chooseDirectory`、`openPath`、`setTheme`）。消息格式在 `src/sidecar/protocol.ts`，宿主的解析在 `src-tauri/src/sidecar.rs`，两边一起改。
 
-Electron 构建显式内联 workspace 共享包，避免 sandbox preload 在运行时 require TypeScript 源码。preload 保留 CJS 输出，contextIsolation/sandbox 开启，Renderer 无 Node 集成。
+调试版宿主用 PATH 里的 `node` 运行 `out/sidecar/index.mjs`；发布版运行主程序旁边的 `savedata-sync-backend.exe`（打包见第 3 节）。`vite.sidecar.config.ts` 把 sidecar 打成单个 ESM 文件，第三方包全部打进产物，运行时只依赖 Node 内置模块。
+
+生命周期：
+
+- 关闭主窗口时宿主拦下关闭并发 `shutdown`；`isStopped` 为 true 时退出，为 false 时显示 sidecar 给的提示，窗口保持打开，可以再次关闭重试。
+- sidecar 发 `fatal` 时宿主显示提示后以退出码 1 退出。sidecar 意外退出时宿主显示提示后退出；`ready` 之前退出时还没有翻译好的文字，提示用固定的英文。
+- 宿主被强制结束时 sidecar 的 stdin 关闭，sidecar 停止服务后自行退出。
+
+界面页面由 `vite.config.ts` 构建到 `out/renderer`，开发服务器固定在 `127.0.0.1:1420`，和 `src-tauri/tauri.conf.json` 的 `devUrl` 一致。`src/renderer/src/platform/desktop-bridges.ts` 用 `@tauri-apps/api` 的 `invoke('backend_invoke', { channel, args })` 构造各 `window.desktop*` 接口，装上后不能改写；页面不在 Tauri 里运行时不安装。`src-tauri/capabilities/main.json` 只允许标签为 `main` 的窗口里的应用页面调用 `backend_invoke`，不开放其他 Tauri 命令和插件命令。CSP 在 `tauri.conf.json`，样式允许 `'unsafe-inline'`（antd 在运行时注入样式）。
 
 ## 2. 游戏与设备界面
 
-桌面界面位于 `src/renderer/src/app` 和 `features`，通过 `src/renderer/src/platform/library-adapter.ts` 接入有限 IPC；业务规则从 `apps/shared` 导入。主导航为设备、游戏和设置；游戏操作面板提供目录设置、传输页与任务入口。目录设置用可换行文本显示完整路径，旁边有选择目录按钮；地址用只读 Input 配复制按钮。文件列表始终左右并列，显示分钟级修改时间，文件夹大小显示“—”，未知文件属性显示“未知”。
+桌面界面位于 `src/renderer/src/app` 和 `features`，通过 `src/renderer/src/platform/library-adapter.ts` 调用界面通道；业务规则从 `apps/shared` 导入。主导航为设备、游戏和设置；游戏操作面板提供目录设置、传输页与任务入口。目录设置用可换行文本显示完整路径，旁边有选择目录按钮；地址用只读 Input 配复制按钮。文件列表始终左右并列，显示分钟级修改时间，文件夹大小显示“—”，未知文件属性显示“未知”。
 
 - 新增设备默认使用对端设备名称。电脑报告系统计算机名称；Android 优先报告系统设备名称，取不到时使用型号。重新连接保留已经保存的自定义名称。
 - 左键单击或右键单击游戏卡片，都打开该游戏的操作菜单。
@@ -67,19 +75,15 @@ Electron 构建显式内联 workspace 共享包，避免 sandbox preload 在运�
 
 ## 3. 分发包与应用标识
 
-打包命令见 `docs/development.md`。`pnpm desktop:package` 和 tag 发布流程只构建免安装版 `SavedataSync-<版本>-Portable-x64.exe`，产物在 `apps/desktop/release/`。
+Tauri 宿主的打包还没实现，计划见[工作包登记](../development/work-packages.md)的 WP-58：sidecar 用 Node SEA 编成 `savedata-sync-backend.exe`，发布 NSIS 安装包和免安装 zip。当前没有打包命令，`.github/workflows/release.yml` 的电脑端打包步骤不可用。`tauri.conf.json` 的 `bundle.active` 为 false，`version` 固定为 `0.0.0`；界面显示的版本由 `scripts/app-version.mjs` 按 Git tag 推算。
 
-版本由 `scripts/app-version.mjs` 按 Git tag 推算。electron-builder 会去掉开发版的 `+<提交数>.g<哈希>` 部分：文件名和 exe 的文件版本只有 `0.3.0` 这样的数字版本，界面上显示完整版本。当前构建未签名。
+应用标识为 `io.github.galgame.savedatasync`，产品名“存档同步”，主程序文件名 `SavedataSync`。WebView 数据放在缓存目录的 `webview` 子目录；界面不使用 localStorage、IndexedDB 等浏览器存储，删掉这个目录不丢数据。
 
-打包脚本将已编译的 `out/` 和最小应用清单复制到 `.reports/` 下的新暂存目录，隔离工作区依赖；使用本机 Electron 分发文件，缺少时由打包器下载。免安装包及暂存资源不纳入 Git。
-
-分发包不带 `node_modules`，主进程运行时用到的第三方包（`ws`、`@homebridge/ciao`、`bonjour-service`）列在 `electron.vite.config.ts` 的 `main.build.externalizeDeps.exclude` 里，由 electron-vite 打进 `out/main`。主进程新增运行时依赖时要加进这个列表，构建后 `out/main/index.js` 的外部导入应只剩 `electron` 和 Node 内置模块。`ws` 的可选原生依赖 bufferutil、utf-8-validate 没有安装，打包后 `ws` 使用纯 JS 实现。
-
-公共原图为仓库根目录的 `assets/app-logo.png`（透明 PNG）。侧栏以 64×64 显示，HTML 图标和界面通过构建引用同一资源。`resources/app-icon.ico` 提供 Windows 多尺寸图标，`BrowserWindow` 通过 `?asset&asarUnpack` 引用；打包脚本将 ICO 复制到暂存项目并解包，窗口和 EXE 均使用它。`signExecutable: false` 保持不签名，同时保留写入图标及版本信息的资源编辑。
+公共原图为仓库根目录的 `assets/app-logo.png`（透明 PNG）。侧栏以 64×64 显示，HTML 图标和界面通过构建引用同一资源。`resources/app-icon.ico` 提供 Windows 多尺寸图标，由 `tauri.conf.json` 的 `bundle.icon` 指定，`tauri-build` 把它写进主程序资源，窗口也使用它。
 
 ## 4. 系统明暗主题
 
-桌面默认跟随 Windows 系统外观，也可以在设置中选择浅色或深色；选择保存在本机，重启后继续使用。主进程按偏好设置 `nativeTheme.themeSource`，Renderer 读取 `prefers-color-scheme` 并切换 antd 的 `defaultAlgorithm`/`darkAlgorithm`，组件卸载释放监听。页面初始底色及原生 `BrowserWindow.backgroundColor` 同步采用对应明暗底色；原生主题监听在窗口关闭时释放。主题使用共用色板与组件库语义色。
+桌面默认跟随 Windows 系统外观，也可以在设置中选择浅色或深色；选择保存在本机，重启后继续使用。sidecar 读取偏好后经 `setTheme` 请求宿主设置窗口主题（跟随系统时传 None），WebView 的 `prefers-color-scheme` 随之变化；Renderer 读取 `prefers-color-scheme` 并切换 antd 的 `defaultAlgorithm`/`darkAlgorithm`，组件卸载释放监听。宿主先隐藏创建窗口，按实际明暗设好背景色再显示；切换主题和系统明暗变化时同步更新背景色。背景色取共用色板 `PALETTES` 的 `bg`，由 `ready` 消息带给宿主。主题使用共用色板与组件库语义色。
 
 ## 5. 目录适配器
 
@@ -87,19 +91,20 @@ Electron 构建显式内联 workspace 共享包，避免 sandbox preload 在运�
 
 | 接口 | 输入/输出 | 生命周期与失败 |
 | --- | --- | --- |
-| createDirectoryAdapter(configPath) | 主进程控制的绝对配置路径，返回适配器 | 不存在时创建身份；损坏/未知 schema、无效文件或权限失败抛异常，不重置原配置 |
+| createDirectoryAdapter(configPath, identityPath?) | 目录登记文件和设备身份文件的绝对路径，身份文件默认是登记文件旁的 `identity.json`；返回适配器 | 身份文件不存在时生成设备 ID，登记文件不存在时保存空登记；任一文件损坏、版本未知、不是普通文件或权限失败时抛异常，不改原文件 |
 | adapter.deviceId | 返回安装内稳定设备 ID | 与 IP 无关，不从机器 MAC 生成 |
 | adapter.registerDirectory(path) | 仅系统选择器/受信任本地调用传入绝对目录；返回 OperationResult&lt;DirectoryReference&gt; | 配置保存后才更新内存；再次明确选择同一路径保留 rootId，重新核实身份并清除该根的旧条目引用 |
 | adapter.listRoots() | 返回公开根引用列表 | 重查根身份；失效根标 unavailable，并保留配置 |
 | adapter.listDirectory(rootId, parentId=null) | 当前层 DirectoryListing | 根层 parentId=null；子层必须使用已采集目录的 entryId。只读当前层，不汇总目录大小；不支持的链接/类型及读取失败返回错误 |
 | adapter.openFile(reference) | 本进程有效的 EntryReference，返回 metadata、Node Readable 和 verifyUnchanged() | 调用者消费/关闭流后调用检查点，重查原身份、大小、mtime/ctime；不重新读内容。中途同大小改写可能漏过；流自动关闭句柄 |
-| adapter.assertCacheIsolated(path) | 仅主进程传入缓存绝对路径 | 拒绝缓存与任何已登记根互相包含；只做隔离检查，不创建目录，也不向 IPC 暴露路径 |
+| adapter.assertCacheIsolated(path) | 后端传入缓存的绝对路径 | 拒绝缓存与任何已登记根互相包含；只做隔离检查，不创建目录，也不向界面暴露路径 |
+| adapter.excludePrivateDirectory(path) | 后端传入私有目录的绝对路径 | 先做 assertCacheIsolated 的检查；之后这个目录及其父子目录不能登记为根 |
 
-除初始化工厂外，异步操作失败均返回稳定错误包络；内部 `DirectoryAccessError` 保留 cause，IPC 只输出脱敏后的 code/message/canRetry，不包含主机路径、堆栈或文件内容。
+除初始化工厂外，异步操作失败均返回稳定错误包络；内部 `DirectoryAccessError` 保留 cause，界面通道只输出脱敏后的 code/message/canRetry，不包含主机路径、堆栈或文件内容。
 
-## 6. 有限 IPC 与服务控制
+## 6. 界面通道与服务控制
 
-preload 通过 `window.desktopDirectories` 暴露冻结的 `DesktopDirectoryApi`：`chooseDirectory()`（取消返回 cancelled 并保留既有根）、`listRoots()`、`listDirectory(rootId, parentId?)`（仅接受不透明 ID）。固定通道为 directories:choose、directories:roots、directories:list。Electron 入口检查窗口登记、主 frame 身份及精确 renderer URL，不通过返回 permission-denied；子 frame 和导航后的页面因此被拒绝。通道拒绝额外参数、非法 ID 和附加路径字段。preload 另检查输入和响应结构，异常映射为脱敏错误；不暴露 ipcRenderer、通用 invoke、Node 句柄或文件字节。应用退出时移除 handler，窗口关闭时删除可信窗口记录；应用采用单实例锁。
+`window.desktopDirectories` 是冻结的 `DesktopDirectoryApi`：`chooseDirectory()`（取消返回 cancelled 并保留既有根）、`listRoots()`、`listDirectory(rootId, parentId?)`（仅接受不透明 ID）。固定通道为 directories:choose、directories:roots、directories:list。通道拒绝额外参数、非法 ID 和附加路径字段，未登记的通道返回 invalid-request。bridge 另检查输入和响应结构，异常映射为脱敏错误。界面只能经 `backend_invoke` 调用固定通道，拿不到 Node 句柄、文件字节和其他 Tauri 命令。
 
 拨号由 `window.desktopDialer` 的冻结 `DesktopDialerApi` 提供：`status()`、`watchNearby()`（同时续期局域网搜索）、`connect(addresses, expectedDeviceId)`（最多 16 个地址）、`connectSaved(deviceId)`；断开和忘记设备仍用 `desktopLibrary`。固定通道与响应守卫在 `src/bridge/dialer-bridge.ts`，参数校验在 `src/backend/dialer-ipc.ts`。界面只在设备页用 `watchNearby` 轮询，其他页面用 `status`。
 
@@ -118,11 +123,22 @@ preload 通过 `window.desktopDirectories` 暴露冻结的 `DesktopDirectoryApi`
 
 ## 7. 配置与路径边界
 
-应用在 `app.getPath('userData')/directory-config.json` 保存 schemaVersion=1、deviceId 与 roots。内部根记录仅含 rootId、规范路径和 bigint dev/ino 的字符串身份；绝对路径不传到 Renderer，也不写进项目记忆。条目 ID/相对路径映射只在本进程内有效，不保存历史元数据或哈希，重启后重新枚举。
+存储目录按 [ADR-0005](../decisions/ADR-0005-tauri-sidecar-and-storage-layout.md) 划分，由宿主的 `storage.rs` 算出后用命令行参数传给 sidecar：
 
-应用启动先创建并解析系统提供的 userData 实际位置，再初始化配置和私有缓存，以兼容系统目录重定向。
+| 目录 | Windows 位置 | 内容 |
+| --- | --- | --- |
+| 配置 | `%APPDATA%\galgame-savedata-sync\` | `preferences.json`（主题、语言），第一次保存时创建 |
+| 数据 | `%LOCALAPPDATA%\galgame-savedata-sync\data\` | `identity.json`、`directories.json`、`game-library.json`、`service-settings.json`、`backup-settings.json`、`interrupted-writes/` |
+| 备份库 | `%LOCALAPPDATA%\galgame-savedata-sync\backups\` | 见第 12 节 |
+| 缓存 | `%LOCALAPPDATA%\galgame-savedata-sync\cache\` | `transfer-archives-v1/`、`webview/` |
 
-配置写入使用同目录独占临时文件、sync 和 rename；同进程登记串行处理，成功前不更新内存。配置必须位于所选根目录之外；目录损坏或版本未知时停止初始化。跨外部进程的配置事务或锁不在当前实现内。
+主程序所在文件夹里有 `portable_data` 文件夹时进入便携模式，四个目录换成它下面的 `config`、`data`、`backups`、`cache`；应用不创建 `portable_data`。宿主在 Linux 上按 XDG 目录计算（位置见 ADR-0005），Linux 还没构建和测试。
+
+启动时 `startBackend` 创建四个目录并解析成真实路径，兼容系统目录重定向；然后把配置、数据、缓存目录登记为私有目录，备份库由备份存储登记。目录适配器拒绝把私有目录和备份库及其父子目录选作同步根。
+
+`identity.json`（schemaVersion=1）只保存设备 ID。`directories.json`（schemaVersion=2）保存 roots：内部根记录仅含 rootId、规范路径和 bigint dev/ino 的字符串身份；绝对路径不传到 Renderer，也不写进项目记忆。条目 ID/相对路径映射只在本进程内有效，不保存历史元数据或哈希，重启后重新枚举。
+
+配置写入使用同目录独占临时文件、sync 和 rename；同进程登记串行处理，成功前不更新内存。配置必须位于所选根目录之外。数据文件损坏或版本未知时停止初始化，宿主显示 `fatal` 提示后退出；读不懂的数据文件不阻止启动的处理在 [WP-59](../development/work-packages.md)。跨外部进程的配置事务或锁不在当前实现内。
 
 每次读取重新检查根身份；路径逐段 lstat，拒绝 symlink/junction，核对 realpath 与根范围，读取句柄再核对身份。文件/目录替换使旧引用失效，需要刷新或明确重新选择。不跟随根内链接；不支持的条目会让该层读取返回错误，不显示成空目录。
 
@@ -138,11 +154,11 @@ HTTP 服务注入 `scanSource: adapter` 后开放 `/v1/sync/capabilities`、`POS
 
 ## 9. 私有归档
 
-`src/backend/archive-adapter.ts` 仅供主进程调用，使用内置 fs/stream/zlib。文件、缓存和流留在原生层，归档对象和文件内容不跨 preload/JS 桥。
+`src/backend/archive-adapter.ts` 仅供后端调用，使用内置 fs/stream/zlib。文件、缓存和流留在 sidecar 里，归档对象和文件内容不经界面通道传给页面。
 
 | 接口 | 输入/输出 | 所有权与失败 |
 | --- | --- | --- |
-| createWindowsArchiveAdapter(source, privateDirectory, options?) | 目录读取适配器与既有应用私有绝对目录 | 缓存固定放 transfer-archives-v1 子目录，不能与任何已登记源根重叠；启动只清理验证过的孤儿缓存；失败抛脱敏 ArchiveError |
+| createWindowsArchiveAdapter(source, cacheDirectory, options?) | 目录读取适配器与已有缓存目录的绝对路径 | 缓存固定放 transfer-archives-v1 子目录，不能与任何已登记源根重叠；启动只清理验证过的孤儿缓存；失败抛脱敏 ArchiveError |
 | archive.checkStagingSpace(bytes) | 解包原文字节数，返回缓存所在卷和需要的字节数 | 超过缓存预算报 resource-limit，空间不足报 insufficient-space |
 | archive.sendFiles(rootId, files, destination, options?) | 复制计划的文件列表（fileId、entryId、大小、修改日期）和可写流 | 按顺序边读边打包 gzip1 写入 destination，写完结束它；文件的大小或修改日期与计划不同、读取期间被改动时抛 source-changed |
 | archive.receiveFiles(files, input, options?) | 计划的文件列表和原始 Node Readable，返回 WindowsStagedFiles | 从调用起接管并最终关闭 input；按计划逐成员核对并通过 gzip 校验后才返回；失败或取消时清理本次缓存 |
@@ -151,7 +167,7 @@ HTTP 服务注入 `scanSource: adapter` 后开放 `/v1/sync/capabilities`、`POS
 
 操作 options 可传 signal 和 onBytes（累计已打包或已解包的文件内容字节数）。普通 abort 抛 ArchiveCancelledError，TimeoutError signal 映射 timeout；清理也失败时原错误保留，独立 cleanupError=cleanup-failed。
 
-默认执行共享包的每文件/总原文/tar 上限、64 KiB 显式 IO 缓冲及 3 GiB 私有缓存预算。options.quota 可以进一步收紧本机预算；options.io 仅供受信任主进程注入磁盘空间检查和删除能力。满额 1 GiB 双向传输和进程内存实测见[验收标准](../testing/acceptance.md)。
+默认执行共享包的每文件/总原文/tar 上限、64 KiB 显式 IO 缓冲及 3 GiB 私有缓存预算。options.quota 可以进一步收紧本机预算；options.io 仅供后端注入磁盘空间检查和删除能力。满额 1 GiB 双向传输和进程内存实测见[验收标准](../testing/acceptance.md)。
 
 解包只写到随机任务目录。根/任务都有所有权标记并检查目录身份，进程内一份活动缓存。清理先核实所有成员，再逐个 unlink 普通文件并 rmdir 空任务目录；拒绝陌生文件、子目录、链接和多重硬链接。
 
@@ -159,7 +175,7 @@ HTTP 服务注入 `scanSource: adapter` 后开放 `/v1/sync/capabilities`、`POS
 
 ## 10. HTTP 服务与任务生命周期
 
-`src/backend/http-service.ts` 的 `WindowsHttpService` 构造时不监听网络。应用初始化目录/归档/服务对象，用户点服务按钮后通过有限 IPC 启动，监听失败（端口被占用或在系统保留的端口段里）报 `port-unavailable`，退出时等待 stop。原生 API 缺省回环地址和动态端口；自动化 HTTP 检查使用 127.0.0.1。
+`src/backend/http-service.ts` 的 `WindowsHttpService` 构造时不监听网络。应用初始化目录/归档/服务对象，用户点服务按钮后经界面通道启动，监听失败（端口被占用或在系统保留的端口段里）报 `port-unavailable`，退出时等待 stop。原生 API 缺省回环地址和动态端口；自动化 HTTP 检查使用 127.0.0.1。
 
 | 原生 API | 输入/返回 | 责任 |
 | --- | --- | --- |
@@ -170,7 +186,7 @@ HTTP 服务注入 `scanSource: adapter` 后开放 `/v1/sync/capabilities`、`POS
 
 路由和包络见[设备接口与归档格式](transfer-protocol.md#4-http-路由与会话)。除了 device 均核对唯一会话头。JSON 严格 UTF-8、无 BOM/重复解码键、深度不超过 128，按实际 UTF-8 字节执行 8 MiB 请求及响应预算；拒绝编码体、trailer、重复头、歧义 CL/TE、非法/重复查询、错误方法和 Range。请求/响应无进展 60 秒、整个 HTTP 请求 30 分钟、请求头 15 秒及 16 KiB 头预算。
 
-复制任务由 `WindowsSyncRegistry` 登记，期限、留存和结果见[复制、备份与恢复约定](sync-copy.md)。失败、取消和超时等待实际 IO 结束再清理；清理失败保留互斥，明确重试成功后才释放。主进程 before-quit 等待 HTTP 服务停止；清理失败显示错误并保留重试机会。
+复制任务由 `WindowsSyncRegistry` 登记，期限、留存和结果见[复制、备份与恢复约定](sync-copy.md)。失败、取消和超时等待实际 IO 结束再清理；清理失败保留互斥，明确重试成功后才释放。关闭窗口时宿主等待 sidecar 停止服务（第 1 节）；清理失败显示错误并保留重试机会。
 
 ## 11. 写入候选残留
 
@@ -178,13 +194,13 @@ HTTP 服务注入 `scanSource: adapter` 后开放 `/v1/sync/capabilities`、`POS
 
 ## 12. 独立备份与恢复材料
 
-`createWindowsBackupStore(adapter, privateDirectory, gameName)` 在 `userData/backups/` 初始化独立备份，结构和移动端相同：`<游戏名>/<UTC 时间>/` 内含 `backup.json` 和按原路径保存的 `files/`。`gameName` 只决定新备份的文件夹名，备份归属看 `backup.json` 里的 ID。启动时登记备份区，目录适配器拒绝把它及其父子目录选作同步根。用户可以随时删改这个文件夹，所以每次按实际目录读取；整个文件夹被删后自动重建，设置在 `userData/backup-settings.json`。备份不进入同步比较，清除应用数据会丢失备份。
+`createWindowsBackupStore(adapter, backupDirectory, settingsDirectory, gameName)` 在备份库（第 7 节）初始化独立备份，结构和移动端相同：`<游戏名>/<UTC 时间>/` 内含 `backup.json` 和按原路径保存的 `files/`。`gameName` 只决定新备份的文件夹名，备份归属看 `backup.json` 里的 ID。启动时登记备份库，目录适配器拒绝把它及其父子目录选作同步根。备份库在第一次写入备份时创建；用户可以随时删改这个文件夹，所以每次按实际目录读取，整个文件夹被删后自动重建。设置在数据目录的 `backup-settings.json`。备份不进入同步比较。
 
 | 原生方法 | 输入、输出和资源责任 |
 | --- | --- |
 | `settings()` / `setPreference(projectId, policy)` | 独立 `SyncBackupSettings`；缺少设置项时开启，坏设置拒绝修改并保留原文件 |
 | `create(plan, options?)` | 接受有效、可执行且目标设备匹配的 `SyncPlan`，写入前保存目标目录的全部文件；返回 `{ manifest, cleanupError }`，关闭备份、没有写入或目标没有文件时 manifest 为 null |
-| `capacity(requiredBytes)` | 预检私有卷剩余空间；可得量未知为 null，不足抛 insufficient-space；不提前删除有效旧轮次换空间 |
+| `capacity(requiredBytes)` | 预检备份库所在卷的剩余空间；可得量未知为 null，不足抛 insufficient-space；不提前删除有效旧轮次换空间 |
 | `list(projectId)` | 返回这个游戏的已提交清单和未完成轮次 ID，包括游戏之前用过的目录的备份；恢复必须 acquire |
 | `acquire(projectId, backupId, options?)` | 完整核对每个原文文件后返回原生句柄；`snapshot()` 为本次恢复建立临时树，`openFile(fileId)` 返回只读 stream 与 verifyUnchanged；消费者关闭读流后 release |
 | `rotate(projectId)` / `cleanupIncomplete(projectId, backupId)` | 显式重试轮换或清理未提交、文件缺失或大小不符的轮次；有效备份和正在被恢复引用的轮次不通过这个入口删除 |
@@ -216,13 +232,13 @@ HTTP 服务注入 `scanSource: adapter` 后开放 `/v1/sync/capabilities`、`POS
 
 第一次失败/取消/未知后，后续项记为 not-attempted；已经确认成功的内容保留。候选清理失败独立报告，保留任务名额直到明确清理成功。`target-operation.ts` 与旧批次共用进程互斥。
 
-第一次写目标前，`InterruptedWriteStore` 在 `userData/interrupted-writes/<planId>.json` 落盘标记（写不了就报错，目标不变），结束时删除。不在本进程活动集合里的标记说明上个进程写到一半被结束：`desktopSync.interruptedWrites()` 读取，`dismissInterruptedWrite(id)` 一次性清除，界面据此提示一次，已移除游戏的标记直接清掉。
+第一次写目标前，`InterruptedWriteStore` 在数据目录的 `interrupted-writes/<planId>.json` 落盘标记（写不了就报错，目标不变），结束时删除。不在本进程活动集合里的标记说明上个进程写到一半被结束：`desktopSync.interruptedWrites()` 读取，`dismissInterruptedWrite(id)` 一次性清除，界面据此提示一次，已移除游戏的标记直接清掉。
 
 ## 14. 同步结果与本机恢复界面
 
 游戏操作菜单的“任务与结果”展示本进程内的复制和恢复任务，计划、来源/目标、备份状态、阶段和逐项实际结果分别显示。电脑发送完成时提示“文件已发送。请在移动端查看写入结果。”；电脑接收才显示本机写入结果。
 
-“备份与恢复”按游戏读取完整备份与未完成轮次。备份默认关闭，开关不弹确认。本机恢复先读取并验证所选备份、扫描当前目录，生成固定预览，用户确认后由主进程执行。恢复前始终备份当前目录的全部文件，目标独有文件保留，恢复总是写进游戏当前的目录。
+“备份与恢复”按游戏读取完整备份与未完成轮次。备份默认关闭，开关不弹确认。本机恢复先读取并验证所选备份、扫描当前目录，生成固定预览，用户确认后由后端执行。恢复前始终备份当前目录的全部文件，目标独有文件保留，恢复总是写进游戏当前的目录。
 
 `src/backend/restore-registry.ts` 的 `WindowsRestoreRegistry` 持有恢复任务。关闭详情、切页或刷新 Renderer 只停止页面轮询；本进程中的任务、预览及实际结果仍可按 ID 查询。网络服务停止不取消本机恢复；应用退出先停止网络编排和恢复，再停止写入器与备份。
 
@@ -243,7 +259,7 @@ HTTP 服务注入 `scanSource: adapter` 后开放 `/v1/sync/capabilities`、`POS
 
 `isWorking` 表示原生 worker 尚未退出。本机预览和已结束结果保留最多 10 分钟，查询不延长；本进程最多接受 4096 次恢复确认。准备和执行各受 30 分钟总期限限制。进程重启后只保留配置和已提交备份，任务 ID 不恢复。所选备份已被轮换淘汰时，重新预览返回 not-found。
 
-固定 `sync:*` 通道在 `src/bridge/sync-bridge.ts` 登记，`sync-ipc.ts` 核对封闭参数和 8 MiB 控制响应预算，来源由宿主检查。非法输入/计划为 invalid-request，名额占用为 busy，已消费确认是 task-conflict，过期或已释放为 not-found；错误不授权自动重放。
+固定 `sync:*` 通道在 `src/bridge/sync-bridge.ts` 登记，`sync-ipc.ts` 核对封闭参数和 8 MiB 控制响应预算，能调用的页面由 capability 限定。非法输入/计划为 invalid-request，名额占用为 busy，已消费确认是 task-conflict，过期或已释放为 not-found；错误不授权自动重放。
 
 ## 15. 测试范围
 
@@ -251,4 +267,4 @@ HTTP 服务注入 `scanSource: adapter` 后开放 `/v1/sync/capabilities`、`POS
 
 Windows 短路径检查通过 PowerShell 调用 GetShortPathName 生成真实 8.3 别名，并在只影响子进程的 TEMP/TMP 环境中重跑目录与 IPC 用例；卷未生成不同短名时跳过这一项。HTTP 测试使用真实回环 HTTP/TCP，时间边界由注入的时钟和仅收紧的期限验证，不等待实际 30 分钟。
 
-实际桌面窗口、系统选择器、Android LAN 双向、取消、清理重试和界面结果已在真机上验收，见[验收标准](../testing/acceptance.md)。电脑拨号没有长期测试，连接和传输的验收结论见[验收标准](../testing/acceptance.md)第 3 节。
+实际桌面窗口、系统选择器、Android LAN 双向、取消、清理重试和界面结果在 Electron 宿主上验收过，见[验收标准](../testing/acceptance.md)。Tauri 宿主在 Windows 上验证过：窗口和界面加载、深浅色切换和重启后恢复、系统目录选择器、服务启动和局域网广播、关闭窗口时停止服务后退出、sidecar 意外退出的提示、宿主被强制结束后 sidecar 自行退出，以及安装模式和便携模式的存储位置。和移动端的连接与双向传输在 Tauri 宿主上验收过。宿主的消息解析由 `src-tauri` 的 `cargo test` 覆盖。电脑拨号没有长期测试，连接和传输的验收结论见[验收标准](../testing/acceptance.md)第 3 节。

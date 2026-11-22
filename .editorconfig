@@ -8,6 +8,10 @@ indent_size = 2
 insert_final_newline = true
 trim_trailing_whitespace = true
 
+# rustfmt 的默认缩进
+[*.rs]
+indent_size = 4
+
 [*.{bat,cmd}]
 end_of_line = crlf
 

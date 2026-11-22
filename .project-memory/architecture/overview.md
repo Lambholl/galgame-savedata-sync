@@ -23,7 +23,7 @@ tags: [架构总览]
 - 当前实现：双向覆盖复制（移动端或电脑都能发起）、写入前全量备份、本机恢复，以及游戏、设备和传输界面。传输时可选择删除目标多出的条目。有限桥不传文件字节。接口边界见[接口约定](api-contracts.md)。
 - 核心模块：设备与地址管理、目录映射、当前目录预览、本次差异计划、文件流传输、平台文件适配。
 - 关键约束：明文 HTTP、手选方向、无历史同步基线、目录不递归汇总大小。
-- 已选技术栈：React + TypeScript + Vite；Windows 使用 Electron + Ant Design；Android 使用 Capacitor + Ant Design Mobile，文件能力使用 Java 原生插件。双端框架选择见 [Q-001](../requirements/open-questions.md)。
+- 已选技术栈：React + TypeScript + Vite；Windows 使用 Tauri（系统 WebView）+ Node sidecar + Ant Design；Android 使用 Capacitor + Ant Design Mobile，文件能力使用 Java 原生插件。双端框架选择见 [Q-001](../requirements/open-questions.md)。
 - 技术选型理由：共用业务模型、协议和纯业务规则；按 [ADR-0002](../decisions/ADR-0002-ui-library-and-shared-rendering.md)，与两端交互差异无关的展示组件和页面主体也放 `@savedata-sync/shared/ui`，平台交互、页面状态与 Hooks 由各端维护。移动端优先 antd-mobile，使用 antd 时同样检查触控区域；两套组件库分别配置，颜色与圆角取同一套 CSS 变量。
 - 平台差异：Windows 使用 Node.js 文件与 HTTP 能力；Android 使用 SAF、ContentResolver 和原生文件流，不将 content URI 当成本地绝对路径。
 - 风险：SAF 属性及写入能力因提供者而异；自动发现受局域网组播条件影响。
@@ -51,7 +51,7 @@ tags: [架构总览]
 | 设备与连接 | 初次关联、保存设备 ID、更新地址、重连 | 监听方广播并显示连接二维码，拨号方用发现列表、扫码（只在移动端）或手动 IP 连接，改址时自动重连。当前已实现电脑一侧的广播、二维码、发现列表、手动 IP 和重连，Android 一侧的发现列表、扫码、手动 IP 和重连 | active |
 | 同步项目 | 保存项目名称、可选展示信息和两端目录映射 | 配置不保存历史文件索引；任务固定项目映射与两端目录关联 | active |
 | 预览与比较 | 读取当前条目、属性对照、生成本次差异计划 | 共用 TypeScript 模型，原生适配只负责实际读取 | active |
-| Windows 应用 | 桌面界面、目录选择、HTTP 服务、复制与恢复 | Electron 主进程运行 Node.js 能力，界面通过受限桥调用 | active |
+| Windows 应用 | 桌面界面、目录选择、HTTP 服务、复制与恢复 | Node sidecar 运行后端，Tauri 宿主提供窗口和系统能力，界面只能经宿主转发的通道调用后端 | active |
 | Android 应用 | 移动界面、目录授权、HTTP 客户端 | Capacitor + Java 插件；活动传输由持续通知保持，持久目录授权与远端 IP 相互独立；局域网搜索用 NsdManager，扫码用 CameraX 取景、ZXing 解码 | active |
 | 任务控制与传输 | 显式方向、传输进度、文件流和结果 | 两端均可发起覆盖复制；拨号方编排扫描、计划和任务，监听方发起时经控制通道交给拨号方，需拨号方开着应用并已连接（当前即电脑发起、移动端执行）；目标多出的条目默认保留，每次可选择删除 | active |
 | 备份与恢复 | 写入前保存目标目录的全部文件，提供手工恢复 | 默认关闭，每个游戏保留 1–10 份（默认 3 份）；独立于同步目录和任务比较数据；删除同样算写入，先备份 | active |
@@ -95,8 +95,8 @@ tags: [架构总览]
 | 事项 | 当前结论 | 状态 |
 | --- | --- | --- |
 | 明文 HTTP、手选方向、无历史基线、目录不递归计算大小 | 产品决定；具体约束见[产品需求](../requirements/product.md) | accepted |
-| React 双端技术栈 | React + TypeScript + Vite，Windows Electron + antd，Android Capacitor + antd-mobile | accepted |
-| 电脑端宿主和存储目录 | 改用 Tauri 宿主和 Node sidecar，存储按 Roaming（界面偏好）、Local（数据、备份库）、缓存分开，支持 `portable_data` 便携模式和自定义备份库；迁移完成前仍是 Electron，见 [ADR-0005](../decisions/ADR-0005-tauri-sidecar-and-storage-layout.md) | accepted |
+| React 双端技术栈 | React + TypeScript + Vite，Windows Tauri + antd，Android Capacitor + antd-mobile | accepted |
+| 电脑端宿主和存储目录 | 改用 Tauri 宿主和 Node sidecar，存储按 Roaming（界面偏好）、Local（数据、备份库）、缓存分开，支持 `portable_data` 便携模式和自定义备份库；打包和自定义备份库还没做，见 [ADR-0005](../decisions/ADR-0005-tauri-sidecar-and-storage-layout.md) | accepted |
 | 稳定 ID、地址和目录映射解耦 | 改址后保留目录配置；连保存的地址时同时按设备 ID 查找 5 秒（Q-016），原地址连不上又没查到时再手动改址或扫码 | accepted |
 | 首次连接入口 | 发现列表、扫码和手动 IP，三个入口都核对设备 ID | accepted |
 | 连接与传输角色 | 监听方提供服务、拨号方编排传输，方向和两端按角色命名；一台设备同一时刻只有一条连接；见 [ADR-0004](../decisions/ADR-0004-symmetric-listener-dialer-roles.md) | accepted |

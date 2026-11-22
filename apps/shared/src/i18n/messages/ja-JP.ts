@@ -3,8 +3,9 @@ import type { Messages } from '../messages.ts'
 /** 日本語。 */
 export const jaJP: Messages = {
   'app.name': 'セーブデータ同期',
-  'app.loadUiFailedTitle': '起動に失敗しました',
-  'app.loadUiFailed': 'アプリの画面を読み込めません。ビルド結果を確認してください。',
+  'app.backendStoppedTitle': 'バックグラウンドサービスが停止しました',
+  'app.backendStopped':
+    'バックグラウンドサービスが予期せず停止したため、アプリを終了します。もう一度アプリを開いてください。',
   'app.cleanupFailedTitle': '終了時のクリーンアップに失敗しました',
   'app.cleanupFailed':
     'キャッシュや書き込み候補のファイルを解放できません。権限を確認して、もう一度アプリを終了してください。',

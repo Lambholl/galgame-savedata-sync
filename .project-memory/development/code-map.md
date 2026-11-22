@@ -30,7 +30,7 @@ tags: [代码地图]
 | `scripts/security-check.mjs`、`scripts/toolchain-policy.mjs` | npm 全量审计、pnpm 公告与 Node 安全补丁门禁 | 查询失败即失败；安全基线来自已核实的官方发行记录 |
 | `scripts/android-inventory.gradle`、`scripts/security-android.mjs` | 解析 Maven 实际依赖并查询 OSV | 含运行、测试和构建图；未解析依赖导致失败；临时报告在 .reports/ |
 | `.github/workflows/ci.yml` | Windows 工程检查与 Android 构建 CI | Action 固定 commit SHA；只处理分支 push 与 PR，tag 交给发布流程 |
-| `.github/workflows/release.yml`、`scripts/app-version.mjs` | `vX.Y.Z` tag 的版本推算、完整测试、Portable/APK 构建、SHA-256、artifact 和草稿 Release | 版本只来自 Git tag，`app-version.mjs` 供两端 Vite 配置（注入共享包 `APP_VERSION`）、`package-windows.mjs` 和 Android `build.gradle` 共用；tag 必须指向当前提交且在 `origin/master` 上；只构建 Portable，不构建 NSIS；Release 说明在 GitHub 页面补充，不进 Git |
+| `.github/workflows/release.yml`、`scripts/app-version.mjs` | `vX.Y.Z` tag 的版本推算、完整测试、Portable/APK 构建、SHA-256、artifact 和草稿 Release | 版本只来自 Git tag，`app-version.mjs` 供两端 Vite 配置（注入共享包 `APP_VERSION`）和 Android `build.gradle` 共用；tag 必须指向当前提交且在 `origin/master` 上；电脑端打包步骤在 Tauri 打包完成前不可用；Release 说明在 GitHub 页面补充，不进 Git |
 
 ## 2. 共享包
 
@@ -40,7 +40,7 @@ tags: [代码地图]
 | `apps/shared/src/protocol/contracts.ts`、`protocol.ts`、`validation.ts` | 协议版本、DTO、错误/路由/头名映射与纯数据守卫 | 封闭 DTO 区分空值、失败和未知结果；平台路径、权限和真实内容校验由适配器负责 |
 | `apps/shared/src/protocol/batch-contracts.ts`、`batch-limits.ts`、`batch-validation.ts`；`src/validation/data-validation.ts` | 设备描述和固定上限 DTO、预算/期限/归档常量及守卫；基础容器/文本/数值辅助供内部复用 | 上限固定，两端相同；不含归档、HTTP、IO 或历史存储 |
 | `apps/shared/src/sync/` | 本次扫描/计划/备份/结果 DTO、路径关系、纯比较及上下文重算守卫 | 独立 schema 1；不做 IO、哈希计算或历史查询；复制方向显式，本机恢复强制保护当前内容 |
-| `apps/shared/src/control`；Windows `main/control-hub.ts`、`main/dialer-control.ts`；Java `ControlClient.java`、`TransferEngine.java` 控制部分；移动 `platform/control-channel.ts`、`features/transfer/use-remote-sync.ts` | WebSocket 控制通道 `/v1/control`：目录读取、电脑发起复制、完成回报、目录表变化通知和在线判断 | 消息格式对称，按监听方和拨号方区分；HTTP 服务核实身份后才升级；两端严格校验每条消息；文件内容不走控制通道 |
+| `apps/shared/src/control`；Windows `backend/control-hub.ts`、`backend/dialer-control.ts`；Java `ControlClient.java`、`TransferEngine.java` 控制部分；移动 `platform/control-channel.ts`、`features/transfer/use-remote-sync.ts` | WebSocket 控制通道 `/v1/control`：目录读取、电脑发起复制、完成回报、目录表变化通知和在线判断 | 消息格式对称，按监听方和拨号方区分；HTTP 服务核实身份后才升级；两端严格校验每条消息；文件内容不走控制通道 |
 | `apps/shared/src/connection` | DNS-SD 服务类型、实例名和 TXT，连接二维码文本，候选连接地址 | 监听方生成、拨号方解析，不按平台区分；解析结果分 valid、unsupported-version、invalid，版本先于其他字段检查；地址只用于连接，身份以 `/v1/device` 为准 |
 | `apps/shared/src/ui/navigation/page-navigation.ts`、`use-page-navigation.ts` | 两端共用的页面导航：前者是来源记录、返回目标和切页方向的纯函数，后者把它接到 React 状态 | 页面名称和上下文由各端定义；跳转关系写在 DesktopApp、MobileApp |
 | `apps/shared/test/` | 运行时数据关系回归；字段和线格式见[共享包](../architecture/shared-package.md) | — |
@@ -49,14 +49,15 @@ tags: [代码地图]
 
 | 路径 | 作用 | 重要约定 |
 | --- | --- | --- |
-| `apps/desktop/` | 后端 `src/backend`、Electron 入口 `src/main`、sidecar 入口 `src/sidecar`、preload 和独立 antd 界面 | Renderer 无 Node 集成；contextIsolation 和 sandbox 开启 |
-| `apps/desktop/src/backend/backend.ts`、`channel-registry.ts` | `startBackend` 初始化数据目录、各服务并登记全部界面通道，`stop` 按顺序释放；`ChannelRouter` 按通道名分发界面请求 | 后端不依赖 Electron，平台能力（目录选择器、打开路径、明暗主题）经 `DesktopHost` 由宿主提供；调用方是否可信由宿主在分发前检查 |
-| `apps/desktop/src/sidecar/index.ts`、`protocol.ts`、`vite.sidecar.config.ts` | sidecar 入口：stdin/stdout 按行 JSON 与宿主交换消息，构建为 `out/sidecar/index.mjs` | stdout 只写协议消息，`console.log` 改写到 stderr；stdin 关闭时停止服务后退出；第三方包全部打进产物 |
-| `apps/desktop/src/renderer/src/app`、`features`、`components`、`styles`、`platform` | 独立桌面导航、居中弹窗、antd 页面及有限桥接入 | 两端源码互不导入；桌面传输页可请求移动端扫描并在电脑确认计划（TransferPage、backend/remote-sync-requests.ts），实际复制由移动端执行 |
-| `apps/desktop/src/backend/directory-adapter.ts`、`directory-store.ts`、`directory-paths.ts`、`directory-errors.ts` | 目录选择登记、独立配置、当前层元数据、根内原生读流及脱敏错误 | 没有源目录写入 API；拒绝 symlink/junction 与失效身份；配置不保存历史文件索引 |
-| `apps/desktop/src/bridge/directory-bridge.ts`、`src/backend/directory-ipc.ts`、`src/preload/index.ts` | 三个有限目录方法与通道参数、返回校验 | 绝对路径和文件内容不跨桥；handler 在退出时移除；main/preload 内联共享包 |
+| `apps/desktop/` | Tauri 宿主 `src-tauri`、后端 `src/backend`、sidecar 入口 `src/sidecar`、bridge `src/bridge` 和独立 antd 界面 `src/renderer` | 界面只能调用 `backend_invoke`，由宿主转给 sidecar |
+| `apps/desktop/src-tauri/src/main.rs`、`sidecar.rs`、`storage.rs`、`capabilities/main.json`、`tauri.conf.json` | 宿主：窗口、单实例、`backend_invoke` 命令、sidecar 进程和消息、平台能力（目录选择器、打开文件夹、明暗）、存储目录和便携模式 | `sidecar.rs` 的消息类型和 `src/sidecar/protocol.ts` 一起改；capability 只授权 `main` 窗口调用 `backend_invoke`；`cargo test` 覆盖消息解析 |
+| `apps/desktop/src/backend/backend.ts`、`channel-registry.ts` | `startBackend` 初始化配置、数据、备份库、缓存四个目录和各服务，登记全部界面通道，`stop` 按顺序释放；`ChannelRouter` 按通道名分发界面请求 | 后端是纯 Node 代码，平台能力（目录选择器、打开路径、明暗主题）经 `DesktopHost` 由宿主提供；能调用通道的页面由 Tauri capability 限定 |
+| `apps/desktop/src/sidecar/index.ts`、`protocol.ts`、`vite.sidecar.config.ts` | sidecar 入口：从命令行读四个存储目录，stdin/stdout 按行 JSON 与宿主交换消息，构建为 `out/sidecar/index.mjs` | stdout 只写协议消息，`console.log` 改写到 stderr；stdin 关闭时停止服务后退出；第三方包全部打进产物 |
+| `apps/desktop/src/renderer/src/app`、`features`、`components`、`styles`、`platform`、`vite.config.ts` | 独立桌面导航、居中弹窗、antd 页面及 bridge 接入；`platform/desktop-bridges.ts` 在 Tauri 窗口里安装各 `window.desktop*` 接口 | 两端源码互不导入；桌面传输页可请求移动端扫描并在电脑确认计划（TransferPage、backend/remote-sync-requests.ts），实际复制由移动端执行 |
+| `apps/desktop/src/backend/directory-adapter.ts`、`directory-store.ts`、`device-identity.ts`、`directory-paths.ts`、`directory-errors.ts` | 目录选择登记、设备身份、当前层元数据、根内原生读流及脱敏错误 | 没有源目录写入 API；拒绝 symlink/junction 与失效身份；配置不保存历史文件索引 |
+| `apps/desktop/src/bridge/directory-bridge.ts`、`src/backend/directory-ipc.ts` | 三个有限目录方法与通道参数、返回校验 | 绝对路径和文件内容不经界面通道 |
 | `apps/desktop/src/backend/archive-adapter.ts`、`archive-cache.ts`、`archive-format.ts`、`archive-errors.ts`、`test/archive-adapter.test.mjs`、`test/fixtures/archive-v1.json` | 按计划边读边打包、边收边解包的受限 USTAR/gzip1 编解码、严格 gzip 头尾检查、资源/取消与缓存所有权/清理，及格式回归 | 不做 HTTP 或目标写入；缓存与源根互不包含；解包结果持有缓存，读流关闭后 dispose；清理失败阻止新任务；格式夹具和 Java 共用，两端各自往返不算互通证据 |
-| `apps/desktop/src/backend/backup-store.ts`、`backup-files.ts`、`backup-ipc.ts`、`src/bridge/backup-bridge.ts` | 用户可手动管理的持久备份、流式校验/提交、按份数轮换、恢复材料和有限本机查询 | 写 `userData/backups`，设置在 `userData/backup-settings.json`；目录适配器排除备份区；原文读取和创建留在后端，恢复写回由 `sync-writer` 与 `restore-registry` 负责 |
+| `apps/desktop/src/backend/backup-store.ts`、`backup-files.ts`、`backup-ipc.ts`、`src/bridge/backup-bridge.ts` | 用户可手动管理的持久备份、流式校验/提交、按份数轮换、恢复材料和有限本机查询 | 写备份库（默认数据根下的 `backups`），设置在数据目录的 `backup-settings.json`；目录适配器排除备份库；原文读取和创建留在后端，恢复写回由 `sync-writer` 与 `restore-registry` 负责 |
 | `apps/desktop/src/backend/http-service.ts`、`http-wire.ts`、`http-errors.ts`、`test/http-service.test.mjs` | 原生 HTTP 设备/目录读取、目录表交换、控制通道升级和 `/v1/sync/*` 路由，严格协议字节边界 | 显式监听且默认回环；复制任务由 `sync-registry.ts` 登记；应用退出等待 stop |
 | `apps/desktop/src/bridge/service-bridge.ts`、`src/backend/service-ipc.ts`、`src/renderer/src/features/devices` | 本机服务启停、端口、目录选择、扫描桥与设备页控制 | 校验参数与 DTO；不传私有路径或字节 |
 | `apps/desktop/src/backend/discovery-advertiser.ts` | 服务运行期间用 `@homebridge/ciao` 做 mDNS 广播，状态进服务快照的 `discovery` | 服务 IPC 启停时调用，退出前由 `backend.ts` 的 `stop` 停止；失败不影响 HTTP 服务，30 秒重试 |

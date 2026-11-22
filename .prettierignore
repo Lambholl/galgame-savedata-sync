@@ -2,6 +2,9 @@ node_modules/
 dist/
 out/
 release/
+# Tauri 宿主：Cargo 编译输出和 tauri-build 生成的 schema
+apps/desktop/src-tauri/target/
+apps/desktop/src-tauri/gen/
 pnpm-lock.yaml
 .project-memory/
 # Android 工程里只有手写 Java 由 Prettier 排版；这里匹配文件而不是目录，下面的例外才能生效。

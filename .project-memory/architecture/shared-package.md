@@ -23,7 +23,7 @@ tags: [共享包, 数据模型, 守卫]
 
 `@savedata-sync/shared` 位于 `apps/shared`，从 `src/index.ts` 导出应用名、协议 v1 的本地目录/设备 DTO、设备描述与固定上限、纯数据守卫、协议常量、游戏关联、复制计划与任务数据、控制通道和连接格式。IO、归档编解码、HTTP 服务/客户端、任务存储和实际文件同步分别在各平台模块中。
 
-`@savedata-sync/shared/ui`（`src/ui`）放两端共用的 React 展示组件，例如 PathText；它可以依赖 React、`@ant-design/icons` 与不涉及平台交互的 antd 组件，主入口不得导入它，因此电脑主进程和 node 测试不会加载 React。组件参数逐项声明，不接受样式参数，规则见 [ADR-0002](../decisions/ADR-0002-ui-library-and-shared-rendering.md) 与 `eslint.config.mjs`。
+`@savedata-sync/shared/ui`（`src/ui`）放两端共用的 React 展示组件，例如 PathText；它可以依赖 React、`@ant-design/icons` 与不涉及平台交互的 antd 组件，主入口不得导入它，因此电脑端 sidecar 和 node 测试不会加载 React。组件参数逐项声明，不接受样式参数，规则见 [ADR-0002](../decisions/ADR-0002-ui-library-and-shared-rendering.md) 与 `eslint.config.mjs`。
 
 设备描述、发现 TXT 和连接二维码使用数字 `PROTOCOL_VERSION=3`。本地目录桥使用 DeviceDescriptor、DirectoryReference、EntryMetadata、DirectoryListing 和 DirectorySelectionResult；HTTP 的 DeviceResponse 为 `OperationResult<BatchDeviceDescriptor>`，包装本地 device 并提供 sessionId/limits。应用仍是测试版，协议字段可以不兼容地修改，但两端必须同时更新。
 

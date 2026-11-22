@@ -48,10 +48,16 @@ export interface DesktopHost {
   setTheme(theme: ThemePreference): void
 }
 
-/** 启动后端的参数。 */
+/** 启动后端的参数；目录都是绝对路径，不存在时创建，彼此不能相同。 */
 export interface BackendOptions {
-  /** 应用私有数据目录的绝对路径；不存在时创建。 */
+  /** 界面偏好所在的配置目录。 */
+  readonly configDirectory: string
+  /** 设备身份、目录登记、游戏库、端口、备份设置和中断写入标记所在的数据目录。 */
   readonly dataDirectory: string
+  /** 备份库。 */
+  readonly backupDirectory: string
+  /** 传输缓存目录，里面的内容可以随时删除。 */
+  readonly cacheDirectory: string
   /** 系统的首选语言列表，如 `['zh-CN', 'en-US']`；界面语言偏好为 system 时按它选语言。 */
   readonly systemLanguages: readonly string[]
   readonly host: DesktopHost
@@ -108,7 +114,7 @@ function systemErrorCode(error: unknown): string | null {
 }
 
 /**
- * 初始化数据目录、目录适配器、游戏库、备份、写入器和网络服务，并登记全部界面通道。
+ * 初始化存储目录、目录适配器、游戏库、备份、写入器和网络服务，并登记全部界面通道。
  * 网络服务在界面请求启动时才开始监听。
  *
  * @throws BackendStartError 任一步初始化失败时抛出；已经创建的服务和文件句柄不释放。
@@ -122,26 +128,39 @@ export async function startBackend(options: BackendOptions): Promise<DesktopBack
     )
   let stage = 'app-data'
   try {
-    // 平台提供的应用私有目录可能经过系统重定向；先解析它，再执行缓存的逐段检查。
+    // 平台提供的目录可能经过系统重定向；先解析成真实路径，再做缓存的逐段检查和包含关系检查。
     // 用户选择的存档目录仍由目录适配器独立拒绝链接和越界。
-    await mkdir(options.dataDirectory, { recursive: true })
-    const privateDirectory = await realpath(options.dataDirectory)
+    const prepare = async (path: string): Promise<string> => {
+      await mkdir(path, { recursive: true })
+      return realpath(path)
+    }
+    const configDirectory = await prepare(options.configDirectory)
+    const dataDirectory = await prepare(options.dataDirectory)
+    const backupDirectory = await prepare(options.backupDirectory)
+    const cacheDirectory = await prepare(options.cacheDirectory)
     stage = 'directories'
-    const adapter = await createDirectoryAdapter(join(privateDirectory, 'directory-config.json'))
+    const adapter = await createDirectoryAdapter(
+      join(dataDirectory, 'directories.json'),
+      join(dataDirectory, 'identity.json'),
+    )
+    for (const path of [configDirectory, dataDirectory, cacheDirectory]) {
+      adapter.excludePrivateDirectory(path)
+    }
     stage = 'archive-cache'
-    const archive = await createWindowsArchiveAdapter(adapter, privateDirectory)
+    const archive = await createWindowsArchiveAdapter(adapter, cacheDirectory)
     stage = 'library'
-    const library = new DesktopLibrary(join(privateDirectory, 'game-library.json'), adapter)
+    const library = new DesktopLibrary(join(dataDirectory, 'game-library.json'), adapter)
     await library.load()
     stage = 'backups'
     const backups = await createWindowsBackupStore(
       adapter,
-      privateDirectory,
+      backupDirectory,
+      dataDirectory,
       (projectId) =>
         library.snapshot().config.games.find((game) => game.id === projectId)?.name ?? null,
     )
     stage = 'sync-writer'
-    const interruptedWrites = new InterruptedWriteStore(privateDirectory)
+    const interruptedWrites = new InterruptedWriteStore(dataDirectory)
     const syncWriter = new WindowsSyncWriter(adapter, backups, {
       interruptedWrites,
       authorize: (plan) => {
@@ -160,12 +179,12 @@ export async function startBackend(options: BackendOptions): Promise<DesktopBack
       },
     })
     stage = 'preferences'
-    const preferences = new AppPreferencesStore(join(privateDirectory, 'app-preferences.json'))
+    const preferences = new AppPreferencesStore(join(configDirectory, 'preferences.json'))
     await preferences.load()
     preferencesStore = preferences
     host.setTheme(preferences.get().theme)
     stage = 'service-settings'
-    const portSettings = new ServicePortSettings(join(privateDirectory, 'service-settings.json'))
+    const portSettings = new ServicePortSettings(join(dataDirectory, 'service-settings.json'))
     await portSettings.load()
     stage = 'services'
     const httpService = new WindowsHttpService(adapter, {

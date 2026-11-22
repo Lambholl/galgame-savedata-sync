@@ -21,7 +21,6 @@
     "doctor": "node scripts/doctor.mjs",
     "security:node": "node scripts/security-check.mjs",
     "security:android": "pnpm android:sync && node scripts/android-build.mjs --inventory && node scripts/security-android.mjs",
-    "desktop:package": "pnpm --filter @savedata-sync/desktop package:win:portable",
     "android:sync": "pnpm --filter @savedata-sync/mobile build && pnpm --filter @savedata-sync/mobile exec cap sync android",
     "android:open": "node scripts/android-open.mjs",
     "android:build": "pnpm android:sync && node scripts/android-build.mjs",

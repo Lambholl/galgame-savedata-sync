@@ -94,7 +94,7 @@ test('通道拒绝路径走私及附加参数，拒绝发生在打开选择器�
   assert.equal(state.selections(), 0)
 })
 
-test('preload 拒绝畸形返回和连接失败，非法引用不发 IPC 请求', async () => {
+test('bridge 拒绝畸形返回和连接失败，非法引用不发 IPC 请求', async () => {
   let requests = 0
   const malformed = createDirectoryBridge(async () => {
     requests += 1

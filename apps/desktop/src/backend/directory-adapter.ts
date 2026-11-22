@@ -26,6 +26,7 @@ import {
 } from './directory-paths.ts'
 import type { FileIdentity } from './directory-paths.ts'
 import { loadDirectoryRegistry, saveDirectoryRegistry } from './directory-store.ts'
+import { loadDeviceId } from './device-identity.ts'
 import type { DirectoryRegistry, StoredDirectory } from './directory-store.ts'
 
 interface RegisteredEntry {
@@ -55,20 +56,22 @@ export interface NativeDirectoryLocation {
 /** Windows 本地目录的只读访问：登记、列出和读取目录。条目引用只在当前进程有效。 */
 export class WindowsDirectoryAdapter {
   private readonly configPath: string
+  readonly #deviceId: string
   private registry: DirectoryRegistry
   private readonly entries = new Map<string, RegisteredEntry>()
   private readonly entryIds = new Map<string, string>()
   private readonly privateDirectories = new Set<string>()
   private mutation: Promise<void> = Promise.resolve()
 
-  constructor(configPath: string, registry: DirectoryRegistry) {
+  constructor(configPath: string, registry: DirectoryRegistry, deviceId: string) {
     this.configPath = configPath
     this.registry = registry
+    this.#deviceId = deviceId
   }
 
   /** 这次安装的稳定设备 ID。 */
   get deviceId(): string {
-    return this.registry.deviceId
+    return this.#deviceId
   }
 
   /** 检查缓存目录与所有已登记的根目录互不包含，有包含关系时抛错。 */
@@ -459,18 +462,24 @@ export class WindowsDirectoryAdapter {
   }
 }
 
-/** 读取目录配置并创建适配器；配置不存在时生成新的设备 ID，配置损坏或版本未知时抛错。 */
-export async function createDirectoryAdapter(configPath: string): Promise<WindowsDirectoryAdapter> {
+/**
+ * 读取设备身份和目录配置并创建适配器。
+ *
+ * @param configPath 目录配置文件的绝对路径；文件不存在时按没有登记目录保存一份。
+ * @param identityPath 设备身份文件的绝对路径，默认是目录配置旁边的 `identity.json`；文件不存在时生成新的设备 ID。
+ * @throws DirectoryAccessError 路径不是绝对路径，或者设备身份、目录配置损坏或版本未知时抛出。
+ */
+export async function createDirectoryAdapter(
+  configPath: string,
+  identityPath = join(dirname(configPath), 'identity.json'),
+): Promise<WindowsDirectoryAdapter> {
   if (!isAbsolute(configPath)) {
     throw new DirectoryAccessError('invalid-request', 'The configuration path must be absolute.')
   }
-  const registry = (await loadDirectoryRegistry(configPath)) ?? {
-    schemaVersion: 1,
-    deviceId: randomUUID(),
-    roots: [],
-  }
+  const deviceId = await loadDeviceId(identityPath)
+  const registry = (await loadDirectoryRegistry(configPath)) ?? { schemaVersion: 2, roots: [] }
   if (registry.roots.length === 0) {
     await saveDirectoryRegistry(configPath, registry)
   }
-  return new WindowsDirectoryAdapter(configPath, registry)
+  return new WindowsDirectoryAdapter(configPath, registry, deviceId)
 }

@@ -27,7 +27,7 @@ tags: [决策, 电脑端, Tauri, sidecar, 存储目录, 便携模式, 备份库]
 
 ## 状态
 
-accepted。实施拆成 WP-56～WP-60，见[工作包登记](../development/work-packages.md)；完成前电脑端仍以 Electron 运行。
+accepted。宿主、sidecar 和存储目录已实现；打包（WP-58）、数据文件损坏时的启动处理（WP-59）和自定义备份库（WP-60）见[工作包登记](../development/work-packages.md)。
 
 ## 替代关系
 
@@ -58,7 +58,7 @@ accepted。实施拆成 WP-56～WP-60，见[工作包登记](../development/work
 
 ### 存储目录
 
-7. 目录名统一为 `galgame-savedata-sync`。宿主按平台算出配置、数据、缓存三个根目录，用命令行参数传给 sidecar；不使用 Tauri 按应用标识生成的目录，也不读取 Electron 版的数据目录。
+7. 目录名统一为 `galgame-savedata-sync`。宿主按平台算出配置、数据、备份库、缓存四个目录，用命令行参数传给 sidecar；不使用 Tauri 按应用标识生成的目录，也不读取 Electron 版的数据目录。
 
 | 内容 | Windows | Linux |
 | --- | --- | --- |
@@ -124,5 +124,5 @@ accepted。实施拆成 WP-56～WP-60，见[工作包登记](../development/work
 | --- | --- |
 | `apps/desktop/src/backend/backend.ts` | 后端启动、宿主接口 `DesktopHost` 和停止顺序 |
 | `apps/desktop/src/sidecar/index.ts`、`protocol.ts` | sidecar 入口和 stdio 消息格式 |
-| `apps/desktop/src-tauri/` | Tauri 宿主（WP-57 新建） |
+| `apps/desktop/src-tauri/` | Tauri 宿主 |
 | [Windows 平台层](../architecture/windows.md) | 电脑端结构、接口和生命周期 |

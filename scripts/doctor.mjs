@@ -1,8 +1,7 @@
-import { existsSync, readFileSync, readdirSync } from 'node:fs'
-import { createRequire } from 'node:module'
-import { dirname, join } from 'node:path'
+import { existsSync, readdirSync } from 'node:fs'
+import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
-import { getAndroidEnvironment, REPO_ROOT } from './local-environment.mjs'
+import { getAndroidEnvironment } from './local-environment.mjs'
 import { isNodeSecurityBaselineMet } from './toolchain-policy.mjs'
 
 const isWindows = process.platform === 'win32'
@@ -44,21 +43,13 @@ for (const [name, command, isBatch] of [
   addCheck(name, result.ok ? 'ok' : 'fail', result.output || `${command} could not run`)
 }
 
-try {
-  const requireDesktop = createRequire(join(REPO_ROOT, 'apps/desktop/package.json'))
-  const electronRoot = dirname(requireDesktop.resolve('electron/package.json'))
-  const pathFile = join(electronRoot, 'path.txt')
-  const executable = existsSync(pathFile) ? readFileSync(pathFile, 'utf8').trim() : ''
-  const electronPath = executable ? join(electronRoot, 'dist', executable) : ''
-  addCheck(
-    'Electron binary',
-    electronPath && existsSync(electronPath) ? 'ok' : 'fail',
-    electronPath ||
-      'Electron runtime not downloaded; run pnpm --filter @savedata-sync/desktop exec electron --version',
-  )
-} catch {
-  addCheck('Electron binary', 'fail', 'Run pnpm install; Electron installation must finish')
-}
+// 电脑端的 Tauri 宿主用 Rust 编译；rustup 默认装在 ~/.cargo/bin，不一定在 PATH 里。
+const cargo = getVersion('cargo')
+addCheck(
+  'Rust (cargo)',
+  cargo.ok ? 'ok' : 'fail',
+  cargo.ok ? cargo.output : 'Install Rust with rustup and add ~/.cargo/bin to PATH',
+)
 
 if (!isDesktopOnly) {
   const { sdkRoot, javaHome, studioPath } = getAndroidEnvironment()

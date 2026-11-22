@@ -1,7 +1,7 @@
 ---
 doc_type: standards-coding
 status: active
-updated: 2026-11-19
+updated: 2026-11-22
 tags: [编码规范]
 ---
 
@@ -41,7 +41,7 @@ tags: [编码规范]
 | Checkstyle 基于 `google_checks.xml`，去掉排版规则；空 catch 接受中文原因；`@PluginMethod` 和 `@After` 不要求 Javadoc；另加未使用导入和布尔前缀检查。差异写在 `checkstyle.xml` 开头 | 排版交给 Prettier；插件方法的接口说明写在 TypeScript 网页接口 `*Api` 上 | Android Java |
 | `apps/mobile/android/` 下除 `app/src` 的 Java 外保留原生工具生成的风格，不用 Prettier 重写 | Capacitor 和 Gradle 生成的文件，改格式会和上游模板对不上 | Android 原生工程 |
 | Markdown 不由 Prettier 排版，人工维护；编码和换行仍由 `scripts/check-text.mjs` 检查 | Prettier 会改写表格和中文换行 | 全部 Markdown |
-| 默认导出只用于框架要求的配置文件 | 框架按默认导出读取配置 | `eslint.config.mjs`、`vite.config.ts`、`electron.vite.config.ts`、`capacitor.config.ts` |
+| 默认导出只用于框架要求的配置文件 | 框架按默认导出读取配置 | `eslint.config.mjs`、`vite.config.ts`、`vite.sidecar.config.ts`、`capacitor.config.ts` |
 | 文档注释由 `jsdoc/require-jsdoc`（`publicOnly`）检查；名称以 `NativePlugin` 结尾的原生插件接口，方法文档写在同文件网页接口的同名方法上 | 两个接口方法一一对应，只写一处 | TypeScript |
 | eslint-plugin-react 的 React 版本在 `eslint.config.mjs` 里写死为 `18.3`，和 apps 的 react 依赖一致；升级 React 时一起改 | ESLint 10 去掉了 `context.getFilename`，插件的 `detect` 会报错 | TSX |
 | `pnpm-workspace.yaml` 的 `peerDependencyRules` 允许 eslint-plugin-react 7.37 搭配 ESLint 10；插件发布支持 ESLint 10 的版本后删掉这条 | 插件的 peer 范围还停在 ESLint 9，项目用到的规则在 ESLint 10 上能正常运行 | 依赖 |
@@ -62,7 +62,7 @@ tags: [编码规范]
 
 | 规则 | 原因 | 适用范围 |
 | --- | --- | --- |
-| 与两端交互差异无关的计算和渲染放 `apps/shared`。主入口 `@savedata-sync/shared` 只用纯 TypeScript，不引入 React、组件库、DOM、Node、Electron 或 Android 接口；界面入口 `@savedata-sync/shared/ui` 可以用 React、`@ant-design/icons` 和不涉及平台交互的 antd 组件，不用 antd-mobile、react-dom、Electron、Capacitor 和 Node。主入口不导入 ui 入口 | 电脑主进程和 node 测试只加载主入口；决定见 [ADR-0002](../decisions/ADR-0002-ui-library-and-shared-rendering.md) | `apps/shared`；`eslint.config.mjs` 的 `no-restricted-imports` 检查 |
+| 与两端交互差异无关的计算和渲染放 `apps/shared`。主入口 `@savedata-sync/shared` 只用纯 TypeScript，不引入 React、组件库、DOM、Node、Tauri 或 Android 接口；界面入口 `@savedata-sync/shared/ui` 可以用 React、`@ant-design/icons` 和不涉及平台交互的 antd 组件，不用 antd-mobile、react-dom、Tauri、Capacitor 和 Node。主入口不导入 ui 入口 | 电脑端 sidecar 和 node 测试只加载主入口；决定见 [ADR-0002](../decisions/ADR-0002-ui-library-and-shared-rendering.md) | `apps/shared`；`eslint.config.mjs` 的 `no-restricted-imports` 检查 |
 | ui 入口用独立的 `src/ui/tsconfig.json`（含 DOM），主入口的 tsconfig 排除它 | 主入口不能用到 DOM 类型 | `apps/shared` |
 | 弹层、抽屉、返回键、系统选择器、确认、提示消息等平台交互，以及页面状态和 Hook 留在各端；平台能力留在各应用的适配层 | 两端交互方式不同 | `apps/desktop`、`apps/mobile` |
 | 电脑端和移动端互不导入对方的源码 | 两端只通过共享包共用代码 | `eslint.config.mjs` 检查 |

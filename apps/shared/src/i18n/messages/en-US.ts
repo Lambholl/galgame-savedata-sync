@@ -3,8 +3,9 @@ import type { Messages } from '../messages.ts'
 /** English (US). */
 export const enUS: Messages = {
   'app.name': 'Savedata Sync',
-  'app.loadUiFailedTitle': 'Startup failed',
-  'app.loadUiFailed': 'Could not load the app interface. Check the build output.',
+  'app.backendStoppedTitle': 'Background service stopped',
+  'app.backendStopped':
+    'The background service stopped unexpectedly. The app will close. Open it again.',
   'app.cleanupFailedTitle': 'Cleanup on exit failed',
   'app.cleanupFailed':
     'Could not release cached or candidate files. Check permissions and try exiting again.',

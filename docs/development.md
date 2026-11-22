@@ -30,8 +30,8 @@ pnpm doctor
 pnpm dev:desktop
 ```
 
-- `pnpm doctor` 检查 Node、pnpm、JDK 和 Android SDK 是否齐全；加上 `--desktop` 参数可只检查桌面端开发环境。
-- `pnpm dev:desktop` 启动桌面端开发模式，修改主进程或 preload 代码后会自动重启（仅刷新页面不会重载旧主进程，若热重启异常可手动重启开发进程）。
+- `pnpm doctor` 检查 Node、pnpm、Rust、JDK 和 Android SDK 是否齐全；加上 `--desktop` 参数可只检查桌面端开发环境。
+- `pnpm dev:desktop` 启动桌面端开发模式：先构建后端 sidecar，再启动界面开发服务器（`127.0.0.1:1420`）和 Tauri 宿主。界面代码修改后热更新；`apps/desktop/src-tauri` 的 Rust 代码修改后宿主自动重新编译并重启；后端（`src/backend`、`src/sidecar`）修改后需停止并重新运行该命令。
 - `pnpm dev:mobile` 在浏览器中启动移动端前端页面，适合调试 UI；涉及文件系统访问、局域网传输等依赖 Android 原生插件的功能，需要构建到真机或模拟器中调试。
 
 提交代码前请运行 `pnpm check`。
@@ -40,8 +40,10 @@ pnpm dev:desktop
 
 | 工具 | 要求 |
 | --- | --- |
-| Node.js | 22.13+（建议 22.23.4+ 或 24.22.1+，以满足安全基线） |
+| Node.js | 22.13+（建议 22.23.4+ 或 24.22.1+，以满足安全基线）；桌面端开发版用 `PATH` 中的 `node` 运行后端 |
 | pnpm | 10.34.8（与 `package.json` 的 `packageManager` 一致） |
+| Rust | stable，Windows 使用 MSVC 工具链（`x86_64-pc-windows-msvc`），另需 Visual Studio 生成工具的“使用 C++ 的桌面开发”工作负载和 Windows SDK；`cargo` 需在 `PATH` 中 |
+| WebView2 运行时 | Windows 11 自带；桌面端界面运行在其中 |
 | JDK | 21（建议 21.0.13+） |
 | Android SDK | Platform 36、Build Tools 35.0.0+、Platform Tools；建议同时安装 Command-line Tools（latest） |
 | Android Studio | 2025.2.1+（仅调试 Android 原生代码时需要） |
@@ -81,7 +83,6 @@ Android 端最低支持 Android 11（API 30），编译目标为 API 36。前端
 | `pnpm test` | 运行脚本、共享包、桌面端和移动端前端测试（无需 Android 工具） |
 | `pnpm test:all` | 运行 `pnpm test` 和 `pnpm android:test`，适合发版前或大范围改动后执行 |
 | `pnpm doctor` | 检查本地工具链；支持 `--desktop`（跳过 Android 检查）和 `--json`；存在 FAIL 项时返回非零退出码 |
-| `pnpm desktop:package` | 打包 Windows x64 免安装版 |
 | `pnpm android:sync` | 构建移动端前端资源并同步到 Android 原生工程 |
 | `pnpm android:build` | 构建 debug APK；加 `--release` 构建签名后的 release APK |
 | `pnpm android:unit` | 运行 Java 单元测试和 Windows/Java 归档互通检查（无需连接真机），复用 Gradle 后台进程，适合修改 Java 代码后反复运行 |
@@ -97,7 +98,7 @@ Android 端最低支持 Android 11（API 30），编译目标为 API 36。前端
 | 路径 | 内容 |
 | --- | --- |
 | `apps/shared` | 两端共用的通信协议、数据模型、校验规则和 React 展示组件 |
-| `apps/desktop` | Windows 桌面端：Electron 主进程、preload 和 React 界面 |
+| `apps/desktop` | Windows 桌面端：Tauri 宿主（`src-tauri`）、Node 后端 sidecar 和 React 界面 |
 | `apps/mobile` | 移动端：React 前端页面及 `android/` 下的 Capacitor 原生工程 |
 | `scripts` | 检查、构建、版本号计算与安全审计脚本 |
 | `.project-memory` | 需求、架构、接口约定与测试状态记录 |
@@ -174,10 +175,10 @@ keytool -genkeypair -v -keystore savedata-sync-release.jks -alias savedata-sync 
 
 应用当前处于测试阶段，不保留旧版本的数据迁移与兼容代码：
 
-- 当配置或备份存储格式变更时，桌面端读到旧配置会报错，需手动删除应用数据目录下的旧配置文件后重新添加游戏；移动端直接卸载重装。
+- 当配置或备份存储格式变更时，桌面端读到旧配置会报错，需手动删除 `%LOCALAPPDATA%\galgame-savedata-sync\data` 下的旧文件后重新添加游戏；移动端直接卸载重装。
 - 当通信协议变更时，桌面端与移动端需更新至同一版本才能连接。
 
-卸载移动端会清除游戏配置、目录访问授权以及 `Android/data` 下的备份；桌面端是免安装版，删除程序文件后应用数据目录里的配置仍会保留。发布包含不兼容变更的版本时，需在 Release 说明中注明处理方式。
+卸载移动端会清除游戏配置、目录访问授权以及 `Android/data` 下的备份；桌面端删除程序文件后，`%APPDATA%` 和 `%LOCALAPPDATA%` 下 `galgame-savedata-sync` 文件夹里的配置和备份仍会保留。发布包含不兼容变更的版本时，需在 Release 说明中注明处理方式。
 
 ## 版本号与发布
 
@@ -194,7 +195,7 @@ keytool -genkeypair -v -keystore savedata-sync-release.jks -alias savedata-sync 
 - 发布 tag 格式必须为 `v<major>.<minor>.<patch>`（每段 0–999 且无前导零），带 `-` 的预发布 tag 不参与计算。
 - 开发版与对应 tag 正式版的 `versionCode` 相同，使用同一签名时可互相覆盖安装。
 - Android Gradle 构建时会调用该版本脚本，需确保 `PATH` 中存在 `node`。
-- 开发模式下版本号仅在启动时计算一次；Windows 分发包文件名和 exe 文件属性中只保留数字版本号（如 `0.3.0`），界面上显示完整版本号。
+- 开发模式下版本号仅在启动时计算一次；界面上显示完整版本号。
 
 ### 发布流程
 
@@ -211,7 +212,7 @@ git push --atomic origin master v0.3.0
 
 1. 校验 tag 格式及其指向的提交是否在 `origin/master` 上。
 2. 运行 `pnpm check` 和 `pnpm test:all`。
-3. 使用 `pnpm desktop:package` 打包 Windows x64 免安装版（无数字签名）。
+3. 打包 Windows 版。桌面端打包正在改为 Tauri 流程，这一步目前不可用，tag 发布会在这一步失败。
 4. 使用 Secrets 中的签名配置构建 Android release APK，校验签名并生成 `SHA256SUMS.txt`。
 5. 将产物上传为保留 7 天的 Actions artifact，并创建草稿 GitHub Release。
 
@@ -244,8 +245,8 @@ pnpm security:android
 **`pnpm doctor` 提示缺少工具或未接受协议**
 根据提示安装对应工具（Android SDK 需通过 `sdkmanager --licenses` 接受许可），也可在 `dev.local.json` 中手动指定本地路径。
 
-**桌面端首次启动异常或无响应**
-可运行 `pnpm --filter @savedata-sync/desktop exec electron --version` 检查 Electron 二进制是否正确安装。
+**桌面端开发版没有窗口，或提示 “The background service could not start”**
+窗口在后端 sidecar 初始化完成后才打开。确认 `PATH` 中有 `node`，并查看运行 `pnpm dev:desktop` 的终端里 sidecar 输出的错误。
 
 **桌面端开发版启动报配置错误**
 本地保留了旧格式的配置文件，参考[兼容性与卸载](#兼容性与卸载)删除旧配置后重试。

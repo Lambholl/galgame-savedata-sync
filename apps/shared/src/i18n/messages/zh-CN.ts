@@ -6,8 +6,8 @@
 export const zhCN = {
   'app.name': '存档同步',
   'app.startFailed': '无法读取应用配置，请重启应用后再试。',
-  'app.loadUiFailedTitle': '启动失败',
-  'app.loadUiFailed': '无法加载应用界面，请检查构建结果。',
+  'app.backendStoppedTitle': '后台服务已停止',
+  'app.backendStopped': '后台服务意外停止，应用将退出。请重新打开应用。',
   'app.cleanupFailedTitle': '退出清理失败',
   'app.cleanupFailed': '无法释放缓存或候选文件，请检查权限后重试退出。',
   'app.initializeFailedTitle': '初始化失败',

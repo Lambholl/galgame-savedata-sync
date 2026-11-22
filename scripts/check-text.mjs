@@ -13,6 +13,8 @@ const ignoredDirectories = new Set([
   'build',
   'release',
   'coverage',
+  // Cargo 的编译输出
+  'target',
 ])
 const textExtensions = new Set([
   '.ts',
@@ -33,6 +35,8 @@ const textExtensions = new Set([
   '.kt',
   '.bat',
   '.cmd',
+  '.rs',
+  '.toml',
 ])
 const textNames = new Set(['.editorconfig', '.gitattributes', '.gitignore', '.npmrc', 'gradlew'])
 const decoder = new TextDecoder('utf-8', { fatal: true })

@@ -20,7 +20,7 @@ tags: [范围]
 | 核心同步 | 保存目录映射，用户手选方向，仅比较当前文件 |
 | 文件预览 | 两端条目、目录层级、文件大小与修改日期；不统计文件夹递归大小 |
 | 地址变更 | 重新发现或手动改 IP 后保留原目录配置 |
-| 技术栈 | React + TypeScript + Vite；Windows Electron + antd；Android Capacitor + antd-mobile |
+| 技术栈 | React + TypeScript + Vite；Windows Tauri + antd；Android Capacitor + antd-mobile |
 | 连接与发现 | 首版发现列表、扫码和手动 IP，mDNS/DNS-SD 自动发现和地址变化重连；设备页按对称角色设计 |
 | 两端操作 | 两端连接时均可发起同步，Android 不以界面可见性判断操作可用性 |
 | 目标多出的条目 | 每次传输可选择保留或删除，默认保留；删除时在计划页预览 |

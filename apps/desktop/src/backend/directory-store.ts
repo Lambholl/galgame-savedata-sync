@@ -13,10 +13,9 @@ export interface StoredDirectory {
   readonly identity: FileIdentity
 }
 
-/** 目录配置文件（schema 1）：安装 ID 和用户选定的根目录。 */
+/** 目录配置文件（schema 2）：用户选定的根目录。 */
 export interface DirectoryRegistry {
-  readonly schemaVersion: 1
-  readonly deviceId: string
+  readonly schemaVersion: 2
   readonly roots: readonly StoredDirectory[]
 }
 
@@ -43,9 +42,8 @@ function isStoredDirectory(value: unknown): value is StoredDirectory {
 function isRegistry(value: unknown): value is DirectoryRegistry {
   if (
     !isRecord(value) ||
-    Object.keys(value).length !== 3 ||
-    value.schemaVersion !== 1 ||
-    !isOpaqueId(value.deviceId) ||
+    Object.keys(value).length !== 2 ||
+    value.schemaVersion !== 2 ||
     !Array.isArray(value.roots)
   ) {
     return false

@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "main",
+  "description": "主窗口里的应用页面只能调用 backend_invoke。",
+  "windows": ["main"],
+  "permissions": ["allow-backend-invoke"]
+}

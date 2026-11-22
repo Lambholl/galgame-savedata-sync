@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-backend-invoke"
+description = "Enables the backend_invoke command without any pre-configured scope."
+commands.allow = ["backend_invoke"]
+
+[[permission]]
+identifier = "deny-backend-invoke"
+description = "Denies the backend_invoke command without any pre-configured scope."
+commands.deny = ["backend_invoke"]

@@ -28,10 +28,16 @@ export interface HostResultMessage {
 /** 宿主发给 sidecar 的消息。 */
 export type HostToSidecarMessage = InvokeMessage | ShutdownMessage | HostResultMessage
 
-/** 后端初始化完成，可以打开窗口；title 是按语言偏好翻译的窗口标题。 */
+/** 后端初始化完成，可以打开窗口。文字都已按语言偏好翻译。 */
 export interface ReadyMessage {
   readonly type: 'ready'
+  /** 窗口标题。 */
   readonly title: string
+  /** 浅色和深色主题下窗口的背景色，格式 `#rrggbb`。 */
+  readonly backgroundColors: { readonly light: string; readonly dark: string }
+  /** sidecar 意外退出时宿主显示的提示标题和内容。 */
+  readonly stoppedTitle: string
+  readonly stoppedMessage: string
 }
 
 /** 后端初始化失败，sidecar 发出后以退出码 1 退出；title 和 message 可以直接显示给用户。 */

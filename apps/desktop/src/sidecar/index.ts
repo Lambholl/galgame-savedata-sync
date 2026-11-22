@@ -1,12 +1,15 @@
 import { createInterface } from 'node:readline'
+import { isAbsolute } from 'node:path'
 import { parseArgs } from 'node:util'
+import { PALETTES } from '@savedata-sync/shared'
 import { BackendStartError, startBackend } from '../backend/backend.ts'
 import type { DesktopBackend } from '../backend/backend.ts'
 import { parseHostMessage } from './protocol.ts'
 import type { HostRequest, SidecarToHostMessage } from './protocol.ts'
 
-// 命令行：--data-dir <应用私有数据目录> [--languages <逗号分隔的系统语言>]
-// 和宿主的消息格式见 protocol.ts。
+// 命令行：--config-dir <配置目录> --data-dir <数据目录> --backup-dir <备份库> --cache-dir <缓存目录>
+//   [--languages <逗号分隔的系统语言>]
+// 各目录的用途见 BackendOptions；和宿主的消息格式见 protocol.ts。
 
 // stdout 只能写协议消息；依赖库或调试代码写到 console.log 的内容改写到 stderr，免得破坏消息流。
 console.log = console.error
@@ -51,14 +54,27 @@ function requestHost(request: HostRequest): Promise<unknown> {
 }
 
 const { values } = parseArgs({
-  options: { 'data-dir': { type: 'string' }, languages: { type: 'string' } },
+  options: {
+    'config-dir': { type: 'string' },
+    'data-dir': { type: 'string' },
+    'backup-dir': { type: 'string' },
+    'cache-dir': { type: 'string' },
+    languages: { type: 'string' },
+  },
   strict: true,
 })
-const dataDirectory = values['data-dir']
-if (!dataDirectory) {
-  console.error('Missing --data-dir')
-  process.exit(2)
+function requireDirectory(name: 'config-dir' | 'data-dir' | 'backup-dir' | 'cache-dir'): string {
+  const value = values[name]
+  if (!value || !isAbsolute(value)) {
+    console.error(`--${name} must be an absolute path`)
+    process.exit(2)
+  }
+  return value
 }
+const configDirectory = requireDirectory('config-dir')
+const dataDirectory = requireDirectory('data-dir')
+const backupDirectory = requireDirectory('backup-dir')
+const cacheDirectory = requireDirectory('cache-dir')
 const systemLanguages = (values.languages ?? '').split(',').filter(Boolean)
 
 let backend: DesktopBackend | null = null
@@ -136,7 +152,10 @@ input.on('close', () => {
 })
 
 startBackend({
+  configDirectory,
   dataDirectory,
+  backupDirectory,
+  cacheDirectory,
   systemLanguages,
   host: {
     chooseDirectory: async (title) => {
@@ -158,7 +177,14 @@ startBackend({
 }).then(
   (started) => {
     backend = started
-    send({ type: 'ready', title: started.translate()('app.name') })
+    const t = started.translate()
+    send({
+      type: 'ready',
+      title: t('app.name'),
+      backgroundColors: { light: PALETTES.light.bg, dark: PALETTES.dark.bg },
+      stoppedTitle: t('app.backendStoppedTitle'),
+      stoppedMessage: t('app.backendStopped'),
+    })
   },
   (error: unknown) => {
     if (error instanceof BackendStartError) {
