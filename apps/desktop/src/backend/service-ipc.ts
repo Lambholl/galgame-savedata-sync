@@ -1,4 +1,3 @@
-import type { IpcMain, IpcMainInvokeEvent } from 'electron'
 import { hostname } from 'node:os'
 import { isOpaqueId } from '@savedata-sync/shared'
 import type { OperationResult } from '@savedata-sync/shared'
@@ -10,13 +9,14 @@ import type { WindowsHttpService } from './http-service.ts'
 import { toHttpError } from './http-errors.ts'
 import type { ServicePortSettings } from './service-port-settings.ts'
 import { createNetworkAddressReader } from './recommended-address.ts'
+import type { ChannelRegistry } from './channel-registry.ts'
 
-/** 注册服务 IPC 的选项：choosePath 返回 null 表示取消选择。 */
+/** 注册服务通道的选项。 */
 interface ServiceIpcOptions {
   readonly portSettings: ServicePortSettings
   /** 服务开始监听后在局域网广播，停止服务后停止广播。 */
   readonly advertiser: Pick<WindowsDiscoveryAdvertiser, 'start' | 'stop' | 'getState'>
-  readonly isTrustedSender: (event: IpcMainInvokeEvent) => boolean
+  /** 打开系统目录选择器，返回选中的绝对路径；取消时返回 null。 */
   readonly chooseTargetPath: () => Promise<string | null>
 }
 
@@ -30,12 +30,12 @@ function localDeviceName(): string | null {
 }
 
 /**
- * 注册服务接口的 IPC 处理函数；isTrusted 不通过或参数无效的调用返回错误。
+ * 注册服务接口的通道处理函数；参数无效时返回错误结果。
  *
  * @returns 移除这些处理函数的函数。
  */
 export function registerServiceIpc(
-  ipc: Pick<IpcMain, 'handle' | 'removeHandler'>,
+  ipc: ChannelRegistry,
   adapter: WindowsDirectoryAdapter,
   service: WindowsHttpService,
   options: ServiceIpcOptions,
@@ -75,14 +75,11 @@ export function registerServiceIpc(
       : undefined
   }
   for (const [action, channel] of Object.entries(SERVICE_CHANNELS)) {
-    ipc.handle(channel, async (event, ...args: unknown[]) => {
-      const fail = (code: 'permission-denied' | 'invalid-request' | 'busy', message: string) => ({
+    ipc.handle(channel, async (...args: unknown[]) => {
+      const fail = (code: 'invalid-request' | 'busy', message: string) => ({
         status: 'error' as const,
         error: { code, message, canRetry: false },
       })
-      if (!options.isTrustedSender(event)) {
-        return fail('permission-denied', 'This page cannot control the local service.')
-      }
       if (action === 'status') {
         return args.length === 0
           ? snapshot()
@@ -142,9 +139,6 @@ export function registerServiceIpc(
           }
           if (action === 'chooseTarget') {
             const path = await options.chooseTargetPath()
-            if (!options.isTrustedSender(event)) {
-              return fail('permission-denied', 'The page has left the app.')
-            }
             if (path === null) {
               return { status: 'cancelled' }
             }

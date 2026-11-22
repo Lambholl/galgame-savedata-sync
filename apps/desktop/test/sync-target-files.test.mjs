@@ -5,8 +5,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
 import { writeCandidateName } from '@savedata-sync/shared'
-import { createDirectoryAdapter } from '../src/main/directory-adapter.ts'
-import { SYNC_TARGET_IO, removeLeftoverCandidates } from '../src/main/sync-target-files.ts'
+import { createDirectoryAdapter } from '../src/backend/directory-adapter.ts'
+import { SYNC_TARGET_IO, removeLeftoverCandidates } from '../src/backend/sync-target-files.ts'
 
 const exists = (path) =>
   access(path).then(

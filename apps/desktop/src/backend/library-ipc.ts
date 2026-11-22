@@ -1,27 +1,24 @@
-import type { IpcMain, IpcMainInvokeEvent } from 'electron'
 import { isOpaqueId } from '@savedata-sync/shared'
 import type { LibraryGame } from '@savedata-sync/shared'
 import { LIBRARY_CHANNELS } from '../bridge/library-bridge.ts'
 import type { DesktopLibrary } from './library-store.ts'
 import type { WindowsHttpService } from './http-service.ts'
 import { HttpOperationError, toHttpError } from './http-errors.ts'
+import type { ChannelRegistry } from './channel-registry.ts'
 
-/** 注册游戏库接口的 IPC 处理函数。 */
+/**
+ * 注册游戏库接口的通道处理函数。
+ *
+ * @returns 移除这些处理函数的函数。
+ */
 export function registerLibraryIpc(
-  ipc: Pick<IpcMain, 'handle' | 'removeHandler'>,
+  ipc: ChannelRegistry,
   library: DesktopLibrary,
   service: WindowsHttpService,
-  isTrusted: (event: IpcMainInvokeEvent) => boolean,
 ): () => void {
   for (const [action, channel] of Object.entries(LIBRARY_CHANNELS)) {
-    ipc.handle(channel, async (event, ...args: unknown[]) => {
+    ipc.handle(channel, async (...args: unknown[]) => {
       try {
-        if (!isTrusted(event)) {
-          throw new HttpOperationError(
-            'permission-denied',
-            'This page cannot access game configuration.',
-          )
-        }
         if (action === 'read') {
           if (args.length !== 0) {
             throw new HttpOperationError('invalid-request', 'The parameters are invalid.')

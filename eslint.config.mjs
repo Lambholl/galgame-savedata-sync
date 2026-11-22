@@ -208,6 +208,7 @@ export default defineConfig(
     files: [
       'eslint.config.mjs',
       '**/vite.config.ts',
+      '**/vite.sidecar.config.ts',
       '**/electron.vite.config.ts',
       '**/capacitor.config.ts',
     ],

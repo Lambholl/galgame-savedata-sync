@@ -124,7 +124,7 @@ M-003 把发现、二维码和控制通道按对称角色设计，但实现只�
 | 文件 | 说明 |
 | --- | --- |
 | `apps/shared/src/sync/`、`apps/shared/src/protocol/contracts.ts`、`apps/shared/src/control/` | 方向、任务观察、`ErrorDevice`、版本号 |
-| `apps/desktop/src/main/http-service.ts`、`sync-registry.ts`、`remote-sync-requests.ts`、`control-hub.ts` | 监听方参照实现，Android 监听按此移植 |
+| `apps/desktop/src/backend/http-service.ts`、`sync-registry.ts`、`remote-sync-requests.ts`、`control-hub.ts` | 监听方参照实现，Android 监听按此移植 |
 | `apps/mobile/android/app/src/main/java/io/github/galgame/savedatasync/SyncTransferEngine.java`、`ControlClient.java`、`DiscoveryBrowser.java` | 拨号方参照实现，电脑拨号按此移植 |
-| `apps/desktop/src/main/discovery-advertiser.ts` | 电脑广播，新增搜索与它并存 |
+| `apps/desktop/src/backend/discovery-advertiser.ts` | 电脑广播，新增搜索与它并存 |
 | `apps/mobile/android/app/src/main/java/io/github/galgame/savedatasync/TransferService.java` | 传输前台服务，监听服务另建 |

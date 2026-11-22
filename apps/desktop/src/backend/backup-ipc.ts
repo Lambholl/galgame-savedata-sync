@@ -1,4 +1,3 @@
-import type { IpcMain, IpcMainInvokeEvent } from 'electron'
 import { BATCH_LIMITS, isOpaqueId, isSyncBackupPolicy } from '@savedata-sync/shared'
 import type { SyncBackupPolicy } from '@savedata-sync/shared'
 import { BACKUP_CHANNELS } from '../bridge/backup-bridge.ts'
@@ -6,26 +5,24 @@ import type { WindowsBackupStore } from './backup-store.ts'
 import type { DesktopLibrary } from './library-store.ts'
 import { HttpOperationError, toHttpError } from './http-errors.ts'
 import { hasTargetOperation } from './target-operation.ts'
+import type { ChannelRegistry } from './channel-registry.ts'
 
 /**
- * 注册备份接口的 IPC 处理函数；isTrusted 不通过的调用返回错误。
+ * 注册备份接口的通道处理函数。
  *
- * @param openPath 用系统文件管理器打开路径；失败时返回错误文字，成功时返回空字符串。
+ * @param openPath 用系统文件管理器打开路径；打不开时 reject。
+ * @returns 移除这些处理函数的函数。
  */
 export function registerBackupIpc(
-  ipc: Pick<IpcMain, 'handle' | 'removeHandler'>,
+  ipc: ChannelRegistry,
   store: WindowsBackupStore,
   library: DesktopLibrary,
-  isTrusted: (event: IpcMainInvokeEvent) => boolean,
-  openPath: (path: string) => Promise<string>,
+  openPath: (path: string) => Promise<void>,
   hasRunningWork: () => boolean = () => false,
 ): () => void {
   for (const [action, channel] of Object.entries(BACKUP_CHANNELS)) {
-    ipc.handle(channel, async (event, ...args: unknown[]) => {
+    ipc.handle(channel, async (...args: unknown[]) => {
       try {
-        if (!isTrusted(event)) {
-          throw new HttpOperationError('permission-denied', 'This page cannot access backups.')
-        }
         let value: unknown
         if (action === 'read') {
           if (args.length) {
@@ -36,8 +33,15 @@ export function registerBackupIpc(
           if (args.length) {
             throw new HttpOperationError('invalid-request', 'Backup parameters are invalid.')
           }
-          if (await openPath(await store.root())) {
-            throw new HttpOperationError('io-failure', 'The backup folder could not be opened.')
+          const folder = await store.root()
+          try {
+            await openPath(folder)
+          } catch (cause) {
+            throw new HttpOperationError(
+              'io-failure',
+              'The backup folder could not be opened.',
+              cause,
+            )
           }
           value = null
         } else if (action === 'setDefaults') {

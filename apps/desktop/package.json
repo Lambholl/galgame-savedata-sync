@@ -6,7 +6,8 @@
   "main": "out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev --watch",
-    "build": "electron-vite build",
+    "build": "electron-vite build && pnpm build:sidecar",
+    "build:sidecar": "vite build -c vite.sidecar.config.ts",
     "package:win": "pnpm build && node scripts/package-windows.mjs",
     "package:win:portable": "pnpm build && node scripts/package-windows.mjs portable",
     "typecheck": "tsc --noEmit",

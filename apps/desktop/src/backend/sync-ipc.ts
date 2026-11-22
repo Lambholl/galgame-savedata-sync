@@ -1,4 +1,3 @@
-import type { IpcMain, IpcMainInvokeEvent } from 'electron'
 import { BATCH_LIMITS, isOpaqueId } from '@savedata-sync/shared'
 import { SYNC_CHANNELS } from '../bridge/sync-bridge.ts'
 import type { DesktopRemoteRequest } from '../bridge/sync-bridge.ts'
@@ -7,6 +6,7 @@ import type { WindowsHttpService } from './http-service.ts'
 import type { InterruptedWriteStore } from './interrupted-writes.ts'
 import type { WindowsRestoreRegistry } from './restore-registry.ts'
 import { HttpOperationError, toHttpError } from './http-errors.ts'
+import type { ChannelRegistry } from './channel-registry.ts'
 
 function input(args: readonly unknown[], fields: readonly string[]): Record<string, unknown> {
   const value = args[0]
@@ -54,27 +54,23 @@ function latestRequest(
 }
 
 /**
- * 注册复制接口的 IPC 处理函数；isTrusted 不通过、参数无效或响应超限时返回错误。
+ * 注册复制接口的通道处理函数；参数无效或响应超限时返回错误结果。
  * 复制任务和发起的请求合并本机作为监听方和拨号方的两部分。
  *
  * @returns 移除这些处理函数的函数。
  */
 export function registerSyncIpc(
-  ipc: Pick<IpcMain, 'handle' | 'removeHandler'>,
+  ipc: ChannelRegistry,
   service: WindowsHttpService,
   dialerSync: WindowsDialerSync,
   restores: WindowsRestoreRegistry,
   interruptedWrites: InterruptedWriteStore,
-  isTrusted: (event: IpcMainInvokeEvent) => boolean,
 ): () => void {
   let isMutating = false
   for (const [action, channel] of Object.entries(SYNC_CHANNELS)) {
-    ipc.handle(channel, async (event, ...args: unknown[]) => {
+    ipc.handle(channel, async (...args: unknown[]) => {
       let hasMutation = false
       try {
-        if (!isTrusted(event)) {
-          throw new HttpOperationError('permission-denied', 'This page cannot access sync tasks.')
-        }
         const isMutation = [
           'cancelCopy',
           'cleanupCopy',

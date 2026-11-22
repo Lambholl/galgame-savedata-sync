@@ -13,8 +13,8 @@ import {
 import { tmpdir } from 'node:os'
 import { isAbsolute, join, relative, sep } from 'node:path'
 import test from 'node:test'
-import { createDirectoryAdapter } from '../src/main/directory-adapter.ts'
-import { isWithinDirectory } from '../src/main/directory-paths.ts'
+import { createDirectoryAdapter } from '../src/backend/directory-adapter.ts'
+import { isWithinDirectory } from '../src/backend/directory-paths.ts'
 
 async function createFixture(t) {
   // Windows 的 TEMP 可能含 8.3 别名，夹具与适配器须使用一致的真实路径。

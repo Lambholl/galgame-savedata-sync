@@ -1,28 +1,9 @@
-import type { IpcMain, IpcMainInvokeEvent } from 'electron'
 import { isOpaqueId } from '@savedata-sync/shared'
 import type { DirectorySelectionResult, OperationError } from '@savedata-sync/shared'
 import { DIRECTORY_CHANNELS } from '../bridge/directory-bridge.ts'
 import type { WindowsDirectoryAdapter } from './directory-adapter.ts'
 import { toDirectoryError } from './directory-errors.ts'
-
-/** 注册目录 IPC 的选项：choosePath 返回 null 表示取消选择。 */
-export interface DirectoryIpcOptions {
-  readonly choosePath: () => Promise<string | null>
-  readonly isTrustedSender: (event: IpcMainInvokeEvent) => boolean
-}
-
-/** 判断 IPC 发送方是否可信：发送方是 trustedWindows 里窗口的主 frame，且 URL 等于 expectedUrl。 */
-export function isTrustedDirectorySender(
-  event: IpcMainInvokeEvent,
-  trustedWindows: ReadonlySet<number>,
-  expectedUrl: string,
-): boolean {
-  return (
-    trustedWindows.has(event.sender.id) &&
-    event.senderFrame === event.sender.mainFrame &&
-    event.senderFrame?.url === expectedUrl
-  )
-}
+import type { ChannelRegistry } from './channel-registry.ts'
 
 function invalidRequest(): { status: 'error'; error: OperationError } {
   return {
@@ -36,38 +17,24 @@ function invalidRequest(): { status: 'error'; error: OperationError } {
 }
 
 /**
- * 注册目录接口的 IPC 处理函数；isTrustedSender 不通过的调用返回错误。
+ * 注册目录接口的通道处理函数。
  *
+ * @param choosePath 打开系统目录选择器，返回选中的绝对路径；取消时返回 null。
  * @returns 移除这些处理函数的函数。
  */
 export function registerDirectoryIpc(
-  ipc: Pick<IpcMain, 'handle' | 'removeHandler'>,
+  ipc: ChannelRegistry,
   adapter: WindowsDirectoryAdapter,
-  options: DirectoryIpcOptions,
+  choosePath: () => Promise<string | null>,
 ): () => void {
-  const isAllowed = (event: IpcMainInvokeEvent): boolean => options.isTrustedSender(event)
-  const forbidden = {
-    status: 'error' as const,
-    error: {
-      code: 'permission-denied' as const,
-      message: 'This page is not allowed to access local directories.',
-      canRetry: false,
-    },
-  }
   ipc.handle(
     DIRECTORY_CHANNELS.choose,
-    async (event, ...args: unknown[]): Promise<DirectorySelectionResult> => {
-      if (!isAllowed(event)) {
-        return forbidden
-      }
+    async (...args: unknown[]): Promise<DirectorySelectionResult> => {
       if (args.length !== 0) {
         return invalidRequest()
       }
       try {
-        const path = await options.choosePath()
-        if (!isAllowed(event)) {
-          return forbidden
-        }
+        const path = await choosePath()
         if (path === null) {
           return { status: 'cancelled' }
         }
@@ -80,19 +47,13 @@ export function registerDirectoryIpc(
       }
     },
   )
-  ipc.handle(DIRECTORY_CHANNELS.roots, (event, ...args: unknown[]) => {
-    if (!isAllowed(event)) {
-      return forbidden
-    }
+  ipc.handle(DIRECTORY_CHANNELS.roots, (...args: unknown[]) => {
     if (args.length !== 0) {
       return invalidRequest()
     }
     return adapter.listRoots()
   })
-  ipc.handle(DIRECTORY_CHANNELS.list, (event, ...args: unknown[]) => {
-    if (!isAllowed(event)) {
-      return forbidden
-    }
+  ipc.handle(DIRECTORY_CHANNELS.list, (...args: unknown[]) => {
     const request: unknown = args[0]
     if (
       args.length !== 1 ||

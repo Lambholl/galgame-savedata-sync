@@ -31,6 +31,13 @@ tags: [Windows, 电脑端, 主进程, IPC]
 
 电脑作监听方时提供 HTTP 服务和控制通道，接纳拨号方登记的任务；电脑发起的复制经控制通道交给拨号方，对方须开着应用并保持连接，计划在电脑确认、拨号方执行。电脑也能作拨号方连接另一台设备（[ADR-0004](../decisions/ADR-0004-symmetric-listener-dialer-roles.md)）：用 `bonjour-service` 搜索局域网设备，用 `node:http` 和 `ws` 交换目录表、浏览对方目录、保持控制通道，见[第 2 节](#2-游戏与设备界面)。作拨号方时由 `dialer-sync.ts` 的 `WindowsDialerSync` 编排扫描、计划、任务登记、内容上传和下载、取消和结果读取，职责同 Android `SyncTransferEngine`；也处理对方经控制通道发来的 `sync.prepare`、`sync.confirm`、`sync.cancel`、`sync.job.*`，每 0.5 秒推送 `sync.job` 摘要。它和监听方任务共用进程内的写入名额，同一时间只有一个复制任务写入；`sync-ipc.ts` 按本机是否拨号连着所选设备把发起请求交给它或 `remote-sync-requests.ts`，复制任务列表合并两部分，`DesktopCopySummary.localSide` 标明本机是哪一方，传输页和任务详情据此决定方向和两端位置。复制按确认计划执行新增、受保护覆盖、跳过和删除多余项。
 
+后端代码在 `src/backend`，不依赖 Electron。`backend.ts` 的 `startBackend` 接收数据目录、系统语言列表和宿主接口 `DesktopHost`（目录选择器、打开路径、设置明暗主题），初始化全部服务并把界面通道登记到 `ChannelRouter`；`stop` 按“拨号方任务、拨号连接、HTTP 服务和广播、本机恢复、写入器、备份”的顺序释放，失败可以重试。调用方是否可信由宿主在分发前检查，各 `*-ipc.ts` 只校验参数。
+
+后端有两个宿主入口：
+
+- Electron 入口 `src/main/index.ts`：用 `ipcMain.handle` 把固定通道转给 `ChannelRouter`，并提供 `DesktopHost`。
+- sidecar 入口 `src/sidecar/index.ts`（构建为 `out/sidecar/index.mjs`）：命令行 `--data-dir <目录> [--languages <逗号分隔>]`，和宿主在 stdin/stdout 上每行交换一条 UTF-8 JSON，stderr 只写日志。宿主发 `invoke`（通道请求）、`shutdown`（停止服务）和 `host-result`；sidecar 发 `ready`（附窗口标题）、`fatal`（初始化失败，附可直接显示的标题和正文，随后以退出码 1 退出）、`result`、`shutdown-result`（`isStopped` 为 false 时附可直接显示的失败提示，进程继续运行）和 `host-request`（`chooseDirectory`、`openPath`、`setTheme`）。stdin 关闭时 sidecar 停止服务后退出。消息格式在 `src/sidecar/protocol.ts`。
+
 Electron 构建显式内联 workspace 共享包，避免 sandbox preload 在运行时 require TypeScript 源码。preload 保留 CJS 输出，contextIsolation/sandbox 开启，Renderer 无 Node 集成。
 
 ## 2. 游戏与设备界面
@@ -44,7 +51,7 @@ Electron 构建显式内联 workspace 共享包，避免 sandbox preload 在运�
 
 游戏与设备配置保存在应用私有目录的 `game-library.json`。一个游戏保存本机一个目录，关联多个对端游戏。同一时间只有一条连接：一台设备连着本机，或本机连着一台设备。连进本机的设备通过 `POST /v1/catalog` 提交自己的目录表并取回电脑目录表，在线状态看 WebSocket 控制通道（`control-hub.ts`）：控制请求 8 秒内要应答，15 秒心跳没有回应按断开处理（`CONTROL_LIMITS`）。运行传输时保留单活动批次限制。
 
-电脑拨号由 `src/main/dialer-session.ts` 的 `WindowsDialer` 负责，`DesktopLibrary` 通过 `LibraryDialer` 接口读取它的在线状态、对方目录和断开：
+电脑拨号由 `src/backend/dialer-session.ts` 的 `WindowsDialer` 负责，`DesktopLibrary` 通过 `LibraryDialer` 接口读取它的在线状态、对方目录和断开：
 
 - 入口：设备页“添加设备”手动输入 `IP:端口`，附近的设备列表和已保存设备的“连接”按钮。电脑不提供扫码。
 - 连接：先读 `/v1/device`（5 秒），协议版本不同答复 `protocol-mismatch`，地址是本机或设备 ID 和预期不同时失败；再带 `x-sync-connect: 1` 交换目录表，保存设备和连上的地址，最后连控制通道（`dialer-control.ts`）。交换目录表期间有设备连进本机时撤回这次连接，答复 `busy`。
@@ -76,7 +83,7 @@ Electron 构建显式内联 workspace 共享包，避免 sandbox preload 在运�
 
 ## 5. 目录适配器
 
-`src/main/directory-adapter.ts` 提供本机目录登记、恢复、当前层元数据和原生只读文件流。
+`src/backend/directory-adapter.ts` 提供本机目录登记、恢复、当前层元数据和原生只读文件流。
 
 | 接口 | 输入/输出 | 生命周期与失败 |
 | --- | --- | --- |
@@ -92,11 +99,11 @@ Electron 构建显式内联 workspace 共享包，避免 sandbox preload 在运�
 
 ## 6. 有限 IPC 与服务控制
 
-preload 通过 `window.desktopDirectories` 暴露冻结的 `DesktopDirectoryApi`：`chooseDirectory()`（取消返回 cancelled 并保留既有根）、`listRoots()`、`listDirectory(rootId, parentId?)`（仅接受不透明 ID）。固定通道为 directories:choose、directories:roots、directories:list。主进程检查窗口登记、主 frame 身份及精确 renderer URL；选择器返回后再次核实来源。子 frame、导航后的页面、额外参数、非法 ID 和附加路径字段均被拒绝。preload 另检查输入和响应结构，异常映射为脱敏错误；不暴露 ipcRenderer、通用 invoke、Node 句柄或文件字节。应用退出时移除 handler，窗口关闭时删除可信窗口记录；应用采用单实例锁。
+preload 通过 `window.desktopDirectories` 暴露冻结的 `DesktopDirectoryApi`：`chooseDirectory()`（取消返回 cancelled 并保留既有根）、`listRoots()`、`listDirectory(rootId, parentId?)`（仅接受不透明 ID）。固定通道为 directories:choose、directories:roots、directories:list。Electron 入口检查窗口登记、主 frame 身份及精确 renderer URL，不通过返回 permission-denied；子 frame 和导航后的页面因此被拒绝。通道拒绝额外参数、非法 ID 和附加路径字段。preload 另检查输入和响应结构，异常映射为脱敏错误；不暴露 ipcRenderer、通用 invoke、Node 句柄或文件字节。应用退出时移除 handler，窗口关闭时删除可信窗口记录；应用采用单实例锁。
 
-拨号由 `window.desktopDialer` 的冻结 `DesktopDialerApi` 提供：`status()`、`watchNearby()`（同时续期局域网搜索）、`connect(addresses, expectedDeviceId)`（最多 16 个地址）、`connectSaved(deviceId)`；断开和忘记设备仍用 `desktopLibrary`。固定通道与响应守卫在 `src/bridge/dialer-bridge.ts`，主进程来源和参数校验在 `src/main/dialer-ipc.ts`。界面只在设备页用 `watchNearby` 轮询，其他页面用 `status`。
+拨号由 `window.desktopDialer` 的冻结 `DesktopDialerApi` 提供：`status()`、`watchNearby()`（同时续期局域网搜索）、`connect(addresses, expectedDeviceId)`（最多 16 个地址）、`connectSaved(deviceId)`；断开和忘记设备仍用 `desktopLibrary`。固定通道与响应守卫在 `src/bridge/dialer-bridge.ts`，参数校验在 `src/backend/dialer-ipc.ts`。界面只在设备页用 `watchNearby` 轮询，其他页面用 `status`。
 
-服务控制由 `window.desktopService` 的冻结 `DesktopServiceApi` 提供：`status()`、`start(port)`、`randomizePort()`、`stop()`、`chooseTarget()`，以及第 8 节的扫描方法。固定通道与响应守卫在 `src/bridge/service-bridge.ts`，主进程来源/参数校验在 `src/main/service-ipc.ts`。
+服务控制由 `window.desktopService` 的冻结 `DesktopServiceApi` 提供：`status()`、`start(port)`、`randomizePort()`、`stop()`、`chooseTarget()`，以及第 8 节的扫描方法。固定通道与响应守卫在 `src/bridge/service-bridge.ts`，参数校验在 `src/backend/service-ipc.ts`。
 
 - `start` 接受 1 到 65535 的整数，本机显式启动后监听 `0.0.0.0`，冲突返回错误。端口保存到应用私有目录，首次生成 49152 到 65535 的随机值；`randomizePort()` 选择并保存另一个端口。
 - 快照含设备 ID、本机设备名、配置端口、实际监听地址与开始监听的时间（Unix 毫秒）、本机 IPv4 地址、运行错误和局域网广播状态；没有 sessionId、私有路径或文件内容。
@@ -105,9 +112,9 @@ preload 通过 `window.desktopDirectories` 暴露冻结的 `DesktopDirectoryApi`
 - 设备页的本机服务卡片用 shared/ui `ServiceHero` 的常规排版，运行信息只有运行时长和局域网广播状态，连着哪台设备看下方设备列表里设备图标的绿点。已保存的设备行只显示名称和地址，状态只靠图标颜色表示：灰色是离线，蓝色是在线（附近搜到或已连接），已连接再在右下角加绿点；附近搜到时地址换成搜到的地址。服务停止时显示端口输入框和换随机端口的图标按钮（shared/ui `ShuffleIcon`，悬停提示“随机生成”）；窗口窄到一行放不下时，输入框和按钮一起换到标签下一行。设备列表的行不能点，不加悬停反馈。
 - `chooseTarget()` 打开原生系统选择器，选中后登记为本机目录并返回 `DirectorySelectionResult`，取消返回 cancelled。全部 Promise 将失败转为脱敏错误。界面每秒读取状态，卸载停止轮询。
 
-服务开始监听后，`src/main/discovery-advertiser.ts` 用 `@homebridge/ciao` 在局域网广播 `_savedata-sync._tcp`（格式见[共享包](shared-package.md#9-发现与连接二维码)）：实例名取本机名称，SRV 主机名由设备 ID 生成，只发 IPv4，每块网卡只回答这块网卡的地址；网卡增减或地址变化后 ciao 每 15 秒检查一次并重新宣告。停止服务和退出应用时发送 goodbye 包并关闭 UDP 5353 套接字，最多等 3 秒。广播失败不影响 HTTP 服务，快照的 `discovery.status` 为 `failed`，每 30 秒重试。`advertising` 只表示本机已发出宣告，防火墙拦截 UDP 5353 时其他设备仍然搜不到。
+服务开始监听后，`src/backend/discovery-advertiser.ts` 用 `@homebridge/ciao` 在局域网广播 `_savedata-sync._tcp`（格式见[共享包](shared-package.md#9-发现与连接二维码)）：实例名取本机名称，SRV 主机名由设备 ID 生成，只发 IPv4，每块网卡只回答这块网卡的地址；网卡增减或地址变化后 ciao 每 15 秒检查一次并重新宣告。停止服务和退出应用时发送 goodbye 包并关闭 UDP 5353 套接字，最多等 3 秒。广播失败不影响 HTTP 服务，快照的 `discovery.status` 为 `failed`，每 30 秒重试。`advertising` 只表示本机已发出宣告，防火墙拦截 UDP 5353 时其他设备仍然搜不到。
 
-`src/main/discovery-browser.ts` 用 `bonjour-service` 搜索 `_savedata-sync._tcp`，和 ciao 广播在同一进程里同时使用 UDP 5353。搜索在续期后进行，停止续期 10 秒后停止并关闭套接字；按设备 ID 查找期间也保持搜索。mDNS 应答方只在被问到或上线时宣告，所以搜索期间每 4 秒重新查询。搜到的服务要请求 `/v1/device` 得到 200 才出现在结果里，每次重新查询时一并重新探测，已出现的服务连续 2 次失败后去掉；离开的设备不一定发出 goodbye 包，原因见 [Android 平台层](android.md#12-局域网设备搜索)。结果排除本机设备 ID，同一设备 ID 只保留一项；TXT 协议版本不同的设备只列出实例名，界面显示为版本不同。无法开始搜索时状态为 `failed`，下次续期再试。
+`src/backend/discovery-browser.ts` 用 `bonjour-service` 搜索 `_savedata-sync._tcp`，和 ciao 广播在同一进程里同时使用 UDP 5353。搜索在续期后进行，停止续期 10 秒后停止并关闭套接字；按设备 ID 查找期间也保持搜索。mDNS 应答方只在被问到或上线时宣告，所以搜索期间每 4 秒重新查询。搜到的服务要请求 `/v1/device` 得到 200 才出现在结果里，每次重新查询时一并重新探测，已出现的服务连续 2 次失败后去掉；离开的设备不一定发出 goodbye 包，原因见 [Android 平台层](android.md#12-局域网设备搜索)。结果排除本机设备 ID，同一设备 ID 只保留一项；TXT 协议版本不同的设备只列出实例名，界面显示为版本不同。无法开始搜索时状态为 `failed`，下次续期再试。
 
 ## 7. 配置与路径边界
 
@@ -131,7 +138,7 @@ HTTP 服务注入 `scanSource: adapter` 后开放 `/v1/sync/capabilities`、`POS
 
 ## 9. 私有归档
 
-`src/main/archive-adapter.ts` 仅供主进程调用，使用内置 fs/stream/zlib。文件、缓存和流留在原生层，归档对象和文件内容不跨 preload/JS 桥。
+`src/backend/archive-adapter.ts` 仅供主进程调用，使用内置 fs/stream/zlib。文件、缓存和流留在原生层，归档对象和文件内容不跨 preload/JS 桥。
 
 | 接口 | 输入/输出 | 所有权与失败 |
 | --- | --- | --- |
@@ -152,7 +159,7 @@ HTTP 服务注入 `scanSource: adapter` 后开放 `/v1/sync/capabilities`、`POS
 
 ## 10. HTTP 服务与任务生命周期
 
-`src/main/http-service.ts` 的 `WindowsHttpService` 构造时不监听网络。应用初始化目录/归档/服务对象，用户点服务按钮后通过有限 IPC 启动，监听失败（端口被占用或在系统保留的端口段里）报 `port-unavailable`，退出时等待 stop。原生 API 缺省回环地址和动态端口；自动化 HTTP 检查使用 127.0.0.1。
+`src/backend/http-service.ts` 的 `WindowsHttpService` 构造时不监听网络。应用初始化目录/归档/服务对象，用户点服务按钮后通过有限 IPC 启动，监听失败（端口被占用或在系统保留的端口段里）报 `port-unavailable`，退出时等待 stop。原生 API 缺省回环地址和动态端口；自动化 HTTP 检查使用 127.0.0.1。
 
 | 原生 API | 输入/返回 | 责任 |
 | --- | --- | --- |
@@ -217,7 +224,7 @@ HTTP 服务注入 `scanSource: adapter` 后开放 `/v1/sync/capabilities`、`POS
 
 “备份与恢复”按游戏读取完整备份与未完成轮次。备份默认关闭，开关不弹确认。本机恢复先读取并验证所选备份、扫描当前目录，生成固定预览，用户确认后由主进程执行。恢复前始终备份当前目录的全部文件，目标独有文件保留，恢复总是写进游戏当前的目录。
 
-`src/main/restore-registry.ts` 的 `WindowsRestoreRegistry` 持有恢复任务。关闭详情、切页或刷新 Renderer 只停止页面轮询；本进程中的任务、预览及实际结果仍可按 ID 查询。网络服务停止不取消本机恢复；应用退出先停止网络编排和恢复，再停止写入器与备份。
+`src/backend/restore-registry.ts` 的 `WindowsRestoreRegistry` 持有恢复任务。关闭详情、切页或刷新 Renderer 只停止页面轮询；本进程中的任务、预览及实际结果仍可按 ID 查询。网络服务停止不取消本机恢复；应用退出先停止网络编排和恢复，再停止写入器与备份。
 
 冻结的 `window.desktopSync` API 返回 `Promise<OperationResult<T>>`：
 
@@ -236,7 +243,7 @@ HTTP 服务注入 `scanSource: adapter` 后开放 `/v1/sync/capabilities`、`POS
 
 `isWorking` 表示原生 worker 尚未退出。本机预览和已结束结果保留最多 10 分钟，查询不延长；本进程最多接受 4096 次恢复确认。准备和执行各受 30 分钟总期限限制。进程重启后只保留配置和已提交备份，任务 ID 不恢复。所选备份已被轮换淘汰时，重新预览返回 not-found。
 
-固定 `sync:*` 通道在 `src/bridge/sync-bridge.ts` 登记，`sync-ipc.ts` 核对受信任窗口、主 frame、精确 URL、封闭参数和 8 MiB 控制响应预算。非法输入/计划为 invalid-request，名额占用为 busy，已消费确认是 task-conflict，过期或已释放为 not-found；错误不授权自动重放。
+固定 `sync:*` 通道在 `src/bridge/sync-bridge.ts` 登记，`sync-ipc.ts` 核对封闭参数和 8 MiB 控制响应预算，来源由宿主检查。非法输入/计划为 invalid-request，名额占用为 busy，已消费确认是 task-conflict，过期或已释放为 not-found；错误不授权自动重放。
 
 ## 15. 测试范围
 

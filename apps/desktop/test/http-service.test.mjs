@@ -5,8 +5,8 @@ import { tmpdir } from 'node:os'
 import { isAbsolute, join, relative, sep } from 'node:path'
 import test from 'node:test'
 import { BATCH_LIMITS } from '@savedata-sync/shared'
-import { createDirectoryAdapter } from '../src/main/directory-adapter.ts'
-import { WindowsHttpService } from '../src/main/http-service.ts'
+import { createDirectoryAdapter } from '../src/backend/directory-adapter.ts'
+import { WindowsHttpService } from '../src/backend/http-service.ts'
 
 const unwrap = (result) => {
   assert.equal(result.status, 'success', JSON.stringify(result))

@@ -6,9 +6,9 @@ import { isAbsolute, join, relative, sep } from 'node:path'
 import { PassThrough, Readable } from 'node:stream'
 import { gzipSync, gunzipSync } from 'node:zlib'
 import test from 'node:test'
-import { createWindowsArchiveAdapter } from '../src/main/archive-adapter.ts'
-import { ArchiveCancelledError, ArchiveError } from '../src/main/archive-errors.ts'
-import { createDirectoryAdapter } from '../src/main/directory-adapter.ts'
+import { createWindowsArchiveAdapter } from '../src/backend/archive-adapter.ts'
+import { ArchiveCancelledError, ArchiveError } from '../src/backend/archive-errors.ts'
+import { createDirectoryAdapter } from '../src/backend/directory-adapter.ts'
 
 const FIXTURE = JSON.parse(
   await readFile(new URL('./fixtures/archive-v1.json', import.meta.url), 'utf8'),

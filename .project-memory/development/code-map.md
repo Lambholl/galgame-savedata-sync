@@ -1,7 +1,7 @@
 ---
 doc_type: code-map
 status: active
-updated: 2026-11-21
+updated: 2026-11-22
 tags: [代码地图]
 ---
 
@@ -49,22 +49,24 @@ tags: [代码地图]
 
 | 路径 | 作用 | 重要约定 |
 | --- | --- | --- |
-| `apps/desktop/` | Electron 主进程、preload 和独立 antd 界面 | Renderer 无 Node 集成；contextIsolation 和 sandbox 开启 |
-| `apps/desktop/src/renderer/src/app`、`features`、`components`、`styles`、`platform` | 独立桌面导航、居中弹窗、antd 页面及有限桥接入 | 两端源码互不导入；桌面传输页可请求移动端扫描并在电脑确认计划（TransferPage、main/remote-sync-requests.ts），实际复制由移动端执行 |
-| `apps/desktop/src/main/directory-adapter.ts`、`directory-store.ts`、`directory-paths.ts`、`directory-errors.ts` | 目录选择登记、独立配置、当前层元数据、根内原生读流及脱敏错误 | 没有源目录写入 API；拒绝 symlink/junction 与失效身份；配置不保存历史文件索引 |
-| `apps/desktop/src/bridge/directory-bridge.ts`、`src/main/directory-ipc.ts`、`src/preload/index.ts` | 三个有限目录方法与 IPC 来源/参数/返回校验 | 绝对路径和文件内容不跨桥；handler 在退出时移除；main/preload 内联共享包 |
-| `apps/desktop/src/main/archive-adapter.ts`、`archive-cache.ts`、`archive-format.ts`、`archive-errors.ts`、`test/archive-adapter.test.mjs`、`test/fixtures/archive-v1.json` | 按计划边读边打包、边收边解包的受限 USTAR/gzip1 编解码、严格 gzip 头尾检查、资源/取消与缓存所有权/清理，及格式回归 | 不做 HTTP 或目标写入；缓存与源根互不包含；解包结果持有缓存，读流关闭后 dispose；清理失败阻止新任务；格式夹具和 Java 共用，两端各自往返不算互通证据 |
-| `apps/desktop/src/main/backup-store.ts`、`backup-files.ts`、`backup-ipc.ts`、`src/bridge/backup-bridge.ts` | 用户可手动管理的持久备份、流式校验/提交、按份数轮换、恢复材料和有限本机查询 | 写 `userData/backups`，设置在 `userData/backup-settings.json`；目录适配器排除备份区；原文读取和创建留在主进程，恢复写回由 `sync-writer` 与 `restore-registry` 负责 |
-| `apps/desktop/src/main/http-service.ts`、`http-wire.ts`、`http-errors.ts`、`test/http-service.test.mjs` | 原生 HTTP 设备/目录读取、目录表交换、控制通道升级和 `/v1/sync/*` 路由，严格协议字节边界 | 显式监听且默认回环；复制任务由 `sync-registry.ts` 登记；应用退出等待 stop |
-| `apps/desktop/src/bridge/service-bridge.ts`、`src/main/service-ipc.ts`、`src/renderer/src/features/devices` | 本机服务启停、端口、目录选择、扫描桥与设备页控制 | 校验来源与 DTO；不传私有路径或字节 |
-| `apps/desktop/src/main/discovery-advertiser.ts` | 服务运行期间用 `@homebridge/ciao` 做 mDNS 广播，状态进服务快照的 `discovery` | 服务 IPC 启停时调用，退出前由 `index.ts` 停止；失败不影响 HTTP 服务，30 秒重试 |
-| `apps/desktop/src/main/dialer-session.ts`、`dialer-http.ts`、`dialer-control.ts` | 电脑作为拨号方连接另一台设备：交换目录表、读取对方目录、控制通道重连和断开 | 同一时间只连一台；连着时本机监听服务对新连接返回 `busy`；`library-store.ts` 经 `LibraryDialer` 把连着的设备并入设备快照和目录读取 |
-| `apps/desktop/src/main/dialer-sync.ts` | 电脑作为拨号方的复制：两端扫描、计划、任务登记、内容上传下载、取消、结果补读，处理对方经控制通道发起的 `sync.*` 请求 | 和监听方任务共用写入名额；准备和任务只在内存，结束后保留 10 分钟、各最多 32 份；`sync-ipc.ts` 按设备把请求分给它或监听方部分 |
-| `apps/desktop/src/main/discovery-browser.ts` | 用 `bonjour-service` 搜索附近设备，按设备 ID 合并地址，排除本机 | 只在设备页可见时搜索；连接已保存的设备时由 `dialer-session.ts` 按设备 ID 查找 5 秒 |
-| `apps/desktop/src/bridge/dialer-bridge.ts`、`src/main/dialer-ipc.ts`、`src/renderer/src/features/devices/AddDeviceDialog.tsx` | 拨号桥（状态、附近设备、连接、连接已保存设备）和手动输入地址的对话框 | IPC 校验来源和参数：地址 1～16 个且已规范化，设备 ID 为不透明 ID 或 null |
-| `apps/desktop/src/main/sync-scanner.ts`、HTTP sync 路由、service bridge/IPC | Windows 本次递归扫描（只列目录，取大小和修改日期）及会话内查询/取消 | 单扫描，最多保留 32 份结果，有条目、深度、JSON 和期限预算；只读源；取消或停止要等流关闭；结果不持久化 |
-| `apps/desktop/src/main/sync-writer.ts`、`sync-target-files.ts`、`target-operation.ts`、`publication-errors.ts`；directory-adapter、启动 | 确认计划的目标目录创建、同卷候选替换和本机恢复；接收远端内容时等内容收齐再写入；复制和恢复共用 `TargetOperation` 互斥 | 写入前备份目标目录全部文件，内容收齐后重新核对目标，逐项报告实际结果，首次失败停止；同路径对象替换产生新 ID；原生流和候选不跨桥 |
-| `apps/desktop/src/main/restore-registry.ts`、`sync-ipc.ts`、`src/bridge/sync-bridge.ts` | 进程内异步恢复、有限复制与恢复桥、同次原生计划/结果核对 | 普通准备不占目标名额，确认后借用并保留至清理成功；任务和结果可在页面刷新后查询；不接收路径或字节；电脑发起的方法转给 `remote-sync-requests.ts` |
+| `apps/desktop/` | 后端 `src/backend`、Electron 入口 `src/main`、sidecar 入口 `src/sidecar`、preload 和独立 antd 界面 | Renderer 无 Node 集成；contextIsolation 和 sandbox 开启 |
+| `apps/desktop/src/backend/backend.ts`、`channel-registry.ts` | `startBackend` 初始化数据目录、各服务并登记全部界面通道，`stop` 按顺序释放；`ChannelRouter` 按通道名分发界面请求 | 后端不依赖 Electron，平台能力（目录选择器、打开路径、明暗主题）经 `DesktopHost` 由宿主提供；调用方是否可信由宿主在分发前检查 |
+| `apps/desktop/src/sidecar/index.ts`、`protocol.ts`、`vite.sidecar.config.ts` | sidecar 入口：stdin/stdout 按行 JSON 与宿主交换消息，构建为 `out/sidecar/index.mjs` | stdout 只写协议消息，`console.log` 改写到 stderr；stdin 关闭时停止服务后退出；第三方包全部打进产物 |
+| `apps/desktop/src/renderer/src/app`、`features`、`components`、`styles`、`platform` | 独立桌面导航、居中弹窗、antd 页面及有限桥接入 | 两端源码互不导入；桌面传输页可请求移动端扫描并在电脑确认计划（TransferPage、backend/remote-sync-requests.ts），实际复制由移动端执行 |
+| `apps/desktop/src/backend/directory-adapter.ts`、`directory-store.ts`、`directory-paths.ts`、`directory-errors.ts` | 目录选择登记、独立配置、当前层元数据、根内原生读流及脱敏错误 | 没有源目录写入 API；拒绝 symlink/junction 与失效身份；配置不保存历史文件索引 |
+| `apps/desktop/src/bridge/directory-bridge.ts`、`src/backend/directory-ipc.ts`、`src/preload/index.ts` | 三个有限目录方法与通道参数、返回校验 | 绝对路径和文件内容不跨桥；handler 在退出时移除；main/preload 内联共享包 |
+| `apps/desktop/src/backend/archive-adapter.ts`、`archive-cache.ts`、`archive-format.ts`、`archive-errors.ts`、`test/archive-adapter.test.mjs`、`test/fixtures/archive-v1.json` | 按计划边读边打包、边收边解包的受限 USTAR/gzip1 编解码、严格 gzip 头尾检查、资源/取消与缓存所有权/清理，及格式回归 | 不做 HTTP 或目标写入；缓存与源根互不包含；解包结果持有缓存，读流关闭后 dispose；清理失败阻止新任务；格式夹具和 Java 共用，两端各自往返不算互通证据 |
+| `apps/desktop/src/backend/backup-store.ts`、`backup-files.ts`、`backup-ipc.ts`、`src/bridge/backup-bridge.ts` | 用户可手动管理的持久备份、流式校验/提交、按份数轮换、恢复材料和有限本机查询 | 写 `userData/backups`，设置在 `userData/backup-settings.json`；目录适配器排除备份区；原文读取和创建留在后端，恢复写回由 `sync-writer` 与 `restore-registry` 负责 |
+| `apps/desktop/src/backend/http-service.ts`、`http-wire.ts`、`http-errors.ts`、`test/http-service.test.mjs` | 原生 HTTP 设备/目录读取、目录表交换、控制通道升级和 `/v1/sync/*` 路由，严格协议字节边界 | 显式监听且默认回环；复制任务由 `sync-registry.ts` 登记；应用退出等待 stop |
+| `apps/desktop/src/bridge/service-bridge.ts`、`src/backend/service-ipc.ts`、`src/renderer/src/features/devices` | 本机服务启停、端口、目录选择、扫描桥与设备页控制 | 校验参数与 DTO；不传私有路径或字节 |
+| `apps/desktop/src/backend/discovery-advertiser.ts` | 服务运行期间用 `@homebridge/ciao` 做 mDNS 广播，状态进服务快照的 `discovery` | 服务 IPC 启停时调用，退出前由 `backend.ts` 的 `stop` 停止；失败不影响 HTTP 服务，30 秒重试 |
+| `apps/desktop/src/backend/dialer-session.ts`、`dialer-http.ts`、`dialer-control.ts` | 电脑作为拨号方连接另一台设备：交换目录表、读取对方目录、控制通道重连和断开 | 同一时间只连一台；连着时本机监听服务对新连接返回 `busy`；`library-store.ts` 经 `LibraryDialer` 把连着的设备并入设备快照和目录读取 |
+| `apps/desktop/src/backend/dialer-sync.ts` | 电脑作为拨号方的复制：两端扫描、计划、任务登记、内容上传下载、取消、结果补读，处理对方经控制通道发起的 `sync.*` 请求 | 和监听方任务共用写入名额；准备和任务只在内存，结束后保留 10 分钟、各最多 32 份；`sync-ipc.ts` 按设备把请求分给它或监听方部分 |
+| `apps/desktop/src/backend/discovery-browser.ts` | 用 `bonjour-service` 搜索附近设备，按设备 ID 合并地址，排除本机 | 只在设备页可见时搜索；连接已保存的设备时由 `dialer-session.ts` 按设备 ID 查找 5 秒 |
+| `apps/desktop/src/bridge/dialer-bridge.ts`、`src/backend/dialer-ipc.ts`、`src/renderer/src/features/devices/AddDeviceDialog.tsx` | 拨号桥（状态、附近设备、连接、连接已保存设备）和手动输入地址的对话框 | 通道校验参数：地址 1～16 个且已规范化，设备 ID 为不透明 ID 或 null |
+| `apps/desktop/src/backend/sync-scanner.ts`、HTTP sync 路由、service bridge/IPC | Windows 本次递归扫描（只列目录，取大小和修改日期）及会话内查询/取消 | 单扫描，最多保留 32 份结果，有条目、深度、JSON 和期限预算；只读源；取消或停止要等流关闭；结果不持久化 |
+| `apps/desktop/src/backend/sync-writer.ts`、`sync-target-files.ts`、`target-operation.ts`、`publication-errors.ts`；directory-adapter、启动 | 确认计划的目标目录创建、同卷候选替换和本机恢复；接收远端内容时等内容收齐再写入；复制和恢复共用 `TargetOperation` 互斥 | 写入前备份目标目录全部文件，内容收齐后重新核对目标，逐项报告实际结果，首次失败停止；同路径对象替换产生新 ID；原生流和候选不跨桥 |
+| `apps/desktop/src/backend/restore-registry.ts`、`sync-ipc.ts`、`src/bridge/sync-bridge.ts` | 进程内异步恢复、有限复制与恢复桥、同次原生计划/结果核对 | 普通准备不占目标名额，确认后借用并保留至清理成功；任务和结果可在页面刷新后查询；不接收路径或字节；电脑发起的方法转给 `remote-sync-requests.ts` |
 | `apps/desktop/src/renderer/src/features/backup`、`features/transfer/SyncCopyDetails.tsx`、`use-sync-details.ts`、`platform/sync-adapter.ts` | 备份开关/列表、恢复预览与确认、复制计划/实际结果、普通本机重扫 | 复用原生计划和结果；发送完成和移动端实际写入是两个状态；切页只停止轮询，不取消原生任务 |
 | `apps/desktop/test/` | Windows 目录、归档、HTTP、扫描、备份与写入的最小长期回归；接口见 [Windows 平台层](../architecture/windows.md) | 测试只用合成数据；真实目录只读验证，机器路径不提交 |
 
