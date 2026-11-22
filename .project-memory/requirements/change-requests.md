@@ -2,7 +2,7 @@
 doc_type: change-requests
 status: active
 id_prefix: CR
-id_high_water: 26
+id_high_water: 27
 updated: 2026-11-22
 tags: [变更请求]
 ---
@@ -13,3 +13,4 @@ tags: [变更请求]
 
 | ID | 变更 | 原因 | 影响 | 状态 |
 | --- | --- | --- | --- | --- |
+| CR-027 | 计划页提供本次传输的备份开关，默认取目标端的备份设置；手动备份（REQ-025）和写入前的自动备份共用轮换 | 每次传输是否备份由用户在计划页选择，自动备份也是用户主动选择的结果，可以和手动备份一起轮换 | REQ-015、[复制、备份与恢复约定](../architecture/sync-copy.md)第 5 节。计划页现在只显示目标端设置，目标端设置只读取、不远程修改；改由发起端选择时，要一并修改计划确认和接收端对 `shouldBackup` 的核对。保留份数见 Q-020 | proposed |
