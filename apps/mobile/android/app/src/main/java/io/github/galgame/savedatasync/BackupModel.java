@@ -176,7 +176,7 @@ final class BackupModel {
       "files"
     );
     require(number(value.get("schemaVersion"), 1, 1) == 1);
-    one(value.get("reason"), "copy", "restore");
+    one(value.get("reason"), "copy", "restore", "manual");
     return object(
       "schemaVersion",
       1,
@@ -227,13 +227,13 @@ final class BackupModel {
   }
 
   static final long KEEP_MIN = 1;
-  static final long KEEP_MAX = 10;
-  static final long KEEP_DEFAULT = 3;
+  static final long KEEP_MAX = 4096;
+  static final long KEEP_DEFAULT = 10;
 
   /** 备份设置的格式版本，与 shared 的 SyncBackupSettings.schemaVersion 保持一致。 */
   static final int SETTINGS_VERSION = 3;
 
-  /** 没有设置文件时的设置：全局关闭、打开后保留 KEEP_DEFAULT 份，没有单独设置的游戏。 */
+  /** 没有设置文件时的设置：写入前自动备份关闭，默认保留 KEEP_DEFAULT 份，没有单独设置的游戏。 */
   static Map<String, Object> emptySettings() {
     return object(
       "schemaVersion",
@@ -249,7 +249,7 @@ final class BackupModel {
     return object("shouldBackup", shouldBackup, "keepCount", keepCount);
   }
 
-  /** 备份策略：是否备份与保留份数（1–10）。 */
+  /** 备份策略：是否开启写入前自动备份与保留份数（KEEP_MIN 至 KEEP_MAX）。 */
   static Map<String, Object> policy(Object raw) throws Exception {
     Map<String, Object> value = shape(raw, "shouldBackup", "keepCount");
     require(value.get("shouldBackup") instanceof Boolean);

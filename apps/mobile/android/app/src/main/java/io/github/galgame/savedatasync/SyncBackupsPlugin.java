@@ -185,6 +185,43 @@ public class SyncBackupsPlugin extends Plugin {
     });
   }
 
+  @PluginMethod
+  public void startManual(PluginCall call) {
+    submit(call, store -> {
+      Map<String, Object> value = arguments(call, "projectId", "rootId");
+      return DirectoryRuntime.manualBackups(getContext()).start(
+        id(value.get("projectId")),
+        id(value.get("rootId"))
+      );
+    });
+  }
+
+  @PluginMethod
+  public void currentManual(PluginCall call) {
+    submit(call, store -> {
+      arguments(call);
+      return DirectoryRuntime.manualBackups(getContext()).current();
+    });
+  }
+
+  @PluginMethod
+  public void manualState(PluginCall call) {
+    submit(call, store ->
+      DirectoryRuntime.manualBackups(getContext()).state(
+        id(arguments(call, "taskId").get("taskId"))
+      )
+    );
+  }
+
+  @PluginMethod
+  public void cancelManual(PluginCall call) {
+    submit(call, store ->
+      DirectoryRuntime.manualBackups(getContext()).cancel(
+        id(arguments(call, "taskId").get("taskId"))
+      )
+    );
+  }
+
   @Override
   protected void handleOnDestroy() {
     isDestroyed = true;

@@ -49,7 +49,6 @@ final class ListenerSyncRequests {
     Map<String, Object> plan;
     /** 确认的计划；确认之前为 null。 */
     SyncPlanModel.Plan confirmed;
-    long backupKeepCount;
     long updatedAt = System.currentTimeMillis();
     /** 已确认，但拨号方还没在本机登记任务。 */
     boolean isAwaitingJob;
@@ -273,9 +272,7 @@ final class ListenerSyncRequests {
           "shouldBackup",
           entry.plan.get("shouldBackup"),
           "shouldDeleteExtras",
-          entry.plan.get("shouldDeleteExtras"),
-          "backupKeepCount",
-          entry.backupKeepCount
+          entry.plan.get("shouldDeleteExtras")
         )
       )
     );
@@ -361,12 +358,7 @@ final class ListenerSyncRequests {
           shape(body, "requestId", "status");
           entry.update("preparing", null);
         } else if ("ready".equals(reported) && isWaiting) {
-          shape(body, "requestId", "status", "plan", "backupKeepCount");
-          long keep = number(
-            body.get("backupKeepCount"),
-            BackupModel.KEEP_MIN,
-            BackupModel.KEEP_MAX
-          );
+          shape(body, "requestId", "status", "plan");
           Map<String, Object> plan = map(copy(body.get("plan")));
           if (!matchesPlan(entry, plan)) {
             entry.update(
@@ -380,7 +372,6 @@ final class ListenerSyncRequests {
             return;
           }
           entry.plan = plan;
-          entry.backupKeepCount = keep;
           entry.update("ready", null);
         } else if ("failed".equals(reported) && entry.isActive()) {
           shape(body, "requestId", "status", "error");

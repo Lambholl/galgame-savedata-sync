@@ -12,6 +12,7 @@ import type {
   OperationResult,
   SyncBackupPolicy,
   SyncBackupSettings,
+  SyncManualBackupState,
   SyncPlan,
   SyncPreparationPreview,
   SyncPreparationState,
@@ -92,6 +93,14 @@ export interface MobileSyncAdapter {
   deleteBackup(projectId: string, backupId: string): Promise<void>
   /** 删除一个游戏的全部备份和单独设置，不需要游戏目录。 */
   deleteGameBackups(projectId: string): Promise<void>
+  /** 立即为指定游戏启动一次本机手动备份。 */
+  startManualBackup(projectId: string): Promise<SyncManualBackupState>
+  /** 返回当前正在运行的本机手动备份状态；没有时为 null。 */
+  currentManualBackup(): Promise<SyncManualBackupState | null>
+  /** 按 taskId 读取本机手动备份状态。 */
+  manualBackupState(taskId: string): Promise<SyncManualBackupState>
+  /** 取消指定的本机手动备份。 */
+  cancelManualBackup(taskId: string): Promise<SyncManualBackupState>
   /** 从一份备份创建恢复任务并生成恢复计划。 */
   prepareRestore(projectId: string, backupId: string): Promise<AndroidRestoreState>
   /** 读取当前恢复任务；没有时为 null。 */
@@ -131,14 +140,17 @@ function restoreHasWork(state: AndroidRestoreState): boolean {
   )
 }
 
-/** 判断是否有进行中的复制或恢复任务。 */
+/** 判断是否有进行中的复制、恢复或本机手动备份任务。 */
 export async function hasAndroidSyncWork(): Promise<boolean> {
   const copyId = unwrap(await androidSyncTransfers.current())
   if (copyId && copyHasWork(unwrap(await androidSyncTransfers.query(copyId)))) {
     return true
   }
   const restoreId = unwrap(await androidSyncWrites.current())
-  return restoreId !== null && restoreHasWork(unwrap(await androidSyncWrites.query(restoreId)))
+  if (restoreId !== null && restoreHasWork(unwrap(await androidSyncWrites.query(restoreId)))) {
+    return true
+  }
+  return unwrap(await androidBackups.currentManual()) !== null
 }
 
 /** 创建移动复制适配器。 */
@@ -287,6 +299,19 @@ export function createMobileSyncAdapter(
     },
     async deleteGameBackups(projectId) {
       unwrap(await backups.deleteGameBackups(projectId))
+    },
+    async startManualBackup(projectId) {
+      const root = await local(projectId)
+      return unwrap(await backups.startManual(projectId, root.rootId))
+    },
+    async currentManualBackup() {
+      return unwrap(await backups.currentManual())
+    },
+    async manualBackupState(taskId) {
+      return unwrap(await backups.manualState(taskId))
+    },
+    async cancelManualBackup(taskId) {
+      return unwrap(await backups.cancelManual(taskId))
     },
     async prepareRestore(projectId, backupId) {
       const root = await local(projectId)

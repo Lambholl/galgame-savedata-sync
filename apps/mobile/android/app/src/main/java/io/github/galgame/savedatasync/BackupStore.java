@@ -504,7 +504,7 @@ final class BackupStore implements AutoCloseable {
     Progress progress
   ) throws Exception {
     ids(projectId, rootId);
-    one(reason, "copy", "restore");
+    one(reason, "copy", "restore", "manual");
     require(!reason.equals("restore") || shouldBackup);
     final List<BackupModel.SourceFile> sources = BackupModel.sources(entries);
     alive();

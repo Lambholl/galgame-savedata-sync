@@ -82,7 +82,6 @@ final class ListenerSyncJobs {
     final boolean isPeerInitiated;
     final String localProject;
     final String remoteProject;
-    final long backupKeep;
     final long acceptedAt = System.currentTimeMillis();
     final long startedAt = System.nanoTime();
     final ArchiveControl control = new ArchiveControl();
@@ -125,7 +124,6 @@ final class ListenerSyncJobs {
       SyncPlanModel.Plan plan,
       String peerId,
       boolean isPeerInitiated,
-      long backupKeep,
       List<Map<String, Object>> entries
     ) throws Exception {
       this.request = request;
@@ -135,7 +133,6 @@ final class ListenerSyncJobs {
       this.isPeerInitiated = isPeerInitiated;
       this.localProject = id(request.get(isReceiver ? "targetProjectId" : "sourceProjectId"));
       this.remoteProject = id(request.get(isReceiver ? "sourceProjectId" : "targetProjectId"));
-      this.backupKeep = backupKeep;
       this.entries = entries;
     }
 
@@ -289,9 +286,7 @@ final class ListenerSyncJobs {
       "rootId",
       link[1],
       "shouldBackup",
-      local.backup(projectId),
-      "backupKeepCount",
-      local.backupKeep(projectId)
+      local.backup(projectId)
     );
   }
 
@@ -334,10 +329,8 @@ final class ListenerSyncJobs {
         "The copy request or device direction is invalid."
       );
     }
-    String localProject = (String) request.get(isUpload ? "targetProjectId" : "sourceProjectId");
-    long keep = local.backupKeep(localProject);
     List<Map<String, Object>> entries = contentEntries(plan);
-    Task task = new Task(request, plan, peerId, !isOwnJob.test(plan.id), keep, entries);
+    Task task = new Task(request, plan, peerId, !isOwnJob.test(plan.id), entries);
     sweep();
     synchronized (this) {
       if (isStopped || active != null) {
@@ -1607,9 +1600,7 @@ final class ListenerSyncJobs {
           "shouldBackup",
           plan.shouldBackup,
           "shouldDeleteExtras",
-          plan.shouldDeleteExtras,
-          "backupKeepCount",
-          task.backupKeep
+          plan.shouldDeleteExtras
         )
       )
     );

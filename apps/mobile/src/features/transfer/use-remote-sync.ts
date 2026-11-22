@@ -114,7 +114,6 @@ export function useRemoteSync(
           requestId: item.requestId,
           status: 'ready',
           plan,
-          backupKeepCount: preview.backupKeepCount,
         })
       } else {
         fail(

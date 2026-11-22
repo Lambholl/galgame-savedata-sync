@@ -11,6 +11,7 @@ final class DirectoryRuntime {
   private static DirectoryStore store;
   private static SyncScanner scanner;
   private static BackupStore backups;
+  private static ManualBackupRuntime manualBackups;
   private static SyncWriteRuntime writes;
 
   private DirectoryRuntime() {}
@@ -60,6 +61,14 @@ final class DirectoryRuntime {
       );
     }
     return backups;
+  }
+
+  /** 返回进程内共享的本机手动备份运行时，Activity 销毁后任务继续。 */
+  static synchronized ManualBackupRuntime manualBackups(Context context) throws Exception {
+    if (manualBackups == null) {
+      manualBackups = new ManualBackupRuntime(scanner(context), backups(context));
+    }
+    return manualBackups;
   }
 
   /** 返回进程内共享的写入运行时，Activity 重建后仍能查询原来的任务。 */

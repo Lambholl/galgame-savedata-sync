@@ -4,16 +4,20 @@ import {
   isOperationResult,
   isSyncBackupManifest,
   isSyncBackupPolicy,
+  isSyncBackupReason,
   isSyncBackupSettings,
   isSyncIncompleteBackup,
+  isSyncManualBackupState,
   resolveBackupPolicy,
 } from '@savedata-sync/shared'
 import type {
   OperationResult,
   SyncBackupManifest,
   SyncBackupPolicy,
+  SyncBackupReason,
   SyncBackupSettings,
   SyncIncompleteBackup,
+  SyncManualBackupState,
 } from '@savedata-sync/shared'
 
 /** 备份列表的一行：一份备份的摘要。 */
@@ -22,7 +26,7 @@ export interface AndroidBackupSummary {
   readonly projectId: string
   readonly rootId: string
   readonly createdAt: number
-  readonly reason: 'copy' | 'restore'
+  readonly reason: SyncBackupReason
   readonly fileCount: number
   readonly totalFileBytes: number
 }
@@ -47,6 +51,10 @@ export interface BackupNativePlugin {
   cleanupIncomplete(options: { projectId: string; backupId: string }): Promise<unknown>
   deleteBackup(options: { projectId: string; backupId: string }): Promise<unknown>
   deleteGameBackups(options: { projectId: string }): Promise<unknown>
+  startManual(options: { projectId: string; rootId: string }): Promise<unknown>
+  currentManual(): Promise<unknown>
+  manualState(options: { taskId: string }): Promise<unknown>
+  cancelManual(options: { taskId: string }): Promise<unknown>
 }
 /** 本机备份接口。所有方法的失败都以错误结果返回。 */
 export interface AndroidBackupApi {
@@ -71,6 +79,14 @@ export interface AndroidBackupApi {
   deleteBackup(projectId: string, backupId: string): Promise<OperationResult<null>>
   /** 删除一个游戏的全部备份和单独设置。 */
   deleteGameBackups(projectId: string): Promise<OperationResult<null>>
+  /** 立即为指定游戏目录启动一次本机手动备份。 */
+  startManual(projectId: string, rootId: string): Promise<OperationResult<SyncManualBackupState>>
+  /** 返回当前正在运行的本机手动备份状态；没有运行中的任务时返回 null。 */
+  currentManual(): Promise<OperationResult<SyncManualBackupState | null>>
+  /** 按 taskId 读取本机手动备份状态。 */
+  manualState(taskId: string): Promise<OperationResult<SyncManualBackupState>>
+  /** 取消指定的本机手动备份。 */
+  cancelManual(taskId: string): Promise<OperationResult<SyncManualBackupState>>
 }
 function shape(value: unknown, fields: readonly string[]): value is Record<string, unknown> {
   return (
@@ -96,7 +112,7 @@ function isSummary(value: unknown): value is AndroidBackupSummary {
     typeof value.createdAt === 'number' &&
     Number.isSafeInteger(value.createdAt) &&
     Math.abs(value.createdAt) <= 8.64e15 &&
-    (value.reason === 'copy' || value.reason === 'restore') &&
+    isSyncBackupReason(value.reason) &&
     typeof value.fileCount === 'number' &&
     Number.isSafeInteger(value.fileCount) &&
     value.fileCount >= 1 &&
@@ -241,6 +257,38 @@ export function createBackupBridge(
         : invoke(
             () => plugin.deleteGameBackups({ projectId }),
             (value): value is null => value === null,
+          ),
+    startManual: (projectId: string, rootId: string) =>
+      ![projectId, rootId].every(isOpaqueId)
+        ? Promise.resolve(failure('invalid-request'))
+        : invoke(
+            () => plugin.startManual({ projectId, rootId }),
+            (value): value is SyncManualBackupState =>
+              isSyncManualBackupState(value) &&
+              value.projectId === projectId &&
+              value.rootId === rootId,
+          ),
+    currentManual: () =>
+      invoke(
+        () => plugin.currentManual(),
+        (value): value is SyncManualBackupState | null =>
+          value === null || isSyncManualBackupState(value),
+      ),
+    manualState: (taskId: string) =>
+      !isOpaqueId(taskId)
+        ? Promise.resolve(failure('invalid-request'))
+        : invoke(
+            () => plugin.manualState({ taskId }),
+            (value): value is SyncManualBackupState =>
+              isSyncManualBackupState(value) && value.taskId === taskId,
+          ),
+    cancelManual: (taskId: string) =>
+      !isOpaqueId(taskId)
+        ? Promise.resolve(failure('invalid-request'))
+        : invoke(
+            () => plugin.cancelManual({ taskId }),
+            (value): value is SyncManualBackupState =>
+              isSyncManualBackupState(value) && value.taskId === taskId,
           ),
   })
 }

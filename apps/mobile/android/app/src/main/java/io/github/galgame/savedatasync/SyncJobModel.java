@@ -246,8 +246,7 @@ final class SyncJobModel {
       "projectId",
       "deviceId",
       "rootId",
-      "shouldBackup",
-      "backupKeepCount"
+      "shouldBackup"
     );
     number(value.get("schemaVersion"), 1, 1);
     require(
@@ -256,13 +255,7 @@ final class SyncJobModel {
         binding.get("remoteRootId").equals(value.get("rootId")) &&
         value.get("shouldBackup") instanceof Boolean
     );
-    number(value.get("backupKeepCount"), BackupModel.KEEP_MIN, BackupModel.KEEP_MAX);
     return (Boolean) value.get("shouldBackup");
-  }
-
-  /** 返回项目描述里的备份保留份数；描述要先经过 backup 校验。 */
-  static long backupKeepCount(Object raw) throws Exception {
-    return number(map(raw).get("backupKeepCount"), BackupModel.KEEP_MIN, BackupModel.KEEP_MAX);
   }
 
   static Map<String, Object> request(SyncPlanModel.Plan plan, Map<String, Object> binding) {

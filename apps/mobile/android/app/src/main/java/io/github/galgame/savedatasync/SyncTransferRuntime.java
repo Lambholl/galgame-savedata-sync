@@ -87,13 +87,6 @@ final class SyncTransferRuntime {
       }
 
       @Override
-      public long backupKeep(String projectId) throws Exception {
-        return (
-          (Number) BackupModel.resolve(backups.settings(), projectId).get("keepCount")
-        ).longValue();
-      }
-
-      @Override
       public long checkReceiveSpace(
         SyncPlanModel.Plan plan,
         java.nio.file.Path cacheRoot,

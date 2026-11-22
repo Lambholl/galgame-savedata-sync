@@ -1065,6 +1065,30 @@ html.camera-live .app-heading {
   font: 15px/1.6 var(--ss-font);
   text-align: center;
 }
+.adm-stepper {
+  --input-width: 56px;
+}
+
+.backup-manual-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--ss-line);
+  border-radius: var(--ss-r-md);
+  background: var(--ss-group);
+}
+
+.backup-manual-body {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  color: var(--ss-fg);
+  font-size: 13px;
+}
+
 .foot-note {
   margin: 0;
   color: var(--ss-muted);

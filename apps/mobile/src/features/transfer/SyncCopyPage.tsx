@@ -330,7 +330,6 @@ export function SyncCopyPage({
           plan={plan}
           source={isLocalSource ? localEnd : remoteEnd}
           target={isLocalSource ? remoteEnd : localEnd}
-          backupKeepCount={preview?.backupKeepCount ?? null}
           notice={
             <>
               {hasChanged ? <p className="notice notice-error">{t('transfer.planStale')}</p> : null}

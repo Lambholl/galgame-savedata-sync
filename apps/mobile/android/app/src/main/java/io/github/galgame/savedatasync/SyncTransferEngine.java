@@ -54,10 +54,6 @@ final class SyncTransferEngine implements AutoCloseable {
       throw fail("unsupported-operation");
     }
 
-    default long backupKeep(String projectId) throws Exception {
-      throw fail("unsupported-operation");
-    }
-
     default long checkReceiveSpace(
       SyncPlanModel.Plan plan,
       java.nio.file.Path cacheRoot,
@@ -667,9 +663,6 @@ final class SyncTransferEngine implements AutoCloseable {
       boolean shouldBackup = preparation.upload()
         ? shouldBackupRemote
         : local.backup(string(binding.get("projectId")));
-      long backupKeepCount = preparation.upload()
-        ? SyncJobModel.backupKeepCount(descriptor)
-        : local.backupKeep(string(binding.get("projectId")));
       transport.verifySync(connection, binding);
       preparation.control.check();
       Map<String, Object> preview = object(
@@ -690,9 +683,7 @@ final class SyncTransferEngine implements AutoCloseable {
         "shouldBackup",
         shouldBackup,
         "shouldDeleteExtras",
-        false,
-        "backupKeepCount",
-        backupKeepCount
+        false
       );
       bytes(preview);
       prepared = preview;

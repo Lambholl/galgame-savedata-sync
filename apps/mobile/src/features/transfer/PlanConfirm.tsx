@@ -20,15 +20,12 @@ export function PlanConfirm({
   plan,
   source,
   target,
-  backupKeepCount,
   notice,
   action,
 }: {
   readonly plan: SyncPlan
   readonly source: PlanEndpoint
   readonly target: PlanEndpoint
-  /** 目标端保留的备份份数；读不到时为 null。 */
-  readonly backupKeepCount: number | null
   /** 计划上方的提示，例如计划已过期或目录已更换；没有时为 null。 */
   readonly notice: ReactNode
   readonly action: PlanConfirmAction
@@ -36,13 +33,7 @@ export function PlanConfirm({
   return (
     <>
       {notice}
-      <SyncPlanSummary
-        key={plan.planId}
-        plan={plan}
-        source={source}
-        target={target}
-        backupKeepCount={backupKeepCount}
-      />
+      <SyncPlanSummary key={plan.planId} plan={plan} source={source} target={target} />
       <FloatingAction
         color="primary"
         icon={<CaretRightOutlined />}
