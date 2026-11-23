@@ -31,7 +31,7 @@ tags: [索引]
 | 改界面 | `development/ui-conventions.md` |
 | 测试、验收 | `standards/testing.md`、`testing/` |
 | 写文档 | `standards/writing.md`、`project/glossary.md` |
-| 提交、发布 | `standards/commit.md` |
+| 提交、发布、版本号和兼容性 | `standards/commit.md`、`decisions/ADR-0006-stable-release-compatibility.md` |
 
 ## 文档目录
 
@@ -50,6 +50,7 @@ tags: [索引]
 | `decisions/ADR-0003-android-direct-file-access.md` | ADR-0003 Android 所有文件访问权限与统一的文件访问接口 | accepted | 决策, Android, 文件访问, SAF, 所有文件访问权限 |
 | `decisions/ADR-0004-symmetric-listener-dialer-roles.md` | ADR-0004 按监听方和拨号方划分连接与传输职责 | accepted | 决策, 连接, 传输, 监听方, 拨号方, Android, Windows |
 | `decisions/ADR-0005-tauri-sidecar-and-storage-layout.md` | ADR-0005 电脑端改用 Tauri 宿主和 Node sidecar，重新规划存储目录 | accepted | 决策, 电脑端, Tauri, sidecar, 存储目录, 便携模式, 备份库 |
+| `decisions/ADR-0006-stable-release-compatibility.md` | ADR-0006 1.0 起保持落盘格式和备份兼容，协议要求两端同版 | accepted | 决策, 正式版, 兼容性, 版本号, 迁移 |
 | `development/code-map.md` | 代码地图 | active | 代码地图 |
 | `development/implementation-notes.md` | 实现细节 | active | 实现细节 |
 | `development/known-issues.md` | 已知问题 | active | 已知问题 |

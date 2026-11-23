@@ -1,7 +1,7 @@
 ---
 doc_type: project-charter
 status: active
-updated: 2026-11-22
+updated: 2026-11-24
 tags: [项目目标, 成功标准]
 ---
 
@@ -18,9 +18,9 @@ tags: [项目目标, 成功标准]
 
 - 项目目标：在 Windows 电脑与 Android 设备之间，通过局域网手动选择方向同步文件夹，减少游玩 galgame 时手工复制存档的操作。
 - 目标用户：在电脑与 Android 设备之间切换、需要管理多个游戏或文件夹的使用者。
-- 当前阶段：任意两台设备传输已完成，电脑和 Android 都能作监听方或拨号方，验收结论见[验收标准](../testing/acceptance.md)第 3 节。下一里程碑待维护者决定，见[路线图](roadmap.md)。真实存档覆盖在支持范围内开放，范围见[验收标准](../testing/acceptance.md)第 1 节；最低支持 Android 11，见[项目约束](../requirements/constraints.md)。实现见[实现细节](../development/implementation-notes.md)，1 GiB 传输基线见[验收标准](../testing/acceptance.md)第 2 节。
+- 当前阶段：任意两台设备传输已完成，电脑和 Android 都能作监听方或拨号方，验收结论见[验收标准](../testing/acceptance.md)第 3 节。下一里程碑是 1.0 正式版，见[路线图](roadmap.md)；1.0 起的兼容规则见 [ADR-0006](../decisions/ADR-0006-stable-release-compatibility.md)。真实存档覆盖在支持范围内开放，范围见[验收标准](../testing/acceptance.md)第 1 节；最低支持 Android 11，见[项目约束](../requirements/constraints.md)。实现见[实现细节](../development/implementation-notes.md)，1 GiB 传输基线见[验收标准](../testing/acceptance.md)第 2 节。
 - 成功标准：见[验收标准](../testing/acceptance.md)。
-- 当前约束：默认不新增或扩写自动化测试。开发验证写入限明确选定的独立合成目标，真实存档不用于故障注入。
+- 当前约束：默认不新增或扩写自动化测试，例外见[测试约定](../standards/testing.md)。开发验证写入限明确选定的独立合成目标，真实存档不用于故障注入。
 
 ## 2. 项目目标
 
