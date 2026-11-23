@@ -260,6 +260,7 @@ export const enUS: Messages = {
   'poster.saved': 'Poster set',
   'poster.removed': 'Poster removed',
   'poster.unreadable': "Can't read this image",
+  'poster.importFailed': "Game imported, but its poster couldn't be imported",
   'poster.kind.main': 'Key visual',
   'poster.kind.pkgfront': 'Package front',
   'poster.kind.pkgback': 'Package back',

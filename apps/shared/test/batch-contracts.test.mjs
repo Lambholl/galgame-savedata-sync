@@ -5,7 +5,7 @@ import { BATCH_LIMITS, isBatchDeviceDescriptor, isBatchLimits } from '../src/ind
 test('HTTP 描述包装本地设备，预算不接受协商放宽或额外字段', () => {
   const descriptor = {
     device: {
-      protocolVersion: 3,
+      protocolVersion: 4,
       deviceId: 'device-1',
       displayName: '电脑',
       platform: 'windows',

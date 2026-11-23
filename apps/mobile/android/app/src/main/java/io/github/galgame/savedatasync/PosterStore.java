@@ -15,7 +15,8 @@ import java.util.UUID;
 /**
  * 游戏封面文件，存在一个目录里，文件名是 {@code <游戏 ID>.<posterHash>.webp}。
  *
- * <p>不加锁：同一目录的 prune、save、read 由调用方串行执行。
+ * <p>不加锁：同一目录的 prune 和 save 由调用方串行执行。read 可以和它们同时执行：save 先写临时文件再改名，
+ * read 不会读到写了一半的文件；prune 删掉的只是调用方没有保留的文件。
  */
 final class PosterStore {
 

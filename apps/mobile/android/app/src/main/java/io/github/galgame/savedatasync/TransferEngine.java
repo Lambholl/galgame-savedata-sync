@@ -241,9 +241,14 @@ final class TransferEngine {
     List<Object> roots = new ArrayList<>();
     Set<String> rootIds = new HashSet<>();
     for (Object entry : games) {
-      Map<String, Object> game = shape(entry, "id", "name", "root");
+      Map<String, Object> game = shape(entry, "id", "name", "root", "posterHash");
       id(game.get("id"));
       require(string(game.get("name")).length() <= 128);
+      Object posterHash = game.get("posterHash");
+      require(
+        posterHash == null ||
+          (posterHash instanceof String && PosterRules.isPosterHash((String) posterHash))
+      );
       if (game.get("root") != null && rootIds.add(id(map(game.get("root")).get("rootId")))) {
         roots.add(game.get("root"));
       }

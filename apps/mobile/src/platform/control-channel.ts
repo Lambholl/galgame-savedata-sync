@@ -1,7 +1,9 @@
 import {
+  CONTROL_LIMITS,
   isControlEventBody,
   isControlMessage,
   isControlRequestBody,
+  isControlResponseValue,
   isOpaqueId,
   isOperationResult,
   nonRetryableError,
@@ -42,12 +44,31 @@ export interface AndroidControlApi {
   onEvent<M extends ControlEventMethod>(method: M, handler: EventHandler<M>): () => void
   /** 订阅连接状态变化；返回的函数撤销订阅。 */
   onState(listener: (deviceId: string, state: ControlState) => void): () => void
+  /**
+   * 向对方发请求。
+   *
+   * @throws OperationFailure 不在 Android 上时为 unsupported-operation，发不出去时为发送失败的错误码；CONTROL_LIMITS.requestTimeoutMs
+   *   内没有应答时为 timeout，应答前连接断开时为 network-failure，对方答复错误时为对方的错误码，答复格式不对时为 invalid-request。
+   */
+  request<M extends ControlRequestMethod>(
+    deviceId: string,
+    method: M,
+    body: ControlRequestBodies[M],
+  ): Promise<ControlResponseValues[M]>
   /** 通知对方；未连接时失败，事件不保证送达。 */
   emit<M extends ControlEventMethod>(
     deviceId: string,
     method: M,
     body: ControlEventBodies[M],
   ): Promise<void>
+}
+
+interface PendingRequest {
+  readonly deviceId: string
+  readonly method: ControlRequestMethod
+  readonly resolve: (value: unknown) => void
+  readonly reject: (error: Error) => void
+  readonly timer: ReturnType<typeof setTimeout>
 }
 
 function failure(code: 'invalid-request' | 'unsupported-operation', message: string) {
@@ -63,6 +84,8 @@ export function createControlChannel(
   const requests = new Map<ControlRequestMethod, RequestHandler<ControlRequestMethod>>()
   const events = new Map<ControlEventMethod, Set<EventHandler<ControlEventMethod>>>()
   const stateListeners = new Set<(deviceId: string, state: ControlState) => void>()
+  /** 本机发出、还没收到应答的请求，键是请求 id。 */
+  const pending = new Map<string, PendingRequest>()
   async function send(deviceId: string, message: ControlMessage): Promise<void> {
     const result = await plugin.sendControl({ deviceId, message: JSON.stringify(message) })
     if (!isOperationResult(result, (value): value is null => value === null)) {
@@ -98,6 +121,25 @@ export function createControlChannel(
             }))
           : failure('unsupported-operation', 'The mobile device does not handle this request.')
       await send(deviceId, { v: 1, type: 'response', id: message.id, result })
+    } else if (message.type === 'response') {
+      const request = pending.get(message.id)
+      // 只收发给这台设备的请求的应答。
+      if (request?.deviceId !== deviceId) {
+        return
+      }
+      pending.delete(message.id)
+      clearTimeout(request.timer)
+      if (message.result.status === 'error') {
+        request.reject(
+          new OperationFailure(message.result.error.code, message.result.error.message),
+        )
+      } else if (isControlResponseValue(request.method, message.result.value)) {
+        request.resolve(message.result.value)
+      } else {
+        request.reject(
+          new OperationFailure('invalid-request', 'The peer response format is invalid.'),
+        )
+      }
     } else if (message.type === 'event' && isControlEventBody(message.method, message.body)) {
       for (const handler of events.get(message.method) ?? []) {
         handler(deviceId, message.body)
@@ -106,6 +148,15 @@ export function createControlChannel(
   }
   function changed(deviceId: string, state: ControlState): void {
     states.set(deviceId, state)
+    if (!state.isOpen) {
+      for (const [id, request] of pending) {
+        if (request.deviceId === deviceId) {
+          pending.delete(id)
+          clearTimeout(request.timer)
+          request.reject(new OperationFailure('network-failure', 'The device disconnected.'))
+        }
+      }
+    }
     for (const listener of stateListeners) {
       listener(deviceId, state)
     }
@@ -189,6 +240,41 @@ export function createControlChannel(
     onState(listener) {
       stateListeners.add(listener)
       return () => stateListeners.delete(listener)
+    },
+    request(deviceId, method, body) {
+      if (!isAndroid()) {
+        return Promise.reject(
+          new OperationFailure(
+            'unsupported-operation',
+            'Perform this operation in the Android app.',
+          ),
+        )
+      }
+      const id = crypto.randomUUID()
+      return new Promise((resolve, reject) => {
+        const timer = setTimeout(() => {
+          pending.delete(id)
+          reject(
+            new OperationFailure(
+              'timeout',
+              'The peer did not respond. Make sure the app is still open.',
+            ),
+          )
+        }, CONTROL_LIMITS.requestTimeoutMs)
+        pending.set(id, {
+          deviceId,
+          method,
+          resolve: resolve as (value: unknown) => void,
+          reject,
+          timer,
+        })
+        send(deviceId, { v: 1, type: 'request', id, method, body }).catch((cause: unknown) => {
+          if (pending.delete(id)) {
+            clearTimeout(timer)
+            reject(cause instanceof Error ? cause : new Error(String(cause)))
+          }
+        })
+      })
     },
     emit: (deviceId, method, body) =>
       isAndroid()

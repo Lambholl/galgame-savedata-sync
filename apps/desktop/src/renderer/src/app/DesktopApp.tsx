@@ -8,6 +8,7 @@ import {
   withoutGameLink,
   withoutGamePoster,
   createImportedGame,
+  importPeerPoster,
   OperationFailure,
   toShownError,
   unwrap,
@@ -16,6 +17,7 @@ import type {
   CatalogGame,
   DataResetItem,
   DirectoryReference,
+  ImportedPoster,
   InterruptedWrite,
   LibraryGame,
   LibraryPeer,
@@ -515,23 +517,46 @@ export function DesktopApp({
     const name = newGameName.trim()
     const imported = importedGame
     run(async () => {
+      const id = crypto.randomUUID()
+      const remotePosterHash = imported?.game.posterHash ?? null
+      let poster: ImportedPoster | null = null
+      let hasPosterFailed = false
+      if (imported && remotePosterHash !== null) {
+        // 先存封面文件再保存游戏，游戏只写一次配置；取不到封面时游戏照常导入。
+        try {
+          poster = await importPeerPoster(
+            id,
+            remotePosterHash,
+            () => adapter.peerPoster(imported.deviceId, imported.game.id),
+            (gameId, data) => POSTERS.save(gameId, data),
+          )
+        } catch (cause) {
+          console.error('Failed to import the peer poster', cause)
+          hasPosterFailed = true
+        }
+      }
+      // 取封面期间配置可能已被对端的目录表交换改写，在取完之后再读。
       const current = snapshotRef.current?.config
       if (!current) {
         throw new Error(t('app.notLoaded'))
       }
       const item: LibraryGame = imported
         ? {
-            ...createImportedGame(crypto.randomUUID(), imported.game, imported.deviceId),
+            ...createImportedGame(id, imported.game, imported.deviceId),
             name,
             rootId: directory.rootId,
+            ...poster,
           }
         : {
-            id: crypto.randomUUID(),
+            id,
             name,
             rootId: directory.rootId,
             links: [],
           }
       await adapter.saveGames([...current.games, item])
+      if (hasPosterFailed) {
+        appMessage.show({ type: 'warning', content: t('poster.importFailed'), slot: 'poster' })
+      }
       setGameId(item.id)
       setPeerId(imported?.deviceId ?? '')
       setIsAddGameOpen(false)

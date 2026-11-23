@@ -50,7 +50,7 @@ test('协议只接受确切版本，缺失、未来版本和类型强制转换�
     },
   }
   assert.equal(isDeviceDescriptor(JSON.parse(JSON.stringify(device))), true)
-  for (const protocolVersion of [undefined, null, '3', 2, 4, 3.1, Infinity]) {
+  for (const protocolVersion of [undefined, null, '4', 3, 5, 4.1, Infinity]) {
     assert.equal(isProtocolVersionSupported(protocolVersion), false)
     assert.equal(isDeviceDescriptor({ ...device, protocolVersion }), false)
   }

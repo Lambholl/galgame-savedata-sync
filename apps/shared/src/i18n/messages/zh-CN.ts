@@ -261,6 +261,7 @@ export const zhCN = {
   'poster.saved': '已设置封面',
   'poster.removed': '已移除封面',
   'poster.unreadable': '读不了这张图片',
+  'poster.importFailed': '游戏已导入，封面未能导入',
   'poster.kind.main': '主视觉',
   'poster.kind.pkgfront': '包装正面',
   'poster.kind.pkgback': '包装背面',

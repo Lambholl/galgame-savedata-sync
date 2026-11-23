@@ -92,7 +92,7 @@ test('设备/根/当前层通过真实 HTTP 返回公开 DTO，会话与目录�
   assert.equal(device.status, 200)
   const descriptor = unwrap(device.json)
   assert.equal(descriptor.device.deviceId, fixture.source.deviceId)
-  assert.equal(descriptor.device.protocolVersion, 3)
+  assert.equal(descriptor.device.protocolVersion, 4)
   assert.equal(descriptor.device.capabilities.canListRoots, 'supported')
   assert.deepEqual(descriptor.limits, BATCH_LIMITS)
   assert.equal(descriptor.sessionId, fixture.address.sessionId)

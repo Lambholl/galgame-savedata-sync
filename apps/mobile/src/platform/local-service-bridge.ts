@@ -6,6 +6,7 @@ import {
   isOpaqueId,
   isOperationError,
   isOperationResult,
+  isPeerPoster,
   LIBRARY_LIMITS,
 } from '@savedata-sync/shared'
 import type {
@@ -14,6 +15,7 @@ import type {
   DirectoryListing,
   OperationError,
   OperationResult,
+  PeerPoster,
 } from '@savedata-sync/shared'
 
 /** 本机服务在局域网里的广播状态。 */
@@ -63,6 +65,7 @@ export interface LocalServiceNativePlugin {
     rootId: string
     parentId: string | null
   }): Promise<unknown>
+  peerPoster(options: { deviceId: string; gameId: string }): Promise<unknown>
   catalogChanged(): Promise<unknown>
   addListener(
     event: 'serviceState' | 'libraryChanged',
@@ -90,6 +93,8 @@ export interface LocalServiceApi {
     rootId: string,
     parentId: string | null,
   ): Promise<OperationResult<DirectoryListing>>
+  /** 经控制通道读取连着本机的设备一个游戏的封面；对方离线或这个游戏没有封面时返回 not-found。 */
+  peerPoster(deviceId: string, gameId: string): Promise<OperationResult<PeerPoster>>
   /** 通知连着本机的设备：本机目录表变了。没有连接时什么也不做。 */
   catalogChanged(): Promise<OperationResult<null>>
   /** 订阅服务状态变化；返回的函数撤销订阅。 */
@@ -244,6 +249,12 @@ export function createLocalService(
         (result.value.rootId !== rootId || result.value.parentId !== parentId)
         ? { status: 'error', error: BRIDGE_ERROR }
         : result
+    },
+    async peerPoster(deviceId: string, gameId: string): Promise<OperationResult<PeerPoster>> {
+      if (!isOpaqueId(deviceId) || !isOpaqueId(gameId)) {
+        return invalid()
+      }
+      return call(() => plugin.peerPoster({ deviceId, gameId }), isPeerPoster)
     },
     catalogChanged: () => call(() => plugin.catalogChanged(), isNull),
     onState(listener: () => void): () => void {

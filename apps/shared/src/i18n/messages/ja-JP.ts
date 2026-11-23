@@ -254,6 +254,7 @@ export const jaJP: Messages = {
   'poster.saved': 'ポスターを設定しました',
   'poster.removed': 'ポスターを削除しました',
   'poster.unreadable': 'この画像を読み込めません',
+  'poster.importFailed': 'ゲームは取り込みましたが、ポスターは取り込めませんでした',
   'poster.kind.main': 'メインビジュアル',
   'poster.kind.pkgfront': 'パッケージ表',
   'poster.kind.pkgback': 'パッケージ裏',

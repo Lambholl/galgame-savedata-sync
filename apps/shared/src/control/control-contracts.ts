@@ -1,4 +1,5 @@
 import type { DirectoryListing, OperationError, OperationResult } from '../protocol/contracts.ts'
+import type { PeerPoster } from '../poster/poster-contracts.ts'
 import type { SyncDirection, SyncPlan } from '../sync/sync-contracts.ts'
 import type { SyncPlanChoices } from '../sync/sync-plan.ts'
 import type { SyncJobDigest, SyncJobState } from '../sync/sync-job-contracts.ts'
@@ -55,6 +56,8 @@ export interface ControlRequestBodies {
   readonly 'sync.job.read': { readonly jobId: string }
   /** 取消对方正在执行的任务；任务已结束时直接答复成功，任务不存在时答复 not-found。 */
   readonly 'sync.job.cancel': { readonly jobId: string }
+  /** 读取对方一个游戏的封面；游戏不存在或没有封面时答复 not-found。 */
+  readonly 'poster.read': { readonly gameId: string }
 }
 /** 请求方法与成功应答值。 */
 export interface ControlResponseValues {
@@ -64,6 +67,7 @@ export interface ControlResponseValues {
   readonly 'sync.cancel': null
   readonly 'sync.job.read': SyncJobState
   readonly 'sync.job.cancel': null
+  readonly 'poster.read': PeerPoster
 }
 /** 事件方法与事件体。 */
 export interface ControlEventBodies {

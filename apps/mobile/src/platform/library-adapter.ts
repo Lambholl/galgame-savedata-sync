@@ -16,6 +16,7 @@ import type {
   DirectoryReference,
   LibraryConfig,
   OperationResult,
+  PosterAdapter,
 } from '@savedata-sync/shared'
 import { unwrap } from '@savedata-sync/shared'
 import type { MobileLibraryAdapter, MobileSnapshot } from './library-types'
@@ -29,6 +30,7 @@ import type { AndroidDirectoryApi } from './directory-bridge'
 import type { AndroidTransferApi } from './http-transfer-bridge'
 import { appStorage, loadAppStorage } from './app-storage'
 import { localService as defaultService } from './local-service'
+import { androidPosters } from './posters'
 import type { ListenerPeer, LocalServiceApi, LocalServiceStatus } from './local-service-bridge'
 
 /** 游戏库适配器的依赖。 */
@@ -41,6 +43,8 @@ export interface MobileLibraryDependencies {
   readonly reloadStorage: () => Promise<void>
   readonly service: LocalServiceApi
   readonly hasSyncWork: () => Promise<boolean>
+  /** 读取本机的封面文件。 */
+  readonly posters: Pick<PosterAdapter, 'read'>
 }
 
 const CONFIG_KEY = 'savedata-sync:library:1'
@@ -61,6 +65,7 @@ export function createMobileLibraryAdapter(
   const storage = dependencies?.storage ?? appStorage
   const reloadStorage = dependencies?.reloadStorage ?? loadAppStorage
   const service = dependencies?.service ?? defaultService
+  const posters = dependencies?.posters ?? androidPosters
   let config: LibraryConfig | undefined
   let deviceName: string | null = null
   const catalogs = new Map<string, readonly CatalogGame[]>()
@@ -188,6 +193,33 @@ export function createMobileLibraryAdapter(
       }
     }
     return androidDirectories.listDirectory(query.rootId, query.parentId)
+  })
+  control.onRequest('poster.read', async (id, query) => {
+    if (!descriptors.some((item) => item.device.deviceId === id)) {
+      return {
+        status: 'error',
+        error: {
+          code: 'session-mismatch',
+          message: 'The device connection changed.',
+          canRetry: false,
+        },
+      }
+    }
+    const game = load().games.find((item) => item.id === query.gameId)
+    if (!game?.posterHash) {
+      return {
+        status: 'error',
+        error: { code: 'not-found', message: 'The game has no poster.', canRetry: false },
+      }
+    }
+    return {
+      status: 'success',
+      value: {
+        hash: game.posterHash,
+        source: game.posterSource ?? null,
+        data: await posters.read(game.id, game.posterHash),
+      },
+    }
   })
   /** 交换目录表并合并对方的关联；失败时返回错误结果。 */
   async function exchange(
@@ -532,6 +564,16 @@ export function createMobileLibraryAdapter(
       }
       await select(deviceId)
       return androidTransfers.listRemoteDirectory(rootId, parentId)
+    },
+    async peerPoster(deviceId, gameId) {
+      if (isListenerPeer(deviceId)) {
+        return unwrap(await service.peerPoster(deviceId, gameId))
+      }
+      const game = catalogs.get(deviceId)?.find((item) => item.id === gameId)
+      if (!control.state(deviceId)?.isOpen || !game?.posterHash) {
+        throw new OperationFailure('not-found', 'The device is offline or the game has no poster.')
+      }
+      return control.request(deviceId, 'poster.read', { gameId })
     },
   }
 }

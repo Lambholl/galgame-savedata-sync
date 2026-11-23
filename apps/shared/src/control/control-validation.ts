@@ -1,4 +1,5 @@
 import { isOpaqueId } from '../protocol/protocol.ts'
+import { isPeerPoster } from '../poster/poster-contracts.ts'
 import { isDirectoryListing, isOperationError, isOperationResult } from '../protocol/validation.ts'
 import { isSyncJobDigest, isSyncJobState } from '../sync/sync-job-validation.ts'
 import { isSyncPlan } from '../sync/sync-plan-validation.ts'
@@ -20,6 +21,7 @@ const REQUESTS: readonly ControlRequestMethod[] = [
   'sync.cancel',
   'sync.job.read',
   'sync.job.cancel',
+  'poster.read',
 ]
 const EVENTS: readonly ControlEventMethod[] = ['catalog.changed', 'sync.report', 'sync.job']
 
@@ -71,6 +73,9 @@ export function isControlRequestBody<M extends ControlRequestMethod>(
   if (method === 'sync.job.read' || method === 'sync.job.cancel') {
     return hasShape(value, ['jobId']) && isOpaqueId(value.jobId)
   }
+  if (method === 'poster.read') {
+    return hasShape(value, ['gameId']) && isOpaqueId(value.gameId)
+  }
   if (method === 'sync.confirm') {
     return (
       hasShape(value, ['requestId', 'shouldBackup', 'shouldDeleteExtras']) &&
@@ -94,6 +99,9 @@ export function isControlResponseValue<M extends ControlRequestMethod>(
   }
   if (method === 'sync.job.read') {
     return isSyncJobState(value)
+  }
+  if (method === 'poster.read') {
+    return isPeerPoster(value)
   }
   return value === null
 }

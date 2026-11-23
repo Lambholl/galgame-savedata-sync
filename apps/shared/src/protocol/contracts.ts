@@ -1,5 +1,5 @@
 /** 设备描述、发现 TXT 和连接二维码的协议版本。不兼容的变更使用新版本号。 */
-export const PROTOCOL_VERSION = 3
+export const PROTOCOL_VERSION = 4
 
 /** 能力状态。supported 表示平台声明支持，调用仍可能失败。 */
 export type CapabilityState = 'supported' | 'unsupported' | 'unknown'

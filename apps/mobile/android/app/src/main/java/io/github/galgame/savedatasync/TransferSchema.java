@@ -16,6 +16,9 @@ import java.util.Set;
 /** 设备描述、目录列表、条目元数据和错误信封等传输字段的校验。 */
 final class TransferSchema {
 
+  /** 设备描述、发现 TXT 和连接二维码的协议版本，与共享 PROTOCOL_VERSION 相同。 */
+  static final int PROTOCOL_VERSION = 4;
+
   static final String ERROR_CODES =
     "invalid-request protocol-mismatch session-mismatch task-conflict invalid-archive " +
     "resource-limit busy timeout permission-denied authorization-expired not-found " +
@@ -111,8 +114,8 @@ final class TransferSchema {
       "platform",
       "capabilities"
     );
-    if (!Long.valueOf(3).equals(device.get("protocolVersion"))) {
-      number(device.get("protocolVersion"), 3, 3);
+    if (!Long.valueOf(PROTOCOL_VERSION).equals(device.get("protocolVersion"))) {
+      number(device.get("protocolVersion"), PROTOCOL_VERSION, PROTOCOL_VERSION);
     }
     id(device.get("deviceId"));
     text(device.get("displayName"));

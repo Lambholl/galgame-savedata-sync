@@ -23,7 +23,7 @@ const peer = {
   name: 'Phone B',
   platform: 'android',
   isOpen: true,
-  games: [{ id: 'game-b', name: 'B', root }],
+  games: [{ id: 'game-b', name: 'B', root, posterHash: null }],
 }
 
 function fixture(overrides = {}) {

@@ -162,6 +162,14 @@ public class LocalServicePlugin extends Plugin {
   }
 
   @PluginMethod
+  public void peerPoster(PluginCall call) {
+    submit(call, () -> {
+      Map<String, Object> a = arguments(call, "deviceId", "gameId");
+      return runtime.peerPoster(id(a.get("deviceId")), id(a.get("gameId")));
+    });
+  }
+
+  @PluginMethod
   public void catalogChanged(PluginCall call) {
     submit(call, () -> {
       arguments(call);

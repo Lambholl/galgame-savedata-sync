@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { WebSocket } from 'ws'
 import type { RawData } from 'ws'
 import {
@@ -8,6 +9,7 @@ import {
   isControlEventBody,
   isControlMessage,
   isControlRequestBody,
+  isControlResponseValue,
 } from '@savedata-sync/shared'
 import type {
   ControlEvent,
@@ -24,6 +26,13 @@ import { inspectJsonKeys } from './http-wire.ts'
 
 /** WebSocket 握手的期限。 */
 const HANDSHAKE_TIMEOUT_MS = 5000
+
+interface PendingRequest {
+  readonly method: ControlRequestMethod
+  readonly resolve: (value: unknown) => void
+  readonly reject: (error: Error) => void
+  readonly timer: NodeJS.Timeout
+}
 
 /** 控制通道的回调。 */
 export interface DialerControlEvents {
@@ -46,6 +55,8 @@ export class DialerControlSocket {
   private readonly heartbeat: NodeJS.Timeout
   private isAlive = true
   private isClosed = false
+  /** 本机发出、还没收到应答的请求，键是请求 id。 */
+  private readonly pending = new Map<string, PendingRequest>()
 
   constructor(
     origin: string,
@@ -112,6 +123,48 @@ export class DialerControlSocket {
     this.send(event)
   }
 
+  /**
+   * 向监听方发请求。
+   *
+   * @throws HttpOperationError 通道没打开或连接在应答前断开时为 network-failure，CONTROL_LIMITS.requestTimeoutMs
+   *   内没有应答时为 timeout，对方答复错误时为对方的错误码，答复格式不对时为 invalid-request。
+   */
+  request<M extends ControlRequestMethod>(
+    method: M,
+    body: ControlRequestBodies[M],
+  ): Promise<ControlResponseValues[M]> {
+    if (!this.isOpen()) {
+      return Promise.reject(
+        new HttpOperationError('network-failure', 'The control channel is not open.'),
+      )
+    }
+    const id = randomUUID()
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        this.pending.delete(id)
+        reject(
+          new HttpOperationError(
+            'timeout',
+            'The peer did not respond. Make sure the app is still open.',
+          ),
+        )
+      }, CONTROL_LIMITS.requestTimeoutMs)
+      this.pending.set(id, {
+        method,
+        resolve: resolve as (value: unknown) => void,
+        reject,
+        timer,
+      })
+      try {
+        this.send({ v: 1, type: 'request', id, method, body })
+      } catch (error) {
+        clearTimeout(timer)
+        this.pending.delete(id)
+        reject(toHttpError(error))
+      }
+    })
+  }
+
   /** 关闭连接，关闭码 1000；握手还没完成时直接终止。已关闭时不做任何事。 */
   close(): void {
     if (this.socket.readyState === WebSocket.CONNECTING) {
@@ -127,6 +180,11 @@ export class DialerControlSocket {
     }
     this.isClosed = true
     clearInterval(this.heartbeat)
+    for (const pending of this.pending.values()) {
+      clearTimeout(pending.timer)
+      pending.reject(new HttpOperationError('network-failure', 'The device disconnected.'))
+    }
+    this.pending.clear()
     this.events.closed(code)
   }
 
@@ -158,7 +216,23 @@ export class DialerControlSocket {
       return
     }
     if (message.type === 'response') {
-      // 拨号方不向监听方发请求，应答直接丢弃。
+      const pending = this.pending.get(message.id)
+      if (!pending) {
+        return
+      }
+      this.pending.delete(message.id)
+      clearTimeout(pending.timer)
+      if (message.result.status === 'error') {
+        pending.reject(
+          new HttpOperationError(message.result.error.code, message.result.error.message),
+        )
+      } else if (isControlResponseValue(pending.method, message.result.value)) {
+        pending.resolve(message.result.value)
+      } else {
+        pending.reject(
+          new HttpOperationError('invalid-request', 'The peer response format is invalid.'),
+        )
+      }
       return
     }
     if (message.type === 'event') {

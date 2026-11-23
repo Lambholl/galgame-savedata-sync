@@ -18,6 +18,7 @@ import type {
   DeviceDescriptor,
   DirectoryListing,
   OperationErrorCode,
+  PeerPoster,
 } from '@savedata-sync/shared'
 import type { DesktopDialResult, DesktopDialerSnapshot } from '../bridge/dialer-bridge.ts'
 import { DialerControlSocket } from './dialer-control.ts'
@@ -45,7 +46,7 @@ const RELOCATABLE_CODES: readonly OperationErrorCode[] = [
 ]
 
 /** 监听方发给拨号方传输引擎的控制请求。 */
-export type DialerSyncMethod = Exclude<ControlRequestMethod, 'directory.list'>
+export type DialerSyncMethod = Exclude<ControlRequestMethod, 'directory.list' | 'poster.read'>
 
 /** 当前连接的访问凭据；会话结束或换了一次连接后失效。 */
 export interface DialerConnection {
@@ -78,7 +79,7 @@ export interface DialerSyncHandler {
 /** 拨号方用到的游戏库接口。 */
 export type DialerLibrary = Pick<
   DesktopLibrary,
-  'snapshot' | 'hasListenerPeer' | 'localCatalog' | 'acceptDial' | 'clearDial'
+  'snapshot' | 'hasListenerPeer' | 'localCatalog' | 'localPoster' | 'acceptDial' | 'clearDial'
 >
 
 interface DialSession {
@@ -109,7 +110,7 @@ function errorCode(error: unknown): OperationErrorCode {
 }
 
 /**
- * 本机作为拨号方的连接，同一时间只连一台设备；连着时对方可以读取本机游戏的目录。
+ * 本机作为拨号方的连接，同一时间只连一台设备；连着时对方可以读取本机游戏的目录和封面。
  * 控制通道异常断开超过 CONTROL_GRACE_MS 仍没恢复时断开；对方以 CONTROL_CLOSE_CODES 里的关闭码关闭时立即断开。
  */
 export class WindowsDialer implements LibraryDialer {
@@ -337,6 +338,21 @@ export class WindowsDialer implements LibraryDialer {
     return value
   }
 
+  /**
+   * 经控制通道读取对方一个游戏的封面。
+   *
+   * @throws HttpOperationError 控制通道没打开时为 network-failure；超时、断开或对方答复错误时为对应的错误码。
+   */
+  poster(gameId: string): Promise<PeerPoster> {
+    const control = this.session?.control
+    if (!control) {
+      return Promise.reject(
+        new HttpOperationError('network-failure', 'The control channel is not open.'),
+      )
+    }
+    return control.request('poster.read', { gameId })
+  }
+
   /** 断开 deviceId 并通知对方；没连着它时不做任何事。 */
   async disconnect(deviceId: string): Promise<void> {
     if (this.session?.deviceId === deviceId) {
@@ -552,6 +568,11 @@ export class WindowsDialer implements LibraryDialer {
     method: M,
     body: ControlRequestBodies[M],
   ): Promise<ControlResponseValues[M]> {
+    if (method === 'poster.read') {
+      // 控制通道已按 method 校验过请求体；泛型 M 收窄不到具体方法，这里按校验结果转换。
+      const { gameId } = body as ControlRequestBodies['poster.read']
+      return (await this.library.localPoster(gameId)) as ControlResponseValues[M]
+    }
     if (method !== 'directory.list') {
       if (!this.sync) {
         throw new HttpOperationError(

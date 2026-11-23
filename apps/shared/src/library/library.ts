@@ -54,6 +54,8 @@ export interface CatalogGame {
   readonly id: string
   readonly name: string
   readonly root: DirectoryReference | null
+  /** 发送方游戏库里的 posterHash；没有封面时为 null。 */
+  readonly posterHash: string | null
 }
 /** 目录表里的一条关联：发送方的游戏 ID 和接收方的游戏 ID。 */
 export interface CatalogLink {
@@ -165,7 +167,8 @@ function isCatalogGame(value: unknown): value is CatalogGame {
     record(value) &&
     isOpaqueId(value.id) &&
     text(value.name) &&
-    (value.root === null || isDirectoryReference(value.root))
+    (value.root === null || isDirectoryReference(value.root)) &&
+    (value.posterHash === null || isPosterHash(value.posterHash))
   )
 }
 function isCatalogLink(value: unknown): value is CatalogLink {
@@ -279,6 +282,7 @@ export function libraryCatalog(
     id: item.id,
     name: item.name,
     root: roots.find((root) => root.rootId === item.rootId) ?? null,
+    posterHash: item.posterHash ?? null,
   }))
 }
 /** 列出本机游戏与指定设备的关联。 */

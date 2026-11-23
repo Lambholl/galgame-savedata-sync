@@ -6,6 +6,7 @@ import type {
   LibraryGame,
   LibraryPeer,
   OperationResult,
+  PeerPoster,
 } from '@savedata-sync/shared'
 import type { LocalServiceStatus } from './local-service-bridge'
 
@@ -63,4 +64,6 @@ export interface MobileLibraryAdapter {
     rootId: string,
     parentId: string | null,
   ): Promise<OperationResult<DirectoryListing>>
+  /** 读取已连接设备一个游戏的封面；本机连着它或它连着本机都可以。设备不在线、游戏没有封面或请求失败时 reject。 */
+  peerPoster(deviceId: string, gameId: string): Promise<PeerPoster>
 }

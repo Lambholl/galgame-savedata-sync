@@ -80,6 +80,9 @@ export function createDesktopLibraryAdapter(): DesktopLibraryAdapter {
         ? api.directories.listDirectory(rootId, parentId)
         : api.library.directory(deviceId, rootId, parentId)
     },
+    async peerPoster(deviceId, gameId) {
+      return unwrap(await apis().library.peerPoster(deviceId, gameId))
+    },
     async service(shouldStart, port): Promise<void> {
       const api = apis()
       unwrap(await (shouldStart ? api.service.start(port) : api.service.stop()))

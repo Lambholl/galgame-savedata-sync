@@ -11,6 +11,7 @@ import static io.github.galgame.savedatasync.TransferSchema.require;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -44,6 +45,14 @@ final class ListenerLibrary {
 
     /** 本机是否正作为拨号方连着或正在连接别的设备。 */
     boolean isDialing();
+
+    /**
+     * 读出本机一个游戏的封面文件。
+     *
+     * @return WebP 文件内容。
+     * @throws ArchiveFailure 文件不存在时为 not-found，读取失败时为 io-failure。
+     */
+    byte[] poster(String gameId, String posterHash) throws Exception;
   }
 
   /** 游戏库配置被本类改写后调用。 */
@@ -72,6 +81,8 @@ final class ListenerLibrary {
   private static final int MAX_GAMES = 128;
   /** 每台对端设备在本会话里记下的已读条目的最多条数。 */
   private static final int MAX_ENTRIES = 32768;
+  /** 保存的封面文件的最大字节数，与共享 POSTER_LIMITS.maxSavedBytes 相同。 */
+  private static final int POSTER_MAX_SAVED_BYTES = 1024 * 1024;
   private final Store store;
   private final Host host;
   private final ListenerControl control;
@@ -205,7 +216,18 @@ final class ListenerLibrary {
           break;
         }
       }
-      games.add(object("id", game.get("id"), "name", game.get("name"), "root", root));
+      games.add(
+        object(
+          "id",
+          game.get("id"),
+          "name",
+          game.get("name"),
+          "root",
+          root,
+          "posterHash",
+          game.get("posterHash")
+        )
+      );
       for (Object link : list(game.get("links"))) {
         if (peerId.equals(map(link).get("deviceId"))) {
           links.add(object("localGameId", game.get("id"), "remoteGameId", map(link).get("gameId")));
@@ -319,6 +341,92 @@ final class ListenerLibrary {
           throw new java.util.concurrent.CompletionException(invalid);
         }
       });
+  }
+
+  /**
+   * 读出本机一个游戏的封面。
+   *
+   * @return 共享 PeerPoster 的 JSON 对象。
+   * @throws ArchiveFailure 游戏不存在、没有封面或封面文件不存在时为 not-found，读取失败时为 io-failure。
+   */
+  Map<String, Object> localPoster(String gameId) throws Exception {
+    Map<String, Object> game;
+    synchronized (this) {
+      game = find(list(config().get("games")), gameId);
+    }
+    Object hash = game == null ? null : game.get("posterHash");
+    if (!(hash instanceof String)) {
+      throw new ArchiveFailure("not-found", "The game has no poster.");
+    }
+    // 读文件不持锁：封面文件只经改名出现，读到的总是完整的文件。
+    byte[] content = host.poster(gameId, (String) hash);
+    return object(
+      "hash",
+      hash,
+      "source",
+      game.get("posterSource"),
+      "data",
+      Base64.getEncoder().encodeToString(content)
+    );
+  }
+
+  /**
+   * 经控制通道读取连着本机的设备一个游戏的封面。
+   *
+   * @return 以共享 PeerPoster 完成；对方离线或它的目录表里这个游戏没有封面时以 not-found 的 ArchiveFailure 完成，
+   *     超时、断开或答复不合格式时以对应的 ArchiveFailure 完成。
+   */
+  CompletableFuture<Object> peerPoster(String peerId, String gameId) {
+    boolean hasPoster = false;
+    synchronized (this) {
+      Peer peer = runtime.get(peerId);
+      if (peer != null && control.isOpen(peerId)) {
+        try {
+          Map<String, Object> game = find(list(peer.hello.get("games")), gameId);
+          hasPoster = game != null && game.get("posterHash") != null;
+        } catch (ArchiveFailure invalid) {
+          hasPoster = false;
+        }
+      }
+    }
+    if (!hasPoster) {
+      CompletableFuture<Object> failed = new CompletableFuture<>();
+      failed.completeExceptionally(
+        new ArchiveFailure("not-found", "The device is offline or the game has no poster.")
+      );
+      return failed;
+    }
+    return control.request(peerId, "poster.read", object("gameId", gameId)).thenApply(value -> {
+      try {
+        return checkPeerPoster(value);
+      } catch (ArchiveFailure invalid) {
+        throw new java.util.concurrent.CompletionException(invalid);
+      }
+    });
+  }
+
+  /** 校验对端答复的封面，规则同共享 isPeerPoster；返回原值。 */
+  private static Object checkPeerPoster(Object value) throws ArchiveFailure {
+    Map<String, Object> poster = TransferSchema.shape(value, "hash", "source", "data");
+    Object hash = poster.get("hash");
+    require(hash instanceof String && PosterRules.isPosterHash((String) hash));
+    Object source = poster.get("source");
+    if (source != null) {
+      TransferSchema.one(source, "vndb", "nextmoe", "bangumi", "steam", "local");
+    }
+    Object data = poster.get("data");
+    // base64 后的长度上限：POSTER_MAX_SAVED_BYTES 字节编码出的长度。
+    require(
+      data instanceof String &&
+        !((String) data).isEmpty() &&
+        ((String) data).length() <= ((POSTER_MAX_SAVED_BYTES + 2) / 3) * 4
+    );
+    return value;
+  }
+
+  /** 目录表里的 posterHash 只能是 null 或 64 位小写十六进制。 */
+  private static void requirePosterHash(Object value) throws ArchiveFailure {
+    require(value == null || (value instanceof String && PosterRules.isPosterHash((String) value)));
   }
 
   /**
@@ -556,8 +664,9 @@ final class ListenerLibrary {
     Set<String> gameIds = new HashSet<>();
     Map<String, Object> roots = new HashMap<>();
     for (Object item : games) {
-      Map<String, Object> game = TransferSchema.shape(item, "id", "name", "root");
+      Map<String, Object> game = TransferSchema.shape(item, "id", "name", "root", "posterHash");
       require(gameIds.add(id(game.get("id"))) && isName(game.get("name")));
+      requirePosterHash(game.get("posterHash"));
       Object root = game.get("root");
       if (root != null) {
         String rootId = id(map(root).get("rootId"));

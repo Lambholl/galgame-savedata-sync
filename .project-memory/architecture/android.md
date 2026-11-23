@@ -245,7 +245,7 @@ Windows → Android（监听方 → 拨号方）：按确认计划里发起端�
 | `ListenerSyncRequests` | 对应电脑 `remote-sync-requests.ts`：本机作监听方时发起的传输。经控制通道发 `sync.prepare` 请拨号方扫描，收 `sync.report` 的计划后由用户确认，再发 `sync.confirm`，拨号方执行并在本机登记任务；同一时间只保留一个请求。拨号方以 invalid-request 或 not-found 拒绝确认（计划已过期）时按 not-found 返回，界面重新准备 |
 | `ListenerHttp` | HTTP/1.1 请求解析和回复，规则与电脑服务相同：头名重复、Content-Encoding、Range、Expect、Content-Length 与 chunked 冲突、chunk 扩展和 trailer 都按 invalid-request 拒绝；JSON 请求体最多 8 MiB |
 | `ListenerSocket` | 服务端 WebSocket（RFC 6455），只收文本帧，单条最多 8 MiB；关闭时先发关闭帧，最多等 2 秒回应 |
-| `ListenerControl` | 控制通道监听端：同一时间一条连接，同一设备的新连接以 4002 取代旧连接，主动断开用 4001。每 15 秒 ping，请求 8 秒超时 |
+| `ListenerControl` | 控制通道监听端：同一时间一条连接，同一设备的新连接以 4002 取代旧连接，主动断开用 4001。每 15 秒 ping，请求 8 秒超时。对方发来的请求交给 `requests` 登记的处理函数，在单独的应答线程上执行；目前只应答 `poster.read`，其他方法答复 unsupported-operation |
 | `ListenerLibrary` | 目录表交换，规则与电脑监听方相同：屏蔽的设备 permission-denied；被断开的设备要带 `x-sync-connect: 1` 重新连接，否则 session-mismatch；本机正在拨号或已有别的设备在线时 busy；最多 32 台设备。新连接把设备移到已保存列表开头，合并对方的关联后写入配置。配置的读、改、写在 `ListenerLibrary` 的锁里完成；关闭控制连接和通知网页层配置已变都在锁外进行。经控制通道 `directory.list` 浏览对方目录，父目录必须是本会话读到过的条目 |
 | `ListenerAdvertiser` | NsdManager 注册 `_savedata-sync._tcp`，TXT 与电脑相同；注册失败 30 秒后重试，停止服务时注销 |
 | `ListenerRuntime` | 应用 Context 持有的单例：开关和端口保存在 SharedPreferences（`local-service`），首次生成 49152–65535 的随机端口，服务停止时才能换端口。本机地址优先 Wi-Fi 和以太网，再是热点，排除移动网络、VPN、回环、链路本地和 198.18/15，最多 8 个 |
@@ -254,7 +254,7 @@ Windows → Android（监听方 → 拨号方）：按确认计划里发起端�
 
 目录表交换在原生层完成，Activity 销毁后对方仍能连接。游戏库配置因此有两个写入方：`AppStoragePlugin.readLibrary` / `writeLibrary` 加同一把锁，原生层写入后发 `libraryChanged`，`library-adapter` 重新读入配置并丢掉缓存。读快照时还会补登记连着本机、配置里却没有的设备，防止网页的旧缓存覆盖原生层刚写入的设备。
 
-`src/platform/local-service.ts` 导出 `localService`（桥接在 `local-service-bridge.ts`）：status、start、stop、randomizePort、peers、disconnectPeer、peerDirectory、catalogChanged，以及 `serviceState`、`libraryChanged` 两个事件。`library-adapter` 把连着本机的设备并入快照的 peers，并在 `listenerPeerIds` 列出它们的设备 ID，传输页据此按本机是监听方决定方向和两端位置：控制通道连着即在线，游戏取对方最近发来的目录表；浏览这台设备的目录走 `peerDirectory`，断开和删除走 `disconnectPeer`，修改本机游戏后发 `catalog.changed`。打开开关前申请通知权限，没有授权时不启动。
+`src/platform/local-service.ts` 导出 `localService`（桥接在 `local-service-bridge.ts`）：status、start、stop、randomizePort、peers、disconnectPeer、peerDirectory、peerPoster、catalogChanged，以及 `serviceState`、`libraryChanged` 两个事件。`library-adapter` 把连着本机的设备并入快照的 peers，并在 `listenerPeerIds` 列出它们的设备 ID，传输页据此按本机是监听方决定方向和两端位置：控制通道连着即在线，游戏取对方最近发来的目录表；浏览这台设备的目录走 `peerDirectory`，导入它的游戏时取封面走 `peerPoster`，断开和删除走 `disconnectPeer`，修改本机游戏后发 `catalog.changed`。打开开关前申请通知权限，没有授权时不启动。
 
 声明 `FOREGROUND_SERVICE_CONNECTED_DEVICE`，以及该前台服务类型要求的前置权限之一 `CHANGE_WIFI_MULTICAST_STATE`。
 

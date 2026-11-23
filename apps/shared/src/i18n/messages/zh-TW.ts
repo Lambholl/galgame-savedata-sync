@@ -243,6 +243,7 @@ export const zhTW: Messages = {
   'poster.saved': '已設定封面',
   'poster.removed': '已移除封面',
   'poster.unreadable': '無法讀取這張圖片',
+  'poster.importFailed': '遊戲已匯入，封面未能匯入',
   'poster.kind.main': '主視覺',
   'poster.kind.pkgfront': '包裝正面',
   'poster.kind.pkgback': '包裝背面',

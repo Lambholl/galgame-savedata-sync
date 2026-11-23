@@ -69,6 +69,20 @@ export function registerLibraryIpc(
             throw new HttpOperationError('invalid-request', 'The device name is invalid.')
           }
           await library.device(value.id, value.action as 'disconnect' | 'rename' | 'forget', name)
+        } else if (action === 'peerPoster') {
+          if (
+            !('deviceId' in value) ||
+            !isOpaqueId(value.deviceId) ||
+            !('gameId' in value) ||
+            !isOpaqueId(value.gameId) ||
+            Object.keys(value).length !== 2
+          ) {
+            throw new HttpOperationError('invalid-request', 'The poster request is invalid.')
+          }
+          return {
+            status: 'success',
+            value: await library.peerPoster(value.deviceId, value.gameId),
+          }
         } else {
           if (
             !('deviceId' in value) ||

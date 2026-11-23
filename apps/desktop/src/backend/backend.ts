@@ -177,10 +177,10 @@ export async function startBackend(options: BackendOptions): Promise<DesktopBack
     stage = 'archive-cache'
     const archive = await createWindowsArchiveAdapter(adapter, cacheDirectory)
     stage = 'library'
-    const library = new DesktopLibrary(files.library, adapter)
+    const posters = new PosterStore(join(dataDirectory, 'posters'))
+    const library = new DesktopLibrary(files.library, adapter, posters)
     await library.load()
     stage = 'posters'
-    const posters = new PosterStore(join(dataDirectory, 'posters'))
     await posters.prune(library.snapshot().config.games)
     stage = 'backups'
     const backups = await createWindowsBackupStore(

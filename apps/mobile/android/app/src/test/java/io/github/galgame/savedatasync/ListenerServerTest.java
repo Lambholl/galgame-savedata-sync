@@ -109,6 +109,11 @@ public class ListenerServerTest {
         }
 
         @Override
+        public byte[] poster(String gameId, String posterHash) throws Exception {
+          throw new ArchiveFailure("not-found", "The poster file does not exist.");
+        }
+
+        @Override
         public boolean isDialing() {
           return isDialing.get();
         }
@@ -223,7 +228,16 @@ public class ListenerServerTest {
       "windows",
       "games",
       Collections.singletonList(
-        object("id", "pc-game", "name", "Game", "root", root(deviceId, "pc-root"))
+        object(
+          "id",
+          "pc-game",
+          "name",
+          "Game",
+          "root",
+          root(deviceId, "pc-root"),
+          "posterHash",
+          null
+        )
       ),
       "links",
       Collections.singletonList(object("localGameId", "pc-game", "remoteGameId", "game-1"))
@@ -309,7 +323,7 @@ public class ListenerServerTest {
         assertEquals(200, reply.status);
         Map<String, Object> value = map(reply.body.get("value"));
         Map<String, Object> device = map(value.get("device"));
-        assertEquals(3L, device.get("protocolVersion"));
+        assertEquals((long) TransferSchema.PROTOCOL_VERSION, device.get("protocolVersion"));
         assertEquals("android", device.get("platform"));
         assertEquals(server.sessionId(), value.get("sessionId"));
         TransferSchema.device(value);
@@ -413,7 +427,9 @@ public class ListenerServerTest {
     Map<String, Object> foreign = hello("pc-1");
     foreign.put(
       "games",
-      Collections.singletonList(object("id", "g", "name", "G", "root", root("someone-else", "r")))
+      Collections.singletonList(
+        object("id", "g", "name", "G", "root", root("someone-else", "r"), "posterHash", null)
+      )
     );
     assertEquals(400, catalog(foreign, true).status);
   }
@@ -755,7 +771,16 @@ public class ListenerServerTest {
           object(
             "games",
             Collections.singletonList(
-              object("id", "game-b", "name", "B", "root", root("phone-b", "root-b"))
+              object(
+                "id",
+                "game-b",
+                "name",
+                "B",
+                "root",
+                root("phone-b", "root-b"),
+                "posterHash",
+                null
+              )
             ),
             "links",
             Collections.singletonList(object("localGameId", "game-b", "remoteGameId", "game-1"))

@@ -16,14 +16,16 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
 /**
  * 控制通道的监听端，同一时间维护一条设备连接。同一设备的新连接以 {@link #CLOSE_REPLACED} 取代旧连接，对方超过
- * {@link #PING_INTERVAL_MS} 没有回应心跳时断开。对方发来的请求，方法已知的答复 unsupported-operation，未知的答复
- * invalid-request。
+ * {@link #PING_INTERVAL_MS} 没有回应心跳时断开。对方发来的请求，方法未知的答复 invalid-request；方法已知的交给
+ * {@link #requests} 设置的接收者，没有接收者时答复 unsupported-operation。
  */
 final class ListenerControl {
 
@@ -35,6 +37,14 @@ final class ListenerControl {
   /** 对方发来的事件，外层格式和方法名已校验，body 未校验；回调在连接的读线程上执行，抛出的异常被忽略。 */
   interface Events {
     void event(String peerId, String method, Object body);
+  }
+
+  /**
+   * 对方发来的请求，外层格式和方法名已校验，body 未校验；在本对象专用的单个应答线程上依次执行。返回值作为成功应答，
+   * 抛出 ArchiveFailure 时按它的错误码应答，抛出其他异常时答复 internal-error。
+   */
+  interface Requests {
+    Object answer(String peerId, String method, Object body) throws Exception;
   }
 
   /** 本机断开这台设备，对方不要重连；与共享 CONTROL_CLOSE_CODES.disconnected 相同。 */
@@ -51,7 +61,8 @@ final class ListenerControl {
     "sync.confirm",
     "sync.cancel",
     "sync.job.read",
-    "sync.job.cancel"
+    "sync.job.cancel",
+    "poster.read"
   );
   private static final List<String> EVENTS = Arrays.asList(
     "catalog.changed",
@@ -75,9 +86,16 @@ final class ListenerControl {
   private final ScheduledExecutorService timer;
   private final Listener listener;
   private final ScheduledFuture<?> heartbeat;
+  // 应答可能要读文件、发上 MiB 的消息，放在 timer 上会拖慢心跳和请求期限。
+  private final ExecutorService answering = Executors.newSingleThreadExecutor(r -> {
+    Thread thread = new Thread(r, "listener-control-answer");
+    thread.setDaemon(true);
+    return thread;
+  });
   private Peer current;
   private boolean isStopped;
   private volatile Events events;
+  private volatile Requests requests;
 
   ListenerControl(ScheduledExecutorService timer, Listener listener) {
     this.timer = timer;
@@ -143,6 +161,11 @@ final class ListenerControl {
   /** 设置事件的接收者；null 表示丢弃事件。 */
   void events(Events value) {
     events = value;
+  }
+
+  /** 设置请求的接收者；null 表示已知方法的请求都答复 unsupported-operation。 */
+  void requests(Requests value) {
+    requests = value;
   }
 
   /** 与 peerId 的控制连接是否打开。 */
@@ -226,6 +249,7 @@ final class ListenerControl {
       peer = current;
     }
     heartbeat.cancel(false);
+    answering.shutdownNow();
     if (peer != null) {
       peer.socket.terminate();
     }
@@ -309,33 +333,27 @@ final class ListenerControl {
         number(message.get("v"), 1, 1);
         String requestId = id(message.get("id"));
         boolean isKnown = REQUESTS.contains(message.get("method"));
-        send(
-          peer,
-          object(
-            "v",
-            1,
-            "type",
-            "response",
-            "id",
+        Requests receiver = requests;
+        if (!isKnown || receiver == null) {
+          respond(
+            peer,
             requestId,
-            "result",
-            object(
-              "status",
-              "error",
-              "error",
-              object(
-                "code",
-                isKnown ? "unsupported-operation" : "invalid-request",
-                "message",
-                isKnown
-                  ? "This device does not handle this request."
-                  : "The request format is invalid.",
-                "canRetry",
-                false
-              )
+            error(
+              isKnown ? "unsupported-operation" : "invalid-request",
+              isKnown
+                ? "This device does not handle this request."
+                : "The request format is invalid."
             )
-          )
-        );
+          );
+        } else {
+          String method = (String) message.get("method");
+          Object body = message.get("body");
+          try {
+            answering.execute(() -> answer(peer, requestId, receiver, method, body));
+          } catch (java.util.concurrent.RejectedExecutionException stopped) {
+            /* 服务已停止，连接随后关闭，对方按断开处理。 */
+          }
+        }
       } else {
         shape(message, "v", "type", "method", "body");
         number(message.get("v"), 1, 1);
@@ -346,6 +364,46 @@ final class ListenerControl {
     } catch (Exception invalid) {
       peer.socket.close(1008, "invalid-message");
     }
+  }
+
+  private void answer(Peer peer, String requestId, Requests receiver, String method, Object body) {
+    Map<String, Object> result;
+    try {
+      result = object("status", "success", "value", receiver.answer(peer.id, method, body));
+    } catch (ArchiveFailure failure) {
+      result = error(failure.code, failure.getMessage());
+    } catch (Exception failure) {
+      result = error("internal-error", "The device failed to process the request.");
+    }
+    synchronized (this) {
+      // 处理期间连接可能已关闭或被新连接取代，应答没有人等了。
+      if (current != peer) {
+        return;
+      }
+    }
+    try {
+      respond(peer, requestId, result);
+    } catch (Exception unsent) {
+      try {
+        // 应答超过上限或编码失败时改答错误，对方不会一直等到超时。
+        respond(peer, requestId, error("resource-limit", "The response exceeds the limit."));
+      } catch (Exception disconnected) {
+        /* 连接已断开，读线程随后报告断开。 */
+      }
+    }
+  }
+
+  private void respond(Peer peer, String requestId, Map<String, Object> result) throws Exception {
+    send(peer, object("v", 1, "type", "response", "id", requestId, "result", result));
+  }
+
+  private static Map<String, Object> error(String code, String message) {
+    return object(
+      "status",
+      "error",
+      "error",
+      object("code", code, "message", message, "canRetry", false)
+    );
   }
 
   private void dispatch(Peer peer, String method, Object body) {

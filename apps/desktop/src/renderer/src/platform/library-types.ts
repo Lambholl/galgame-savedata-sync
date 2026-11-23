@@ -6,6 +6,7 @@ import type {
   LibraryGame,
   LibraryPeer,
   OperationResult,
+  PeerPoster,
 } from '@savedata-sync/shared'
 import type { DesktopDiscoveryState } from '../../../bridge/service-bridge.ts'
 import type { DesktopCopySummary, DesktopRestoreSummary } from '../../../bridge/sync-bridge.ts'
@@ -63,6 +64,8 @@ export interface DesktopLibraryAdapter {
     rootId: string,
     parentId: string | null,
   ): Promise<OperationResult<DirectoryListing>>
+  /** 读取已连接设备一个游戏的封面；设备不在线、游戏没有封面或请求失败时 reject。 */
+  peerPoster(deviceId: string, gameId: string): Promise<PeerPoster>
   /** shouldStart 为 true 时在 port 启动服务，否则停止服务。 */
   service(shouldStart: boolean, port: number): Promise<void>
   /** 换一个随机端口，返回新端口。 */

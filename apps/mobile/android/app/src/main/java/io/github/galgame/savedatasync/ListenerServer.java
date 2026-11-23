@@ -126,6 +126,18 @@ final class ListenerServer {
       listener.changed();
     });
     this.library = new ListenerLibrary(store, host, control, changes);
+    control.requests((peerId, method, body) -> {
+      // 复制和目录请求都是监听方发给拨号方的，监听方只答复 poster.read。
+      if (!"poster.read".equals(method)) {
+        throw new ArchiveFailure(
+          "unsupported-operation",
+          "This device does not handle this request."
+        );
+      }
+      return library.localPoster(
+        TransferSchema.id(TransferSchema.shape(body, "gameId").get("gameId"))
+      );
+    });
     if (sync == null) {
       jobs = null;
       requests = null;
@@ -439,7 +451,7 @@ final class ListenerServer {
       "device",
       object(
         "protocolVersion",
-        3,
+        TransferSchema.PROTOCOL_VERSION,
         "deviceId",
         host.deviceId(),
         "displayName",

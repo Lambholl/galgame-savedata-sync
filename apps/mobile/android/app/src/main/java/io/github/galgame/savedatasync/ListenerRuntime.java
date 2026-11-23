@@ -7,6 +7,7 @@ import static io.github.galgame.savedatasync.TransferJson.object;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.os.CancellationSignal;
+import java.io.File;
 import java.io.IOException;
 import java.net.Inet4Address;
 import java.net.InetAddress;
@@ -52,6 +53,8 @@ final class ListenerRuntime {
   private final ListenerAdvertiser advertiser;
   private final Set<Observer> observers = new CopyOnWriteArraySet<>();
   private final ListenerServer.Host host;
+  // 和 Poster 插件读写同一个目录。插件的保存先写临时文件再改名，清理只删游戏库没有引用的文件，这里读到的都是完整文件。
+  private final PosterStore posters;
   private ListenerServer server;
   private Map<String, Object> error;
 
@@ -71,6 +74,7 @@ final class ListenerRuntime {
     this.context = context;
     this.settings = context.getSharedPreferences(SETTINGS, Context.MODE_PRIVATE);
     this.advertiser = new ListenerAdvertiser(context, this::stateChanged);
+    this.posters = new PosterStore(new File(context.getFilesDir(), "posters"));
     this.host = new ListenerServer.Host() {
       @Override
       public String deviceId() {
@@ -114,6 +118,15 @@ final class ListenerRuntime {
       public boolean isDialing() {
         TransferRuntime transfers = TransferRuntime.peek();
         return transfers != null && transfers.engine.isDialing();
+      }
+
+      @Override
+      public byte[] poster(String gameId, String posterHash) throws Exception {
+        try {
+          return posters.read(gameId, posterHash);
+        } catch (PosterFailure failure) {
+          throw new ArchiveFailure(failure.code, failure.getMessage(), false, failure);
+        }
       }
     };
   }
@@ -360,6 +373,31 @@ final class ListenerRuntime {
       return current
         .library()
         .directory(peerId, rootId, parentId)
+        .get(ListenerControl.REQUEST_TIMEOUT_MS + 2000, TimeUnit.MILLISECONDS);
+    } catch (java.util.concurrent.ExecutionException failed) {
+      Throwable cause = failed.getCause();
+      throw cause instanceof ArchiveFailure ? (ArchiveFailure) cause : failed;
+    }
+  }
+
+  /**
+   * 经控制通道读取连着本机的设备一个游戏的封面。
+   *
+   * @return 共享 PeerPoster 的 JSON 对象。
+   * @throws ArchiveFailure 服务没运行、对方离线、这个游戏没有封面、超时或答复错误时抛出。
+   */
+  Object peerPoster(String peerId, String gameId) throws Exception {
+    ListenerServer current;
+    synchronized (this) {
+      current = server;
+    }
+    if (current == null) {
+      throw new ArchiveFailure("not-found", "The local service has stopped.");
+    }
+    try {
+      return current
+        .library()
+        .peerPoster(peerId, gameId)
         .get(ListenerControl.REQUEST_TIMEOUT_MS + 2000, TimeUnit.MILLISECONDS);
     } catch (java.util.concurrent.ExecutionException failed) {
       Throwable cause = failed.getCause();

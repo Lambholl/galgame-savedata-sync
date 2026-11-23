@@ -314,3 +314,24 @@ export function isPosterSaveResult(value: unknown): value is PosterSaveResult {
 export function isPosterFileData(value: unknown): value is PosterFileData {
   return isRecord(value) && isBase64(value.data, POSTER_LIMITS.maxSavedBytes)
 }
+
+/** 对端答复的一个游戏的封面。 */
+export interface PeerPoster {
+  /** 对端游戏库里的 posterHash。 */
+  readonly hash: string
+  /** 对端记录的封面出处；对端配置里没有记录时为 null。 */
+  readonly source: PosterOrigin | null
+  /** base64 编码的 WebP 内容，解码后不超过 POSTER_LIMITS.maxSavedBytes。 */
+  readonly data: string
+}
+
+/** 校验对端答复的封面：只有 hash、source、data 三个字段。 */
+export function isPeerPoster(value: unknown): value is PeerPoster {
+  return (
+    isRecord(value) &&
+    Object.keys(value).length === 3 &&
+    isPosterHash(value.hash) &&
+    (value.source === null || isPosterOrigin(value.source)) &&
+    isBase64(value.data, POSTER_LIMITS.maxSavedBytes)
+  )
+}

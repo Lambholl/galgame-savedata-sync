@@ -15,9 +15,11 @@ import type {
   ControlEventBodies,
   ControlEventMethod,
   ControlMessage,
+  ControlRequest,
   ControlRequestBodies,
   ControlRequestMethod,
   ControlResponseValues,
+  OperationResult,
 } from '@savedata-sync/shared'
 import { HttpOperationError, toHttpError } from './http-errors.ts'
 import { inspectJsonKeys } from './http-wire.ts'
@@ -42,10 +44,19 @@ export interface ControlListener {
   ) => void
   readonly closed?: (peerId: string) => void
 }
+/**
+ * 处理对方发来的请求；返回值作为成功应答，抛错时按错误应答。
+ * 本机不处理的方法应抛出 unsupported-operation。
+ */
+export type ControlRequestHandler = <M extends ControlRequestMethod>(
+  peerId: string,
+  method: M,
+  body: ControlRequestBodies[M],
+) => Promise<ControlResponseValues[M]>
 
 /**
  * 控制通道的服务端：收发消息，管理应答期限和心跳。
- * 收到格式错误的消息时关闭连接；对方发来的请求都答复不支持。
+ * 收到格式错误的消息时关闭连接；对方发来的请求交给 serve 设置的处理函数，没有处理函数时答复 unsupported-operation。
  */
 export class ControlHub {
   private readonly server = new WebSocketServer({
@@ -56,6 +67,7 @@ export class ControlHub {
   })
   private readonly peers = new Map<string, Peer>()
   private readonly listeners = new Set<ControlListener>()
+  private handler: ControlRequestHandler | null = null
   private readonly heartbeat = setInterval(() => this.ping(), CONTROL_LIMITS.pingIntervalMs)
 
   constructor() {
@@ -70,6 +82,11 @@ export class ControlHub {
   subscribe(listener: ControlListener): () => void {
     this.listeners.add(listener)
     return () => this.listeners.delete(listener)
+  }
+
+  /** 设置处理对方请求的函数；传 null 时对方的请求都答复 unsupported-operation。 */
+  serve(handler: ControlRequestHandler | null): void {
+    this.handler = handler
   }
 
   /** 接管 WebSocket 升级请求；peerId 是已核实的对方设备 ID，同一设备的旧连接被取代。 */
@@ -220,26 +237,7 @@ export class ControlHub {
       return
     }
     if (message.type === 'request') {
-      const isValid = isControlRequestBody(message.method, message.body)
-      this.send(peer, {
-        v: 1,
-        type: 'response',
-        id: message.id,
-        result: {
-          status: 'error',
-          error: isValid
-            ? {
-                code: 'unsupported-operation',
-                message: 'The PC does not handle this request.',
-                canRetry: false,
-              }
-            : {
-                code: 'invalid-request',
-                message: 'The request format is invalid.',
-                canRetry: false,
-              },
-        },
-      })
+      this.answer(peerId, peer, message)
       return
     }
     if (!isControlEventBody(message.method, message.body)) {
@@ -249,6 +247,61 @@ export class ControlHub {
     for (const listener of this.listeners) {
       listener.event?.(peerId, message.method, message.body)
     }
+  }
+
+  private answer(peerId: string, peer: Peer, message: ControlRequest): void {
+    const { id, method, body } = message
+    const reply = (result: OperationResult<unknown>): void => {
+      // 处理期间连接可能已关闭或被新连接取代，应答没有人等了。
+      if (this.peers.get(peerId) !== peer) {
+        return
+      }
+      try {
+        this.send(peer, { v: 1, type: 'response', id, result })
+      } catch {
+        // 应答超过上限时改答错误，对方不会一直等到超时。
+        this.send(peer, {
+          v: 1,
+          type: 'response',
+          id,
+          result: {
+            status: 'error',
+            error: {
+              code: 'resource-limit',
+              message: 'The response exceeds the limit.',
+              canRetry: false,
+            },
+          },
+        })
+      }
+    }
+    const handler = this.handler
+    if (!isControlRequestBody(method, body)) {
+      reply({
+        status: 'error',
+        error: {
+          code: 'invalid-request',
+          message: 'The request format is invalid.',
+          canRetry: false,
+        },
+      })
+      return
+    }
+    if (!handler) {
+      reply({
+        status: 'error',
+        error: {
+          code: 'unsupported-operation',
+          message: 'The PC does not handle this request.',
+          canRetry: false,
+        },
+      })
+      return
+    }
+    handler(peerId, method, body).then(
+      (value) => reply({ status: 'success', value }),
+      (error: unknown) => reply({ status: 'error', error: toHttpError(error).operationError }),
+    )
   }
 
   private send(peer: Peer, message: ControlMessage): void {

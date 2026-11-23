@@ -20,7 +20,6 @@ tags: [工作包]
 
 | ID | 工作包 | 内容与完成标准 | 依赖 | 状态 |
 | --- | --- | --- | --- | --- |
-| WP-069 | 导入游戏时取对端封面 | `CatalogGame.posterHash`、控制通道 `poster.read`、`PROTOCOL_VERSION` 升到 4，电脑和 Android（`ListenerControl`、`ControlClient` 等）两端同时改；导入流程取封面，失败不挡导入。完成标准：监听方和拨号方互相导入带封面的游戏，四种设备组合中至少电脑/电脑和电脑/Android 实测 | Q-024 | planned |
 
 ## 2. 执行与拆分规则
 

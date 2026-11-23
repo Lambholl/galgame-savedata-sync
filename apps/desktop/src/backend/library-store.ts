@@ -15,13 +15,18 @@ import type {
   CatalogHello,
   CatalogPush,
   CatalogReply,
+  ControlRequestBodies,
+  ControlRequestMethod,
+  ControlResponseValues,
   DeviceDescriptor,
   DirectoryListing,
   LibraryConfig,
   LibraryGame,
   LibraryPeer,
+  PeerPoster,
 } from '@savedata-sync/shared'
 import type { ControlHub } from './control-hub.ts'
+import type { PosterStore } from './poster-store.ts'
 import type { WindowsDirectoryAdapter } from './directory-adapter.ts'
 import { HttpOperationError } from './http-errors.ts'
 
@@ -30,7 +35,7 @@ interface PeerRuntime {
   readonly seenAt: number
   readonly entries: Set<string>
 }
-type LibraryControl = Pick<ControlHub, 'isOpen' | 'request' | 'broadcast' | 'disconnect'>
+type LibraryControl = Pick<ControlHub, 'isOpen' | 'request' | 'broadcast' | 'disconnect' | 'serve'>
 /** 本机作为拨号方的当前连接。 */
 export interface LibraryDialer {
   /** 本机正连着（包括控制通道正在重连）的设备 ID；没有时为 null。 */
@@ -39,6 +44,8 @@ export interface LibraryDialer {
   isOpen(): boolean
   /** 读取对方一个根目录的一层。 */
   directory(rootId: string, parentId: string | null): Promise<DirectoryListing>
+  /** 经控制通道读取对方一个游戏的封面。 */
+  poster(gameId: string): Promise<PeerPoster>
   /** 断开 deviceId 并通知对方；没连着它时不做任何事。 */
   disconnect(deviceId: string): Promise<void>
   /** 通知本机游戏或关联已经改变。 */
@@ -59,9 +66,13 @@ export class DesktopLibrary {
   /** 本机拨号连着的设备答复的目录表。 */
   private dialed: { readonly deviceId: string; readonly reply: CatalogReply } | null = null
   private saving: Promise<void> = Promise.resolve()
+  /**
+   * @param posters 读取本机封面文件；为 null 时对端读封面一律答复 not-found。
+   */
   constructor(
     private readonly file: string,
     private readonly adapter: WindowsDirectoryAdapter,
+    private readonly posters: Pick<PosterStore, 'read'> | null = null,
   ) {}
   /** 读取游戏库配置；文件不存在时用空库，配置损坏时抛错，原文件保留。 */
   async load(): Promise<void> {
@@ -99,9 +110,26 @@ export class DesktopLibrary {
     })
     return next
   }
-  /** 设置用于通知和读取对端的控制通道；传 null 表示没有控制通道。 */
+  /** 设置用于通知和读取对端的控制通道，并由本对象答复对端的请求；传 null 表示没有控制通道。 */
   attachControl(control: LibraryControl | null): void {
     this.control = control
+    control?.serve((peerId, method, body) => this.answer(peerId, method, body))
+  }
+  /** 答复连着本机的设备发来的请求；本机作为监听方只处理 poster.read。 */
+  private async answer<M extends ControlRequestMethod>(
+    peerId: string,
+    method: M,
+    body: ControlRequestBodies[M],
+  ): Promise<ControlResponseValues[M]> {
+    if (method !== 'poster.read' || !this.isOpen(peerId)) {
+      throw new HttpOperationError(
+        'unsupported-operation',
+        'This device does not handle this request.',
+      )
+    }
+    // 控制通道已按 method 校验过请求体；泛型 M 收窄不到具体方法，这里按校验结果转换。
+    const { gameId } = body as ControlRequestBodies['poster.read']
+    return (await this.localPoster(gameId)) as ControlResponseValues[M]
   }
   /** 设置本机作为拨号方的连接。 */
   attachDialer(dialer: LibraryDialer): void {
@@ -431,6 +459,48 @@ ${item.entryId}`)
       .finally(() => this.reading.delete(key))
     this.reading.set(key, reading)
     return reading
+  }
+  /**
+   * 读出本机一个游戏的封面，格式同 poster.read 的应答。
+   *
+   * @throws HttpOperationError 游戏不存在、没有封面或封面文件不存在时 code 为 not-found；读取失败时为 io-failure。
+   */
+  async localPoster(gameId: string): Promise<PeerPoster> {
+    const game = this.config.games.find((item) => item.id === gameId)
+    if (!game?.posterHash || !this.posters) {
+      throw new HttpOperationError('not-found', 'The game has no poster.')
+    }
+    return {
+      hash: game.posterHash,
+      source: game.posterSource ?? null,
+      data: await this.posters.read(game.id, game.posterHash),
+    }
+  }
+  /**
+   * 经控制通道读取已连接设备一个游戏的封面；本机连着它或它连着本机都可以。
+   *
+   * @throws HttpOperationError 设备不在线或它的目录表里这个游戏没有封面时 code 为 not-found；
+   *   请求超时、连接断开或对方答复错误时为对应的错误码。
+   */
+  peerPoster(deviceId: string, gameId: string): Promise<PeerPoster> {
+    const isDialed = this.dialer !== null && this.dialed?.deviceId === deviceId
+    const isConnected = isDialed ? this.isDialedOpen(deviceId) : this.isOpen(deviceId)
+    const game = this.peerCatalog(deviceId)?.games.find((item) => item.id === gameId)
+    if (!isConnected || !game?.posterHash) {
+      return Promise.reject(
+        new HttpOperationError('not-found', 'The device is offline or the game has no poster.'),
+      )
+    }
+    if (isDialed && this.dialer) {
+      return this.dialer.poster(gameId)
+    }
+    const control = this.control
+    if (!control) {
+      return Promise.reject(
+        new HttpOperationError('not-found', 'The local service has not started.'),
+      )
+    }
+    return control.request(deviceId, 'poster.read', { gameId })
   }
   /** 本机发给 peerId 的目录表：本机游戏和与它的关联。 */
   async localCatalog(peerId: string): Promise<CatalogPush> {

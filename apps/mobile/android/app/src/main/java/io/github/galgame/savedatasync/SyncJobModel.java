@@ -57,7 +57,7 @@ final class SyncJobModel {
     List<Object> list = list(games);
     require(list.size() <= 128);
     for (Object item : list) {
-      Map<String, Object> game = shape(item, "id", "name", "root");
+      Map<String, Object> game = shape(item, "id", "name", "root", "posterHash");
       require(ids.add(id(game.get("id"))));
       text(game.get("name"));
       if (expected.equals(game.get("id"))) {

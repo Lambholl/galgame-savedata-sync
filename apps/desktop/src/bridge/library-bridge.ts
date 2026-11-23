@@ -4,6 +4,7 @@ import {
   isDirectoryListing,
   isOpaqueId,
   isOperationResult,
+  isPeerPoster,
 } from '@savedata-sync/shared'
 import type {
   LibraryConfig,
@@ -11,6 +12,7 @@ import type {
   LibraryPeer,
   DirectoryListing,
   OperationResult,
+  PeerPoster,
 } from '@savedata-sync/shared'
 
 /** 游戏库配置和已保存的对端设备。 */
@@ -18,7 +20,7 @@ export interface LibrarySnapshot {
   readonly config: LibraryConfig
   readonly peers: readonly LibraryPeer[]
 }
-/** 游戏库接口：读取和保存游戏，管理已保存的设备，浏览对端目录。 */
+/** 游戏库接口：读取和保存游戏，管理已保存的设备，浏览对端目录，读取对端封面。 */
 export interface DesktopLibraryApi {
   /** 读取游戏库。 */
   read(): Promise<OperationResult<LibrarySnapshot>>
@@ -36,6 +38,8 @@ export interface DesktopLibraryApi {
     rootId: string,
     parentId: string | null,
   ): Promise<OperationResult<DirectoryListing>>
+  /** 经控制通道读取已连接设备一个游戏的封面；设备不在线或这个游戏没有封面时返回 not-found。 */
+  peerPoster(deviceId: string, gameId: string): Promise<OperationResult<PeerPoster>>
 }
 /** 游戏库接口的 IPC 通道名。 */
 export const LIBRARY_CHANNELS = {
@@ -43,6 +47,7 @@ export const LIBRARY_CHANNELS = {
   saveGames: 'library:games',
   device: 'library:device',
   directory: 'library:directory',
+  peerPoster: 'library:peer-poster',
 } as const
 function isSnapshot(value: unknown): value is LibrarySnapshot {
   return (
@@ -117,6 +122,15 @@ export function createLibraryBridge(
         }
       }
       return result
+    },
+    peerPoster: async (deviceId: string, gameId: string): Promise<OperationResult<PeerPoster>> => {
+      if (!isOpaqueId(deviceId) || !isOpaqueId(gameId)) {
+        return {
+          status: 'error',
+          error: { code: 'invalid-request', message: '设备或游戏 ID 无效。', canRetry: false },
+        }
+      }
+      return call(LIBRARY_CHANNELS.peerPoster, [{ deviceId, gameId }], isPeerPoster)
     },
   })
 }

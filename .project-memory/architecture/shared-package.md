@@ -1,7 +1,7 @@
 ---
 doc_type: architecture
 status: active
-updated: 2026-11-23
+updated: 2026-11-24
 tags: [共享包, 数据模型, 守卫]
 ---
 
@@ -25,7 +25,7 @@ tags: [共享包, 数据模型, 守卫]
 
 `@savedata-sync/shared/ui`（`src/ui`）放两端共用的 React 展示组件，例如 PathText；它可以依赖 React、`@ant-design/icons` 与不涉及平台交互的 antd 组件，主入口不得导入它，因此电脑端 sidecar 和 node 测试不会加载 React。组件参数逐项声明，不接受样式参数，规则见 [ADR-0002](../decisions/ADR-0002-ui-library-and-shared-rendering.md) 与 `eslint.config.mjs`。
 
-设备描述、发现 TXT 和连接二维码使用数字 `PROTOCOL_VERSION=3`。本地目录桥使用 DeviceDescriptor、DirectoryReference、EntryMetadata、DirectoryListing 和 DirectorySelectionResult；HTTP 的 DeviceResponse 为 `OperationResult<BatchDeviceDescriptor>`，包装本地 device 并提供 sessionId/limits。应用仍是测试版，协议字段可以不兼容地修改，但两端必须同时更新。
+设备描述、发现 TXT 和连接二维码使用数字 `PROTOCOL_VERSION=4`。本地目录桥使用 DeviceDescriptor、DirectoryReference、EntryMetadata、DirectoryListing 和 DirectorySelectionResult；HTTP 的 DeviceResponse 为 `OperationResult<BatchDeviceDescriptor>`，包装本地 device 并提供 sessionId/limits。应用仍是测试版，协议字段可以不兼容地修改，但两端必须同时更新。
 
 设备接口和归档格式见[设备接口与归档格式](transfer-protocol.md)；共享包负责数据与关系约束，Windows 私有归档、HTTP 服务、受保护写入、Java 归档及 Android 原生网络都在平台层实现。
 
