@@ -2,7 +2,7 @@
 doc_type: open-questions
 status: active
 id_prefix: Q
-id_high_water: 21
+id_high_water: 25
 updated: 2026-11-23
 tags: [开放问题]
 ---
@@ -34,3 +34,7 @@ tags: [开放问题]
 | Q-019 | 一台设备能否同时作为监听方被别的设备连着，又作为拨号方去连另一台设备？ | 结论：不能。任何设备同一时刻只有一条连接，作为监听方被连着或作为拨号方连着别人，二者只能有一个；拒绝方式见 ADR-0004 | 维护者 | closed |
 | Q-020 | 传输开始时另一端自动打开传输详情（REQ-023）：另一端正在别的页面操作时是否也直接切换？电脑窗口最小化或在后台时是否还原并抢焦点？ | 结论：总是切换到传输详情，返回目标按现有规则回游戏页。电脑只切换页面，不还原窗口、不抢焦点、不闪烁任务栏；Android 在后台时只切换页面，Android 不允许后台应用把自己切到前台，进度看传输通知 | 维护者 | closed |
 | Q-021 | 手动备份并入轮换后，保留份数怎么定？计划页的本次备份开关由哪一端决定？ | 结论：保留份数范围 1–4096（默认 10），归存放备份的设备，整个备份库一个值，不按游戏单独设置；传输前、恢复前和手动备份平级轮换，都按存放备份的设备上的值计数，与发起端无关；网络接口与控制通道不带保留份数。备份开关由发起传输的一端按次选择，每次默认关闭，不保存，也不读取任何一端的持久设置；两端的全局和按游戏的备份开关一并去掉。`sync.confirm` 和本机确认带 `shouldBackup`，接收端不再与本机设置核对，`SYNC_CAPABILITIES_VERSION` 升到 8，两端已实现 | 维护者 | closed |
+| Q-022 | 封面搜索的请求构造和响应解析放在哪里：共享包写一份，Android Java 和电脑 sidecar 只做受限的 HTTP 执行器；还是 Android 另用 Java 写一份完整实现？ | 结论：请求构造、响应解析、关键词清理、限流和错误分类在共享包写一份，两端 WebView 跑同一份搜索流程；电脑 sidecar 和 Android Java 只提供受限的 HTTP 执行器，见[游戏封面](../architecture/poster.md#2-模块划分) | 维护者 | closed |
+| Q-023 | 保存的封面尺寸和格式？ | 结论：WebView canvas 等比缩小到 720×960 以内、编码为 WebP（质量 0.85），`LibraryGame` 加可选的 `posterHash`、不升 `schemaVersion`，见[游戏封面](../architecture/poster.md#6-封面存储) | 维护者 | closed |
+| Q-024 | 导入对端游戏时封面怎么传？ | 结论：`CatalogGame` 加 `posterHash`，控制通道加 `poster.read` 返回 base64，`PROTOCOL_VERSION` 升到 4，取封面失败不挡导入，见[游戏封面](../architecture/poster.md#7-对端封面) | 维护者 | closed |
+| Q-025 | 封面范围的两个假设是否成立：可以移除封面恢复占位；对端封面只在导入时取一次，之后不跟随 | 结论：两项都采用，见[游戏封面](../architecture/poster.md#1-范围)第 1 节 | 维护者 | closed |

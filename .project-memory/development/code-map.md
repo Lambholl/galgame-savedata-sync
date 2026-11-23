@@ -41,6 +41,7 @@ tags: [代码地图]
 | `apps/shared/src/protocol/batch-contracts.ts`、`batch-limits.ts`、`batch-validation.ts`；`src/validation/data-validation.ts` | 设备描述和固定上限 DTO、预算/期限/归档常量及守卫；基础容器/文本/数值辅助供内部复用 | 上限固定，两端相同；不含归档、HTTP、IO 或历史存储 |
 | `apps/shared/src/sync/` | 本次扫描/计划/备份/结果 DTO、路径关系、纯比较及上下文重算守卫 | 独立 schema 1；不做 IO、哈希计算或历史查询；复制方向显式，本机恢复强制保护当前内容 |
 | `apps/shared/src/control`；Windows `backend/control-hub.ts`、`backend/dialer-control.ts`；Java `ControlClient.java`、`TransferEngine.java` 控制部分；移动 `platform/control-channel.ts`、`features/transfer/use-remote-sync.ts` | WebSocket 控制通道 `/v1/control`：目录读取、电脑发起复制、完成回报、目录表变化通知和在线判断 | 消息格式对称，按监听方和拨号方区分；HTTP 服务核实身份后才升级；两端严格校验每条消息；文件内容不走控制通道 |
+| `apps/shared/src/poster/`、`test/poster-search.test.mjs` | 封面搜索：四个来源的请求生成与响应解析、按来源限流、错误码、接口和图片主机白名单 | 只生成请求和解析响应，HTTP 由各端执行器完成；执行器在请求前用 `isPosterRequestAllowed`、`isPosterImageUrl` 检查地址，Android 原生不能导入共享包，白名单和上限要在 Java 里写同样的值。接口事实见[游戏封面](../architecture/poster.md) |
 | `apps/shared/src/connection` | DNS-SD 服务类型、实例名和 TXT，连接二维码文本，候选连接地址 | 监听方生成、拨号方解析，不按平台区分；解析结果分 valid、unsupported-version、invalid，版本先于其他字段检查；地址只用于连接，身份以 `/v1/device` 为准 |
 | `apps/shared/src/ui/navigation/page-navigation.ts`、`use-page-navigation.ts` | 两端共用的页面导航：前者是来源记录、返回目标和切页方向的纯函数，后者把它接到 React 状态 | 页面名称和上下文由各端定义；跳转关系写在 DesktopApp、MobileApp |
 | `apps/shared/test/` | 运行时数据关系回归；字段和线格式见[共享包](../architecture/shared-package.md) | — |

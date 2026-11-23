@@ -41,6 +41,7 @@ tags: [索引]
 | `architecture/api-contracts.md` | 接口约定 | active | API, 接口约定 |
 | `architecture/dependencies.md` | 架构依赖 | draft | 依赖 |
 | `architecture/overview.md` | 架构总览 | active | 架构总览 |
+| `architecture/poster.md` | 游戏封面 | active | 封面, 外网接口 |
 | `architecture/shared-package.md` | 共享包 | active | 共享包, 数据模型, 守卫 |
 | `architecture/sync-copy.md` | 复制、备份与恢复约定 | active | 复制, 备份, 恢复 |
 | `architecture/transfer-protocol.md` | 设备接口与归档格式 | active | 设备接口, tar.gz, HTTP |
