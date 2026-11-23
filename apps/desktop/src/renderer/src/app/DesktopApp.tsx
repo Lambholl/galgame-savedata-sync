@@ -728,7 +728,7 @@ export function DesktopApp({
     }
     run(() => saveGame(withoutGameLink(game, deviceId)))
   }
-  /** 新关联或改为对应其他游戏；保存成功后 resolve，失败显示错误并 reject。 */
+  /** 新关联或更换关联游戏；保存成功后 resolve，失败显示错误并 reject。 */
   function linkGame(deviceId: string, remoteGameId: string): Promise<void> {
     return new Promise((resolve, reject) => {
       if (!game || operating.current) {

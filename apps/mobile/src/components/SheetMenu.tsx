@@ -41,18 +41,16 @@ export function SheetMenu({
           <Button
             type="primary"
             block
-            className="ss-game-primary"
+            className="ss-game-action is-primary"
             disabled={Boolean(primary.isDisabled)}
             onClick={() => {
               onClose()
               primary.onSelect()
             }}
           >
-            <span className="ss-game-primary-icon" aria-hidden="true">
-              {primary.icon}
-            </span>
-            <strong>{primary.label}</strong>
-            <RightOutlined />
+            {primary.icon}
+            <b>{primary.label}</b>
+            <RightOutlined className="ss-game-action-chevron" />
           </Button>
         ) : null}
         {actions.length ? (

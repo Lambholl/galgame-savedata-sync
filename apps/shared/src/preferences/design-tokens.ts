@@ -126,8 +126,8 @@ export const RADII = { xs: 6, sm: 10, md: 14, lg: 22, pill: 999 } as const
 
 /** 正文和等宽字体的字体栈。 */
 export const FONTS = {
-  body: "'Segoe UI', 'PingFang SC', 'HarmonyOS Sans SC', 'Microsoft YaHei', system-ui, sans-serif",
-  mono: "'Cascadia Mono', Consolas, 'SFMono-Regular', monospace",
+  body: 'system-ui, sans-serif',
+  mono: "'Cascadia Mono', monospace",
 } as const
 
 function kebab(name: string): string {

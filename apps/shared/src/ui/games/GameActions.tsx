@@ -69,10 +69,10 @@ export function GameActions({
   return (
     <div className="ss-game-actions">
       <p className="ss-game-caption">{caption}</p>
-      <Button type="primary" block className="ss-game-primary" onClick={onTransfer}>
-        <SwapOutlined className="ss-game-transfer-icon" />
-        <strong>{t('page.transfer')}</strong>
-        <RightOutlined />
+      <Button type="primary" block className="ss-game-action is-primary" onClick={onTransfer}>
+        <SwapOutlined />
+        <b>{t('page.transfer')}</b>
+        <RightOutlined className="ss-game-action-chevron" />
       </Button>
       <div className="ss-game-action-grid">
         {actions.map((item) => (

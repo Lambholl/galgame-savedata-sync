@@ -77,7 +77,7 @@ export function GameSettingsPage({
   readonly onPickSearchedPoster: (candidate: PosterImageCandidate) => Promise<void>
   readonly onPickPoster: () => void
   readonly onRemovePoster: () => void
-  /** 关联或改为对应其他游戏，成功后 resolve。 */
+  /** 关联或更换关联游戏，成功后 resolve。 */
   readonly onLink: (deviceId: string, gameId: string) => Promise<void>
   readonly onUnlink: (deviceId: string) => void
   readonly onTransfer: (deviceId: string) => void

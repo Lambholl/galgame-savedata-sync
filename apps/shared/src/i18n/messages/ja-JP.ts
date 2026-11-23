@@ -273,7 +273,7 @@ export const jaJP: Messages = {
   'game.relink': '関連付けるゲームを変更',
   'game.unlink': '関連付けを解除',
   'game.linkTitle': '端末を関連付け',
-  'game.relinkTitle': ({ name }) => `${name} で対応するゲーム`,
+  'game.relinkTitle': ({ name }) => `${name} のゲーム`,
   'game.linkHint': '端末を選び、その端末上の対応するゲームを選んでください',
   'game.linkStepDevice': '端末',
   'game.linkStepGame': ({ name }) => `${name} のゲーム`,
