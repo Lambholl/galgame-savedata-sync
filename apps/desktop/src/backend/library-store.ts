@@ -219,7 +219,9 @@ export class DesktopLibrary {
       !device ||
       device.isBlocked ||
       this.disconnected.has(peerId) ||
-      game.excludedDevices?.includes(peerId) ||
+      game.excludedLinks?.some(
+        (link) => link.deviceId === peerId && link.gameId === remoteProjectId,
+      ) ||
       !game.links.some((link) => link.deviceId === peerId && link.gameId === remoteProjectId) ||
       !hello?.links.some(
         (link) => link.localGameId === remoteProjectId && link.remoteGameId === projectId,

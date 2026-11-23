@@ -482,7 +482,7 @@ final class ListenerLibrary {
       Map<String, Object> remote =
         peer == null ? null : find(list(peer.hello.get("games")), remoteProjectId);
       Object root = remote == null ? null : remote.get("root");
-      Object excluded = game == null ? null : game.get("excludedDevices");
+      Object excluded = game == null ? null : game.get("excludedLinks");
       isLinked =
         game != null &&
         localRootId.equals(game.get("rootId")) &&
@@ -490,7 +490,8 @@ final class ListenerLibrary {
         !Boolean.TRUE.equals(device.get("isBlocked")) &&
         peer != null &&
         !disconnected.contains(peerId) &&
-        (excluded == null || !list(excluded).contains(peerId)) &&
+        (excluded == null ||
+          !list(excluded).contains(object("deviceId", peerId, "gameId", remoteProjectId))) &&
         list(game.get("links")).contains(object("deviceId", peerId, "gameId", remoteProjectId)) &&
         list(peer.hello.get("links")).contains(
           object("localGameId", remoteProjectId, "remoteGameId", projectId)
@@ -589,24 +590,21 @@ final class ListenerLibrary {
   }
 
   /**
-   * 按对端目录表同步本机游戏与该设备的关联，规则同共享 mergeCatalogLinks：对端关联到本机游戏的加入关联（排除列表里有该设备的除外）；
-   * 本机记录的对端游戏已改为关联本机其他游戏的，移除旧关联。
+   * 按对端目录表同步本机游戏与该设备的关联，规则同共享 mergeCatalogLinks：对端关联到本机游戏的加入关联（本机游戏的 excludedLinks 里有这条关联的除外）；
+   * 本机记录的对端游戏已改为关联本机另一个现存游戏的，移除旧关联。
    */
   static Map<String, Object> mergeLinks(
     Map<String, Object> config,
     String peerId,
     List<Object> links
   ) throws ArchiveFailure {
+    Set<Object> gameIds = new HashSet<>();
+    for (Object item : list(config.get("games"))) {
+      gameIds.add(map(item).get("id"));
+    }
     List<Object> games = new ArrayList<>();
     for (Object item : list(config.get("games"))) {
       Map<String, Object> game = map(item);
-      Map<String, Object> link = null;
-      for (Object candidate : links) {
-        if (Objects.equals(map(candidate).get("remoteGameId"), game.get("id"))) {
-          link = map(candidate);
-          break;
-        }
-      }
       Map<String, Object> previous = null;
       List<Object> others = new ArrayList<>();
       for (Object existing : list(game.get("links"))) {
@@ -616,22 +614,46 @@ final class ListenerLibrary {
           others.add(existing);
         }
       }
-      boolean isMoved = false;
-      if (link == null && previous != null) {
-        for (Object candidate : links) {
-          Map<String, Object> value = map(candidate);
-          isMoved |=
-            Objects.equals(value.get("localGameId"), previous.get("gameId")) &&
-            !Objects.equals(value.get("remoteGameId"), game.get("id"));
+      Object excluded = game.get("excludedLinks");
+      boolean hasPeerLink = false;
+      Map<String, Object> link = null;
+      // 对端可能有几个游戏都关联着这个游戏，如本机解除过的旧关联加上对端新导入的。跳过排除的；
+      // 本机已有的那条优先，否则每次交换换一条，对端会按“改关联了”删掉自己的关联。
+      for (Object candidate : links) {
+        Map<String, Object> value = map(candidate);
+        if (!Objects.equals(value.get("remoteGameId"), game.get("id"))) {
+          continue;
+        }
+        hasPeerLink = true;
+        if (
+          excluded != null &&
+          list(excluded).contains(object("deviceId", peerId, "gameId", value.get("localGameId")))
+        ) {
+          continue;
+        }
+        if (
+          link == null ||
+          (previous != null && Objects.equals(value.get("localGameId"), previous.get("gameId")))
+        ) {
+          link = value;
         }
       }
-      Object excluded = game.get("excludedDevices");
-      boolean isExcluded = excluded != null && list(excluded).contains(peerId);
+      boolean isMoved = false;
+      if (!hasPeerLink && previous != null) {
+        for (Object candidate : links) {
+          Map<String, Object> value = map(candidate);
+          // 对端的关联指向本机已删除的游戏时是它没来得及更新的旧关联，不能据此删掉本机刚建的关联。
+          isMoved |=
+            Objects.equals(value.get("localGameId"), previous.get("gameId")) &&
+            !Objects.equals(value.get("remoteGameId"), game.get("id")) &&
+            gameIds.contains(value.get("remoteGameId"));
+        }
+      }
       if (isMoved) {
         Map<String, Object> next = new LinkedHashMap<>(game);
         next.put("links", others);
         games.add(next);
-      } else if (link != null && !isExcluded) {
+      } else if (link != null) {
         others.add(object("deviceId", peerId, "gameId", link.get("localGameId")));
         Map<String, Object> next = new LinkedHashMap<>(game);
         next.put("links", others);
@@ -725,11 +747,12 @@ final class ListenerLibrary {
         id(value2.get("gameId"));
         require(linkedDevices.add(deviceId) && deviceIds.contains(deviceId));
       }
-      if (game.containsKey("excludedDevices")) {
-        List<Object> excluded = list(game.get("excludedDevices"));
+      if (game.containsKey("excludedLinks")) {
+        List<Object> excluded = list(game.get("excludedLinks"));
         require(excluded.size() <= MAX_DEVICES);
-        for (Object deviceId : excluded) {
-          id(deviceId);
+        for (Object link : excluded) {
+          id(map(link).get("deviceId"));
+          id(map(link).get("gameId"));
         }
       }
     }

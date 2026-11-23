@@ -149,7 +149,7 @@ Windows 的 `DesktopLibrary` 在应用私有目录原子保存游戏/设备配�
 
 在线以控制连接为准：监听方看控制连接是否打开，拨号方看本机控制状态（Android 原生层或电脑端后端）；拨号方控制连接关闭 10 秒（或收到 4001）且没有活动任务时释放连接，活动传输仍保留原任务查询上下文。两端从已连接变为未连接时，通过 antd `message` 提示一次“连接已断开”；持续离线不重复提示，也不增加持久错误条或诊断断开原因。拨号方连接失败也使用同一 `message`，颜色和圆角随本端明暗主题同步。
 
-Android 桥提供 `connections`、`selectDevice`、`disconnectDevice`、`exchangeCatalog`；原生和界面均限制单连接。Activity 重建查询原生连接和当前任务，连接和持续通知见第 4 节“Android 原生连接”“生命周期”。对端主动关联只合并公开元数据，目录写权限来自本机系统选择器；本机解除关联后记录排除项，避免下一次元数据交换自动加回。
+Android 桥提供 `connections`、`selectDevice`、`disconnectDevice`、`exchangeCatalog`；原生和界面均限制单连接。Activity 重建查询原生连接和当前任务，连接和持续通知见第 4 节“Android 原生连接”“生命周期”。对端主动关联只合并公开元数据，目录写权限来自本机系统选择器；本机解除关联只改本机配置，对端仍会报这条关联，所以解除的关联（设备 ID 加对端游戏 ID）记进该游戏的 `excludedLinks`，合并时跳过；对端之后新导入或新关联的游戏 ID 不同，照常合并。`excludedLinks` 最多 `LIBRARY_LIMITS.maxDevices` 条，超出时丢掉最早的；旧配置的 `excludedDevices` 不再读取。对端有几个游戏关联同一个本机游戏时，优先本机已关联的那条，否则取第一条。合并关联（共享 `mergeCatalogLinks`、Android `ListenerLibrary.mergeLinks`）时，对端已把本机记着的那个游戏改关联到本机另一个现存游戏，才移除本机的旧关联；对端的关联指向本机已删除的游戏时视为它还没更新的旧关联，本机关联保留，并在下一次交换时更新对端。
 
 新增设备的默认名称使用对端声明：Windows `/v1/device` 默认返回系统计算机名称，Android catalog 优先读取系统设备名称，读取失败或空值时使用型号，名称限 128 个 UTF-16 码元且截断不拆开代理对。重新连接或目录表交换不覆盖已保存的名称。
 

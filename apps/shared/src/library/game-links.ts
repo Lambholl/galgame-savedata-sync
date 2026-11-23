@@ -1,7 +1,12 @@
-import type { CatalogGame, LibraryGame } from './library.ts'
+import { LIBRARY_LIMITS } from './library.ts'
+import type { CatalogGame, GameLink, LibraryGame } from './library.ts'
+
+function isSameLink(value: GameLink, deviceId: string, gameId: string): boolean {
+  return value.deviceId === deviceId && value.gameId === gameId
+}
 
 /**
- * 追加一条对端游戏关联，并把该设备移出排除列表。
+ * 追加一条对端游戏关联，并把这条关联移出排除列表。
  *
  * @param game 不能已经有该设备的关联。
  * @returns 新的游戏配置，game 本身不变。
@@ -10,20 +15,28 @@ export function withGameLink(game: LibraryGame, deviceId: string, gameId: string
   return {
     ...game,
     links: [...game.links, { deviceId, gameId }],
-    excludedDevices: (game.excludedDevices ?? []).filter((id) => id !== deviceId),
+    excludedLinks: (game.excludedLinks ?? []).filter((item) => !isSameLink(item, deviceId, gameId)),
   }
 }
 
 /**
- * 解除与该设备的关联，并把设备加入排除列表，使对端的关联不再合并进来。
+ * 解除与该设备的关联，并把解除的这条关联加入排除列表，使对端仍报的这条关联不再合并进来；
+ * 该设备上别的游戏以后关联过来时照常合并。排除列表超过 LIBRARY_LIMITS.maxDevices 条时丢掉最早的。
  *
- * @returns 新的游戏配置，game 本身不变。
+ * @returns 新的游戏配置，game 本身不变；没有该设备的关联时只返回副本。
  */
 export function withoutGameLink(game: LibraryGame, deviceId: string): LibraryGame {
+  const removed = game.links.find((item) => item.deviceId === deviceId)
+  if (!removed) {
+    return { ...game }
+  }
+  const excluded = (game.excludedLinks ?? []).filter(
+    (item) => !isSameLink(item, deviceId, removed.gameId),
+  )
   return {
     ...game,
     links: game.links.filter((item) => item.deviceId !== deviceId),
-    excludedDevices: [...(game.excludedDevices ?? []), deviceId],
+    excludedLinks: [...excluded, removed].slice(-LIBRARY_LIMITS.maxDevices),
   }
 }
 

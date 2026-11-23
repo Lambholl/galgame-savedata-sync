@@ -10,7 +10,7 @@ import type { PosterOrigin } from '../poster/poster-contracts.ts'
 export const LIBRARY_LIMITS = {
   /** 设备名和游戏名的最大长度，单位是 UTF-16 码元。 */
   maxNameLength: 128,
-  /** 已保存设备的最多台数，也是一个游戏的关联和排除设备的最多条数。 */
+  /** 已保存设备的最多台数，也是一个游戏的关联和排除关联的最多条数。 */
   maxDevices: 32,
   /** 游戏库和目录表里游戏的最多条数，也是目录表里关联的最多条数。 */
   maxGames: 128,
@@ -24,7 +24,8 @@ export interface LibraryGame {
   readonly name: string
   readonly rootId: string | null
   readonly links: readonly GameLink[]
-  readonly excludedDevices?: readonly string[]
+  /** 本机解除过的对端游戏关联：对端目录表再报这些关联时不合并进来；没有时省略。 */
+  readonly excludedLinks?: readonly GameLink[]
   /** 本机封面文件的 SHA-256（64 位小写十六进制）；没有封面时省略。 */
   readonly posterHash?: string
   /** 封面的出处；没有封面时省略。 */
@@ -144,10 +145,10 @@ export function isLibraryConfig(value: unknown): value is LibraryConfig {
         item.links.length <= LIBRARY_LIMITS.maxDevices &&
         isArrayOf(item.links, isLink) &&
         unique(item.links, (link) => link.deviceId) &&
-        (item.excludedDevices === undefined ||
-          (Array.isArray(item.excludedDevices) &&
-            item.excludedDevices.length <= LIBRARY_LIMITS.maxDevices &&
-            isArrayOf(item.excludedDevices, isOpaqueId))) &&
+        (item.excludedLinks === undefined ||
+          (Array.isArray(item.excludedLinks) &&
+            item.excludedLinks.length <= LIBRARY_LIMITS.maxDevices &&
+            isArrayOf(item.excludedLinks, isLink))) &&
         (item.posterHash === undefined || isPosterHash(item.posterHash)) &&
         (item.posterSource === undefined || isPosterOrigin(item.posterSource)),
     )
@@ -296,7 +297,7 @@ export function libraryLinks(config: LibraryConfig, deviceId: string): readonly 
 /**
  * 按对端目录表同步本机游戏与该设备的关联。
  *
- * 对端关联到本机游戏的，加入关联，排除列表里有该设备的游戏除外；本机记录的对端游戏已改为关联本机其他游戏的，移除旧关联。
+ * 对端关联到本机游戏的，加入关联，本机游戏的 excludedLinks 里有这条关联的除外；本机记录的对端游戏已改为关联本机另一个现存游戏的，移除旧关联。
  *
  * @returns 新的游戏库配置，config 本身不变。
  */
@@ -305,21 +306,36 @@ export function mergeCatalogLinks(
   deviceId: string,
   links: readonly CatalogLink[],
 ): LibraryConfig {
+  const gameIds = new Set(config.games.map((item) => item.id))
   return {
     ...config,
     games: config.games.map((item) => {
-      const link = links.find((value) => value.remoteGameId === item.id)
       const previous = item.links.find((value) => value.deviceId === deviceId)
+      // 对端可能有几个游戏都关联着这个游戏，如本机解除过的旧关联加上对端新导入的。跳过排除的；
+      // 本机已有的那条优先，否则每次交换换一条，对端会按“改关联了”删掉自己的关联。
+      const candidates = links.filter(
+        (value) =>
+          value.remoteGameId === item.id &&
+          !item.excludedLinks?.some(
+            (excluded) => excluded.deviceId === deviceId && excluded.gameId === value.localGameId,
+          ),
+      )
+      const link =
+        candidates.find((value) => value.localGameId === previous?.gameId) ?? candidates[0]
+      // 对端的关联指向本机已删除的游戏时是它没来得及更新的旧关联，不能据此删掉本机刚建的关联。
       if (
-        !link &&
+        !links.some((value) => value.remoteGameId === item.id) &&
         previous &&
         links.some(
-          (value) => value.localGameId === previous.gameId && value.remoteGameId !== item.id,
+          (value) =>
+            value.localGameId === previous.gameId &&
+            value.remoteGameId !== item.id &&
+            gameIds.has(value.remoteGameId),
         )
       ) {
         return { ...item, links: item.links.filter((value) => value.deviceId !== deviceId) }
       }
-      return link && !item.excludedDevices?.includes(deviceId)
+      return link
         ? {
             ...item,
             links: [

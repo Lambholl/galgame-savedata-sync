@@ -28,7 +28,7 @@ import {
 import type { AndroidControlApi } from './control-channel'
 import type { AndroidDirectoryApi } from './directory-bridge'
 import type { AndroidTransferApi } from './http-transfer-bridge'
-import { appStorage, loadAppStorage } from './app-storage'
+import { appStorage, flushAppStorage, loadAppStorage } from './app-storage'
 import { localService as defaultService } from './local-service'
 import { androidPosters } from './posters'
 import type { ListenerPeer, LocalServiceApi, LocalServiceStatus } from './local-service-bridge'
@@ -41,6 +41,8 @@ export interface MobileLibraryDependencies {
   readonly storage: Pick<Storage, 'getItem' | 'setItem'>
   /** 把原生层保存的配置重新读进 storage。 */
   readonly reloadStorage: () => Promise<void>
+  /** 等到此前写进 storage 的值都交给原生层保存。 */
+  readonly flushStorage: () => Promise<void>
   readonly service: LocalServiceApi
   readonly hasSyncWork: () => Promise<boolean>
   /** 读取本机的封面文件。 */
@@ -64,6 +66,7 @@ export function createMobileLibraryAdapter(
   const control = dependencies?.control ?? defaultControl
   const storage = dependencies?.storage ?? appStorage
   const reloadStorage = dependencies?.reloadStorage ?? loadAppStorage
+  const flushStorage = dependencies?.flushStorage ?? flushAppStorage
   const service = dependencies?.service ?? defaultService
   const posters = dependencies?.posters ?? androidPosters
   let config: LibraryConfig | undefined
@@ -405,6 +408,8 @@ export function createMobileLibraryAdapter(
         )
       }
       save({ ...load(), games })
+      // 对方收到通知后马上重新交换，原生层读的是磁盘上的配置；没写完就通知，对方拿到的还是旧的游戏和关联。
+      await flushStorage()
       // 通知不保证送达：连着本机的设备下次连接时仍会重新交换。
       await service.catalogChanged()
     },

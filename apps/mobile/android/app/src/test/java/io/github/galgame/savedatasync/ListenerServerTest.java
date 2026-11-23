@@ -19,6 +19,7 @@ import java.net.URI;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -673,7 +674,7 @@ public class ListenerServerTest {
       2,
       "games",
       new ArrayList<>(
-        Collections.singletonList(
+        Arrays.asList(
           object(
             "id",
             "g1",
@@ -683,9 +684,10 @@ public class ListenerServerTest {
             null,
             "links",
             Collections.singletonList(object("deviceId", "pc-1", "gameId", "old")),
-            "excludedDevices",
+            "excludedLinks",
             new ArrayList<>()
-          )
+          ),
+          object("id", "g2", "name", "G2", "rootId", null, "links", new ArrayList<>())
         )
       ),
       "devices",

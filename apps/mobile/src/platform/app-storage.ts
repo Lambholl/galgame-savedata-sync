@@ -16,6 +16,8 @@ const KEYS = ['savedata-sync:library:1'] as const
 const NATIVE =
   Capacitor.getPlatform() === 'android' ? registerPlugin<AppStoragePlugin>('AppStorage') : null
 const cache = new Map<string, string>()
+/** 最后一次原生写入；写入串成一条链，后写的值不会被先写的覆盖。 */
+let writing: Promise<void> = Promise.resolve()
 
 /** 从原生存储读入已保存的配置，替换内存里的值，可以重复调用；没有原生插件时直接完成，读取失败时 reject。 */
 export async function loadAppStorage(): Promise<void> {
@@ -43,10 +45,18 @@ export const appStorage: Pick<Storage, 'getItem' | 'setItem'> = {
       return
     }
     cache.set(key, value)
-    NATIVE.write({ key, value }).catch((error: unknown) => {
-      console.error('Failed to save native app storage', key, error)
-    })
+    const native = NATIVE
+    writing = writing
+      .then(() => native.write({ key, value }))
+      .catch((error: unknown) => {
+        console.error('Failed to save native app storage', key, error)
+      })
   },
+}
+
+/** 等到此前 setItem 的值都交给原生存储；写入失败只记日志，不 reject。 */
+export function flushAppStorage(): Promise<void> {
+  return writing
 }
 
 /**

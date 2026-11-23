@@ -252,7 +252,7 @@ Windows → Android（监听方 → 拨号方）：按确认计划里发起端�
 | `ListenerService` | `connectedDevice` 前台服务，常驻通知显示推荐地址和连着的设备，带“停止”操作。不导出、`stopWithTask=false`、START_NOT_STICKY，没有开机启动 |
 | `LocalServicePlugin` | 网页接口；`handleOnResume` 时开关开着而服务没在运行（进程被系统结束过）就重新启动，启动失败则关掉开关 |
 
-目录表交换在原生层完成，Activity 销毁后对方仍能连接。游戏库配置因此有两个写入方：`AppStoragePlugin.readLibrary` / `writeLibrary` 加同一把锁，原生层写入后发 `libraryChanged`，`library-adapter` 重新读入配置并丢掉缓存。读快照时还会补登记连着本机、配置里却没有的设备，防止网页的旧缓存覆盖原生层刚写入的设备。
+目录表交换在原生层完成，Activity 销毁后对方仍能连接。游戏库配置因此有两个写入方：`AppStoragePlugin.readLibrary` / `writeLibrary` 加同一把锁，原生层写入后发 `libraryChanged`，`library-adapter` 重新读入配置并丢掉缓存。网页的写入经 `appStorage` 按顺序交给原生层；`saveGames` 等写入落盘（`flushAppStorage`）后才发 `catalog.changed`，否则对方立即重新交换时原生层还读到旧的游戏和关联。读快照时还会补登记连着本机、配置里却没有的设备，防止网页的旧缓存覆盖原生层刚写入的设备。
 
 `src/platform/local-service.ts` 导出 `localService`（桥接在 `local-service-bridge.ts`）：status、start、stop、randomizePort、peers、disconnectPeer、peerDirectory、peerPoster、catalogChanged，以及 `serviceState`、`libraryChanged` 两个事件。`library-adapter` 把连着本机的设备并入快照的 peers，并在 `listenerPeerIds` 列出它们的设备 ID，传输页据此按本机是监听方决定方向和两端位置：控制通道连着即在线，游戏取对方最近发来的目录表；浏览这台设备的目录走 `peerDirectory`，导入它的游戏时取封面走 `peerPoster`，断开和删除走 `disconnectPeer`，修改本机游戏后发 `catalog.changed`。打开开关前申请通知权限，没有授权时不启动。
 
