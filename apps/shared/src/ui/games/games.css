@@ -28,8 +28,19 @@
   text-align: left;
   cursor: pointer;
 }
-.ss-game-primary > .ss-game-transfer-icon {
+.ss-game-primary > .ss-game-transfer-icon,
+.ss-game-primary > .ss-game-primary-icon {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
   font-size: 22px;
+}
+.ss-game-actions .ss-game-primary:disabled {
+  border-color: transparent;
+  background: var(--ss-accent);
+  color: var(--ss-accent-fg);
+  cursor: default;
+  opacity: 0.45;
 }
 .ss-game-primary > .anticon:last-child {
   font-size: 12px;
@@ -45,6 +56,9 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
 }
+.ss-game-action-grid > :only-child {
+  grid-column: 1 / -1;
+}
 .ss-game-action.ant-btn {
   display: flex;
   align-items: center;
@@ -52,8 +66,8 @@
   gap: 10px;
   min-width: 0;
   height: auto;
-  min-height: 52px;
-  padding: 11px;
+  min-height: 56px;
+  padding: 13px 11px;
   border: 1px solid transparent;
   border-radius: var(--ss-r-md);
   background: var(--ss-raised);
@@ -78,9 +92,15 @@
 .ss-game-action.is-danger > .anticon {
   color: var(--ss-danger);
 }
-.ss-game-action:disabled {
+.ss-game-action.ant-btn:disabled {
+  border-color: transparent;
+  background: var(--ss-raised);
+  color: var(--ss-fg);
   cursor: default;
   opacity: 0.45;
+}
+.ss-game-action.ant-btn.is-danger:disabled {
+  color: var(--ss-danger);
 }
 .ss-task-strip {
   display: flex;

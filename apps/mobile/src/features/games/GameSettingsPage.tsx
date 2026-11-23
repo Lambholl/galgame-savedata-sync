@@ -1,6 +1,15 @@
 import { useEffect, useState } from 'react'
-import { ActionSheet, Button, Input } from 'antd-mobile'
-import { EditOutlined, MoreOutlined, PlusOutlined } from '@ant-design/icons'
+import { Button, Input } from 'antd-mobile'
+import {
+  DeleteOutlined,
+  DisconnectOutlined,
+  EditOutlined,
+  LinkOutlined,
+  PictureOutlined,
+  PlusOutlined,
+  SearchOutlined,
+  SwapOutlined,
+} from '@ant-design/icons'
 import type {
   DirectoryReference,
   LibraryGame,
@@ -19,6 +28,8 @@ import {
   useT,
 } from '@savedata-sync/shared/ui'
 import { Sheet } from '../../components/Sheet'
+import { SheetMenu } from '../../components/SheetMenu'
+import type { SheetMenuItem } from '../../components/SheetMenu'
 import { PosterSearchSheet } from './PosterSearchSheet'
 
 /** 关联弹层的状态：link 先选设备再选游戏；relink 设备已定，只改对应的游戏。 */
@@ -86,29 +97,94 @@ ${game.name}`
   }
   const [draft, setDraft] = useState<LinkDraft | null>(null)
   const [menuDeviceId, setMenuDeviceId] = useState<string | null>(null)
+  const [isDeviceMenuOpen, setIsDeviceMenuOpen] = useState(false)
   const [isLinking, setIsLinking] = useState(false)
   const [isPosterSearchOpen, setIsPosterSearchOpen] = useState(false)
   const [isPosterMenuOpen, setIsPosterMenuOpen] = useState(false)
   const [posterSavingId, setPosterSavingId] = useState<string | null>(null)
+  const isLocked = isDisabled || isActive
+  const items = linkedDevices(game, peers, 'pc', t('game.deviceRemoved'))
+  const menuItem = items.find((item) => item.deviceId === menuDeviceId)
+  const isDeviceSheetOpen = isDeviceMenuOpen && menuItem !== undefined
   const isOverlayOpen =
-    draft !== null || menuDeviceId !== null || isPosterSearchOpen || isPosterMenuOpen
+    draft !== null || isDeviceSheetOpen || isPosterSearchOpen || isPosterMenuOpen
   useEffect(() => {
     if (!isOverlayOpen) {
       return
     }
     onOverlayChange(() => {
       setDraft(null)
-      setMenuDeviceId(null)
+      setIsDeviceMenuOpen(false)
       setIsPosterMenuOpen(false)
       // 保存中关不掉搜索弹层，和点遮罩、关闭按钮一样。
       setIsPosterSearchOpen((isOpen) => isOpen && posterSavingId !== null)
     })
     return () => onOverlayChange(null)
   }, [isOverlayOpen, onOverlayChange, posterSavingId])
-  const isLocked = isDisabled || isActive
-  const items = linkedDevices(game, peers, 'pc', t('game.deviceRemoved'))
-  const menuItem = items.find((item) => item.deviceId === menuDeviceId)
   const draftPeer = peers.find((peer) => peer.device.id === draft?.deviceId)
+  const devicePrimaryAction: SheetMenuItem | null = menuItem
+    ? {
+        key: 'transfer',
+        label: t('game.transfer'),
+        icon: <SwapOutlined />,
+        isDisabled: isActive || !menuItem.isConnected || !localRoot,
+        onSelect: () => onTransfer(menuItem.deviceId),
+      }
+    : null
+  const deviceSecondaryActions: readonly SheetMenuItem[] = menuItem
+    ? [
+        {
+          key: 'relink',
+          label: t('game.relink'),
+          icon: <LinkOutlined />,
+          isDisabled: isLocked || !menuItem.isConnected,
+          onSelect: () => {
+            const current = game.links.find((link) => link.deviceId === menuItem.deviceId)
+            setDraft({
+              mode: 'relink',
+              deviceId: menuItem.deviceId,
+              gameId: current?.gameId ?? null,
+            })
+          },
+        },
+        {
+          key: 'unlink',
+          label: t('game.unlink'),
+          icon: <DisconnectOutlined />,
+          isDanger: true,
+          isDisabled: isLocked,
+          onSelect: () => onUnlink(menuItem.deviceId),
+        },
+      ]
+    : []
+  const posterPrimaryAction: SheetMenuItem = {
+    key: 'search',
+    label: t('poster.search'),
+    icon: <SearchOutlined />,
+    isDisabled,
+    onSelect: () => setIsPosterSearchOpen(true),
+  }
+  const posterSecondaryActions: readonly SheetMenuItem[] = [
+    {
+      key: 'local',
+      label: t('poster.local'),
+      icon: <PictureOutlined />,
+      isDisabled,
+      onSelect: onPickPoster,
+    },
+    ...(game.posterHash
+      ? [
+          {
+            key: 'remove',
+            label: t('poster.remove'),
+            icon: <DeleteOutlined />,
+            isDanger: true,
+            isDisabled,
+            onSelect: onRemovePoster,
+          },
+        ]
+      : []),
+  ]
   function openLink(): void {
     const available = linkPickerDevices(game, peers, 'pc').filter(
       (item) => item.state === 'available',
@@ -188,16 +264,9 @@ ${game.name}`
           posterUrl={posterUrl}
           coverIndex={coverIndex}
           actions={null}
-          menu={
-            <Button
-              fill="none"
-              aria-label={t('poster.menu')}
-              disabled={isDisabled}
-              onClick={() => setIsPosterMenuOpen(true)}
-            >
-              <MoreOutlined />
-            </Button>
-          }
+          menu={null}
+          isDisabled={isDisabled}
+          onClick={() => setIsPosterMenuOpen(true)}
         />
       </section>
       <section>
@@ -209,15 +278,10 @@ ${game.name}`
         </h3>
         <LinkedDeviceList
           items={items}
-          actions={(item) => (
-            <Button
-              fill="none"
-              aria-label={t('game.deviceMenu')}
-              onClick={() => setMenuDeviceId(item.deviceId)}
-            >
-              <MoreOutlined />
-            </Button>
-          )}
+          onSelect={(item) => {
+            setMenuDeviceId(item.deviceId)
+            setIsDeviceMenuOpen(true)
+          }}
         />
       </section>
       <Sheet
@@ -260,54 +324,17 @@ ${game.name}`
           </div>
         ) : null}
       </Sheet>
-      <ActionSheet
-        visible={menuItem !== undefined}
-        extra={
-          menuItem ? (
-            <div className="sheet-caption">
-              <b>{menuItem.name}</b>
-              <span>
-                {menuItem.isConnected ? t('transfer.connected') : t('transfer.disconnected')}
-                {menuItem.gameName ? ` · ${menuItem.gameName}` : null}
-              </span>
-            </div>
-          ) : null
+      <SheetMenu
+        isOpen={isDeviceSheetOpen}
+        title={menuItem?.name ?? t('game.deviceMenu')}
+        caption={
+          menuItem
+            ? `${menuItem.isConnected ? t('transfer.connected') : t('transfer.disconnected')}${menuItem.gameName ? ` · ${menuItem.gameName}` : ''}`
+            : null
         }
-        cancelText={t('common.cancel')}
-        actions={[
-          {
-            key: 'transfer',
-            text: t('game.transfer'),
-            disabled: isActive || !menuItem?.isConnected || !localRoot,
-          },
-          {
-            key: 'relink',
-            text: t('game.relink'),
-            disabled: isLocked || !menuItem?.isConnected,
-          },
-          {
-            key: 'unlink',
-            text: t('game.unlink'),
-            danger: true,
-            disabled: isLocked,
-          },
-        ]}
-        onAction={(action) => {
-          const deviceId = menuDeviceId
-          setMenuDeviceId(null)
-          if (!deviceId) {
-            return
-          }
-          if (action.key === 'transfer') {
-            onTransfer(deviceId)
-          } else if (action.key === 'relink') {
-            const current = game.links.find((link) => link.deviceId === deviceId)
-            setDraft({ mode: 'relink', deviceId, gameId: current?.gameId ?? null })
-          } else {
-            onUnlink(deviceId)
-          }
-        }}
-        onClose={() => setMenuDeviceId(null)}
+        primary={devicePrimaryAction}
+        actions={deviceSecondaryActions}
+        onClose={() => setIsDeviceMenuOpen(false)}
       />
       <PosterSearchSheet
         isOpen={isPosterSearchOpen}
@@ -317,26 +344,11 @@ ${game.name}`
         onPick={pickSearchedPoster}
         onClose={() => setIsPosterSearchOpen(false)}
       />
-      <ActionSheet
-        visible={isPosterMenuOpen}
-        cancelText={t('common.cancel')}
-        actions={[
-          { key: 'search', text: t('poster.search'), disabled: isDisabled },
-          { key: 'local', text: t('poster.local'), disabled: isDisabled },
-          ...(game.posterHash
-            ? [{ key: 'remove', text: t('poster.remove'), danger: true, disabled: isDisabled }]
-            : []),
-        ]}
-        onAction={(action) => {
-          setIsPosterMenuOpen(false)
-          if (action.key === 'search') {
-            setIsPosterSearchOpen(true)
-          } else if (action.key === 'local') {
-            onPickPoster()
-          } else {
-            onRemovePoster()
-          }
-        }}
+      <SheetMenu
+        isOpen={isPosterMenuOpen}
+        title={t('poster.section')}
+        primary={posterPrimaryAction}
+        actions={posterSecondaryActions}
         onClose={() => setIsPosterMenuOpen(false)}
       />
     </div>

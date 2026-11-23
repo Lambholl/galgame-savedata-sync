@@ -813,16 +813,6 @@ html.camera-live .app-heading {
   padding: 0 4px;
   font-weight: 600;
 }
-.sheet-caption {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  text-align: center;
-}
-.sheet-caption span {
-  color: var(--ss-muted);
-  font-size: 12.5px;
-}
 /* 悬浮在底部、四周留边的弹层。 */
 .adm-popup-body.add-game-dialog {
   left: 12px;

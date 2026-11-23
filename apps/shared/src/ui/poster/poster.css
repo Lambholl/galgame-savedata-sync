@@ -37,8 +37,8 @@
   gap: 8px 12px;
   min-width: 0;
 }
-/* 文字不收缩：收缩后量到的就不是原本宽度，放不下时也判断不出来。 */
-.ss-poster-row-main .ss-list-body {
+/* 有操作按钮时文字不收缩：收缩后量到的就不是原本宽度，放不下时也判断不出来。 */
+.ss-poster-row-main:has(.ss-poster-row-actions) .ss-list-body {
   flex: 1 0 auto;
   align-items: flex-start;
 }
