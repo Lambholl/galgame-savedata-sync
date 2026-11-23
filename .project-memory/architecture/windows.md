@@ -31,12 +31,12 @@ tags: [Windows, 电脑端, Tauri, sidecar, 存储目录]
 
 电脑作监听方时提供 HTTP 服务和控制通道，接纳拨号方登记的任务；电脑发起的复制经控制通道交给拨号方，对方须开着应用并保持连接，计划在电脑确认、拨号方执行。电脑也能作拨号方连接另一台设备（[ADR-0004](../decisions/ADR-0004-symmetric-listener-dialer-roles.md)）：用 `bonjour-service` 搜索局域网设备，用 `node:http` 和 `ws` 交换目录表、浏览对方目录、保持控制通道，见[第 2 节](#2-游戏与设备界面)。作拨号方时由 `dialer-sync.ts` 的 `WindowsDialerSync` 编排扫描、计划、任务登记、内容上传和下载、取消和结果读取，职责同 Android `SyncTransferEngine`；也处理对方经控制通道发来的 `sync.prepare`、`sync.confirm`、`sync.cancel`、`sync.job.*`，每 0.5 秒推送 `sync.job` 摘要。它和监听方任务共用进程内的写入名额，同一时间只有一个复制任务写入；`sync-ipc.ts` 按本机是否拨号连着所选设备把发起请求交给它或 `remote-sync-requests.ts`，复制任务列表合并两部分，`DesktopCopySummary.localSide` 标明本机是哪一方，传输页和任务详情据此决定方向和两端位置。复制按确认计划执行新增、受保护覆盖、跳过和删除多余项。
 
-后端代码在 `src/backend`，是纯 Node 代码。`backend.ts` 的 `startBackend` 接收配置、数据、备份库、缓存四个目录（第 7 节）、系统语言列表和宿主接口 `DesktopHost`（目录选择器、打开路径、设置明暗主题），初始化全部服务并把界面通道登记到 `ChannelRouter`；`stop` 按“拨号方任务、拨号连接、HTTP 服务和广播、本机恢复、写入器、备份”的顺序释放，失败可以重试。各 `*-ipc.ts` 只校验参数，能调用通道的页面由 Tauri capability 限定。
+后端代码在 `src/backend`，是纯 Node 代码。`backend.ts` 的 `startBackend` 接收配置、数据、备份库、缓存四个目录（第 7 节）、系统语言列表和宿主接口 `DesktopHost`（目录选择器、图片文件选择器、打开路径、设置明暗主题），初始化全部服务并把界面通道登记到 `ChannelRouter`；`stop` 按“拨号方任务、拨号连接、HTTP 服务和广播、本机恢复、写入器、备份”的顺序释放，失败可以重试。各 `*-ipc.ts` 只校验参数，能调用通道的页面由 Tauri capability 限定。
 
 电脑端由两个进程组成（[ADR-0005](../decisions/ADR-0005-tauri-sidecar-and-storage-layout.md)）：
 
-- Tauri 宿主 `src-tauri`（Rust）：启动 sidecar，收到 `ready` 后打开主窗口，把界面请求经 `backend_invoke` 命令转给 sidecar，并应 sidecar 的 `host-request` 提供目录选择器（`tauri-plugin-dialog`）、打开文件夹（`tauri-plugin-opener`）和窗口明暗。`storage.rs` 算出存储目录，`sidecar.rs` 管理 sidecar 进程和消息，`main.rs` 管窗口和生命周期。应用单实例运行（`tauri-plugin-single-instance`），再次启动时聚焦已有窗口；窗口没有菜单栏。
-- Node sidecar `src/sidecar/index.ts`（构建为 `out/sidecar/index.cjs`）：命令行参数 `--config-dir`、`--data-dir`、`--backup-dir`、`--cache-dir` 必须是绝对路径，`--languages <逗号分隔>` 可选。和宿主在 stdin/stdout 上每行交换一条 UTF-8 JSON，stderr 只写日志。宿主发 `invoke`（通道请求）、`shutdown`（停止服务）和 `host-result`；sidecar 发 `ready`（窗口标题、浅色和深色背景色、意外退出时的提示）、`fatal`（初始化失败，附可直接显示的标题和正文，随后以退出码 1 退出）、`result`、`shutdown-result`（`isStopped` 为 false 时附可直接显示的失败提示，进程继续运行）和 `host-request`（`chooseDirectory`、`openPath`、`setTheme`）。消息格式在 `src/sidecar/protocol.ts`，宿主的解析在 `src-tauri/src/sidecar.rs`，两边一起改。
+- Tauri 宿主 `src-tauri`（Rust）：启动 sidecar，收到 `ready` 后打开主窗口，把界面请求经 `backend_invoke` 命令转给 sidecar，并应 sidecar 的 `host-request` 提供目录和图片文件选择器（`tauri-plugin-dialog`）、打开文件夹（`tauri-plugin-opener`）和窗口明暗。`storage.rs` 算出存储目录，`sidecar.rs` 管理 sidecar 进程和消息，`main.rs` 管窗口和生命周期。应用单实例运行（`tauri-plugin-single-instance`），再次启动时聚焦已有窗口；窗口没有菜单栏。
+- Node sidecar `src/sidecar/index.ts`（构建为 `out/sidecar/index.cjs`）：命令行参数 `--config-dir`、`--data-dir`、`--backup-dir`、`--cache-dir` 必须是绝对路径，`--languages <逗号分隔>` 可选。和宿主在 stdin/stdout 上每行交换一条 UTF-8 JSON，stderr 只写日志。宿主发 `invoke`（通道请求）、`shutdown`（停止服务）和 `host-result`；sidecar 发 `ready`（窗口标题、浅色和深色背景色、意外退出时的提示）、`fatal`（初始化失败，附可直接显示的标题和正文，随后以退出码 1 退出）、`result`、`shutdown-result`（`isStopped` 为 false 时附可直接显示的失败提示，进程继续运行）和 `host-request`（`chooseDirectory`、`chooseImageFile`、`openPath`、`setTheme`）。消息格式在 `src/sidecar/protocol.ts`，宿主的解析在 `src-tauri/src/sidecar.rs`，两边一起改。
 
 调试版宿主用 PATH 里的 `node` 运行 `out/sidecar/index.cjs`；发布版运行主程序旁边的 `savedata-sync-backend.exe`（打包见第 3 节）。`vite.sidecar.config.ts` 把 sidecar 打成单个 CommonJS 文件（pkg 直接打包 CommonJS 入口），第三方包全部打进产物，运行时只依赖 Node 内置模块。发布版内嵌的 Node 只带英文区域数据（small-icu），sidecar 和它加载的共享代码不用 `Intl.DateTimeFormat`、`toLocale*` 等依赖区域数据的接口，时间一律用毫秒时间戳或 ISO 8601 传给界面。
 
@@ -135,7 +135,7 @@ sidecar 可执行文件由 `apps/desktop/scripts/build-sidecar-exe.mjs` 用 `@ya
 | 目录 | Windows 位置 | 内容 |
 | --- | --- | --- |
 | 配置 | `%APPDATA%\galgame-savedata-sync\` | `preferences.json`（主题、语言），第一次保存时创建 |
-| 数据 | `%LOCALAPPDATA%\galgame-savedata-sync\data\` | `identity.json`、`directories.json`、`game-library.json`、`service-settings.json`、`backup-settings.json`、`backup-library.json`、`interrupted-writes/` |
+| 数据 | `%LOCALAPPDATA%\galgame-savedata-sync\data\` | `identity.json`、`directories.json`、`game-library.json`、`service-settings.json`、`backup-settings.json`、`backup-library.json`、`interrupted-writes/`、`posters/`（游戏封面，见[游戏封面](poster.md#6-封面存储)） |
 | 备份库 | `%LOCALAPPDATA%\galgame-savedata-sync\backups\` | 默认位置，用户可在设置页换到别的文件夹，见第 12 节 |
 | 缓存 | `%LOCALAPPDATA%\galgame-savedata-sync\cache\` | `transfer-archives-v1/`、`webview/` |
 

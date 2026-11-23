@@ -74,10 +74,11 @@ export type HostRequestMessage = {
 
 /**
  * sidecar 请求宿主做的事和应答的 value：
- * chooseDirectory 返回选中的绝对路径，取消时为 null；openPath 和 setTheme 返回 null。
+ * chooseDirectory 和 chooseImageFile 返回选中的绝对路径，取消时为 null；openPath 和 setTheme 返回 null。
  */
 export type HostRequest =
   | { readonly method: 'chooseDirectory'; readonly params: { readonly title: string } }
+  | { readonly method: 'chooseImageFile'; readonly params: { readonly title: string } }
   | { readonly method: 'openPath'; readonly params: { readonly path: string } }
   | { readonly method: 'setTheme'; readonly params: { readonly theme: ThemePreference } }
 

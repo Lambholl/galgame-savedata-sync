@@ -1,6 +1,11 @@
 import { join } from 'node:path'
 import { mkdir, realpath } from 'node:fs/promises'
-import { createTranslator, resolveLocale } from '@savedata-sync/shared'
+import {
+  APP_VERSION,
+  createPosterUserAgent,
+  createTranslator,
+  resolveLocale,
+} from '@savedata-sync/shared'
 import type {
   AppPreferences,
   OperationError,
@@ -36,6 +41,9 @@ import { AppPreferencesStore } from './preferences-store.ts'
 import { registerPreferencesIpc } from './preferences-ipc.ts'
 import { setAsideUnreadableData } from './data-recovery.ts'
 import { registerDataResetIpc } from './data-reset-ipc.ts'
+import { createPosterHttp } from './poster-http.ts'
+import { PosterStore } from './poster-store.ts'
+import { registerPosterIpc } from './poster-ipc.ts'
 
 /** 后端需要宿主提供的平台能力。 */
 export interface DesktopHost {
@@ -46,6 +54,13 @@ export interface DesktopHost {
    * @returns 选中的绝对路径；取消时返回 null。
    */
   chooseDirectory(title: string): Promise<string | null>
+  /**
+   * 打开系统文件选择器，只列出 JPEG、PNG、WebP 和 GIF 图片。
+   *
+   * @param title 选择器窗口的标题。
+   * @returns 选中文件的绝对路径；取消时返回 null。
+   */
+  chooseImageFile(title: string): Promise<string | null>
   /** 用系统文件管理器打开路径；打不开时 reject。 */
   openPath(path: string): Promise<void>
   /** 按主题偏好设置窗口和界面的明暗；system 表示跟随系统。 */
@@ -56,7 +71,7 @@ export interface DesktopHost {
 export interface BackendOptions {
   /** 界面偏好所在的配置目录。 */
   readonly configDirectory: string
-  /** 设备身份、目录登记、游戏库、端口、备份设置和中断写入标记所在的数据目录。 */
+  /** 设备身份、目录登记、游戏库、游戏封面、端口、备份设置和中断写入标记所在的数据目录。 */
   readonly dataDirectory: string
   /** 默认备份库；用户在设置里换了位置时改用那个位置。 */
   readonly backupDirectory: string
@@ -164,6 +179,9 @@ export async function startBackend(options: BackendOptions): Promise<DesktopBack
     stage = 'library'
     const library = new DesktopLibrary(files.library, adapter)
     await library.load()
+    stage = 'posters'
+    const posters = new PosterStore(join(dataDirectory, 'posters'))
+    await posters.prune(library.snapshot().config.games)
     stage = 'backups'
     const backups = await createWindowsBackupStore(
       adapter,
@@ -257,6 +275,12 @@ export async function startBackend(options: BackendOptions): Promise<DesktopBack
     )
     registerLibraryIpc(router, library, httpService)
     registerDialerIpc(router, dialer)
+    registerPosterIpc(
+      router,
+      createPosterHttp(createPosterUserAgent(APP_VERSION, 'windows')),
+      posters,
+      () => host.chooseImageFile(translate()('game.choosePoster')),
+    )
     registerDirectoryIpc(router, adapter, chooseDirectory)
     registerServiceIpc(router, adapter, httpService, {
       portSettings,

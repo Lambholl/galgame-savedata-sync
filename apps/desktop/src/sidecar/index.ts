@@ -165,6 +165,13 @@ startBackend({
       }
       return value
     },
+    chooseImageFile: async (title) => {
+      const value = await requestHost({ method: 'chooseImageFile', params: { title } })
+      if (value !== null && typeof value !== 'string') {
+        throw new Error('The host returned an invalid file path.')
+      }
+      return value
+    },
     openPath: async (path) => {
       await requestHost({ method: 'openPath', params: { path } })
     },

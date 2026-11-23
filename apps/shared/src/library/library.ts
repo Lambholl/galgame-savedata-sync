@@ -3,6 +3,7 @@ import { isDirectoryReference } from '../protocol/validation.ts'
 import { isOpaqueId } from '../protocol/protocol.ts'
 import { isArrayOf } from '../validation/data-validation.ts'
 import { OperationFailure } from '../result.ts'
+import { isPosterHash } from '../poster/poster-contracts.ts'
 
 /** 游戏库配置和目录表的数量与长度上限，两端相同。 */
 export const LIBRARY_LIMITS = {
@@ -23,6 +24,8 @@ export interface LibraryGame {
   readonly rootId: string | null
   readonly links: readonly GameLink[]
   readonly excludedDevices?: readonly string[]
+  /** 本机封面文件的 SHA-256（64 位小写十六进制）；没有封面时省略。 */
+  readonly posterHash?: string
 }
 /** 本机游戏与某台对端设备上游戏的关联。 */
 export interface GameLink {
@@ -139,7 +142,8 @@ export function isLibraryConfig(value: unknown): value is LibraryConfig {
         (item.excludedDevices === undefined ||
           (Array.isArray(item.excludedDevices) &&
             item.excludedDevices.length <= LIBRARY_LIMITS.maxDevices &&
-            isArrayOf(item.excludedDevices, isOpaqueId))),
+            isArrayOf(item.excludedDevices, isOpaqueId))) &&
+        (item.posterHash === undefined || isPosterHash(item.posterHash)),
     )
   ) {
     return false

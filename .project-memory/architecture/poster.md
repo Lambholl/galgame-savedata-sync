@@ -121,7 +121,7 @@ VNDB 和 NextMoe 用译名、原名都能搜到；Bangumi 和 Steam 只适合补
 
 ## 5. 公共请求规则
 
-- 请求头：`Accept: application/json`；`User-Agent: SavedataSync/<APP_VERSION>`，不带任何用户或设备信息。下载图片时 `Accept: image/*`。
+- 请求头：`Accept: application/json`；`User-Agent: Lambholl/galgame-savedata-sync/<APP_VERSION> (<Windows|Android>) (https://github.com/Lambholl/galgame-savedata-sync)`，四个来源相同，不带用户或设备信息。Bangumi 要求非浏览器调用方的 User-Agent 带开发者 ID 和应用名，分发的应用带版本号，开源项目带主页。下载图片时 `Accept: image/*`。
 - 超时：连接 15 秒，读取 20 秒。
 - 上限：JSON 响应 4 MiB，图片 20 MiB（先看 `Content-Length`，再按实际读取字节数截断）。
 - 限流按来源排队：VNDB 1.55 秒、NextMoe 1.3 秒，Bangumi 和 Steam 不限；预览图并发最多 4 张。
@@ -131,12 +131,24 @@ VNDB 和 NextMoe 用译名、原名都能搜到；Bangumi 和 Steam 只适合补
 ## 6. 封面存储
 
 - 下载或选中的图片在 WebView 里用 canvas 等比缩小到 720×960 以内（小图不放大），用 `canvas.toBlob('image/webp', 0.85)` 转成 WebP 后交给原生层保存。两端 WebView 都基于 Chromium（Windows WebView2、Android System WebView），都能编码 WebP；同等画质下比 JPEG 小，NextMoe 的原图本身就是 WebP。显示的卡片最宽约 180px，高分屏下 720 宽也够用。
-- 文件：电脑在数据目录的 `posters/<游戏 ID>.webp`，Android 在应用内部存储的 `posters/<游戏 ID>.webp`。先写临时文件再改名替换。
-- `LibraryGame` 增加可选字段 `posterHash`（文件内容的 SHA-256 十六进制），没有封面时省略。字段可选，`schemaVersion` 保持 2；Android `ListenerLibrary` 解析游戏库时同步认这个字段。
-- 移除游戏时删除它的封面文件；启动时删掉游戏库里不存在的游戏留下的封面文件。
-- 界面经桥按游戏 ID 读出封面字节，转成 `blob:` URL，按 `posterHash` 缓存；换封面后 hash 变化，界面换新图。
+- `LibraryGame` 有可选字段 `posterHash`（封面文件内容的 SHA-256，64 位小写十六进制），没有封面时省略。字段可选，`schemaVersion` 保持 2。
+- 文件：电脑在数据目录的 `posters/`，Android 在应用内部存储的 `posters/`，文件名 `<游戏 ID>.<posterHash>.webp`。同一个游戏换封面时新旧文件名不同，游戏库配置里的 `posterHash` 决定用哪一张。
+- 保存只接受 WebP（文件头 `RIFF….WEBP`），不超过 `POSTER_LIMITS.maxSavedBytes`（1 MiB），先写临时文件再改名。
+- 启动时删除游戏库没有引用的封面文件和残留的临时文件：换掉的旧封面、已移除游戏的封面、保存了文件但没写进配置的封面，都在下次启动时清掉。
 
-本机选图：电脑用 `tauri-plugin-dialog` 的文件对话框，筛选 JPEG、PNG、WebP、GIF（GIF 取第一帧）；Android 用系统照片选择器（`PickVisualMedia`，只选图片）。选中的图片同样经 canvas 缩放后保存。
+两端原生层提供同样的五个方法，参数和结果按共享包的格式校验：
+
+| 方法 | 说明 |
+| --- | --- |
+| `request(request)` | 执行 `PosterHttpRequest`，返回 `PosterHttpResponse`；连不上返回 `network-failure` |
+| `downloadImage(url)` | 下载候选图片，返回 `{ mimeType, data }`（base64）；地址不在图片主机白名单返回 `invalid-request` |
+| `pickImage()` | 电脑打开文件对话框（JPEG、PNG、WebP、GIF），Android 打开系统照片选择器；返回 `{ mimeType, data }`，取消时为 null；超过 `POSTER_LIMITS.maxImageBytes` 返回 `resource-limit` |
+| `save(gameId, data)` | 保存缩放后的 WebP，返回 `posterHash`；之后由界面把 `posterHash` 写进游戏库 |
+| `read(gameId, posterHash)` | 读出封面，返回 `data`；文件不存在返回 `not-found` |
+
+界面按 `posterHash` 缓存 `blob:` URL；换封面后 hash 变化，界面换新图。
+
+电脑端的五个方法是 `window.desktopPoster`，通道 `poster:request`、`poster:download-image`、`poster:pick-image`、`poster:save`、`poster:read`（`src/bridge/poster-bridge.ts`）。sidecar 用 `node:https` 执行请求（`poster-http.ts`）：不跟随重定向，3xx 原样交给共享包；不发 `Accept-Encoding`，响应仍被压缩时按网络失败处理；下载图片时 HTTP 404 返回 `not-found`，其他非 2xx 或 `Content-Type` 不是 `image/*` 返回 `network-failure`。选图由宿主的 `chooseImageFile` 打开文件对话框，sidecar 按扩展名定 MIME 类型后读取文件（`poster-store.ts`）。启动时在游戏库读出后、其他服务启动前清理 `posters/`。
 
 ## 7. 对端封面
 

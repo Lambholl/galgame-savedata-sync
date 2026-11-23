@@ -4,6 +4,7 @@ import { createDataResetBridge } from '../../../bridge/data-reset-bridge.ts'
 import { createDialerBridge } from '../../../bridge/dialer-bridge.ts'
 import { createDirectoryBridge } from '../../../bridge/directory-bridge.ts'
 import { createLibraryBridge } from '../../../bridge/library-bridge.ts'
+import { createPosterBridge } from '../../../bridge/poster-bridge.ts'
 import { createPreferencesBridge } from '../../../bridge/preferences-bridge.ts'
 import { createServiceBridge } from '../../../bridge/service-bridge.ts'
 import { createSyncBridge } from '../../../bridge/sync-bridge.ts'
@@ -26,5 +27,6 @@ export function installDesktopBridges(): void {
     desktopDirectories: { value: createDirectoryBridge(callBackend) },
     desktopPreferences: { value: createPreferencesBridge(callBackend) },
     desktopDataReset: { value: createDataResetBridge(callBackend) },
+    desktopPoster: { value: createPosterBridge(callBackend) },
   })
 }

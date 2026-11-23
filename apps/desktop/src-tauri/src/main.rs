@@ -17,7 +17,7 @@ use tauri::window::Color;
 use tauri::{
     AppHandle, Manager, Theme, WebviewUrl, WebviewWindow, WebviewWindowBuilder, WindowEvent,
 };
-use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
+use tauri_plugin_dialog::{DialogExt, FileDialogBuilder, FilePath, MessageDialogKind};
 use tauri_plugin_opener::OpenerExt;
 
 /// 主窗口的标签；capabilities/main.json 按它授权。
@@ -135,6 +135,30 @@ fn with_devtools_port<'a>(
     }
 }
 
+/// 以主窗口为父窗口的文件选择器。
+fn file_dialog(app: &AppHandle, title: String) -> FileDialogBuilder<tauri::Wry> {
+    let dialog = app.dialog().file().set_title(title);
+    match app.get_webview_window(MAIN_WINDOW) {
+        Some(window) => dialog.set_parent(&window),
+        None => dialog,
+    }
+}
+
+/// 把选择器的结果转成应答：取消时为 null，选中时为绝对路径字符串。
+fn picked_path(path: Option<FilePath>) -> Result<Value, String> {
+    let Some(path) = path else {
+        return Ok(Value::Null);
+    };
+    path.into_path()
+        .map_err(|error| error.to_string())
+        .and_then(|path| {
+            path.into_os_string()
+                .into_string()
+                .map(Value::String)
+                .map_err(|_| "The selected path is not valid Unicode.".to_owned())
+        })
+}
+
 fn handle_host_request(app: &AppHandle, state: &Arc<HostState>, id: u64, request: HostRequest) {
     let respond = move |state: &HostState, result: Result<Value, String>| {
         if let Err(error) = state.sidecar.respond(id, result) {
@@ -147,23 +171,17 @@ fn handle_host_request(app: &AppHandle, state: &Arc<HostState>, id: u64, request
             let state = Arc::clone(state);
             // 选择器阻塞到用户关闭，放到单独的线程，读取线程继续处理其他消息。
             std::thread::spawn(move || {
-                let mut dialog = app.dialog().file().set_title(title);
-                if let Some(window) = app.get_webview_window(MAIN_WINDOW) {
-                    dialog = dialog.set_parent(&window);
-                }
-                let result = match dialog.blocking_pick_folder() {
-                    None => Ok(Value::Null),
-                    Some(path) => path
-                        .into_path()
-                        .map_err(|error| error.to_string())
-                        .and_then(|path| {
-                            path.into_os_string()
-                                .into_string()
-                                .map(Value::String)
-                                .map_err(|_| "The selected path is not valid Unicode.".to_owned())
-                        }),
-                };
-                respond(&state, result);
+                let dialog = file_dialog(&app, title);
+                respond(&state, picked_path(dialog.blocking_pick_folder()));
+            });
+        }
+        HostRequest::ChooseImageFile { title } => {
+            let app = app.clone();
+            let state = Arc::clone(state);
+            std::thread::spawn(move || {
+                let dialog = file_dialog(&app, title)
+                    .add_filter("Images", &["jpg", "jpeg", "png", "webp", "gif"]);
+                respond(&state, picked_path(dialog.blocking_pick_file()));
             });
         }
         HostRequest::OpenPath { path } => {

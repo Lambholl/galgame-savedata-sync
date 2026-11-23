@@ -67,6 +67,7 @@ tags: [代码地图]
 | `apps/desktop/src/backend/dialer-sync.ts` | 电脑作为拨号方的复制：两端扫描、计划、任务登记、内容上传下载、取消、结果补读，处理对方经控制通道发起的 `sync.*` 请求 | 和监听方任务共用写入名额；准备和任务只在内存，结束后保留 10 分钟、各最多 32 份；`sync-ipc.ts` 按设备把请求分给它或监听方部分 |
 | `apps/desktop/src/backend/discovery-browser.ts` | 用 `bonjour-service` 搜索附近设备，按设备 ID 合并地址，排除本机 | 只在设备页可见时搜索；连接已保存的设备时由 `dialer-session.ts` 按设备 ID 查找 5 秒 |
 | `apps/desktop/src/bridge/dialer-bridge.ts`、`src/backend/dialer-ipc.ts`、`src/renderer/src/features/devices/AddDeviceDialog.tsx` | 拨号桥（状态、附近设备、连接、连接已保存设备）和手动输入地址的对话框 | 通道校验参数：地址 1～16 个且已规范化，设备 ID 为不透明 ID 或 null |
+| `apps/desktop/src/backend/poster-http.ts`、`poster-store.ts`、`poster-ipc.ts`、`src/bridge/poster-bridge.ts` | 电脑端封面执行器：接口请求、图片下载、本机选图、封面文件的保存、读取和启动清理 | 请求和下载前按共享包的白名单检查地址，User-Agent 由 `createPosterUserAgent` 生成；封面文件在数据目录的 `posters/`，文件名带 `posterHash`，配置里没引用的文件启动时删除；设计见[游戏封面](../architecture/poster.md#6-封面存储) |
 | `apps/desktop/src/backend/sync-scanner.ts`、HTTP sync 路由、service bridge/IPC | Windows 本次递归扫描（只列目录，取大小和修改日期）及会话内查询/取消 | 单扫描，最多保留 32 份结果，有条目、深度、JSON 和期限预算；只读源；取消或停止要等流关闭；结果不持久化 |
 | `apps/desktop/src/backend/sync-writer.ts`、`sync-target-files.ts`、`target-operation.ts`、`publication-errors.ts`；directory-adapter、启动 | 确认计划的目标目录创建、同卷候选替换和本机恢复；接收远端内容时等内容收齐再写入；复制和恢复共用 `TargetOperation` 互斥 | 写入前备份目标目录全部文件，内容收齐后重新核对目标，逐项报告实际结果，首次失败停止；同路径对象替换产生新 ID；原生流和候选不跨桥 |
 | `apps/desktop/src/backend/restore-registry.ts`、`sync-ipc.ts`、`src/bridge/sync-bridge.ts` | 进程内异步恢复、有限复制与恢复桥、同次原生计划/结果核对 | 普通准备不占目标名额，确认后借用并保留至清理成功；任务和结果可在页面刷新后查询；不接收路径或字节；电脑发起的方法转给 `remote-sync-requests.ts` |

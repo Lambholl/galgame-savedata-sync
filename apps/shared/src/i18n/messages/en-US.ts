@@ -230,6 +230,7 @@ export const enUS: Messages = {
   'game.cardUnlinked': 'Not linked',
   'game.changeFolder': 'Change',
   'game.chooseFolder': 'Choose folder',
+  'game.choosePoster': 'Choose poster',
   'game.reselectFolder': 'Reselect',
   'game.folderLost': 'This folder is no longer accessible. Choose it again.',
   'game.linkedDevices': 'Linked devices',

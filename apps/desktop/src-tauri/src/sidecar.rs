@@ -40,6 +40,8 @@ pub struct BackgroundColors {
 pub enum HostRequest {
     /// 打开目录选择器；应答选中的绝对路径，取消时应答 null。
     ChooseDirectory { title: String },
+    /// 打开只列出 JPEG、PNG、WebP 和 GIF 的文件选择器；应答选中文件的绝对路径，取消时应答 null。
+    ChooseImageFile { title: String },
     /// 用系统文件管理器打开路径。
     OpenPath { path: String },
     /// 设置窗口和界面的明暗。
@@ -283,6 +285,12 @@ mod tests {
                 r#"{"type":"host-request","id":0,"method":"chooseDirectory","params":{"title":"选择"}}"#,
                 HostRequest::ChooseDirectory {
                     title: "选择".to_owned(),
+                },
+            ),
+            (
+                r#"{"type":"host-request","id":0,"method":"chooseImageFile","params":{"title":"图片"}}"#,
+                HostRequest::ChooseImageFile {
+                    title: "图片".to_owned(),
                 },
             ),
             (

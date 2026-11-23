@@ -6,6 +6,7 @@ import type { DesktopBackupApi } from '../../bridge/backup-bridge'
 import type { DesktopSyncApi } from '../../bridge/sync-bridge'
 import type { DesktopPreferencesApi } from '../../bridge/preferences-bridge'
 import type { DesktopDataResetApi } from '../../bridge/data-reset-bridge'
+import type { DesktopPosterApi } from '../../bridge/poster-bridge'
 
 declare global {
   interface Window {
@@ -17,5 +18,6 @@ declare global {
     readonly desktopSync?: DesktopSyncApi
     readonly desktopPreferences?: DesktopPreferencesApi
     readonly desktopDataReset?: DesktopDataResetApi
+    readonly desktopPoster?: DesktopPosterApi
   }
 }

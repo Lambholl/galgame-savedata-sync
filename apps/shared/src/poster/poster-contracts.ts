@@ -1,3 +1,4 @@
+import type { DeviceDescriptor } from '../protocol/contracts.ts'
 import { isRecord } from '../validation/data-validation.ts'
 
 /** 封面搜索来源。 */
@@ -14,8 +15,10 @@ export const POSTER_LIMITS = {
   maxWorkCovers: 100,
   /** JSON 响应体的最大长度，单位是 UTF-16 码元。执行器读到超过这个长度时按网络失败处理。 */
   maxJsonChars: 4 * 1024 * 1024,
-  /** 下载图片的最大字节数。执行器读到超过这个大小时按网络失败处理。 */
+  /** 下载或从本机选取的图片的最大字节数；超过时返回 resource-limit。 */
   maxImageBytes: 20 * 1024 * 1024,
+  /** 保存的封面文件的最大字节数。 */
+  maxSavedBytes: 1024 * 1024,
   /** 同时下载的预览图数量上限。 */
   maxPreviewDownloads: 4,
 } as const
@@ -138,9 +141,25 @@ export class PosterSearchError extends Error {
   }
 }
 
-/** 生成执行器使用的 User-Agent。 */
-export function createPosterUserAgent(appVersion: string): string {
-  return `SavedataSync/${appVersion}`
+/** 项目主页，写在 User-Agent 里。 */
+const PROJECT_HOMEPAGE = 'https://github.com/Lambholl/galgame-savedata-sync'
+
+const PLATFORM_NAMES: Readonly<Record<DeviceDescriptor['platform'], string>> = {
+  windows: 'Windows',
+  android: 'Android',
+}
+
+/**
+ * 生成执行器使用的 User-Agent。
+ *
+ * @param appVersion 应用版本号，即 APP_VERSION。
+ */
+export function createPosterUserAgent(
+  appVersion: string,
+  platform: DeviceDescriptor['platform'],
+): string {
+  // Bangumi 要求非浏览器调用方的 User-Agent 带开发者 ID、应用名，分发的应用带版本号，开源项目带主页。
+  return `Lambholl/galgame-savedata-sync/${appVersion} (${PLATFORM_NAMES[platform]}) (${PROJECT_HOMEPAGE})`
 }
 
 /** 取 https 地址的主机名（小写）；不是 https 地址时返回 null。 */
@@ -164,6 +183,33 @@ export function isPosterRequestAllowed(request: PosterHttpRequest): boolean {
 export function isPosterImageUrl(url: string): boolean {
   const host = httpsHost(url)
   return host !== null && POSTER_IMAGE_HOSTS.includes(host)
+}
+
+/** 请求头的最多条数。 */
+const MAX_REQUEST_HEADERS = 16
+
+/** 校验交给执行器的请求：字段格式正确，且符合 isPosterRequestAllowed。 */
+export function isPosterHttpRequest(value: unknown): value is PosterHttpRequest {
+  if (
+    !isRecord(value) ||
+    (value.method !== 'GET' && value.method !== 'POST') ||
+    typeof value.url !== 'string' ||
+    !isRecord(value.headers) ||
+    (value.body !== null && typeof value.body !== 'string')
+  ) {
+    return false
+  }
+  const headers = Object.values(value.headers)
+  return (
+    headers.length <= MAX_REQUEST_HEADERS &&
+    headers.every((header) => typeof header === 'string') &&
+    isPosterRequestAllowed({
+      method: value.method,
+      url: value.url,
+      headers: value.headers as Record<string, string>,
+      body: value.body,
+    })
+  )
 }
 
 /** 校验执行器返回的响应。 */
@@ -191,4 +237,64 @@ export function createDefaultPosterKeyword(gameName: string): string {
     .replace(/\s+/gu, ' ')
     .trim()
   return keyword === '' ? gameName.trim() : keyword
+}
+
+/** 下载或从本机选取的图片。 */
+export interface PosterImageData {
+  /** 图片的 MIME 类型，以 `image/` 开头。 */
+  readonly mimeType: string
+  /** base64 编码的图片内容，解码后不超过 POSTER_LIMITS.maxImageBytes。 */
+  readonly data: string
+}
+
+/** 保存封面的结果。 */
+export interface PosterSaveResult {
+  /** 写进 LibraryGame.posterHash 的值。 */
+  readonly posterHash: string
+}
+
+/** 读出的封面。 */
+export interface PosterFileData {
+  /** base64 编码的 WebP 内容。 */
+  readonly data: string
+}
+
+/** 编码 byteCount 字节需要的 base64 长度。 */
+function base64Length(byteCount: number): number {
+  return Math.ceil(byteCount / 3) * 4
+}
+
+function isBase64(value: unknown, maxBytes: number): value is string {
+  return (
+    typeof value === 'string' &&
+    value.length > 0 &&
+    value.length <= base64Length(maxBytes) &&
+    value.length % 4 === 0 &&
+    /^[A-Za-z0-9+/]+={0,2}$/u.test(value)
+  )
+}
+
+/** 校验封面 hash：64 位小写十六进制的 SHA-256。 */
+export function isPosterHash(value: unknown): value is string {
+  return typeof value === 'string' && /^[0-9a-f]{64}$/u.test(value)
+}
+
+/** 校验下载或选取的图片。 */
+export function isPosterImageData(value: unknown): value is PosterImageData {
+  return (
+    isRecord(value) &&
+    typeof value.mimeType === 'string' &&
+    /^image\/[a-z0-9.+-]+$/u.test(value.mimeType) &&
+    isBase64(value.data, POSTER_LIMITS.maxImageBytes)
+  )
+}
+
+/** 校验保存封面的结果。 */
+export function isPosterSaveResult(value: unknown): value is PosterSaveResult {
+  return isRecord(value) && isPosterHash(value.posterHash)
+}
+
+/** 校验读出的封面，也用来校验待保存的封面内容。 */
+export function isPosterFileData(value: unknown): value is PosterFileData {
+  return isRecord(value) && isBase64(value.data, POSTER_LIMITS.maxSavedBytes)
 }
