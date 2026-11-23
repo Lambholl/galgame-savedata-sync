@@ -1,10 +1,5 @@
-import { isOpaqueId } from '../protocol/protocol.ts'
-import { hasShape, isArrayOf } from '../validation/data-validation.ts'
-import type {
-  SyncBackupPolicy,
-  SyncBackupPreference,
-  SyncBackupSettings,
-} from './sync-contracts.ts'
+import { hasShape } from '../validation/data-validation.ts'
+import type { SyncBackupSettings } from './sync-contracts.ts'
 
 /** 每个游戏保留备份份数的下限。 */
 export const BACKUP_KEEP_COUNT_MIN = 1
@@ -12,20 +7,11 @@ export const BACKUP_KEEP_COUNT_MIN = 1
 export const BACKUP_KEEP_COUNT_MAX = 4096
 /** 每个游戏默认保留的备份份数。 */
 export const DEFAULT_BACKUP_KEEP_COUNT = 10
-/** 最多可以单独设置备份策略的游戏数。 */
-export const BACKUP_PREFERENCE_LIMIT = 128
 
-/** 没有设置文件时的全局设置：写入前自动备份关闭，默认保留 DEFAULT_BACKUP_KEEP_COUNT 份。 */
-export const DEFAULT_BACKUP_POLICY: SyncBackupPolicy = Object.freeze({
-  shouldBackup: false,
+/** 没有设置文件时的备份库设置：保留 DEFAULT_BACKUP_KEEP_COUNT 份。 */
+export const DEFAULT_BACKUP_SETTINGS: SyncBackupSettings = Object.freeze({
+  schemaVersion: 4,
   keepCount: DEFAULT_BACKUP_KEEP_COUNT,
-})
-
-/** 只有全局默认策略、没有单独设置的备份设置。 */
-export const EMPTY_BACKUP_SETTINGS: SyncBackupSettings = Object.freeze({
-  schemaVersion: 3,
-  defaults: DEFAULT_BACKUP_POLICY,
-  projects: Object.freeze([]),
 })
 
 /** 校验保留份数：BACKUP_KEEP_COUNT_MIN 到 BACKUP_KEEP_COUNT_MAX 的整数。 */
@@ -38,100 +24,11 @@ export function isBackupKeepCount(value: unknown): value is number {
   )
 }
 
-/** 校验备份策略。 */
-export function isSyncBackupPolicy(value: unknown): value is SyncBackupPolicy {
-  return (
-    hasShape(value, ['shouldBackup', 'keepCount']) &&
-    typeof value.shouldBackup === 'boolean' &&
-    isBackupKeepCount(value.keepCount)
-  )
-}
-
-function isPreference(value: unknown): value is SyncBackupPreference {
-  return (
-    hasShape(value, ['projectId', 'shouldBackup', 'keepCount']) &&
-    isOpaqueId(value.projectId) &&
-    typeof value.shouldBackup === 'boolean' &&
-    isBackupKeepCount(value.keepCount)
-  )
-}
-
-/** 校验备份设置；只认 schemaVersion 为 3 的当前格式。 */
+/** 校验备份库设置；只认 schemaVersion 为 4 的当前格式。 */
 export function isSyncBackupSettings(value: unknown): value is SyncBackupSettings {
   return (
-    hasShape(value, ['schemaVersion', 'defaults', 'projects']) &&
-    value.schemaVersion === 3 &&
-    isSyncBackupPolicy(value.defaults) &&
-    Array.isArray(value.projects) &&
-    value.projects.length <= BACKUP_PREFERENCE_LIMIT &&
-    isArrayOf(value.projects, isPreference) &&
-    new Set(value.projects.map((item) => item.projectId)).size === value.projects.length
+    hasShape(value, ['schemaVersion', 'keepCount']) &&
+    value.schemaVersion === 4 &&
+    isBackupKeepCount(value.keepCount)
   )
-}
-
-/** 某个游戏实际使用的策略；isCustom 表示单独设置，否则跟随全局。 */
-export interface ResolvedBackupPolicy extends SyncBackupPolicy {
-  readonly isCustom: boolean
-}
-
-/** 取某个游戏实际使用的策略：有单独设置时用单独设置，否则用全局设置。 */
-export function resolveBackupPolicy(
-  settings: SyncBackupSettings,
-  projectId: string,
-): ResolvedBackupPolicy {
-  const custom = settings.projects.find((item) => item.projectId === projectId)
-  const policy = custom ?? settings.defaults
-  return {
-    shouldBackup: policy.shouldBackup,
-    keepCount: policy.keepCount,
-    isCustom: Boolean(custom),
-  }
-}
-
-/**
- * 设置某个游戏的单独策略；policy 为 null 时改回跟随全局。
- *
- * @returns 新的备份设置，settings 本身不变。
- */
-export function withBackupPreference(
-  settings: SyncBackupSettings,
-  projectId: string,
-  policy: SyncBackupPolicy | null,
-): SyncBackupSettings {
-  const others = settings.projects.filter((item) => item.projectId !== projectId)
-  return {
-    schemaVersion: 3,
-    defaults: settings.defaults,
-    projects: policy
-      ? [...others, { projectId, shouldBackup: policy.shouldBackup, keepCount: policy.keepCount }]
-      : others,
-  }
-}
-
-/**
- * 删除一个游戏的单独设置。
- *
- * @returns 新的备份设置，settings 本身不变。
- */
-export function withoutGameBackups(
-  settings: SyncBackupSettings,
-  projectId: string,
-): SyncBackupSettings {
-  return withBackupPreference(settings, projectId, null)
-}
-
-/**
- * 修改全局设置，单独设置的游戏保持原样。
- *
- * @returns 新的备份设置，settings 本身不变。
- */
-export function withBackupDefaults(
-  settings: SyncBackupSettings,
-  policy: SyncBackupPolicy,
-): SyncBackupSettings {
-  return {
-    schemaVersion: 3,
-    defaults: { shouldBackup: policy.shouldBackup, keepCount: policy.keepCount },
-    projects: settings.projects,
-  }
 }

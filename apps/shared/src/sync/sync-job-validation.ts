@@ -45,13 +45,12 @@ function hasJsonBudget(value: unknown): boolean {
   }
   return true
 }
-/** 校验目标端项目元数据。 */
+/** 校验对端项目元数据。 */
 export function isSyncProjectDescriptor(value: unknown): value is SyncProjectDescriptor {
   return (
-    hasShape(value, ['schemaVersion', 'projectId', 'deviceId', 'rootId', 'shouldBackup']) &&
+    hasShape(value, ['schemaVersion', 'projectId', 'deviceId', 'rootId']) &&
     value.schemaVersion === 1 &&
-    [value.projectId, value.deviceId, value.rootId].every(isOpaqueId) &&
-    typeof value.shouldBackup === 'boolean'
+    [value.projectId, value.deviceId, value.rootId].every(isOpaqueId)
   )
 }
 /** 校验复制任务的登记请求：计划可以执行、operation 为 copy，planId 等于 jobId，项目 ID 等于目标项目。 */

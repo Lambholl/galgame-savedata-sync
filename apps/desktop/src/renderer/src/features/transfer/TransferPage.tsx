@@ -6,7 +6,7 @@ import {
   isSyncWriteEntry,
   toShownError,
   unwrap,
-  withDeleteExtras,
+  withSyncPlanChoices,
 } from '@savedata-sync/shared'
 import type {
   CatalogGame,
@@ -96,6 +96,8 @@ export function TransferPage({
   const [isConfirming, setIsConfirming] = useState(false)
   /** 目标多出的条目是否保留；每次重新比较都回到保留，不记住上次的选择。 */
   const [isKeepingExtras, setIsKeepingExtras] = useState(true)
+  /** 写入前是否备份目标；每次重新比较都回到不备份，不记住上次的选择。 */
+  const [isBackingUp, setIsBackingUp] = useState(false)
   /** 已确认、等移动端应答的请求；应答前留在本页，计划过期时才能直接重新比较。 */
   const [confirmedId, setConfirmedId] = useState<string | null>(null)
   const isStarting = isConfirming || confirmedId !== null
@@ -173,6 +175,7 @@ export function TransferPage({
       setScanError(null)
       setIsPlanOpen(false)
       setIsKeepingExtras(true)
+      setIsBackingUp(false)
     }
   }
   useEffect(() => {
@@ -244,8 +247,13 @@ export function TransferPage({
   }, [reported])
   // 准备好的计划保持原样；开关只改变这里生成的计划，确认时把选择一并提交。
   const current = useMemo(
-    () => reported && withDeleteExtras(reported, !isKeepingExtras),
-    [reported, isKeepingExtras],
+    () =>
+      reported &&
+      withSyncPlanChoices(reported, {
+        shouldBackup: isBackingUp,
+        shouldDeleteExtras: !isKeepingExtras,
+      }),
+    [reported, isBackingUp, isKeepingExtras],
   )
   const hasExtras = reported?.entries.some((item) => item.action === 'keep') ?? false
   const isOtherConfirmed =
@@ -320,9 +328,12 @@ export function TransferPage({
       return
     }
     const id = shown.requestId
-    const shouldDeleteExtras = current.shouldDeleteExtras
+    const choices = {
+      shouldBackup: current.shouldBackup,
+      shouldDeleteExtras: current.shouldDeleteExtras,
+    }
     async function work(): Promise<void> {
-      const value = unwrap(await desktopSync().confirmRemote(id, shouldDeleteExtras))
+      const value = unwrap(await desktopSync().confirmRemote(id, choices))
       confirmedIdRef.current = id
       setConfirmedId(id)
       receiveRequest(value)
@@ -396,6 +407,7 @@ export function TransferPage({
               plan={current}
               source={isUpload ? peerEnd : localEnd}
               target={isUpload ? localEnd : peerEnd}
+              onBackupChange={isDisabled || isStarting ? null : setIsBackingUp}
             />
           ) : null}
         </PlanDrawer>

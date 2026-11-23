@@ -25,6 +25,7 @@ import type {
   SyncJobRequest,
   SyncJobState,
   SyncPlan,
+  SyncPlanChoices,
   SyncRestoreFailureStage,
   SyncRestoreObservation,
   SyncRestoreProgress,
@@ -152,10 +153,10 @@ export interface DesktopSyncApi {
   ): Promise<OperationResult<DesktopRemoteRequest>>
   /** 读取移动端回报的计划；请求还没到 ready 时返回错误。 */
   remotePlan(requestId: string): Promise<OperationResult<SyncPlan>>
-  /** 确认计划并让移动端开始执行；计划按 shouldDeleteExtras 重新生成。 */
+  /** 确认计划并让对端开始执行；计划按 choices 重新生成。 */
   confirmRemote(
     requestId: string,
-    shouldDeleteExtras: boolean,
+    choices: SyncPlanChoices,
   ): Promise<OperationResult<DesktopRemoteRequest>>
   /** 取消发起的请求。 */
   cancelRemote(requestId: string): Promise<OperationResult<DesktopRemoteRequest>>
@@ -603,12 +604,20 @@ export function createSyncBridge(
   function remoteAction(
     action: 'confirmRemote' | 'cancelRemote',
     requestId: string,
-    shouldDeleteExtras?: boolean,
+    choices?: SyncPlanChoices,
   ): Promise<OperationResult<DesktopRemoteRequest>> {
     return isOpaqueId(requestId)
       ? call(
           action,
-          [action === 'confirmRemote' ? { requestId, shouldDeleteExtras } : { requestId }],
+          [
+            choices
+              ? {
+                  requestId,
+                  shouldBackup: choices.shouldBackup,
+                  shouldDeleteExtras: choices.shouldDeleteExtras,
+                }
+              : { requestId },
+          ],
           (value): value is DesktopRemoteRequest =>
             isDesktopRemoteRequest(value) && value.requestId === requestId,
         )
@@ -708,9 +717,9 @@ export function createSyncBridge(
             (value): value is SyncPlan => isSyncPlan(value) && value.operation === 'copy',
           )
         : Promise.resolve(failure()),
-    confirmRemote: (requestId: string, shouldDeleteExtras: boolean) =>
-      typeof shouldDeleteExtras === 'boolean'
-        ? remoteAction('confirmRemote', requestId, shouldDeleteExtras)
+    confirmRemote: (requestId: string, choices: SyncPlanChoices) =>
+      typeof choices.shouldBackup === 'boolean' && typeof choices.shouldDeleteExtras === 'boolean'
+        ? remoteAction('confirmRemote', requestId, choices)
         : Promise.resolve(failure()),
     cancelRemote: (requestId: string) => remoteAction('cancelRemote', requestId),
     interruptedWrites: () => call('interruptedWrites', [], isInterruptedWriteList),

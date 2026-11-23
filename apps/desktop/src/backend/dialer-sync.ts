@@ -13,9 +13,8 @@ import {
   isSyncScanState,
   matchesSyncJobState,
   observeSyncJob,
-  resolveBackupPolicy,
   syncJobBackupBytes,
-  withDeleteExtras,
+  withSyncPlanChoices,
 } from '@savedata-sync/shared'
 import type {
   ControlRequestBodies,
@@ -32,6 +31,7 @@ import type {
   SyncJobRequest,
   SyncJobState,
   SyncPlan,
+  SyncPlanChoices,
   SyncScanState,
   SyncSnapshot,
   SyncTransferState,
@@ -44,7 +44,6 @@ import type {
   WindowsStagedFiles,
 } from './archive-adapter.ts'
 import { ArchiveCancelledError, ArchiveError, checkArchiveAbort } from './archive-errors.ts'
-import type { WindowsBackupStore } from './backup-store.ts'
 import type {
   DialerConnection,
   DialerSyncHandler,
@@ -116,7 +115,6 @@ export interface WindowsDialerSyncOptions {
     'sendFiles' | 'receiveFiles' | 'retryCleanup' | 'checkStagingSpace'
   >
   readonly writer: Pick<WindowsSyncWriter, 'apply' | 'checkSpace' | 'retryCleanup'>
-  readonly backups: Pick<WindowsBackupStore, 'settings'>
   readonly deviceId: string
 }
 
@@ -135,7 +133,7 @@ interface Preparation {
   /** 监听方发起时它的请求 ID；本机发起时为 null。 */
   readonly listenerRequestId: string | null
   status: 'preparing' | 'ready' | 'failed' | 'cancelled'
-  /** 准备好的计划，shouldDeleteExtras 为 false；确认后换成确认的计划，取消后为 null。 */
+  /** 准备好的计划，shouldBackup 和 shouldDeleteExtras 都为 false；确认后换成确认的计划，取消后为 null。 */
   plan: SyncPlan | null
   error: OperationError | null
   remoteScanId: string | null
@@ -335,13 +333,13 @@ export class WindowsDialerSync implements DialerSyncHandler {
   }
 
   /**
-   * 确认本机发起的请求的计划并开始执行；计划按 shouldDeleteExtras 重新生成。
+   * 确认本机发起的请求的计划并开始执行；计划按 choices 重新生成。
    *
    * @throws HttpOperationError 计划不能执行、已过期（plan-expired）或有任务占着写入名额（busy）时抛出。
    */
-  confirm(requestId: string, shouldDeleteExtras: boolean): DesktopRemoteRequest {
+  confirm(requestId: string, choices: SyncPlanChoices): DesktopRemoteRequest {
     const preparation = this.shownPreparation(requestId)
-    this.execute(preparation, shouldDeleteExtras)
+    this.execute(preparation, choices)
     return this.describe(preparation)
   }
 
@@ -497,7 +495,10 @@ export class WindowsDialerSync implements DialerSyncHandler {
             'This device has no result for this scan. Scan again.',
           )
         }
-        this.execute(preparation, request.body.shouldDeleteExtras)
+        this.execute(preparation, {
+          shouldBackup: request.body.shouldBackup,
+          shouldDeleteExtras: request.body.shouldDeleteExtras,
+        })
         return { jobId: preparation.id }
       }
       case 'sync.cancel': {
@@ -718,7 +719,6 @@ export class WindowsDialerSync implements DialerSyncHandler {
       }
       accessing = null
       const isSending = isDialerSending(preparation.direction)
-      const policy = await this.localPolicy(preparation.projectId)
       dialer.verify(connection)
       library.verifyProjectPeer(
         preparation.projectId,
@@ -733,7 +733,7 @@ export class WindowsDialerSync implements DialerSyncHandler {
         projectId: isSending ? preparation.remoteProjectId : preparation.projectId,
         operation: 'copy',
         direction: preparation.direction,
-        shouldBackup: isSending ? descriptor.shouldBackup : policy.shouldBackup,
+        shouldBackup: false,
         shouldDeleteExtras: false,
         source: isSending ? local : remote.snapshot,
         target: isSending ? remote.snapshot : local,
@@ -966,13 +966,13 @@ export class WindowsDialerSync implements DialerSyncHandler {
   // ---------- 执行 ----------
 
   /** 消费一次确认，取得写入名额并开始执行。 */
-  private execute(preparation: Preparation, shouldDeleteExtras: boolean): Job {
+  private execute(preparation: Preparation, choices: SyncPlanChoices): Job {
     this.available()
     this.purge()
     if (preparation.status !== 'ready' || !preparation.plan || preparation.isConsumed) {
       throw new HttpOperationError('plan-expired', 'The comparison expired. Scan again.')
     }
-    const plan = withDeleteExtras(preparation.plan, shouldDeleteExtras)
+    const plan = withSyncPlanChoices(preparation.plan, choices)
     if (!plan.canExecute) {
       throw new HttpOperationError('invalid-request', 'This plan cannot be executed. Scan again.')
     }
@@ -1095,21 +1095,7 @@ export class WindowsDialerSync implements DialerSyncHandler {
     try {
       checkArchiveAbort(job.controller.signal)
       await this.options.dialer.refreshCatalog(connection)
-      await this.verifyContext(job)
-      const descriptor = await connection.http.json(
-        'GET',
-        route(SYNC_HTTP_ROUTES.project, 'projectId', job.preparation.remoteProjectId),
-        { ...this.headers(connection), signal: job.controller.signal },
-      )
-      if (!isSyncProjectDescriptor(descriptor)) {
-        throw new HttpOperationError('invalid-request', 'The device project format is invalid.')
-      }
-      if (isSending && descriptor.shouldBackup !== job.request.plan.shouldBackup) {
-        throw new HttpOperationError(
-          'source-changed',
-          'The device backup settings changed. Confirm again.',
-        )
-      }
+      this.verifyContext(job)
       job.wasRemoteAttempted = true
       try {
         this.accept(
@@ -1203,8 +1189,8 @@ export class WindowsDialerSync implements DialerSyncHandler {
     }
   }
 
-  /** 核对当前连接、两端项目关联，以及本机作为目标时的备份设置仍与确认时一致。 */
-  private async verifyContext(job: Job): Promise<void> {
+  /** 核对当前连接和两端项目关联仍与确认时一致。 */
+  private verifyContext(job: Job): void {
     checkArchiveAbort(job.controller.signal)
     const { preparation } = job
     this.options.dialer.verify(preparation.connection)
@@ -1215,22 +1201,6 @@ export class WindowsDialerSync implements DialerSyncHandler {
       preparation.localRootId,
       preparation.remoteRootId,
     )
-    if (job.state.role === 'receiver') {
-      const { shouldBackup } = await this.localPolicy(preparation.projectId)
-      if (shouldBackup !== job.request.plan.shouldBackup) {
-        throw new HttpOperationError(
-          'source-changed',
-          'Local backup settings changed. Confirm again.',
-        )
-      }
-    }
-    checkArchiveAbort(job.controller.signal)
-  }
-
-  private async localPolicy(
-    projectId: string,
-  ): Promise<{ readonly shouldBackup: boolean; readonly keepCount: number }> {
-    return resolveBackupPolicy(await this.options.backups.settings(), projectId)
   }
 
   /** 把监听方报告的失败转成本机任务的错误，文件访问类的错误注明在监听方；监听方没报错时为 task-conflict。 */
@@ -1266,7 +1236,7 @@ export class WindowsDialerSync implements DialerSyncHandler {
     }
     const plan = job.request.plan
     const total = plan.totalFileBytes ?? 0
-    await this.verifyContext(job)
+    this.verifyContext(job)
     this.update(job, 'transferring')
     const { connection } = job.preparation
     // 回调里赋值，放在对象里，控制流分析才不会把它当成始终为 null。
@@ -1407,7 +1377,7 @@ export class WindowsDialerSync implements DialerSyncHandler {
       if (job.remote?.status !== 'sent') {
         throw this.remoteFailure(job, 'The device could not prepare this content.')
       }
-      await this.verifyContext(job)
+      this.verifyContext(job)
       job.isWriting = true
       this.receiverResult(
         job,
@@ -1415,7 +1385,7 @@ export class WindowsDialerSync implements DialerSyncHandler {
       )
       return
     }
-    await this.verifyContext(job)
+    this.verifyContext(job)
     const space = await this.options.archive.checkStagingSpace(plan.totalFileBytes ?? 0)
     await this.options.writer.checkSpace(plan, space)
     checkArchiveAbort(signal)

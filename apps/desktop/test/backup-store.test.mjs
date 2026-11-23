@@ -85,10 +85,10 @@ async function waitManual(registry, taskId) {
   throw new Error('手动备份等待超时')
 }
 
-test('手动备份在自动备份关闭时仍可创建并恢复，空目录不创建空轮次', async (t) => {
+test('手动备份可创建并恢复，空目录不创建空轮次', async (t) => {
   const fixture = await setup(t)
-  await fixture.backups.setDefaults({ shouldBackup: false, keepCount: 15 })
-  assert.equal((await fixture.backups.settings()).defaults.keepCount, 15)
+  assert.deepEqual(await fixture.backups.setKeepCount(15), { schemaVersion: 4, keepCount: 15 })
+  assert.equal((await fixture.backups.settings()).keepCount, 15)
 
   const emptySnapshot = await scan(fixture.scanner, fixture.emptyRoot.rootId)
   const emptyCommit = await fixture.backups.createManual('game-empty', emptySnapshot)
@@ -115,7 +115,7 @@ test('手动备份在自动备份关闭时仍可创建并恢复，空目录不�
 
 test('自动备份与手动备份按保留份数平级轮换', async (t) => {
   const fixture = await setup(t)
-  await fixture.backups.setDefaults({ shouldBackup: true, keepCount: 2 })
+  await fixture.backups.setKeepCount(2)
 
   const first = await fixture.backups.createManual(
     'game-1',

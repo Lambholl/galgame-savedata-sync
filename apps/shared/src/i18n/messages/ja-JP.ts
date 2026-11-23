@@ -108,6 +108,7 @@ export const jaJP: Messages = {
   'plan.stat.keep': '保持',
   'plan.stat.delete': '削除',
   'plan.backupOff': '書き込み前のバックアップなし',
+  'plan.backupSwitch': '書き込み前に書き込み先をバックアップ',
   'plan.transferSize': ({ size }) => `転送 ${size}`,
   'plan.group.replace': ({ count }) => `上書き ${count}`,
   'plan.group.replaceHint': '開いて転送元と転送先を比較',
@@ -247,9 +248,7 @@ export const jaJP: Messages = {
   'game.noRemoteGames': 'この端末にはまだゲームがありません。',
   'game.noDevices': '関連付けられる端末がまだありません。',
 
-  'backup.on': '自動バックアップは有効です',
-  'backup.off': '自動バックアップは無効です',
-  'backup.keep': ({ count }) => `${count} 件保持`,
+  'backup.keep': ({ count }) => `ゲームごとに ${count} 件保持`,
   'backup.location': '保存場所',
   'backup.openFolder': 'フォルダーを開く',
   'backup.list': 'バックアップ',
@@ -259,7 +258,7 @@ export const jaJP: Messages = {
   'backup.files': ({ count, size }) => `${count} 件 · ${size}`,
   'backup.restore': '復元',
   'backup.none':
-    'バックアップはまだありません。現在のセーブデータを今すぐバックアップするか、自動バックアップを有効にして書き込み前に自動保存できます。',
+    'バックアップはまだありません。現在のセーブデータを今すぐバックアップするか、転送プランで書き込み前のバックアップを選べます。',
   'backup.manualStart': '今すぐバックアップ',
   'backup.manualScanning': '現在のファイルを読み取っています…',
   'backup.manualRunning': 'バックアップ中…',
@@ -277,7 +276,6 @@ export const jaJP: Messages = {
   'backup.deleteTitle': 'バックアップを削除',
   'backup.deleteText': ({ time }) =>
     `${time} のバックアップを削除しますか？削除すると、このバックアップからは復元できなくなります。`,
-  'backup.switch': '自動バックアップ',
   'backup.confirmRestore': '復元する',
   'backup.cancelRestore': '復元をキャンセル',
   'backup.preparing': 'バックアップを確認し、現在のファイルを読み取っています…',
@@ -297,11 +295,7 @@ export const jaJP: Messages = {
   'plan.restoreBackup': '復元する前に現在のファイルをバックアップします',
   'plan.backupOnPlain': '書き込み前にバックアップします',
 
-  'backup.followGlobal': '全体の設定に従う',
-  'backup.customSetting': '個別に設定',
   'backup.keepCount': '保持する件数',
-  'backup.editGlobal': '全体の設定を変更',
-  'backup.policyTitle': ({ name }) => `${name} のバックアップ`,
   'backup.saveFailed': 'バックアップ設定を保存できません',
   'backup.libraryLocation': 'バックアップ保存場所',
   'backup.libraryDefault': '既定の場所',

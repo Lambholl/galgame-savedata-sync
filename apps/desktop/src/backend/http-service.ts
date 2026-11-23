@@ -23,6 +23,7 @@ import type {
   OperationError,
   OperationResult,
   SyncJobDigest,
+  SyncPlanChoices,
   SyncScanState,
   SyncJobState,
   SyncTransferState,
@@ -162,9 +163,9 @@ export class WindowsHttpService {
   /** 确认计划并让移动端开始执行；服务没运行时抛错。 */
   confirmRemoteSync(
     requestId: string,
-    shouldDeleteExtras: boolean,
+    choices: SyncPlanChoices,
   ): ReturnType<WindowsRemoteSyncRequests['confirm']> {
-    return this.requireRemote().confirm(requestId, shouldDeleteExtras)
+    return this.requireRemote().confirm(requestId, choices)
   }
   /** 取消发起的请求；服务没运行时抛错。 */
   cancelRemoteSync(requestId: string): ReturnType<WindowsRemoteSyncRequests['cancel']> {
@@ -494,7 +495,7 @@ export class WindowsHttpService {
       if (route.kind === 'sync-project' && route.id) {
         sendHttpJson(response, 200, {
           status: 'success',
-          value: await jobs.project(route.id, peerId),
+          value: jobs.project(route.id, peerId),
         })
       } else if (route.kind === 'sync-jobs') {
         const value = await readHttpJson(request)

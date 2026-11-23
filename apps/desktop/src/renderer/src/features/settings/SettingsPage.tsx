@@ -5,7 +5,6 @@ import type {
   AppPreferences,
   LocalePreference,
   ShownError,
-  SyncBackupPolicy,
   ThemePreference,
 } from '@savedata-sync/shared'
 import { useT } from '@savedata-sync/shared/ui'
@@ -14,14 +13,14 @@ import { useFailureMessage } from '../../app/failure-message.ts'
 import type { Confirmation } from '../../app/navigation.ts'
 import { ConfirmationDialog } from '../../components/ConfirmationDialog.tsx'
 import { desktopBackups } from '../../platform/sync-adapter.ts'
-import { BackupPolicyFields } from '../backup/BackupPolicyFields.tsx'
+import { BackupKeepCountField } from './BackupKeepCountField.tsx'
 import { BackupLibraryRow } from './BackupLibraryRow.tsx'
 import { SETTING_FORM } from './setting-form.ts'
 import { SettingSelect } from './SettingSelect.tsx'
 
 const THEMES: readonly ThemePreference[] = ['system', 'light', 'dark']
 
-/** 应用设置页：外观、全局备份设置和备份库位置，改动立即保存。 */
+/** 应用设置页：外观、备份库的保留份数和位置，改动立即保存。 */
 export function SettingsPage({
   preferences,
   onChange,
@@ -30,8 +29,8 @@ export function SettingsPage({
   readonly onChange: (next: AppPreferences) => void
 }): React.JSX.Element {
   const t = useT()
-  /** 全局备份设置；读取中或读取失败为 null。 */
-  const [policy, setPolicy] = useState<SyncBackupPolicy | null>(null)
+  /** 备份库的保留份数；读取中或读取失败为 null。 */
+  const [keepCount, setKeepCount] = useState<number | null>(null)
   /** 备份库的位置和状态；读取中或读取失败为 null。 */
   const [library, setLibrary] = useState<DesktopBackupInfo | null>(null)
   /** 等待确认的更换位置操作。 */
@@ -57,13 +56,13 @@ export function SettingsPage({
       .then((result) => {
         const info = unwrap(result)
         if (isCurrent) {
-          setPolicy(info.settings.defaults)
+          setKeepCount(info.settings.keepCount)
           setLibrary(info)
         }
       })
       .catch((cause: unknown) => {
         if (isCurrent) {
-          setPolicy(null)
+          setKeepCount(null)
           setLibrary(null)
           setBackupError({ context: t('backup.readFailed'), error: toShownError(cause) })
         }
@@ -72,12 +71,12 @@ export function SettingsPage({
       isCurrent = false
     }
   }, [version, t])
-  function changePolicy(next: SyncBackupPolicy): void {
-    setPolicy(next)
+  function changeKeepCount(next: number): void {
+    setKeepCount(next)
     setBackupError(null)
     saving.current = saving.current
       .then(async () => {
-        unwrap(await desktopBackups().setDefaults(next))
+        unwrap(await desktopBackups().setKeepCount(next))
       })
       .catch((cause: unknown) => {
         setBackupError({ context: t('backup.saveFailed'), error: toShownError(cause) })
@@ -150,16 +149,16 @@ export function SettingsPage({
       <section className="settings-section">
         <h2>{t('settings.backup')}</h2>
         {failureHolder}
-        {backupError && !policy ? (
+        {backupError && keepCount === null ? (
           <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={backupError.context}>
             <Button onClick={() => setVersion((value) => value + 1)}>{t('common.retry')}</Button>
           </Empty>
         ) : null}
-        {policy ? (
+        {keepCount === null ? null : (
           <Form {...SETTING_FORM}>
-            <BackupPolicyFields policy={policy} isDisabled={false} onChange={changePolicy} />
+            <BackupKeepCountField keepCount={keepCount} onChange={changeKeepCount} />
           </Form>
-        ) : null}
+        )}
         {library ? (
           <BackupLibraryRow
             path={library.displayPath}

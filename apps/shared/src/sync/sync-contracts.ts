@@ -5,7 +5,7 @@ export const SYNC_SCHEMA_VERSION = 1
 /**
  * 能力声明的版本，两端相同才能互传。
  */
-export const SYNC_CAPABILITIES_VERSION = 7
+export const SYNC_CAPABILITIES_VERSION = 8
 
 /** 复制方向，按连接里的角色区分：listener-to-dialer 从监听方复制到拨号方。 */
 export type SyncDirection = 'listener-to-dialer' | 'dialer-to-listener'
@@ -195,24 +195,11 @@ export interface SyncIncompleteBackup {
   readonly occupiedBytes: number | null
 }
 
-/** 写入前备份策略：是否备份，以及每个游戏保留的完整备份份数。 */
-export interface SyncBackupPolicy {
-  readonly shouldBackup: boolean
-  /** BACKUP_KEEP_COUNT_MIN–BACKUP_KEEP_COUNT_MAX。 */
-  readonly keepCount: number
-}
-
-/** 某个游戏的单独设置。 */
-export interface SyncBackupPreference extends SyncBackupPolicy {
-  readonly projectId: string
-}
-
-/** 备份设置：全局策略和逐个游戏的单独策略。 */
+/** 本机备份库的设置。 */
 export interface SyncBackupSettings {
-  readonly schemaVersion: 3
-  /** 全局设置。 */
-  readonly defaults: SyncBackupPolicy
-  readonly projects: readonly SyncBackupPreference[]
+  readonly schemaVersion: 4
+  /** 每个游戏保留的完整备份份数，BACKUP_KEEP_COUNT_MIN–BACKUP_KEEP_COUNT_MAX。 */
+  readonly keepCount: number
 }
 
 /** 一项写入的实际结果；unknown 带 result-unknown 错误。 */

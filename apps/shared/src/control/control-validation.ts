@@ -73,8 +73,9 @@ export function isControlRequestBody<M extends ControlRequestMethod>(
   }
   if (method === 'sync.confirm') {
     return (
-      hasShape(value, ['requestId', 'shouldDeleteExtras']) &&
+      hasShape(value, ['requestId', 'shouldBackup', 'shouldDeleteExtras']) &&
       isOpaqueId(value.requestId) &&
+      typeof value.shouldBackup === 'boolean' &&
       typeof value.shouldDeleteExtras === 'boolean'
     )
   }

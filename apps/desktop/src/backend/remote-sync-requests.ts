@@ -3,7 +3,7 @@ import {
   SYNC_JOB_SCHEMA_VERSION,
   observeSyncJob,
   syncJobBackupBytes,
-  withDeleteExtras,
+  withSyncPlanChoices,
 } from '@savedata-sync/shared'
 import type {
   OperationError,
@@ -12,6 +12,7 @@ import type {
   SyncJobRequest,
   SyncJobState,
   SyncPlan,
+  SyncPlanChoices,
   SyncSnapshot,
   SyncTransferState,
   SyncDirection,
@@ -217,11 +218,11 @@ export class WindowsRemoteSyncRequests {
 
   /**
    * 确认移动端回报的计划，移动端应答后视为已开始；只接受可执行的 ready 计划。
-   * 计划用同一份快照按 shouldDeleteExtras 重新生成，移动端按新计划执行。
+   * 计划用同一份快照按 choices 重新生成，移动端按新计划执行。
    */
-  confirm(requestId: string, shouldDeleteExtras: boolean): DesktopRemoteRequest {
+  confirm(requestId: string, choices: SyncPlanChoices): DesktopRemoteRequest {
     const entry = this.entry(requestId)
-    const plan = entry.plan && withDeleteExtras(entry.plan, shouldDeleteExtras)
+    const plan = entry.plan && withSyncPlanChoices(entry.plan, choices)
     if (entry.value.status !== 'ready' || !plan?.canExecute) {
       throw new HttpOperationError('invalid-request', 'This plan cannot be executed. Scan again.')
     }
@@ -242,7 +243,11 @@ export class WindowsRemoteSyncRequests {
     entry.isAwaitingJob = true
     this.update(entry, { status: 'starting' })
     this.options.control
-      .request(entry.value.peerId, 'sync.confirm', { requestId, shouldDeleteExtras })
+      .request(entry.value.peerId, 'sync.confirm', {
+        requestId,
+        shouldBackup: choices.shouldBackup,
+        shouldDeleteExtras: choices.shouldDeleteExtras,
+      })
       .then(({ jobId }) => {
         if (this.current !== entry || entry.value.status !== 'starting') {
           return

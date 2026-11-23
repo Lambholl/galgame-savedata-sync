@@ -107,6 +107,7 @@ export const zhCN = {
   'plan.stat.keep': '保留',
   'plan.stat.delete': '删除',
   'plan.backupOff': '写入前不备份',
+  'plan.backupSwitch': '写入前备份目标文件',
   'plan.transferSize': ({ size }: { size: string }): string => `传输 ${size}`,
   'plan.group.replace': ({ count }: { count: number }): string => `覆盖 ${count}`,
   'plan.group.replaceHint': '点开对比两端',
@@ -255,9 +256,7 @@ export const zhCN = {
   'game.noRemoteGames': '这台设备上还没有游戏。',
   'game.noDevices': '还没有可关联的设备。',
 
-  'backup.on': '自动备份已开启',
-  'backup.off': '自动备份已关闭',
-  'backup.keep': ({ count }: { count: number }): string => `保留 ${count} 份`,
+  'backup.keep': ({ count }: { count: number }): string => `每个游戏保留 ${count} 份`,
   'backup.location': '保存位置',
   'backup.openFolder': '打开文件夹',
   'backup.list': '备份',
@@ -267,7 +266,7 @@ export const zhCN = {
   'backup.files': ({ count, size }: { count: number; size: string }): string =>
     `${count} 个文件 · ${size}`,
   'backup.restore': '恢复',
-  'backup.none': '还没有备份。可以立即备份当前存档，或开启自动备份，在写入文件前自动保存。',
+  'backup.none': '还没有备份。可以立即备份当前存档，或在传输计划中选择写入前先备份。',
   'backup.manualStart': '立即备份',
   'backup.manualScanning': '正在读取当前文件…',
   'backup.manualRunning': '正在备份…',
@@ -286,7 +285,6 @@ export const zhCN = {
   'backup.deleteTitle': '删除备份',
   'backup.deleteText': ({ time }: { time: string }): string =>
     `删除 ${time} 的备份？删除后不能再用它恢复。`,
-  'backup.switch': '自动备份',
   'backup.confirmRestore': '确认恢复',
   'backup.cancelRestore': '取消恢复',
   'backup.preparing': '正在核对备份并读取当前文件…',
@@ -306,11 +304,7 @@ export const zhCN = {
   'plan.restoreBackup': '恢复前会先备份当前文件',
   'plan.backupOnPlain': '写入前先备份',
 
-  'backup.followGlobal': '跟随全局设置',
-  'backup.customSetting': '单独设置',
   'backup.keepCount': '保留份数',
-  'backup.editGlobal': '修改全局设置',
-  'backup.policyTitle': ({ name }: { name: string }): string => `${name} 的备份`,
   'backup.saveFailed': '无法保存备份设置',
   'backup.libraryLocation': '备份库位置',
   'backup.libraryDefault': '默认位置',

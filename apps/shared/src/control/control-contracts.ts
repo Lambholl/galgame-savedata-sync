@@ -1,5 +1,6 @@
 import type { DirectoryListing, OperationError, OperationResult } from '../protocol/contracts.ts'
 import type { SyncDirection, SyncPlan } from '../sync/sync-contracts.ts'
+import type { SyncPlanChoices } from '../sync/sync-plan.ts'
 import type { SyncJobDigest, SyncJobState } from '../sync/sync-job-contracts.ts'
 
 /** 控制通道的 WebSocket 路由。 */
@@ -46,8 +47,8 @@ export interface ControlRequestBodies {
   readonly 'directory.list': { readonly rootId: string; readonly parentId: string | null }
   /** 请对方扫描并生成复制计划。 */
   readonly 'sync.prepare': RemoteSyncPrepare
-  /** 确认对方回报的计划，对方开始执行；shouldDeleteExtras 表示是否删除只在目标的条目。 */
-  readonly 'sync.confirm': { readonly requestId: string; readonly shouldDeleteExtras: boolean }
+  /** 确认对方回报的计划，对方按计划页的两个选项重新生成计划并开始执行。 */
+  readonly 'sync.confirm': { readonly requestId: string } & SyncPlanChoices
   /** 放弃还没开始执行的请求，对方取消并释放这次扫描。 */
   readonly 'sync.cancel': { readonly requestId: string }
   /** 读取对方角色的完整任务状态，含逐项结果；任务不存在时答复 not-found。 */

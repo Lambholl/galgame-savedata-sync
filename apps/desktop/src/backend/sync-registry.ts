@@ -12,7 +12,6 @@ import {
   matchesSyncJobState,
   matchesSyncPlan,
   observeSyncJob,
-  resolveBackupPolicy,
   syncJobBackupBytes,
 } from '@savedata-sync/shared'
 import type {
@@ -438,8 +437,8 @@ export class WindowsSyncRegistry {
       (task) => task.isWorking || task.state.status === 'running' || isRemoteLive(task),
     )
   }
-  /** 返回本机项目的描述和备份设置；之前交换的目录表里没有这个项目与 peerId 的双向关联时抛错。 */
-  async project(projectId: string, peerId: string): Promise<SyncProjectDescriptor> {
+  /** 返回本机项目的描述；之前交换的目录表里没有这个项目与 peerId 的双向关联时抛错。 */
+  project(projectId: string, peerId: string): SyncProjectDescriptor {
     const snapshot = this.options.library.snapshot()
     const game = snapshot.config.games.find((item) => item.id === projectId)
     const link = game?.links.find((item) => item.deviceId === peerId)
@@ -459,17 +458,14 @@ export class WindowsSyncRegistry {
       game.rootId,
       remoteRoot.rootId,
     )
-    const settings = await this.options.backups.settings()
-    const policy = resolveBackupPolicy(settings, projectId)
     return {
       schemaVersion: 1,
       projectId,
       deviceId: this.options.deviceId,
       rootId: game.rootId,
-      shouldBackup: policy.shouldBackup,
     }
   }
-  private async verify(task: SyncTask): Promise<void> {
+  private verify(task: SyncTask): void {
     checkArchiveAbort(task.controller.signal)
     const plan = task.request.plan
     const isSender = task.state.role === 'sender'
@@ -480,18 +476,6 @@ export class WindowsSyncRegistry {
       isSender ? plan.source.rootId : plan.target.rootId,
       isSender ? plan.target.rootId : plan.source.rootId,
     )
-    if (isSender) {
-      checkArchiveAbort(task.controller.signal)
-      return
-    }
-    const settings = await this.options.backups.settings()
-    const { shouldBackup } = resolveBackupPolicy(settings, task.request.targetProjectId)
-    if (shouldBackup !== plan.shouldBackup) {
-      throw new HttpOperationError(
-        'source-changed',
-        'Target backup settings changed. Confirm again.',
-      )
-    }
     checkArchiveAbort(task.controller.signal)
   }
   /** 登记任务：格式正确后同步占用任务 ID 和名额；之后的异步错误记在任务状态里。 */
@@ -648,7 +632,7 @@ export class WindowsSyncRegistry {
       }
     }
     try {
-      await this.verify(task)
+      this.verify(task)
       const scan = scanner.start(task.request.plan.source.rootId)
       scanId = scan.scanId
       task.controller.signal.addEventListener('abort', abort, { once: true })
@@ -708,12 +692,12 @@ export class WindowsSyncRegistry {
   }
   private async admit(task: SyncTask): Promise<void> {
     try {
-      await this.verify(task)
+      this.verify(task)
       const space = await this.options.archive.checkStagingSpace(
         task.request.plan.totalFileBytes ?? 0,
       )
       await this.options.writer.checkSpace(task.request.plan, space)
-      await this.verify(task)
+      this.verify(task)
       if (task.request.plan.transferFileCount === 0) {
         await this.apply(task)
       } else {
@@ -821,7 +805,7 @@ export class WindowsSyncRegistry {
     }
     response.once('close', disconnected)
     try {
-      await this.verify(task)
+      this.verify(task)
       // 长度事先不知道，响应按 chunked 发送；完整性由 gzip 的 CRC 和长度保证。
       response.writeHead(200, {
         'content-type': BATCH_ARCHIVE.contentType,
@@ -892,7 +876,7 @@ export class WindowsSyncRegistry {
       },
     })
     try {
-      await this.verify(task)
+      this.verify(task)
       task.staged = await this.options.archive.receiveFiles(task.files, body.stream, {
         signal: task.controller.signal,
         onBytes: (bytes) => this.update(task, this.contentStage(task), { transferredBytes: bytes }),
@@ -943,7 +927,7 @@ export class WindowsSyncRegistry {
     }
   }
   private async apply(task: SyncTask): Promise<void> {
-    await this.verify(task)
+    this.verify(task)
     const material: WindowsSyncMaterial | null =
       task.request.plan.transferFileCount > 0
         ? {

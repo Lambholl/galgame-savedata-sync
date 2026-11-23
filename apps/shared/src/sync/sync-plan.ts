@@ -285,15 +285,23 @@ export function createSyncPlan(input: SyncPlanInput): SyncPlan {
   return result
 }
 
-/** 用同一份快照重新生成计划，只改变只在目标有的条目的处理方式。 */
-export function withDeleteExtras(plan: SyncPlan, shouldDeleteExtras: boolean): SyncPlan {
+/** 传输计划页上按次选择的两个选项。 */
+export interface SyncPlanChoices {
+  /** 写入前备份目标目录的全部文件。 */
+  readonly shouldBackup: boolean
+  /** 删除只在目标有的条目。 */
+  readonly shouldDeleteExtras: boolean
+}
+
+/** 用同一份快照按 choices 重新生成计划；备份字节和预算问题随之重算。 */
+export function withSyncPlanChoices(plan: SyncPlan, choices: SyncPlanChoices): SyncPlan {
   return createSyncPlan({
     planId: plan.planId,
     projectId: plan.projectId,
     operation: plan.operation,
     direction: plan.direction,
-    shouldBackup: plan.shouldBackup,
-    shouldDeleteExtras,
+    shouldBackup: choices.shouldBackup,
+    shouldDeleteExtras: choices.shouldDeleteExtras,
     source: plan.source,
     target: plan.target,
   })

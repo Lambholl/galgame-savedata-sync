@@ -1,8 +1,6 @@
-import { BATCH_LIMITS, isOpaqueId, isSyncBackupPolicy } from '@savedata-sync/shared'
-import type { SyncBackupPolicy } from '@savedata-sync/shared'
+import { BATCH_LIMITS, isBackupKeepCount, isOpaqueId } from '@savedata-sync/shared'
 import { BACKUP_CHANNELS } from '../bridge/backup-bridge.ts'
 import type { WindowsBackupStore } from './backup-store.ts'
-import type { DesktopLibrary } from './library-store.ts'
 import type { WindowsManualBackupRegistry } from './manual-backup-registry.ts'
 import { HttpOperationError, toHttpError } from './http-errors.ts'
 import { hasTargetOperation } from './target-operation.ts'
@@ -25,7 +23,6 @@ export interface BackupIpcHost {
 export function registerBackupIpc(
   ipc: ChannelRegistry,
   store: WindowsBackupStore,
-  library: DesktopLibrary,
   manualBackups: WindowsManualBackupRegistry,
   host: BackupIpcHost,
   hasRunningWork: () => boolean = () => false,
@@ -115,7 +112,7 @@ export function registerBackupIpc(
           const taskId = (input as { taskId: string }).taskId
           value =
             action === 'manualState' ? manualBackups.state(taskId) : manualBackups.cancel(taskId)
-        } else if (action === 'setDefaults') {
+        } else if (action === 'setKeepCount') {
           const input = args[0]
           if (
             args.length !== 1 ||
@@ -123,7 +120,7 @@ export function registerBackupIpc(
             input === null ||
             Array.isArray(input) ||
             Object.keys(input).length !== 1 ||
-            !isSyncBackupPolicy((input as Record<string, unknown>).policy)
+            !isBackupKeepCount((input as Record<string, unknown>).keepCount)
           ) {
             throw new HttpOperationError('invalid-request', 'Backup settings are invalid.')
           }
@@ -133,7 +130,7 @@ export function registerBackupIpc(
               'Wait for the current file operation to finish before changing backup settings.',
             )
           }
-          value = await store.setDefaults((input as { policy: SyncBackupPolicy }).policy)
+          value = await store.setKeepCount((input as { keepCount: number }).keepCount)
         } else if (action === 'deleteGameBackups') {
           const input = args[0]
           if (
@@ -161,7 +158,6 @@ export function registerBackupIpc(
             ...(action === 'manifest' || action === 'cleanupIncomplete' || action === 'deleteBackup'
               ? ['backupId']
               : []),
-            ...(action === 'setPreference' ? ['policy'] : []),
           ]
           if (
             args.length !== 1 ||
@@ -181,31 +177,15 @@ export function registerBackupIpc(
             throw new HttpOperationError('invalid-request', 'The backup reference is invalid.')
           }
           if (
-            (action === 'setPreference' && hasTargetOperation()) ||
-            ((action === 'rotate' || action === 'cleanupIncomplete' || action === 'deleteBackup') &&
-              hasRunningWork())
+            (action === 'rotate' || action === 'cleanupIncomplete' || action === 'deleteBackup') &&
+            hasRunningWork()
           ) {
             throw new HttpOperationError(
               'busy',
-              'Wait for the current file operation to finish before changing backup settings or cleaning up backups.',
+              'Wait for the current file operation to finish before cleaning up backups.',
             )
           }
-          if (action === 'setPreference') {
-            if (!(data.policy === null || isSyncBackupPolicy(data.policy))) {
-              throw new HttpOperationError('invalid-request', 'Backup settings are invalid.')
-            }
-            if (
-              !library
-                .snapshot()
-                .config.games.some((game) => game.id === data.projectId && game.rootId !== null)
-            ) {
-              throw new HttpOperationError(
-                'invalid-request',
-                "Configure this game's local directory first.",
-              )
-            }
-            value = await store.setPreference(data.projectId, data.policy)
-          } else if (action === 'rotate') {
+          if (action === 'rotate') {
             await store.rotate(data.projectId)
             value = null
           } else if (action === 'cleanupIncomplete') {

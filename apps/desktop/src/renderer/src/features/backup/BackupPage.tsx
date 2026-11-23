@@ -1,31 +1,24 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { Button, Empty, Form, Modal, Progress, Switch } from 'antd'
+import { Button, Empty, Modal, Progress } from 'antd'
 import {
   CloudUploadOutlined,
   DeleteOutlined,
   FolderOpenOutlined,
   HistoryOutlined,
 } from '@ant-design/icons'
-import {
-  formatBytes,
-  formatShortDateTime,
-  resolveBackupPolicy,
-  toShownError,
-  unwrap,
-} from '@savedata-sync/shared'
+import { formatBytes, formatShortDateTime, toShownError, unwrap } from '@savedata-sync/shared'
 import type {
   DirectoryReference,
   LibraryGame,
   ShownError,
   SyncBackupManifest,
-  SyncBackupPolicy,
   SyncManualBackupState,
 } from '@savedata-sync/shared'
 import type { DesktopBackupInfo, DesktopBackupList } from '../../../../bridge/backup-bridge.ts'
 import {
   BackupFiles,
   BackupLeftoverNotice,
-  BackupPolicyBlock,
+  BackupLibraryBlock,
   BackupTimeline,
   cleanupIncompleteBackups,
   useT,
@@ -33,13 +26,9 @@ import {
 import { useAppMessage } from '../../app/app-message.ts'
 import { useFailureMessage } from '../../app/failure-message.ts'
 import { desktopBackups, desktopSync } from '../../platform/sync-adapter.ts'
-import { SETTING_FORM } from '../settings/setting-form.ts'
-import { BackupPolicyFields } from './BackupPolicyFields.tsx'
 import { RestoreDetails } from './RestoreDetails.tsx'
 
-type PolicyMode = 'follow' | 'custom'
-
-/** 一个游戏的备份与恢复页：顶部是备份设置，左侧是备份时间线，右侧是所选备份的文件和恢复入口。 */
+/** 一个游戏的备份与恢复页：顶部是备份库的保留份数和位置，左侧是备份时间线，右侧是所选备份的文件和恢复入口。 */
 export function BackupPage({
   roots,
   game,
@@ -55,7 +44,7 @@ export function BackupPage({
   readonly isActive: boolean
   readonly hasRunningWork: boolean
   readonly onOpenSettings: () => void
-  /** 打开应用设置，修改全局备份设置。 */
+  /** 打开应用设置，修改备份库设置。 */
   readonly onOpenAppSettings: () => void
   /** 确认恢复并开始执行后打开任务详情页。 */
   readonly onRestoreStarted: (restoreId: string, sourceName: string) => void
@@ -77,15 +66,11 @@ export function BackupPage({
     error: { context: string; error: ShownError } | null
   } | null>(null)
   const [restoreId, setRestoreId] = useState<string | null>(null)
-  const [isPolicyOpen, setIsPolicyOpen] = useState(false)
-  const [mode, setMode] = useState<PolicyMode>('follow')
-  const [draft, setDraft] = useState<SyncBackupPolicy | null>(null)
   const [isDeleteOpen, setIsDeleteOpen] = useState(false)
   const [manualTask, setManualTask] = useState<SyncManualBackupState | null>(null)
   const [isStartingManual, setIsStartingManual] = useState(false)
   const [isCancellingManual, setIsCancellingManual] = useState(false)
   const isCurrent = useRef(true)
-  const saving = useRef(Promise.resolve())
   const handledManualId = useRef<string | null>(null)
   const onChangedRef = useRef(onChanged)
   useLayoutEffect(() => {
@@ -319,41 +304,7 @@ export function BackupPage({
       </Empty>
     )
   }
-  const settings = info?.settings ?? null
-  const policy = settings && resolveBackupPolicy(settings, game.id)
-  function openPolicy(): void {
-    if (!policy) {
-      return
-    }
-    setMode(policy.isCustom ? 'custom' : 'follow')
-    setDraft({ shouldBackup: policy.shouldBackup, keepCount: policy.keepCount })
-    setIsPolicyOpen(true)
-  }
-  /** 弹窗里的改动立即保存，依次写入；跟随全局时删掉单独设置。 */
-  function savePolicy(nextMode: PolicyMode, nextDraft: SyncBackupPolicy): void {
-    if (!game) {
-      return
-    }
-    const projectId = game.id
-    setMode(nextMode)
-    setDraft(nextDraft)
-    setError(null)
-    const next = nextMode === 'custom' ? nextDraft : null
-    saving.current = saving.current
-      .then(async () => {
-        unwrap(await desktopBackups().setPreference(projectId, next))
-      })
-      .catch((cause: unknown) => {
-        if (isCurrent.current) {
-          setError({ context: t('backup.saveFailed'), error: toShownError(cause) })
-        }
-      })
-      .finally(() => {
-        if (isCurrent.current) {
-          refresh()
-        }
-      })
-  }
+  const keepCount = info?.settings.keepCount ?? null
   function prepare(): void {
     if (!selected || !rootId) {
       return
@@ -492,15 +443,13 @@ export function BackupPage({
   }
   return (
     <div className="library-stack">
-      {policy ? (
-        <BackupPolicyBlock
-          isEnabled={policy.shouldBackup}
-          keepCount={policy.keepCount}
-          isCustom={policy.isCustom}
+      {keepCount === null ? null : (
+        <BackupLibraryBlock
+          keepCount={keepCount}
           location={info?.displayPath ?? null}
-          onEdit={isLocked ? null : openPolicy}
+          onEdit={onOpenAppSettings}
         />
-      ) : null}
+      )}
       {messageHolder}
       {failureHolder}
       <div className="backup-actions-bar">
@@ -586,11 +535,11 @@ export function BackupPage({
           <section>
             <h3 className="group-title">
               {t('backup.list')}
-              {policy ? (
+              {keepCount === null ? null : (
                 <small>
-                  {backups.length} / {policy.keepCount}
+                  {backups.length} / {keepCount}
                 </small>
-              ) : null}
+              )}
             </h3>
             <BackupTimeline
               backups={backups.map((item) => ({
@@ -624,52 +573,6 @@ export function BackupPage({
         onCancel={() => setIsDeleteOpen(false)}
       >
         {selected ? t('backup.deleteText', { time: when(selected.createdAt) }) : null}
-      </Modal>
-      <Modal
-        open={isPolicyOpen}
-        title={t('backup.policyTitle', { name: game.name })}
-        footer={null}
-        onCancel={() => setIsPolicyOpen(false)}
-      >
-        {settings && draft ? (
-          <Form {...SETTING_FORM}>
-            <Form.Item label={t('backup.followGlobal')}>
-              <Switch
-                aria-label={t('backup.followGlobal')}
-                checked={mode === 'follow'}
-                disabled={isLocked}
-                onChange={(isFollowing) =>
-                  // 取消跟随时从当前显示的全局值开始单独设置。
-                  isFollowing
-                    ? savePolicy('follow', draft)
-                    : savePolicy('custom', settings.defaults)
-                }
-              />
-            </Form.Item>
-            {mode === 'follow' ? (
-              <>
-                <BackupPolicyFields policy={settings.defaults} isDisabled onChange={() => {}} />
-                <Form.Item label=" ">
-                  <Button
-                    type="link"
-                    onClick={() => {
-                      setIsPolicyOpen(false)
-                      onOpenAppSettings()
-                    }}
-                  >
-                    {t('backup.editGlobal')}
-                  </Button>
-                </Form.Item>
-              </>
-            ) : (
-              <BackupPolicyFields
-                policy={draft}
-                isDisabled={isLocked}
-                onChange={(next) => savePolicy('custom', next)}
-              />
-            )}
-          </Form>
-        ) : null}
       </Modal>
     </div>
   )

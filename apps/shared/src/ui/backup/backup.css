@@ -1,4 +1,4 @@
-/* 备份策略状态块：开启为绿色盾牌，关闭为灰色盾牌。 */
+/* 备份库状态块：保留份数和保存位置。 */
 .ss-policy {
   display: flex;
   align-items: center;
@@ -45,10 +45,6 @@
 .ss-policy-chevron {
   color: var(--ss-faint);
   font-size: 12px;
-}
-.ss-policy.is-off .ss-policy-icon {
-  background: var(--ss-raised);
-  color: var(--ss-muted);
 }
 
 /* 时间线左侧的日期与时间 */

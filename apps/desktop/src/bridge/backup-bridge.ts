@@ -1,19 +1,17 @@
 import {
   BATCH_LIMITS,
+  isBackupKeepCount,
   isOpaqueId,
   isOperationResult,
   isSyncBackupManifest,
-  isSyncBackupPolicy,
   isSyncBackupReason,
   isSyncBackupSettings,
   isSyncIncompleteBackup,
   isSyncManualBackupState,
-  resolveBackupPolicy,
 } from '@savedata-sync/shared'
 import type {
   OperationResult,
   SyncBackupManifest,
-  SyncBackupPolicy,
   SyncBackupReason,
   SyncBackupSettings,
   SyncIncompleteBackup,
@@ -53,20 +51,19 @@ export interface DesktopBackupApi {
   list(projectId: string): Promise<OperationResult<DesktopBackupList>>
   /** 读取一份备份的清单。 */
   manifest(projectId: string, backupId: string): Promise<OperationResult<SyncBackupManifest>>
-  /** 单独设置某个游戏；policy 为 null 时改回跟随全局。 */
-  setPreference(
-    projectId: string,
-    policy: SyncBackupPolicy | null,
-  ): Promise<OperationResult<SyncBackupSettings>>
-  /** 修改全局设置。 */
-  setDefaults(policy: SyncBackupPolicy): Promise<OperationResult<SyncBackupSettings>>
+  /**
+   * 修改备份库的保留份数；已有的备份到下一次轮换时才按新份数删除。
+   *
+   * @returns 有传输、恢复或手动备份在进行时返回 busy。
+   */
+  setKeepCount(keepCount: number): Promise<OperationResult<SyncBackupSettings>>
   /** 按保留份数删除这个游戏多余的旧备份；正在使用或不完整的备份保留。 */
   rotate(projectId: string): Promise<OperationResult<null>>
   /** 删除一份残留备份。 */
   cleanupIncomplete(projectId: string, backupId: string): Promise<OperationResult<null>>
   /** 删除一份已提交的备份。 */
   deleteBackup(projectId: string, backupId: string): Promise<OperationResult<null>>
-  /** 删除一个游戏的全部备份和单独设置。 */
+  /** 删除一个游戏的全部备份。 */
   deleteGameBackups(projectId: string): Promise<OperationResult<null>>
   /** 在系统文件管理器里打开备份文件夹。 */
   openFolder(): Promise<OperationResult<null>>
@@ -97,8 +94,7 @@ export const BACKUP_CHANNELS = {
   read: 'backup:read',
   list: 'backup:list',
   manifest: 'backup:manifest',
-  setPreference: 'backup:preference',
-  setDefaults: 'backup:defaults',
+  setKeepCount: 'backup:keep-count',
   rotate: 'backup:rotate',
   cleanupIncomplete: 'backup:cleanup-incomplete',
   deleteBackup: 'backup:delete',
@@ -222,30 +218,14 @@ export function createBackupBridge(
               value.projectId === projectId &&
               value.backupId === backupId,
           ),
-    setPreference: (projectId: string, policy: SyncBackupPolicy | null) =>
-      !isOpaqueId(projectId) || !(policy === null || isSyncBackupPolicy(policy))
-        ? Promise.resolve(invalid())
-        : call('setPreference', [{ projectId, policy }], (value): value is SyncBackupSettings => {
-            if (!isSyncBackupSettings(value)) {
-              return false
-            }
-            const saved = resolveBackupPolicy(value, projectId)
-            return policy
-              ? saved.isCustom &&
-                  saved.shouldBackup === policy.shouldBackup &&
-                  saved.keepCount === policy.keepCount
-              : !saved.isCustom
-          }),
-    setDefaults: (policy: SyncBackupPolicy) =>
-      !isSyncBackupPolicy(policy)
+    setKeepCount: (keepCount: number) =>
+      !isBackupKeepCount(keepCount)
         ? Promise.resolve(invalid())
         : call(
-            'setDefaults',
-            [{ policy }],
+            'setKeepCount',
+            [{ keepCount }],
             (value): value is SyncBackupSettings =>
-              isSyncBackupSettings(value) &&
-              value.defaults.shouldBackup === policy.shouldBackup &&
-              value.defaults.keepCount === policy.keepCount,
+              isSyncBackupSettings(value) && value.keepCount === keepCount,
           ),
     rotate: (projectId: string) =>
       !isOpaqueId(projectId)

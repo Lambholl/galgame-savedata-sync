@@ -124,6 +124,7 @@ export function RestoreDetails({
           plan={plan}
           source={{ name: sourceName, kind: 'backup' }}
           target={{ name: t('transfer.local'), kind: 'pc' }}
+          onBackupChange={null}
         />
       ) : (
         <Empty

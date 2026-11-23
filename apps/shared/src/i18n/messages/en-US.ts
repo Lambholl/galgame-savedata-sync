@@ -109,6 +109,7 @@ export const enUS: Messages = {
   'plan.stat.keep': 'Keep',
   'plan.stat.delete': 'Delete',
   'plan.backupOff': 'No backup before writing',
+  'plan.backupSwitch': 'Back up target files before writing',
   'plan.transferSize': ({ size }) => `Transfer ${size}`,
   'plan.group.replace': ({ count }) => `Overwrite ${count}`,
   'plan.group.replaceHint': 'Open a file to compare both sides',
@@ -252,9 +253,7 @@ export const enUS: Messages = {
   'game.noRemoteGames': 'No games on this device yet.',
   'game.noDevices': 'No devices to link yet.',
 
-  'backup.on': 'Auto backup is on',
-  'backup.off': 'Auto backup is off',
-  'backup.keep': ({ count }) => `keep ${count}`,
+  'backup.keep': ({ count }) => `Keep ${count} per game`,
   'backup.location': 'Location',
   'backup.openFolder': 'Open folder',
   'backup.list': 'Backups',
@@ -264,7 +263,7 @@ export const enUS: Messages = {
   'backup.files': ({ count, size }) => `${count} ${count === 1 ? 'file' : 'files'} · ${size}`,
   'backup.restore': 'Restore',
   'backup.none':
-    'No backups yet. You can back up the current save folder now, or turn on auto backup to save it before writing.',
+    'No backups yet. You can back up the current save folder now, or choose to back up before writing in the transfer plan.',
   'backup.manualStart': 'Back up now',
   'backup.manualScanning': 'Reading current files…',
   'backup.manualRunning': 'Backing up…',
@@ -284,7 +283,6 @@ export const enUS: Messages = {
   'backup.deleteTitle': 'Delete backup',
   'backup.deleteText': ({ time }) =>
     `Delete the backup from ${time}? You won't be able to restore from it afterwards.`,
-  'backup.switch': 'Auto backup',
   'backup.confirmRestore': 'Restore',
   'backup.cancelRestore': 'Cancel restore',
   'backup.preparing': 'Checking the backup and reading current files…',
@@ -305,11 +303,7 @@ export const enUS: Messages = {
   'plan.restoreBackup': 'Current files are backed up before restoring',
   'plan.backupOnPlain': 'Back up before writing',
 
-  'backup.followGlobal': 'Use global setting',
-  'backup.customSetting': 'Custom setting',
   'backup.keepCount': 'Copies to keep',
-  'backup.editGlobal': 'Change global setting',
-  'backup.policyTitle': ({ name }) => `Backups for ${name}`,
   'backup.saveFailed': 'Could not save backup settings',
   'backup.libraryLocation': 'Backup library location',
   'backup.libraryDefault': 'Default location',

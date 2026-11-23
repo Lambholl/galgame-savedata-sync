@@ -226,7 +226,6 @@ export async function startBackend(options: BackendOptions): Promise<DesktopBack
       scanner: new WindowsSyncScanner(adapter),
       archive,
       writer: syncWriter,
-      backups,
       deviceId: adapter.deviceId,
     })
     dialer.attachSync(dialerSync)
@@ -245,7 +244,6 @@ export async function startBackend(options: BackendOptions): Promise<DesktopBack
     registerBackupIpc(
       router,
       backups,
-      library,
       manualBackups,
       {
         openPath: (path) => host.openPath(path),

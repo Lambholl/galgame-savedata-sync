@@ -6,7 +6,7 @@ import type { Readable } from 'node:stream'
 import { finished } from 'node:stream/promises'
 import {
   BATCH_LIMITS,
-  EMPTY_BACKUP_SETTINGS,
+  DEFAULT_BACKUP_SETTINGS,
   SYNC_LIMITS,
   compareSyncPaths,
   isOpaqueId,
@@ -15,18 +15,13 @@ import {
   isSyncBackupSettings,
   isSyncPlan,
   isSyncSnapshot,
-  resolveBackupPolicy,
   selectSyncBackupFiles,
   syncPathKey,
-  withBackupDefaults,
-  withBackupPreference,
-  withoutGameBackups,
 } from '@savedata-sync/shared'
 import type {
   KnownOperationError,
   SyncBackupFile,
   SyncBackupManifest,
-  SyncBackupPolicy,
   SyncBackupReason,
   SyncBackupSettings,
   SyncIncompleteBackup,
@@ -557,13 +552,13 @@ export class WindowsBackupStore {
       }
     })
   }
-  /** 读取备份设置；设置文件不存在时返回默认设置，文件损坏或不是当前格式版本时抛错。 */
+  /** 读取备份库设置；设置文件不存在时返回默认设置，文件损坏或不是当前格式版本时抛错。 */
   settings(): Promise<SyncBackupSettings> {
     return this.exclusive(() => this.readSettings())
   }
   private async readSettings(): Promise<SyncBackupSettings> {
     if (!(await exists(this.settingsFile))) {
-      return EMPTY_BACKUP_SETTINGS
+      return DEFAULT_BACKUP_SETTINGS
     }
     const value: unknown = await readBackupJson(this.settingsFile)
     if (!isSyncBackupSettings(value)) {
@@ -571,18 +566,13 @@ export class WindowsBackupStore {
     }
     return value
   }
-  /** 单独设置某个游戏；policy 为 null 时改回跟随全局设置。 */
-  setPreference(projectId: string, policy: SyncBackupPolicy | null): Promise<SyncBackupSettings> {
-    group(projectId)
-    return this.exclusive(async () =>
-      this.writeSettings(withBackupPreference(await this.readSettings(), projectId, policy)),
-    )
-  }
-  /** 修改全局设置；单独设置的游戏不受影响。 */
-  setDefaults(policy: SyncBackupPolicy): Promise<SyncBackupSettings> {
-    return this.exclusive(async () =>
-      this.writeSettings(withBackupDefaults(await this.readSettings(), policy)),
-    )
+  /**
+   * 修改备份库的保留份数；已有的备份到下一次轮换时才按新份数删除。
+   *
+   * @throws ArchiveError keepCount 超出 BACKUP_KEEP_COUNT_MIN–BACKUP_KEEP_COUNT_MAX 时错误码为 resource-limit。
+   */
+  setKeepCount(keepCount: number): Promise<SyncBackupSettings> {
+    return this.exclusive(() => this.writeSettings({ schemaVersion: 4, keepCount }))
   }
   private async writeSettings(settings: SyncBackupSettings): Promise<SyncBackupSettings> {
     if (!isSyncBackupSettings(settings)) {
@@ -848,7 +838,7 @@ export class WindowsBackupStore {
     const rounds = (await this.rounds())
       .filter((round) => round.isComplete && isInGroup(round, projectId))
       .sort((a, b) => b.manifest.createdAt - a.manifest.createdAt)
-    const { keepCount } = resolveBackupPolicy(await this.readSettings(), projectId)
+    const { keepCount } = await this.readSettings()
     for (const round of rounds.slice(keepCount)) {
       if (![...this.handles.values()].includes(round.manifest.backupId)) {
         await this.remove(round)
@@ -950,7 +940,7 @@ export class WindowsBackupStore {
       }
     })
   }
-  /** 删除一个游戏在所有目录下的备份和单独设置。 */
+  /** 删除一个游戏在所有目录下的备份。 */
   deleteGameBackups(projectId: string): Promise<void> {
     if (!isOpaqueId(projectId)) {
       throw new ArchiveError('invalid-request', 'The game reference is invalid.')
@@ -961,7 +951,6 @@ export class WindowsBackupStore {
           await this.remove(round)
         }
       }
-      await this.writeSettings(withoutGameBackups(await this.readSettings(), projectId))
     })
   }
   /** 取消正在创建的备份并关闭恢复读流，之后的操作都会失败；已提交的备份保留。 */

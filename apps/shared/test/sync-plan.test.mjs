@@ -5,6 +5,7 @@ import {
   SYNC_MODIFIED_TOLERANCE_MS,
   createSyncPlan,
   isSyncPlan,
+  withSyncPlanChoices,
 } from '../src/index.ts'
 
 const DATE = 1700000000000
@@ -144,6 +145,20 @@ test('开启备份且有写入时备份目标的全部文件，关闭备份或�
   assert.equal(plan(SOURCE, TARGET).backupFileBytes, 0)
   const unchanged = [file('a.sav')]
   assert.equal(plan(unchanged, [file('a.sav')], { shouldBackup: true }).backupFileBytes, 0)
+})
+
+test('按计划页选项重新生成计划时，备份字节和备份预算问题随备份开关变化', () => {
+  const crowded = Array.from({ length: BATCH_LIMITS.maxFiles + 1 }, (_, index) =>
+    file(`f${index}.sav`),
+  )
+  const prepared = plan([file('f0.sav', 20)], crowded)
+  assert.equal(prepared.canExecute, true)
+  const backedUp = withSyncPlanChoices(prepared, { shouldBackup: true, shouldDeleteExtras: false })
+  assert.equal(backedUp.shouldBackup, true)
+  assert.equal(backedUp.canExecute, false)
+  assert.deepEqual(issueCodes(backedUp), ['resource-limit'])
+  const restored = withSyncPlanChoices(backedUp, { shouldBackup: false, shouldDeleteExtras: false })
+  assert.deepEqual(restored, prepared)
 })
 
 test('单个文件超过上限或文件数超过上限时阻止执行', () => {

@@ -26,6 +26,7 @@ function input(args: readonly unknown[], fields: readonly string[]): Record<stri
       (key) =>
         key !== 'plan' &&
         key !== 'direction' &&
+        key !== 'shouldBackup' &&
         key !== 'shouldDeleteExtras' &&
         !isOpaqueId(data[key]),
     )
@@ -129,14 +130,21 @@ export function registerSyncIpc(
             ? dialerSync.start(projectId, peerId, direction)
             : service.startRemoteSync(projectId, peerId, direction)
         } else if (action === 'confirmRemote') {
-          const data = input(args, ['requestId', 'shouldDeleteExtras'])
-          if (typeof data.shouldDeleteExtras !== 'boolean') {
+          const data = input(args, ['requestId', 'shouldBackup', 'shouldDeleteExtras'])
+          if (
+            typeof data.shouldBackup !== 'boolean' ||
+            typeof data.shouldDeleteExtras !== 'boolean'
+          ) {
             throw new HttpOperationError('invalid-request', 'The confirmation format is invalid.')
           }
           const id = data.requestId as string
+          const choices = {
+            shouldBackup: data.shouldBackup,
+            shouldDeleteExtras: data.shouldDeleteExtras,
+          }
           value = dialerSync.ownsRequest(id)
-            ? dialerSync.confirm(id, data.shouldDeleteExtras)
-            : service.confirmRemoteSync(id, data.shouldDeleteExtras)
+            ? dialerSync.confirm(id, choices)
+            : service.confirmRemoteSync(id, choices)
         } else if (action === 'remotePlan' || action === 'cancelRemote') {
           const id = input(args, ['requestId']).requestId as string
           if (dialerSync.ownsRequest(id)) {

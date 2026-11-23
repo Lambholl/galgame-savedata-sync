@@ -5,13 +5,12 @@ import type { SyncApplyResult, SyncDirection, SyncPlan, SyncSnapshot } from './s
 /** 复制请求里标识发起设备的 HTTP 头。 */
 export const SYNC_DEVICE_HEADER = 'x-sync-device-id'
 
-/** 目标端项目的元数据，包括目标端本机的备份设置。 */
+/** 对端项目的元数据。 */
 export interface SyncProjectDescriptor {
   readonly schemaVersion: 1
   readonly projectId: string
   readonly deviceId: string
   readonly rootId: string
-  readonly shouldBackup: boolean
 }
 
 /** 复制任务的登记请求；jobId 等于 plan.planId。 */
