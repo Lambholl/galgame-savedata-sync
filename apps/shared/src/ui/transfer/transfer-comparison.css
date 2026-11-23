@@ -280,3 +280,10 @@ button.ss-end:disabled {
   gap: 8px;
   min-height: 0;
 }
+/*
+ * 两列限高各自滚动，滚到头时不带动外层。不限高的文件列（如备份文件）不能这样设：
+ * 列本身滚不动时，contain 会让滚轮也滚不动外层页面。
+ */
+.ss-panes > .ss-pane {
+  overscroll-behavior: contain;
+}
