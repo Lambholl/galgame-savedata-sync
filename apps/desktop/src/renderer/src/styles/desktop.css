@@ -524,6 +524,42 @@ body {
   gap: 8px;
 }
 
+/* 在线搜索封面：顶部来源和关键词，NextMoe 作品标题行，下方固定高度的结果区 */
+.poster-search-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.poster-search-bar .ant-input-search {
+  flex: 1;
+  min-width: 240px;
+}
+.poster-work-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.poster-work-title {
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.poster-work-heading small {
+  flex: none;
+  color: var(--ss-faint);
+}
+/* 固定高度：切换来源和加载中时弹层不跳动。负边距留出卡片焦点框的位置。 */
+.poster-search-body {
+  height: min(60vh, 560px);
+  margin-inline: -4px;
+  padding: 4px;
+  overflow-y: auto;
+}
+
 /* 备份与恢复：顶部操作行、手动备份进度条，下方左侧时间线、右侧所选备份或恢复预览 */
 .backup-actions-bar {
   display: flex;

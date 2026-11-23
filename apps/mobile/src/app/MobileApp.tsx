@@ -12,6 +12,7 @@ import {
   toShownError,
   withGameLink,
   withoutGameLink,
+  withoutGamePoster,
   createImportedGame,
 } from '@savedata-sync/shared'
 import type {
@@ -22,6 +23,9 @@ import type {
   InterruptedWrite,
   LibraryGame,
   LibraryPeer,
+  PosterImageCandidate,
+  PosterImageData,
+  PosterOrigin,
   ShownError,
   SyncDirection,
 } from '@savedata-sync/shared'
@@ -40,9 +44,11 @@ import { PAGE_TITLE_KEYS } from './navigation-types'
 import {
   ErrorText,
   GameActions,
+  encodePosterWebp,
   restoreObservationPreview,
   syncTaskPreview,
   usePageNavigation,
+  usePosterUrls,
   useT,
 } from '@savedata-sync/shared/ui'
 import { useAppMessage } from './app-message'
@@ -65,6 +71,7 @@ import { transferFeedback } from '../features/transfer/transfer-feedback'
 import type { MobileSyncAdapter } from '../platform/sync-adapter'
 import { androidControl } from '../platform/http-transfers'
 import { allFilesAccess } from '../platform/all-files-access'
+import { androidPosters } from '../platform/posters'
 import '../styles/mobile.css'
 
 import { AddGameDialog } from '../features/games/AddGameDialog'
@@ -372,7 +379,9 @@ export function MobileApp({
     }
   }, [adapter])
   const config = snapshot?.config ?? savedConfig
-  const game = config.games.find((item) => item.id === gameId) ?? null
+  const posterUrls = usePosterUrls(config.games, androidPosters)
+  const gameIndex = config.games.findIndex((item) => item.id === gameId)
+  const game = config.games[gameIndex] ?? null
   const interruptedWrite = interruptedWrites[0] ?? null
   function dismissInterruptedWrite(): void {
     if (!interruptedWrite) {
@@ -556,6 +565,67 @@ export function MobileApp({
       if (result.status === 'selected') {
         await saveGame({ ...game, rootId: result.directory.rootId })
       }
+    })
+  }
+  async function savePoster(
+    target: LibraryGame,
+    image: PosterImageData,
+    source: PosterOrigin,
+  ): Promise<void> {
+    let data: string
+    try {
+      data = await encodePosterWebp(image)
+    } catch (cause) {
+      // 解码失败说明选的文件不是能识别的图片，换成能看懂的提示；其他失败照常显示。
+      if (cause instanceof OperationFailure && cause.code === 'invalid-request') {
+        throw new Error(t('poster.unreadable'), { cause })
+      }
+      throw cause
+    }
+    const posterHash = await androidPosters.save(target.id, data)
+    await saveGame({ ...target, posterHash, posterSource: source })
+    appMessage.show({ type: 'success', content: t('poster.saved'), slot: 'poster' })
+  }
+  function pickSearchedPoster(candidate: PosterImageCandidate): Promise<void> {
+    return new Promise((resolve, reject) => {
+      if (!game || operating.current) {
+        reject(new Error('busy'))
+        return
+      }
+      run(
+        async () => {
+          await savePoster(
+            game,
+            await androidPosters.downloadImage(candidate.downloadUrl),
+            candidate.source,
+          )
+          resolve()
+        },
+        (failure) => {
+          showError(failure)
+          reject(new Error(failure.message))
+        },
+      )
+    })
+  }
+  function pickLocalPoster(): void {
+    if (!game) {
+      return
+    }
+    run(async () => {
+      const image = await androidPosters.pickImage()
+      if (image) {
+        await savePoster(game, image, 'local')
+      }
+    })
+  }
+  function removePoster(): void {
+    if (!game) {
+      return
+    }
+    run(async () => {
+      await saveGame(withoutGamePoster(game))
+      appMessage.show({ type: 'success', content: t('poster.removed'), slot: 'poster' })
     })
   }
   function addGame(): void {
@@ -989,6 +1059,7 @@ export function MobileApp({
     body = (
       <GamesPage
         games={config.games}
+        posterUrls={posterUrls}
         online={online}
         isConnectionKnown={snapshot !== null}
         task={stripTask}
@@ -1003,10 +1074,16 @@ export function MobileApp({
         game={game}
         peers={peers}
         localRoot={localRoot}
+        posterUrl={posterUrls.get(game.id) ?? null}
+        coverIndex={gameIndex}
+        posters={androidPosters}
         isDisabled={isDisabled}
         isActive={isActive}
         onRename={renameGame}
         onChooseDirectory={chooseDirectory}
+        onPickSearchedPoster={pickSearchedPoster}
+        onPickPoster={pickLocalPoster}
+        onRemovePoster={removePoster}
         onLink={linkGame}
         onUnlink={unlinkGame}
         onTransfer={(deviceId) => {

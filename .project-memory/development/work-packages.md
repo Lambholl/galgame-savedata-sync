@@ -3,7 +3,7 @@ doc_type: work-packages
 status: active
 id_prefix: WP
 id_high_water: 69
-updated: 2026-11-23
+updated: 2026-11-24
 tags: [工作包]
 ---
 
@@ -20,9 +20,7 @@ tags: [工作包]
 
 | ID | 工作包 | 内容与完成标准 | 依赖 | 状态 |
 | --- | --- | --- | --- | --- |
-| WP-067 | 两端 HTTP 执行器与封面存储 | 电脑 sidecar 的 `desktopPoster` 通道和 Android `PosterPlugin`：受限执行器（https、接口和图片主机白名单、超时、大小上限）、封面文件读写删除、孤儿清理、`LibraryGame.posterHash`、本机选图（文件对话框、系统照片选择器）。电脑端已完成，剩 Android `PosterPlugin`。完成标准：两端各自经执行器拿到四个来源的真实响应；保存、读取、替换、移除封面和移除游戏后文件状态正确 | Q-023 | active |
-| WP-068 | 封面界面 | `GameCard` 显示封面；游戏页“封面”入口；搜索弹层（来源切换、关键词、候选网格、NextMoe 两步）；canvas 缩放；四语言文案。完成标准：两端从四个来源和本机各设置一次封面，重启后仍显示；明暗主题和移动端窄屏布局正确 | WP-067 | planned |
-| WP-069 | 导入游戏时取对端封面 | `CatalogGame.posterHash`、控制通道 `poster.read`、`PROTOCOL_VERSION` 升到 4，电脑和 Android（`ListenerControl`、`ControlClient` 等）两端同时改；导入流程取封面，失败不挡导入。完成标准：监听方和拨号方互相导入带封面的游戏，四种设备组合中至少电脑/电脑和电脑/Android 实测 | WP-067、Q-024 | planned |
+| WP-069 | 导入游戏时取对端封面 | `CatalogGame.posterHash`、控制通道 `poster.read`、`PROTOCOL_VERSION` 升到 4，电脑和 Android（`ListenerControl`、`ControlClient` 等）两端同时改；导入流程取封面，失败不挡导入。完成标准：监听方和拨号方互相导入带封面的游戏，四种设备组合中至少电脑/电脑和电脑/Android 实测 | Q-024 | planned |
 
 ## 2. 执行与拆分规则
 

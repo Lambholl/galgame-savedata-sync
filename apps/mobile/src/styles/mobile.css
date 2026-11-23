@@ -206,8 +206,9 @@ summary,
 .adm-button-fill-none:not(.adm-stepper > *) {
   padding: 6px;
 }
-/* Stepper 的内嵌 Input 保留组件原生外观，不套用普通输入框的边框和尺寸。 */
-.adm-input:not(.adm-stepper *) {
+/* Stepper 和 SearchBar 的内嵌 Input 保留组件原生外观，不套用普通输入框的边框和尺寸：
+   SearchBar 自己画外框，内嵌 Input 再加边框和底色会在框里套一层框，放大镜落在里层框外面。 */
+.adm-input:not(.adm-stepper *, .adm-search-bar *) {
   padding: 0 10px;
   min-height: var(--mobile-primary-height);
   width: 100%;
@@ -216,7 +217,7 @@ summary,
   background: var(--ss-raised);
   --font-size: 14px;
 }
-.adm-input-element:not(.adm-stepper *) {
+.adm-input-element:not(.adm-stepper *, .adm-search-bar *) {
   min-height: 38px;
   color: var(--ss-fg);
 }
@@ -225,7 +226,21 @@ summary,
   outline: none;
   box-shadow: none;
 }
-.adm-input-clear {
+/* SearchBar 默认用 --adm-color-fill-content 填底，它经 --adm-color-box 映射到 --ss-group，和弹层同色看不出框；
+   改成透明底加描边，圆角和高度同普通输入框。 */
+.adm-search-bar {
+  --height: var(--mobile-primary-height);
+  --padding-left: 12px;
+  --background: transparent;
+  --border-radius: var(--ss-r-sm);
+}
+.adm-search-bar .adm-search-bar-input-box {
+  border-color: var(--ss-line);
+}
+.adm-search-bar-active .adm-search-bar-input-box {
+  background: transparent;
+}
+.adm-input-clear:not(.adm-search-bar *) {
   width: 36px;
   min-height: 36px;
   display: flex;
@@ -955,6 +970,45 @@ html.camera-live .app-heading {
 }
 .sheet-content {
   padding-bottom: 4px;
+}
+
+/* 在线搜索封面：关键词、来源，NextMoe 作品标题行，下方固定高度的结果区。 */
+.poster-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+/* 来源标签没有内容面板，空的内容区不占位置。 */
+.poster-sheet .adm-tabs {
+  --title-font-size: 15px;
+}
+.poster-sheet .adm-tabs-content {
+  display: none;
+}
+.poster-work-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.poster-work-title {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.poster-work-heading small {
+  flex: none;
+  color: var(--ss-faint);
+}
+/* 固定高度：切换来源和加载中时弹层不跳动。负边距留出卡片焦点框的位置。 */
+.poster-sheet-body {
+  height: 56dvh;
+  margin-inline: -4px;
+  padding: 4px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 .confirmation-text {
   margin-bottom: 14px;

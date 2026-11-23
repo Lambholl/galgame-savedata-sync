@@ -1,7 +1,13 @@
 import { useEffect, useState } from 'react'
 import { ActionSheet, Button, Input } from 'antd-mobile'
 import { EditOutlined, MoreOutlined, PlusOutlined } from '@ant-design/icons'
-import type { DirectoryReference, LibraryGame, LibraryPeer } from '@savedata-sync/shared'
+import type {
+  DirectoryReference,
+  LibraryGame,
+  LibraryPeer,
+  PosterAdapter,
+  PosterImageCandidate,
+} from '@savedata-sync/shared'
 import {
   FolderRow,
   LinkedDeviceList,
@@ -9,9 +15,11 @@ import {
   linkedDevices,
   linkPickerDevices,
   linkPickerGames,
+  PosterRow,
   useT,
 } from '@savedata-sync/shared/ui'
 import { Sheet } from '../../components/Sheet'
+import { PosterSearchSheet } from './PosterSearchSheet'
 
 /** 关联弹层的状态：link 先选设备再选游戏；relink 设备已定，只改对应的游戏。 */
 interface LinkDraft {
@@ -20,15 +28,21 @@ interface LinkDraft {
   readonly gameId: string | null
 }
 
-/** 游戏设置：名称就地编辑，本机目录一行，关联设备列表；关联与解除都在弹层里完成。 */
+/** 游戏设置：名称就地编辑，本机目录和封面各一行，关联设备列表；关联、解除和搜索封面都在弹层里完成。 */
 export function GameSettingsPage({
   game,
   peers,
   localRoot,
+  posterUrl,
+  coverIndex,
+  posters,
   isDisabled,
   isActive,
   onRename,
   onChooseDirectory,
+  onPickSearchedPoster,
+  onPickPoster,
+  onRemovePoster,
   onLink,
   onUnlink,
   onTransfer,
@@ -38,10 +52,20 @@ export function GameSettingsPage({
   readonly game: LibraryGame
   readonly peers: readonly LibraryPeer[]
   readonly localRoot: DirectoryReference | null
+  /** 封面图地址；没有封面或还没读出时为 null。 */
+  readonly posterUrl: string | null
+  /** 占位封面的配色序号，和游戏卡片一致。 */
+  readonly coverIndex: number
+  /** 在线搜索封面用的适配器。 */
+  readonly posters: PosterAdapter
   readonly isDisabled: boolean
   readonly isActive: boolean
   readonly onRename: (value: string) => void
   readonly onChooseDirectory: () => void
+  /** 下载并保存搜索选中的图片，成功后 resolve，搜索弹层随之关闭。 */
+  readonly onPickSearchedPoster: (candidate: PosterImageCandidate) => Promise<void>
+  readonly onPickPoster: () => void
+  readonly onRemovePoster: () => void
   /** 关联或改为对应其他游戏，成功后 resolve。 */
   readonly onLink: (deviceId: string, gameId: string) => Promise<void>
   readonly onUnlink: (deviceId: string) => void
@@ -63,7 +87,11 @@ ${game.name}`
   const [draft, setDraft] = useState<LinkDraft | null>(null)
   const [menuDeviceId, setMenuDeviceId] = useState<string | null>(null)
   const [isLinking, setIsLinking] = useState(false)
-  const isOverlayOpen = draft !== null || menuDeviceId !== null
+  const [isPosterSearchOpen, setIsPosterSearchOpen] = useState(false)
+  const [isPosterMenuOpen, setIsPosterMenuOpen] = useState(false)
+  const [posterSavingId, setPosterSavingId] = useState<string | null>(null)
+  const isOverlayOpen =
+    draft !== null || menuDeviceId !== null || isPosterSearchOpen || isPosterMenuOpen
   useEffect(() => {
     if (!isOverlayOpen) {
       return
@@ -71,9 +99,12 @@ ${game.name}`
     onOverlayChange(() => {
       setDraft(null)
       setMenuDeviceId(null)
+      setIsPosterMenuOpen(false)
+      // 保存中关不掉搜索弹层，和点遮罩、关闭按钮一样。
+      setIsPosterSearchOpen((isOpen) => isOpen && posterSavingId !== null)
     })
     return () => onOverlayChange(null)
-  }, [isOverlayOpen, onOverlayChange])
+  }, [isOverlayOpen, onOverlayChange, posterSavingId])
   const isLocked = isDisabled || isActive
   const items = linkedDevices(game, peers, 'pc', t('game.deviceRemoved'))
   const menuItem = items.find((item) => item.deviceId === menuDeviceId)
@@ -116,6 +147,17 @@ ${game.name}`
       .catch(() => undefined)
       .finally(() => setIsLinking(false))
   }
+  function pickSearchedPoster(candidate: PosterImageCandidate): void {
+    if (posterSavingId !== null) {
+      return
+    }
+    setPosterSavingId(candidate.id)
+    onPickSearchedPoster(candidate)
+      .then(() => setIsPosterSearchOpen(false))
+      // 失败已由应用提示，弹层留着让用户换一张。
+      .catch(() => undefined)
+      .finally(() => setPosterSavingId(null))
+  }
   return (
     <div className="page-stack">
       <label className="name-edit">
@@ -136,6 +178,26 @@ ${game.name}`
           path={localRoot?.displayPath ?? null}
           isLost={localRoot !== null && localRoot.authorization !== 'granted'}
           onChange={isLocked ? null : onChooseDirectory}
+        />
+      </section>
+      <section>
+        <h3 className="group-title">{t('poster.section')}</h3>
+        <PosterRow
+          hasPoster={Boolean(game.posterHash)}
+          posterSource={game.posterSource ?? null}
+          posterUrl={posterUrl}
+          coverIndex={coverIndex}
+          actions={null}
+          menu={
+            <Button
+              fill="none"
+              aria-label={t('poster.menu')}
+              disabled={isDisabled}
+              onClick={() => setIsPosterMenuOpen(true)}
+            >
+              <MoreOutlined />
+            </Button>
+          }
         />
       </section>
       <section>
@@ -246,6 +308,36 @@ ${game.name}`
           }
         }}
         onClose={() => setMenuDeviceId(null)}
+      />
+      <PosterSearchSheet
+        isOpen={isPosterSearchOpen}
+        gameName={game.name}
+        adapter={posters}
+        savingId={posterSavingId}
+        onPick={pickSearchedPoster}
+        onClose={() => setIsPosterSearchOpen(false)}
+      />
+      <ActionSheet
+        visible={isPosterMenuOpen}
+        cancelText={t('common.cancel')}
+        actions={[
+          { key: 'search', text: t('poster.search'), disabled: isDisabled },
+          { key: 'local', text: t('poster.local'), disabled: isDisabled },
+          ...(game.posterHash
+            ? [{ key: 'remove', text: t('poster.remove'), danger: true, disabled: isDisabled }]
+            : []),
+        ]}
+        onAction={(action) => {
+          setIsPosterMenuOpen(false)
+          if (action.key === 'search') {
+            setIsPosterSearchOpen(true)
+          } else if (action.key === 'local') {
+            onPickPoster()
+          } else {
+            onRemovePoster()
+          }
+        }}
+        onClose={() => setIsPosterMenuOpen(false)}
       />
     </div>
   )

@@ -6,6 +6,7 @@ import {
   formatConnectionAddress,
   withGameLink,
   withoutGameLink,
+  withoutGamePoster,
   createImportedGame,
   OperationFailure,
   toShownError,
@@ -18,10 +19,14 @@ import type {
   InterruptedWrite,
   LibraryGame,
   LibraryPeer,
+  PosterImageCandidate,
+  PosterImageData,
+  PosterOrigin,
 } from '@savedata-sync/shared'
 import type { DesktopSnapshot } from '../platform/library-types.ts'
 import type { DesktopDialResult, DesktopNearbyDevice } from '../../../bridge/dialer-bridge.ts'
 import { createDesktopLibraryAdapter } from '../platform/library-adapter.ts'
+import { createDesktopPosterAdapter } from '../platform/poster-adapter.ts'
 import { desktopBackups, desktopDataReset, desktopSync } from '../platform/sync-adapter.ts'
 import { ConfirmationDialog } from '../components/ConfirmationDialog.tsx'
 import { InterruptedWriteDialog } from '../components/InterruptedWriteDialog.tsx'
@@ -41,6 +46,7 @@ import {
 } from '@savedata-sync/shared/ui'
 import { useAppMessage } from './app-message.ts'
 import { useShowFailure } from './failure-message.ts'
+import { encodePosterWebp, usePosterUrls } from '@savedata-sync/shared/ui'
 import type { TaskStripInfo } from '@savedata-sync/shared/ui'
 import { PAGE_TITLE_KEYS } from './navigation.ts'
 import type { Confirmation, Page, PageContext } from './navigation.ts'
@@ -48,6 +54,7 @@ import { BackupPage } from '../features/backup/BackupPage.tsx'
 import { DevicesPage } from '../features/devices/DevicesPage.tsx'
 import { GamesPage } from '../features/games/GamesPage.tsx'
 import { GameSettingsPage } from '../features/games/GameSettingsPage.tsx'
+import { PosterSearchModal } from '../features/games/PosterSearchModal.tsx'
 import { SettingsPage } from '../features/settings/SettingsPage.tsx'
 import { TaskPage } from '../features/transfer/TaskPage.tsx'
 import { TransferPage } from '../features/transfer/TransferPage.tsx'
@@ -56,6 +63,8 @@ import { AddGameDialog } from '../features/games/AddGameDialog'
 
 const EMPTY = emptyLibrary()
 const ADAPTER = createDesktopLibraryAdapter()
+// 搜索按来源限流排队，整个窗口共用一个适配器。
+const POSTERS = createDesktopPosterAdapter()
 
 const COPY_MESSAGE_TYPES = {
   done: 'success',
@@ -127,6 +136,9 @@ export function DesktopApp({
   const [connectingId, setConnectingId] = useState<string | null>(null)
   const [isAddDeviceOpen, setIsAddDeviceOpen] = useState(false)
   const [addressDraft, setAddressDraft] = useState('')
+  const [isPosterSearchOpen, setIsPosterSearchOpen] = useState(false)
+  // 正在保存的搜索候选；只在 isBusy 时有效，run 结束后不必清空。
+  const [posterSavingId, setPosterSavingId] = useState<string | null>(null)
   // 轮询要读到当前页面：只在设备页续期局域网搜索。
   const pageRef = useRef(page)
   useLayoutEffect(() => {
@@ -300,8 +312,11 @@ export function DesktopApp({
       })
   }
   const config = snapshot?.config ?? EMPTY
+  const posterUrls = usePosterUrls(config.games, POSTERS)
   const port = portDraft === undefined ? (snapshot?.service?.port ?? null) : portDraft
   const game = config.games.find((item) => item.id === gameId) ?? null
+  // 离开设置页或游戏被删除时弹层跟着关闭。
+  const isPosterSearchShown = isPosterSearchOpen && page === 'edit' && game !== null
   const interruptedWrite = interruptedWrites[0] ?? null
   const peers = snapshot?.peers ?? []
   const online = peers.find((item) => item.isConnected) ?? null
@@ -407,6 +422,55 @@ export function DesktopApp({
       if (result.status === 'selected') {
         await saveGame({ ...game, rootId: result.directory.rootId })
       }
+    })
+  }
+  async function savePoster(
+    target: LibraryGame,
+    image: PosterImageData,
+    source: PosterOrigin,
+  ): Promise<void> {
+    let data: string
+    try {
+      data = await encodePosterWebp(image)
+    } catch (cause) {
+      // 解码失败说明选的文件不是能识别的图片，换成能看懂的提示；其他失败照常显示。
+      if (cause instanceof OperationFailure && cause.code === 'invalid-request') {
+        throw new Error(t('poster.unreadable'), { cause })
+      }
+      throw cause
+    }
+    const posterHash = await POSTERS.save(target.id, data)
+    await saveGame({ ...target, posterHash, posterSource: source })
+    appMessage.show({ type: 'success', content: t('poster.saved'), slot: 'poster' })
+  }
+  function pickSearchedPoster(candidate: PosterImageCandidate): void {
+    if (!game) {
+      return
+    }
+    setPosterSavingId(candidate.id)
+    run(async () => {
+      await savePoster(game, await POSTERS.downloadImage(candidate.downloadUrl), candidate.source)
+      setIsPosterSearchOpen(false)
+    })
+  }
+  function pickLocalPoster(): void {
+    if (!game) {
+      return
+    }
+    run(async () => {
+      const image = await POSTERS.pickImage()
+      if (image) {
+        await savePoster(game, image, 'local')
+      }
+    })
+  }
+  function removePoster(): void {
+    if (!game) {
+      return
+    }
+    run(async () => {
+      await saveGame(withoutGamePoster(game))
+      appMessage.show({ type: 'success', content: t('poster.removed'), slot: 'poster' })
     })
   }
   function addGame(): void {
@@ -719,6 +783,7 @@ export function DesktopApp({
     body = (
       <GamesPage
         games={config.games}
+        posterUrls={posterUrls}
         online={online}
         task={stripTask}
         hasImportableGames={Boolean(importable.length)}
@@ -744,10 +809,15 @@ export function DesktopApp({
         game={game}
         peers={peers}
         localRoot={localRoot}
+        posterUrl={posterUrls.get(game.id) ?? null}
+        coverIndex={config.games.indexOf(game)}
         isDisabled={isDisabled}
         isActive={isActive}
         onRename={renameGame}
         onChooseDirectory={chooseDirectory}
+        onSearchPoster={() => setIsPosterSearchOpen(true)}
+        onPickPoster={pickLocalPoster}
+        onRemovePoster={removePoster}
         onLink={linkGame}
         onUnlink={unlinkGame}
         onTransfer={(deviceId) => {
@@ -975,6 +1045,14 @@ export function DesktopApp({
             .then(unwrap)
             .catch((cause: unknown) => showError(toShownError(cause)))
         }}
+      />
+      <PosterSearchModal
+        open={isPosterSearchShown}
+        gameName={game?.name ?? ''}
+        adapter={POSTERS}
+        savingId={isBusy ? posterSavingId : null}
+        onPick={pickSearchedPoster}
+        onClose={() => setIsPosterSearchOpen(false)}
       />
       <InterruptedWriteDialog
         gameName={

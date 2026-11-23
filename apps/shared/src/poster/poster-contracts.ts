@@ -7,6 +7,14 @@ export type PosterSource = 'vndb' | 'nextmoe' | 'bangumi' | 'steam'
 /** 全部封面搜索来源，按界面的显示顺序排列。 */
 export const POSTER_SOURCES: readonly PosterSource[] = ['vndb', 'nextmoe', 'bangumi', 'steam']
 
+/** 已保存封面的出处：搜索来源之一，或 local（本机图片）。 */
+export type PosterOrigin = PosterSource | 'local'
+
+/** 判断值是否是 PosterOrigin。 */
+export function isPosterOrigin(value: unknown): value is PosterOrigin {
+  return value === 'local' || POSTER_SOURCES.some((source) => source === value)
+}
+
 /** 封面搜索的数量和大小上限，两端相同。 */
 export const POSTER_LIMITS = {
   /** 一次搜索最多返回的候选数。 */
@@ -21,6 +29,14 @@ export const POSTER_LIMITS = {
   maxSavedBytes: 1024 * 1024,
   /** 同时下载的预览图数量上限。 */
   maxPreviewDownloads: 4,
+} as const
+
+/** 保存的封面图：等比缩小到宽高上限以内（小图不放大），编码成 WebP。 */
+export const POSTER_OUTPUT = {
+  maxWidth: 720,
+  maxHeight: 960,
+  /** WebP 编码质量，0～1。 */
+  webpQuality: 0.85,
 } as const
 
 /** 执行器的超时，单位毫秒。 */

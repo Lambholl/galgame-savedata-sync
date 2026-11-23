@@ -8,6 +8,7 @@ import { GameCard } from './GameCard.tsx'
 /** 游戏页：游戏卡片列表、任务横条，以及添加和导入游戏的入口。 */
 export function GamesPage({
   games,
+  posterUrls,
   online,
   task,
   hasImportableGames,
@@ -18,6 +19,8 @@ export function GamesPage({
   onOpenTasks,
 }: {
   readonly games: readonly LibraryGame[]
+  /** 键是游戏 ID 的封面图地址；没有的游戏显示占位封面。 */
+  readonly posterUrls: ReadonlyMap<string, string>
   readonly online: LibraryPeer | null
   readonly task: TaskStripInfo | null
   readonly hasImportableGames: boolean
@@ -51,7 +54,13 @@ export function GamesPage({
       {games.length ? (
         <div className="library-game-grid">
           {games.map((item, index) => (
-            <GameCard key={item.id} game={item} coverIndex={index} onOpenGame={onOpenGame} />
+            <GameCard
+              key={item.id}
+              game={item}
+              coverIndex={index}
+              posterUrl={posterUrls.get(item.id) ?? null}
+              onOpenGame={onOpenGame}
+            />
           ))}
         </div>
       ) : (

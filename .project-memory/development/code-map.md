@@ -1,7 +1,7 @@
 ---
 doc_type: code-map
 status: active
-updated: 2026-11-23
+updated: 2026-11-24
 tags: [代码地图]
 ---
 
@@ -42,6 +42,7 @@ tags: [代码地图]
 | `apps/shared/src/sync/` | 本次扫描/计划/备份/结果 DTO、路径关系、纯比较及上下文重算守卫 | 独立 schema 1；不做 IO、哈希计算或历史查询；复制方向显式，本机恢复强制保护当前内容 |
 | `apps/shared/src/control`；Windows `backend/control-hub.ts`、`backend/dialer-control.ts`；Java `ControlClient.java`、`TransferEngine.java` 控制部分；移动 `platform/control-channel.ts`、`features/transfer/use-remote-sync.ts` | WebSocket 控制通道 `/v1/control`：目录读取、电脑发起复制、完成回报、目录表变化通知和在线判断 | 消息格式对称，按监听方和拨号方区分；HTTP 服务核实身份后才升级；两端严格校验每条消息；文件内容不走控制通道 |
 | `apps/shared/src/poster/`、`test/poster-search.test.mjs` | 封面搜索：四个来源的请求生成与响应解析、按来源限流、错误码、接口和图片主机白名单 | 只生成请求和解析响应，HTTP 由各端执行器完成；执行器在请求前用 `isPosterRequestAllowed`、`isPosterImageUrl` 检查地址，Android 原生不能导入共享包，白名单和上限要在 Java 里写同样的值。接口事实见[游戏封面](../architecture/poster.md) |
+| `apps/shared/src/poster/poster-adapter.ts`、`apps/shared/src/ui/poster/`；电脑 `renderer/src/features/games/PosterSearchModal.tsx`、`platform/poster-adapter.ts`；移动 `features/games/PosterSearchSheet.tsx`、`platform/poster-bridge.ts`、`posters.ts` | 封面界面：`PosterApi` 到 `PosterAdapter` 的适配、卡片和缩略图共用的 `PosterCover`、设置页封面一行、候选网格、搜索状态、canvas 缩放编码、`usePosterSearch` 和 `usePosterUrls`；各端的搜索弹层和适配器入口 | 每个应用只建一个 `PosterAdapter`，搜索限流在适配器内排队；`blob:` URL 由创建它的 Hook 在不再需要和卸载时释放；WebView 不直接请求外网，预览也经执行器下载；设计见[游戏封面](../architecture/poster.md#8-界面) |
 | `apps/shared/src/connection` | DNS-SD 服务类型、实例名和 TXT，连接二维码文本，候选连接地址 | 监听方生成、拨号方解析，不按平台区分；解析结果分 valid、unsupported-version、invalid，版本先于其他字段检查；地址只用于连接，身份以 `/v1/device` 为准 |
 | `apps/shared/src/ui/navigation/page-navigation.ts`、`use-page-navigation.ts` | 两端共用的页面导航：前者是来源记录、返回目标和切页方向的纯函数，后者把它接到 React 状态 | 页面名称和上下文由各端定义；跳转关系写在 DesktopApp、MobileApp |
 | `apps/shared/test/` | 运行时数据关系回归；字段和线格式见[共享包](../architecture/shared-package.md) | — |
@@ -101,6 +102,7 @@ Java 源码都在 `apps/mobile/android/app/src/main/java/io/github/galgame/saved
 | `BackupStore/Model/Files.java`、`AndroidBackupIo.java`、`ManualBackupRuntime.java`、`SyncBackupsPlugin.java`；移动 `platform/backup-bridge.ts`、`backups.ts` | 用户可手动管理的持久备份、本机异步手动备份、按份数平级轮换、恢复材料引用和有限本机查询 | 写 `Android/data/<包名>/files/backups`，设置留在内部目录；`ManualBackupRuntime` 由 `DirectoryRuntime` 持有，Activity 销毁不中断，与传输和恢复共用 `TargetOperation` 名额；真实身份和链接数用 Os.lstat 检查；数据不跨桥；供 SyncWriter 复用 |
 | `SyncPlanModel.java`、`SyncWriter.java`、`DirectorySyncBackend.java`、`SyncWriteRuntime.java`、`SyncWritesPlugin.java`、`TargetOperation.java`；移动 `platform/sync-write-bridge.ts`、`sync-writes.ts` | 确认计划的独立复核、SAF 目录创建/受保护覆盖与本机恢复、应用级任务及有限桥 | 整批复核和备份后写入，接收远端内容时等内容收齐并重新核对目标；常规 FD 身份/rw/最终长度，写后设来源的修改日期；复制和恢复共用 `TargetOperation` 互斥，恢复预览与结果各有查询入口；应用不判断前后台 |
 | `SyncJobModel.java`、`SyncTransferEngine/Runtime.java`、`SyncTransfersPlugin.java`；移动 `platform/sync-transfer-bridge.ts`、`sync-transfers.ts`；Windows `main/sync-registry.ts`、`upload-body.ts` | 双向复制的普通扫描准备、同次确认、边打包边上传或边下载边解包、接收端与传输并行的备份、保护后写入及实际结果查询；`SyncTransferRuntime` 按对方设备把请求交给拨号方编排或本机服务的监听方任务 | 登记和内容各一次，回执丢失只查询；两端任务共用原生名额，只有实际传输保持通知，长源读取通过原生心跳确认通信；页面重建按 ID 查询，不恢复或重放 |
+| `PosterPlugin.java`、`PosterHttp.java`、`PosterStore.java`、`PosterRules.java`、`PosterFailure.java` | Android 封面执行器：接口请求、图片下载、系统照片选择器、封面文件的保存、读取和启动清理 | `PosterRules` 的白名单、上限和超时照抄共享包，改共享包时一起改；`PosterStore` 不用 Android API，文件读写在插件的单个文件线程上串行；设计见[游戏封面](../architecture/poster.md#6-封面存储) |
 | `DeviceDiscoveryPlugin.java`、`DiscoveryBrowser.java`；移动 `platform/device-discovery.ts` | 局域网 DNS-SD 搜索：NsdManager 搜索与解析、按订阅者启停的 TS 桥，以及按设备 ID 限时查找的 `findDevice` | 原生只给实例名、端口、IPv4 和 TXT 文本，TXT 在 TS 用 shared 校验；状态在原生单个 worker 线程上 |
 | `ListenerServer/Http/Socket/Control/Library.java`、`ListenerSyncJobs.java`、`ListenerSyncRequests.java`、`ListenerAdvertiser.java`、`ListenerRuntime.java`、`ListenerService.java`、`LocalServicePlugin.java`；`src/test/.../ListenerServerTest.java` | 本机服务（监听方）：HTTP/1.1 和 WebSocket 服务、控制通道监听端、目录表交换、`/v1/sync/*` 任务登记和内容收发、本机发起的传输经控制通道交给拨号方、NsdManager 广播、前台服务和网页接口 | 每条连接一个线程；同一时间一台设备在线，本机拨号时对新连接返回 busy；目录表交换在原生层写配置（经 `AppStoragePlugin` 的锁），Activity 销毁后仍能连接；接口见 [Android 平台层](../architecture/android.md#14-本机服务监听方) |
 | `QrScannerPlugin.java`、`QrCameraSession.java`、`QrFrameDecoder.java`；移动 `platform/qr-scanner.ts`、`features/devices/ScanPage.tsx` | 扫码：相机权限、取景、逐帧识别二维码，扫到后交给 `connectCandidates` | 原生只给二维码原文，内容在 TS 用 shared 的 `parseConnectionQrText` 校验；相机绑定 Activity 生命周期，取景画面在透明的 WebView 下面，页面用 html 上的 `camera-live` 让出背景 |

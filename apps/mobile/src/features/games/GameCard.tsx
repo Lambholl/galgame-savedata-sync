@@ -6,10 +6,13 @@ import { useLongPress } from '../../components/use-long-press'
 export function GameCard({
   game,
   coverIndex,
+  posterUrl,
   onOpenGame,
 }: {
   readonly game: LibraryGame
   readonly coverIndex: number
+  /** 封面图地址；没有封面或还没读出时为 null。 */
+  readonly posterUrl: string | null
   readonly onOpenGame: (game: LibraryGame) => void
 }): React.JSX.Element {
   const longPress = useLongPress(() => () => onOpenGame(game))
@@ -19,6 +22,7 @@ export function GameCard({
         gameName={game.name}
         linkCount={game.links.length}
         coverIndex={coverIndex}
+        posterUrl={posterUrl}
         onOpen={() => onOpenGame(game)}
       />
     </div>

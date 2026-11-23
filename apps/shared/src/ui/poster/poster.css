@@ -1,0 +1,108 @@
+/* 有封面图时铺满 3:4 区域；交互遮罩叠在图片上面，占位封面的弧线装饰不画。 */
+.ss-game-cover.has-poster {
+  padding: 0;
+  background: var(--ss-raised);
+}
+.ss-game-cover.has-poster img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.ss-game-cover.has-poster::before {
+  z-index: 1;
+}
+.ss-game-cover.has-poster::after {
+  display: none;
+}
+
+/* 列表行里的缩略图，宽度同目录行的图标，不参与伸缩；太小放不下文字。 */
+.ss-game-cover.ss-poster-thumb {
+  flex: none;
+  width: 36px;
+  padding: 4px;
+  border-radius: var(--ss-r-xs);
+}
+.ss-game-cover.ss-poster-thumb strong {
+  display: none;
+}
+
+/* 标题、说明行在左，按钮组在右；放不下时（is-stacked）按钮组换到下面，说明行并到标题后面。
+   标题和说明行按内容宽度排版，PosterRow 据此判断放不放得下。 */
+.ss-poster-row-main {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 8px 12px;
+  min-width: 0;
+}
+/* 文字不收缩：收缩后量到的就不是原本宽度，放不下时也判断不出来。 */
+.ss-poster-row-main .ss-list-body {
+  flex: 1 0 auto;
+  align-items: flex-start;
+}
+.ss-poster-row-main.is-stacked {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px 12px;
+  margin-block: 0px;
+}
+.ss-poster-row-main.is-stacked .ss-list-body {
+  flex-flow: row wrap;
+  align-items: baseline;
+  gap: 2px 8px;
+  align-self: stretch;
+}
+.ss-poster-row-actions {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+/* 候选网格 */
+.ss-poster-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 14px;
+}
+.ss-poster-grid.is-compact {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px 10px;
+}
+.ss-poster-chip {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  z-index: 2;
+  padding: 2px 8px;
+  border-radius: var(--ss-r-pill);
+  background: rgb(0 0 0 / 55%);
+  color: #fff;
+  font-size: 12px;
+  line-height: 20px;
+}
+.ss-poster-saving {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  background: rgb(255 255 255 / 55%);
+}
+:root[data-theme='dark'] .ss-poster-saving {
+  background: rgb(0 0 0 / 45%);
+}
+.ss-game-card.ss-poster-candidate.ant-btn:disabled {
+  opacity: 0.45;
+}
+
+/* 加载、无结果和失败时占满结果区并居中。 */
+.ss-poster-state {
+  display: grid;
+  min-height: 100%;
+  place-items: center;
+  text-align: center;
+}

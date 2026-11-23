@@ -11,26 +11,14 @@ import {
 } from '@savedata-sync/shared'
 import type {
   OperationResult,
+  PosterApi,
   PosterFileData,
   PosterHttpRequest,
-  PosterHttpResponse,
   PosterImageData,
-  PosterSaveResult,
 } from '@savedata-sync/shared'
 
 /** 本机的封面执行器和封面文件接口。 */
-export interface DesktopPosterApi {
-  /** 执行封面接口请求；连不上返回 network-failure。 */
-  request(request: PosterHttpRequest): Promise<OperationResult<PosterHttpResponse>>
-  /** 下载候选图片；地址不在图片主机白名单返回 invalid-request。 */
-  downloadImage(url: string): Promise<OperationResult<PosterImageData>>
-  /** 打开选图对话框读取一张图片；取消时 value 为 null，超过大小上限返回 resource-limit。 */
-  pickImage(): Promise<OperationResult<PosterImageData | null>>
-  /** 保存游戏的封面（base64 WebP），返回要写进游戏库的 posterHash。 */
-  save(gameId: string, data: PosterFileData): Promise<OperationResult<PosterSaveResult>>
-  /** 读出游戏的封面；文件不存在返回 not-found。 */
-  read(gameId: string, posterHash: string): Promise<OperationResult<PosterFileData>>
-}
+export type DesktopPosterApi = PosterApi
 
 /** 封面接口的 IPC 通道名。 */
 export const POSTER_CHANNELS = {

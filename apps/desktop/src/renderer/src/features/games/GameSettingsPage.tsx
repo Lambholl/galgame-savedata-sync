@@ -1,6 +1,12 @@
 import { useState } from 'react'
 import { Button, Dropdown, Input, Modal } from 'antd'
-import { EditOutlined, MoreOutlined, PlusOutlined } from '@ant-design/icons'
+import {
+  EditOutlined,
+  MoreOutlined,
+  PictureOutlined,
+  PlusOutlined,
+  SearchOutlined,
+} from '@ant-design/icons'
 import type { DirectoryReference, LibraryGame, LibraryPeer } from '@savedata-sync/shared'
 import {
   FolderRow,
@@ -9,6 +15,7 @@ import {
   linkedDevices,
   linkPickerDevices,
   linkPickerGames,
+  PosterRow,
   useT,
 } from '@savedata-sync/shared/ui'
 
@@ -25,15 +32,20 @@ function recommendedGame(game: LibraryGame, peer: LibraryPeer | undefined): stri
   return first?.isRecommended ? first.id : null
 }
 
-/** 游戏设置：左栏名称与本机目录，右栏关联设备；备份设置只在“备份与恢复”。 */
+/** 游戏设置：左栏名称、本机目录和封面，右栏关联设备；备份设置只在“备份与恢复”。 */
 export function GameSettingsPage({
   game,
   peers,
   localRoot,
+  posterUrl,
+  coverIndex,
   isDisabled,
   isActive,
   onRename,
   onChooseDirectory,
+  onSearchPoster,
+  onPickPoster,
+  onRemovePoster,
   onLink,
   onUnlink,
   onTransfer,
@@ -42,10 +54,17 @@ export function GameSettingsPage({
   readonly game: LibraryGame
   readonly peers: readonly LibraryPeer[]
   readonly localRoot: DirectoryReference | null
+  /** 封面图地址；没有封面或还没读出时为 null。 */
+  readonly posterUrl: string | null
+  /** 占位封面的配色序号，和游戏卡片一致。 */
+  readonly coverIndex: number
   readonly isDisabled: boolean
   readonly isActive: boolean
   readonly onRename: (value: string) => void
   readonly onChooseDirectory: () => void
+  readonly onSearchPoster: () => void
+  readonly onPickPoster: () => void
+  readonly onRemovePoster: () => void
   /** 关联或改为对应其他游戏，成功后 resolve。 */
   readonly onLink: (deviceId: string, gameId: string) => Promise<void>
   readonly onUnlink: (deviceId: string) => void
@@ -110,6 +129,50 @@ ${game.name}`
             path={localRoot?.displayPath ?? null}
             isLost={localRoot !== null && localRoot.authorization !== 'granted'}
             onChange={isLocked ? null : onChooseDirectory}
+          />
+        </section>
+        <section>
+          <h3 className="group-title">{t('poster.section')}</h3>
+          <PosterRow
+            hasPoster={Boolean(game.posterHash)}
+            posterSource={game.posterSource ?? null}
+            posterUrl={posterUrl}
+            coverIndex={coverIndex}
+            actions={
+              <>
+                <Button
+                  size="small"
+                  icon={<SearchOutlined />}
+                  disabled={isDisabled}
+                  onClick={onSearchPoster}
+                >
+                  {t('poster.search')}
+                </Button>
+                <Button
+                  size="small"
+                  icon={<PictureOutlined />}
+                  disabled={isDisabled}
+                  onClick={onPickPoster}
+                >
+                  {t('poster.local')}
+                </Button>
+              </>
+            }
+            menu={
+              game.posterHash ? (
+                <Dropdown
+                  trigger={['click']}
+                  placement="bottomRight"
+                  disabled={isDisabled}
+                  menu={{
+                    items: [{ key: 'remove', label: t('poster.remove'), danger: true }],
+                    onClick: onRemovePoster,
+                  }}
+                >
+                  <Button type="text" aria-label={t('poster.menu')} icon={<MoreOutlined />} />
+                </Dropdown>
+              ) : null
+            }
           />
         </section>
       </div>

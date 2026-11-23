@@ -1,7 +1,7 @@
 ---
 doc_type: architecture
 status: active
-updated: 2026-11-23
+updated: 2026-11-24
 tags: [封面, 外网接口]
 ---
 
@@ -40,10 +40,12 @@ REQ-024 的设计。需求见[产品需求](../requirements/product.md)，拆包
 
 | 位置 | 职责 |
 | --- | --- |
-| `apps/shared/src/poster/` | 已实现。`PosterSearchClient` 按来源生成请求、交给注入的执行器、解析成统一候选，按 `POSTER_REQUEST_INTERVALS_MS` 给各来源排队，失败抛带来源和错误码的 `PosterSearchError`；另有主机白名单、执行器响应守卫、`createPosterUserAgent` 和默认关键词。纯 TypeScript，不做 IO，计时由注入的 `PosterClock` 提供 |
-| `apps/shared/src/ui/poster/` | 搜索弹层主体、候选网格、封面缩放（WebView canvas）；平台交互由参数传入 |
-| 电脑 sidecar `backend/poster-*.ts` | 用 Node `fetch` 执行请求和下载图片；封面文件读写；新通道 `desktopPoster` |
-| Android `PosterPlugin.java` 等 | 用 `HttpURLConnection` 执行请求和下载图片；系统照片选择器；封面文件读写 |
+| `apps/shared/src/poster/` | 已实现。`PosterSearchClient` 按来源生成请求、交给注入的执行器、解析成统一候选，按 `POSTER_REQUEST_INTERVALS_MS` 给各来源排队，失败抛带来源和错误码的 `PosterSearchError`；另有主机白名单、执行器响应守卫、`createPosterUserAgent` 和默认关键词。`PosterApi` 是两端原生层的五个方法（第 6 节），`createPosterAdapter` 把它包成带 `PosterSearchClient` 的 `PosterAdapter`，一个应用进程只建一个。纯 TypeScript，不做 IO，计时由注入的 `PosterClock` 提供 |
+| `apps/shared/src/ui/poster/` | 已实现。`PosterCover`（游戏卡片、候选和缩略图共用的 3:4 封面，图片加载失败时退回占位）、`PosterRow`（设置页的封面一行）、`PosterCandidateGrid`、`PosterSearchState`（加载、无结果、失败和重试）、`poster-labels.ts`（来源显示名、封面类别文案）、`encodePosterWebp`（WebView canvas 缩放编码）；Hook `usePosterSearch`（来源、关键词、NextMoe 作品两步和预览图下载）、`usePosterUrls`（游戏封面读出成 `blob:` URL）。这些只依赖 `PosterAdapter`，两端共用；弹层和选图后的保存流程留在各端 |
+| 电脑界面 `features/games/PosterSearchModal.tsx`，`platform/poster-adapter.ts` | 已实现。antd Modal 搜索弹层；适配器接 `window.desktopPoster` |
+| 电脑 sidecar `backend/poster-*.ts` | 已实现。用 `node:https` 执行请求和下载图片；封面文件读写；通道 `desktopPoster` |
+| 移动界面 `features/games/PosterSearchSheet.tsx`，`platform/poster-bridge.ts`、`posters.ts` | 已实现。底部弹层搜索；桥接校验原生插件 `Poster` 的参数和结果 |
+| Android `PosterPlugin.java`、`PosterHttp.java`、`PosterStore.java`、`PosterRules.java` | 已实现。用 `HttpURLConnection` 执行请求和下载图片；系统照片选择器；封面文件读写 |
 
 执行器只接受 `https`，API 请求的主机限定为第 3 节的五个接口主机，图片下载的主机限定为第 4 节的图片主机。两端都不能由 WebView 直接请求外网：Android WebView 跨域会被拦，电脑端 CSP 的 `img-src` 只允许 `'self' data: blob:`，`connect-src` 不含外网。候选的预览图也经执行器下载，转成 `blob:` URL 显示。
 
@@ -130,8 +132,8 @@ VNDB 和 NextMoe 用译名、原名都能搜到；Bangumi 和 Steam 只适合补
 
 ## 6. 封面存储
 
-- 下载或选中的图片在 WebView 里用 canvas 等比缩小到 720×960 以内（小图不放大），用 `canvas.toBlob('image/webp', 0.85)` 转成 WebP 后交给原生层保存。两端 WebView 都基于 Chromium（Windows WebView2、Android System WebView），都能编码 WebP；同等画质下比 JPEG 小，NextMoe 的原图本身就是 WebP。显示的卡片最宽约 180px，高分屏下 720 宽也够用。
-- `LibraryGame` 有可选字段 `posterHash`（封面文件内容的 SHA-256，64 位小写十六进制），没有封面时省略。字段可选，`schemaVersion` 保持 2。
+- 下载或选中的图片在 WebView 里用 canvas 等比缩小到 `POSTER_OUTPUT` 的宽高（720×960）以内（小图不放大），用 `canvas.toBlob('image/webp', POSTER_OUTPUT.webpQuality)` 转成 WebP 后交给原生层保存；解码不了的文件提示“读不了这张图片”。两端 WebView 都基于 Chromium（Windows WebView2、Android System WebView），都能编码 WebP；同等画质下比 JPEG 小，NextMoe 的原图本身就是 WebP。显示的卡片最宽约 180px，高分屏下 720 宽也够用。
+- `LibraryGame` 有可选字段 `posterHash`（封面文件内容的 SHA-256，64 位小写十六进制）和 `posterSource`（封面出处 `PosterOrigin`：四个搜索来源之一，或 `local` 表示本机图片），没有封面时都省略。字段可选，`schemaVersion` 保持 2；有 `posterHash` 没有 `posterSource` 的配置照常读取，设置行只显示尺寸。
 - 文件：电脑在数据目录的 `posters/`，Android 在应用内部存储的 `posters/`，文件名 `<游戏 ID>.<posterHash>.webp`。同一个游戏换封面时新旧文件名不同，游戏库配置里的 `posterHash` 决定用哪一张。
 - 保存只接受 WebP（文件头 `RIFF….WEBP`），不超过 `POSTER_LIMITS.maxSavedBytes`（1 MiB），先写临时文件再改名。
 - 启动时删除游戏库没有引用的封面文件和残留的临时文件：换掉的旧封面、已移除游戏的封面、保存了文件但没写进配置的封面，都在下次启动时清掉。
@@ -150,18 +152,24 @@ VNDB 和 NextMoe 用译名、原名都能搜到；Bangumi 和 Steam 只适合补
 
 电脑端的五个方法是 `window.desktopPoster`，通道 `poster:request`、`poster:download-image`、`poster:pick-image`、`poster:save`、`poster:read`（`src/bridge/poster-bridge.ts`）。sidecar 用 `node:https` 执行请求（`poster-http.ts`）：不跟随重定向，3xx 原样交给共享包；不发 `Accept-Encoding`，响应仍被压缩时按网络失败处理；下载图片时 HTTP 404 返回 `not-found`，其他非 2xx 或 `Content-Type` 不是 `image/*` 返回 `network-failure`。选图由宿主的 `chooseImageFile` 打开文件对话框，sidecar 按扩展名定 MIME 类型后读取文件（`poster-store.ts`）。启动时在游戏库读出后、其他服务启动前清理 `posters/`。
 
+Android 的五个方法是 Capacitor 插件 `Poster`（`PosterPlugin.java`），网页经 `platform/poster-bridge.ts` 调用。白名单、上限和超时在 `PosterRules.java` 里照抄共享包的取值，改共享包时一起改。`PosterHttp` 用 `HttpURLConnection` 执行请求，规则同电脑端：不跟随重定向，显式发 `Accept-Encoding: identity`（不写时 `HttpURLConnection` 会自己请求 gzip 并透明解压，字节上限就管不住解压后的大小），响应仍被压缩时按网络失败处理。网络请求在 4 个线程的线程池里执行，候选网格要同时下载多张预览图；封面文件读写和读取选中的图片在单个线程上串行。选图用 androidx 的 `PickVisualMedia`（只选图片），MIME 类型取 `ContentResolver.getType`，不是 JPEG、PNG、WebP、GIF 时返回 `invalid-request`。插件加载时先在文件线程上按游戏库清理 `posters/`，之后的保存排在清理后面；游戏库读不懂时不删文件。
+
 ## 7. 对端封面
 
-- `CatalogGame` 增加 `posterHash: string | null`，目录表交换时带上。
+- `CatalogGame` 增加 `posterHash: string | null`，目录表交换时带上；导入时把对端的 `posterSource` 一并写进本机游戏库，字段怎么带待实现时定。
 - 控制通道增加请求方法 `poster.read`：参数 `{ gameId }`，应答 `{ hash, mimeType, data }`（`data` 为 base64），封面不存在时返回专门的错误。保存的封面不超过 1 MiB，base64 后远小于控制消息 8 MiB 的上限。控制通道两个方向都能发请求，监听方和拨号方导入对方的游戏走同一条路。
 - `PROTOCOL_VERSION` 从 3 升到 4，两端须同版。
 - 导入游戏时，对端目录表里的 `posterHash` 不为空就在保存游戏后请求封面；应答的 hash 与目录表不一致或请求失败时，游戏照常导入，用 Message 提示一次“封面未能导入”。
 
 ## 8. 界面
 
-- `GameCard` 增加可选的封面 URL：有封面时显示图片（`object-fit: cover`），没有时保留现在的渐变占位和游戏名。
-- 游戏页的操作里增加“封面”，打开选项：从本机选图、在线搜索、移除封面（有封面时）。
-- 搜索弹层：顶部来源切换（VNDB、NextMoe、Bangumi、Steam）和关键词框，下方候选网格显示预览图、标题、副标题和 `detail`；点选候选后下载、缩放、保存并关闭。NextMoe 点选作品后进入这部作品的封面列表，可返回作品列表。
-- 加载中、无结果、网络错误、限流分别显示；限流提示稍后再试。
+- `GameCard` 增加 `posterUrl`：有封面时图片铺满 3:4 区域并居中裁剪，没有时保留渐变占位和游戏名。界面按 `posterHash` 缓存读出的封面，生成 `blob:` URL；换封面后 hash 变化，换新图。
+- 封面的入口只在游戏设置页：“本机存档目录”下面加“封面”一行，样式同目录行。左侧 3:4 缩略图（宽同目录行图标），右侧标题“已设置封面”或“未设置封面”，下面一行说明：有封面时是出处和原图尺寸（如“Bangumi · 720×960”，尺寸取自读出的图片），没有时是“游戏卡片显示占位图”。文字右侧排“在线搜索”“本机图片”两个按钮；有封面时行尾有菜单按钮，菜单里是“移除封面”，菜单按钮固定在行尾、不随按钮换行。移动端和设置页其他行一样不放按钮，只有行尾的菜单按钮，动作面板里是“在线搜索”“本机图片”，有封面时再加“移除封面”。行宽放不下两行文字加按钮组时（电脑端左栏约 500px，英文、日文按钮较宽；移动端竖屏），按钮组整组换到文字下面，说明并到标题后面；`PosterRow` 按标题、说明和按钮组的原本宽度判断，文字不会被挤窄。游戏操作弹窗不加入口，2×2 的操作格保持四项。
+- 搜索弹层：顶部来源切换（VNDB、NextMoe、Bangumi、Steam）和关键词框，下方候选网格显示预览图、标题、副标题和 `detail`；点选候选后下载、缩放、保存并关闭，保存期间该候选显示加载、其他候选禁用。NextMoe 点选作品后进入这部作品的封面列表，标题行显示作品名和封面张数，可返回作品列表；列表里每张封面的标题都是作品名，第一行改显示封面类别（`main` 主视觉、`pkgfront` 包装正面、`pkgback` 包装背面、`pkgcontent` 包装内容、`dig` 下载版，其他值原样显示）。
+- 加载中、无结果、网络错误、限流、来源出错、响应格式不符分别显示；除响应格式不符外都带“重试”（格式不符是来源接口变了，重试无用）。点关键词框的清除图标只清空，不发起搜索；关键词为空白时不搜索。
 - 候选按来源返回的顺序显示，不按与关键词的字面相似度过滤或重排：游戏名常是译名，来源返回的正确结果是另一种语言的写法，字面相似度为 0（第 3 节的 13 个游戏名里，VNDB 3 个、NextMoe 6 个正确的第一条属于这种情况）。
+- 电脑端 CSP 只允许本地和 `blob:` 图片，预览图经 `downloadImage` 下载后显示，同时最多 `POSTER_LIMITS.maxPreviewDownloads` 张，关闭弹层时释放；下载失败的候选显示占位。
 - 电脑端用 antd Modal，移动端用底部弹层；文案四种语言。
+- 保存期间弹层不能关闭；保存失败时弹层留着，可以换一张再试。移除封面只去掉游戏库里的 `posterHash`，文件在下次启动时清理。
+
+移动端的搜索弹层是底部弹层：关键词用 SearchBar，下面是四个来源等分一行的 Tabs，结果区固定高度，候选固定三列，和游戏页网格一致；封面一行的操作都在行尾菜单按钮打开的动作面板里（见上面封面入口一条）。返回键能关闭搜索弹层和菜单，保存期间不能关。
