@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { ActionSheet } from 'antd-mobile'
 import { RightOutlined } from '@ant-design/icons'
 import {
+  canBackupTarget,
   compareSnapshots,
   isPreviewLocalSource,
   isSyncWriteEntry,
@@ -95,6 +96,8 @@ export function SyncCopyPage({
   const [isStarting, setIsStarting] = useState(false)
   /** 目标多出的条目是否保留；每次重新比较都回到保留，不记住上次的选择。 */
   const [isKeepingExtras, setIsKeepingExtras] = useState(true)
+  /** 写入前是否备份目标；每次重新比较都回到不备份，不记住上次的选择。 */
+  const [isBackingUp, setIsBackingUp] = useState(false)
   const executed = useRef<string | null>(null)
   const peer = peers.find((item) => item.device.id === peerId)
   const remote = peer?.games.find(
@@ -124,6 +127,7 @@ export function SyncCopyPage({
       setPreview(null)
       setScanError(null)
       setIsKeepingExtras(true)
+      setIsBackingUp(false)
     }
   }
   useEffect(() => {
@@ -184,8 +188,14 @@ export function SyncCopyPage({
   }, [preview])
   const plan = useMemo(
     () =>
-      preview ? syncPlanFromPreview({ ...preview, shouldDeleteExtras: !isKeepingExtras }) : null,
-    [preview, isKeepingExtras],
+      preview
+        ? syncPlanFromPreview({
+            ...preview,
+            shouldBackup: isBackingUp,
+            shouldDeleteExtras: !isKeepingExtras,
+          })
+        : null,
+    [preview, isBackingUp, isKeepingExtras],
   )
   const hasExtras =
     plan?.entries.some(
@@ -253,11 +263,11 @@ export function SyncCopyPage({
       return
     }
     const id = preparation.preparationId
-    const shouldDeleteExtras = plan.shouldDeleteExtras
+    const choices = { shouldBackup: plan.shouldBackup, shouldDeleteExtras: plan.shouldDeleteExtras }
     async function work(): Promise<void> {
       executed.current = id
       try {
-        const state = await sync.execute(id, shouldDeleteExtras)
+        const state = await sync.execute(id, choices)
         await onStarted(state.jobId)
       } catch (cause) {
         executed.current = null
@@ -323,6 +333,8 @@ export function SyncCopyPage({
           onCancel={cancellableId === null ? null : () => cancelScan(cancellableId)}
           isKeepingExtras={isKeepingExtras}
           onKeepExtrasChange={hasExtras ? setIsKeepingExtras : null}
+          isBackingUp={isBackingUp}
+          onBackupChange={plan && canBackupTarget(plan) ? setIsBackingUp : null}
         />
       </div>
       {isPlan && plan ? (

@@ -266,7 +266,7 @@ final class ListenerSyncJobs {
   }
 
   /**
-   * 返回本机项目的描述和备份设置，格式同共享 SyncProjectDescriptor。
+   * 返回本机项目的描述，格式同共享 SyncProjectDescriptor。
    *
    * @throws ArchiveFailure 项目没选目录或没有与 peerId 双向关联时抛出 not-found 或 session-mismatch。
    */
@@ -284,9 +284,7 @@ final class ListenerSyncJobs {
       "deviceId",
       local.deviceId(),
       "rootId",
-      link[1],
-      "shouldBackup",
-      local.backup(projectId)
+      link[1]
     );
   }
 
@@ -539,7 +537,7 @@ final class ListenerSyncJobs {
     );
   }
 
-  /** 核对项目关联和根目录仍与确认时一致；本机接收时另外核对备份设置。 */
+  /** 核对项目关联和根目录仍与确认时一致。 */
   private void verify(Task task) throws Exception {
     task.control.check();
     SyncPlanModel.Plan plan = task.plan;
@@ -550,9 +548,6 @@ final class ListenerSyncJobs {
       task.isReceiver ? plan.target.root : plan.source.root,
       task.isReceiver ? plan.source.root : plan.target.root
     );
-    if (task.isReceiver && local.backup(task.localProject) != plan.shouldBackup) {
-      throw new ArchiveFailure("source-changed", "Target backup settings changed. Confirm again.");
-    }
     task.control.check();
   }
 

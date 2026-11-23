@@ -94,6 +94,7 @@ export const jaJP: Messages = {
   'compare.onlyTarget': ({ count }) => `転送先のみ ${count} 件`,
   'compare.allSame': '内容が一致しています',
   'compare.filter': '差分',
+  'compare.backup': 'バックアップ',
   'compare.refresh': '更新',
   'compare.noDifferences': '差分はありません',
   'compare.emptyFolder': '空のフォルダー',

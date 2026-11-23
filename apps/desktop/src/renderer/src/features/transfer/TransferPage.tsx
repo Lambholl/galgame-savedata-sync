@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { Button, Modal } from 'antd'
 import { CaretRightOutlined, RightOutlined } from '@ant-design/icons'
 import {
+  canBackupTarget,
   compareSnapshots,
   isSyncWriteEntry,
   toShownError,
@@ -375,6 +376,8 @@ export function TransferPage({
           }
           isKeepingExtras={isKeepingExtras}
           onKeepExtrasChange={hasExtras ? setIsKeepingExtras : null}
+          isBackingUp={isBackingUp}
+          onBackupChange={current && canBackupTarget(current) ? setIsBackingUp : null}
         />
         {/* 底部只有一个悬浮的下一步按钮；文件列末尾留出它的高度。 */}
         <Button
@@ -407,7 +410,6 @@ export function TransferPage({
               plan={current}
               source={isUpload ? peerEnd : localEnd}
               target={isUpload ? localEnd : peerEnd}
-              onBackupChange={isDisabled || isStarting ? null : setIsBackingUp}
             />
           ) : null}
         </PlanDrawer>

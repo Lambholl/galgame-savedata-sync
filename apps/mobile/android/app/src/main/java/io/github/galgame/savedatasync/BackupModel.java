@@ -20,7 +20,6 @@ import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -231,88 +230,32 @@ final class BackupModel {
   static final long KEEP_DEFAULT = 10;
 
   /** 备份设置的格式版本，与 shared 的 SyncBackupSettings.schemaVersion 保持一致。 */
-  static final int SETTINGS_VERSION = 3;
+  static final int SETTINGS_VERSION = 4;
 
-  /** 没有设置文件时的设置：写入前自动备份关闭，默认保留 KEEP_DEFAULT 份，没有单独设置的游戏。 */
-  static Map<String, Object> emptySettings() {
-    return object(
-      "schemaVersion",
-      SETTINGS_VERSION,
-      "defaults",
-      policy(false, KEEP_DEFAULT),
-      "projects",
-      new ArrayList<>()
-    );
+  /** 校验保留份数，取值 KEEP_MIN 至 KEEP_MAX，否则抛错。 */
+  static long keepCount(Object raw) throws Exception {
+    return number(raw, KEEP_MIN, KEEP_MAX);
   }
 
-  static Map<String, Object> policy(boolean shouldBackup, long keepCount) {
-    return object("shouldBackup", shouldBackup, "keepCount", keepCount);
+  /** 没有设置文件时的备份库设置：保留 KEEP_DEFAULT 份。 */
+  static Map<String, Object> defaultSettings() {
+    return settings(KEEP_DEFAULT);
   }
 
-  /** 备份策略：是否开启写入前自动备份与保留份数（KEEP_MIN 至 KEEP_MAX）。 */
-  static Map<String, Object> policy(Object raw) throws Exception {
-    Map<String, Object> value = shape(raw, "shouldBackup", "keepCount");
-    require(value.get("shouldBackup") instanceof Boolean);
-    return policy(
-      (Boolean) value.get("shouldBackup"),
-      number(value.get("keepCount"), KEEP_MIN, KEEP_MAX)
-    );
+  /** 备份库设置：每个游戏保留 keepCount 份备份。 */
+  static Map<String, Object> settings(long keepCount) {
+    return object("schemaVersion", SETTINGS_VERSION, "keepCount", keepCount);
   }
 
   /**
-   * 校验备份设置：全局设置加按游戏的单独设置；格式不符或 schemaVersion 不是 SETTINGS_VERSION 时抛错。
+   * 校验备份库设置；格式不符或 schemaVersion 不是 SETTINGS_VERSION 时抛错。
    *
    * @return 重新组装的设置，不带原对象里的其他字段。
    */
   static Map<String, Object> settings(Object raw) throws Exception {
-    Map<String, Object> value = shape(raw, "schemaVersion", "defaults", "projects");
+    Map<String, Object> value = shape(raw, "schemaVersion", "keepCount");
     number(value.get("schemaVersion"), SETTINGS_VERSION, SETTINGS_VERSION);
-    Map<String, Object> defaults = policy(value.get("defaults"));
-    List<Object> projects = list(value.get("projects"));
-    require(projects.size() <= 128);
-    Map<String, Object> byProject = new LinkedHashMap<>();
-    for (Object entry : projects) {
-      Map<String, Object> item = shape(entry, "projectId", "shouldBackup", "keepCount");
-      String project = id(item.get("projectId"));
-      Map<String, Object> custom = policy(
-        object("shouldBackup", item.get("shouldBackup"), "keepCount", item.get("keepCount"))
-      );
-      require(!byProject.containsKey(project));
-      byProject.put(
-        project,
-        object(
-          "projectId",
-          project,
-          "shouldBackup",
-          custom.get("shouldBackup"),
-          "keepCount",
-          custom.get("keepCount")
-        )
-      );
-    }
-    return object(
-      "schemaVersion",
-      SETTINGS_VERSION,
-      "defaults",
-      defaults,
-      "projects",
-      new ArrayList<>(byProject.values())
-    );
-  }
-
-  /** 某个游戏实际使用的策略：有单独设置用单独设置，否则用全局设置。 */
-  static Map<String, Object> resolve(Map<String, Object> settings, String projectId)
-    throws Exception {
-    for (Object item : list(settings.get("projects"))) {
-      Map<String, Object> setting = map(item);
-      if (setting.get("projectId").equals(projectId)) {
-        return policy(
-          (Boolean) setting.get("shouldBackup"),
-          ((Number) setting.get("keepCount")).longValue()
-        );
-      }
-    }
-    return map(settings.get("defaults"));
+    return settings(keepCount(value.get("keepCount")));
   }
 
   /** 从备份清单生成恢复用的目录树快照。 */

@@ -1,19 +1,17 @@
 import {
   BATCH_LIMITS,
+  isBackupKeepCount,
   isOpaqueId,
   isOperationResult,
   isSyncBackupManifest,
-  isSyncBackupPolicy,
   isSyncBackupReason,
   isSyncBackupSettings,
   isSyncIncompleteBackup,
   isSyncManualBackupState,
-  resolveBackupPolicy,
 } from '@savedata-sync/shared'
 import type {
   OperationResult,
   SyncBackupManifest,
-  SyncBackupPolicy,
   SyncBackupReason,
   SyncBackupSettings,
   SyncIncompleteBackup,
@@ -45,8 +43,7 @@ export interface BackupNativePlugin {
   read(): Promise<unknown>
   list(options: { projectId: string }): Promise<unknown>
   manifest(options: { projectId: string; backupId: string }): Promise<unknown>
-  setPreference(options: { projectId: string; policy: SyncBackupPolicy | null }): Promise<unknown>
-  setDefaults(options: { policy: SyncBackupPolicy }): Promise<unknown>
+  setKeepCount(options: { keepCount: number }): Promise<unknown>
   rotate(options: { projectId: string }): Promise<unknown>
   cleanupIncomplete(options: { projectId: string; backupId: string }): Promise<unknown>
   deleteBackup(options: { projectId: string; backupId: string }): Promise<unknown>
@@ -64,20 +61,18 @@ export interface AndroidBackupApi {
   list(projectId: string): Promise<OperationResult<AndroidBackupList>>
   /** 读取一份备份的清单。 */
   manifest(projectId: string, backupId: string): Promise<OperationResult<SyncBackupManifest>>
-  /** 单独设置某个游戏；policy 为 null 时改回跟随全局。 */
-  setPreference(
-    projectId: string,
-    policy: SyncBackupPolicy | null,
-  ): Promise<OperationResult<SyncBackupSettings>>
-  /** 修改全局设置。 */
-  setDefaults(policy: SyncBackupPolicy): Promise<OperationResult<SyncBackupSettings>>
+  /**
+   * 修改备份库的保留份数；已有的备份到下一次轮换时才按新份数删除。
+   * keepCount 不是 BACKUP_KEEP_COUNT_MIN–BACKUP_KEEP_COUNT_MAX 内的整数时返回 invalid-request。
+   */
+  setKeepCount(keepCount: number): Promise<OperationResult<SyncBackupSettings>>
   /** 按保留份数删除这个游戏多余的旧备份；正在使用或不完整的备份保留。 */
   rotate(projectId: string): Promise<OperationResult<null>>
   /** 删除一份残留备份。 */
   cleanupIncomplete(projectId: string, backupId: string): Promise<OperationResult<null>>
   /** 删除一份已提交的备份。 */
   deleteBackup(projectId: string, backupId: string): Promise<OperationResult<null>>
-  /** 删除一个游戏的全部备份和单独设置。 */
+  /** 删除一个游戏的全部备份。 */
   deleteGameBackups(projectId: string): Promise<OperationResult<null>>
   /** 立即为指定游戏目录启动一次本机手动备份。 */
   startManual(projectId: string, rootId: string): Promise<OperationResult<SyncManualBackupState>>
@@ -203,32 +198,13 @@ export function createBackupBridge(
               value.projectId === projectId &&
               value.backupId === backupId,
           ),
-    setPreference: (projectId: string, policy: SyncBackupPolicy | null) =>
-      !isOpaqueId(projectId) || !(policy === null || isSyncBackupPolicy(policy))
+    setKeepCount: (keepCount: number) =>
+      !isBackupKeepCount(keepCount)
         ? Promise.resolve(failure('invalid-request'))
         : invoke(
-            () => plugin.setPreference({ projectId, policy }),
-            (value): value is SyncBackupSettings => {
-              if (!isSyncBackupSettings(value)) {
-                return false
-              }
-              const saved = resolveBackupPolicy(value, projectId)
-              return policy
-                ? saved.isCustom &&
-                    saved.shouldBackup === policy.shouldBackup &&
-                    saved.keepCount === policy.keepCount
-                : !saved.isCustom
-            },
-          ),
-    setDefaults: (policy: SyncBackupPolicy) =>
-      !isSyncBackupPolicy(policy)
-        ? Promise.resolve(failure('invalid-request'))
-        : invoke(
-            () => plugin.setDefaults({ policy }),
+            () => plugin.setKeepCount({ keepCount }),
             (value): value is SyncBackupSettings =>
-              isSyncBackupSettings(value) &&
-              value.defaults.shouldBackup === policy.shouldBackup &&
-              value.defaults.keepCount === policy.keepCount,
+              isSyncBackupSettings(value) && value.keepCount === keepCount,
           ),
     rotate: (projectId: string) =>
       !isOpaqueId(projectId)

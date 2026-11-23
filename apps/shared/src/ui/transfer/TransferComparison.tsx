@@ -73,6 +73,10 @@ export interface TransferComparisonProps {
   readonly isKeepingExtras: boolean
   /** 切换保留开关；目标没有多出的条目时为 null，不显示开关。 */
   readonly onKeepExtrasChange: ((isKeeping: boolean) => void) | null
+  /** 写入前是否备份目标：true 时备份开关显示为开启。 */
+  readonly isBackingUp: boolean
+  /** 切换写入前备份；这次传输选了备份也不会产生备份时为 null，不显示开关。 */
+  readonly onBackupChange: ((isBackingUp: boolean) => void) | null
 }
 
 /**
@@ -252,6 +256,8 @@ export function TransferComparison({
   onCancel,
   isKeepingExtras,
   onKeepExtrasChange,
+  isBackingUp,
+  onBackupChange,
 }: TransferComparisonProps): ReactElement {
   const t = useT()
   const [isFilterOn, setIsFilterOn] = useState(false)
@@ -344,6 +350,21 @@ export function TransferComparison({
         {isScanning && onCancel ? (
           <button type="button" className="ss-chip ss-pressable" onClick={onCancel}>
             <span>{t('common.cancel')}</span>
+          </button>
+        ) : null}
+        {comparison !== null && onBackupChange ? (
+          <button
+            type="button"
+            role="switch"
+            className={`ss-chip ss-pressable ss-backup-chip${isBackingUp ? ' is-on' : ''}`}
+            aria-checked={isBackingUp}
+            aria-label={t('plan.backupSwitch')}
+            title={t('plan.backupSwitch')}
+            disabled={isLocked}
+            onClick={() => onBackupChange(!isBackingUp)}
+          >
+            <span>{t('compare.backup')}</span>
+            <span className="ss-backup-knob" aria-hidden="true" />
           </button>
         ) : null}
         {comparison !== null && onKeepExtrasChange ? (

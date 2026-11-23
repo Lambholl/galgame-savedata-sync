@@ -88,6 +88,7 @@ export const zhTW: Messages = {
   'compare.onlyTarget': ({ count }) => `${count} 個僅目標有`,
   'compare.allSame': '兩端一致',
   'compare.filter': '差異',
+  'compare.backup': '備份',
   'compare.refresh': '重新整理',
   'compare.noDifferences': '沒有不一致的項目',
   'compare.emptyFolder': '資料夾是空的',

@@ -123,11 +123,6 @@
 .ss-metaline .is-on {
   color: var(--ss-ok);
 }
-/* 备份开关沿用传输页的 ss-chip；开启时与“写入前先备份”同为绿色。 */
-.ss-backup-chip.is-on {
-  border-color: var(--ss-ok);
-  background: var(--ss-ok-soft);
-}
 
 .ss-banner {
   display: flex;

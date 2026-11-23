@@ -95,6 +95,7 @@ export const enUS: Messages = {
   'compare.onlyTarget': ({ count }) => `${count} only in target`,
   'compare.allSame': 'Both sides match',
   'compare.filter': 'Diff',
+  'compare.backup': 'Backup',
   'compare.refresh': 'Refresh',
   'compare.noDifferences': 'No differences here',
   'compare.emptyFolder': 'Empty folder',

@@ -293,6 +293,11 @@ export interface SyncPlanChoices {
   readonly shouldDeleteExtras: boolean
 }
 
+/** 复制计划的目标有文件时返回 true；目标没有文件时选了写入前备份也不会产生备份。 */
+export function canBackupTarget(plan: SyncPlan): boolean {
+  return plan.operation === 'copy' && plan.target.entries.some((item) => item.kind === 'file')
+}
+
 /** 用同一份快照按 choices 重新生成计划；备份字节和预算问题随之重算。 */
 export function withSyncPlanChoices(plan: SyncPlan, choices: SyncPlanChoices): SyncPlan {
   return createSyncPlan({

@@ -50,10 +50,6 @@ final class SyncTransferEngine implements AutoCloseable {
 
     List<ArchiveModel.Source> sources(SyncPlanModel.Plan plan) throws Exception;
 
-    default boolean backup(String projectId) throws Exception {
-      throw fail("unsupported-operation");
-    }
-
     default long checkReceiveSpace(
       SyncPlanModel.Plan plan,
       java.nio.file.Path cacheRoot,
@@ -658,11 +654,8 @@ final class SyncTransferEngine implements AutoCloseable {
         200,
         preparation.control
       );
-      boolean shouldBackupRemote = SyncJobModel.backup(descriptor, binding);
+      SyncJobModel.verifyProject(descriptor, binding);
       accessing = null;
-      boolean shouldBackup = preparation.upload()
-        ? shouldBackupRemote
-        : local.backup(string(binding.get("projectId")));
       transport.verifySync(connection, binding);
       preparation.control.check();
       Map<String, Object> preview = object(
@@ -681,7 +674,7 @@ final class SyncTransferEngine implements AutoCloseable {
         "target",
         preparation.upload() ? remote.get("snapshot") : source,
         "shouldBackup",
-        shouldBackup,
+        false,
         "shouldDeleteExtras",
         false
       );
@@ -843,8 +836,7 @@ final class SyncTransferEngine implements AutoCloseable {
         plan.value.get("direction").equals(preparation.direction) &&
         preparation.preview != null &&
         SyncPlanModel.same(plan.source.value, preparation.preview.get("source")) &&
-        SyncPlanModel.same(plan.target.value, preparation.preview.get("target")) &&
-        plan.shouldBackup == (Boolean) preparation.preview.get("shouldBackup")
+        SyncPlanModel.same(plan.target.value, preparation.preview.get("target"))
     );
     transport.verifySync(preparation.connection, preparation.binding);
     bytes(SyncJobModel.request(plan, preparation.binding));
@@ -910,6 +902,7 @@ final class SyncTransferEngine implements AutoCloseable {
       )
     );
     // 页面重建后靠预览读回计划，这里记下这次确认的选择。
+    preparation.preview.put("shouldBackup", plan.shouldBackup);
     preparation.preview.put("shouldDeleteExtras", plan.shouldDeleteExtras);
     preparation.isConsumed = true;
     used.add(id);
@@ -969,7 +962,7 @@ final class SyncTransferEngine implements AutoCloseable {
     try {
       job.control.check();
       transport.refreshSync(job.preparation.connection, job.preparation.binding, job.control);
-      boolean shouldBackupRemote = SyncJobModel.backup(
+      SyncJobModel.verifyProject(
         job.preparation.connection.http.json(
           "GET",
           "/v1/sync/projects/" + job.preparation.binding.get("remoteProjectId"),
@@ -980,16 +973,6 @@ final class SyncTransferEngine implements AutoCloseable {
         ),
         job.preparation.binding
       );
-      boolean shouldBackup = job.preparation.upload()
-        ? shouldBackupRemote
-        : local.backup(job.plan.project);
-      if (shouldBackup != job.plan.shouldBackup) {
-        throw new ArchiveFailure(
-          "source-changed",
-          (job.preparation.upload() ? "PC" : "Mobile device") +
-            " backup settings changed. Confirm again."
-        );
-      }
       job.wasRemoteAttempted = true;
       try {
         accept(
@@ -1495,12 +1478,6 @@ final class SyncTransferEngine implements AutoCloseable {
       throw fail("permission-denied");
     }
     transport.verifySync(job.preparation.connection, job.preparation.binding);
-    if (local.backup(project) != job.plan.shouldBackup) {
-      throw new ArchiveFailure(
-        "source-changed",
-        "Mobile device backup settings changed. Confirm again."
-      );
-    }
   }
 
   private void receiverFailed(Job job, ArchiveFailure cause) {

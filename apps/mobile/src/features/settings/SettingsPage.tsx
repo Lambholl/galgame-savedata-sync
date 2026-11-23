@@ -5,20 +5,19 @@ import type {
   AppPreferences,
   LocalePreference,
   ShownError,
-  SyncBackupPolicy,
   ThemePreference,
 } from '@savedata-sync/shared'
 import { useT } from '@savedata-sync/shared/ui'
 import { useFailureMessage } from '../../app/failure-message'
 import { useAllFilesAccess } from '../../app/use-all-files-access'
 import type { MobileSyncAdapter } from '../../platform/sync-adapter'
-import { BackupPolicyFields } from '../../components/BackupPolicyFields'
+import { BackupKeepCountField } from '../../components/BackupKeepCountField'
 import { ChoiceItem } from '../../components/ChoiceItem'
 import { SwitchItem } from '../../components/SwitchItem'
 
 const THEMES: readonly ThemePreference[] = ['system', 'light', 'dark']
 
-/** 应用设置：外观与全局备份设置，改动立即保存。 */
+/** 应用设置：外观、备份库的保留份数和存储权限，改动立即保存。 */
 export function SettingsPage({
   sync,
   preferences,
@@ -31,8 +30,8 @@ export function SettingsPage({
   readonly onOverlayChange: (close: (() => void) | null) => void
 }): React.JSX.Element {
   const t = useT()
-  /** 全局备份设置；读取中或读取失败为 null。 */
-  const [policy, setPolicy] = useState<SyncBackupPolicy | null>(null)
+  /** 备份库的保留份数；读取中或读取失败为 null。 */
+  const [keepCount, setKeepCount] = useState<number | null>(null)
   /** 读取或保存备份设置的失败，连同出错的操作。 */
   const [backupError, setBackupError] = useState<{
     readonly context: string
@@ -52,12 +51,12 @@ export function SettingsPage({
       .backupSettings()
       .then((settings) => {
         if (isCurrent) {
-          setPolicy(settings.defaults)
+          setKeepCount(settings.keepCount)
         }
       })
       .catch((cause: unknown) => {
         if (isCurrent) {
-          setPolicy(null)
+          setKeepCount(null)
           setBackupError({ context: t('backup.readFailed'), error: toShownError(cause) })
         }
       })
@@ -71,11 +70,11 @@ export function SettingsPage({
       setBackupError({ context: t('directAccess.openFailed'), error: toShownError(cause) })
     })
   }
-  function changePolicy(next: SyncBackupPolicy): void {
-    setPolicy(next)
+  function changeKeepCount(next: number): void {
+    setKeepCount(next)
     setBackupError(null)
     saving.current = saving.current
-      .then(() => sync.setBackupDefaults(next))
+      .then(() => sync.setBackupKeepCount(next))
       .catch((cause: unknown) => {
         setBackupError({ context: t('backup.saveFailed'), error: toShownError(cause) })
         setVersion((value) => value + 1)
@@ -103,7 +102,7 @@ export function SettingsPage({
         />
       </List>
       {failureHolder}
-      {backupError && !policy ? (
+      {backupError && keepCount === null ? (
         <div className="empty-state">
           <p>{backupError.context}</p>
           <Button size="small" onClick={() => setVersion((value) => value + 1)}>
@@ -111,11 +110,11 @@ export function SettingsPage({
           </Button>
         </div>
       ) : null}
-      {policy ? (
+      {keepCount === null ? null : (
         <List mode="card" header={t('settings.backup')}>
-          <BackupPolicyFields policy={policy} isDisabled={false} onChange={changePolicy} />
+          <BackupKeepCountField keepCount={keepCount} onChange={changeKeepCount} />
         </List>
-      ) : null}
+      )}
       {directAccess.isGranted !== null && (
         <List mode="card" header={t('settings.storage')}>
           {/* 应用不能自己开关这项权限，开关只反映当前状态，点按跳到系统授权页。 */}

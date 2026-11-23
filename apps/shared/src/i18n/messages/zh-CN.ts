@@ -93,6 +93,7 @@ export const zhCN = {
   'compare.onlyTarget': ({ count }: { count: number }): string => `${count} 个仅目标有`,
   'compare.allSame': '两端一致',
   'compare.filter': '差异',
+  'compare.backup': '备份',
   'compare.refresh': '刷新',
   'compare.noDifferences': '没有不一致的项',
   'compare.emptyFolder': '文件夹为空',

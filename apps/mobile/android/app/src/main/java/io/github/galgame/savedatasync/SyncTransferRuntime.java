@@ -82,11 +82,6 @@ final class SyncTransferRuntime {
       }
 
       @Override
-      public boolean backup(String projectId) throws Exception {
-        return (Boolean) BackupModel.resolve(backups.settings(), projectId).get("shouldBackup");
-      }
-
-      @Override
       public long checkReceiveSpace(
         SyncPlanModel.Plan plan,
         java.nio.file.Path cacheRoot,

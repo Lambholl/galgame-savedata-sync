@@ -419,7 +419,7 @@ final class ListenerSyncRequests {
   /**
    * 确认拨号方回报的计划，在调用线程上等拨号方应答，最多 {@link ListenerControl#REQUEST_TIMEOUT_MS}；拨号方应答后视为已开始。
    *
-   * @param rawPlan 由这次预览按是否删除多余文件生成的计划，两份快照和备份设置必须与回报的一致。
+   * @param rawPlan 由这次预览按是否备份、是否删除多余文件生成的计划，两份快照必须与回报的一致。
    * @return 任务 ID，即计划 ID；拨号方还没登记任务时用 {@link #pending} 读占位状态。
    * @throws ArchiveFailure 不是当前请求、或拨号方已不能用这份计划时为 not-found；计划不对时为 invalid-request；
    *     已有任务时为 busy；拨号方拒绝时为它的错误。
@@ -440,8 +440,7 @@ final class ListenerSyncRequests {
             plan.value.get("direction").equals(entry.direction) &&
             plan.project.equals(entry.plan.get("projectId")) &&
             SyncPlanModel.same(plan.source.value, entry.plan.get("source")) &&
-            SyncPlanModel.same(plan.target.value, entry.plan.get("target")) &&
-            entry.plan.get("shouldBackup").equals(plan.shouldBackup)
+            SyncPlanModel.same(plan.target.value, entry.plan.get("target"))
         );
       } catch (Exception invalid) {
         throw new ArchiveFailure("invalid-request", "This plan does not match the comparison.");
@@ -475,7 +474,14 @@ final class ListenerSyncRequests {
         .request(
           entry.peerId,
           "sync.confirm",
-          object("requestId", requestId, "shouldDeleteExtras", plan.shouldDeleteExtras)
+          object(
+            "requestId",
+            requestId,
+            "shouldBackup",
+            plan.shouldBackup,
+            "shouldDeleteExtras",
+            plan.shouldDeleteExtras
+          )
         )
         .get(ListenerControl.REQUEST_TIMEOUT_MS + 2000, TimeUnit.MILLISECONDS);
     } catch (InterruptedException interrupted) {

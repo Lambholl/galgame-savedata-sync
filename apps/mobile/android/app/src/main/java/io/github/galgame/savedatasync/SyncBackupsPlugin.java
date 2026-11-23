@@ -124,20 +124,10 @@ public class SyncBackupsPlugin extends Plugin {
   }
 
   @PluginMethod
-  public void setPreference(PluginCall call) {
+  public void setKeepCount(PluginCall call) {
     submit(call, store -> {
-      Map<String, Object> value = arguments(call, "projectId", "policy");
-      Map<String, Object> policy =
-        value.get("policy") == null ? null : BackupModel.policy(value.get("policy"));
-      return mutate(store, target -> target.setPreference(id(value.get("projectId")), policy));
-    });
-  }
-
-  @PluginMethod
-  public void setDefaults(PluginCall call) {
-    submit(call, store -> {
-      Map<String, Object> policy = BackupModel.policy(arguments(call, "policy").get("policy"));
-      return mutate(store, target -> target.setDefaults(policy));
+      long keepCount = BackupModel.keepCount(arguments(call, "keepCount").get("keepCount"));
+      return mutate(store, target -> target.setKeepCount(keepCount));
     });
   }
 

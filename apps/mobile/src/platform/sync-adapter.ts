@@ -10,10 +10,10 @@ import type {
   DirectoryReference,
   InterruptedWrite,
   OperationResult,
-  SyncBackupPolicy,
   SyncBackupSettings,
   SyncManualBackupState,
   SyncPlan,
+  SyncPlanChoices,
   SyncPreparationPreview,
   SyncPreparationState,
   SyncTransferState,
@@ -61,8 +61,8 @@ export interface MobileSyncAdapter {
   cancelPreparation(id: string): Promise<SyncPreparationState>
   /** 释放准备。 */
   releasePreparation(id: string): Promise<void>
-  /** 核对项目关联、申请通知权限后执行；计划按原预览和 shouldDeleteExtras 重新生成，准备已过期时 reject plan-expired。 */
-  execute(id: string, shouldDeleteExtras: boolean): Promise<SyncTransferState>
+  /** 核对项目关联、申请通知权限后执行；计划按原预览和 choices 重新生成，准备已过期时 reject plan-expired。 */
+  execute(id: string, choices: SyncPlanChoices): Promise<SyncTransferState>
   /** 读取当前复制任务；没有时为 null。shouldRefresh 为 true 时先向对方查询。 */
   currentCopy(shouldRefresh?: boolean): Promise<MobileCopyDetails | null>
   /** 这款游戏最近一次任务；进程内没有记录时返回 null。 */
@@ -79,19 +79,17 @@ export interface MobileSyncAdapter {
   onPeerJobStarted(listener: (jobId: string, projectId: string) => void): () => void
   /** 读取这个游戏当前目录的备份。 */
   backups(projectId: string): Promise<MobileBackupDetails>
-  /** 读取全局与各游戏的备份设置，不需要游戏目录。 */
+  /** 读取备份库设置，不需要游戏目录。 */
   backupSettings(): Promise<SyncBackupSettings>
-  /** 单独设置这个游戏当前目录的备份；null 改回跟随全局。 */
-  setBackup(projectId: string, policy: SyncBackupPolicy | null): Promise<void>
-  /** 修改全局备份设置。 */
-  setBackupDefaults(policy: SyncBackupPolicy): Promise<void>
+  /** 修改备份库的保留份数；已有的备份到下一次轮换时才按新份数删除。 */
+  setBackupKeepCount(keepCount: number): Promise<void>
   /** 按保留份数删除这个游戏当前目录多余的旧备份。 */
   rotateBackups(projectId: string): Promise<void>
   /** 删除一份残留备份。 */
   cleanupBackup(projectId: string, backupId: string): Promise<void>
   /** 删除一份已提交的备份。 */
   deleteBackup(projectId: string, backupId: string): Promise<void>
-  /** 删除一个游戏的全部备份和单独设置，不需要游戏目录。 */
+  /** 删除一个游戏的全部备份，不需要游戏目录。 */
   deleteGameBackups(projectId: string): Promise<void>
   /** 立即为指定游戏启动一次本机手动备份。 */
   startManualBackup(projectId: string): Promise<SyncManualBackupState>
@@ -230,7 +228,7 @@ export function createMobileSyncAdapter(
     async releasePreparation(id) {
       unwrap(await copies.release(id))
     },
-    async execute(id, shouldDeleteExtras) {
+    async execute(id, choices) {
       const preview = unlessExpired(await copies.preview(id))
       const expected = preview.binding
       const isPermitted = dependencies?.requestNotifications
@@ -251,7 +249,7 @@ export function createMobileSyncAdapter(
         )
       }
       return unlessExpired(
-        await copies.execute(id, syncPlanFromPreview({ ...preview, shouldDeleteExtras })),
+        await copies.execute(id, syncPlanFromPreview({ ...preview, ...choices })),
       )
     },
     async currentCopy(shouldRefresh = false) {
@@ -280,13 +278,8 @@ export function createMobileSyncAdapter(
     async backupSettings() {
       return unwrap(await backups.read()).settings
     },
-    async setBackup(projectId, policy) {
-      // 单独设置只按游戏保存，但游戏要先在本机选好目录。
-      await local(projectId)
-      unwrap(await backups.setPreference(projectId, policy))
-    },
-    async setBackupDefaults(policy) {
-      unwrap(await backups.setDefaults(policy))
+    async setBackupKeepCount(keepCount) {
+      unwrap(await backups.setKeepCount(keepCount))
     },
     async rotateBackups(projectId) {
       unwrap(await backups.rotate(projectId))

@@ -200,7 +200,10 @@ export function useRemoteSync(
           return failure('busy', 'The mobile device has already started this transfer.')
         }
         try {
-          const state = await sync.execute(id, body.shouldDeleteExtras)
+          const state = await sync.execute(id, {
+            shouldBackup: body.shouldBackup,
+            shouldDeleteExtras: body.shouldDeleteExtras,
+          })
           item.jobId = state.jobId
           events.current.onStarted(state.jobId, item.projectId)
           watch(item, state.jobId).catch(() => undefined)

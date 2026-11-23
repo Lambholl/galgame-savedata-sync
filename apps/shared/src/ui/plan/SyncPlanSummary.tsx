@@ -32,11 +32,6 @@ export interface SyncPlanSummaryProps {
   readonly source: PlanEndpoint
   /** 被写入的一端。 */
   readonly target: PlanEndpoint
-  /**
-   * 切换写入前备份时触发，参数是新的取值。为 null 时只显示计划里的取值；
-   * 不为 null 时，传输计划有写入且目标有文件才显示成开关。
-   */
-  readonly onBackupChange: ((shouldBackup: boolean) => void) | null
 }
 
 type Group = 'replace' | 'create' | 'keep' | 'delete'
@@ -68,12 +63,7 @@ function issueText(plan: SyncPlan, t: Translate): string | null {
  * 相同的文件只给数量，问题显示成一条横幅。删除只在目标有的条目时，第三个数字和第三组用红色；
  * 来源目录为空时多一条横幅。
  */
-export function SyncPlanSummary({
-  plan,
-  source,
-  target,
-  onBackupChange,
-}: SyncPlanSummaryProps): ReactElement {
+export function SyncPlanSummary({ plan, source, target }: SyncPlanSummaryProps): ReactElement {
   const t = useT()
   const [openKey, setOpenKey] = useState<string | null>(null)
   const sources = new Map(plan.source.entries.map((item) => [item.entryId, item]))
@@ -182,12 +172,6 @@ export function SyncPlanSummary({
   }
   const hasChanges = groups.replace.length + groups.create.length + groups.delete.length > 0
   const isWipe = groups.delete.length > 0 && plan.source.entries.length === 0
-  // 没有写入或目标没有文件时，开着备份也不会产生备份，不给开关。
-  const canChooseBackup =
-    onBackupChange !== null &&
-    plan.operation === 'copy' &&
-    hasChanges &&
-    plan.target.entries.some((item) => item.kind === 'file')
   return (
     <div className="ss-plan">
       <div className="ss-route">
@@ -230,18 +214,6 @@ export function SyncPlanSummary({
             <SafetyOutlined />
             {t('plan.restoreBackup')}
           </span>
-        ) : canChooseBackup ? (
-          <button
-            type="button"
-            role="switch"
-            className={`ss-chip ss-pressable ss-backup-chip${plan.shouldBackup ? ' is-on' : ''}`}
-            aria-checked={plan.shouldBackup}
-            aria-label={t('plan.backupSwitch')}
-            onClick={() => onBackupChange(!plan.shouldBackup)}
-          >
-            <SafetyOutlined />
-            <span>{t(plan.shouldBackup ? 'plan.backupOnPlain' : 'plan.backupOff')}</span>
-          </button>
         ) : plan.shouldBackup ? (
           <span className="is-on">
             <SafetyOutlined />

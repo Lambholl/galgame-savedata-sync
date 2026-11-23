@@ -217,6 +217,47 @@ button.ss-end:disabled {
   background: var(--ss-danger-soft);
   color: var(--ss-danger);
 }
+/*
+ * 写入前备份开关：文字后面带一个小滑块，关闭时灰色、滑块在左，
+ * 开启时与计划页的“写入前先备份”同为绿色、滑块在右。
+ */
+.ss-backup-chip.is-on {
+  border-color: var(--ss-ok);
+  background: var(--ss-ok-soft);
+  color: var(--ss-ok);
+}
+.ss-backup-knob {
+  position: relative;
+  flex: none;
+  width: 22px;
+  height: 12px;
+  border-radius: var(--ss-r-pill);
+  background: var(--ss-faint);
+  transition: background-color 0.15s ease;
+}
+.ss-backup-knob::after {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ss-accent-fg);
+  content: '';
+  transition: transform 0.15s ease;
+}
+.ss-backup-chip.is-on .ss-backup-knob {
+  background: var(--ss-ok);
+}
+.ss-backup-chip.is-on .ss-backup-knob::after {
+  transform: translateX(10px);
+}
+@media (prefers-reduced-motion: reduce) {
+  .ss-backup-knob,
+  .ss-backup-knob::after {
+    transition: none;
+  }
+}
 /* 两个词叠在同一格，宽度取较长的那个，切换时摘要行不跳动。 */
 .ss-keep-chip-label {
   display: inline-grid;

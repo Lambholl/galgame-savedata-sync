@@ -372,62 +372,18 @@ final class BackupStore implements AutoCloseable {
     return map(copy(find(projectId, backupId).manifest));
   }
 
-  /** 读取备份设置；设置文件不存在时返回默认设置，文件损坏或不是当前格式版本时抛错。 */
+  /** 读取备份库设置；设置文件不存在时返回默认设置，文件损坏或不是当前格式版本时抛错。 */
   synchronized Map<String, Object> settings() throws Exception {
     alive();
     return exists(settingsFile)
       ? BackupModel.settings(files.readJson(settingsFile))
-      : BackupModel.emptySettings();
+      : BackupModel.defaultSettings();
   }
 
-  /** 单独设置某个游戏；policy 为 null 时改回跟随全局。 */
-  synchronized Map<String, Object> setPreference(String projectId, Map<String, Object> policy)
-    throws Exception {
-    id(projectId);
-    Map<String, Object> settings = settings();
-    List<Object> values = new ArrayList<>(TransferJson.list(settings.get("projects")));
-    values.removeIf(value -> mapUnchecked(value).get("projectId").equals(projectId));
-    if (policy != null) {
-      values.add(
-        object(
-          "projectId",
-          projectId,
-          "shouldBackup",
-          policy.get("shouldBackup"),
-          "keepCount",
-          policy.get("keepCount")
-        )
-      );
-    }
-    return writeSettings(
-      BackupModel.settings(
-        object(
-          "schemaVersion",
-          BackupModel.SETTINGS_VERSION,
-          "defaults",
-          settings.get("defaults"),
-          "projects",
-          values
-        )
-      )
-    );
-  }
-
-  /** 修改全局设置；单独设置的游戏不受影响。 */
-  synchronized Map<String, Object> setDefaults(Map<String, Object> policy) throws Exception {
-    Map<String, Object> settings = settings();
-    return writeSettings(
-      BackupModel.settings(
-        object(
-          "schemaVersion",
-          BackupModel.SETTINGS_VERSION,
-          "defaults",
-          policy,
-          "projects",
-          settings.get("projects")
-        )
-      )
-    );
+  /** 修改备份库的保留份数；已有的备份到下一次轮换时才按新份数删除。keepCount 越界时抛错。 */
+  synchronized Map<String, Object> setKeepCount(long keepCount) throws Exception {
+    alive();
+    return writeSettings(BackupModel.settings(BackupModel.keepCount(keepCount)));
   }
 
   private Map<String, Object> writeSettings(Map<String, Object> next) throws Exception {
@@ -447,11 +403,6 @@ final class BackupStore implements AutoCloseable {
       throw failure;
     }
     return next;
-  }
-
-  @SuppressWarnings("unchecked")
-  private static Map<String, Object> mapUnchecked(Object value) {
-    return (Map<String, Object>) value;
   }
 
   synchronized Map<String, Object> info() throws Exception {
@@ -740,9 +691,7 @@ final class BackupStore implements AutoCloseable {
   private void prune(String projectId) throws Exception {
     List<Round> rounds = rounds();
     rounds.removeIf(round -> !group(round, projectId));
-    int keep = (int) (
-      (Number) BackupModel.resolve(settings(), projectId).get("keepCount")
-    ).longValue();
+    int keep = (int) ((Number) settings().get("keepCount")).longValue();
     if (rounds.size() <= keep) {
       return;
     }
@@ -786,7 +735,7 @@ final class BackupStore implements AutoCloseable {
     }
   }
 
-  /** 删除一个游戏在所有目录下的备份和单独设置。 */
+  /** 删除一个游戏在所有目录下的备份。 */
   synchronized void deleteGameBackups(String projectId) throws Exception {
     id(projectId);
     for (Round round : rounds()) {
@@ -794,21 +743,6 @@ final class BackupStore implements AutoCloseable {
         remove(round);
       }
     }
-    Map<String, Object> settings = settings();
-    List<Object> values = new ArrayList<>(TransferJson.list(settings.get("projects")));
-    values.removeIf(value -> mapUnchecked(value).get("projectId").equals(projectId));
-    writeSettings(
-      BackupModel.settings(
-        object(
-          "schemaVersion",
-          BackupModel.SETTINGS_VERSION,
-          "defaults",
-          settings.get("defaults"),
-          "projects",
-          values
-        )
-      )
-    );
   }
 
   /** 删除一份备份，游戏文件夹空了一起删除；中途失败时这份备份变成残留备份。 */

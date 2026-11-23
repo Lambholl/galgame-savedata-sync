@@ -64,7 +64,7 @@ Android 可作拨号方和监听方。作拨号方时原生层连接监听方、
 
 任务页分别显示移动端与电脑的发送/接收阶段、实际字节和文件计数。移动端发送完后，若电脑仍在写入，页面继续查询同一个任务；目标成功取决于接收端回读结果。失败、部分完成、取消、结果待确认及清理错误分别展示。开始传输、目标实际成功、失败和设备连接成功使用 antd Message；状态轮询不重复提示。
 
-“备份与恢复”显示本机保存位置、写入前自动备份策略（关闭自动备份时仍显示保留份数 1–4096）、“立即备份”按钮、有效轮次和未完成残留。点击“立即备份”直接启动本机手动备份（不弹确认、不填备注），显示实时进度与取消按钮，完成后刷新列表；空目录时提示当前目录没有文件可备份。关闭自动备份开关会立即保存；每份备份是一个可以直接删除的文件夹，清除应用数据或卸载应用会一并删除。选择轮次后先核对备份和当前内容，预览并确认恢复；恢复写入前始终会备份当前目录的全部文件。
+“备份与恢复”显示备份库的保留份数（点按打开设置页修改）、本机保存位置、“立即备份”按钮、有效轮次和未完成残留，列表标题显示“已有份数 / 保留份数”。点击“立即备份”直接启动本机手动备份（不弹确认、不填备注），显示实时进度与取消按钮，完成后刷新列表；空目录时提示当前目录没有文件可备份。写入前备份在传输页按次选择，默认关闭；每份备份是一个可以直接删除的文件夹，清除应用数据或卸载应用会一并删除。选择轮次后先核对备份和当前内容，预览并确认恢复；恢复写入前始终会备份当前目录的全部文件。
 
 `src/platform/sync-adapter.ts` 的 `createMobileSyncAdapter(library, dependencies?)` 从持久配置与最新目录表固定项目绑定，在通知授权后再次复核；本机恢复和手动备份也会在执行前核对保存的项目根。`useSyncTasks` 在应用内持续查询复制和恢复所有者，切换页面不取消任务；`currentCopy/currentRestore/currentManualBackup` 恢复本进程任务上下文，查询和清理都不自动调用执行。原生备份设置、手动备份及显式维护与传输、恢复使用同一个目标名额。
 
@@ -159,7 +159,7 @@ SAF 没有通用排他创建或比较后删除原语；这些复核能发现可�
 | --- | --- |
 | `BackupStore.create(projectId, rootId, reason, shouldBackup, entries, control)` | 传入目标目录的全部文件项；返回 `{ manifest, cleanupError }`；关闭备份、没有写入或目标没有文件时 manifest 为 null，reason=restore 强制开启保护 |
 | `list` / `manifest` | 按游戏返回轮次摘要（包括游戏之前用过的目录的备份）和未完成 ID，或按 backupId 取得单轮清单；恢复前必须 acquire |
-| `settings` / `setPreference` / `capacity` | 缺少项目设置时开启，坏文件保持原样；容量未知为 null，不足返回 insufficient-space |
+| `settings` / `setKeepCount` / `capacity` | 备份库设置文件不存在时为默认 10 份，旧格式由 `AppDataRecovery` 删除并提示；容量未知为 null，不足返回 insufficient-space |
 | `acquire(projectId, backupId, control)` | 重新核对全部原文后返回 Handle；引用期间不淘汰该轮 |
 | `rotate` / `cleanupIncomplete` | 明确重试轮换或清理归属已核实的未提交/已淘汰轮次 |
 | `deleteBackup` / `deleteGameBackups` | 删除一份备份，或移除游戏时删除它在所有目录下的备份；被恢复引用时拒绝，失败可重试 |
@@ -169,7 +169,7 @@ SAF 没有通用排他创建或比较后删除原语；这些复核能发现可�
 
 `DirectoryRuntime.manualBackups(context)` 持有进程内共享的 `ManualBackupRuntime`：启动时占用与传输、恢复相同的 `TargetOperation` 名额，在单工作线程中通过 `SyncScanner.snapshotNow` 扫描当前目录并调用 `BackupStore.create(..., "manual", true, ...)` 提交，终态按 10 分钟保留供查询，Activity 销毁后任务继续。
 
-`src/platform/backups.ts` 导出 `androidBackups`，只提供 read/list/manifest/setPreference/setDefaults/rotate/cleanupIncomplete/deleteBackup/deleteGameBackups 及手动备份接口 startManual/currentManual/manualState/cancelManual，参数只有公开 ID、保留份数和布尔开关。
+`src/platform/backups.ts` 导出 `androidBackups`，只提供 read/list/manifest/setKeepCount/rotate/cleanupIncomplete/deleteBackup/deleteGameBackups 及手动备份接口 startManual/currentManual/manualState/cancelManual，参数只有公开 ID 和保留份数。
 
 ## 10. 受保护写入与本机恢复
 
@@ -205,7 +205,7 @@ SAF 没有通用排他创建或比较后删除原语；这些复核能发现可�
 
 Android → Windows（拨号方 → 监听方）：确认后先登记目标任务，再按计划顺序从 SAF 流边读边打包上传（chunked PUT），逐文件读取前后核对大小和修改日期。上传期间每 3 秒查询原任务作为通信心跳，电脑仍在备份时每秒刷新它的进度。sender sent 只表示已发送，最终结果以 receiver 的 `SyncApplyResult` 为准。无文件的计划不生成空归档。
 
-Windows → Android（监听方 → 拨号方）：使用移动端目标项目的备份设置；Windows 发送端 ready 后移动端核对确认计划，再检查缓存、备份和目标增量的已知同卷峰值。内容 GET 只领取一次，Windows 边读边打包发送，移动端边收边解包；完整校验通过后 `SyncWriter` 重新扫描目标、提交保护备份并逐项写入。备份清理或轮换失败不占名额，也不挡下一次传输，界面不提示；恢复流程会提示。
+Windows → Android（监听方 → 拨号方）：按确认计划里发起端的备份选择；Windows 发送端 ready 后移动端核对确认计划，再检查缓存、备份和目标增量的已知同卷峰值。内容 GET 只领取一次，Windows 边读边打包发送，移动端边收边解包；完整校验通过后 `SyncWriter` 重新扫描目标、提交保护备份并逐项写入。备份清理或轮换失败不占名额，也不挡下一次传输，界面不提示；恢复流程会提示。
 
 确认执行后才使用 dataSync 服务和持续通知；插件销毁不会中断任务。任务总期限 30 分钟，预览/终态最多保留 10 分钟、各最多 32 份，已用任务 ID 最多 4096 个。
 

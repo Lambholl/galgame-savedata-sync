@@ -29,7 +29,7 @@ import java.util.Set;
 final class SyncJobModel {
 
   /** 与 shared 的 SYNC_CAPABILITIES_VERSION、SYNC_JOB_SCHEMA_VERSION 保持一致。 */
-  static final int CAPABILITIES_VERSION = 7;
+  static final int CAPABILITIES_VERSION = 8;
   static final int JOB_SCHEMA_VERSION = 5;
 
   private SyncJobModel() {}
@@ -239,23 +239,15 @@ final class SyncJobModel {
     return state;
   }
 
-  static boolean backup(Object raw, Map<String, Object> binding) throws Exception {
-    Map<String, Object> value = shape(
-      raw,
-      "schemaVersion",
-      "projectId",
-      "deviceId",
-      "rootId",
-      "shouldBackup"
-    );
+  /** 核对对端返回的项目元数据与 binding 记录的对端项目、设备和目录一致，不一致时抛错。 */
+  static void verifyProject(Object raw, Map<String, Object> binding) throws Exception {
+    Map<String, Object> value = shape(raw, "schemaVersion", "projectId", "deviceId", "rootId");
     number(value.get("schemaVersion"), 1, 1);
     require(
       binding.get("remoteProjectId").equals(value.get("projectId")) &&
         binding.get("remoteDeviceId").equals(value.get("deviceId")) &&
-        binding.get("remoteRootId").equals(value.get("rootId")) &&
-        value.get("shouldBackup") instanceof Boolean
+        binding.get("remoteRootId").equals(value.get("rootId"))
     );
-    return (Boolean) value.get("shouldBackup");
   }
 
   static Map<String, Object> request(SyncPlanModel.Plan plan, Map<String, Object> binding) {

@@ -230,8 +230,12 @@ export function createSyncTransferBridge(
       if (restored.status === 'error') {
         return restored
       }
-      // 开关的选择只在确认时给出；两份快照必须仍是这次预览的。
-      const chosen = { ...restored.value, shouldDeleteExtras: plan.shouldDeleteExtras }
+      // 两个开关的选择只在确认时给出；两份快照必须仍是这次预览的。
+      const chosen = {
+        ...restored.value,
+        shouldBackup: plan.shouldBackup,
+        shouldDeleteExtras: plan.shouldDeleteExtras,
+      }
       const expected = request(chosen).plan
       if (
         !expected.canExecute ||
