@@ -1,0 +1,23 @@
+/* 提示条里的按钮用与提示条同色的实底，和浅色底区分开，一眼能看出是按钮。 */
+.ss-notice .ant-btn {
+  min-width: 0;
+  height: 28px;
+  min-height: 0;
+  padding-inline: 12px;
+  font-weight: 600;
+}
+.ss-notice.is-warning .ant-btn:not(:disabled):not(.ant-btn-disabled),
+.ss-notice.is-warning .ant-btn:not(:disabled):not(.ant-btn-disabled):hover,
+.ss-notice.is-warning .ant-btn:not(:disabled):not(.ant-btn-disabled):active {
+  background: var(--ss-warn);
+  color: var(--ss-warn-soft);
+}
+.ss-notice.is-error .ant-btn:not(:disabled):not(.ant-btn-disabled),
+.ss-notice.is-error .ant-btn:not(:disabled):not(.ant-btn-disabled):hover,
+.ss-notice.is-error .ant-btn:not(:disabled):not(.ant-btn-disabled):active {
+  background: var(--ss-danger);
+  color: var(--ss-danger-soft);
+}
+.ss-notice .ant-btn:not(:disabled):not(.ant-btn-disabled):hover {
+  filter: brightness(1.08);
+}

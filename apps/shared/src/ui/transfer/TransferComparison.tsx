@@ -15,7 +15,9 @@ import type { CompareItem, CompareSide, SnapshotComparison } from '../../sync/sn
 import type { FileIconMarker } from '../files/FileIcon.tsx'
 import { FilePane } from '../files/FilePane.tsx'
 import type { PaneRow } from '../files/FilePane.tsx'
+import { ErrorText } from '../errors/ErrorText.tsx'
 import { useT } from '../i18n/i18n-context.ts'
+import { Notice } from '../notice/Notice.tsx'
 import { TransferStatus } from './TransferStatus.tsx'
 import './transfer-comparison.css'
 
@@ -237,8 +239,9 @@ function ComparePane({
  * 两端比较视图：方向条（左边来源、右边目标，中间按钮交换两端）、摘要行和两端文件列。
  *
  * 摘要行在比较完成后用彩色标签写差异数：~ 内容不同，+ 只在来源有，− 只在目标有；
- * 比较完成前写进度、取消或失败的说明，扫描中可以取消。目标有多出的条目时，摘要行多一个开关：
+ * 比较完成前写进度或已取消，扫描中可以取消。目标有多出的条目时，摘要行多一个开关：
  * 蓝色“− 保留”，点按后变红色“− 删除”，这些条目随之标红。
+ * 比较失败或无法比较时摘要行换成红色提示条，写明原因，右侧“重试”按钮调用 onRefresh。
  *
  * 放进限高的纵向 flex 容器时铺满剩余高度，两列各自滚动，列头固定在列顶；
  * 列末留出 --ss-pane-end-space 的空白。
@@ -326,87 +329,113 @@ export function TransferComparison({
         </button>
         {card(target)}
       </div>
-      <div className="ss-diffbar">
-        {counts === null ? (
-          <TransferStatus status={status} />
-        ) : counts.every((item) => item.count === 0) ? (
-          <span className="ss-count is-same">{t('compare.allSame')}</span>
-        ) : (
-          counts
-            .filter((item) => item.count > 0)
-            .map((item) => (
-              <span
-                key={item.key}
-                className={`ss-count is-${item.key}`}
-                title={item.label}
-                aria-label={item.label}
-              >
-                <b aria-hidden="true">{item.sign}</b>
-                {item.count}
-              </span>
-            ))
-        )}
-        <span className="ss-diffbar-space" />
-        {isScanning && onCancel ? (
-          <button type="button" className="ss-chip ss-pressable" onClick={onCancel}>
-            <span>{t('common.cancel')}</span>
-          </button>
-        ) : null}
-        {comparison !== null && onBackupChange ? (
-          <button
-            type="button"
-            role="switch"
-            className={`ss-chip ss-pressable ss-backup-chip${isBackingUp ? ' is-on' : ''}`}
-            aria-checked={isBackingUp}
-            aria-label={t('plan.backupSwitch')}
-            title={t('plan.backupSwitch')}
-            disabled={isLocked}
-            onClick={() => onBackupChange(!isBackingUp)}
-          >
-            <span>{t('compare.backup')}</span>
-            <span className="ss-backup-knob" aria-hidden="true" />
-          </button>
-        ) : null}
-        {comparison !== null && onKeepExtrasChange ? (
-          <button
-            type="button"
-            role="switch"
-            className={`ss-chip ss-pressable ss-keep-chip ${isKeepingExtras ? 'is-keep' : 'is-delete'}`}
-            aria-checked={isKeepingExtras}
-            aria-label={t('compare.keepExtras')}
-            title={t('compare.keepExtras')}
-            disabled={isLocked}
-            onClick={() => onKeepExtrasChange(!isKeepingExtras)}
-          >
-            <b aria-hidden="true">−</b>
-            <span className="ss-keep-chip-label">
-              <span hidden={!isKeepingExtras}>{t('plan.stat.keep')}</span>
-              <span hidden={isKeepingExtras}>{t('plan.stat.delete')}</span>
+      {status.kind === 'failed' ? (
+        <Notice
+          tone="error"
+          text={
+            status.error ? (
+              <ErrorText error={status.error} context={t('transfer.compareFailedContext')} />
+            ) : (
+              t('transfer.compareFailed')
+            )
+          }
+          action={{ label: t('common.retry'), isDisabled: isLocked, onClick: onRefresh }}
+        />
+      ) : status.kind === 'unavailable' ? (
+        <Notice
+          tone="error"
+          text={status.reason}
+          action={{ label: t('common.retry'), isDisabled: isLocked, onClick: onRefresh }}
+        />
+      ) : (
+        <div className="ss-diffbar">
+          {counts === null ? (
+            <TransferStatus status={status} />
+          ) : (
+            <span className="ss-diffbar-group">
+              {counts.every((item) => item.count === 0) ? (
+                <span className="ss-count is-same">{t('compare.allSame')}</span>
+              ) : (
+                counts
+                  .filter((item) => item.count > 0)
+                  .map((item) => (
+                    <span
+                      key={item.key}
+                      className={`ss-count is-${item.key}`}
+                      title={item.label}
+                      aria-label={item.label}
+                    >
+                      <b aria-hidden="true">{item.sign}</b>
+                      {item.count}
+                    </span>
+                  ))
+              )}
             </span>
-          </button>
-        ) : null}
-        {comparison !== null && (
-          <button
-            type="button"
-            className={`ss-chip ss-pressable${isFilterOn ? ' is-on' : ''}`}
-            aria-pressed={isFilterOn}
-            onClick={() => setIsFilterOn(!isFilterOn)}
-          >
-            <DiffOutlined />
-            <span>{t('compare.filter')}</span>
-          </button>
-        )}
-        <button
-          type="button"
-          className="ss-chip ss-pressable is-icon"
-          aria-label={t('compare.refresh')}
-          title={t('compare.refresh')}
-          disabled={isLocked || isScanning}
-          onClick={onRefresh}
-        >
-          <ReloadOutlined />
-        </button>
-      </div>
+          )}
+          {/* 操作按钮成组换行，窄屏放不下时整组移到下一行，不会只剩刷新按钮单独掉下去。 */}
+          <span className="ss-diffbar-group is-tools">
+            {isScanning && onCancel ? (
+              <button type="button" className="ss-chip ss-pressable" onClick={onCancel}>
+                <span>{t('common.cancel')}</span>
+              </button>
+            ) : null}
+            {comparison !== null && onBackupChange ? (
+              <button
+                type="button"
+                role="switch"
+                className={`ss-chip ss-pressable ss-backup-chip${isBackingUp ? ' is-on' : ''}`}
+                aria-checked={isBackingUp}
+                aria-label={t('plan.backupSwitch')}
+                title={t('plan.backupSwitch')}
+                disabled={isLocked}
+                onClick={() => onBackupChange(!isBackingUp)}
+              >
+                <span className="ss-backup-dot" aria-hidden="true" />
+                <span>{t('compare.backup')}</span>
+              </button>
+            ) : null}
+            {comparison !== null && onKeepExtrasChange ? (
+              <button
+                type="button"
+                role="switch"
+                className={`ss-chip ss-pressable ss-keep-chip ${isKeepingExtras ? 'is-keep' : 'is-delete'}`}
+                aria-checked={isKeepingExtras}
+                aria-label={t('compare.keepExtras')}
+                title={t('compare.keepExtras')}
+                disabled={isLocked}
+                onClick={() => onKeepExtrasChange(!isKeepingExtras)}
+              >
+                <b aria-hidden="true">−</b>
+                <span className="ss-keep-chip-label">
+                  <span hidden={!isKeepingExtras}>{t('plan.stat.keep')}</span>
+                  <span hidden={isKeepingExtras}>{t('plan.stat.delete')}</span>
+                </span>
+              </button>
+            ) : null}
+            {comparison !== null && (
+              <button
+                type="button"
+                className={`ss-chip ss-pressable${isFilterOn ? ' is-on' : ''}`}
+                aria-pressed={isFilterOn}
+                onClick={() => setIsFilterOn(!isFilterOn)}
+              >
+                <DiffOutlined />
+                <span>{t('compare.filter')}</span>
+              </button>
+            )}
+            <button
+              type="button"
+              className="ss-chip ss-pressable is-icon"
+              aria-label={t('compare.refresh')}
+              title={t('compare.refresh')}
+              disabled={isLocked || isScanning}
+              onClick={onRefresh}
+            >
+              <ReloadOutlined />
+            </button>
+          </span>
+        </div>
+      )}
       <div className="ss-panes">
         {pane(source)}
         {pane(target)}

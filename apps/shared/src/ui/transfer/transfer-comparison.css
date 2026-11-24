@@ -126,7 +126,7 @@ button.ss-end:disabled {
   cursor: default;
 }
 
-/* 摘要行：比较前写进度说明，完成后写差异数；右边是差异筛选和刷新 */
+/* 摘要行：左边是进度说明或差异数，右边是操作按钮；放不下时操作按钮整组换到下一行并靠右 */
 .ss-diffbar {
   display: flex;
   flex-wrap: wrap;
@@ -134,8 +134,15 @@ button.ss-end:disabled {
   gap: 6px;
   min-height: 30px;
 }
-.ss-diffbar-space {
-  flex: 1;
+.ss-diffbar-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.ss-diffbar-group.is-tools {
+  justify-content: flex-end;
+  margin-left: auto;
 }
 /*
  * 差异数标签：符号加数量，与文件行底色、图标状态点同色。
@@ -218,45 +225,25 @@ button.ss-end:disabled {
   color: var(--ss-danger);
 }
 /*
- * 写入前备份开关：文字后面带一个小滑块，关闭时灰色、滑块在左，
- * 开启时与计划页的“写入前先备份”同为绿色、滑块在右。
+ * 写入前备份开关：文字前一个圆点，关闭时灰色空心，
+ * 开启时整个开关与计划页的“写入前先备份”同为绿色，圆点实心。
  */
 .ss-backup-chip.is-on {
   border-color: var(--ss-ok);
   background: var(--ss-ok-soft);
   color: var(--ss-ok);
 }
-.ss-backup-knob {
-  position: relative;
+.ss-backup-dot {
   flex: none;
-  width: 22px;
-  height: 12px;
-  border-radius: var(--ss-r-pill);
-  background: var(--ss-faint);
-  transition: background-color 0.15s ease;
-}
-.ss-backup-knob::after {
-  position: absolute;
-  top: 2px;
-  left: 2px;
+  box-sizing: border-box;
   width: 8px;
   height: 8px;
+  border: 1.5px solid var(--ss-faint);
   border-radius: 50%;
-  background: var(--ss-accent-fg);
-  content: '';
-  transition: transform 0.15s ease;
 }
-.ss-backup-chip.is-on .ss-backup-knob {
+.ss-backup-chip.is-on .ss-backup-dot {
+  border-color: var(--ss-ok);
   background: var(--ss-ok);
-}
-.ss-backup-chip.is-on .ss-backup-knob::after {
-  transform: translateX(10px);
-}
-@media (prefers-reduced-motion: reduce) {
-  .ss-backup-knob,
-  .ss-backup-knob::after {
-    transition: none;
-  }
 }
 /* 两个词叠在同一格，宽度取较长的那个，切换时摘要行不跳动。 */
 .ss-keep-chip-label {

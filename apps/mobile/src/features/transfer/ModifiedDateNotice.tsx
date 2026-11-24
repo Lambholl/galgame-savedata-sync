@@ -1,6 +1,6 @@
 import { toShownError } from '@savedata-sync/shared'
 import type { SyncPlan } from '@savedata-sync/shared'
-import { WarningNotice, useT } from '@savedata-sync/shared/ui'
+import { Notice, useT } from '@savedata-sync/shared/ui'
 import { useFailureMessage } from '../../app/failure-message'
 import { useAllFilesAccess } from '../../app/use-all-files-access'
 
@@ -23,16 +23,19 @@ export function ModifiedDateNotice({
       {failureHolder}
       {isShown ? (
         <div className="date-notice">
-          <WarningNotice
+          <Notice
+            tone="warning"
             text={t('transfer.dateNotice', { count: plan.transferFileCount })}
-            actionLabel={t('transfer.dateNoticeAction')}
-            isActionDisabled={access.isOpening}
-            onAction={() => {
-              access
-                .openSettings()
-                .catch((cause: unknown) =>
-                  showFailure(toShownError(cause), t('directAccess.openFailed')),
-                )
+            action={{
+              label: t('transfer.dateNoticeAction'),
+              isDisabled: access.isOpening,
+              onClick: () => {
+                access
+                  .openSettings()
+                  .catch((cause: unknown) =>
+                    showFailure(toShownError(cause), t('directAccess.openFailed')),
+                  )
+              },
             }}
           />
         </div>

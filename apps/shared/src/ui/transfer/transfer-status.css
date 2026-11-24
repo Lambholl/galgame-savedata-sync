@@ -14,7 +14,3 @@
   flex: none;
   color: var(--ss-accent);
 }
-.ss-transfer-status.is-error {
-  align-items: flex-start;
-  color: var(--ss-danger);
-}
