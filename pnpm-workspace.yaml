@@ -3,8 +3,17 @@ packages:
   - apps/desktop
   - apps/shared
 
-# 解析新版本时只用发布满 1 天（单位为分钟）的版本：被投毒的版本通常在几小时内下架，范围版本跑 pnpm update 时同样生效。
-minimumReleaseAge: 1440
+# 解析新版本时只用发布满 3 天（单位为分钟）的版本：被投毒的版本通常在几小时到几天内下架，范围版本跑 pnpm update 时同样生效。
+# 等不了的安全修复临时加进 minimumReleaseAgeExclude，升级后删掉。
+minimumReleaseAge: 4320
+
+# 多个应用共用的运行时库，版本只在这里写一次，各 package.json 写 catalog:。
+catalog:
+  '@ant-design/icons': 6.3.4
+  antd: 6.6.7
+  qrcode.react: 4.2.0
+  react: 18.3.1
+  react-dom: 18.3.1
 
 onlyBuiltDependencies:
   - esbuild

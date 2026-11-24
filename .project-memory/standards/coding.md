@@ -26,7 +26,7 @@ tags: [编码规范]
 | 语言 | TypeScript（共享包、电脑端、移动端网页层）；Android 原生用 Java，不引入 Kotlin；脚本用 `.mjs` |
 | 注释语言 | 中文；代码标识、API 名称和工具指令保留原文 |
 | 工具配置 | `.editorconfig`、`.gitattributes`、`.prettierrc.json`、`.prettierignore`、`eslint.config.mjs`、`tsconfig.base.json`、`apps/mobile/android/checkstyle.xml` |
-| 检查入口 | `pnpm check` 依次运行类型检查、ESLint、Checkstyle（需要 JDK）、Clippy、两端构建、文本编码、Prettier 和 rustfmt，某一步失败即停止。文本编码和格式检查放最后：这两类问题不影响类型和 lint 的判断，不能挡住前面的结果。`pnpm format` 自动修复 |
+| 检查入口 | `pnpm check` 依次运行类型检查、ESLint、Checkstyle（需要 JDK）、Clippy、两端构建、依赖版本写法、文本编码、Prettier 和 rustfmt，某一步失败即停止。文本编码和格式检查放最后：这两类问题不影响类型和 lint 的判断，不能挡住前面的结果。`pnpm format` 自动修复 |
 | 许可证和作者署名 | AGPL-3.0，见根目录 `LICENSE`；源码不加版权头，不新增版权主体；第三方版权与许可声明保留原文 |
 | 界面约定 | 设计变量、组件选用、尺寸和反馈规则见[界面约定](../development/ui-conventions.md) |
 
@@ -45,8 +45,8 @@ tags: [编码规范]
 | 文档注释由 `jsdoc/require-jsdoc`（`publicOnly`）检查；名称以 `NativePlugin` 结尾的原生插件接口，方法文档写在同文件网页接口的同名方法上 | 两个接口方法一一对应，只写一处 | TypeScript |
 | eslint-plugin-react 的 React 版本在 `eslint.config.mjs` 里写死为 `18.3`，和 apps 的 react 依赖一致；升级 React 时一起改 | ESLint 10 去掉了 `context.getFilename`，插件的 `detect` 会报错 | TSX |
 | `pnpm-workspace.yaml` 的 `peerDependencyRules` 允许 eslint-plugin-react 7.37 搭配 ESLint 10；插件发布支持 ESLint 10 的版本后删掉这条 | 插件的 peer 范围还停在 ESLint 9，项目用到的规则在 ESLint 10 上能正常运行 | 依赖 |
-| npm 依赖的版本写法分三类：开发工具（ESLint 及插件、Vite、Prettier、类型包、`@tauri-apps/cli`、`@yao-pkg/pkg`、`resedit`）和 `@tauri-apps/api` 写 `^` 范围，`@types/node` 停在 `^22`，`@types/react*` 停在 `^18`；`typescript` 写 `~`，只升补丁版；React、Capacitor 和会打包给用户的运行时依赖（`ws`、`@homebridge/ciao`、`bonjour-service`、antd 系列、`qrcode.react`）写精确版本。`.npmrc` 的 `save-exact` 只决定 `pnpm add` 的默认写法，加范围依赖时写 `pnpm add <包>@^x.y.z`。`pnpm-workspace.yaml` 的 `minimumReleaseAge` 让解析只用发布满 1 天的版本 | 实际版本始终由 `pnpm-lock.yaml` 固定，CI 用 `--frozen-lockfile`；范围版本让 `pnpm update` 直接升级工具，出问题由 `pnpm check` 发现。TypeScript 小版本常带新的类型报错；运行时依赖升级后要按[依赖表](../architecture/dependencies.md)复测，`pnpm check` 发现不了，不能被批量升级带上去；Capacitor 三个包要同版本整组升级 | 根和各应用的 `package.json` |
-| `@tauri-apps/api` 和 `tauri` crate 的主版本、小版本必须一致，升级时 `pnpm update` 和 `cargo update` 一起跑 | Tauri CLI 打包时检查两者版本，不一致直接报错 | 电脑端 |
+| npm 依赖的版本写法按所在字段决定，由 `scripts/check-dependency-specs.mjs`（`pnpm check` 运行）检查：`dependencies` 和 `peerDependencies` 会打包给用户，写精确版本；`devDependencies` 是开发工具，写 `^` 范围。例外：`@capacitor/cli` 写精确版本；`apps/shared` 为开发安装的 peer 依赖和 peer 声明写法相同。几个应用共用的运行时库（antd、`@ant-design/icons`、react、react-dom、`qrcode.react`）的版本只写在 `pnpm-workspace.yaml` 的 `catalog`（也写精确版本），各 `package.json` 写 `catalog:`。`@types/node` 停在 `^22`、`@types/react*` 停在 `^18`，跟随内嵌 Node 和 React 的主版本。`.npmrc` 的 `save-exact` 让 `pnpm add` 默认写精确版本，加开发工具时写 `pnpm add -D <包>@^x.y.z`。`pnpm-workspace.yaml` 的 `minimumReleaseAge` 让解析只用发布满 3 天的版本，等不了的安全修复临时加进 `minimumReleaseAgeExclude`，升级后删掉 | 实际版本始终由 `pnpm-lock.yaml` 固定，CI 用 `--frozen-lockfile`，写法只决定 `pnpm update` 能动哪些包。开发工具出问题由 `pnpm check` 发现，所以让 `pnpm update` 直接升级；运行时依赖升级后要按[依赖表](../architecture/dependencies.md)复测，`pnpm check` 发现不了，只能有意识地逐个升级。按字段判断不用维护包名清单，新加的依赖放对字段就自动适用；Capacitor 三个包要同版本整组升级；catalog 让两端用同一版本 | 根和各应用的 `package.json`、`pnpm-workspace.yaml` |
+| `@tauri-apps/api` 和 `tauri` crate 的主版本、小版本必须一致，升级时改 `@tauri-apps/api` 的精确版本并一起跑 `cargo update` | Tauri CLI 打包时检查两者版本，不一致直接报错 | 电脑端 |
 | Android 同一 Maven 模块在运行、测试和构建工具里只解析一个版本，版本写在 `dependency-security.json` 的 `singleVersionModules` | 多版本时安全审计和运行结果对不上 | Android 依赖；`pnpm security:android` 检查 |
 
 ### 命名

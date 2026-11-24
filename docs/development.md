@@ -26,6 +26,7 @@
   - [版本号规则](#版本号规则)
   - [1.x 版本升级规则](#1x-版本升级规则)
   - [发布流程](#发布流程)
+- [依赖版本与更新](#依赖版本与更新)
 - [依赖安全检查](#依赖安全检查)
 - [常见问题](#常见问题)
 
@@ -47,7 +48,7 @@ pnpm dev:desktop
 
 | 工具 | 要求 |
 | --- | --- |
-| Node.js | 22.13+（建议 22.23.4+ 或 24.22.1+）；桌面端开发版使用 `PATH` 中的 `node` 运行 sidecar |
+| Node.js | 22.13+，建议用仍在官方维护期内的主版本里最新的安全补丁版本（`pnpm security:node` 不达标时提示）；桌面端开发版使用 `PATH` 中的 `node` 运行 sidecar |
 | pnpm | 10.34.8（与 [package.json](../package.json) 的 `packageManager` 一致） |
 | Rust | stable，Windows 使用 `x86_64-pc-windows-msvc`，另需 VS 生成工具的“使用 C++ 的桌面开发”工作负载与 Windows SDK |
 | WebView2 运行时 | Windows 11 自带 |
@@ -315,6 +316,28 @@ git push --atomic origin master v1.0.0
 
 若工作流失败，须经维护者同意后删除 tag，修复后再重新打 tag。发布前在草稿 Release 页面补充已知问题、安装限制与兼容变更说明（发布 `1.0.0` 时写明 `0.x` 的数据不迁移）。日常分支推送与 PR 仅运行 `pnpm check` 与 Android debug 构建，不保留产物。
 
+## 依赖版本与更新
+
+`package.json` 里的版本写法按字段决定，`pnpm check` 会检查：
+
+- `dependencies` 和 `peerDependencies` 会打包给用户，写精确版本；两个应用共用的运行时库（antd、`@ant-design/icons`、react、react-dom、`qrcode.react`）写 `catalog:`，版本只写在 [pnpm-workspace.yaml](../pnpm-workspace.yaml) 的 `catalog`。
+- `devDependencies` 是开发工具，写 `^` 范围；`@capacitor/cli` 例外，和其他 Capacitor 包同版本、写精确版本。
+- 新版本发布满 3 天才会被解析（`minimumReleaseAge`）。
+
+实际安装的版本由 `pnpm-lock.yaml` 固定。发版前和平时每月左右更新一次：
+
+```bash
+pnpm update -r
+pnpm outdated -r
+pnpm check
+pnpm test
+pnpm security:node
+pnpm security:android
+```
+
+- `pnpm update -r` 只升级写 `^` 的开发工具，不越过主版本。
+- `pnpm outdated -r` 列出可升级的运行时依赖和开发工具的新主版本，逐个决定是否升级；运行时依赖升级后按[依赖表](../.project-memory/architecture/dependencies.md)复测。Rust 依赖用 `cargo update`，Android 依赖改 Gradle 文件里的版本。
+
 ## 依赖安全检查
 
 安全检查需手动联网执行，日常 CI 不运行：
@@ -324,7 +347,7 @@ pnpm security:node
 pnpm security:android
 ```
 
-- `security:node`：通过 npm registry 审计全部依赖，向 OSV 查询固定 pnpm 版本，并对照 [scripts/toolchain-policy.mjs](../scripts/toolchain-policy.mjs) 检查 Node 安全基线。
+- `security:node`：通过 npm registry 审计全部依赖，向 OSV 查询固定 pnpm 版本，并向 Node 官方查询发行记录和维护期，检查打包进 sidecar 的 Node（pkg-fetch 选定的版本）和本机 Node：主版本要在维护期内，且不低于这个主版本最新的安全发布，规则在 [scripts/toolchain-policy.mjs](../scripts/toolchain-policy.mjs)。打包进 sidecar 的 Node 随应用发给用户，不达标时检查失败，升级 `@yao-pkg/pkg` 或它固定的 `@yao-pkg/pkg-fetch`；本机 Node 只运行开发工具和开发版 sidecar，不达标时只提示。
 - `security:android`：同步 Android 工程并解析全部 Maven 配置与 buildscript classpath（输出至 `.reports/android-dependencies.json`），向 OSV 查询已知漏洞。
 
 修改依赖时注意：

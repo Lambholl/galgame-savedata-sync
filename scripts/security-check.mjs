@@ -2,12 +2,29 @@ import { readFileSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import { join } from 'node:path'
 import { REPO_ROOT } from './local-environment.mjs'
-import { isNodeSecurityBaselineMet } from './toolchain-policy.mjs'
+import { embeddedNodeVersion } from '../apps/desktop/scripts/build-sidecar-exe.mjs'
+import { assessNodeVersion, fetchNodeReleaseData } from './toolchain-policy.mjs'
 
-let hasFailure = !isNodeSecurityBaselineMet(process.versions.node)
-console.log(
-  `${hasFailure ? '[FAIL]' : '[OK]'} Node.js security baseline: use 22.23.4+ (22.x) or 24.22.1+ (24.x). Current: ${process.version}`,
-)
+let hasFailure = false
+// 打包进安装包的 sidecar 用 pkg-fetch 选定的 Node，随应用发给用户，不达标就失败。
+// 本机 Node 只运行开发工具和开发版 sidecar，不达标只提示。
+try {
+  const data = await fetchNodeReleaseData()
+  const sidecar = assessNodeVersion(embeddedNodeVersion(), data)
+  console.log(
+    `${sidecar.isMet ? '[OK]' : '[FAIL]'} Node.js in the packaged desktop sidecar ${embeddedNodeVersion()}: ${sidecar.detail}`,
+  )
+  if (!sidecar.isMet) {
+    hasFailure = true
+  }
+  const local = assessNodeVersion(process.versions.node, data)
+  console.log(
+    `${local.isMet ? '[OK]' : '[WARN]'} Local Node.js ${process.version}: ${local.detail}`,
+  )
+} catch (error) {
+  console.error('[FAIL] Node.js release lookup did not complete:', error)
+  hasFailure = true
+}
 
 const isWindows = process.platform === 'win32'
 const command = isWindows ? 'cmd.exe' : 'pnpm'

@@ -2,7 +2,6 @@ import { existsSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { getAndroidEnvironment } from './local-environment.mjs'
-import { isNodeSecurityBaselineMet } from './toolchain-policy.mjs'
 
 const isWindows = process.platform === 'win32'
 const isDesktopOnly = process.argv.includes('--desktop')
@@ -30,11 +29,6 @@ function listDirectory(path) {
 const [nodeMajor, nodeMinor] = process.versions.node.split('.').map(Number)
 const isNodeSupported = (nodeMajor === 22 && nodeMinor >= 13) || nodeMajor >= 24
 addCheck('Node.js', isNodeSupported ? 'ok' : 'fail', `${process.version}; requires 22.13+ or 24+`)
-addCheck(
-  'Node.js security patch',
-  isNodeSecurityBaselineMet(process.versions.node) ? 'ok' : 'warn',
-  'Use Node 22.23.4+ (22.x) or 24.22.1+ (24.x); security:check rejects older patches',
-)
 for (const [name, command, isBatch] of [
   ['Git', 'git', false],
   ['pnpm', isWindows ? 'pnpm.cmd' : 'pnpm', isWindows],

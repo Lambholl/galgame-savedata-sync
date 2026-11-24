@@ -20,13 +20,9 @@ tags: [路线图, 里程碑]
 
 | 里程碑 | 目标 | 计划时间 | 状态 |
 | --- | --- | --- | --- |
-| M-006 | 发布 1.0.0：实现 [ADR-0006](../decisions/ADR-0006-stable-release-compatibility.md) 的兼容机制，Android 自动添加 `.nomedia`，精简测试并补兼容回归，发布前在本地验证完打包产物和升级路径 | 待定 | planned |
 
 ## 2. 当前计划
 
-M-006 的事项按表中顺序做，每项开始前细化成工作包，真机验证用 `scripts/device/` 的工具。发布前验证要覆盖前面各项的结果，放最后。
-
 | 优先级 | 事项 | 依赖 | 状态 |
 | --- | --- | --- | --- |
-| P1 | 发布前验证：打包产物和 Android 之间的连接与双向传输；pkg 打包后的安装版重测；安装包的模式选择页和 UAC；打包产物上数据读不懂时的启动；`pnpm security:check` 重跑并更新[当前回归状态](../testing/regression-notes.md) | 以上各项 | planned |
 | P3 | 电脑端支持 Linux：存储目录已按 XDG 规划；推荐地址模块（现用 `route print`、`reg query`）、短路径测试和 `Windows*` 命名要另做 | 无 | planned |

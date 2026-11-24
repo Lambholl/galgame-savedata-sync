@@ -16,9 +16,19 @@ const TARGET_TRIPLE = 'x86_64-pc-windows-msvc'
 const NODE_RANGE = 'node22'
 
 // pkg-fetch 的版本由 pkg 固定，从 pkg 的位置解析，保证下载的基础二进制和 pkg 期望的一致。
-const fetchBaseBinary = createRequire(createRequire(import.meta.url).resolve('@yao-pkg/pkg'))(
+const pkgFetch = createRequire(createRequire(import.meta.url).resolve('@yao-pkg/pkg'))(
   '@yao-pkg/pkg-fetch',
-).need
+)
+const fetchBaseBinary = pkgFetch.need
+
+/**
+ * 返回打包时内嵌的 Node 版本，即 pkg-fetch 为 NODE_RANGE 选定的预编译版本。
+ *
+ * @returns {string} 形如 `22.23.5`，不带 v 前缀。
+ */
+export function embeddedNodeVersion() {
+  return pkgFetch.getNodeVersion(NODE_RANGE).replace(/^v/, '')
+}
 
 /**
  * 用 `@yao-pkg/pkg` 把 `out/sidecar/index.cjs` 打成 Windows x64 sidecar 可执行文件，

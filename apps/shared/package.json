@@ -12,15 +12,15 @@
     "test": "node --experimental-strip-types --test test/*.test.mjs"
   },
   "peerDependencies": {
-    "@ant-design/icons": "6.3.4",
-    "antd": "6.6.7",
-    "qrcode.react": "4.2.0",
-    "react": "18.3.1"
+    "@ant-design/icons": "catalog:",
+    "antd": "catalog:",
+    "qrcode.react": "catalog:",
+    "react": "catalog:"
   },
   "devDependencies": {
-    "@ant-design/icons": "6.3.4",
-    "antd": "6.6.7",
-    "qrcode.react": "4.2.0",
-    "react": "18.3.1"
+    "@ant-design/icons": "catalog:",
+    "antd": "catalog:",
+    "qrcode.react": "catalog:",
+    "react": "catalog:"
   }
 }
