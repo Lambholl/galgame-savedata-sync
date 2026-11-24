@@ -92,10 +92,13 @@ export function SyncCopyDetails({
             onRetryCleanup={state.local.cleanupError && !isRunning ? () => act('cleanup') : null}
             // 备份建在被写入的一端；本机发送时备份在移动端上，这里不提供入口。
             onViewBackup={
-              state.local.role === 'receiver' && plan ? () => onOpenBackup(task.projectId) : null
+              state.local.role === 'receiver' && plan?.shouldBackup
+                ? () => onOpenBackup(task.projectId)
+                : null
             }
             renderTechnicalDetails={(text) => <TechnicalDetails text={text} />}
             isAwaitingPeer={task.isAwaitingPeer}
+            shouldBackup={task.shouldBackup}
           />
         </LocalDeviceProvider>
       ) : (

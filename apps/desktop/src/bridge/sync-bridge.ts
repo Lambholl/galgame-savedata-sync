@@ -53,6 +53,8 @@ export interface DesktopCopySummary {
   readonly isAwaitingPeer: boolean
   /** 这次传输由对方设备发起。 */
   readonly isPeerInitiated: boolean
+  /** 计划是否在写入前备份目标文件。 */
+  readonly shouldBackup: boolean
 }
 /** 本机恢复任务列表的一行；phase 到 percent 是由当前状态与进度合成的结论。 */
 export interface DesktopRestoreSummary {
@@ -223,6 +225,7 @@ const COPY_FIELDS = [
   'hasCleanupError',
   'isAwaitingPeer',
   'isPeerInitiated',
+  'shouldBackup',
 ]
 const RESTORE_FIELDS = [
   'restoreId',
@@ -267,6 +270,7 @@ export function isDesktopCopySummary(value: unknown): value is DesktopCopySummar
     typeof value.isAwaitingPeer === 'boolean' &&
     (!value.isAwaitingPeer || value.phase === 'running') &&
     typeof value.isPeerInitiated === 'boolean' &&
+    typeof value.shouldBackup === 'boolean' &&
     (value.phase === 'running' ? value.stage !== 'done' : value.stage === 'done')
   )
 }

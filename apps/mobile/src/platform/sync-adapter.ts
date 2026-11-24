@@ -116,6 +116,9 @@ export interface MobileSyncAdapter {
   /** 删除一个写入标记。 */
   dismissInterruptedWrite(id: string): Promise<void>
 }
+// 复制详情里预览和计划的缓存项数。
+const PREVIEW_CACHE_SIZE = 4
+
 /** 移动复制适配器的依赖。 */
 export interface MobileSyncDependencies {
   readonly copies: AndroidSyncTransferApi
@@ -159,6 +162,7 @@ export function createMobileSyncAdapter(
   const copies = dependencies?.copies ?? androidSyncTransfers
   const writes = dependencies?.writes ?? androidSyncWrites
   const backups = dependencies?.backups ?? androidBackups
+  const previews = new Map<string, Pick<MobileCopyDetails, 'preview' | 'plan'>>()
   async function copyDetails(
     id: string | null,
     shouldRefresh: boolean,
@@ -176,8 +180,18 @@ export function createMobileSyncAdapter(
     ) {
       state = unwrap(await copies.query(id, true))
     }
-    const preview = unwrap(await copies.preview(id))
-    return { state, preview, plan: syncPlanFromPreview(preview) }
+    // 任务开始后预览不再变化。详情页进行中频繁读取，每次重读两端快照并重算计划会拖慢桥。
+    let fixed = previews.get(id)
+    if (!fixed) {
+      const preview = unwrap(await copies.preview(id))
+      fixed = { preview, plan: syncPlanFromPreview(preview) }
+      previews.set(id, fixed)
+      // 只有当前任务和各游戏最近一次会被反复读取，留几项就够。
+      for (const old of [...previews.keys()].slice(0, -PREVIEW_CACHE_SIZE)) {
+        previews.delete(old)
+      }
+    }
+    return { state, ...fixed }
   }
   async function local(projectId: string): Promise<DirectoryReference> {
     const snapshot = await library.read()

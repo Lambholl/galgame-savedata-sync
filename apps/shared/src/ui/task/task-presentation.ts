@@ -10,8 +10,44 @@ export const SYNC_TASK_STEPS = [
   'task.step.write',
 ] as const
 
+/** 不备份的复制任务两段进度的本地化键。 */
+export const SYNC_TASK_STEPS_WITHOUT_BACKUP = ['task.step.transfer', 'task.step.write'] as const
+
 /** 恢复任务两段进度的本地化键。 */
 export const RESTORE_TASK_STEPS = ['task.step.backup', 'task.step.write'] as const
+
+/**
+ * 把复制任务观察结果里的三段 step 换成要显示的步骤。
+ *
+ * @param step 观察结果的 step，按备份、传输、写入三段计数。
+ * @param shouldBackup 计划是否在写入前备份；为 false 时去掉备份段，原备份段算作传输段。
+ */
+export function syncTaskSteps(
+  step: number | null,
+  shouldBackup: boolean,
+): { readonly current: number | null; readonly labels: readonly MessageKey[] } {
+  if (shouldBackup) {
+    return { current: step, labels: SYNC_TASK_STEPS }
+  }
+  // 不备份时准备阶段也落在第 0 段，并到传输段里显示。
+  return {
+    current: step === null ? null : Math.max(0, step - 1),
+    labels: SYNC_TASK_STEPS_WITHOUT_BACKUP,
+  }
+}
+
+/**
+ * 进行中的复制任务的阶段名。
+ *
+ * @param shouldBackup 计划是否在写入前备份；为 false 时 backing-up 显示为准备。
+ */
+export function syncStageLabel(
+  stage: SyncJobObservation['stage'],
+  shouldBackup: boolean,
+): MessageKey {
+  // 接收端不备份时也经过 backing-up：写入前在这一阶段核对目标。
+  return stage === 'backing-up' && !shouldBackup ? 'task.stage.preparing' : `task.stage.${stage}`
+}
 
 /** 编号步骤条所需的数据。 */
 export interface TaskStepProgress {
@@ -46,14 +82,18 @@ export function syncTaskPreview(
   > & {
     /** 已经确认、对方设备还没开始；进行中时 status 写等待对方开始。 */
     readonly isAwaitingPeer?: boolean
+    /** 计划是否在写入前备份；为 false 时 steps 不含备份段。 */
+    readonly shouldBackup: boolean
   },
   t: Translate,
 ): TaskPreview {
   const { phase, stage, step, percent, hasCleanupError, isAwaitingPeer = false } = observation
-  const steps: TaskStepProgress = { current: step, percent }
+  const steps: TaskStepProgress = { ...syncTaskSteps(step, observation.shouldBackup), percent }
   if (phase === 'running') {
     return {
-      status: t(isAwaitingPeer ? 'task.awaitingPeer' : `task.stage.${stage}`),
+      status: t(
+        isAwaitingPeer ? 'task.awaitingPeer' : syncStageLabel(stage, observation.shouldBackup),
+      ),
       percent,
       phase,
       steps,

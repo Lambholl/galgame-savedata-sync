@@ -4,6 +4,9 @@ import type { ShownError, SyncJobRequest, SyncPlan, SyncTransferState } from '@s
 import type { DesktopRestoreState } from '../../../../bridge/sync-bridge.ts'
 import { desktopSync } from '../../platform/sync-adapter.ts'
 
+// 详情页显示进度环和逐项结果，间隔长了进度会一跳一跳；只读本机后端的缓存状态，不经网络。
+const POLL_INTERVAL_MS = 250
+
 interface CopyDetails {
   readonly request: SyncJobRequest
   readonly state: SyncTransferState
@@ -86,7 +89,7 @@ function useResource<T>(
                 setIsLoading(false)
               }
             })
-          }, 800)
+          }, POLL_INTERVAL_MS)
         }
       } catch (cause) {
         if (isCurrent) {

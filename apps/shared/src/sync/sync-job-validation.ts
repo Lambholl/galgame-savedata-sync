@@ -93,11 +93,10 @@ export function isSyncJobProgress(value: unknown): value is SyncJobProgress {
   ) {
     return false
   }
+  // 写入中的文件也计入已写字节，第一个文件写完前 fileBytesPublished 就可以大于 0。
   return (
     (value.totalFiles > 0 || value.totalFileBytes === 0) &&
-    (value.publishedFiles !== value.totalFiles ||
-      value.fileBytesPublished === value.totalFileBytes) &&
-    (value.publishedFiles !== 0 || value.fileBytesPublished === 0)
+    (value.publishedFiles !== value.totalFiles || value.fileBytesPublished === value.totalFileBytes)
   )
 }
 const DIGEST_FIELDS = [

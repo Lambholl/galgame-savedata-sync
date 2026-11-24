@@ -122,6 +122,7 @@ export async function createCandidate(parent: NativeDirectoryLocation): Promise<
  * 把输入写入候选文件，核对写入的字节数等于 entry.sizeBytes，再把候选文件的修改日期设为
  * entry.modifiedAt（为 null 时保留写入时的日期）。返回时数据可能还在系统缓存里。输入流由本函数读完并关闭。
  *
+ * @param onWritten 每写入一块后收到这个文件累计已写入的字节数。
  * @throws ArchiveError 字节数和计划不同时抛 checksum-mismatch。
  */
 export async function stageCandidate(
@@ -130,12 +131,14 @@ export async function stageCandidate(
   input: Readable,
   verifySource: () => Promise<void>,
   signal: AbortSignal,
+  onWritten?: (bytesWritten: number) => void,
 ): Promise<void> {
   const before = await candidate.handle.stat({ bigint: true })
   candidate.identity = getFileIdentity(before)
   if (!before.isFile() || before.nlink !== 1n) {
     throw new ArchiveError('source-changed', 'The candidate file identity is invalid.')
   }
+  let total = 0
   const sizeBytes = await copyStream(input, entry.sizeBytes ?? -1, signal, async (chunk) => {
     for (let offset = 0; offset < chunk.length;) {
       checkArchiveAbort(signal)
@@ -144,6 +147,8 @@ export async function stageCandidate(
         throw new ArchiveError('io-failure', 'The candidate write made no progress.')
       }
       offset += written.bytesWritten
+      total += written.bytesWritten
+      onWritten?.(total)
     }
   })
   if (sizeBytes !== entry.sizeBytes) {

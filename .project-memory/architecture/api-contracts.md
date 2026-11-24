@@ -1,7 +1,7 @@
 ---
 doc_type: api-contracts
 status: active
-updated: 2026-11-24
+updated: 2026-11-25
 tags: [API, 接口约定]
 ---
 
@@ -55,7 +55,7 @@ tags: [API, 接口约定]
 
 任务观察对两种发起方式、两个方向相同。版本：`/v1/sync/capabilities.schemaVersion` 为 8，是唯一的版本门槛，版本不符的对端在创建任务前得到“请更新两端”；控制消息 `v` 为 1。`SyncJobState.schemaVersion` 为 5，含 `failureStage`（失败、取消或待确认时停在哪个阶段，取值为 cleaning、done 以外的阶段；成功、已发送或没有记录时为 null，清理和终态更新不改写它）。`SyncTransferState` 为 1。
 
-进度 `SyncJobProgress` 有七个字段：`transferredBytes`（已打包或已解包的文件内容字节数，不含 tar 头和压缩开销）、`totalFileBytes`、`totalFiles`、`publishedFiles` 和 `fileBytesPublished`（接收端已写入目标的文件数和字节数）、`backupBytesCopied` 和 `totalBackupBytes`。界面按备份、传输、写入三步显示，分别用备份字节、传输字节和已写入文件数算百分比；接收端处于备份阶段时整个任务显示为备份。`totalBackupBytes` 等于计划的 `backupFileBytes`（由 shared `syncJobBackupBytes` 算出，计划里为 null 时为 0），两端都按计划核对；`backupBytesCopied` 是接收端备份时已写进备份的字节数，每写一块更新一次，只增不减，发送端始终为 0，接收端成功时等于总量。写完后重读核对备份文件和轮换不计入进度。`observeSyncJob` 用这两个字段算备份段的百分比，总量为 0 时百分比未知。Android 通知在备份阶段按同样的字段显示百分比。
+进度 `SyncJobProgress` 有七个字段：`transferredBytes`（已打包或已解包的文件内容字节数，不含 tar 头和压缩开销）、`totalFileBytes`、`totalFiles`、`publishedFiles` 和 `fileBytesPublished`（接收端已写入目标的文件数和字节数）、`backupBytesCopied` 和 `totalBackupBytes`。界面按备份、传输、写入三步显示，分别用备份字节、传输字节和已写入字节算百分比（写入总字节为 0 时用已写入文件数）；接收端处于备份阶段时整个任务显示为备份。计划没开备份（`shouldBackup` 为 false）时只显示传输、写入两步，准备阶段并进传输步（shared `syncTaskSteps`）；任务状态里没有备份选择，界面从计划读取，电脑端的复制摘要带 `shouldBackup`。接收端不备份时也经过 `backing-up`（写入前核对目标），这时阶段名显示为准备（shared `syncStageLabel`）；Android 通知拿不到计划，按 `totalBackupBytes` 为 0 显示准备。`publishedFiles` 在每个文件写完时加一；`fileBytesPublished` 每写一块更新一次，包含正在写的文件已写入的字节数，文件写完、计数加一之前已包含它的全部字节，所以 `publishedFiles` 为 0 时 `fileBytesPublished` 可以大于 0，`publishedFiles` 等于 `totalFiles` 时 `fileBytesPublished` 等于 `totalFileBytes`。写入中途失败时任务随即结束，两端接收方结束时都按实际结果重算这两个字段，只计写入成功的文件，失败任务的 `fileBytesPublished` 因此可能小于写入中显示的值。`totalBackupBytes` 等于计划的 `backupFileBytes`（由 shared `syncJobBackupBytes` 算出，计划里为 null 时为 0），两端都按计划核对；`backupBytesCopied` 是接收端备份时已写进备份的字节数，每写一块更新一次，只增不减，发送端始终为 0，接收端成功时等于总量。写完后重读核对备份文件和轮换不计入进度。`observeSyncJob` 用这两个字段算备份段的百分比，总量为 0 时百分比未知。Android 通知在备份阶段按同样的字段显示百分比，写入阶段和详情页一样按 `fileBytesPublished` 显示。
 
 | 消息 | 方向 | 内容 | 失败含义 |
 | --- | --- | --- | --- |

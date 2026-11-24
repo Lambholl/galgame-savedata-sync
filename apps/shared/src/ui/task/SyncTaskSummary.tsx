@@ -13,6 +13,7 @@ import { ProgressRing, Verdict, type VerdictTone } from './TaskHero.tsx'
 import { locateSyncError, observeSyncJob } from '../../sync/sync-job-observation.ts'
 import type { SyncTaskPhase } from '../../sync/sync-job-observation.ts'
 import { TaskSteps } from './TaskSteps.tsx'
+import { syncStageLabel, syncTaskSteps } from './task-presentation.ts'
 import './sync-task-summary.css'
 
 /** SyncTaskSummary 的参数。 */
@@ -37,10 +38,12 @@ export interface SyncTaskSummaryProps {
   readonly renderTechnicalDetails: (text: string) => ReactNode
   /** 已经确认、对方设备还没开始；进行中时进度环写等待对方开始。 */
   readonly isAwaitingPeer?: boolean
+  /** 计划是否在写入前备份；为 false 时阶段条不含备份。 */
+  readonly shouldBackup: boolean
 }
 
 /**
- * 传输详情：先给结论（进度环，或成功、部分完成、失败），再给五步进度和需要处理的文件；
+ * 传输详情：先给结论（进度环，或成功、部分完成、失败），再给阶段条和需要处理的文件；
  * 两端角色的内部状态放在折叠的“技术详情”里。
  */
 export function SyncTaskSummary({
@@ -54,6 +57,7 @@ export function SyncTaskSummary({
   onViewBackup,
   renderTechnicalDetails,
   isAwaitingPeer = false,
+  shouldBackup,
 }: SyncTaskSummaryProps): ReactElement {
   const t = useT()
   const receiver = local.role === 'receiver' ? local : remote?.role === 'receiver' ? remote : null
@@ -67,6 +71,7 @@ export function SyncTaskSummary({
     remote,
     remoteError !== null,
   )
+  const shownSteps = syncTaskSteps(step, shouldBackup)
   const reporter = result?.error ? receiver : (states.find((item) => item.error) ?? null)
   const error = result?.error ?? reporter?.error ?? null
   const cleanupError = result?.cleanupError ?? local.cleanupError ?? remote?.cleanupError ?? null
@@ -89,7 +94,7 @@ export function SyncTaskSummary({
       <>
         <ProgressRing
           percent={percent}
-          label={t(isAwaitingPeer ? 'task.awaitingPeer' : `task.stage.${stage}`)}
+          label={t(isAwaitingPeer ? 'task.awaitingPeer' : syncStageLabel(stage, shouldBackup))}
         />
         {percent !== null && counters.totalFiles > 0 && (
           <p>
@@ -154,7 +159,12 @@ export function SyncTaskSummary({
         </span>
         {hero}
       </div>
-      <TaskSteps step={step} phase={phase} percent={percent} />
+      <TaskSteps
+        step={shownSteps.current}
+        phase={phase}
+        percent={percent}
+        steps={shownSteps.labels}
+      />
       <OutcomeList
         outcomes={outcomes}
         cleanupError={cleanupError}

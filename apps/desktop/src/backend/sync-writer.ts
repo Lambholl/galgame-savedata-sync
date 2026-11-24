@@ -85,6 +85,11 @@ export interface WindowsSyncWriteOptions {
   readonly onOutcome?: (outcome: SyncWriteOutcome) => void
   /** 备份阶段每写入一块后收到这次备份累计已复制的字节数。 */
   readonly onBackupProgress?: (bytesCopied: number) => void
+  /**
+   * 写入阶段每写入一块后收到这次写入累计已写入目标的文件字节数，包括正在写的文件。
+   * 文件写入成功时，它的 onOutcome 之前已收到包含该文件全部字节的值。
+   */
+  readonly onWriteProgress?: (bytesWritten: number) => void
   readonly onStage?: (
     stage: 'checking' | 'backing-up' | 'writing',
     path: readonly string[] | null,
@@ -331,6 +336,13 @@ export class WindowsSyncWriter {
       /* 观察者失败不改变任务实际结果。 */
     }
   }
+  private reportWritten(options: WindowsSyncWriteOptions, bytesWritten: number): void {
+    try {
+      options.onWriteProgress?.(bytesWritten)
+    } catch {
+      /* 观察者失败不改变任务实际结果。 */
+    }
+  }
   private async check(job: WriteJob): Promise<void> {
     checkArchiveAbort(job.signal)
     await job.verifyContext()
@@ -493,6 +505,7 @@ export class WindowsSyncWriter {
     job: WriteJob,
     operation: SyncPlanEntry,
     material: WindowsSyncMaterial,
+    onWritten: (bytesWritten: number) => void,
   ): Promise<SyncWriteOutcome> {
     const parent = this.parent(job, operation),
       name = required(operation.path.at(-1)),
@@ -509,7 +522,14 @@ export class WindowsSyncWriter {
     try {
       const input = await material.openFile(source.entryId)
       try {
-        await stageCandidate(candidate, source, input.stream, input.verifyUnchanged, job.signal)
+        await stageCandidate(
+          candidate,
+          source,
+          input.stream,
+          input.verifyUnchanged,
+          job.signal,
+          onWritten,
+        )
       } finally {
         input.stream.destroy()
         await finished(input.stream).catch(() => {})
@@ -625,7 +645,8 @@ export class WindowsSyncWriter {
       cleanup: OperationError | null = null,
       backupId: string | null = null,
       backupFileCount: number | null = null,
-      index = 0
+      index = 0,
+      bytesWritten = 0
     try {
       this.emit(options, 'checking')
       await this.preflight(job)
@@ -666,9 +687,16 @@ export class WindowsSyncWriter {
           operation.action === 'create-directory'
             ? await this.directory(job, operation)
             : isSyncFileWrite(operation.action)
-              ? await this.file(job, operation, required(material))
+              ? await this.file(job, operation, required(material), (fileBytes) =>
+                  this.reportWritten(options, bytesWritten + fileBytes),
+                )
               : await this.remove(job, operation)
         outcomes[position] = result
+        if (result.status === 'succeeded' && isSyncFileWrite(result.action)) {
+          bytesWritten += result.sizeBytes ?? 0
+          // 空文件不经过写入回调，这里补报一次，保证 onOutcome 前计数已包含整个文件。
+          this.reportWritten(options, bytesWritten)
+        }
         try {
           options.onOutcome?.(structuredClone(result))
         } catch {

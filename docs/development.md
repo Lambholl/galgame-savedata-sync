@@ -415,7 +415,7 @@ pnpm security:android
 本地保留了旧格式的配置文件，参考[兼容性与卸载](#兼容性与卸载)删除旧配置后重试。
 
 **桌面端开发版接收内容时报网络中断，之后启动报 `path-outside-root`**
-在 MSIX 打包的应用（部分 IDE 和 AI 客户端）里打开的终端中运行 `pnpm dev:desktop` 时，桌面端继承了这个包的文件系统重定向：`%LOCALAPPDATA%` 下新建的文件实际写到 `%LOCALAPPDATA%\Packages\<包名>\LocalCache\Local\`。电脑作目标时新建的缓存任务目录因此和登记路径不符，接收中止，残留的任务目录还会让下次启动失败。改在普通终端里运行；已经残留的，删除上面重定向位置里 `galgame-savedata-sync\cache\transfer-archives-v1\` 下的 `job-*` 目录。从这类终端启动的桌面端读写的也是重定向后的数据副本，和普通启动看到的数据不同。
+在 MSIX 打包的应用（部分 IDE 和 AI 客户端）里打开的终端中运行 `pnpm dev:desktop` 时，桌面端继承了这个包的文件系统重定向：`%LOCALAPPDATA%` 下新建的文件实际写到 `%LOCALAPPDATA%\Packages\<包名>\LocalCache\Local\`。电脑作目标时新建的缓存任务目录因此和登记路径不符，接收中止，残留的任务目录还会让下次启动失败。改在普通终端里运行；已经残留的，删除上面重定向位置里 `galgame-savedata-sync\cache\transfer-archives-v1\` 下的 `job-*` 目录。从这类终端启动的桌面端读写的也是重定向后的数据副本，和普通启动看到的数据不同。在这类终端里改 `%LOCALAPPDATA%\galgame-savedata-sync\data\` 下的文件（如在 `directories.json` 里登记测试目录）同样只改到副本，普通终端启动的桌面端读不到这些修改，仍按原来的登记使用真实目录。
 
 **Android SAF 读取文件后 `ctime` 发生变化**
 部分系统的 DocumentProvider 在首次授权读取后会更新文件 `ctime`，校验文件一致性时应以文件内容、大小和 `mtime` 为准，不要依赖 `ctime`。

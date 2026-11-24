@@ -4,7 +4,7 @@
     <string name="package_name" translatable="false">io.github.galgame.savedatasync</string>
     <string name="custom_url_scheme" translatable="false">io.github.galgame.savedatasync</string>
     <string name="transfer_channel">文件传输</string>
-    <string name="transfer_stage_preparing">正在打包</string>
+    <string name="transfer_stage_preparing">正在准备</string>
     <string name="transfer_stage_ready">等待接收</string>
     <string name="transfer_stage_awaiting_content">等待内容</string>
     <string name="transfer_stage_transferring">正在传输</string>

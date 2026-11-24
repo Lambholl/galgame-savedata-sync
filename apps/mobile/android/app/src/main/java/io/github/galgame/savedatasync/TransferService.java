@@ -149,6 +149,10 @@ public class TransferService extends Service {
     boolean isUpload = state != null && Boolean.TRUE.equals(state.get("isUpload"));
     boolean isActive = state == null || Boolean.TRUE.equals(state.get("running"));
     String stage = state == null ? "preparing" : (String) state.get("stage");
+    Map<String, Object> progress =
+      state == null || !(state.get("progress") instanceof Map)
+        ? null
+        : (Map<String, Object>) state.get("progress");
     int textResource;
     switch (stage) {
       case "ready":
@@ -164,7 +168,11 @@ public class TransferService extends Service {
         textResource = R.string.transfer_stage_writing;
         break;
       case "backing-up":
-        textResource = R.string.transfer_stage_backing_up;
+        // 不备份或没有要备份的文件时也经过这一阶段，接收端在这里核对目标。
+        textResource =
+          backupBytes(progress) > 0
+            ? R.string.transfer_stage_backing_up
+            : R.string.transfer_stage_preparing;
         break;
       case "cleaning":
         textResource = R.string.transfer_stage_cleaning;
@@ -225,27 +233,31 @@ public class TransferService extends Service {
         ).build()
       );
     }
-    Map<String, Object> progress =
-      state == null || !(state.get("progress") instanceof Map)
-        ? null
-        : (Map<String, Object>) state.get("progress");
     Long completed = null;
     Long total = null;
     if (progress != null) {
-      // 准备、确认等阶段没有计数，通知显示不定进度。
+      // 准备、确认等阶段没有计数，通知显示不定进度。写入按字节算，和详情页一致；
+      // 只有空文件时字节总数为 0，改按文件数算。
+      boolean isWritingBytes =
+        progress.get("totalFileBytes") instanceof Number &&
+        ((Number) progress.get("totalFileBytes")).longValue() > 0;
       String doneKey = stage.equals("transferring")
         ? "transferredBytes"
         : stage.equals("backing-up")
           ? "backupBytesCopied"
           : stage.equals("writing")
-            ? "publishedFiles"
+            ? isWritingBytes
+              ? "fileBytesPublished"
+              : "publishedFiles"
             : null;
       String totalKey = stage.equals("transferring")
         ? "totalFileBytes"
         : stage.equals("backing-up")
           ? "totalBackupBytes"
           : stage.equals("writing")
-            ? "totalFiles"
+            ? isWritingBytes
+              ? "totalFileBytes"
+              : "totalFiles"
             : null;
       if (progress.get(doneKey) instanceof Number) {
         completed = ((Number) progress.get(doneKey)).longValue();
@@ -260,6 +272,12 @@ public class TransferService extends Service {
       builder.setProgress(0, 0, isActive);
     }
     return builder.build();
+  }
+
+  private static long backupBytes(Map<String, Object> progress) {
+    return progress != null && progress.get("totalBackupBytes") instanceof Number
+      ? ((Number) progress.get("totalBackupBytes")).longValue()
+      : 0;
   }
 
   /** 系统 dataSync 期限到时按超时取消活动任务并停止服务。 */

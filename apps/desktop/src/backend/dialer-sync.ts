@@ -68,8 +68,8 @@ const RETENTION_MS = BATCH_TIMEOUTS_MS.terminalRetention
 const MAX_RETAINED = 32
 /** 进行中的任务没有变化时，摘要至少多久推送一次。 */
 const REPORT_INTERVAL_MS = 1000
-/** 检查摘要变化的周期。 */
-const REPORT_CHECK_MS = 500
+/** 检查摘要变化的周期；对方的传输详情最多落后这么久。 */
+const REPORT_CHECK_MS = 200
 /** 轮询对方扫描和任务状态的间隔。 */
 const POLL_MS = 100
 /** 上传连接断开后等监听方自己结束的最长时间。 */
@@ -384,6 +384,7 @@ export class WindowsDialerSync implements DialerSyncHandler {
         hasCleanupError,
         isAwaitingPeer: false,
         isPeerInitiated: job.preparation.listenerRequestId !== null,
+        shouldBackup: job.request.plan.shouldBackup,
       }
     })
   }
@@ -1507,12 +1508,12 @@ export class WindowsDialerSync implements DialerSyncHandler {
         this.update(job, stage === 'writing' ? 'writing' : this.contentStage(job)),
       onBackupProgress: (bytesCopied) =>
         this.update(job, this.contentStage(job), { backupBytesCopied: bytesCopied }),
+      onWriteProgress: (bytesWritten) =>
+        this.update(job, 'writing', { fileBytesPublished: bytesWritten }),
+      // 字节数已由 onWriteProgress 计入，这里只数文件。
       onOutcome: (outcome) => {
         if (outcome.status === 'succeeded' && isSyncFileWrite(outcome.action)) {
-          this.update(job, 'writing', {
-            publishedFiles: job.state.progress.publishedFiles + 1,
-            fileBytesPublished: job.state.progress.fileBytesPublished + (outcome.sizeBytes ?? 0),
-          })
+          this.update(job, 'writing', { publishedFiles: job.state.progress.publishedFiles + 1 })
         }
       },
     }

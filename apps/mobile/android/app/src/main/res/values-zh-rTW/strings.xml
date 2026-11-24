@@ -2,7 +2,7 @@
 <resources>
     <string name="app_name">存檔同步</string>
     <string name="transfer_channel">檔案傳輸</string>
-    <string name="transfer_stage_preparing">正在打包</string>
+    <string name="transfer_stage_preparing">正在準備</string>
     <string name="transfer_stage_ready">等待接收</string>
     <string name="transfer_stage_awaiting_content">等待內容</string>
     <string name="transfer_stage_transferring">正在傳輸</string>

@@ -139,9 +139,12 @@ export function SyncTaskDetails({
   }, [failure, error, showFailure, t])
 
   const copySwitchStatus =
-    copyState !== null
+    copy !== null
       ? syncTaskPreview(
-          observeSyncJob(copyState.local, copyState.remote, copyState.remoteError !== null),
+          {
+            ...observeSyncJob(copy.state.local, copy.state.remote, copy.state.remoteError !== null),
+            shouldBackup: copy.plan.shouldBackup,
+          },
           t,
         ).status
       : null
@@ -194,9 +197,12 @@ export function SyncTaskDetails({
             }
             // 备份建在被写入的一端；本机发送时备份在对方设备上，这里不提供入口。
             onViewBackup={
-              copyState.local.role === 'receiver' ? () => onBackup(binding.projectId) : null
+              copyState.local.role === 'receiver' && copy.plan.shouldBackup
+                ? () => onBackup(binding.projectId)
+                : null
             }
             renderTechnicalDetails={(text) => <TechnicalDetails text={text} />}
+            shouldBackup={copy.plan.shouldBackup}
           />
           {isCopyRunning ? <p className="foot-note">{t('task.backgroundNote')}</p> : null}
           {isCopyRunning ? (

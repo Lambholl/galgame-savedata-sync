@@ -129,6 +129,13 @@ final class SyncWriter implements AutoCloseable {
     /** 备份阶段每写入一块后收到这次备份累计已复制的字节数；抛出的异常让写入失败。 */
     default void backup(long bytesCopied) throws Exception {}
 
+    /**
+     * 写入阶段每写入一块后收到这次写入累计已写入目标的文件字节数，包括正在写的文件。
+     * 文件写入成功时，它的 outcome 之前已收到包含该文件全部字节的值。
+     * 写入过程中抛出异常时，当前文件按写入失败或结果未知记录。
+     */
+    default void written(long bytesWritten) throws Exception {}
+
     default void outcome(Map<String, Object> result) throws Exception {}
   }
 
@@ -160,6 +167,8 @@ final class SyncWriter implements AutoCloseable {
     boolean isAuthorized;
     boolean hasVerifiedTarget;
     Object cleanupError;
+    /** 已成功写入的文件的字节数之和，不含正在写的文件。 */
+    long bytesWritten;
 
     Job(SyncPlanModel.Plan plan, ArchiveControl control, Execution execution) {
       this.plan = plan;
@@ -237,6 +246,13 @@ final class SyncWriter implements AutoCloseable {
     job.control.check();
     if (!TargetOperation.owns(job.token)) {
       throw new ArchiveFailure("task-conflict", "This write operation slot was released.");
+    }
+  }
+
+  /** 把正在写的文件已写入的字节数加上已成功文件的字节数，报告给观察者。 */
+  private static void written(Job job, long fileBytes) throws Exception {
+    if (job.observer != null) {
+      job.observer.written(job.bytesWritten + fileBytes);
     }
   }
 
@@ -511,7 +527,12 @@ final class SyncWriter implements AutoCloseable {
       );
       PublicationModel.Result result = backend
         .publisher()
-        .publish(request, () -> source.open(job.control), null, job.control);
+        .publish(
+          request,
+          () -> source.open(job.control),
+          job.observer == null ? null : (stage, completed, total) -> written(job, completed),
+          job.control
+        );
       if (result.cleanupError != null) {
         job.cleanupError = cleanupError();
       }
@@ -563,6 +584,7 @@ final class SyncWriter implements AutoCloseable {
           }
           hasWritten = true;
           output.write(buffer, 0, count);
+          written(job, size);
         }
         checkRunning(job);
         if (size != expected) {
@@ -740,11 +762,20 @@ final class SyncWriter implements AutoCloseable {
         Map<String, Object> operation = plan.writes.get(i);
         Map<String, Object> result = write(job, operation, material, fileIndex);
         outcomes.set(i, result);
+        boolean hasPublished =
+          SyncPlanModel.isFileWrite(operation) && result.get("status").equals("succeeded");
         if (SyncPlanModel.isFileWrite(operation)) {
           fileIndex++;
         }
+        if (hasPublished) {
+          job.bytesWritten += number(result.get("sizeBytes"), 0, BackupModel.MAX_FILE);
+        }
         if (job.observer != null) {
           try {
+            if (hasPublished) {
+              // 空文件不经过写入循环，这里补报一次，保证 outcome 前计数已包含整个文件。
+              job.observer.written(job.bytesWritten);
+            }
             job.observer.outcome(result);
           } catch (Exception ignored) {
             /* 观察者失败不能改写已核实的实际结果。 */

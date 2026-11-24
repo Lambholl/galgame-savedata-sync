@@ -7,6 +7,10 @@ import type {
   MobileSyncAdapter,
 } from '../../platform/sync-adapter'
 
+// 有任务进行时详情页和任务条显示进度，间隔长了进度会一跳一跳；读取只查原生层的状态，不经网络。
+const BUSY_POLL_MS = 250
+const IDLE_POLL_MS = 1500
+
 /** 持续读取复制与恢复任务；卸载时停止读取，任务继续。 */
 export function useSyncTasks(
   adapter: MobileSyncAdapter,
@@ -89,7 +93,7 @@ export function useSyncTasks(
             }
           })
         },
-        isBusyNow ? 700 : 1500,
+        isBusyNow ? BUSY_POLL_MS : IDLE_POLL_MS,
       )
     }
     poll().catch((cause: unknown) => {

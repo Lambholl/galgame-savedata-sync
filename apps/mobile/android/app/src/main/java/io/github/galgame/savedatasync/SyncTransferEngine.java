@@ -78,6 +78,8 @@ final class SyncTransferEngine implements AutoCloseable {
 
   private static final long RETENTION = TimeUnit.MINUTES.toNanos(10);
   private static final long REPORT_INTERVAL = TimeUnit.SECONDS.toNanos(1);
+  /** 检查摘要变化的周期（毫秒）；对方的传输详情最多落后这么久。 */
+  private static final long REPORT_CHECK_MS = 200;
   /** 上传连接断开后等电脑自行结束的最长时间。 */
   private static final long UPLOAD_SETTLE_WAIT = TimeUnit.SECONDS.toNanos(5);
   /** 能归到某一端的错误码，都是文件、目录和存储访问失败；shared 的 locateSyncError 是同一份清单。 */
@@ -223,7 +225,12 @@ final class SyncTransferEngine implements AutoCloseable {
     watcher.scheduleAtFixedRate(this::tick, 100, 100, TimeUnit.MILLISECONDS);
     heartbeats.scheduleAtFixedRate(this::heartbeat, 3, 3, TimeUnit.SECONDS);
     heartbeats.scheduleAtFixedRate(this::refreshUploadTarget, 1, 1, TimeUnit.SECONDS);
-    reports.scheduleAtFixedRate(this::report, 500, 500, TimeUnit.MILLISECONDS);
+    reports.scheduleAtFixedRate(
+      this::report,
+      REPORT_CHECK_MS,
+      REPORT_CHECK_MS,
+      TimeUnit.MILLISECONDS
+    );
     transport.controlInterceptor(this::controlRequest);
   }
 
@@ -1445,18 +1452,25 @@ final class SyncTransferEngine implements AutoCloseable {
         }
 
         @Override
+        public void written(long bytesWritten) throws Exception {
+          synchronized (SyncTransferEngine.this) {
+            if (!job.state.get("status").equals("running")) {
+              return;
+            }
+            map(job.state.get("progress")).put("fileBytesPublished", bytesWritten);
+            job.state.put("updatedAt", System.currentTimeMillis());
+          }
+        }
+
+        @Override
         public void outcome(Map<String, Object> result) throws Exception {
           if (!result.get("status").equals("succeeded") || !SyncPlanModel.isFileWrite(result)) {
             return;
           }
+          // 字节数已由 written 计入，这里只数文件。
           synchronized (SyncTransferEngine.this) {
             Map<String, Object> counters = map(job.state.get("progress"));
             counters.put("publishedFiles", number(counters.get("publishedFiles"), 0, 1024) + 1);
-            counters.put(
-              "fileBytesPublished",
-              number(counters.get("fileBytesPublished"), 0, BackupModel.MAX_TOTAL) +
-                number(result.get("sizeBytes"), 0, BackupModel.MAX_FILE)
-            );
             job.state.put("updatedAt", System.currentTimeMillis());
           }
         }

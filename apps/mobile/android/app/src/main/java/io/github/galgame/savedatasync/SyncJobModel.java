@@ -424,11 +424,8 @@ final class SyncJobModel {
     if (isSender) {
       require(state.get("result") == null && pf == 0 && published == 0 && copied == 0);
     }
-    require(
-      (count > 0 || total == 0) &&
-        (pf != count || published == total) &&
-        (pf != 0 || published == 0)
-    );
+    // 写入中的文件也计入已写字节，第一个文件写完前 published 就可以大于 0。
+    require((count > 0 || total == 0) && (pf != count || published == total));
     String status = string(state.get("status"));
     one(status, "running", "sent", "succeeded", "failed", "cancelled", "unknown");
     one(

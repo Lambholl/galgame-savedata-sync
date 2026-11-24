@@ -1,7 +1,7 @@
 ---
 doc_type: development
 status: active
-updated: 2026-11-24
+updated: 2026-11-25
 tags: [界面, 设计变量, 组件]
 ---
 
@@ -26,7 +26,7 @@ tags: [界面, 设计变量, 组件]
 
 ## 2. 组件选用
 
-- 优先复用 antd 的展示组件。列表里的紧凑进度用 Progress steps，按备份、传输、写入三段等分；详情用带编号的 Steps，阶段名放在下方，并显示当前阶段的 percent；圆形进度用 Progress；操作用 Button。三段表示流程位置，当前段按本阶段计数局部填充（50% 为半段），不按三等分估算总耗时。
+- 优先复用 antd 的展示组件。列表里的紧凑进度用 Progress steps，按备份、传输、写入三段等分（计划没开备份时只有传输、写入两段）；详情用带编号的 Steps，阶段名放在下方，并显示当前阶段的 percent；圆形进度用 Progress；操作用 Button。三段表示流程位置，当前段按本阶段计数局部填充（50% 为半段），不按三等分估算总耗时。
 - 移动端优先用 antd-mobile，按实际需要用 antd；弹层等平台交互沿用 antd-mobile。
 - 外观相同的界面直接复用：文件列表用 FilePane，计划确认用电脑 PlanDrawer、移动端 PlanConfirm。恢复等流程打开新页面，不在原页面里切换内容。
 - 取消传输用外形和点击范围都清楚的普通按钮。

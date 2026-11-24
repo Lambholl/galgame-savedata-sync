@@ -242,6 +242,7 @@ export class WindowsSyncRegistry {
         hasCleanupError,
         isAwaitingPeer: false,
         isPeerInitiated: task.isPeerInitiated,
+        shouldBackup: task.request.plan.shouldBackup,
       }
     })
   }
@@ -962,12 +963,13 @@ export class WindowsSyncRegistry {
       onBackupProgress: (bytesCopied) => {
         this.update(task, this.contentStage(task), { backupBytesCopied: bytesCopied })
       },
+      onWriteProgress: (bytesWritten) => {
+        this.update(task, 'writing', { fileBytesPublished: bytesWritten })
+      },
+      // 字节数已由 onWriteProgress 计入，这里只数文件。
       onOutcome: (outcome) => {
         if (outcome.status === 'succeeded' && isSyncFileWrite(outcome.action)) {
-          this.update(task, 'writing', {
-            publishedFiles: task.state.progress.publishedFiles + 1,
-            fileBytesPublished: task.state.progress.fileBytesPublished + (outcome.sizeBytes ?? 0),
-          })
+          this.update(task, 'writing', { publishedFiles: task.state.progress.publishedFiles + 1 })
         }
       },
     })
@@ -1039,8 +1041,17 @@ export class WindowsSyncRegistry {
       }
       const hasAllSucceeded =
         result.error === null && result.outcomes.every((item) => item.status === 'succeeded')
+      // 写到一半失败的文件已计入 fileBytesPublished，结束时按实际结果重算。
+      const published = result.outcomes.filter(
+        (item) => item.status === 'succeeded' && isSyncFileWrite(item.action),
+      )
       task.state = {
         ...task.state,
+        progress: {
+          ...task.state.progress,
+          publishedFiles: published.length,
+          fileBytesPublished: published.reduce((sum, item) => sum + (item.sizeBytes ?? 0), 0),
+        },
         status:
           result.error?.code === 'result-unknown'
             ? 'unknown'

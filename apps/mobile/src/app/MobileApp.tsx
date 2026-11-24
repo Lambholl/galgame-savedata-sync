@@ -410,11 +410,14 @@ export function MobileApp({
     phase === 'running' || config.games.some((item) => item.id === projectId)
   const copyObserved = syncTasks.copy
     ? syncTaskPreview(
-        observeSyncJob(
-          syncTasks.copy.state.local,
-          syncTasks.copy.state.remote,
-          syncTasks.copy.state.remoteError !== null,
-        ),
+        {
+          ...observeSyncJob(
+            syncTasks.copy.state.local,
+            syncTasks.copy.state.remote,
+            syncTasks.copy.state.remoteError !== null,
+          ),
+          shouldBackup: syncTasks.copy.plan.shouldBackup,
+        },
         t,
       )
     : null

@@ -969,21 +969,24 @@ final class ListenerSyncJobs {
         }
 
         @Override
+        public void written(long bytesWritten) throws Exception {
+          synchronized (ListenerSyncJobs.this) {
+            progress(task, "writing", "fileBytesPublished", bytesWritten);
+          }
+        }
+
+        @Override
         public void outcome(Map<String, Object> result) throws Exception {
           if (!result.get("status").equals("succeeded") || !SyncPlanModel.isFileWrite(result)) {
             return;
           }
+          // 字节数已由 written 计入，这里只数文件。
           synchronized (ListenerSyncJobs.this) {
             if (!task.isRunning()) {
               return;
             }
             Map<String, Object> counters = map(task.state.get("progress"));
             counters.put("publishedFiles", number(counters.get("publishedFiles"), 0, 1024) + 1);
-            counters.put(
-              "fileBytesPublished",
-              number(counters.get("fileBytesPublished"), 0, BackupModel.MAX_TOTAL) +
-                number(result.get("sizeBytes"), 0, BackupModel.MAX_FILE)
-            );
             update(task, "writing");
           }
         }

@@ -396,6 +396,7 @@ export class WindowsRemoteSyncRequests {
         // 移动端报告任务状态前，本机角色的进度是占位的，界面写等待对方开始，不写正在打包。
         isAwaitingPeer: phase === 'running' && remote === null,
         isPeerInitiated: false,
+        shouldBackup: plan.shouldBackup,
       },
     }
   }
