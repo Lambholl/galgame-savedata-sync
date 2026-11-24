@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vite'
 import { resolveAppVersion } from '../../scripts/app-version.mjs'
 
-// 界面页面。开发服务器的地址要和 src-tauri/tauri.conf.json 的 devUrl 一致。
+// 界面页面。开发服务器的默认地址要和 src-tauri/tauri.conf.json 的 devUrl 一致；端口被占用时 scripts/dev.mjs 换端口启动。
 export default defineConfig({
   root: fileURLToPath(new URL('src/renderer', import.meta.url)),
   base: './',

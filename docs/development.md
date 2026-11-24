@@ -11,6 +11,8 @@
 - [仓库结构](#仓库结构)
 - [Windows 打包](#windows-打包)
 - [Android 构建与调试](#android-构建与调试)
+  - [用 Chrome 检查页面](#用-chrome-检查页面)
+  - [加载电脑上的开发服务器](#加载电脑上的开发服务器)
 - [真机调试工具](#真机调试工具)
   - [安全边界](#安全边界)
   - [常用流程](#常用流程)
@@ -36,7 +38,7 @@ pnpm dev:desktop
 ```
 
 - `pnpm doctor` 检查 Node、pnpm、Rust、MSVC 生成工具、WebView2 运行时、JDK 和 Android SDK 是否齐全；加上 `--desktop` 参数可只检查桌面端开发环境。
-- `pnpm dev:desktop` 启动桌面端开发模式：先构建后端 sidecar，再启动界面开发服务器（`127.0.0.1:1420`）和 Tauri 宿主。界面代码修改后热更新；`apps/desktop/src-tauri` 的 Rust 代码修改后宿主自动重新编译并重启；后端（`src/backend`、`src/sidecar`）修改后需停止并重新运行该命令。
+- `pnpm dev:desktop` 启动桌面端开发模式：先构建后端 sidecar，再启动界面开发服务器（`127.0.0.1:1420`，被占用时自动换用后面空闲的端口）和 Tauri 宿主。界面代码修改后热更新；`apps/desktop/src-tauri` 的 Rust 代码修改后宿主自动重新编译并重启；后端（`src/backend`、`src/sidecar`）修改后需停止并重新运行该命令。
 - `pnpm dev:mobile` 在浏览器中启动移动端前端页面，适合调试 UI；涉及文件系统访问、局域网传输等依赖 Android 原生插件的功能，需要构建到真机或模拟器中调试。
 
 提交代码前请运行 `pnpm check`。
@@ -85,15 +87,18 @@ Android 端最低支持 Android 11（API 30），编译目标为 API 36。前端
 | --- | --- |
 | `pnpm dev:desktop` | 启动桌面端开发模式 |
 | `pnpm dev:mobile` | 在浏览器中启动移动端前端开发服务器 |
+| `pnpm dev:android` | 启动移动端前端开发服务器，供 `android:build:dev-server` 构建的手机应用加载，见[加载电脑上的开发服务器](#加载电脑上的开发服务器) |
 | `pnpm desktop:package` | 打包 Windows x64 安装包和免安装 zip，见 [Windows 打包](#windows-打包) |
 | `pnpm check` | 提交前全量检查，依次运行类型检查、ESLint、Checkstyle（需 JDK）和 Clippy、两端构建、文本编码和代码格式检查（Prettier、rustfmt），某一步失败即停止 |
 | `pnpm format` | 自动修复可修复的 ESLint 问题，并用 Prettier 和 rustfmt 格式化代码 |
 | `pnpm lint` / `pnpm typecheck` / `pnpm build` | 单独运行 `pnpm check` 中的对应检查 |
-| `pnpm test` | 运行脚本、共享包、桌面端（含 Tauri 宿主的 Rust 测试）和移动端前端测试（无需 Android 工具） |
+| `pnpm test` | 运行共享包和桌面端 sidecar 的测试（无需 Android 工具） |
 | `pnpm test:all` | 运行 `pnpm test` 和 `pnpm android:test`，适合发版前或大范围改动后执行 |
 | `pnpm doctor` | 检查本地工具链；支持 `--desktop`（跳过 Android 检查）和 `--json`；存在 FAIL 项时返回非零退出码 |
 | `pnpm android:sync` | 构建移动端前端资源并同步到 Android 原生工程 |
 | `pnpm android:build` | 构建 debug APK；加 `--release` 构建签名后的 release APK |
+| `pnpm android:build:dev-server` | 构建打开电脑上 Vite 页面的 debug APK，见[加载电脑上的开发服务器](#加载电脑上的开发服务器) |
+| `pnpm android:install` | 把构建好的 debug APK 覆盖安装到连接的手机上，应用数据保留 |
 | `pnpm android:unit` | 运行 Java 单元测试和 Windows/Java 归档互通检查（无需连接真机），复用 Gradle 后台进程，适合修改 Java 代码后反复运行 |
 | `pnpm android:test` | 在 `pnpm android:unit` 的基础上另跑 Android lint、构建调试 APK 和测试 APK，每次启动新的 Gradle 进程，适合发版前执行 |
 | `pnpm android:open` | 使用 Android Studio 打开原生工程 |
@@ -140,13 +145,60 @@ pnpm android:open
 
 Android 原生工程由 Capacitor 管理，Manifest 中启用了明文 HTTP（用于局域网设备直连），并声明了 `dataSync` 前台服务（用于在用户发起传输时保持后台运行）。
 
+### 用 Chrome 检查页面
+
+调试版应用的页面可以用 Chrome 或 Edge 的远程调试检查，发布版不能：
+
+1. 手机开启 USB 调试并连接电脑，打开应用。
+2. 电脑上的 Chrome 打开 `chrome://inspect/#devices`（Edge 为 `edge://inspect`），勾选 “Discover USB devices”。
+3. 在设备列表里找到 `io.github.galgame.savedatasync` 的 WebView，点 **inspect**。
+
+打开的 DevTools 和调试普通网页相同：Elements 面板查看和修改 DOM 与样式，鼠标悬停的元素在手机上同步高亮；左上角的设备图标打开屏幕镜像，可以在镜像上直接点按。
+
+- 第一次打开时 DevTools 前端要从 Google 下载，下载不了时窗口空白，改点 “inspect fallback”。
+- 应用重启后 WebView 会换一个，要回到设备列表重新点 inspect。
+- DevTools 只看得到网页层。扫码页的取景画面、系统栏、通知和权限弹窗是原生界面，用 Android Studio 的 Layout Inspector 查看。
+
+在命令行里读页面文字或批量操作页面，用[真机调试工具](#真机调试工具)里的 `cdp.mjs`。
+
+### 加载电脑上的开发服务器
+
+改移动端页面时，可以让手机上的应用直接显示电脑上 Vite 的页面：保存代码后手机上的页面立即更新，不用每次重新构建 APK。
+
+切换到电脑上的页面：
+
+```bash
+pnpm android:build:dev-server
+pnpm android:install
+pnpm dev:android
+```
+
+1. `pnpm android:build:dev-server` 构建一个调试包，打开后显示手机上 `http://localhost:5173` 的页面。
+2. `pnpm android:install` 把调试包覆盖安装到手机上，应用数据保留。
+3. `pnpm dev:android` 在电脑上启动 Vite，并经 USB 把手机的 5173 端口接到 Vite 的端口，之后打开手机上的应用即可。电脑上的 5173 被别的程序占用时，Vite 自动换用后面空闲的端口，手机这边不受影响。Vite 只监听电脑的 `127.0.0.1`，局域网里的其他设备访问不到。
+
+使用期间：
+
+- 只改页面时保存即可。改了 Java 代码时重新运行前两条命令。
+- 手机上的应用打不开页面时，重新运行 `pnpm dev:android`：拔插 USB 或 adb 重启后，端口转发会断开。
+
+切换回 APK 里的页面：
+
+```bash
+pnpm android:build
+pnpm android:install
+node scripts/device/device.mjs unreverse
+```
+
+`pnpm android:build --release` 构建前会重新同步配置，打出的 release 包总是使用 APK 里的页面。直接用 Gradle 或 Android Studio 构建 release 包时，如果上一次构建的是 `android:build:dev-server`，构建会报错 “capacitor.config.json 带有 server.url”，先运行 `pnpm android:sync` 再构建。
+
 ## 真机调试工具
 
 `scripts/device/` 下的脚本用来在真机上安装、操作和检查应用，输出都是文本，适合在命令行或由 Agent 驱动测试：
 
 | 脚本 | 作用 |
 | --- | --- |
-| `device.mjs` | 调用 adb 的唯一入口：安装、启停、日志、通知、界面文字、点按、经 `run-as` 暂停和恢复进程、读写应用私有数据、测试目录、备份查看、CDP 转发、frida。不带参数时列出全部子命令 |
+| `device.mjs` | 调用 adb 的唯一入口：安装、启停、日志、通知、界面文字、点按、经 `run-as` 暂停和恢复进程、读写应用私有数据、测试目录、备份查看、CDP 转发、开发服务器的端口转发、frida。不带参数时列出全部子命令 |
 | `cdp.mjs` | 经 Chrome DevTools Protocol 在应用页面里执行 JavaScript 并打印结果，读界面文字和操作界面都用它 |
 | `test-data.mjs` | 生成合成测试数据（`small`、`many`、`large` 三种规模，同一个种子生成的内容相同），输出目录清单，比对两个本机目录 |
 | `frida/attach.py` | 由 `device.mjs frida-attach` 经 uv 运行，见 [frida](#frida) |

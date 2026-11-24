@@ -23,6 +23,9 @@ const BACKUP_ROOT = `/sdcard/Android/data/${PACKAGE}/files/backups`
 const DEFAULT_TIMEOUT_MS = 60_000
 const LONG_TIMEOUT_MS = 600_000
 const DEFAULT_CDP_PORT = 9333
+// android:build:dev-server 构建的应用固定打开手机上这个端口，和 scripts/android-build.mjs 的 server.url 相同；
+// 也是 apps/mobile/vite.config.ts 的默认端口。
+const PHONE_DEV_SERVER_PORT = 5173
 const MAX_FRIDA_SECONDS = 600
 const FRIDA_RUNNER = fileURLToPath(new URL('./frida/attach.py', import.meta.url))
 // private-push 写入前取回的原内容放在这里；.reports/ 已被 Git 忽略。
@@ -538,6 +541,24 @@ const COMMANDS = {
     run: ([port = String(DEFAULT_CDP_PORT)]) => {
       requireInteger(port, '端口', 65_535)
       adb(['forward', '--remove', `tcp:${port}`], { allowFailure: true })
+    },
+  },
+  reverse: {
+    group: '网页调试',
+    usage: `[电脑上 Vite 的端口，默认 ${PHONE_DEV_SERVER_PORT}]`,
+    summary: `把手机上 localhost:${PHONE_DEV_SERVER_PORT} 转到电脑上 Vite 的端口，供 android:build:dev-server 构建的应用使用；重连手机后要重新转发`,
+    run: ([port = String(PHONE_DEV_SERVER_PORT)]) => {
+      requireInteger(port, '端口', 65_535)
+      adb(['reverse', `tcp:${PHONE_DEV_SERVER_PORT}`, `tcp:${port}`])
+      print(adb(['reverse', '--list']))
+    },
+  },
+  unreverse: {
+    group: '网页调试',
+    usage: '',
+    summary: '取消 reverse 的转发',
+    run: () => {
+      adb(['reverse', '--remove', `tcp:${PHONE_DEV_SERVER_PORT}`], { allowFailure: true })
     },
   },
   'private-ls': {

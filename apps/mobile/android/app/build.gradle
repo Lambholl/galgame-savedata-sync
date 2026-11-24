@@ -105,9 +105,17 @@ dependencies {
 apply from: 'capacitor.build.gradle'
 
 // 发布包必须用固定密钥签名，缺少配置时不生成未签名的 release 包。
+// 发布包也不能带 server.url：带了它的 WebView 加载电脑上的开发服务器，页面能调用全部原生接口。
 gradle.taskGraph.whenReady { graph ->
-    if (!hasSharedSigning && graph.allTasks.any { it.project == project && it.name.endsWith('Release') && it.name.startsWith('assemble') }) {
+    if (!graph.allTasks.any { it.project == project && it.name.endsWith('Release') && it.name.startsWith('assemble') }) {
+        return
+    }
+    if (!hasSharedSigning) {
         throw new GradleException('构建 release 包需要配置签名密钥，见 docs/development.md 的“Android 签名”。')
+    }
+    def capacitorConfig = file('src/main/assets/capacitor.config.json')
+    if (capacitorConfig.isFile() && new groovy.json.JsonSlurper().parse(capacitorConfig).server?.url) {
+        throw new GradleException('capacitor.config.json 带有 server.url，先运行 pnpm android:sync 重新生成再构建 release 包。')
     }
 }
 

@@ -8,5 +8,6 @@ export default defineConfig({
   define: { SAVEDATA_SYNC_VERSION: JSON.stringify(resolveAppVersion().name) },
   plugins: [react()],
   build: { target: 'chrome89' },
-  server: { host: '127.0.0.1', port: 5173, strictPort: true },
+  // 端口被占用时 Vite 换下一个空闲端口；pnpm dev:android 自己选端口并以 strictPort 启动。
+  server: { host: '127.0.0.1', port: 5173 },
 })

@@ -11,6 +11,7 @@
   "scripts": {
     "dev:desktop": "pnpm --filter @savedata-sync/desktop dev",
     "dev:mobile": "pnpm --filter @savedata-sync/mobile dev",
+    "dev:android": "node scripts/dev-android.mjs",
     "desktop:package": "pnpm --filter @savedata-sync/desktop package",
     "build": "pnpm -r build",
     "check": "pnpm typecheck && pnpm lint && pnpm build && node scripts/check-text.mjs && prettier . --check --cache && cargo fmt --manifest-path apps/desktop/src-tauri/Cargo.toml --check",
@@ -26,6 +27,8 @@
     "android:sync": "pnpm --filter @savedata-sync/mobile build && pnpm --filter @savedata-sync/mobile exec cap sync android",
     "android:open": "node scripts/android-open.mjs",
     "android:build": "pnpm android:sync && node scripts/android-build.mjs",
+    "android:build:dev-server": "pnpm android:sync && node scripts/android-build.mjs --dev-server",
+    "android:install": "node scripts/device/device.mjs install apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk",
     "android:unit": "pnpm android:sync && node --experimental-strip-types scripts/verify-archive-interop.mjs prepare && node scripts/android-build.mjs --unit-test && node --experimental-strip-types scripts/verify-archive-interop.mjs verify",
     "android:test": "pnpm android:sync && node --experimental-strip-types scripts/verify-archive-interop.mjs prepare && node scripts/android-build.mjs --test && node --experimental-strip-types scripts/verify-archive-interop.mjs verify"
   },

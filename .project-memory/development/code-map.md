@@ -24,9 +24,10 @@ tags: [代码地图]
 | `package.json`、`pnpm-workspace.yaml`、`pnpm-lock.yaml` | pnpm 工作区、固定版本与工程入口 | 私有工作区；使用指定 pnpm，不依赖系统全局 Gradle |
 | `README.md`、`docs/development.md` | 用户说明；开发命令、工具要求与检查范围 | 版本约束以工程配置为准 |
 | `scripts/doctor.mjs`、`scripts/local-environment.mjs` | 开发工具入口 | 使用方式见 `docs/development.md` |
-| `scripts/device/device.mjs`、`adb-guard.mjs`、`cdp.mjs`、`test-data.mjs`、`tree-hash.mjs`、`frida/` | 真机调试：adb 白名单入口和参数危险词检查、CDP 执行、合成测试数据和目录清单比对、经 uv 运行的 frida 附加 | 只经 `device.mjs` 调 adb；新增子命令要用固定模板加校验过的取值，删除只开放测试文件临时区；用法见 `docs/development.md` |
+| `scripts/device/device.mjs`、`adb-guard.mjs`、`cdp.mjs`、`test-data.mjs`、`tree-hash.mjs`、`frida/` | 真机调试：adb 白名单入口和参数危险词检查、CDP 执行、开发服务器端口的 adb reverse、合成测试数据和目录清单比对、经 uv 运行的 frida 附加 | 只经 `device.mjs` 调 adb；新增子命令要用固定模板加校验过的取值，删除只开放测试文件临时区；用法见 `docs/development.md` |
 | `scripts/check-text.mjs`、`eslint.config.mjs`、`tsconfig.base.json` | 编码、格式、lint 和严格类型检查 | 生成目录不作为手写代码格式化 |
-| `scripts/android-build.mjs`、`scripts/android-open.mjs` | 原生构建、单元/lint/双 APK 检查、依赖清单与 IDE 入口 | 不连接设备；只对子进程传入 SDK/JDK；IDE 不存在时明确失败；Windows 以 `.\gradlew.bat` 显式相对路径调用 Wrapper，兼容设置了 NoDefaultCurrentDirectoryInExePath 的 shell |
+| `scripts/free-port.mjs`、`scripts/dev-android.mjs`、`apps/desktop/scripts/dev.mjs` | 开发服务器选端口：从首选端口往后找空闲的。`dev:android` 在本进程启动移动端 Vite，并把手机上的 5173 经 `device.mjs reverse` 接到实际端口；电脑端 `pnpm dev` 把实际端口经 `tauri dev --config` 写进 devUrl、启动命令和 devCsp | 选好端口后以 strictPort 启动，冲突时直接失败；手机上的端口固定，和 `android-build.mjs` 写入的 `server.url` 一致 |
+| `scripts/android-build.mjs`、`scripts/android-open.mjs` | 原生构建、单元/lint/双 APK 检查、依赖清单与 IDE 入口；`--dev-server` 在同步生成的 `capacitor.config.json` 里写入 `server.url`，构建加载电脑 Vite 的 debug 包 | 不连接设备；只对子进程传入 SDK/JDK；IDE 不存在时明确失败；Windows 以 `.\gradlew.bat` 显式相对路径调用 Wrapper，兼容设置了 NoDefaultCurrentDirectoryInExePath 的 shell；`app/build.gradle` 在配置带 `server.url` 时拒绝构建 release 包 |
 | `scripts/verify-archive-interop.mjs` | 构建前 Windows 准备、构建后 Windows 接收 Java 输出，另支持设备产物及 SAF 原文验证 | 只操作固定报告目录中的合成数据，测试 APK 不包含主机路径配置 |
 | `scripts/security-check.mjs`、`scripts/toolchain-policy.mjs` | npm 全量审计、pnpm 公告与 Node 安全补丁门禁 | 查询失败即失败；安全基线来自已核实的官方发行记录 |
 | `scripts/android-inventory.gradle`、`scripts/security-android.mjs` | 解析 Maven 实际依赖并查询 OSV | 含运行、测试和构建图；未解析依赖导致失败；临时报告在 .reports/ |

@@ -46,7 +46,7 @@ tags: [Windows, 电脑端, Tauri, sidecar, 存储目录]
 - sidecar 发 `fatal` 时宿主显示提示后以退出码 1 退出。sidecar 意外退出时宿主显示提示后退出；`ready` 之前退出时还没有翻译好的文字，提示用固定的英文。
 - 宿主被强制结束时 sidecar 的 stdin 关闭，sidecar 停止服务后自行退出。
 
-界面页面由 `vite.config.ts` 构建到 `out/renderer`，开发服务器固定在 `127.0.0.1:1420`，和 `src-tauri/tauri.conf.json` 的 `devUrl` 一致。`src/renderer/src/platform/desktop-bridges.ts` 用 `@tauri-apps/api` 的 `invoke('backend_invoke', { channel, args })` 构造各 `window.desktop*` 接口，装上后不能改写；页面不在 Tauri 里运行时不安装。`src-tauri/capabilities/main.json` 只允许标签为 `main` 的窗口里的应用页面调用 `backend_invoke`，不开放其他 Tauri 命令和插件命令。CSP 在 `tauri.conf.json`，样式允许 `'unsafe-inline'`（antd 在运行时注入样式）。
+界面页面由 `vite.config.ts` 构建到 `out/renderer`，开发服务器默认在 `127.0.0.1:1420`，和 `src-tauri/tauri.conf.json` 的 `devUrl` 一致；`pnpm dev` 由 `scripts/dev.mjs` 启动，1420 被占用时换用后面空闲的端口，并经 `tauri dev --config` 同时改写 `devUrl`、启动 Vite 的命令和 `devCsp` 里的热更新地址。`src/renderer/src/platform/desktop-bridges.ts` 用 `@tauri-apps/api` 的 `invoke('backend_invoke', { channel, args })` 构造各 `window.desktop*` 接口，装上后不能改写；页面不在 Tauri 里运行时不安装。`src-tauri/capabilities/main.json` 只允许标签为 `main` 的窗口里的应用页面调用 `backend_invoke`，不开放其他 Tauri 命令和插件命令。CSP 在 `tauri.conf.json`，样式允许 `'unsafe-inline'`（antd 在运行时注入样式）。
 
 ## 2. 游戏与设备界面
 

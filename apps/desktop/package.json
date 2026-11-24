@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tauri dev",
+    "dev": "node scripts/dev.mjs",
     "dev:renderer": "vite",
     "build": "vite build && pnpm build:sidecar",
     "build:sidecar": "vite build -c vite.sidecar.config.ts",

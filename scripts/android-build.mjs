@@ -1,4 +1,4 @@
-import { existsSync } from 'node:fs'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { spawn } from 'node:child_process'
 import { getAndroidEnvironment, REPO_ROOT } from './local-environment.mjs'
@@ -26,6 +26,13 @@ const isInventory = process.argv.includes('--inventory')
 const isTest = process.argv.includes('--test')
 const isUnitTest = process.argv.includes('--unit-test')
 const isRelease = process.argv.includes('--release')
+const isDevServer = process.argv.includes('--dev-server')
+if (isDevServer) {
+  if (isRelease) {
+    throw new Error('--dev-server only builds the debug APK.')
+  }
+  pointWebViewAtDevServer()
+}
 const gradleArgs = isInventory
   ? [
       '--no-daemon',
@@ -74,3 +81,20 @@ child.on('error', (error) => {
 child.on('exit', (code) => {
   process.exitCode = code ?? 1
 })
+
+/**
+ * 在 cap sync 生成的 capacitor.config.json 里写入 server.url，让 WebView 加载电脑上的 Vite 开发服务器。
+ * 下一次 cap sync 重新生成这个文件，WebView 回到 APK 里的页面。
+ * @throws {Error} 还没有运行过 cap sync 时。
+ */
+function pointWebViewAtDevServer() {
+  const file = join(cwd, 'app', 'src', 'main', 'assets', 'capacitor.config.json')
+  if (!existsSync(file)) {
+    throw new Error('Run pnpm android:sync before building with --dev-server.')
+  }
+  const config = JSON.parse(readFileSync(file, 'utf8'))
+  // pnpm dev:android 经 adb reverse 把手机上的这个端口接到电脑上 Vite 的实际端口；
+  // 端口和 scripts/device/device.mjs 的 PHONE_DEV_SERVER_PORT 相同。
+  config.server = { ...config.server, url: 'http://localhost:5173' }
+  writeFileSync(file, `${JSON.stringify(config, null, '\t')}\n`)
+}
