@@ -262,12 +262,12 @@ Windows → Android（监听方 → 拨号方）：按确认计划里发起端�
 
 `pnpm test` 运行最小 TS 桥检查（请求/响应边界、结果上下文和订阅清理）。`ListenerServerTest` 在 JVM 回环地址上运行真实的本机服务，覆盖 HTTP 解析边界、目录表交换、控制通道和一台设备一条连接的规则，以及 Android 拨号方 `TransferEngine` 连接、交换、浏览后被 4001 断开。监听方 `/v1/sync/*` 和控制通道发起的传输没有长期测试，验收结论见[验收标准](../testing/acceptance.md)第 3 节。`pnpm android:unit` 同步 Web 工程，生成 Windows 原生归档供 Java 消费，执行 Java 单元测试，最后验证 Windows/JVM 归档互通；`pnpm android:test` 在此之外另跑 Android lint、调试与仪器测试 APK 构建。两者都不连接设备。
 
-设备测试有 3 项，安装两个调试 APK 后用 `adb shell am instrument -w ... io.github.galgame.savedatasync.test/androidx.test.runner.AndroidJUnitRunner` 运行：
+设备测试有 3 项，安装两个调试 APK 后用 `node scripts/device/device.mjs instrument <类名#方法名> [键=值...]` 运行，键值对作为 `-e` 参数传给测试，`cache` 下的产物用 `private-pull cache/<文件名> <输出>` 取回：
 
 - `ArchiveSafTest#androidConsumesPythonAndWindowsNativeArchivesAndExportsJavaArchive`：跨端归档固定夹具。设备生成的 `cache/archive-device-java.gz` 取回到 `.reports/wp013-device/java.gz` 后，用 `scripts/verify-archive-interop.mjs verify-device` 复核。
-- `DirectoriesTest#pickerSelectionAndNativeRead`（`-e safMode select -e safExpectedName <显示名>`）：先准备 `SaveDataSync-Archive-<随机后缀>` 合成目录，由测试者在系统选择器中授权。
-- `ArchiveSafTest#actualSafStreamsRoundTripWithoutChangingSource`（`-e archiveExpectedName <显示名>`）：从同一合成目录边读边打包，再在设备上解包核对，确认源文件没有变化；设备生成的 `cache/archive-device-saf.gz` 和 `cache/archive-device-saf-files.json` 取回为 `.reports/wp013-device/saf.gz` 和 `saf-files.json` 后用 `verify-device-saf` 复核。
+- `DirectoriesTest#pickerSelectionAndNativeRead`（`safMode=select safExpectedName=<显示名>`）：先准备 `SaveDataSync-Archive-<随机后缀>` 合成目录，由测试者在系统选择器中授权。
+- `ArchiveSafTest#actualSafStreamsRoundTripWithoutChangingSource`（`archiveExpectedName=<显示名>`）：从同一合成目录边读边打包，再在设备上解包核对，确认源文件没有变化；设备生成的 `cache/archive-device-saf.gz` 和 `cache/archive-device-saf-files.json` 取回为 `.reports/wp013-device/saf.gz` 和 `saf-files.json` 后用 `verify-device-saf` 复核。
 
-界面主题、按钮和具体文案由实际运行与截图验收。真机验收范围见[验收标准](../testing/acceptance.md)。
+界面主题、按钮和具体文案由实际运行与截图验收。真机操作和检查用 `scripts/device/` 的工具，用法和安全边界见 `docs/development.md` 的“真机调试工具”；读应用页面用 CDP 取文字，有的手机上 uiautomator 一直等不到界面空闲，`ui-text` 读不到界面（测试手机上关掉无障碍服务后照样如此，原因没查清）。真机验收范围见[验收标准](../testing/acceptance.md)。
 
 数据读不懂时的启动检查（`AppDataRecovery`）没有长期测试。数据由更新版本写入时的处理在真机上验证过：游戏和设备列表写成更高的 `schemaVersion` 后冷启动，只显示提示页，本机服务没有恢复，应用私有数据原样保留；改回原数据后正常启动。端口和主题的宽容读取还没在真机上验证。

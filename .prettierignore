@@ -28,3 +28,7 @@ dev.local.json
 *.[wW][oO][rR][kK][bB][oO][oO][kK]
 [rR][eE][aA][dD][mM][eE]
 [cC][oO][nN][tT][eE][nN][tT][sS].[lL][rR]
+
+# frida Java 桥由 npm 管理，锁文件按 npm 的格式保留
+scripts/device/frida/package-lock.json
+scripts/device/frida/.staged-agent.js

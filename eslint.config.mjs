@@ -134,6 +134,8 @@ export default defineConfig(
       'apps/mobile/android/**',
       // Agent 工具在 .claude/worktrees/ 下放其他分支的完整工作区，检查它们会让 lint 时间翻倍。
       '.claude/**',
+      // frida 附加前复制出来的脚本，内容来自维护者本地，运行在 frida 环境里。
+      'scripts/device/frida/.staged-agent.js',
     ],
   },
   { linterOptions: { reportUnusedDisableDirectives: 'error' } },

@@ -11,6 +11,10 @@
 - [仓库结构](#仓库结构)
 - [Windows 打包](#windows-打包)
 - [Android 构建与调试](#android-构建与调试)
+- [真机调试工具](#真机调试工具)
+  - [安全边界](#安全边界)
+  - [常用流程](#常用流程)
+  - [frida](#frida)
 - [Android 签名](#android-签名)
   - [生成密钥](#生成密钥)
   - [本机配置](#本机配置)
@@ -62,13 +66,16 @@ Android 端最低支持 Android 11（API 30），编译目标为 API 36。前端
   "androidSdk": "C:/path/to/Android/Sdk",
   "javaHome": "C:/path/to/jdk-21",
   "androidStudio": "C:/path/to/Android Studio/bin/studio64.exe",
-  "gradleProxy": ""
+  "gradleProxy": "",
+  "androidSerial": "",
+  "fridaServer": ""
 }
 ```
 
 - 留空或未创建该文件时，脚本会回退读取 `JAVA_HOME`、`ANDROID_HOME` / `ANDROID_SDK_ROOT`、`CAPACITOR_ANDROID_STUDIO_PATH` 以及 Windows 常见安装路径。
 - 构建脚本会自动使用上述路径和仓库自带的 Gradle Wrapper。若在 Android Studio 中打开工程，请将 Gradle JDK 也配置为同一个 JDK 21。
 - 需要代理时可在 `gradleProxy` 填入不带账号密码的 HTTP 代理地址，仅作用于 Gradle。
+- `androidSerial` 和 `fridaServer` 供[真机调试工具](#真机调试工具)使用，也可以用环境变量 `SAVEDATA_SYNC_ADB_SERIAL`、`SAVEDATA_SYNC_FRIDA_SERVER` 设置。
 
 ## 常用命令
 
@@ -102,7 +109,7 @@ Android 端最低支持 Android 11（API 30），编译目标为 API 36。前端
 | `apps/shared` | 两端共用的通信协议、数据模型、校验规则和 React 展示组件 |
 | `apps/desktop` | Windows 桌面端：Tauri 宿主（`src-tauri`）、Node 后端 sidecar 和 React 界面 |
 | `apps/mobile` | 移动端：React 前端页面及 `android/` 下的 Capacitor 原生工程 |
-| `scripts` | 检查、构建、版本号计算与安全审计脚本 |
+| `scripts` | 检查、构建、版本号计算与安全审计脚本；`scripts/device` 是真机调试工具 |
 | `.project-memory` | 需求、架构、接口约定与测试状态记录 |
 
 ## Windows 打包
@@ -132,6 +139,72 @@ pnpm android:open
 `pnpm android:unit` 和 `pnpm android:test` 仅在本地执行，端到端同步流程需在两台真机上验收，具体方法见项目记忆中的 Android 平台层文档。
 
 Android 原生工程由 Capacitor 管理，Manifest 中启用了明文 HTTP（用于局域网设备直连），并声明了 `dataSync` 前台服务（用于在用户发起传输时保持后台运行）。
+
+## 真机调试工具
+
+`scripts/device/` 下的脚本用来在真机上安装、操作和检查应用，输出都是文本，适合在命令行或由 Agent 驱动测试：
+
+| 脚本 | 作用 |
+| --- | --- |
+| `device.mjs` | 调用 adb 的唯一入口：安装、启停、日志、通知、界面文字、点按、经 `run-as` 暂停和恢复进程、读写应用私有数据、测试目录、备份查看、CDP 转发、frida。不带参数时列出全部子命令 |
+| `cdp.mjs` | 经 Chrome DevTools Protocol 在应用页面里执行 JavaScript 并打印结果，读界面文字和操作界面都用它 |
+| `test-data.mjs` | 生成合成测试数据（`small`、`many`、`large` 三种规模，同一个种子生成的内容相同），输出目录清单，比对两个本机目录 |
+| `frida/attach.py` | 由 `device.mjs frida-attach` 经 uv 运行，见 [frida](#frida) |
+
+只连一台设备时自动选中它；连了多台时在 `dev.local.json` 的 `androidSerial` 指定序列号。adb 优先用 Android SDK 里 platform-tools 的版本。
+
+电脑端也能用 `cdp.mjs`：调试构建在环境变量 `SAVEDATA_SYNC_DEVTOOLS_PORT=<端口>` 下启动，WebView2 就在这个端口开放 CDP，发布构建没有这个入口。
+
+### 安全边界
+
+`device.mjs` 只执行列出的子命令，没有任意 shell 透传：
+
+- 发给 adb 的参数逐词检查，出现 `rm`、`mv`、`reboot`、`kill`、`setprop`、`uninstall`、`clear`、`kill-server`、`tcpip` 等命令就拒绝执行。`su` 只用于启动和查找配置的 frida-server，`kill` 只用于 `pause`、`resume` 给本应用主进程发 SIGSTOP 和 SIGCONT，`rm` 只用于 `fixture-rm` 删除临时区。`guard-check <文本...>` 只做这项检查，不连接设备。
+- 不卸载应用、不清除应用数据，以免丢失用户授权的目录；不操作系统目录选择器。
+- 测试文件只写 `/sdcard/Download/gss-sync-test` 下的测试目录。临时用的目录命名为 `tmp/<名称>`，测试完用 `fixture-rm tmp/<名称>` 或 `fixture-rm tmp` 删除；其他测试目录可能已授权给应用，删掉后授权跟着失效，所以只能在手机上手动删除。
+- 应用私有数据（只限调试版）只能读写 `shared_prefs/<名称>.xml`、`files/<名称>` 和 `cache/<名称>`。`private-push` 只在应用停止时写入，写入前把手机上的原内容存到 `.reports/device/private-before/<时间>/`，写入后核对哈希。
+- frida 脚本源码出现 `rm`、`kill`、`su`、`setprop`、`Runtime.exec`、`ProcessBuilder` 等就拒绝附加。
+
+### 常用流程
+
+读应用界面用 CDP，不截图：
+
+```bash
+node scripts/device/device.mjs start
+node scripts/device/device.mjs cdp-forward
+node scripts/device/cdp.mjs 9333 "return document.getElementById('root').innerText"
+node scripts/device/device.mjs cdp-unforward
+```
+
+应用重启后进程号会变，要重新 `cdp-forward`。系统界面（通知、权限弹窗、桌面）用 `ui-text` 读文字和坐标，再用 `tap` 点按。有的手机上 uiautomator 一直等不到界面空闲（报 `could not get idle state`），`ui-text` 用不了，这时只能截图。
+
+准备一组测试存档并核对传输结果：
+
+```bash
+node scripts/device/test-data.mjs generate .reports/device/data/small --profile small
+node scripts/device/device.mjs fixture-push .reports/device/data/small tmp/small
+node scripts/device/device.mjs fixture-compare tmp/small .reports/device/data/small
+node scripts/device/device.mjs fixture-rm tmp/small
+```
+
+`fixture-compare` 比对文件内容和全部子目录（包括空目录），一致时输出“一致”，有差异时逐行列出并以退出码 1 结束。两个本机目录用 `test-data.mjs compare` 比对，输出格式相同。
+
+在 Git Bash 里运行时先 `export MSYS_NO_PATHCONV=1`，否则 Git Bash 会把参数和环境变量里的 `/sdcard`、`/data` 改写成 Windows 路径。
+
+### frida
+
+frida 用来在运行中的应用里挂 hook 查问题，需要已 root 的手机，是可选工具：
+
+1. 从 frida 的 GitHub Release 下载和手机架构对应的 `frida-server-<版本>-android-<架构>`，解压后用 `device.mjs frida-push <文件>` 放到手机上，并在 `fridaServer` 写 `/data/local/tmp/frida-server-<版本>-android-<架构>`。
+2. 安装 [uv](https://docs.astral.sh/uv/)。`frida-attach` 用 `uv run --with frida==<版本>` 运行 `frida/attach.py`，版本号取自 `fridaServer` 的文件名，电脑端的 frida 和手机上的 frida-server 因此总是同版本；第一次运行或换版本时 uv 会下载 frida（约 60 MB）。
+3. 要用 Java 层 hook 时，在 `scripts/device/frida/` 运行一次 `npm ci` 安装锁定版本的 `frida-java-bridge`，脚本开头写 `import Java from 'frida-java-bridge'`；除此之外脚本不能 import 其他模块。
+
+```bash
+node scripts/device/device.mjs frida-start
+node scripts/device/device.mjs frida-attach my-hook.js 30
+```
+
+frida-server 启动后一直运行，工具没有结束它的子命令，用完在手机上结束或重启手机。
 
 ## Android 签名
 

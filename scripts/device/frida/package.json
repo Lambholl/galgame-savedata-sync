@@ -1,0 +1,8 @@
+{
+  "name": "savedata-sync-frida-agent",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "frida-java-bridge": "7.0.13"
+  }
+}

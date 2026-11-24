@@ -25,7 +25,54 @@ function readLocalSettings() {
   if (value.gradleProxy !== undefined && typeof value.gradleProxy !== 'string') {
     throw new Error('dev.local.json: gradleProxy must be an HTTP proxy URL or an empty string')
   }
+  if (
+    value.androidSerial !== undefined &&
+    (typeof value.androidSerial !== 'string' || !/^[A-Za-z0-9._:-]*$/.test(value.androidSerial))
+  ) {
+    throw new Error('dev.local.json: androidSerial must be an adb serial or an empty string')
+  }
+  if (
+    value.fridaServer !== undefined &&
+    (typeof value.fridaServer !== 'string' ||
+      (value.fridaServer !== '' && !FRIDA_SERVER_PATTERN.test(value.fridaServer)))
+  ) {
+    throw new Error(
+      'dev.local.json: fridaServer must be /data/local/tmp/frida-server-<version>-android-<arch> or an empty string',
+    )
+  }
   return value
+}
+
+/** 手机上 frida-server 的路径格式：只接受 /data/local/tmp 下按官方命名的可执行文件。 */
+export const FRIDA_SERVER_PATTERN = /^\/data\/local\/tmp\/frida-server-[0-9.]+-android-(arm|arm64)$/
+
+/**
+ * 从 dev.local.json 和环境变量解析真机调试用的本机取值。dev.local.json 的设置优先于环境变量。
+ * @returns {{ adb: string, serial?: string, fridaServer?: string }}
+ *   adb 是 Android SDK platform-tools 里的 adb，SDK 里没有时为 `adb`，按 PATH 查找。
+ * @throws {Error} dev.local.json 格式错误，或环境变量里的序列号、frida-server 路径格式不对。
+ */
+export function getDeviceEnvironment() {
+  const settings = readLocalSettings()
+  const { sdkRoot } = getAndroidEnvironment()
+  const bundledAdb = sdkRoot
+    ? join(sdkRoot, 'platform-tools', process.platform === 'win32' ? 'adb.exe' : 'adb')
+    : undefined
+  const serial = settings.androidSerial || process.env.SAVEDATA_SYNC_ADB_SERIAL || undefined
+  if (serial !== undefined && !/^[A-Za-z0-9._:-]+$/.test(serial)) {
+    throw new Error('SAVEDATA_SYNC_ADB_SERIAL must be an adb serial')
+  }
+  const fridaServer = settings.fridaServer || process.env.SAVEDATA_SYNC_FRIDA_SERVER || undefined
+  if (fridaServer !== undefined && !FRIDA_SERVER_PATTERN.test(fridaServer)) {
+    throw new Error(
+      'SAVEDATA_SYNC_FRIDA_SERVER must be /data/local/tmp/frida-server-<version>-android-<arch>',
+    )
+  }
+  return {
+    adb: bundledAdb && existsSync(bundledAdb) ? bundledAdb : 'adb',
+    serial,
+    fridaServer,
+  }
 }
 
 /**

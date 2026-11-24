@@ -30,3 +30,6 @@ apps/mobile/android/app/src/main/assets/capacitor.plugins.json
 
 # 界面原型只留本地，不进入 Git
 docs/design/
+
+# frida 附加脚本打包前的暂存文件
+scripts/device/frida/.staged-agent.js
