@@ -28,6 +28,5 @@ M-006 的事项按表中顺序做，每项开始前细化成工作包，真机�
 
 | 优先级 | 事项 | 依赖 | 状态 |
 | --- | --- | --- | --- |
-| P1 | 发布文档：`docs/development.md` 的“兼容性与卸载”和“版本号与发布”按 ADR-0006 改写；`architecture/shared-package.md` 第 1 节的测试版表述改为 1.0 规则；发布说明写明 0.x 的数据不迁移 | 无 | planned |
 | P1 | 发布前验证：打包产物和 Android 之间的连接与双向传输；pkg 打包后的安装版重测；安装包的模式选择页和 UAC；打包产物上数据读不懂时的启动；`pnpm security:check` 重跑并更新[当前回归状态](../testing/regression-notes.md) | 以上各项 | planned |
 | P3 | 电脑端支持 Linux：存储目录已按 XDG 规划；推荐地址模块（现用 `route print`、`reg query`）、短路径测试和 `Windows*` 命名要另做 | 无 | planned |

@@ -1,7 +1,7 @@
 ---
 doc_type: standards-coding
 status: active
-updated: 2026-11-22
+updated: 2026-11-25
 tags: [编码规范]
 ---
 
@@ -54,7 +54,7 @@ tags: [编码规范]
 | 规则 | 原因 | 适用范围 |
 | --- | --- | --- |
 | React 组件文件 PascalCase，其余模块和脚本 kebab-case | 现有代码的约定 | TS、TSX、MJS |
-| 布尔名由 `@typescript-eslint/naming-convention` 检查前缀，前缀后的主体用 PascalCase；协议、存储和插件参数的字段同样遵守，没有历史字段例外 | 应用是测试版，协议和存储格式可以不兼容地修改，两端同时更新 | TypeScript；Java 由 Checkstyle 检查 |
+| 布尔名由 `@typescript-eslint/naming-convention` 检查前缀，前缀后的主体用 PascalCase；协议、存储和插件参数的字段同样遵守，没有历史字段例外 | 所有受检字段统一命名；1.0 起修改已有落盘格式须按 [ADR-0006](../decisions/ADR-0006-stable-release-compatibility.md) 写迁移，修改协议字段须维护者同意并在次版本同步更新两端 | TypeScript；Java 由 Checkstyle 检查 |
 | JSX 里 `checked`、`disabled`、`hidden`、`open`、`readOnly`、`required` 不加前缀 | 和 DOM 属性、组件库 props 同名，改名就传不进去 | TSX |
 | 未使用的参数必须以 `_` 开头 | `tsconfig` 开启了 `noUnusedParameters`，回调签名里占位的参数要显式标出 | TypeScript |
 | 对象字面量的属性名和导入名不检查命名 | 要和外部接口、第三方库的字段一致 | TypeScript |

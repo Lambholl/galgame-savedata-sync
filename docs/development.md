@@ -14,8 +14,6 @@
   - [用 Chrome 检查页面](#用-chrome-检查页面)
   - [加载电脑上的开发服务器](#加载电脑上的开发服务器)
 - [真机调试工具](#真机调试工具)
-  - [安全边界](#安全边界)
-  - [常用流程](#常用流程)
   - [诊断与故障注入](#诊断与故障注入)
   - [frida](#frida)
 - [Android 签名](#android-签名)
@@ -26,6 +24,7 @@
 - [兼容性与卸载](#兼容性与卸载)
 - [版本号与发布](#版本号与发布)
   - [版本号规则](#版本号规则)
+  - [1.x 版本升级规则](#1x-版本升级规则)
   - [发布流程](#发布流程)
 - [依赖安全检查](#依赖安全检查)
 - [常见问题](#常见问题)
@@ -38,9 +37,9 @@ pnpm doctor
 pnpm dev:desktop
 ```
 
-- `pnpm doctor` 检查 Node、pnpm、Rust、MSVC 生成工具、WebView2 运行时、JDK 和 Android SDK 是否齐全；加上 `--desktop` 参数可只检查桌面端开发环境。
-- `pnpm dev:desktop` 启动桌面端开发模式：先构建后端 sidecar，再启动界面开发服务器（`127.0.0.1:1420`，被占用时自动换用后面空闲的端口）和 Tauri 宿主。界面代码修改后热更新；`apps/desktop/src-tauri` 的 Rust 代码修改后宿主自动重新编译并重启；后端（`src/backend`、`src/sidecar`）修改后需停止并重新运行该命令。
-- `pnpm dev:mobile` 在浏览器中启动移动端前端页面，适合调试 UI；涉及文件系统访问、局域网传输等依赖 Android 原生插件的功能，需要构建到真机或模拟器中调试。
+- `pnpm doctor`：检查本机工具链；传入 `--desktop` 仅检查桌面端环境。
+- `pnpm dev:desktop`：先构建后端 sidecar，再启动前端开发服务器（`127.0.0.1:1420`，被占用时自动顺延端口）与 Tauri 宿主。修改界面热更新，修改 `apps/desktop/src-tauri` 自动重编重启，修改 `src/backend` 或 `src/sidecar` 需重启命令。
+- `pnpm dev:mobile`：在浏览器中启动移动端界面用于调试布局；涉及文件授权与局域网传输的原生插件功能需在真机或模拟器中调试。
 
 提交代码前请运行 `pnpm check`。
 
@@ -48,21 +47,19 @@ pnpm dev:desktop
 
 | 工具 | 要求 |
 | --- | --- |
-| Node.js | 22.13+（建议 22.23.4+ 或 24.22.1+，以满足安全基线）；桌面端开发版用 `PATH` 中的 `node` 运行后端 |
-| pnpm | 10.34.8（与 `package.json` 的 `packageManager` 一致） |
-| Rust | stable，Windows 使用 MSVC 工具链（`x86_64-pc-windows-msvc`），另需 Visual Studio 生成工具的“使用 C++ 的桌面开发”工作负载和 Windows SDK；`cargo` 需在 `PATH` 中 |
-| WebView2 运行时 | Windows 11 自带；桌面端界面运行在其中 |
+| Node.js | 22.13+（建议 22.23.4+ 或 24.22.1+）；桌面端开发版使用 `PATH` 中的 `node` 运行 sidecar |
+| pnpm | 10.34.8（与 [package.json](../package.json) 的 `packageManager` 一致） |
+| Rust | stable，Windows 使用 `x86_64-pc-windows-msvc`，另需 VS 生成工具的“使用 C++ 的桌面开发”工作负载与 Windows SDK |
+| WebView2 运行时 | Windows 11 自带 |
 | JDK | 21（建议 21.0.13+） |
-| Android SDK | Platform 36、Build Tools 35.0.0+、Platform Tools；建议同时安装 Command-line Tools（latest） |
+| Android SDK | Platform 36、Build Tools 35.0.0+、Platform Tools、Command-line Tools（latest） |
 | Android Studio | 2025.2.1+（仅调试 Android 原生代码时需要） |
 
-仅开发桌面端时不需要安装 JDK、Android SDK 和 Android Studio。
-
-Android 端最低支持 Android 11（API 30），编译目标为 API 36。前端 React 版本锁定在 18（受限于 `antd-mobile` 动画依赖的兼容范围）。
+仅开发桌面端时不需要安装 JDK、Android SDK 与 Android Studio。Android 最低支持 Android 11（API 30），编译目标为 API 36；前端 React 版本锁定在 18（受限于 `antd-mobile` 动画依赖）。
 
 ## 本机工具路径
 
-如果 JDK、Android SDK 等工具不在系统默认位置，无需修改全局环境变量，将根目录的 `dev.local.example.json` 复制为 `dev.local.json`（已被 Git 忽略）并填入绝对路径即可：
+若 JDK、Android SDK 等工具不在系统默认路径，将根目录 [dev.local.example.json](../dev.local.example.json) 复制为 `dev.local.json`（已被 Git 忽略）并填入绝对路径：
 
 ```json
 {
@@ -75,10 +72,9 @@ Android 端最低支持 Android 11（API 30），编译目标为 API 36。前端
 }
 ```
 
-- 留空或未创建该文件时，脚本会回退读取 `JAVA_HOME`、`ANDROID_HOME` / `ANDROID_SDK_ROOT`、`CAPACITOR_ANDROID_STUDIO_PATH` 以及 Windows 常见安装路径。
-- 构建脚本会自动使用上述路径和仓库自带的 Gradle Wrapper。若在 Android Studio 中打开工程，请将 Gradle JDK 也配置为同一个 JDK 21。
-- 需要代理时可在 `gradleProxy` 填入不带账号密码的 HTTP 代理地址，仅作用于 Gradle。
-- `androidSerial` 和 `fridaServer` 供[真机调试工具](#真机调试工具)使用，也可以用环境变量 `SAVEDATA_SYNC_ADB_SERIAL`、`SAVEDATA_SYNC_FRIDA_SERVER` 设置。
+- 留空或未创建时，脚本会回退读取 `JAVA_HOME`、`ANDROID_HOME` / `ANDROID_SDK_ROOT`、`CAPACITOR_ANDROID_STUDIO_PATH` 与 Windows 常见安装路径；在 Android Studio 中打开工程时，请将 Gradle JDK 配置为同一套 JDK 21。
+- 需要代理时在 `gradleProxy` 填入不带账号密码的 HTTP 代理地址，仅作用于 Gradle。
+- `androidSerial` 与 `fridaServer` 也可通过环境变量 `SAVEDATA_SYNC_ADB_SERIAL`、`SAVEDATA_SYNC_FRIDA_SERVER` 设置。
 
 ## 常用命令
 
@@ -88,49 +84,48 @@ Android 端最低支持 Android 11（API 30），编译目标为 API 36。前端
 | --- | --- |
 | `pnpm dev:desktop` | 启动桌面端开发模式 |
 | `pnpm dev:mobile` | 在浏览器中启动移动端前端开发服务器 |
-| `pnpm dev:android` | 启动移动端前端开发服务器，供 `android:build:dev-server` 构建的手机应用加载，见[加载电脑上的开发服务器](#加载电脑上的开发服务器) |
-| `pnpm desktop:package` | 打包 Windows x64 安装包和免安装 zip，见 [Windows 打包](#windows-打包) |
-| `pnpm check` | 提交前全量检查，依次运行类型检查、ESLint、Checkstyle（需 JDK）和 Clippy、两端构建、文本编码和代码格式检查（Prettier、rustfmt），某一步失败即停止 |
-| `pnpm format` | 自动修复可修复的 ESLint 问题，并用 Prettier 和 rustfmt 格式化代码 |
-| `pnpm lint` / `pnpm typecheck` / `pnpm build` | 单独运行 `pnpm check` 中的对应检查 |
-| `pnpm test` | 运行共享包和桌面端 sidecar 的测试（无需 Android 工具） |
-| `pnpm test:all` | 运行 `pnpm test` 和 `pnpm android:test`，适合发版前或大范围改动后执行 |
-| `pnpm release:loopback` | 构建电脑端后端，启动两个后端经 127.0.0.1 双向复制一份合成存档（开备份、删除多余），核对两边文件一致，再各自恢复复制前的备份并核对；数据都在系统临时目录，结束后删除。运行期间监听服务绑定所有网卡并在局域网广播。发版前执行 |
-| `pnpm doctor` | 检查本地工具链；支持 `--desktop`（跳过 Android 检查）和 `--json`；存在 FAIL 项时返回非零退出码 |
-| `pnpm android:sync` | 构建移动端前端资源并同步到 Android 原生工程 |
-| `pnpm android:build` | 构建 debug APK；加 `--release` 构建签名后的 release APK |
-| `pnpm android:build:dev-server` | 构建打开电脑上 Vite 页面的 debug APK，见[加载电脑上的开发服务器](#加载电脑上的开发服务器) |
-| `pnpm android:install` | 把构建好的 debug APK 覆盖安装到连接的手机上，应用数据保留 |
-| `pnpm android:unit` | 运行 Java 单元测试和 Windows/Java 归档互通检查（无需连接真机），复用 Gradle 后台进程，适合修改 Java 代码后反复运行 |
-| `pnpm android:test` | 在 `pnpm android:unit` 的基础上另跑 Android lint、构建调试 APK 和测试 APK，每次启动新的 Gradle 进程，适合发版前执行 |
-| `pnpm android:open` | 使用 Android Studio 打开原生工程 |
-| `pnpm security:node` | 审计 npm 依赖及 Node、pnpm 安全基线 |
-| `pnpm security:android` | 解析 Android 全部 Maven 依赖并查询 OSV 安全公告 |
+| `pnpm dev:android` | 启动移动端前端开发服务器并做 USB 端口转发，供真机加载 |
+| `pnpm desktop:package` | 打包 Windows x64 安装包与免安装 zip |
+| `pnpm check` | 提交前全量检查：typecheck、ESLint、Checkstyle、Clippy、构建、编码与格式化检查 |
+| `pnpm format` | 自动修复 ESLint 并运行 Prettier 与 `rustfmt` |
+| `pnpm lint` / `pnpm typecheck` / `pnpm build` | 单独运行对应检查或构建 |
+| `pnpm test` | 运行共享包与桌面端 sidecar 测试（无需 Android 工具） |
+| `pnpm test:all` | 运行 `pnpm test` 与 `pnpm android:test` |
+| `pnpm release:loopback` | 发版前本地双端回环测试：启动两个电脑端后端经 `127.0.0.1` 双向传输并验证备份与恢复 |
+| `pnpm doctor` | 检查本机工具链（支持 `--desktop`、`--json`） |
+| `pnpm android:sync` | 构建移动端前端资源并同步至 Android 工程 |
+| `pnpm android:build` | 构建 debug APK（加 `--release` 构建签名后的 release APK） |
+| `pnpm android:build:dev-server` | 构建加载电脑端 Vite 开发服务器的 debug APK |
+| `pnpm android:install` | 覆盖安装 debug APK 到已连接设备（保留应用数据） |
+| `pnpm android:unit` | 运行 Java 单元测试与 Windows/Java 归档互通检查（复用 Gradle 守护进程） |
+| `pnpm android:test` | 在 `android:unit` 基础上运行 Android lint 并构建调试与测试 APK |
+| `pnpm android:open` | 使用 Android Studio 打开 Android 工程 |
+| `pnpm security:node` | 审计 npm 依赖与 Node/pnpm 安全基线 |
+| `pnpm security:android` | 解析 Android 依赖并查询 OSV 安全公告 |
 
-`pnpm check` 不包含测试；测试规范与真机验收流程见[项目记忆](../.project-memory/INDEX.md)。
+`pnpm check` 不含自动化测试；测试规范与验收标准见[项目记忆](../.project-memory/INDEX.md)。
 
 ## 仓库结构
 
 | 路径 | 内容 |
 | --- | --- |
-| `apps/shared` | 两端共用的通信协议、数据模型、校验规则和 React 展示组件 |
-| `apps/desktop` | Windows 桌面端：Tauri 宿主（`src-tauri`）、Node 后端 sidecar 和 React 界面 |
+| `apps/shared` | 两端共用的通信协议、数据模型、校验规则与纯展示组件 |
+| `apps/desktop` | Windows 桌面端：Tauri 宿主（`src-tauri`）、Node 后端 sidecar 与 React 界面 |
 | `apps/mobile` | 移动端：React 前端页面及 `android/` 下的 Capacitor 原生工程 |
-| `scripts` | 检查、构建、版本号计算与安全审计脚本；`scripts/device` 是真机调试工具 |
-| `.project-memory` | 需求、架构、接口约定与测试状态记录 |
+| `scripts` | 检查、构建、版本号计算与安全审计脚本；`scripts/device` 为真机调试工具 |
+| `.project-memory` | 需求、架构、接口约定、决策、计划与测试记录 |
 
 ## Windows 打包
 
-`pnpm desktop:package` 在 Windows x64 上构建发布版，产物输出到 `apps/desktop/release/`，均无数字签名：
+`pnpm desktop:package` 在 Windows x64 上构建产物到 `apps/desktop/release/`（均无数字签名）：
 
 | 产物 | 说明 |
 | --- | --- |
-| `SavedataSync-<版本>-Setup-x64.exe` | NSIS 安装包，安装时选择只为当前用户安装（`%LOCALAPPDATA%\Savedata Sync`）或为所有用户安装（`%ProgramFiles%\Savedata Sync`，需要管理员权限）；系统缺少 WebView2 运行时时由安装包下载安装 |
-| `SavedataSync-<版本>-Portable-x64.zip` | 免安装版，内含主程序 `SavedataSync.exe` 和后端 `savedata-sync-backend.exe`，不带 `portable_data` 文件夹 |
+| `SavedataSync-<版本>-Setup-x64.exe` | NSIS 安装包，支持当前用户（`%LOCALAPPDATA%\Savedata Sync`）或所有用户（`%ProgramFiles%\Savedata Sync`）；缺少 WebView2 时自动下载安装 |
+| `SavedataSync-<版本>-Portable-x64.zip` | 免安装版，含 `SavedataSync.exe` 与 `savedata-sync-backend.exe` |
 
-- 后端 sidecar 用 `@yao-pkg/pkg` 编成 `savedata-sync-backend.exe`，内嵌 pkg-fetch 预编译的 Node 22（只带英文区域数据），版本由 `@yao-pkg/pkg` 的版本决定，和执行打包命令的 `node` 无关。`@yao-pkg/pkg` 在 `apps/desktop/package.json` 里写的是 `^6.x` 范围版本，运行 `pnpm --filter @savedata-sync/desktop update @yao-pkg/pkg` 升级到同主版本的最新版，内嵌 Node 随之更新。首次打包时 pkg-fetch 从 GitHub 下载基础二进制并缓存。
-- 首次打包时 Tauri 从 GitHub 下载 NSIS 工具。
-- `apps/desktop/scripts/build-sidecar-exe.mjs` 可单独生成 sidecar 可执行文件，输出到 `apps/desktop/src-tauri/binaries/`（已被 Git 忽略）。
+- 后端 sidecar 由 `@yao-pkg/pkg` 编成 `savedata-sync-backend.exe`，内嵌预编译 Node 22（仅含英文区域数据），与本机 `node` 版本无关；升级 `@yao-pkg/pkg` 后可更新内嵌 Node。首次打包时 pkg-fetch 与 Tauri 会从 GitHub 下载基础二进制与 NSIS 工具。
+- 运行 [build-sidecar-exe.mjs](../apps/desktop/scripts/build-sidecar-exe.mjs) 可单独生成 sidecar 可执行文件到 `apps/desktop/src-tauri/binaries/`（已被 Git 忽略）。
 
 ## Android 构建与调试
 
@@ -139,35 +134,21 @@ pnpm android:build
 pnpm android:open
 ```
 
-构建出的 debug APK 位于 `apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk`。首次构建需联网下载 Gradle、AGP 及 Maven 依赖。
-
-在 Android Studio 中连接开启了 USB 调试的手机即可直接运行；同时连接多台设备时，命令行可通过 `adb -s <serial>` 指定设备。更换测试设备后，需在应用中重新选择并授予存档目录权限。
-
-`pnpm android:unit` 和 `pnpm android:test` 仅在本地执行，端到端同步流程需在两台真机上验收，具体方法见项目记忆中的 Android 平台层文档。
-
-Android 原生工程由 Capacitor 管理，Manifest 中启用了明文 HTTP（用于局域网设备直连），并声明了 `dataSync` 前台服务（用于在用户发起传输时保持后台运行）。
+debug APK 输出至 `apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk`。首次构建需联网下载 Gradle、AGP 与 Maven 依赖；多设备连接时可通过 `adb -s <serial>` 或 `dev.local.json` 的 `androidSerial` 指定设备。
 
 ### 用 Chrome 检查页面
 
-调试版应用的页面可以用 Chrome 或 Edge 的远程调试检查，发布版不能：
+仅调试构建支持远程检查：
 
 1. 手机开启 USB 调试并连接电脑，打开应用。
-2. 电脑上的 Chrome 打开 `chrome://inspect/#devices`（Edge 为 `edge://inspect`），勾选 “Discover USB devices”。
-3. 在设备列表里找到 `io.github.galgame.savedatasync` 的 WebView，点 **inspect**。
+2. Chrome 打开 `chrome://inspect/#devices`（Edge 为 `edge://inspect`），勾选 “Discover USB devices”。
+3. 在 `io.github.galgame.savedatasync` 下点击 **inspect**（首次加载若窗口空白可改点 “inspect fallback”）。
 
-打开的 DevTools 和调试普通网页相同：Elements 面板查看和修改 DOM 与样式，鼠标悬停的元素在手机上同步高亮；左上角的设备图标打开屏幕镜像，可以在镜像上直接点按。
-
-- 第一次打开时 DevTools 前端要从 Google 下载，下载不了时窗口空白，改点 “inspect fallback”。
-- 应用重启后 WebView 会换一个，要回到设备列表重新点 inspect。
-- DevTools 只看得到网页层。扫码页的取景画面、系统栏、通知和权限弹窗是原生界面，用 Android Studio 的 Layout Inspector 查看。
-
-在命令行里读页面文字或批量操作页面，用[真机调试工具](#真机调试工具)里的 `cdp.mjs`。
+应用重启后需在设备列表重新点击 inspect；扫码取景、系统栏与权限弹窗等原生界面使用 Android Studio Layout Inspector 查看。
 
 ### 加载电脑上的开发服务器
 
-改移动端页面时，可以让手机上的应用直接显示电脑上 Vite 的页面：保存代码后手机上的页面立即更新，不用每次重新构建 APK。
-
-切换到电脑上的页面：
+调试移动端界面时，可让手机端应用直接加载电脑上的 Vite 热更新页面：
 
 ```bash
 pnpm android:build:dev-server
@@ -175,16 +156,9 @@ pnpm android:install
 pnpm dev:android
 ```
 
-1. `pnpm android:build:dev-server` 构建一个调试包，打开后显示手机上 `http://localhost:5173` 的页面。
-2. `pnpm android:install` 把调试包覆盖安装到手机上，应用数据保留。
-3. `pnpm dev:android` 在电脑上启动 Vite，并经 USB 把手机的 5173 端口接到 Vite 的端口，之后打开手机上的应用即可。电脑上的 5173 被别的程序占用时，Vite 自动换用后面空闲的端口，手机这边不受影响。Vite 只监听电脑的 `127.0.0.1`，局域网里的其他设备访问不到。
+`pnpm dev:android` 通过 USB 将手机 `5173` 端口转发到电脑 Vite 服务（仅监听 `127.0.0.1`）。修改 Java 代码后需重新执行前两条命令；拔插 USB 或 adb 重启后重新运行 `pnpm dev:android` 恢复转发。
 
-使用期间：
-
-- 只改页面时保存即可。改了 Java 代码时重新运行前两条命令。
-- 手机上的应用打不开页面时，重新运行 `pnpm dev:android`：拔插 USB 或 adb 重启后，端口转发会断开。
-
-切换回 APK 里的页面：
+切回内置页面时运行：
 
 ```bash
 pnpm android:build
@@ -192,108 +166,64 @@ pnpm android:install
 node scripts/device/device.mjs unreverse
 ```
 
-`pnpm android:build --release` 构建前会重新同步配置，打出的 release 包总是使用 APK 里的页面。直接用 Gradle 或 Android Studio 构建 release 包时，如果上一次构建的是 `android:build:dev-server`，构建会报错 “capacitor.config.json 带有 server.url”，先运行 `pnpm android:sync` 再构建。
+`pnpm android:build --release` 会自动重同步配置并使用内置页面。若直接通过 Gradle 或 Android Studio 打 release 包且报 `capacitor.config.json` 含 `server.url`，先运行 `pnpm android:sync`。
 
 ## 真机调试工具
 
-`scripts/device/` 下的脚本用来在真机上安装、操作和检查应用，输出都是文本，适合在命令行或由 Agent 驱动测试：
+`scripts/device/` 提供面向真机的命令行调试与测试工具：
 
 | 脚本 | 作用 |
 | --- | --- |
-| `device.mjs` | 调用 adb 的唯一入口：安装、启停、日志、通知、界面文字、点按、经 `run-as` 暂停和恢复进程、读写应用私有数据、测试目录、备份查看、CDP 转发、开发服务器的端口转发、调试版的诊断与故障注入、frida。不带参数时列出全部子命令 |
-| `cdp.mjs` | 经 Chrome DevTools Protocol 在应用页面里执行 JavaScript 并打印结果，读界面文字和操作界面都用它 |
-| `test-data.mjs` | 生成合成测试数据（`small`、`many`、`large` 三种规模，同一个种子生成的内容相同），输出目录清单，比对两个本机目录 |
-| `frida/attach.py` | 由 `device.mjs frida-attach` 经 uv 运行，见 [frida](#frida) |
+| [device.mjs](../scripts/device/device.mjs) | 封装常用 adb 操作：安装、启停、日志、界面检查与点按、进程暂停/恢复、调试版私有数据读写、测试目录管理、CDP/开发服务器端口转发、诊断广播与 frida。不带参数运行可查看全部子命令 |
+| [cdp.mjs](../scripts/device/cdp.mjs) | 经 Chrome DevTools Protocol 在应用 WebView 执行脚本并输出结果（桌面端调试版在设置 `SAVEDATA_SYNC_DEVTOOLS_PORT=<端口>` 启动后同样可用） |
+| [test-data.mjs](../scripts/device/test-data.mjs) | 生成 `small`、`many`、`large` 三种规模的确定性合成存档，以及比对两个本机目录 |
+| [frida/attach.py](../scripts/device/frida/attach.py) | 由 `device.mjs frida-attach` 通过 `uv` 调用的 frida 附加脚本 |
 
-只连一台设备时自动选中它；连了多台时在 `dev.local.json` 的 `androidSerial` 指定序列号。adb 优先用 Android SDK 里 platform-tools 的版本。
+- `device.mjs` 仅执行白名单子命令，不卸载应用或清除应用数据，测试文件限定在 `/sdcard/Download/gss-sync-test`（临时目录放 `tmp/<名称>`，用完以 `fixture-rm` 清理）。
+- 在 Git Bash 中运行前先执行 `export MSYS_NO_PATHCONV=1`，避免 `/sdcard`、`/data` 等参数被自动改写为 Windows 路径。
 
-电脑端也能用 `cdp.mjs`：调试构建在环境变量 `SAVEDATA_SYNC_DEVTOOLS_PORT=<端口>` 下启动，WebView2 就在这个端口开放 CDP，发布构建没有这个入口。
-
-### 安全边界
-
-`device.mjs` 只执行列出的子命令，没有任意 shell 透传：
-
-- 发给 adb 的参数逐词检查，出现 `rm`、`mv`、`reboot`、`kill`、`setprop`、`uninstall`、`clear`、`kill-server`、`tcpip` 等命令就拒绝执行。`su` 只用于启动和查找配置的 frida-server，`kill` 只用于 `pause`、`resume` 给本应用主进程发 SIGSTOP 和 SIGCONT，`rm` 只用于 `fixture-rm` 删除临时区。`guard-check <文本...>` 只做这项检查，不连接设备。
-- 不卸载应用、不清除应用数据，以免丢失用户授权的目录；不操作系统目录选择器。
-- 测试文件只写 `/sdcard/Download/gss-sync-test` 下的测试目录。临时用的目录命名为 `tmp/<名称>`，测试完用 `fixture-rm tmp/<名称>` 或 `fixture-rm tmp` 删除；其他测试目录可能已授权给应用，删掉后授权跟着失效，所以只能在手机上手动删除。
-- 应用私有数据（只限调试版）只能读写 `shared_prefs/<名称>.xml`、`files/<名称>` 和 `cache/<名称>`。`private-push` 只在应用停止时写入，写入前把手机上的原内容存到 `.reports/device/private-before/<时间>/`，写入后核对哈希。
-- frida 脚本源码出现 `rm`、`kill`、`su`、`setprop`、`Runtime.exec`、`ProcessBuilder` 等就拒绝附加。
-
-### 常用流程
-
-读应用界面用 CDP，不截图：
+常用操作示例（读取界面文字与准备测试存档）：
 
 ```bash
 node scripts/device/device.mjs start
 node scripts/device/device.mjs cdp-forward
 node scripts/device/cdp.mjs 9333 "return document.getElementById('root').innerText"
 node scripts/device/device.mjs cdp-unforward
-```
 
-应用重启后进程号会变，要重新 `cdp-forward`。系统界面（通知、权限弹窗、桌面）用 `ui-text` 读文字和坐标，再用 `tap` 点按。有的手机上 uiautomator 一直等不到界面空闲（报 `could not get idle state`），`ui-text` 用不了，这时只能截图。
-
-准备一组测试存档并核对传输结果：
-
-```bash
 node scripts/device/test-data.mjs generate .reports/device/data/small --profile small
 node scripts/device/device.mjs fixture-push .reports/device/data/small tmp/small
 node scripts/device/device.mjs fixture-compare tmp/small .reports/device/data/small
 node scripts/device/device.mjs fixture-rm tmp/small
 ```
 
-`fixture-compare` 比对文件内容和全部子目录（包括空目录），一致时输出“一致”，有差异时逐行列出并以退出码 1 结束。两个本机目录用 `test-data.mjs compare` 比对，输出格式相同。
-
-在 Git Bash 里运行时先 `export MSYS_NO_PATHCONV=1`，否则 Git Bash 会把参数和环境变量里的 `/sdcard`、`/data` 改写成 Windows 路径。
-
 ### 诊断与故障注入
 
-调试版 APK 带一个诊断入口，用 `device.mjs diag` 调用。结果以 JSON 打印，同时以 `SavedataDiag` 标签写进 logcat。发布版 APK 不含这个入口。
+调试版 APK 内置诊断广播入口（发布版不含），通过 `device.mjs diag` 调用，结果同时写入 logcat（`SavedataDiag` 标签）：
 
-| 命令 | 作用 |
-| --- | --- |
-| `diag status` | 输出当前开着的故障、目标目录是否有进行中的写操作、本机服务（监听方）的状态和在线设备、拨号方的连接和控制通道、当前传输任务。应用没在运行时，广播会拉起应用进程，各项状态为空 |
-| `diag space <区域> <字节\|off>` | 让该区域报告指定的可用容量，模拟存储空间不足 |
-| `diag slow-write <区域> <毫秒\|off>` | 该区域每次写入前等待指定毫秒数，留出时间在写入中途取消、断开连接或结束进程 |
-| `diag drop` | 直接关闭本机全部网络连接（本机服务接受的连接、拨号方的 HTTP 请求和控制通道），不发关闭帧，输出关闭的连接数 |
-| `diag reset` | 关闭全部故障 |
+- `diag status`：输出当前故障开关、传输任务、本机服务与拨号连接状态。
+- `diag space <target|backup|cache> <字节|off>`：模拟指定区域剩余空间。
+- `diag slow-write <target|backup|cache> <毫秒|off>`：在写入前注入延迟。
+- `diag drop`：立即断开全部本机网络连接（不发关闭帧）。
+- `diag reset`：关闭全部故障开关。
 
-区域有三个：`target` 是复制写入的目标目录，`backup` 是应用专属外部目录里的备份，`cache` 是手机接收内容时暂存归档的私有缓存。手机发送时边读边打包直接发出，不经过 `cache`，所以 `cache` 的故障只在手机作目标时起作用。故障开关只保存在内存里，应用进程结束后全部关闭。
-
-`target` 区域的故障只用于指向合成测试目录的游戏，不用于真实存档。例如模拟备份空间不足：
-
-```bash
-node scripts/device/device.mjs diag space backup 0
-# 在应用里手动备份，显示“备份失败：存储空间不足。”
-node scripts/device/device.mjs diag reset
-```
+`target` 故障仅限用于合成测试目录。故障状态仅保存在内存中，进程退出后自动清除。
 
 ### frida
 
-frida 用来在运行中的应用里挂 hook 查问题，需要已 root 的手机，是可选工具：
-
-1. 从 frida 的 GitHub Release 下载和手机架构对应的 `frida-server-<版本>-android-<架构>`，解压后用 `device.mjs frida-push <文件>` 放到手机上，并在 `fridaServer` 写 `/data/local/tmp/frida-server-<版本>-android-<架构>`。
-2. 安装 [uv](https://docs.astral.sh/uv/)。`frida-attach` 用 `uv run --with frida==<版本>` 运行 `frida/attach.py`，版本号取自 `fridaServer` 的文件名，电脑端的 frida 和手机上的 frida-server 因此总是同版本；第一次运行或换版本时 uv 会下载 frida（约 60 MB）。
-3. 要用 Java 层 hook 时，在 `scripts/device/frida/` 运行一次 `npm ci` 安装锁定版本的 `frida-java-bridge`，脚本开头写 `import Java from 'frida-java-bridge'`；除此之外脚本不能 import 其他模块。
-
-```bash
-node scripts/device/device.mjs frida-start
-node scripts/device/device.mjs frida-attach my-hook.js 30
-```
-
-frida-server 启动后一直运行，工具没有结束它的子命令，用完在手机上结束或重启手机。
+仅在已 root 设备排障时使用：从 frida Release 下载与设备架构匹配的 `frida-server`，通过 `device.mjs frida-push` 推送到手机并在 `fridaServer` 填入 `/data/local/tmp/frida-server-<版本>-android-<架构>`，安装 [uv](https://docs.astral.sh/uv/) 后即可执行 `device.mjs frida-start` 与 `frida-attach`。如需 Java 层 hook，在 `scripts/device/frida/` 运行一次 `npm ci`。
 
 ## Android 签名
 
-Android 系统要求覆盖安装的应用必须使用同一把密钥签名。未配置签名时，`pnpm android:build` 使用本机默认调试密钥（仅能覆盖同一台机器打出的 debug 包）；配置固定密钥后，debug 包和 release 包都会使用该密钥，不同机器与 CI 打出的包即可互相覆盖安装。
+覆盖安装 Android 应用必须使用同一把密钥签名。未配置时 `pnpm android:build` 使用本机默认调试密钥（仅能覆盖同一台机器打出的 debug 包）；配置固定密钥后，debug 与 release 包共用该密钥，不同机器与 CI 打出的包即可互相覆盖安装。
 
 | 场景 | 是否需要配置密钥 | 说明 |
 | --- | --- | --- |
 | 本地日常开发调试 | 否 | 默认使用本机调试密钥 |
 | 多台机器间覆盖安装 | 是 | 生成统一密钥并在各机器配置 |
 | 构建 release 包（`--release`） | 是 | 未配置签名时无法构建 |
-| Fork 后通过 GitHub Actions 发布 | 是 | 需在仓库 Secrets 中配置，否则发布工作流会失败 |
+| Fork 后通过 GitHub Actions 发布 | 是 | 需在仓库 Secrets 中配置 |
 
-自签名安装包与官方 Release 安装包无法互相覆盖安装，切换版本源时需先卸载原应用（卸载影响见[兼容性与卸载](#兼容性与卸载)）。
+自签名包与官方 Release 包无法互相覆盖安装，切换来源前需先卸载原应用。
 
 ### 生成密钥
 
@@ -303,120 +233,122 @@ Android 系统要求覆盖安装的应用必须使用同一把密钥签名。未
 keytool -genkeypair -v -keystore savedata-sync-release.jks -alias savedata-sync -keyalg RSA -keysize 4096 -validity 36500
 ```
 
-请将生成的密钥文件保存在仓库外部，并妥善备份密钥文件和密码。
+请将密钥文件保存在仓库外部并妥善备份文件与密码。
 
 ### 本机配置
 
-将 `apps/mobile/android/keystore.properties.example` 复制为同目录下的 `keystore.properties`（已被 Git 忽略）并填写：
+将 [apps/mobile/android/keystore.properties.example](../apps/mobile/android/keystore.properties.example) 复制为同目录下的 `keystore.properties`（已被 Git 忽略）并填写：
 
 | 字段 | 说明 |
 | --- | --- |
 | `storeFile` | 密钥文件路径（使用正斜杠，如 `D:/keys/savedata-sync-release.jks`） |
 | `storePassword` | 密钥库密码 |
-| `keyAlias` | 密钥别名（对应上面命令中的 `savedata-sync`） |
+| `keyAlias` | 密钥别名（对应上方命令中的 `savedata-sync`） |
 | `keyPassword` | 密钥密码（与 `storePassword` 相同） |
 
-也可以改用环境变量 `SAVEDATA_SYNC_STORE_FILE`、`SAVEDATA_SYNC_STORE_PASSWORD`、`SAVEDATA_SYNC_KEY_ALIAS`、`SAVEDATA_SYNC_KEY_PASSWORD`（优先级高于配置文件）。无论哪种方式，四项均需完整提供。
-
-配置完成后，执行 `pnpm android:build --release`，产物位于 `apps/mobile/android/app/build/outputs/apk/release/app-release.apk`。
+也可改用环境变量 `SAVEDATA_SYNC_STORE_FILE`、`SAVEDATA_SYNC_STORE_PASSWORD`、`SAVEDATA_SYNC_KEY_ALIAS`、`SAVEDATA_SYNC_KEY_PASSWORD`（优先级高于配置文件）。四项需同时提供，配置后执行 `pnpm android:build --release`，产物位于 `apps/mobile/android/app/build/outputs/apk/release/app-release.apk`。
 
 ### GitHub Actions 配置
 
-在仓库的 **Settings → Secrets and variables → Actions** 中添加以下四个 Repository secret（仅发布工作流需要，日常 PR 检查无需配置）：
+在仓库 **Settings → Secrets and variables → Actions** 中配置以下四个 Repository secret（仅发布工作流需要）：
 
 | Secret | 说明 |
 | --- | --- |
-| `ANDROID_KEYSTORE_BASE64` | 密钥文件的 Base64 编码（PowerShell 获取方式：`[Convert]::ToBase64String([IO.File]::ReadAllBytes('D:\keys\savedata-sync-release.jks')) \| Set-Clipboard`） |
+| `ANDROID_KEYSTORE_BASE64` | 密钥文件 Base64 编码（PowerShell：`[Convert]::ToBase64String([IO.File]::ReadAllBytes('D:\keys\savedata-sync-release.jks')) \| Set-Clipboard`） |
 | `ANDROID_STORE_PASSWORD` | 同 `storePassword` |
 | `ANDROID_KEY_ALIAS` | 同 `keyAlias` |
 | `ANDROID_KEY_PASSWORD` | 同 `keyPassword` |
 
 ### 密钥丢失或泄露
 
-密钥无法找回或从 APK 中反推。若密钥丢失或泄露，只能生成新密钥并更新本地配置与 GitHub Secrets；由于无法沿用旧密钥签名做密钥轮换，已安装旧版的用户必须先卸载再安装新版。发布此类版本时，请在 Release 说明中明确提示用户卸载重装，并提前转移移动端的备份文件。
+密钥无法找回或从 APK 中反推。若丢失或泄露，只能生成新密钥并更新本地配置与 GitHub Secrets；由于无法沿用旧密钥轮换，已安装旧版的用户必须卸载重装，发布该版本时须在 Release 说明中提示用户提前转移移动端备份。
 
 ## 兼容性与卸载
 
-应用当前处于测试阶段，不保留旧版本的数据迁移与兼容代码：
+从 `1.0.0` 起按以下规则保持数据与备份兼容（设计见 [ADR-0006](../.project-memory/decisions/ADR-0006-stable-release-compatibility.md)）：
 
-- 当配置或备份存储格式变更时，桌面端读到旧配置会报错，需手动删除 `%LOCALAPPDATA%\galgame-savedata-sync\data` 下的旧文件后重新添加游戏；移动端直接卸载重装。
-- 当通信协议变更时，桌面端与移动端需更新至同一版本才能连接。
-
-卸载移动端会清除游戏配置、目录访问授权以及 `Android/data` 下的备份；桌面端卸载或删除程序文件后，`%APPDATA%` 和 `%LOCALAPPDATA%` 下 `galgame-savedata-sync` 文件夹里的配置和备份仍会保留（免安装版使用 `portable_data` 文件夹时，数据都在该文件夹中）。发布包含不兼容变更的版本时，需在 Release 说明中注明处理方式。
+- **结构化数据迁移**：设备身份（`identity.json`）、目录登记（`directories.json`）、游戏库配置、`backup-settings.json`、`backup-library.json` 及 Android 端对应存储均带 `schemaVersion`。版本升级时按版本逐级自动迁移，修改已有格式须同步编写迁移逻辑与兼容测试；主题、语言、端口等简单设置采用宽容读取（忽略未知字段，无效字段回退默认值）。
+- **遇到更新版本写入的数据**：若读到整数 `schemaVersion` 高于当前应用版本的数据，两端均不改动任何数据并阻止启动（电脑端 sidecar 报致命错误退出；Android 仅显示提示页，不注册业务插件、不恢复本机服务）。
+- **遇到损坏或 `0.x` 旧数据**：`1.0.0` 为兼容基线，**不迁移 `0.x` 测试版数据**，统一按读不懂的数据处理；内容损坏时同样适用。电脑端将原文件改名留在原目录后以默认值启动，Android 端删除该项数据后以默认值启动。
+- **备份与设备 ID**：`1.0.0` 起写入的备份在整个 `1.x` 内均可列出和恢复；设备 ID 仅在首次启动或数据损坏时生成，版本升级不重新生成。
+- **协议互通**：两端的 `PROTOCOL_VERSION`、`/v1/sync/capabilities.schemaVersion` 与控制消息版本必须一致，不做版本协商；版本不匹配时发现列表提示版本不同，连接与发起任务前提示更新两端。
+- **卸载影响**：卸载 Android 应用或清除应用数据会删除配置、目录访问授权与 `Android/data/io.github.galgame.savedatasync/files/backups/` 下的备份；卸载或删除桌面端程序后，`%APPDATA%\galgame-savedata-sync` 与 `%LOCALAPPDATA%\galgame-savedata-sync`（或免安装版的 `portable_data`）中的数据仍会保留。
 
 ## 版本号与发布
 
 ### 版本号规则
 
-版本号统一由 `scripts/app-version.mjs` 根据 Git tag 计算，各 `package.json` 中的 `version` 固定为 `0.0.0`。可在根目录执行 `node scripts/app-version.mjs` 查看当前构建版本号。
+版本号统一由 [scripts/app-version.mjs](../scripts/app-version.mjs) 根据 Git tag 计算，各 `package.json` 中的 `version` 固定为 `0.0.0`。在根目录运行 `node scripts/app-version.mjs` 可查看当前构建版本号。
 
-| 构建场景 | 版本名（versionName） | Android `versionCode` |
+| 构建场景 | 版本名（`versionName`） | Android `versionCode` |
 | --- | --- | --- |
-| 发布工作流（`RELEASE_TAG`），或当前提交正好打有发布 tag 且工作区干净 | `0.3.0` | `major * 1000000 + minor * 1000 + patch`（如 0.3.0 为 3000） |
-| 发布 tag 之后的开发构建 | `0.3.0+12.gcfb3753`（工作区有未提交改动时末尾加 `.d`） | 与最近的发布 tag 一致 |
-| 无有效发布 tag（无 Git 环境或浅克隆未拉取 tag） | `0.0.0+unknown` | 1 |
+| 发布工作流（`RELEASE_TAG`），或当前提交打有发布 tag 且工作区干净 | `1.0.0` | `major * 1000000 + minor * 1000 + patch`（如 `1.0.0` 为 `1000000`） |
+| 发布 tag 之后的开发构建 | `1.0.0+12.gcfb3753`（工作区有未提交改动时末尾加 `.d`） | 与最近的发布 tag 一致 |
+| 无有效发布 tag（无 Git 环境或浅克隆未拉取 tag） | `0.0.0+unknown` | `1` |
 
 - 发布 tag 格式必须为 `v<major>.<minor>.<patch>`（每段 0–999 且无前导零），带 `-` 的预发布 tag 不参与计算。
 - 开发版与对应 tag 正式版的 `versionCode` 相同，使用同一签名时可互相覆盖安装。
-- Android Gradle 构建时会调用该版本脚本，需确保 `PATH` 中存在 `node`。
-- 开发模式下版本号仅在启动时计算一次；Windows 分发包文件名和 exe 文件属性中只保留数字版本号（如 `0.3.0`），界面上显示完整版本号。
+- Android Gradle 构建会调用该脚本，需确保 `PATH` 中存在 `node`。
+- 开发模式下版本号在启动时计算一次；Windows 分发包文件名与 exe 文件属性仅保留数字版本号（如 `1.0.0`），界面显示完整版本号。
+
+### 1.x 版本升级规则
+
+| 版本段 | 适用变更 | 两端互通 |
+| --- | --- | --- |
+| 补丁（`1.0.x`） | 仅修复缺陷；不改落盘格式、`PROTOCOL_VERSION`、能力版本或控制消息版本 | 同一次版本下的不同补丁版本可互连 |
+| 次版本（`1.x.0`） | 新增功能；可改落盘格式（须带自动迁移），可升级协议或能力版本（须维护者同意） | 协议或能力版本变化时两端须同时更新，并在发布说明写明 |
+| 主版本（`x.0.0`） | 存在无法自动迁移的破坏性变更（例如不再恢复上一主版本写入的备份） | 按发布说明处理 |
 
 ### 发布流程
 
-仅从 `master` 分支发布。打 tag 前在本机运行 `pnpm release:loopback`，发布工作流不跑这项检查。在 `master` 最新提交上打 tag 并同步推送：
+仅从 `master` 分支发布（补丁版本同样在 `master` 修复后打 tag，不单独维护发布分支），直接发布 `1.0.0` 正式版而不另发候选版。
+
+1. 打 tag 前在本地完成校验：`pnpm check`、`pnpm test:all`、`pnpm release:loopback`（以及打包产物与升级路径等发布前验证；`release.yml` 不运行 `release:loopback`）。
+2. 取得维护者对目标 tag 名的同意后，在 `master` 最新提交打 tag 并原子推送（单独推送 tag 会导致工作流分支校验失败）：
 
 ```bash
-git tag -a v0.3.0 -m "0.3.0"
-git push --atomic origin master v0.3.0
+git tag -a v1.0.0 -m "1.0.0"
+git push --atomic origin master v1.0.0
 ```
 
-若单独推送 tag 而未先推送 `master`，工作流的分支校验会失败；补丁版本同样直接在 `master` 上修复后打 tag，不单独维护发布分支。
+推送 tag 后触发[发布工作流](../.github/workflows/release.yml)（需仓库 Actions 具备 `contents: write` 权限）：校验 tag 与 `origin/master`、运行 `pnpm check` 与 `pnpm test:all`、打包 Windows x64 安装包与免安装 zip、构建并校验签名后的 Android release APK、生成 `SHA256SUMS.txt`、上传 Actions artifact 并创建**草稿 GitHub Release**。
 
-推送 tag 后会触发[发布工作流](../.github/workflows/release.yml)（需确保仓库 Actions 具备 `contents: write` 权限）：
-
-1. 校验 tag 格式及其指向的提交是否在 `origin/master` 上。
-2. 运行 `pnpm check` 和 `pnpm test:all`。
-3. 使用 `pnpm desktop:package` 打包 Windows x64 安装包和免安装 zip。
-4. 使用 Secrets 中的签名配置构建 Android release APK，校验签名并生成 `SHA256SUMS.txt`。
-5. 将产物上传为保留 7 天的 Actions artifact，并创建草稿 GitHub Release。
-
-发布前请在草稿 Release 页面补充已知问题、安装限制及不兼容改动说明。日常分支 push 和 PR 仅运行 `pnpm check` 和 Android debug 构建（直接使用 `pnpm check` 构建的移动端网页资源），不保留构建产物。
+若工作流失败，须经维护者同意后删除 tag，修复后再重新打 tag。发布前在草稿 Release 页面补充已知问题、安装限制与兼容变更说明（发布 `1.0.0` 时写明 `0.x` 的数据不迁移）。日常分支推送与 PR 仅运行 `pnpm check` 与 Android debug 构建，不保留产物。
 
 ## 依赖安全检查
 
-安全检查脚本需手动运行并联网查询官方审计接口或 OSV，日常 CI 不执行：
+安全检查需手动联网执行，日常 CI 不运行：
 
 ```bash
 pnpm security:node
 pnpm security:android
 ```
 
-- `security:node`：通过 npm registry 审计全部依赖，向 OSV 查询固定的 pnpm 版本，并对照 `scripts/toolchain-policy.mjs` 检查 Node 安全基线。
-- `security:android`：同步 Android 工程后解析全部可解析的 Maven 配置与 buildscript classpath（输出至 `.reports/android-dependencies.json`），并向 OSV 查询这些依赖与 Gradle Core 的已知漏洞。
+- `security:node`：通过 npm registry 审计全部依赖，向 OSV 查询固定 pnpm 版本，并对照 [scripts/toolchain-policy.mjs](../scripts/toolchain-policy.mjs) 检查 Node 安全基线。
+- `security:android`：同步 Android 工程并解析全部 Maven 配置与 buildscript classpath（输出至 `.reports/android-dependencies.json`），向 OSV 查询已知漏洞。
 
-修改依赖时需遵循以下约定：
+修改依赖时注意：
 
-- `pnpm-workspace.yaml` 中的 `overrides` 用于统一同一主版本的 npm 包；跨主版本共存的包（如 `glob` 7 和 13）暂不强行合并，等待上游升级。
-- `pnpm-workspace.yaml` 中的 `peerDependencyRules` 允许 `eslint-plugin-react` 7.37 搭配 ESLint 10（项目实际使用的规则在 ESLint 10 下可正常运行）。
-- `gradle-wrapper.properties` 中已配置 Gradle 分发包的官方 SHA-256 校验。
-- `apps/mobile/android/dependency-security.json` 用于统一锁定 Android 间接依赖版本。`singleVersionModules` 要求同一 Maven 模块在全项目中仅解析为一个版本（通常取最高版）；`listenablefuture` 固定为 `1.0`（`9999.0-empty` 为空包，且 APK 不引入 Guava）。`security:android` 检测到多版本冲突时会报错。
-- GitHub Actions 中的第三方 Action 固定到具体 commit SHA，并使用 JDK 21 及 runner 预装 SDK。
+- [pnpm-workspace.yaml](../pnpm-workspace.yaml) 中的 `overrides` 用于统一同主版本 npm 包，`peerDependencyRules` 允许 `eslint-plugin-react` 7.37 搭配 ESLint 10；跨主版本共存的包暂不强行合并。
+- [gradle-wrapper.properties](../apps/mobile/android/gradle/wrapper/gradle-wrapper.properties) 配置了 Gradle 分发包 SHA-256 校验；[dependency-security.json](../apps/mobile/android/dependency-security.json) 通过 `singleVersionModules` 锁定 Android 间接依赖为单一版本（`listenablefuture` 固定为 `1.0`），存在多版本冲突时 `security:android` 会报错。
+- GitHub Actions 中的第三方 Action 固定到具体 commit SHA。
 
-最近一次审计结果与待处理公告记录在项目记忆的回归记录中。
+最近一次审计结果与待处理公告见[当前回归状态](../.project-memory/testing/regression-notes.md)。
 
 ## 常见问题
 
-**`pnpm doctor` 提示缺少工具或未接受协议**
-根据提示安装对应工具（Android SDK 需通过 `sdkmanager --licenses` 接受许可），也可在 `dev.local.json` 中手动指定本地路径。
+**`pnpm doctor` 提示缺少工具或未接受协议**  
+按提示安装对应工具（Android SDK 需运行 `sdkmanager --licenses` 接受许可），或在 `dev.local.json` 中手动指定路径。
 
-**桌面端开发版没有窗口，或提示 “The background service could not start”**
-窗口在后端 sidecar 初始化完成后才打开。确认 `PATH` 中有 `node`，并查看运行 `pnpm dev:desktop` 的终端里 sidecar 输出的错误。
+**桌面端开发版没有窗口，或提示 “The background service could not start”**  
+窗口在后端 sidecar 初始化完成后才打开。确认 `PATH` 中有 `node`，并查看运行 `pnpm dev:desktop` 终端中 sidecar 的报错输出。
 
-**桌面端开发版启动报配置错误**
-本地保留了旧格式的配置文件，参考[兼容性与卸载](#兼容性与卸载)删除旧配置后重试。
+**桌面端开发版接收内容时报网络中断，之后启动报 `path-outside-root`**  
+在部分通过 MSIX 打包的 IDE 或终端中运行 `pnpm dev:desktop` 时，进程会继承文件系统重定向，导致写入 `%LOCALAPPDATA%` 的文件实际落入 `%LOCALAPPDATA%\Packages\<包名>\LocalCache\Local\`：
 
-**桌面端开发版接收内容时报网络中断，之后启动报 `path-outside-root`**
-在 MSIX 打包的应用（部分 IDE 和 AI 客户端）里打开的终端中运行 `pnpm dev:desktop` 时，桌面端继承了这个包的文件系统重定向：`%LOCALAPPDATA%` 下新建的文件实际写到 `%LOCALAPPDATA%\Packages\<包名>\LocalCache\Local\`。电脑作目标时新建的缓存任务目录因此和登记路径不符，接收中止，残留的任务目录还会让下次启动失败。改在普通终端里运行；已经残留的，删除上面重定向位置里 `galgame-savedata-sync\cache\transfer-archives-v1\` 下的 `job-*` 目录。从这类终端启动的桌面端读写的也是重定向后的数据副本，和普通启动看到的数据不同。在这类终端里改 `%LOCALAPPDATA%\galgame-savedata-sync\data\` 下的文件（如在 `directories.json` 里登记测试目录）同样只改到副本，普通终端启动的桌面端读不到这些修改，仍按原来的登记使用真实目录。
+- 接收时的缓存目录与登记路径不一致会中止传输，并使下次启动因残留 `job-*` 目录失败。
+- 改在普通终端运行；若已出现残留，删除重定向路径下 `galgame-savedata-sync\cache\transfer-archives-v1\` 中的 `job-*` 目录。
+- 这类终端中修改的 `data\` 配置文件也只作用于重定向副本，普通终端启动的桌面端读取不到。
 
-**Android SAF 读取文件后 `ctime` 发生变化**
-部分系统的 DocumentProvider 在首次授权读取后会更新文件 `ctime`，校验文件一致性时应以文件内容、大小和 `mtime` 为准，不要依赖 `ctime`。
+**Android SAF 读取文件后 `ctime` 发生变化**  
+部分系统的 DocumentProvider 在首次授权读取后会更新文件 `ctime`，校验文件一致性时应以文件内容、大小和 `mtime` 为准，不依赖 `ctime`。
