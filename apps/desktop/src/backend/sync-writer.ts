@@ -220,11 +220,17 @@ export class WindowsSyncWriter {
   private readonly preparations = new Set<WindowsBackupHandle>()
   private job: WriteJob | null = null
   private isStopped = false
+  private readonly source: WindowsDirectoryAdapter
+  private readonly backups: WindowsBackupStore
+  private readonly options: WindowsSyncWriterOptions
   constructor(
-    private readonly source: WindowsDirectoryAdapter,
-    private readonly backups: WindowsBackupStore,
-    private readonly options: WindowsSyncWriterOptions,
+    source: WindowsDirectoryAdapter,
+    backups: WindowsBackupStore,
+    options: WindowsSyncWriterOptions,
   ) {
+    this.source = source
+    this.backups = backups
+    this.options = options
     this.io = { ...SYNC_TARGET_IO, ...options.io }
     this.timeoutMs = options.timeoutMs ?? SYNC_LIMITS.scanTimeoutMs
     if (
