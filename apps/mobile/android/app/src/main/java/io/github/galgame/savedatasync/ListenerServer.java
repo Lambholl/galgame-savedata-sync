@@ -269,6 +269,7 @@ final class ListenerServer {
         continue;
       }
       sockets.add(socket);
+      FaultInjection.trackConnection(socket);
       Thread thread = new Thread(() -> serve(socket), "listener-connection");
       thread.setDaemon(true);
       thread.start();

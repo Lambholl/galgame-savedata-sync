@@ -220,6 +220,7 @@ interface TransferHttp {
           TimeUnit.MILLISECONDS
         );
         control.track(this);
+        FaultInjection.trackConnection(this);
       }
 
       void progressed() throws ArchiveFailure {

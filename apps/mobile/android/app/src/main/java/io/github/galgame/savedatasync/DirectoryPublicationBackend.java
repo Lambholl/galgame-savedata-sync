@@ -98,7 +98,7 @@ final class DirectoryPublicationBackend implements NewFilePublisher.Backend {
       control.untrack(signal);
     }
     control.check();
-    return available;
+    return FaultInjection.availableBytes(FaultInjection.TARGET, available);
   }
 
   @Override
@@ -308,6 +308,7 @@ final class DirectoryPublicationBackend implements NewFilePublisher.Backend {
 
           @Override
           public void write(byte[] bytes, int offset, int length) throws java.io.IOException {
+            FaultInjection.beforeWrite(FaultInjection.TARGET);
             try {
               super.write(bytes, offset, length);
             } catch (java.io.IOException cause) {

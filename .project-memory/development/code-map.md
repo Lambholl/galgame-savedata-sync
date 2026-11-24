@@ -1,7 +1,7 @@
 ---
 doc_type: code-map
 status: active
-updated: 2026-11-24
+updated: 2026-11-25
 tags: [代码地图]
 ---
 
@@ -24,7 +24,7 @@ tags: [代码地图]
 | `package.json`、`pnpm-workspace.yaml`、`pnpm-lock.yaml` | pnpm 工作区、固定版本与工程入口 | 私有工作区；使用指定 pnpm，不依赖系统全局 Gradle |
 | `README.md`、`docs/development.md` | 用户说明；开发命令、工具要求与检查范围 | 版本约束以工程配置为准 |
 | `scripts/doctor.mjs`、`scripts/local-environment.mjs` | 开发工具入口 | 使用方式见 `docs/development.md` |
-| `scripts/device/device.mjs`、`adb-guard.mjs`、`cdp.mjs`、`test-data.mjs`、`tree-hash.mjs`、`frida/` | 真机调试：adb 白名单入口和参数危险词检查、CDP 执行、开发服务器端口的 adb reverse、合成测试数据和目录清单比对、经 uv 运行的 frida 附加 | 只经 `device.mjs` 调 adb；新增子命令要用固定模板加校验过的取值，删除只开放测试文件临时区；用法见 `docs/development.md` |
+| `scripts/device/device.mjs`、`adb-guard.mjs`、`cdp.mjs`、`test-data.mjs`、`tree-hash.mjs`、`frida/` | 真机调试：adb 白名单入口和参数危险词检查、CDP 执行、开发服务器端口的 adb reverse、调试包诊断广播（`diag`）、合成测试数据和目录清单比对、经 uv 运行的 frida 附加 | 只经 `device.mjs` 调 adb；新增子命令要用固定模板加校验过的取值，删除只开放测试文件临时区；用法见 `docs/development.md` |
 | `scripts/check-text.mjs`、`eslint.config.mjs`、`tsconfig.base.json` | 编码、格式、lint 和严格类型检查 | 生成目录不作为手写代码格式化 |
 | `scripts/free-port.mjs`、`scripts/dev-android.mjs`、`apps/desktop/scripts/dev.mjs` | 开发服务器选端口：从首选端口往后找空闲的。`dev:android` 在本进程启动移动端 Vite，并把手机上的 5173 经 `device.mjs reverse` 接到实际端口；电脑端 `pnpm dev` 把实际端口经 `tauri dev --config` 写进 devUrl、启动命令和 devCsp | 选好端口后以 strictPort 启动，冲突时直接失败；手机上的端口固定，和 `android-build.mjs` 写入的 `server.url` 一致 |
 | `scripts/android-build.mjs`、`scripts/android-open.mjs` | 原生构建、单元/lint/双 APK 检查、依赖清单与 IDE 入口；`--dev-server` 在同步生成的 `capacitor.config.json` 里写入 `server.url`，构建加载电脑 Vite 的 debug 包 | 不连接设备；只对子进程传入 SDK/JDK；IDE 不存在时明确失败；Windows 以 `.\gradlew.bat` 显式相对路径调用 Wrapper，兼容设置了 NoDefaultCurrentDirectoryInExePath 的 shell；`app/build.gradle` 在配置带 `server.url` 时拒绝构建 release 包 |
@@ -108,4 +108,5 @@ Java 源码都在 `apps/mobile/android/app/src/main/java/io/github/galgame/saved
 | `DeviceDiscoveryPlugin.java`、`DiscoveryBrowser.java`；移动 `platform/device-discovery.ts` | 局域网 DNS-SD 搜索：NsdManager 搜索与解析、按订阅者启停的 TS 桥，以及按设备 ID 限时查找的 `findDevice` | 原生只给实例名、端口、IPv4 和 TXT 文本，TXT 在 TS 用 shared 校验；状态在原生单个 worker 线程上 |
 | `ListenerServer/Http/Socket/Control/Library.java`、`ListenerSyncJobs.java`、`ListenerSyncRequests.java`、`ListenerAdvertiser.java`、`ListenerRuntime.java`、`ListenerService.java`、`LocalServicePlugin.java`；`src/test/.../ListenerServerTest.java` | 本机服务（监听方）：HTTP/1.1 和 WebSocket 服务、控制通道监听端、目录表交换、`/v1/sync/*` 任务登记和内容收发、本机发起的传输经控制通道交给拨号方、NsdManager 广播、前台服务和网页接口 | 每条连接一个线程；同一时间一台设备在线，本机拨号时对新连接返回 busy；目录表交换在原生层写配置（经 `AppStoragePlugin` 的锁），Activity 销毁后仍能连接；接口见 [Android 平台层](../architecture/android.md#14-本机服务监听方) |
 | `QrScannerPlugin.java`、`QrCameraSession.java`、`QrFrameDecoder.java`；移动 `platform/qr-scanner.ts`、`features/devices/ScanPage.tsx` | 扫码：相机权限、取景、逐帧识别二维码，扫到后交给 `connectCandidates` | 原生只给二维码原文，内容在 TS 用 shared 的 `parseConnectionQrText` 校验；相机绑定 Activity 生命周期，取景画面在透明的 WebView 下面，页面用 html 上的 `camera-live` 让出背景 |
+| `src/debug/.../DebugDiagnostics.java`、`src/debug/.../FaultInjection.java`、`src/debug/AndroidManifest.xml`、`src/release/.../FaultInjection.java` | 调试包诊断接口：adb 广播输出本机服务、连接和传输任务状态，开关存储不足、写入变慢和断开连接三类故障 | 只编进调试包，接收方要求 `android.permission.DUMP`；两份 `FaultInjection` 签名必须一致，release 版不改变行为；故障注入点和验证状态见 [Android 平台层](../architecture/android.md#15-测试范围) |
 | `apps/mobile/android/app/src/test/`、`src/androidTest/` | Java 纯边界与 3 条设备路径：目录读取、归档互通、实际目录快照 | 独立私有夹具与真实选择器授权；真实源只读 |

@@ -51,6 +51,8 @@ const gradleArgs = isInventory
           ':app:lintDebug',
           ':app:assembleDebug',
           ':app:assembleDebugAndroidTest',
+          // release 用 src/release 里的 FaultInjection 空实现，编译一次确认它和调试版的签名一致。
+          ':app:compileReleaseJavaWithJavac',
           '--console=plain',
         ]
       : isCheckstyle

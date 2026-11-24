@@ -1,7 +1,7 @@
 ---
 doc_type: architecture
 status: active
-updated: 2026-11-24
+updated: 2026-11-25
 tags: [Android, 移动端, SAF, 原生插件]
 ---
 
@@ -272,5 +272,12 @@ Windows → Android（监听方 → 拨号方）：按确认计划里发起端�
 - `ArchiveSafTest#actualSafStreamsRoundTripWithoutChangingSource`（`archiveExpectedName=<显示名>`）：从同一合成目录边读边打包，再在设备上解包核对，确认源文件没有变化；设备生成的 `cache/archive-device-saf.gz` 和 `cache/archive-device-saf-files.json` 取回为 `.reports/wp013-device/saf.gz` 和 `saf-files.json` 后用 `verify-device-saf` 复核。
 
 界面主题、按钮和具体文案由实际运行与截图验收。真机操作和检查用 `scripts/device/` 的工具，用法和安全边界见 `docs/development.md` 的“真机调试工具”；读应用页面用 CDP 取文字，有的手机上 uiautomator 一直等不到界面空闲，`ui-text` 读不到界面（测试手机上关掉无障碍服务后照样如此，原因没查清）。真机验收范围见[验收标准](../testing/acceptance.md)。
+
+调试包诊断接口用于真机上查看状态和注入故障，用法见 `docs/development.md` 的“诊断与故障注入”：
+
+- 编译范围：`src/debug` 的 `DebugDiagnostics` 广播接收方和 `FaultInjection` 故障开关只编进调试包；`src/release` 有同名的 `FaultInjection` 空实现，原样返回实际值、不登记连接。main 源码集里的调用点两种构建都编译，`pnpm android:test` 会编译一次 release，确认两份 `FaultInjection` 的签名一致。
+- 访问控制：接收方只在 `src/debug/AndroidManifest.xml` 声明，导出但要求 `android.permission.DUMP`，只有 adb shell 能发这个广播，设备上的其他应用发不了。
+- 注入点：目标目录的可用容量（`DirectoryPublicationBackend.availableBytes`）和写入（新文件发布流、`DirectorySyncBackend` 的覆盖写入流）；备份的可用容量和写入（`AndroidBackupIo`）；接收内容时暂存归档的私有缓存的可用容量和写入（`DirectoryArchiveSource` 交给 `ArchiveCache` 的 `Io`；发送时边读边打包直接发出，不经过这个缓存）。`drop` 关闭的连接由 `ListenerServer`、`TransferHttp` 的请求和 `ControlClient` 登记，用弱引用保存。
+- 真机验证：`status` 在应用运行和未运行时都能输出；`drop` 后控制通道断开，5 秒内重新连上；备份区域报告容量为 0 时，手动备份提示存储空间不足，没有生成备份；备份区域每次写入等待 300 毫秒时，备份变慢但照常完成。`target` 和 `cache` 区域用电脑到手机的传输验证（来源是电脑上的合成测试目录，目标是手机上的测试目录，约 1.1 MiB）：任一区域报告容量为 0 时，传输失败并提示本机存储空间不足，目标没有写入任何文件；`target` 每次写入等待 300 毫秒时，新建文件和覆盖写入都从约 2 秒变慢到约 12 秒，`cache` 同样等待时传输阶段约 8 秒，都照常完成。手机接收失败时会取消电脑的任务，电脑上这次传输显示为已取消，不显示原因。
 
 数据读不懂时的启动检查（`AppDataRecovery`）没有长期测试。数据由更新版本写入时的处理在真机上验证过：游戏和设备列表写成更高的 `schemaVersion` 后冷启动，只显示提示页，本机服务没有恢复，应用私有数据原样保留；改回原数据后正常启动。端口和主题的宽容读取还没在真机上验证。

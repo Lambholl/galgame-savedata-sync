@@ -3,6 +3,8 @@ __pycache__/
 dist/
 out/
 release/
+# Android release 构建类型的源码目录，不是打包产物
+!apps/mobile/android/app/src/release/
 coverage/
 .reports/
 *.tsbuildinfo

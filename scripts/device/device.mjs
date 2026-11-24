@@ -17,6 +17,9 @@ import {
 
 const PACKAGE = 'io.github.galgame.savedatasync'
 const ACTIVITY = `${PACKAGE}/.MainActivity`
+// 只在调试包里注册的诊断广播接收方，区域和 Java 的 FaultInjection.AREAS 相同。
+const DIAGNOSTICS = `${PACKAGE}/.DebugDiagnostics`
+const FAULT_AREAS = ['target', 'backup', 'cache']
 // 测试文件只放在这里；手机上已经授权给应用的测试目录也在这下面，改名会让这些授权失效。
 const FIXTURE_ROOT = '/sdcard/Download/gss-sync-test'
 const BACKUP_ROOT = `/sdcard/Android/data/${PACKAGE}/files/backups`
@@ -445,6 +448,33 @@ const COMMANDS = {
           .slice(-2)
           .join('\n'),
       )
+    },
+  },
+  diag: {
+    group: '诊断与故障注入（只限调试版）',
+    usage: `status | space <${FAULT_AREAS.join('|')}> <字节|off> | slow-write <区域> <毫秒|off> | drop | reset`,
+    summary:
+      'status 输出本机服务、连接和传输任务的状态；space 改报可用容量；slow-write 每次写入前等待；drop 断开全部网络连接；reset 关闭全部故障',
+    run: ([command, area, value]) => {
+      const extras = ['--es', 'command', command ?? '']
+      if (command === 'space' || command === 'slow-write') {
+        if (!FAULT_AREAS.includes(area)) {
+          throw new UsageError(`区域只能是 ${FAULT_AREAS.join('、')}：${area ?? '<空>'}`)
+        }
+        if (value !== 'off' && !/^[0-9]{1,15}$/.test(value ?? '')) {
+          throw new UsageError(`需要非负整数或 off：${value ?? '<空>'}`)
+        }
+        extras.push('--es', 'area', area, '--es', 'value', value)
+      } else if (!['status', 'drop', 'reset'].includes(command)) {
+        throw new UsageError('用法：diag status|space|slow-write|drop|reset，不带参数可查看说明')
+      }
+      const output = adb(['shell', 'am', 'broadcast', '-n', DIAGNOSTICS, ...extras])
+      // am 在接收方处理完后打印 Broadcast completed: result=0, data="<JSON>"。
+      const match = /data="([\s\S]*)"\s*$/.exec(output.trim())
+      if (!match) {
+        throw new UsageError(`没有收到诊断结果，应用要是调试版：${output.trim()}`)
+      }
+      print(JSON.stringify(JSON.parse(match[1]), null, 2))
     },
   },
   'ui-text': {

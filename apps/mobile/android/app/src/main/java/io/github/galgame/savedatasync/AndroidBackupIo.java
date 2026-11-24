@@ -16,11 +16,18 @@ final class AndroidBackupIo implements BackupFiles.Io {
 
   @Override
   public Long available(Path path) {
+    Long available;
     try {
-      return new StatFs(path.toString()).getAvailableBytes();
+      available = new StatFs(path.toString()).getAvailableBytes();
     } catch (IllegalArgumentException unknown) {
-      return null;
+      available = null;
     }
+    return FaultInjection.availableBytes(FaultInjection.BACKUP, available);
+  }
+
+  @Override
+  public void beforeWrite(Path path, int bytes) throws Exception {
+    FaultInjection.beforeWrite(FaultInjection.BACKUP);
   }
 
   @Override

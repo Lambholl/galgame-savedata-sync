@@ -14,6 +14,7 @@ import android.system.Os;
 import android.system.OsConstants;
 import android.system.StructStat;
 import java.io.Closeable;
+import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -549,7 +550,13 @@ final class DirectorySyncBackend implements SyncWriter.Backend {
       }
       Os.lseek(identity.getFileDescriptor(), 0, OsConstants.SEEK_SET);
       writable = identity;
-      return new ParcelFileDescriptor.AutoCloseOutputStream(identity);
+      return new ParcelFileDescriptor.AutoCloseOutputStream(identity) {
+        @Override
+        public void write(byte[] bytes, int offset, int length) throws IOException {
+          FaultInjection.beforeWrite(FaultInjection.TARGET);
+          super.write(bytes, offset, length);
+        }
+      };
     }
 
     @Override

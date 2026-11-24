@@ -6,6 +6,7 @@ import java.io.Closeable;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.Path;
 
 /**
  * 以已枚举的目录文件作为归档的读取源，只使用已有授权；查询和打开必须在后台工作线程调用。
@@ -37,7 +38,23 @@ final class DirectoryArchiveSource implements ArchiveModel.Source {
     // Android 的 /data/user/0 可能是系统别名，所以先解析真实路径；
     // 缓存管理器仍拒绝真实根以下的链接和归属变化。
     return new ArchiveAdapter(
-      new ArchiveCache(context.getApplicationContext().getCacheDir().getCanonicalFile().toPath())
+      new ArchiveCache(
+        context.getApplicationContext().getCacheDir().getCanonicalFile().toPath(),
+        new ArchiveCache.Io() {
+          @Override
+          public long usable(Path path) {
+            return FaultInjection.availableBytes(
+              FaultInjection.CACHE,
+              path.toFile().getUsableSpace()
+            );
+          }
+
+          @Override
+          public void beforeWrite(Path path, int count) throws IOException {
+            FaultInjection.beforeWrite(FaultInjection.CACHE);
+          }
+        }
+      )
     );
   }
 

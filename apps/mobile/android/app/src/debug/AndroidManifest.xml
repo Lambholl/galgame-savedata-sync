@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 只合并进调试包。DUMP 是 adb shell 才有的权限，其他应用发不了这个广播。 -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application>
+        <receiver android:name=".DebugDiagnostics" android:exported="true"
+            android:permission="android.permission.DUMP" />
+    </application>
+</manifest>

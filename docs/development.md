@@ -16,6 +16,7 @@
 - [真机调试工具](#真机调试工具)
   - [安全边界](#安全边界)
   - [常用流程](#常用流程)
+  - [诊断与故障注入](#诊断与故障注入)
   - [frida](#frida)
 - [Android 签名](#android-签名)
   - [生成密钥](#生成密钥)
@@ -198,7 +199,7 @@ node scripts/device/device.mjs unreverse
 
 | 脚本 | 作用 |
 | --- | --- |
-| `device.mjs` | 调用 adb 的唯一入口：安装、启停、日志、通知、界面文字、点按、经 `run-as` 暂停和恢复进程、读写应用私有数据、测试目录、备份查看、CDP 转发、开发服务器的端口转发、frida。不带参数时列出全部子命令 |
+| `device.mjs` | 调用 adb 的唯一入口：安装、启停、日志、通知、界面文字、点按、经 `run-as` 暂停和恢复进程、读写应用私有数据、测试目录、备份查看、CDP 转发、开发服务器的端口转发、调试版的诊断与故障注入、frida。不带参数时列出全部子命令 |
 | `cdp.mjs` | 经 Chrome DevTools Protocol 在应用页面里执行 JavaScript 并打印结果，读界面文字和操作界面都用它 |
 | `test-data.mjs` | 生成合成测试数据（`small`、`many`、`large` 三种规模，同一个种子生成的内容相同），输出目录清单，比对两个本机目录 |
 | `frida/attach.py` | 由 `device.mjs frida-attach` 经 uv 运行，见 [frida](#frida) |
@@ -242,6 +243,28 @@ node scripts/device/device.mjs fixture-rm tmp/small
 `fixture-compare` 比对文件内容和全部子目录（包括空目录），一致时输出“一致”，有差异时逐行列出并以退出码 1 结束。两个本机目录用 `test-data.mjs compare` 比对，输出格式相同。
 
 在 Git Bash 里运行时先 `export MSYS_NO_PATHCONV=1`，否则 Git Bash 会把参数和环境变量里的 `/sdcard`、`/data` 改写成 Windows 路径。
+
+### 诊断与故障注入
+
+调试版 APK 带一个诊断入口，用 `device.mjs diag` 调用。结果以 JSON 打印，同时以 `SavedataDiag` 标签写进 logcat。发布版 APK 不含这个入口。
+
+| 命令 | 作用 |
+| --- | --- |
+| `diag status` | 输出当前开着的故障、目标目录是否有进行中的写操作、本机服务（监听方）的状态和在线设备、拨号方的连接和控制通道、当前传输任务。应用没在运行时，广播会拉起应用进程，各项状态为空 |
+| `diag space <区域> <字节\|off>` | 让该区域报告指定的可用容量，模拟存储空间不足 |
+| `diag slow-write <区域> <毫秒\|off>` | 该区域每次写入前等待指定毫秒数，留出时间在写入中途取消、断开连接或结束进程 |
+| `diag drop` | 直接关闭本机全部网络连接（本机服务接受的连接、拨号方的 HTTP 请求和控制通道），不发关闭帧，输出关闭的连接数 |
+| `diag reset` | 关闭全部故障 |
+
+区域有三个：`target` 是复制写入的目标目录，`backup` 是应用专属外部目录里的备份，`cache` 是手机接收内容时暂存归档的私有缓存。手机发送时边读边打包直接发出，不经过 `cache`，所以 `cache` 的故障只在手机作目标时起作用。故障开关只保存在内存里，应用进程结束后全部关闭。
+
+`target` 区域的故障只用于指向合成测试目录的游戏，不用于真实存档。例如模拟备份空间不足：
+
+```bash
+node scripts/device/device.mjs diag space backup 0
+# 在应用里手动备份，显示“备份失败：存储空间不足。”
+node scripts/device/device.mjs diag reset
+```
 
 ### frida
 
@@ -390,6 +413,9 @@ pnpm security:android
 
 **桌面端开发版启动报配置错误**
 本地保留了旧格式的配置文件，参考[兼容性与卸载](#兼容性与卸载)删除旧配置后重试。
+
+**桌面端开发版接收内容时报网络中断，之后启动报 `path-outside-root`**
+在 MSIX 打包的应用（部分 IDE 和 AI 客户端）里打开的终端中运行 `pnpm dev:desktop` 时，桌面端继承了这个包的文件系统重定向：`%LOCALAPPDATA%` 下新建的文件实际写到 `%LOCALAPPDATA%\Packages\<包名>\LocalCache\Local\`。电脑作目标时新建的缓存任务目录因此和登记路径不符，接收中止，残留的任务目录还会让下次启动失败。改在普通终端里运行；已经残留的，删除上面重定向位置里 `galgame-savedata-sync\cache\transfer-archives-v1\` 下的 `job-*` 目录。从这类终端启动的桌面端读写的也是重定向后的数据副本，和普通启动看到的数据不同。
 
 **Android SAF 读取文件后 `ctime` 发生变化**
 部分系统的 DocumentProvider 在首次授权读取后会更新文件 `ctime`，校验文件一致性时应以文件内容、大小和 `mtime` 为准，不要依赖 `ctime`。

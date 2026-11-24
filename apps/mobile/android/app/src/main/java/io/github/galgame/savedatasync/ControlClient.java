@@ -68,6 +68,7 @@ final class ControlClient extends WebSocketClient {
 
   @Override
   public void onOpen(ServerHandshake handshake) {
+    FaultInjection.trackConnection(getSocket());
     events.opened(this);
   }
 
