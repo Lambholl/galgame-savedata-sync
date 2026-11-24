@@ -108,6 +108,13 @@ public class AppStoragePlugin extends Plugin {
   }
 
   @PluginMethod
+  public void newerData(PluginCall call) {
+    JSObject result = new JSObject();
+    result.put("items", new JSONArray(AppDataRecovery.newerData()));
+    call.resolve(result);
+  }
+
+  @PluginMethod
   public void dismissDataResets(PluginCall call) {
     AppDataRecovery.dismiss();
     call.resolve();

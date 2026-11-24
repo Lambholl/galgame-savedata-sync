@@ -6,6 +6,9 @@ import { OperationFailure } from '../result.ts'
 import { isPosterHash, isPosterOrigin } from '../poster/poster-contracts.ts'
 import type { PosterOrigin } from '../poster/poster-contracts.ts'
 
+/** 游戏库配置的格式版本。 */
+export const LIBRARY_SCHEMA_VERSION = 2
+
 /** 游戏库配置和目录表的数量与长度上限，两端相同。 */
 export const LIBRARY_LIMITS = {
   /** 设备名和游戏名的最大长度，单位是 UTF-16 码元。 */
@@ -46,7 +49,7 @@ export interface SavedDevice {
 }
 /** 本机的游戏库配置：游戏和已保存的设备。 */
 export interface LibraryConfig {
-  readonly schemaVersion: 2
+  readonly schemaVersion: typeof LIBRARY_SCHEMA_VERSION
   readonly games: readonly LibraryGame[]
   readonly devices: readonly SavedDevice[]
 }
@@ -122,7 +125,7 @@ export function isSavedDevice(value: unknown): value is SavedDevice {
 export function isLibraryConfig(value: unknown): value is LibraryConfig {
   if (
     !record(value) ||
-    value.schemaVersion !== 2 ||
+    value.schemaVersion !== LIBRARY_SCHEMA_VERSION ||
     !Array.isArray(value.games) ||
     value.games.length > LIBRARY_LIMITS.maxGames ||
     !Array.isArray(value.devices) ||
@@ -232,7 +235,7 @@ export function changedGameRootIds(
 }
 /** 返回没有游戏和设备的游戏库配置。 */
 export function emptyLibrary(): LibraryConfig {
-  return { schemaVersion: 2, games: [], devices: [] }
+  return { schemaVersion: LIBRARY_SCHEMA_VERSION, games: [], devices: [] }
 }
 /**
  * 去掉游戏的封面。

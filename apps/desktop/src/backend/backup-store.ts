@@ -5,6 +5,7 @@ import { dirname, isAbsolute, join } from 'node:path'
 import type { Readable } from 'node:stream'
 import { finished } from 'node:stream/promises'
 import {
+  BACKUP_SETTINGS_SCHEMA_VERSION,
   BATCH_LIMITS,
   DEFAULT_BACKUP_SETTINGS,
   SYNC_LIMITS,
@@ -572,7 +573,9 @@ export class WindowsBackupStore {
    * @throws ArchiveError keepCount 超出 BACKUP_KEEP_COUNT_MIN–BACKUP_KEEP_COUNT_MAX 时错误码为 resource-limit。
    */
   setKeepCount(keepCount: number): Promise<SyncBackupSettings> {
-    return this.exclusive(() => this.writeSettings({ schemaVersion: 4, keepCount }))
+    return this.exclusive(() =>
+      this.writeSettings({ schemaVersion: BACKUP_SETTINGS_SCHEMA_VERSION, keepCount }),
+    )
   }
   private async writeSettings(settings: SyncBackupSettings): Promise<SyncBackupSettings> {
     if (!isSyncBackupSettings(settings)) {

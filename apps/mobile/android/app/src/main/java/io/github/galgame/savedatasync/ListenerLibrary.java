@@ -73,6 +73,8 @@ final class ListenerLibrary {
     }
   }
 
+  /** 游戏库配置的格式版本，与共享 LIBRARY_SCHEMA_VERSION 相同。 */
+  static final int LIBRARY_VERSION = 2;
   /** 已保存设备的最多台数，也是一个游戏的关联和排除设备的最多条数；与共享 LIBRARY_LIMITS.maxDevices 相同。 */
   private static final int MAX_DEVICES = 32;
   /** 设备名和游戏名的最大长度（UTF-16 码元），与共享 LIBRARY_LIMITS.maxNameLength 相同。 */
@@ -551,7 +553,14 @@ final class ListenerLibrary {
   private Map<String, Object> config() throws Exception {
     String saved = store.read();
     if (saved == null) {
-      return object("schemaVersion", 2, "games", new ArrayList<>(), "devices", new ArrayList<>());
+      return object(
+        "schemaVersion",
+        LIBRARY_VERSION,
+        "games",
+        new ArrayList<>(),
+        "devices",
+        new ArrayList<>()
+      );
     }
     Object value;
     try {
@@ -714,7 +723,7 @@ final class ListenerLibrary {
    */
   static void checkConfig(Object value) throws ArchiveFailure {
     Map<String, Object> config = map(value);
-    require(Long.valueOf(2).equals(asLong(config.get("schemaVersion"))));
+    require(Long.valueOf(LIBRARY_VERSION).equals(asLong(config.get("schemaVersion"))));
     List<Object> games = list(config.get("games"));
     List<Object> devices = list(config.get("devices"));
     require(games.size() <= MAX_GAMES && devices.size() <= MAX_DEVICES);

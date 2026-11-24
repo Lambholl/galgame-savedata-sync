@@ -1,4 +1,5 @@
 import { hasShape } from '../validation/data-validation.ts'
+import { BACKUP_SETTINGS_SCHEMA_VERSION } from './sync-contracts.ts'
 import type { SyncBackupSettings } from './sync-contracts.ts'
 
 /** 每个游戏保留备份份数的下限。 */
@@ -10,7 +11,7 @@ export const DEFAULT_BACKUP_KEEP_COUNT = 10
 
 /** 没有设置文件时的备份库设置：保留 DEFAULT_BACKUP_KEEP_COUNT 份。 */
 export const DEFAULT_BACKUP_SETTINGS: SyncBackupSettings = Object.freeze({
-  schemaVersion: 4,
+  schemaVersion: BACKUP_SETTINGS_SCHEMA_VERSION,
   keepCount: DEFAULT_BACKUP_KEEP_COUNT,
 })
 
@@ -24,11 +25,11 @@ export function isBackupKeepCount(value: unknown): value is number {
   )
 }
 
-/** 校验备份库设置；只认 schemaVersion 为 4 的当前格式。 */
+/** 校验备份库设置；只认 schemaVersion 为 BACKUP_SETTINGS_SCHEMA_VERSION 的当前格式。 */
 export function isSyncBackupSettings(value: unknown): value is SyncBackupSettings {
   return (
     hasShape(value, ['schemaVersion', 'keepCount']) &&
-    value.schemaVersion === 4 &&
+    value.schemaVersion === BACKUP_SETTINGS_SCHEMA_VERSION &&
     isBackupKeepCount(value.keepCount)
   )
 }

@@ -13,9 +13,12 @@ export interface StoredDirectory {
   readonly identity: FileIdentity
 }
 
-/** 目录配置文件（schema 2）：用户选定的根目录。 */
+/** 目录配置文件的格式版本。 */
+export const DIRECTORY_REGISTRY_SCHEMA_VERSION = 2
+
+/** 目录配置文件：用户选定的根目录。 */
 export interface DirectoryRegistry {
-  readonly schemaVersion: 2
+  readonly schemaVersion: typeof DIRECTORY_REGISTRY_SCHEMA_VERSION
   readonly roots: readonly StoredDirectory[]
 }
 
@@ -44,7 +47,7 @@ export function isDirectoryRegistry(value: unknown): value is DirectoryRegistry 
   if (
     !isRecord(value) ||
     Object.keys(value).length !== 2 ||
-    value.schemaVersion !== 2 ||
+    value.schemaVersion !== DIRECTORY_REGISTRY_SCHEMA_VERSION ||
     !Array.isArray(value.roots)
   ) {
     return false

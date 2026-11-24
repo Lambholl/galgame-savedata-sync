@@ -6,6 +6,8 @@ export const SYNC_SCHEMA_VERSION = 1
  * 能力声明的版本，两端相同才能互传。
  */
 export const SYNC_CAPABILITIES_VERSION = 8
+/** 备份库设置文件的格式版本。 */
+export const BACKUP_SETTINGS_SCHEMA_VERSION = 4
 
 /** 复制方向，按连接里的角色区分：listener-to-dialer 从监听方复制到拨号方。 */
 export type SyncDirection = 'listener-to-dialer' | 'dialer-to-listener'
@@ -197,7 +199,7 @@ export interface SyncIncompleteBackup {
 
 /** 本机备份库的设置。 */
 export interface SyncBackupSettings {
-  readonly schemaVersion: 4
+  readonly schemaVersion: typeof BACKUP_SETTINGS_SCHEMA_VERSION
   /** 每个游戏保留的完整备份份数，BACKUP_KEEP_COUNT_MIN–BACKUP_KEEP_COUNT_MAX。 */
   readonly keepCount: number
 }

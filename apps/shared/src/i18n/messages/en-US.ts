@@ -209,6 +209,16 @@ export const enUS: Messages = {
   'dataReset.item.service-settings': 'Listening port: changed to a new random port',
   'dataReset.item.preferences': 'Theme and language',
   'dataReset.openFolder': 'Open data folder',
+  'newerData.title': 'Update required',
+  'newerData.intro':
+    'The following data was saved by a newer version of the app and cannot be read by this version:',
+  'newerData.hint':
+    'Install the latest version and open the app again. This data has not been changed.',
+  'newerData.item.device-identity': 'Device ID',
+  'newerData.item.directories': 'Save folders',
+  'newerData.item.library': 'Games and devices',
+  'newerData.item.backup-settings': 'Backup settings',
+  'newerData.item.backup-library': 'Backup library location',
   'task.rescan': 'Scan again',
   'task.readFailed': 'Could not read the transfer status',
   'task.history': 'Earlier transfers',

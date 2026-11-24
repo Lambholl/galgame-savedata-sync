@@ -204,6 +204,16 @@ export const jaJP: Messages = {
   'dataReset.item.service-settings': '待ち受けポート：新しいランダムなポートに変更しました',
   'dataReset.item.preferences': 'テーマと言語',
   'dataReset.openFolder': 'データフォルダーを開く',
+  'newerData.title': 'アプリの更新が必要です',
+  'newerData.intro':
+    '次のデータは新しいバージョンのアプリで保存されたため、このバージョンでは読み取れません：',
+  'newerData.hint':
+    '最新バージョンをインストールしてから開いてください。データは変更されていません。',
+  'newerData.item.device-identity': '端末 ID',
+  'newerData.item.directories': '保存先',
+  'newerData.item.library': 'ゲームと端末の一覧',
+  'newerData.item.backup-settings': 'バックアップ設定',
+  'newerData.item.backup-library': 'バックアップ保存場所',
   'task.rescan': '再スキャン',
   'task.readFailed': '転送の状態を読み取れません',
   'task.history': '過去の転送',

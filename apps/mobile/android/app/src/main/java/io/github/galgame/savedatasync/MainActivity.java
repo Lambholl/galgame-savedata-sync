@@ -34,17 +34,20 @@ public class MainActivity extends BridgeActivity {
     registerPlugin(LaunchAnimationPlugin.class);
     registerPlugin(AppPreferencesPlugin.class);
     registerPlugin(AppStoragePlugin.class);
-    registerPlugin(DirectoriesPlugin.class);
-    registerPlugin(AllFilesAccessPlugin.class);
-    registerPlugin(HttpTransfersPlugin.class);
-    registerPlugin(SyncScansPlugin.class);
-    registerPlugin(SyncBackupsPlugin.class);
-    registerPlugin(SyncWritesPlugin.class);
-    registerPlugin(SyncTransfersPlugin.class);
-    registerPlugin(DeviceDiscoveryPlugin.class);
-    registerPlugin(QrScannerPlugin.class);
-    registerPlugin(LocalServicePlugin.class);
-    registerPlugin(PosterPlugin.class);
+    // 有数据由更新版本写入时网页只显示提示页；不注册其余插件，本机服务也就不会在加载插件时自动恢复。
+    if (AppDataRecovery.newerData().isEmpty()) {
+      registerPlugin(DirectoriesPlugin.class);
+      registerPlugin(AllFilesAccessPlugin.class);
+      registerPlugin(HttpTransfersPlugin.class);
+      registerPlugin(SyncScansPlugin.class);
+      registerPlugin(SyncBackupsPlugin.class);
+      registerPlugin(SyncWritesPlugin.class);
+      registerPlugin(SyncTransfersPlugin.class);
+      registerPlugin(DeviceDiscoveryPlugin.class);
+      registerPlugin(QrScannerPlugin.class);
+      registerPlugin(LocalServicePlugin.class);
+      registerPlugin(PosterPlugin.class);
+    }
     super.onCreate(savedInstanceState);
     // Android 15 起系统强制窗口铺满，更低版本要主动开启；否则页面画不到系统栏下面，状态栏显示系统自己的颜色。
     EdgeToEdge.enable(this);

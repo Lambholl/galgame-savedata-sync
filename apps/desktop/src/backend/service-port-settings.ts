@@ -20,12 +20,13 @@ export class ServicePortSettings {
 
   constructor(private readonly file: string) {}
 
-  /** 读取端口；文件不存在时随机选一个高位端口并保存，内容无效时抛错。 */
+  /** 读取端口；文件不存在或 port 无效时随机选一个高位端口并保存，文件不是 JSON 时抛错。 */
   async load(): Promise<void> {
     try {
       const value: unknown = JSON.parse(await readFile(this.file, 'utf8'))
       if (!isServicePortConfig(value)) {
-        throw new Error('The local service port configuration is invalid.')
+        await this.randomize()
+        return
       }
       this.port = value.port
     } catch (error) {

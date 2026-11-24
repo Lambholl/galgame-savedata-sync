@@ -4,9 +4,12 @@ import { dirname, isAbsolute, join } from 'node:path'
 import { isOpaqueId } from '@savedata-sync/shared'
 import { DirectoryAccessError } from './directory-errors.ts'
 
-/** 设备身份文件（schema 1）：这次安装的稳定设备 ID。 */
+/** 设备身份文件的格式版本。 */
+export const DEVICE_IDENTITY_SCHEMA_VERSION = 1
+
+/** 设备身份文件：这次安装的稳定设备 ID。 */
 export interface DeviceIdentity {
-  readonly schemaVersion: 1
+  readonly schemaVersion: typeof DEVICE_IDENTITY_SCHEMA_VERSION
   readonly deviceId: string
 }
 
@@ -18,7 +21,7 @@ export function isDeviceIdentity(value: unknown): value is DeviceIdentity {
     !Array.isArray(value) &&
     Object.keys(value).length === 2 &&
     'schemaVersion' in value &&
-    value.schemaVersion === 1 &&
+    value.schemaVersion === DEVICE_IDENTITY_SCHEMA_VERSION &&
     'deviceId' in value &&
     isOpaqueId(value.deviceId)
   )
@@ -60,7 +63,10 @@ export async function loadDeviceId(path: string): Promise<string> {
     stats = await lstat(path)
   } catch (error) {
     if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') {
-      const identity: DeviceIdentity = { schemaVersion: 1, deviceId: randomUUID() }
+      const identity: DeviceIdentity = {
+        schemaVersion: DEVICE_IDENTITY_SCHEMA_VERSION,
+        deviceId: randomUUID(),
+      }
       await saveIdentity(path, identity)
       return identity.deviceId
     }

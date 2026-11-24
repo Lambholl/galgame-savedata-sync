@@ -1,4 +1,4 @@
-/** 启动时因内容读不懂而改用默认值的数据项。 */
+/** 启动时检查的数据项。 */
 export type DataResetItem =
   | 'device-identity'
   | 'directories'
@@ -25,6 +25,44 @@ export function isDataResetList(value: unknown): value is readonly DataResetItem
     Array.isArray(value) &&
     value.every((item) => (DATA_RESET_ITEMS as readonly unknown[]).includes(item)) &&
     new Set(value).size === value.length
+  )
+}
+
+/** 带 schemaVersion 的数据项，可能由更新版本的应用写入。 */
+export type VersionedDataItem = Extract<
+  DataResetItem,
+  'device-identity' | 'directories' | 'library' | 'backup-settings' | 'backup-library'
+>
+
+const VERSIONED_DATA_ITEMS: readonly VersionedDataItem[] = [
+  'device-identity',
+  'directories',
+  'library',
+  'backup-settings',
+  'backup-library',
+]
+
+/** 校验由更新版本写入的数据项列表：每项是带 schemaVersion 的数据项且不重复。 */
+export function isVersionedDataList(value: unknown): value is readonly VersionedDataItem[] {
+  return (
+    Array.isArray(value) &&
+    value.every((item) => (VERSIONED_DATA_ITEMS as readonly unknown[]).includes(item)) &&
+    new Set(value).size === value.length
+  )
+}
+
+/**
+ * 判断数据是否由更新版本的应用写入：value 是 JSON 对象，且 schemaVersion 是大于 currentVersion 的整数。
+ * 其余内容（包括旧版本和没有 schemaVersion 的内容）都返回 false。
+ */
+export function isNewerSchemaVersion(value: unknown, currentVersion: number): boolean {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    !Array.isArray(value) &&
+    'schemaVersion' in value &&
+    Number.isSafeInteger(value.schemaVersion) &&
+    (value.schemaVersion as number) > currentVersion
   )
 }
 

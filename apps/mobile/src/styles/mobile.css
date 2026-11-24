@@ -1117,6 +1117,18 @@ ul.confirmation-text {
   font: 15px/1.6 var(--ss-font);
   text-align: center;
 }
+.startup-notice {
+  text-align: left;
+}
+.startup-notice-title {
+  margin: 0 0 12px;
+  font-size: 20px;
+  font-weight: 600;
+}
+.startup-notice-list {
+  margin: 0;
+  padding-left: 1.2em;
+}
 .adm-stepper {
   --input-width: 56px;
 }

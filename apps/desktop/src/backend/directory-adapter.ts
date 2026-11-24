@@ -25,7 +25,11 @@ import {
   isWithinDirectory,
 } from './directory-paths.ts'
 import type { FileIdentity } from './directory-paths.ts'
-import { loadDirectoryRegistry, saveDirectoryRegistry } from './directory-store.ts'
+import {
+  DIRECTORY_REGISTRY_SCHEMA_VERSION,
+  loadDirectoryRegistry,
+  saveDirectoryRegistry,
+} from './directory-store.ts'
 import { loadDeviceId } from './device-identity.ts'
 import type { DirectoryRegistry, StoredDirectory } from './directory-store.ts'
 
@@ -507,7 +511,10 @@ export async function createDirectoryAdapter(
     throw new DirectoryAccessError('invalid-request', 'The configuration path must be absolute.')
   }
   const deviceId = await loadDeviceId(identityPath)
-  const registry = (await loadDirectoryRegistry(configPath)) ?? { schemaVersion: 2, roots: [] }
+  const registry = (await loadDirectoryRegistry(configPath)) ?? {
+    schemaVersion: DIRECTORY_REGISTRY_SCHEMA_VERSION,
+    roots: [],
+  }
   if (registry.roots.length === 0) {
     await saveDirectoryRegistry(configPath, registry)
   }

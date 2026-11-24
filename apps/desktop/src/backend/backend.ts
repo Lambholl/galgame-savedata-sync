@@ -39,7 +39,7 @@ import { InterruptedWriteStore } from './interrupted-writes.ts'
 import { registerSyncIpc } from './sync-ipc.ts'
 import { AppPreferencesStore } from './preferences-store.ts'
 import { registerPreferencesIpc } from './preferences-ipc.ts'
-import { setAsideUnreadableData } from './data-recovery.ts'
+import { NewerDataError, setAsideUnreadableData } from './data-recovery.ts'
 import { registerDataResetIpc } from './data-reset-ipc.ts'
 import { createPosterHttp } from './poster-http.ts'
 import { PosterStore } from './poster-store.ts'
@@ -107,16 +107,19 @@ export class BackendStartError extends Error {
   readonly systemCode: string | null
   readonly title: string
 
-  constructor(stage: string, operationError: OperationError, cause: unknown, t: Translate) {
-    super(
-      `${t(`error.code.${operationError.code}`)}\n\n${operationError.message} (${operationError.code})`,
-      { cause },
-    )
+  constructor(
+    stage: string,
+    operationError: OperationError,
+    cause: unknown,
+    title: string,
+    message: string,
+  ) {
+    super(message, { cause })
     this.name = 'BackendStartError'
     this.stage = stage
     this.operationError = operationError
     this.systemCode = systemErrorCode(cause)
-    this.title = t('app.initializeFailedTitle')
+    this.title = title
   }
 }
 
@@ -168,6 +171,7 @@ export async function startBackend(options: BackendOptions): Promise<DesktopBack
       preferences: join(configDirectory, 'preferences.json'),
     } as const
     // 读不懂的文件先改名留在原处，下面各模块按文件不存在处理，用默认值启动。
+    // 有文件由更新版本写入时抛 NewerDataError，什么都不改，由下面的 catch 提示安装新版本。
     const resets = await setAsideUnreadableData(files)
     stage = 'directories'
     const adapter = await createDirectoryAdapter(files.directories, files['device-identity'])
@@ -321,11 +325,28 @@ export async function startBackend(options: BackendOptions): Promise<DesktopBack
       },
     }
   } catch (error) {
+    const t = translate()
+    if (error instanceof NewerDataError) {
+      const items = error.items.map((item) => `· ${t(`newerData.item.${item}`)}`).join('\n')
+      throw new BackendStartError(
+        stage,
+        { code: 'unsupported-operation', message: error.message, canRetry: false },
+        error,
+        t('newerData.title'),
+        `${t('newerData.intro')}\n${items}\n\n${t('newerData.hint')}`,
+      )
+    }
     // 各模块已有的脱敏错误必须保留，避免备份等异常被改写为通用目录错误。
     const failure =
       typeof error === 'object' && error !== null && 'operationError' in error
         ? toHttpError(error).operationError
         : toDirectoryError(error).operationError
-    throw new BackendStartError(stage, failure, error, translate())
+    throw new BackendStartError(
+      stage,
+      failure,
+      error,
+      t('app.initializeFailedTitle'),
+      `${t(`error.code.${failure.code}`)}\n\n${failure.message} (${failure.code})`,
+    )
   }
 }

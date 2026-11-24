@@ -90,7 +90,7 @@ TS 桥校验请求与响应，拒绝路径/URI、附加字段及跨根/跨层响
 
 - `DirectoriesPlugin` 注册系统目录选择器，后台线程串行访问提供者；不在暂停时取消查询，销毁时释放桥执行器。不使用 root。
 - `DirectoryStore` 在 SharedPreferences `saf-directories-v1` 的 `registry` 里持久化 schema 2 的根 rootId/URI/显示名；配置损坏或版本未知时失败，不重建覆盖。设备 ID 由 `DeviceIdentity` 单独存在 SharedPreferences `device-identity` 的 `deviceId`，没有时生成。文件清单、文件哈希和 entryId 不持久化。
-- `MainActivity` 创建插件前调用 `AppDataRecovery.checkOnce`，每个进程检查一次设备 ID、目录登记、游戏库（`app-storage`）、私有目录里的 `backup-settings.json`、端口（`local-service` 的 `port`）和界面偏好（`app-preferences` 的 `theme`、`locale`）。读不懂的 SharedPreferences 值和 `backup-settings.json` 直接删除，不留副本，各模块随后按没有保存过处理。目录登记是 schema 2 但有根目录读不出时，只用格式正确且不重复的根目录重写，算作重置；格式版本不是 2 时整个删除。设备 ID 只按 `device-identity` 里的值判断，那里没有值时生成新的，不算重置，也不提示；备份按设备 ID 归属，只列出当前设备 ID 的备份。界面经 `AppStorage` 插件的 `dataResets`、`dismissDataResets`（`src/platform/app-storage.ts` 的 `readDataResets`、`dismissDataResets`）弹一次提示，只列出被重置的项，不提供打开目录的入口：私有目录用文件管理器打不开。
+- `MainActivity` 创建插件前调用 `AppDataRecovery.checkOnce`，每个进程检查一次设备 ID、目录登记、游戏库（`app-storage`）、私有目录里的 `backup-settings.json`、端口（`local-service` 的 `port`）和界面偏好（`app-preferences` 的 `theme`、`locale`）。先看目录登记、游戏库和 `backup-settings.json` 有没有 `schemaVersion` 大于当前版本的（规则见 [ADR-0006](../decisions/ADR-0006-stable-release-compatibility.md) 第 9 条）：有就什么都不改，记下这些项，`MainActivity` 只注册 `LaunchAnimation`、`AppPreferences` 和 `AppStorage` 三个插件，网页经 `AppStorage.newerData`（`readNewerData`）读到后只显示“需要更新应用”的提示页，不读游戏配置、不挂载应用。没有时才逐项检查：读不懂的 SharedPreferences 值和 `backup-settings.json` 直接删除，不留副本，各模块随后按没有保存过处理；端口和主题、语言只删除类型不对的值，超出范围的端口由 `ListenerRuntime` 重新生成，不认识的主题和语言读成跟随系统、原值保留。目录登记是 schema 2 但有根目录读不出时，只用格式正确且不重复的根目录重写，算作重置；格式版本不是 2 时整个删除。设备 ID 只按 `device-identity` 里的值判断，那里没有值时生成新的，不算重置，也不提示；备份按设备 ID 归属，只列出当前设备 ID 的备份。界面经 `AppStorage` 插件的 `dataResets`、`dismissDataResets`（`src/platform/app-storage.ts` 的 `readDataResets`、`dismissDataResets`）弹一次提示，只列出被重置的项，不提供打开目录的入口：私有目录用文件管理器打不开。
 - 当前层查询不扫描后代；目录 sizeBytes=null，未知文件大小=null，空文件=0。SAF 日期 0 表示未知，映射 null；超出 JS 安全范围的数字拒绝。
 - `openFile(rootId, entryId, signal)` 仅供同包原生代码使用：重查授权、文件类型和已观察到的名称/大小/日期，以 `r` 打开 `InputStream`，调用者必须关闭流。异常为 `DirectoryFailure`，原始 cause 仅留原生层，JS 只见脱敏码/消息。
 
@@ -270,4 +270,4 @@ Windows → Android（监听方 → 拨号方）：按确认计划里发起端�
 
 界面主题、按钮和具体文案由实际运行与截图验收。真机验收范围见[验收标准](../testing/acceptance.md)。
 
-数据读不懂时的启动检查（`AppDataRecovery`）没有长期测试。
+数据读不懂时的启动检查（`AppDataRecovery`）没有长期测试。数据由更新版本写入时的处理在真机上验证过：游戏和设备列表写成更高的 `schemaVersion` 后冷启动，只显示提示页，本机服务没有恢复，应用私有数据原样保留；改回原数据后正常启动。端口和主题的宽容读取还没在真机上验证。

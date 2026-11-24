@@ -60,22 +60,24 @@ accepted。规则从 1.0.0 起生效；实现和发布前验证列在[路线图]
 
 ### 落盘格式
 
-4. 兼容范围包括电脑端的 `identity.json`、`directories.json`、游戏库配置、`backup-settings.json`、`backup-library.json`、服务端口设置、界面偏好、`SyncJobState`，Android 上对应的存储项，以及备份清单和备份文件夹结构。各格式当前的 `schemaVersion` 见[接口约定](../architecture/api-contracts.md)和两端平台层文档。
-5. 1.0 的格式是基线，0.x 的数据不迁移，按读不懂的数据处理，发布说明写明。
-6. 读到旧版本时按版本逐级迁移到当前版本再写回；迁移失败按读不懂的数据处理。
-7. 读到比当前版本新的数据时不删除、不写回，提示升级应用；这项数据在本次运行中不可用。界面表现在实现时确定。
-8. 内容损坏的数据沿用现有处理：电脑端改名保留后用默认值，Android 删除后用默认值。
-9. 改落盘格式要维护者同意，同时写迁移和长期测试，见[测试约定](../standards/testing.md)。
+4. 兼容范围包括电脑端的 `identity.json`、`directories.json`、游戏库配置、`backup-settings.json`、`backup-library.json`、服务端口设置、界面偏好，Android 上对应的存储项，以及备份清单和备份文件夹结构。中断写入标记只用于下次启动时提示，读不懂时直接删除，不在兼容范围内。
+5. 结构化数据带 `schemaVersion`，当前版本由常量给出：共享包的 `LIBRARY_SCHEMA_VERSION`、`BACKUP_SETTINGS_SCHEMA_VERSION`，电脑端的 `DEVICE_IDENTITY_SCHEMA_VERSION`、`DIRECTORY_REGISTRY_SCHEMA_VERSION`、`BACKUP_LOCATION_SCHEMA_VERSION`，Android 的 `ListenerLibrary.LIBRARY_VERSION`、`DirectoryStore.REGISTRY_VERSION`、`BackupModel.SETTINGS_VERSION`。Android 的设备 ID 是单个字符串，没有版本。
+6. 主题、语言和端口这类简单设置不带版本，宽容读取：不认识的字段忽略，单个字段无效时读成默认值，不提示；只有文件不是 JSON 对象（Android 是值的类型不对）时按读不懂处理。将来改简单设置的格式时换用新的字段名或键名，不改变已有字段的含义。
+7. 1.0 的格式是基线，0.x 的数据不迁移，不识别 0.x 的格式，统一按读不懂的数据处理。0.x 各格式的版本号都不大于 1.0，不会被当成更新版本。
+8. 读到旧版本时按版本逐级迁移到当前版本再写回；迁移失败按读不懂的数据处理。1.0 没有要迁移的旧版本，迁移代码在第一次改结构化数据的格式时加入，加在启动检查读取这项数据之前。
+9. 读到比当前版本新的数据（JSON 对象的整数 `schemaVersion` 大于当前版本）时，所有数据都不改动，应用不启动：电脑端 sidecar 发出 fatal 提示后退出，Android 只显示提示页、不注册其余原生插件，本机服务不会恢复。普通用户在 Android 上不能保留数据降级安装，这种情况几乎只出现在电脑端。
+10. 内容损坏的数据沿用现有处理：电脑端改名保留后用默认值，Android 删除后用默认值。
+11. 改落盘格式要维护者同意，同时写迁移和长期测试，见[测试约定](../standards/testing.md)。
 
 ### 备份和设备 ID
 
-10. 1.0 起写入的备份在整个 1.x 内都能列出和恢复。
-11. 设备 ID 只在首次启动或数据损坏时生成，版本升级不重新生成。
+12. 1.0 起写入的备份在整个 1.x 内都能列出和恢复。
+13. 设备 ID 只在首次启动或数据损坏时生成，版本升级不重新生成。
 
 ### 协议
 
-12. 两端的 `PROTOCOL_VERSION`、`/v1/sync/capabilities.schemaVersion` 和控制消息版本必须相同，不做版本协商。版本不同时沿用现有处理：发现列表显示版本不同，连接和创建任务前提示更新两端。
-13. 协议和能力版本只在次版本升级，升级要维护者同意。
+14. 两端的 `PROTOCOL_VERSION`、`/v1/sync/capabilities.schemaVersion` 和控制消息版本必须相同，不做版本协商。版本不同时沿用现有处理：发现列表显示版本不同，连接和创建任务前提示更新两端。
+15. 协议和能力版本只在次版本升级，升级要维护者同意。
 
 ## 原因
 

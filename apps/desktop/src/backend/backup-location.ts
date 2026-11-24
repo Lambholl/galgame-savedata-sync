@@ -5,9 +5,12 @@ import { isAbsolute } from 'node:path'
 /** 自定义备份库位置文件的文件名，放在数据目录里；没有这个文件时用默认位置。 */
 export const BACKUP_LOCATION_FILE = 'backup-library.json'
 
+/** 自定义备份库位置文件的格式版本。 */
+export const BACKUP_LOCATION_SCHEMA_VERSION = 1
+
 /** 自定义备份库位置文件的内容。 */
 export interface BackupLocationConfig {
-  readonly schemaVersion: 1
+  readonly schemaVersion: typeof BACKUP_LOCATION_SCHEMA_VERSION
   /** 备份库文件夹的绝对路径。 */
   readonly path: string
 }
@@ -19,7 +22,7 @@ function hasErrorCode(error: unknown, code: string): boolean {
   return typeof error === 'object' && error !== null && 'code' in error && error.code === code
 }
 
-/** 校验自定义备份库位置文件的内容：只有 schemaVersion 为 1 和绝对路径 path 两个字段。 */
+/** 校验自定义备份库位置文件的内容：只有 schemaVersion 为 BACKUP_LOCATION_SCHEMA_VERSION 和绝对路径 path 两个字段。 */
 export function isBackupLocationConfig(value: unknown): value is BackupLocationConfig {
   return (
     typeof value === 'object' &&
@@ -27,7 +30,7 @@ export function isBackupLocationConfig(value: unknown): value is BackupLocationC
     !Array.isArray(value) &&
     Object.keys(value).length === 2 &&
     'schemaVersion' in value &&
-    value.schemaVersion === 1 &&
+    value.schemaVersion === BACKUP_LOCATION_SCHEMA_VERSION &&
     'path' in value &&
     typeof value.path === 'string' &&
     value.path.length <= MAX_PATH_LENGTH &&
@@ -72,7 +75,7 @@ export async function saveBackupLocation(file: string, path: string | null): Pro
     })
     return
   }
-  const config: BackupLocationConfig = { schemaVersion: 1, path }
+  const config: BackupLocationConfig = { schemaVersion: BACKUP_LOCATION_SCHEMA_VERSION, path }
   if (!isBackupLocationConfig(config)) {
     throw new Error('The backup library location is invalid.')
   }

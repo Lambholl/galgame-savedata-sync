@@ -12,19 +12,24 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import org.json.JSONException;
+import org.json.JSONObject;
 
 /**
- * 应用私有数据的启动检查：内容读不懂的数据直接删除，之后读取它的模块按没有保存过处理，用默认值。
+ * 应用私有数据的启动检查。
  *
- * <p>重置的数据项名称和 shared 的 DataResetItem 一致。线程安全。
+ * <p>有数据由更新版本的应用写入时，所有数据都不改动，只记下这些数据项；否则内容读不懂的数据直接删除，之后读取它的模块按没有保存过处理，用默认值。
+ *
+ * <p>数据项名称和 shared 的 DataResetItem 一致。线程安全。
  */
 final class AppDataRecovery {
 
   private static final String TAG = "AppDataRecovery";
   private static final Object LOCK = new Object();
-  // 下面两个字段由 LOCK 保护。
+  // 下面三个字段由 LOCK 保护。
   private static boolean wasChecked;
   private static final List<String> resets = new ArrayList<>();
+  private static final List<String> newer = new ArrayList<>();
 
   private AppDataRecovery() {}
 
@@ -40,6 +45,11 @@ final class AppDataRecovery {
         return;
       }
       wasChecked = true;
+      findNewer(application);
+      if (!newer.isEmpty()) {
+        Log.w(TAG, "Data was written by a newer app version: " + newer);
+        return;
+      }
       check("device-identity", () -> checkIdentity(application));
       check("directories", () -> checkDirectories(application));
       check("library", () -> checkLibrary(application));
@@ -53,6 +63,13 @@ final class AppDataRecovery {
   static List<String> resets() {
     synchronized (LOCK) {
       return new ArrayList<>(resets);
+    }
+  }
+
+  /** 返回由更新版本的应用写入的数据项，按 DataResetItem 的顺序排列；不为空时没有任何数据被改动。 */
+  static List<String> newerData() {
+    synchronized (LOCK) {
+      return new ArrayList<>(newer);
     }
   }
 
@@ -76,6 +93,55 @@ final class AppDataRecovery {
       }
     } catch (Exception failure) {
       Log.e(TAG, "Failed to check data: " + item, failure);
+    }
+  }
+
+  private static void findNewer(Context context) {
+    Object directories = context
+      .getSharedPreferences(DirectoryStore.PREFERENCES, Context.MODE_PRIVATE)
+      .getAll()
+      .get(DirectoryStore.REGISTRY);
+    if (isNewer(directories, DirectoryStore.REGISTRY_VERSION)) {
+      newer.add("directories");
+    }
+    Object library = context
+      .getSharedPreferences(AppStoragePlugin.FILE, Context.MODE_PRIVATE)
+      .getAll()
+      .get(AppStoragePlugin.LIBRARY);
+    if (isNewer(library, ListenerLibrary.LIBRARY_VERSION)) {
+      newer.add("library");
+    }
+    Path settings = new File(context.getFilesDir(), BackupStore.SETTINGS_FILE).toPath();
+    try {
+      if (
+        Files.isRegularFile(settings, LinkOption.NOFOLLOW_LINKS) &&
+        Files.size(settings) <= TransferJson.MAX_BYTES &&
+        isNewer(
+          new String(Files.readAllBytes(settings), StandardCharsets.UTF_8),
+          BackupModel.SETTINGS_VERSION
+        )
+      ) {
+        newer.add("backup-settings");
+      }
+    } catch (IOException unreadable) {
+      // 读取失败时判断不了版本；checkBackupSettings 读取时遇到同样的错误只写日志，不删除文件。
+      Log.w(TAG, "Failed to read backup settings while checking versions", unreadable);
+    }
+  }
+
+  // 与 shared 的 isNewerSchemaVersion 一致：JSON 对象的整数 schemaVersion 大于本版本支持的版本。
+  private static boolean isNewer(Object saved, int currentVersion) {
+    if (!(saved instanceof String)) {
+      return false;
+    }
+    try {
+      Object version = new JSONObject((String) saved).opt("schemaVersion");
+      return (
+        (version instanceof Integer || version instanceof Long) &&
+        ((Number) version).longValue() > currentVersion
+      );
+    } catch (JSONException unreadable) {
+      return false;
     }
   }
 
@@ -161,22 +227,21 @@ final class AppDataRecovery {
     return true;
   }
 
+  // 端口超出范围时由 ListenerRuntime 重新生成，这里只删除类型不对、读取时会抛错的值。
   private static boolean checkServiceSettings(Context context) throws IOException {
     SharedPreferences store = context.getSharedPreferences(
       ListenerRuntime.SETTINGS,
       Context.MODE_PRIVATE
     );
     Object saved = store.getAll().get(ListenerRuntime.PORT);
-    if (
-      saved == null ||
-      (saved instanceof Integer && (Integer) saved >= 1 && (Integer) saved <= 65535)
-    ) {
+    if (saved == null || saved instanceof Integer) {
       return false;
     }
     remove(store, ListenerRuntime.PORT);
     return true;
   }
 
+  // 不认识的主题和语言由 AppPreferencesPlugin 读成跟随系统，保留原值供更新版本使用；这里只删除类型不对、读取时会抛错的值。
   private static boolean checkPreferences(Context context) throws IOException {
     SharedPreferences store = context.getSharedPreferences(
       AppPreferencesPlugin.FILE,
@@ -184,15 +249,10 @@ final class AppDataRecovery {
     );
     Map<String, ?> saved = store.getAll();
     boolean wasSetAside = false;
-    for (Map.Entry<String, List<String>> rule : Map.of(
-      "theme",
-      AppPreferencesPlugin.THEMES,
-      "locale",
-      AppPreferencesPlugin.LOCALES
-    ).entrySet()) {
-      Object value = saved.get(rule.getKey());
-      if (value != null && !rule.getValue().contains(value)) {
-        remove(store, rule.getKey());
+    for (String key : List.of("theme", "locale")) {
+      Object value = saved.get(key);
+      if (value != null && !(value instanceof String)) {
+        remove(store, key);
         wasSetAside = true;
       }
     }

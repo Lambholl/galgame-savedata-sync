@@ -1,12 +1,13 @@
 import { Capacitor, registerPlugin } from '@capacitor/core'
-import { isDataResetList } from '@savedata-sync/shared'
-import type { DataResetItem } from '@savedata-sync/shared'
+import { isDataResetList, isVersionedDataList } from '@savedata-sync/shared'
+import type { DataResetItem, VersionedDataItem } from '@savedata-sync/shared'
 
 /** 应用配置存储的原生插件，只接受登记过的键。 */
 interface AppStoragePlugin {
   read(options: { key: string }): Promise<{ value: string | null }>
   write(options: { key: string; value: string }): Promise<void>
   dataResets(): Promise<{ items: unknown }>
+  newerData(): Promise<{ items: unknown }>
   dismissDataResets(): Promise<void>
 }
 
@@ -71,6 +72,23 @@ export async function readDataResets(): Promise<readonly DataResetItem[]> {
   const { items } = await NATIVE.dataResets()
   if (!isDataResetList(items)) {
     throw new Error('The native data reset list is invalid.')
+  }
+  return items
+}
+
+/**
+ * 列出这次启动时发现的由更新版本的应用写入的数据项；不为空时原生层没有改动任何数据，也没有注册其余插件。
+ * 没有原生插件时返回空列表。
+ *
+ * @throws Error 原生层返回的内容格式不对时抛出。
+ */
+export async function readNewerData(): Promise<readonly VersionedDataItem[]> {
+  if (!NATIVE) {
+    return []
+  }
+  const { items } = await NATIVE.newerData()
+  if (!isVersionedDataList(items)) {
+    throw new Error('The native newer data list is invalid.')
   }
   return items
 }
