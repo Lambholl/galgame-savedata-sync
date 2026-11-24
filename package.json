@@ -21,6 +21,7 @@
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",
     "test:all": "pnpm test && pnpm android:test",
+    "release:loopback": "pnpm --filter @savedata-sync/desktop build && node scripts/release-loopback.mjs",
     "doctor": "node scripts/doctor.mjs",
     "security:node": "node scripts/security-check.mjs",
     "security:android": "pnpm android:sync && node scripts/android-build.mjs --inventory && node scripts/security-android.mjs",

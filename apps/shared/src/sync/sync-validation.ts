@@ -10,7 +10,12 @@ import {
   isRecord,
   isTimestamp,
 } from '../validation/data-validation.ts'
-import { SYNC_CAPABILITIES_VERSION, SYNC_LIMITS, SYNC_SCHEMA_VERSION } from './sync-contracts.ts'
+import {
+  BACKUP_MANIFEST_SCHEMA_VERSION,
+  SYNC_CAPABILITIES_VERSION,
+  SYNC_LIMITS,
+  SYNC_SCHEMA_VERSION,
+} from './sync-contracts.ts'
 import type {
   SyncBackupFile,
   SyncBackupManifest,
@@ -259,7 +264,7 @@ export function isSyncBackupManifest(value: unknown): value is SyncBackupManifes
       'reason',
       'files',
     ]) ||
-    value.schemaVersion !== SYNC_SCHEMA_VERSION ||
+    value.schemaVersion !== BACKUP_MANIFEST_SCHEMA_VERSION ||
     !isOpaqueId(value.backupId) ||
     !isOpaqueId(value.projectId) ||
     !isOpaqueId(value.deviceId) ||

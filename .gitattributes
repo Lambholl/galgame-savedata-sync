@@ -5,3 +5,5 @@
 *.png binary
 *.ico binary
 *.webp binary
+# 兼容样本按写出时的字节冻结
+apps/desktop/test/fixtures/compat/** -text

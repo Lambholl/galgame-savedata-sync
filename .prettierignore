@@ -32,3 +32,6 @@ dev.local.json
 # frida Java 桥由 npm 管理，锁文件按 npm 的格式保留
 scripts/device/frida/package-lock.json
 scripts/device/frida/.staged-agent.js
+
+# 兼容样本冻结后不改字节，排版也不动
+apps/desktop/test/fixtures/compat/

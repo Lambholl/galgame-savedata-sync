@@ -265,10 +265,11 @@ Windows → Android（监听方 → 拨号方）：按确认计划里发起端�
 
 移动端网页层没有长期测试。`ListenerServerTest` 在 JVM 回环地址上运行真实的本机服务，覆盖 HTTP 解析边界、目录表交换、控制通道和一台设备一条连接的规则，以及 Android 拨号方 `TransferEngine` 连接、交换、浏览后被 4001 断开。监听方 `/v1/sync/*` 和控制通道发起的传输没有长期测试，验收结论见[验收标准](../testing/acceptance.md)第 3 节。`pnpm android:unit` 同步 Web 工程，生成 Windows 原生归档供 Java 消费，执行 Java 单元测试，最后验证 Windows/JVM 归档互通；`pnpm android:test` 在此之外另跑 Android lint、调试与仪器测试 APK 构建。两者都不连接设备。
 
-设备测试有 3 项，安装两个调试 APK 后用 `node scripts/device/device.mjs instrument <类名#方法名> [键=值...]` 运行，键值对作为 `-e` 参数传给测试，`cache` 下的产物用 `private-pull cache/<文件名> <输出>` 取回：
+设备测试有 4 项，安装两个调试 APK 后用 `node scripts/device/device.mjs instrument <类名#方法名> [键=值...]` 运行，键值对作为 `-e` 参数传给测试，`cache` 下的产物用 `private-pull cache/<文件名> <输出>` 取回：
 
 - `ArchiveSafTest#androidConsumesPythonAndWindowsNativeArchivesAndExportsJavaArchive`：跨端归档固定夹具。设备生成的 `cache/archive-device-java.gz` 取回到 `.reports/wp013-device/java.gz` 后，用 `scripts/verify-archive-interop.mjs verify-device` 复核。
 - `DirectoriesTest#pickerSelectionAndNativeRead`（`safMode=select safExpectedName=<显示名>`）：先准备 `SaveDataSync-Archive-<随机后缀>` 合成目录，由测试者在系统选择器中授权。
+- `CompatSamplesDeviceTest`（两个方法）：用 `org.json` 解析兼容样本，核对目录登记样本读出再写回不变，`AppDataRecovery.isNewer` 只把 `schemaVersion` 更高的目录登记、游戏库和备份设置算作较新版本。样本从测试 APK 的 assets 读取，不读写应用私有数据。
 - `ArchiveSafTest#actualSafStreamsRoundTripWithoutChangingSource`（`archiveExpectedName=<显示名>`）：从同一合成目录边读边打包，再在设备上解包核对，确认源文件没有变化；设备生成的 `cache/archive-device-saf.gz` 和 `cache/archive-device-saf-files.json` 取回为 `.reports/wp013-device/saf.gz` 和 `saf-files.json` 后用 `verify-device-saf` 复核。
 
 界面主题、按钮和具体文案由实际运行与截图验收。真机操作和检查用 `scripts/device/` 的工具，用法和安全边界见 `docs/development.md` 的“真机调试工具”；读应用页面用 CDP 取文字，有的手机上 uiautomator 一直等不到界面空闲，`ui-text` 读不到界面（测试手机上关掉无障碍服务后照样如此，原因没查清）。真机验收范围见[验收标准](../testing/acceptance.md)。
@@ -280,4 +281,4 @@ Windows → Android（监听方 → 拨号方）：按确认计划里发起端�
 - 注入点：目标目录的可用容量（`DirectoryPublicationBackend.availableBytes`）和写入（新文件发布流、`DirectorySyncBackend` 的覆盖写入流）；备份的可用容量和写入（`AndroidBackupIo`）；接收内容时暂存归档的私有缓存的可用容量和写入（`DirectoryArchiveSource` 交给 `ArchiveCache` 的 `Io`；发送时边读边打包直接发出，不经过这个缓存）。`drop` 关闭的连接由 `ListenerServer`、`TransferHttp` 的请求和 `ControlClient` 登记，用弱引用保存。
 - 真机验证：`status` 在应用运行和未运行时都能输出；`drop` 后控制通道断开，5 秒内重新连上；备份区域报告容量为 0 时，手动备份提示存储空间不足，没有生成备份；备份区域每次写入等待 300 毫秒时，备份变慢但照常完成。`target` 和 `cache` 区域用电脑到手机的传输验证（来源是电脑上的合成测试目录，目标是手机上的测试目录，约 1.1 MiB）：任一区域报告容量为 0 时，传输失败并提示本机存储空间不足，目标没有写入任何文件；`target` 每次写入等待 300 毫秒时，新建文件和覆盖写入都从约 2 秒变慢到约 12 秒，`cache` 同样等待时传输阶段约 8 秒，都照常完成。手机接收失败时会取消电脑的任务，电脑上这次传输显示为已取消，不显示原因。
 
-数据读不懂时的启动检查（`AppDataRecovery`）没有长期测试。数据由更新版本写入时的处理在真机上验证过：游戏和设备列表写成更高的 `schemaVersion` 后冷启动，只显示提示页，本机服务没有恢复，应用私有数据原样保留；改回原数据后正常启动。端口和主题的宽容读取还没在真机上验证。
+数据读不懂时的启动检查（`AppDataRecovery`）只有较新版本的判断规则由 `CompatSamplesDeviceTest` 覆盖，检查和删除私有数据的流程没有长期测试；游戏库、备份设置和备份样本的读取由 JVM 单元测试 `CompatSamplesTest` 覆盖。数据由更新版本写入时的处理在真机上验证过：游戏和设备列表写成更高的 `schemaVersion` 后冷启动，只显示提示页，本机服务没有恢复，应用私有数据原样保留；改回原数据后正常启动。端口和主题的宽容读取还没在真机上验证。

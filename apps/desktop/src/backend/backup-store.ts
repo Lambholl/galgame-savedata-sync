@@ -5,6 +5,7 @@ import { dirname, isAbsolute, join } from 'node:path'
 import type { Readable } from 'node:stream'
 import { finished } from 'node:stream/promises'
 import {
+  BACKUP_MANIFEST_SCHEMA_VERSION,
   BACKUP_SETTINGS_SCHEMA_VERSION,
   BATCH_LIMITS,
   DEFAULT_BACKUP_SETTINGS,
@@ -735,7 +736,7 @@ export class WindowsBackupStore {
           modifiedAt: target.modifiedAt,
         }))
         const manifest: SyncBackupManifest = {
-          schemaVersion: 1,
+          schemaVersion: BACKUP_MANIFEST_SCHEMA_VERSION,
           backupId: randomUUID(),
           projectId,
           deviceId: this.source.deviceId,

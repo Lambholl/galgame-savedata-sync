@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict'
-import { mkdtemp, readdir, readFile, realpath, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, readdir, realpath, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
-import { DATA_RESET_ITEMS, LIBRARY_SCHEMA_VERSION } from '@savedata-sync/shared'
-import { NewerDataError, setAsideUnreadableData } from '../src/backend/data-recovery.ts'
+import { DATA_RESET_ITEMS } from '@savedata-sync/shared'
+import { setAsideUnreadableData } from '../src/backend/data-recovery.ts'
 
 async function createFixture(t) {
   const base = await mkdtemp(join(await realpath(tmpdir()), 'savedata-recovery-test-'))
@@ -14,21 +14,6 @@ async function createFixture(t) {
   )
   return { base, paths }
 }
-
-test('有数据由更新版本写入时报告这些数据项，所有文件都不改名', async (t) => {
-  const { base, paths } = await createFixture(t)
-  const newer = JSON.stringify({ schemaVersion: LIBRARY_SCHEMA_VERSION + 1, games: 'future' })
-  await writeFile(paths.library, newer)
-  await writeFile(paths['device-identity'], 'not json')
-
-  await assert.rejects(setAsideUnreadableData(paths), (error) => {
-    assert.ok(error instanceof NewerDataError)
-    assert.deepEqual(error.items, ['library'])
-    return true
-  })
-  assert.equal(await readFile(paths.library, 'utf8'), newer)
-  assert.deepEqual((await readdir(base)).sort(), ['device-identity.json', 'library.json'])
-})
 
 test('旧版本和损坏的文件改名保留，界面偏好里不认识的字段不算读不懂', async (t) => {
   const { base, paths } = await createFixture(t)

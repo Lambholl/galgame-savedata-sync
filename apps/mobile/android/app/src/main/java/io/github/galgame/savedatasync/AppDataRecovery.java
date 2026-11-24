@@ -129,8 +129,12 @@ final class AppDataRecovery {
     }
   }
 
-  // 与 shared 的 isNewerSchemaVersion 一致：JSON 对象的整数 schemaVersion 大于本版本支持的版本。
-  private static boolean isNewer(Object saved, int currentVersion) {
+  /**
+   * 判断保存的值是否由更新版本写入：值是 JSON 对象字符串，整数 schemaVersion 大于 currentVersion。
+   *
+   * <p>规则与 shared 的 isNewerSchemaVersion 相同。
+   */
+  static boolean isNewer(Object saved, int currentVersion) {
     if (!(saved instanceof String)) {
       return false;
     }

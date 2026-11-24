@@ -2,8 +2,8 @@
 doc_type: work-packages
 status: active
 id_prefix: WP
-id_high_water: 73
-updated: 2026-11-24
+id_high_water: 74
+updated: 2026-11-25
 tags: [工作包]
 ---
 

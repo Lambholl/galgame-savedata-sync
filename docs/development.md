@@ -95,6 +95,7 @@ Android 端最低支持 Android 11（API 30），编译目标为 API 36。前端
 | `pnpm lint` / `pnpm typecheck` / `pnpm build` | 单独运行 `pnpm check` 中的对应检查 |
 | `pnpm test` | 运行共享包和桌面端 sidecar 的测试（无需 Android 工具） |
 | `pnpm test:all` | 运行 `pnpm test` 和 `pnpm android:test`，适合发版前或大范围改动后执行 |
+| `pnpm release:loopback` | 构建电脑端后端，启动两个后端经 127.0.0.1 双向复制一份合成存档（开备份、删除多余），核对两边文件一致，再各自恢复复制前的备份并核对；数据都在系统临时目录，结束后删除。运行期间监听服务绑定所有网卡并在局域网广播。发版前执行 |
 | `pnpm doctor` | 检查本地工具链；支持 `--desktop`（跳过 Android 检查）和 `--json`；存在 FAIL 项时返回非零退出码 |
 | `pnpm android:sync` | 构建移动端前端资源并同步到 Android 原生工程 |
 | `pnpm android:build` | 构建 debug APK；加 `--release` 构建签名后的 release APK |
@@ -362,7 +363,7 @@ keytool -genkeypair -v -keystore savedata-sync-release.jks -alias savedata-sync 
 
 ### 发布流程
 
-仅从 `master` 分支发布。在 `master` 最新提交上打 tag 并同步推送：
+仅从 `master` 分支发布。打 tag 前在本机运行 `pnpm release:loopback`，发布工作流不跑这项检查。在 `master` 最新提交上打 tag 并同步推送：
 
 ```bash
 git tag -a v0.3.0 -m "0.3.0"

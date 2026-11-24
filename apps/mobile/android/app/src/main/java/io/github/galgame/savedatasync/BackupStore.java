@@ -496,7 +496,7 @@ final class BackupStore implements AutoCloseable {
       Map<String, Object> manifest = BackupModel.manifest(
         object(
           "schemaVersion",
-          1,
+          BackupModel.MANIFEST_VERSION,
           "backupId",
           backupId,
           "projectId",

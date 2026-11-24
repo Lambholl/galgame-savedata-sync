@@ -174,11 +174,11 @@ final class BackupModel {
       "reason",
       "files"
     );
-    require(number(value.get("schemaVersion"), 1, 1) == 1);
+    number(value.get("schemaVersion"), MANIFEST_VERSION, MANIFEST_VERSION);
     one(value.get("reason"), "copy", "restore", "manual");
     return object(
       "schemaVersion",
-      1,
+      MANIFEST_VERSION,
       "backupId",
       id(value.get("backupId")),
       "projectId",
@@ -229,8 +229,11 @@ final class BackupModel {
   static final long KEEP_MAX = 4096;
   static final long KEEP_DEFAULT = 10;
 
-  /** 备份设置的格式版本，与 shared 的 SyncBackupSettings.schemaVersion 保持一致。 */
+  /** 备份设置的格式版本，与 shared 的 BACKUP_SETTINGS_SCHEMA_VERSION 保持一致。 */
   static final int SETTINGS_VERSION = 4;
+
+  /** 备份清单的格式版本，与 shared 的 BACKUP_MANIFEST_SCHEMA_VERSION 保持一致。 */
+  static final int MANIFEST_VERSION = 1;
 
   /** 校验保留份数，取值 KEEP_MIN 至 KEEP_MAX，否则抛错。 */
   static long keepCount(Object raw) throws Exception {

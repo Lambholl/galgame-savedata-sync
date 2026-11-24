@@ -8,6 +8,8 @@ export const SYNC_SCHEMA_VERSION = 1
 export const SYNC_CAPABILITIES_VERSION = 8
 /** 备份库设置文件的格式版本。 */
 export const BACKUP_SETTINGS_SCHEMA_VERSION = 4
+/** 备份清单的格式版本。 */
+export const BACKUP_MANIFEST_SCHEMA_VERSION = 1
 
 /** 复制方向，按连接里的角色区分：listener-to-dialer 从监听方复制到拨号方。 */
 export type SyncDirection = 'listener-to-dialer' | 'dialer-to-listener'
@@ -152,7 +154,7 @@ export type SyncBackupReason = 'copy' | 'restore' | 'manual'
 
 /** 一份已提交备份的清单。 */
 export interface SyncBackupManifest {
-  readonly schemaVersion: typeof SYNC_SCHEMA_VERSION
+  readonly schemaVersion: typeof BACKUP_MANIFEST_SCHEMA_VERSION
   readonly backupId: string
   readonly projectId: string
   readonly deviceId: string
