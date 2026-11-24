@@ -53,7 +53,7 @@ tags: [代码地图]
 | 路径 | 作用 | 重要约定 |
 | --- | --- | --- |
 | `apps/desktop/` | Tauri 宿主 `src-tauri`、后端 `src/backend`、sidecar 入口 `src/sidecar`、bridge `src/bridge` 和独立 antd 界面 `src/renderer` | 界面只能调用 `backend_invoke`，由宿主转给 sidecar |
-| `apps/desktop/src-tauri/src/main.rs`、`sidecar.rs`、`storage.rs`、`capabilities/main.json`、`tauri.conf.json` | 宿主：窗口、单实例、`backend_invoke` 命令、sidecar 进程和消息、平台能力（目录选择器、打开文件夹、明暗）、存储目录和便携模式 | `sidecar.rs` 的消息类型和 `src/sidecar/protocol.ts` 一起改；capability 只授权 `main` 窗口调用 `backend_invoke`；`cargo test` 覆盖消息解析 |
+| `apps/desktop/src-tauri/src/main.rs`、`sidecar.rs`、`storage.rs`、`capabilities/main.json`、`tauri.conf.json` | 宿主：窗口、单实例、`backend_invoke` 命令、sidecar 进程和消息、平台能力（目录选择器、打开文件夹、明暗）、存储目录和便携模式 | `sidecar.rs` 的消息类型和 `src/sidecar/protocol.ts` 一起改；capability 只授权 `main` 窗口调用 `backend_invoke` |
 | `apps/desktop/scripts/package-windows.mjs`、`build-sidecar-exe.mjs` | Windows 打包：sidecar 用 `@yao-pkg/pkg` 编成独立可执行文件，`tauri build` 产出 NSIS 安装包，再打免安装 zip | 只在 Windows x64 上运行；`bundle.externalBin` 只在打包时通过 `--config` 登记，见 [Windows 平台层](../architecture/windows.md#3-分发包与应用标识) |
 | `apps/desktop/src/backend/backend.ts`、`channel-registry.ts` | `startBackend` 初始化配置、数据、备份库、缓存四个目录和各服务，登记全部界面通道，`stop` 按顺序释放；`ChannelRouter` 按通道名分发界面请求 | 后端是纯 Node 代码，平台能力（目录选择器、打开路径、明暗主题）经 `DesktopHost` 由宿主提供；能调用通道的页面由 Tauri capability 限定 |
 | `apps/desktop/src/sidecar/index.ts`、`protocol.ts`、`vite.sidecar.config.ts` | sidecar 入口：从命令行读四个存储目录，stdin/stdout 按行 JSON 与宿主交换消息，构建为 `out/sidecar/index.cjs` | stdout 只写协议消息，`console.log` 改写到 stderr；stdin 关闭时停止服务后退出；第三方包全部打进产物 |

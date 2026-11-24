@@ -20,21 +20,22 @@ tags: [测试规范]
 | 项目 | 取值 |
 | --- | --- |
 | 验证要回答的问题 | 功能是否按当前需求工作；存档数据会不会丢失或写错 |
-| 相关测试入口 | `pnpm test`：脚本、共享包、电脑端（含 Tauri 宿主的 `cargo test`）和移动端网页层，不需要 Android 工具。改了 Android 原生代码时另跑 `pnpm android:unit`：Java 单元测试和归档互通核对，复用 Gradle 后台进程 |
+| 相关测试入口 | `pnpm test`：共享包和电脑端 sidecar，不需要 Android 工具。改了 Android 原生代码时另跑 `pnpm android:unit`：Java 单元测试和归档互通核对，复用 Gradle 后台进程 |
 | 全量测试入口 | `pnpm test:all`（`pnpm test` 加 `pnpm android:test`，后者在 `android:unit` 之外另跑 Android lint 和两个调试 APK 的构建）；`pnpm check` 和普通 CI 不跑测试 |
 | 测试运行器 | Node 内置测试器加类型擦除；Java 单元测试用 JUnit，仪器测试用 AndroidJUnitRunner |
 | 测试文件命名 | Node 测试是各包 `test/` 下的 `*.test.mjs`；Java 测试是 `*Test.java` |
 
 ## 长期测试的取舍
 
-决定一条长期测试留不留、写不写时，按顺序回答下面的问题：
+按 `coding-standards` 技能 `references/testing.md` 的“留还是删”判断，本项目的取值：
 
-1. 这条测试失败时，存档、配置或备份会不会丢失或写错，两端或新旧版本之间会不会连不上、读不懂？都不会就不写。
-2. 断言的预期值来自协议、外部标准或产品需求吗？例如 DNS-SD 实例名最多 63 字节、Windows 保留文件名、tar 格式。写代码时定的取值（默认份数、上限、超时）不断言具体数值：超出后有风险的上限测“上限生效”，断言引用常量，如归档的单文件和总量上限，超出会撑满缓存；超出后没有风险的取值只测规则本身，如备份保留份数只测轮换先删最旧的，不测份数能设多大。
-3. 只改实现、不改行为时，这条测试会不会失败？会就改成测公开接口，改不了就删。
-4. 同一条规则在别的层级是否已经测过？测过就删掉重复的一条。
-
-守兼容面的测试优先保留：落盘格式的读取和迁移、备份清单、协议和能力版本，范围见 [ADR-0006](../decisions/ADR-0006-stable-release-compatibility.md)。
+| 项目 | 取值 |
+| --- | --- |
+| 数据 | 存档、游戏配置、目录登记、设备 ID 和备份 |
+| 各自升级的两端 | 电脑端和 Android；协议和能力版本必须相同，见 [ADR-0006](../decisions/ADR-0006-stable-release-compatibility.md) |
+| 来自外部标准的预期值 | DNS-SD 实例名最多 63 字节、TXT 键名不分大小写、Windows 保留文件名、tar 和 gzip 格式、WebSocket 关闭码、HTTP/1.1 报文格式 |
+| 有风险的上限 | 归档的单文件、总量和缓存上限（`BATCH_LIMITS`），超出会撑满缓存；HTTP 请求头的数量和大小上限 |
+| 同一构建内的薄桥 | 移动端网页层的 `*-bridge.ts`、电脑端渲染层的目录桥、Tauri 宿主和 sidecar 之间的消息。路径和 URI 不跨桥的检查由执行检查的一侧测：电脑端是 sidecar 的目录通道，Android 是 `DocumentValues` |
 
 ## 差异
 

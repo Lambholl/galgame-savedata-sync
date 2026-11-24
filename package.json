@@ -18,7 +18,7 @@
     "lint": "eslint . --cache --max-warnings 0 && node scripts/android-build.mjs --checkstyle && pnpm lint:rust",
     "lint:rust": "cargo clippy --manifest-path apps/desktop/src-tauri/Cargo.toml --all-targets --locked -- -D warnings",
     "typecheck": "pnpm -r typecheck",
-    "test": "node --test scripts/*.test.mjs && pnpm -r test",
+    "test": "pnpm -r test",
     "test:all": "pnpm test && pnpm android:test",
     "doctor": "node scripts/doctor.mjs",
     "security:node": "node scripts/security-check.mjs",

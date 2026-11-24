@@ -263,7 +263,7 @@ Windows → Android（监听方 → 拨号方）：按确认计划里发起端�
 
 ## 15. 测试范围
 
-`pnpm test` 运行最小 TS 桥检查（请求/响应边界、结果上下文和订阅清理）。`ListenerServerTest` 在 JVM 回环地址上运行真实的本机服务，覆盖 HTTP 解析边界、目录表交换、控制通道和一台设备一条连接的规则，以及 Android 拨号方 `TransferEngine` 连接、交换、浏览后被 4001 断开。监听方 `/v1/sync/*` 和控制通道发起的传输没有长期测试，验收结论见[验收标准](../testing/acceptance.md)第 3 节。`pnpm android:unit` 同步 Web 工程，生成 Windows 原生归档供 Java 消费，执行 Java 单元测试，最后验证 Windows/JVM 归档互通；`pnpm android:test` 在此之外另跑 Android lint、调试与仪器测试 APK 构建。两者都不连接设备。
+移动端网页层没有长期测试。`ListenerServerTest` 在 JVM 回环地址上运行真实的本机服务，覆盖 HTTP 解析边界、目录表交换、控制通道和一台设备一条连接的规则，以及 Android 拨号方 `TransferEngine` 连接、交换、浏览后被 4001 断开。监听方 `/v1/sync/*` 和控制通道发起的传输没有长期测试，验收结论见[验收标准](../testing/acceptance.md)第 3 节。`pnpm android:unit` 同步 Web 工程，生成 Windows 原生归档供 Java 消费，执行 Java 单元测试，最后验证 Windows/JVM 归档互通；`pnpm android:test` 在此之外另跑 Android lint、调试与仪器测试 APK 构建。两者都不连接设备。
 
 设备测试有 3 项，安装两个调试 APK 后用 `node scripts/device/device.mjs instrument <类名#方法名> [键=值...]` 运行，键值对作为 `-e` 参数传给测试，`cache` 下的产物用 `private-pull cache/<文件名> <输出>` 取回：
 

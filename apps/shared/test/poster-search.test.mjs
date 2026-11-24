@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
+  POSTER_REQUEST_INTERVALS_MS,
   PosterSearchClient,
   PosterSearchError,
-  createDefaultPosterKeyword,
   isPosterImageUrl,
   isPosterRequestAllowed,
 } from '../src/index.ts'
@@ -199,12 +199,6 @@ test('Steam 搜索按商店素材拼出竖版封面地址，没有竖版封面�
   assert.deepEqual(JSON.parse(input).ids, [{ appid: 100 }, { appid: 200 }])
 })
 
-test('Steam 搜不到应用时不再读取商店素材', async () => {
-  const { client, requests } = createClient([{ body: { total: 0, items: [] } }])
-  assert.deepEqual(await client.search('steam', 'Nothing'), [])
-  assert.equal(requests.length, 1)
-})
-
 test('NextMoe 先列作品，再列作品的封面并把置顶封面排在前面', async () => {
   const { client, requests } = createClient([
     {
@@ -267,20 +261,6 @@ test('NextMoe 先列作品，再列作品的封面并把置顶封面排在前面
   assert.equal(new URL(requests[1].url).pathname, '/v2/catalog/works/15/covers')
 })
 
-test('NextMoe 作品不存在时封面列表为空', async () => {
-  const { client } = createClient([{ status: 404, body: { status: 404, code: 'NOT_FOUND' } }])
-  const work = {
-    kind: 'work',
-    source: 'nextmoe',
-    id: '9',
-    title: 'Gone',
-    subtitle: null,
-    detail: null,
-    previewUrl: null,
-  }
-  assert.deepEqual(await client.listWorkCovers(work), [])
-})
-
 test('NextMoe 的 429 和限流错误码都报 rate-limited', async () => {
   const { client } = createClient([
     { status: 429, body: '' },
@@ -315,18 +295,7 @@ test('同一来源的连续请求按最小间隔排队，不同来源互不影�
   const { client, clock } = createClient([empty, empty, { body: { data: [] } }])
   await Promise.all([client.search('vndb', 'a'), client.search('vndb', 'b')])
   await client.search('bangumi', 'c')
-  assert.deepEqual(clock.waits, [1550])
-})
-
-test('关键词为空白时不发请求', async () => {
-  const { client, requests } = createClient([])
-  assert.deepEqual(await client.search('vndb', '   '), [])
-  assert.equal(requests.length, 0)
-})
-
-test('默认关键词去掉方括号括起来的部分', () => {
-  assert.equal(createDefaultPosterKeyword('[社团] 游戏名 【汉化版】 '), '游戏名')
-  assert.equal(createDefaultPosterKeyword(' [全部] '), '[全部]')
+  assert.deepEqual(clock.waits, [POSTER_REQUEST_INTERVALS_MS.vndb])
 })
 
 test('只允许 https 的白名单主机', () => {

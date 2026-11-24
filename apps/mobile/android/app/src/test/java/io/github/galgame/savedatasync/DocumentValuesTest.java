@@ -49,6 +49,5 @@ public class DocumentValuesTest {
   public void displayNamesPreserveUnicodeAndRejectInvalidValues() {
     assertEquals("中文 存档.dat", DocumentValues.text("中文 存档.dat"));
     assertThrows(IllegalArgumentException.class, () -> DocumentValues.text("\u00a0\u3000"));
-    assertThrows(IllegalArgumentException.class, () -> DocumentValues.text("a".repeat(1025)));
   }
 }

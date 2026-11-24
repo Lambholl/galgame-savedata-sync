@@ -4,7 +4,7 @@ import { request as httpRequest } from 'node:http'
 import { tmpdir } from 'node:os'
 import { isAbsolute, join, relative, sep } from 'node:path'
 import test from 'node:test'
-import { BATCH_LIMITS } from '@savedata-sync/shared'
+import { BATCH_LIMITS, PROTOCOL_VERSION } from '@savedata-sync/shared'
 import { createDirectoryAdapter } from '../src/backend/directory-adapter.ts'
 import { WindowsHttpService } from '../src/backend/http-service.ts'
 
@@ -92,7 +92,7 @@ test('设备/根/当前层通过真实 HTTP 返回公开 DTO，会话与目录�
   assert.equal(device.status, 200)
   const descriptor = unwrap(device.json)
   assert.equal(descriptor.device.deviceId, fixture.source.deviceId)
-  assert.equal(descriptor.device.protocolVersion, 4)
+  assert.equal(descriptor.device.protocolVersion, PROTOCOL_VERSION)
   assert.equal(descriptor.device.capabilities.canListRoots, 'supported')
   assert.deepEqual(descriptor.limits, BATCH_LIMITS)
   assert.equal(descriptor.sessionId, fixture.address.sessionId)

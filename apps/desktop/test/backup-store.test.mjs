@@ -3,7 +3,7 @@ import { mkdtemp, mkdir, realpath, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { isAbsolute, join, relative, sep } from 'node:path'
 import test from 'node:test'
-import { createSyncPlan } from '@savedata-sync/shared'
+import { BACKUP_SETTINGS_SCHEMA_VERSION, createSyncPlan } from '@savedata-sync/shared'
 import { createDirectoryAdapter } from '../src/backend/directory-adapter.ts'
 import { createWindowsBackupStore } from '../src/backend/backup-store.ts'
 import { WindowsManualBackupRegistry } from '../src/backend/manual-backup-registry.ts'
@@ -87,7 +87,10 @@ async function waitManual(registry, taskId) {
 
 test('手动备份可创建并恢复，空目录不创建空轮次', async (t) => {
   const fixture = await setup(t)
-  assert.deepEqual(await fixture.backups.setKeepCount(15), { schemaVersion: 4, keepCount: 15 })
+  assert.deepEqual(await fixture.backups.setKeepCount(15), {
+    schemaVersion: BACKUP_SETTINGS_SCHEMA_VERSION,
+    keepCount: 15,
+  })
   assert.equal((await fixture.backups.settings()).keepCount, 15)
 
   const emptySnapshot = await scan(fixture.scanner, fixture.emptyRoot.rootId)

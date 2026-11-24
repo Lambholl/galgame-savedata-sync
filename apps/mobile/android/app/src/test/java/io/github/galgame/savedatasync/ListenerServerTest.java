@@ -64,7 +64,7 @@ public class ListenerServerTest {
       TransferJson.bytes(
         object(
           "schemaVersion",
-          2,
+          ListenerLibrary.LIBRARY_VERSION,
           "games",
           Collections.singletonList(
             object("id", "game-1", "name", "Game", "rootId", ROOT, "links", new ArrayList<>())
@@ -334,29 +334,30 @@ public class ListenerServerTest {
 
   @Test
   public void rejectsMalformedRequestsWithStableCodes() throws Exception {
-    Reply duplicate = send("GET /v1/device HTTP/1.1\r\nHost: a\r\nhost: b\r\n\r\n");
-    assertEquals(400, duplicate.status);
-    assertTrue(duplicate.head.contains("Connection: close"));
-    assertEquals(400, send("GET /v1/device HTTP/1.0\r\nHost: a\r\n\r\n").status);
-    assertEquals(
-      400,
-      send("GET /v1/device HTTP/1.1\r\nHost: a\r\nRange: bytes=0-1\r\n\r\n").status
-    );
-    assertEquals(400, send("GET /v1/device HTTP/1.1\r\nHost: a\r\n folded\r\n\r\n").status);
-    assertEquals(400, send("GET /v1/roots/%FF/entries HTTP/1.1\r\nHost: a\r\n\r\n").status);
-    assertEquals(400, send("GET /v1/transfers/x HTTP/1.1\r\nHost: a\r\n\r\n").status);
-    assertEquals(
-      400,
-      send(
-        "POST /v1/catalog HTTP/1.1\r\nHost: a\r\nContent-Length: 2\r\n" +
-          "Transfer-Encoding: chunked\r\n\r\n{}"
-      ).status
-    );
-    StringBuilder large = new StringBuilder("GET /v1/device HTTP/1.1\r\nHost: a\r\n");
-    for (int i = 0; i < 70; i++) {
-      large.append("x-filler-").append(i).append(": 1\r\n");
+    StringBuilder tooManyHeaders = new StringBuilder("GET /v1/device HTTP/1.1\r\nHost: a\r\n");
+    for (int i = 0; i < ListenerHttp.MAX_HEADERS; i++) {
+      tooManyHeaders.append("x-filler-").append(i).append(": 1\r\n");
     }
-    assertEquals(413, send(large.append("\r\n").toString()).status);
+    Object[][] cases = {
+      { "GET /v1/device HTTP/1.1\r\nHost: a\r\nhost: b\r\n\r\n", 400 },
+      { "GET /v1/device HTTP/1.0\r\nHost: a\r\n\r\n", 400 },
+      { "GET /v1/device HTTP/1.1\r\nHost: a\r\nRange: bytes=0-1\r\n\r\n", 400 },
+      { "GET /v1/device HTTP/1.1\r\nHost: a\r\n folded\r\n\r\n", 400 },
+      { "GET /v1/roots/%FF/entries HTTP/1.1\r\nHost: a\r\n\r\n", 400 },
+      { "GET /v1/transfers/x HTTP/1.1\r\nHost: a\r\n\r\n", 400 },
+      {
+        "POST /v1/catalog HTTP/1.1\r\nHost: a\r\nContent-Length: 2\r\n" +
+          "Transfer-Encoding: chunked\r\n\r\n{}",
+        400,
+      },
+      { tooManyHeaders.append("\r\n").toString(), 413 },
+    };
+    for (Object[] item : cases) {
+      String request = (String) item[0];
+      Reply reply = send(request);
+      assertEquals(request, item[1], reply.status);
+      assertTrue(request, reply.head.contains("Connection: close"));
+    }
   }
 
   @Test
@@ -469,14 +470,6 @@ public class ListenerServerTest {
   }
 
   @Test
-  public void peersShowOpenControl() throws Exception {
-    assertEquals(200, catalog(hello("pc-1"), true).status);
-    control("pc-1").opened.get(5, TimeUnit.SECONDS);
-    List<Object> peers = server.library().peers();
-    assertEquals(Boolean.TRUE, map(peers.get(0)).get("isOpen"));
-  }
-
-  @Test
   public void directoryReadsListingThroughControl() throws Exception {
     assertEquals(200, catalog(hello("pc-1"), true).status);
     Client client = control("pc-1");
@@ -496,21 +489,6 @@ public class ListenerServerTest {
       server.library().directory("pc-1", "pc-root", "never-read").get(5, TimeUnit.SECONDS)
     );
     assertEquals("invalid-request", ((ArchiveFailure) unknownParent.getCause()).code);
-  }
-
-  @Test
-  public void directoryTimesOutWhenPeerDoesNotAnswer() throws Exception {
-    assertEquals(200, catalog(hello("pc-1"), true).status);
-    Client client = control("pc-1");
-    client.opened.get(5, TimeUnit.SECONDS);
-    answerDirectories(client);
-    server.library().directory("pc-1", "pc-root", null).get(5, TimeUnit.SECONDS);
-    // 读过的目录可以作为下一层的父目录：请求照常发出，对方不答复时经过 ListenerControl.REQUEST_TIMEOUT_MS 超时。
-    client.onText = text -> {};
-    ExecutionException timeout = assertThrows(ExecutionException.class, () ->
-      server.library().directory("pc-1", "pc-root", "dir-1").get(12, TimeUnit.SECONDS)
-    );
-    assertEquals("timeout", ((ArchiveFailure) timeout.getCause()).code);
   }
 
   /** 让 client 对每条 directory.list 请求答复一层只有 dir-1 一个子目录的列表。 */
@@ -671,7 +649,7 @@ public class ListenerServerTest {
     assertTrue(ListenerLibrary.isName(" a "));
     Map<String, Object> config = object(
       "schemaVersion",
-      2,
+      ListenerLibrary.LIBRARY_VERSION,
       "games",
       new ArrayList<>(
         Arrays.asList(

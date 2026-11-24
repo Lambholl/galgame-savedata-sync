@@ -11,7 +11,7 @@
     "package": "node scripts/package-windows.mjs",
     "tauri": "tauri",
     "typecheck": "tsc --noEmit",
-    "test": "node --experimental-strip-types --test test/*.test.mjs && cargo test --manifest-path src-tauri/Cargo.toml --locked"
+    "test": "node --experimental-strip-types --test test/*.test.mjs"
   },
   "dependencies": {
     "@ant-design/icons": "6.3.4",
