@@ -344,15 +344,26 @@ final class DirectorySyncBackend implements SyncWriter.Backend {
       );
     }
     // SAF 的 deleteDocument 会递归删除文件夹，这里先确认文件夹是空的，只删计划列出的条目。
-    if (
-      isDirectory &&
-      !children(locate(rootId, string(expected.get("entryId")), false, control), control).isEmpty()
-    ) {
-      throw new ArchiveFailure("source-changed", "The directory to delete is no longer empty.");
+    // 扫描看不到 .nomedia，计划里不会有删除它的一步；文件夹里只剩它时随文件夹一起删掉。
+    DirectoryStore.Snapshot nomedia = null;
+    if (isDirectory) {
+      for (DirectoryStore.Snapshot child : children(
+        locate(rootId, string(expected.get("entryId")), false, control),
+        control
+      )) {
+        if (child.isDirectory || !SyncScanner.NOMEDIA_NAME.equals(child.name)) {
+          throw new ArchiveFailure("source-changed", "The directory to delete is no longer empty.");
+        }
+        nomedia = child;
+      }
     }
     control.check();
     try {
-      if (!store.access(directory.tree).delete(directory.tree, value.documentId)) {
+      DocumentAccess access = store.access(directory.tree);
+      if (nomedia != null && !access.delete(directory.tree, nomedia.documentId)) {
+        throw new java.io.IOException("The provider did not delete the .nomedia document");
+      }
+      if (!access.delete(directory.tree, value.documentId)) {
         throw new java.io.IOException("The provider did not delete the document");
       }
     } catch (Exception cause) {

@@ -50,6 +50,8 @@ Android 可作拨号方和监听方。作拨号方时原生层连接监听方、
 
 添加游戏会打开弹窗，点击“选择存档目录”直接打开系统文件夹选择器；选好目录后显示游戏名输入框，默认填入父目录名（提供者未返回父目录名时填当前目录名），可以修改后确认添加，取消不会创建游戏。从对端导入游戏时也先选择自己的存档目录。已有游戏可以更换本机目录、选择对应的远端游戏建立关联。选择存档目录时申请并保存系统读写权限；接收前会重新检查权限，权限失效后到目录设置重新选择。
 
+设置页“存储”组有“直接读写文件”和“自动添加 .nomedia”两个开关。“自动添加 .nomedia”默认关闭，存在 `app-preferences` 的 `addNomedia`（布尔值，其他类型按关闭处理）。开关打开时为全部游戏、开着时添加游戏和更换本机目录后为该游戏调用 `Directories.addNomedia`，逻辑在 `src/app/nomedia.ts`。没能添加的游戏只记在内存里，列在开关下方，之后添加成功或关闭开关时移除；关闭开关不删除已经建好的文件。
+
 目录设置显示完整路径。系统存储目录显示文件系统路径，第三方文档提供者显示其可读目录层级或完整文档地址；地址只供显示，实际文件操作仍通过 SAF 引用完成。
 
 适配层 `createMobileLibraryAdapter` 可注入 directories、transfers、control、storage、reloadStorage、service 和 hasSyncWork，默认使用真实原生桥与本机存储；正式入口传入复制/恢复活动查询，编辑配置和空闲失联处理会核对这些任务。发起传输会检查当前项目的两端目录，确认通知权限后再刷新电脑目录表。活动传输结束后再修改游戏目录或关联。手动改 IP 和重启保留原项目映射，连接地址属于另一设备时停止连接。
@@ -78,10 +80,11 @@ Android 使用日夜主题及 `values`/`values-night` 的窗口/启动背景，W
 
 ## 4. 目录桥与原生边界
 
-`src/platform/directories.ts` 导出 `androidDirectories`，只提供三个异步方法：
+`src/platform/directories.ts` 导出 `androidDirectories`，只提供四个异步方法：
 
 - `chooseDirectory()` 返回共享 `DirectorySelectionResult`；取消保留既有目录。
 - `listRoots()` 返回 `OperationResult<readonly DirectoryReference[]>`；保存的引用失去权限时 authorization 为 expired；目录被改名、移动或读取出错时为 unavailable，需要重新选择。
+- `addNomedia(rootId)` 在根目录下新建空的 `.nomedia`，返回 created 或 exists；已有同名普通文件时不改动，同名的是文件夹时报 unsupported-operation。新建后按返回的文档 ID 核对名称，SAF 换了名字时删掉新文件并报 source-changed。无论新建还是已有，都按实际路径对根目录调用 `MediaScannerConnection.scanFile`：只新建 `.nomedia` 时媒体库不会重扫所在目录，图片会继续出现在相册里；根目录不属于系统存储提供者时不重扫。需要目录的持久写权限。
 - `listDirectory(rootId, parentId = null)` 返回当前层 `OperationResult<DirectoryListing>`，parentId 必须来自当前原生会话枚举出的目录条目。重建进程后先重新列目录，不复用旧 entryId；同一进程的目录桥和传输模块通过 DirectoryRuntime 共享当前引用。
 
 TS 桥校验请求与响应，拒绝路径/URI、附加字段及跨根/跨层响应；原生插件也独立校验请求。网页预览返回 unsupported-operation。
@@ -90,11 +93,11 @@ TS 桥校验请求与响应，拒绝路径/URI、附加字段及跨根/跨层响
 
 - `DirectoriesPlugin` 注册系统目录选择器，后台线程串行访问提供者；不在暂停时取消查询，销毁时释放桥执行器。不使用 root。
 - `DirectoryStore` 在 SharedPreferences `saf-directories-v1` 的 `registry` 里持久化 schema 2 的根 rootId/URI/显示名；配置损坏或版本未知时失败，不重建覆盖。设备 ID 由 `DeviceIdentity` 单独存在 SharedPreferences `device-identity` 的 `deviceId`，没有时生成。文件清单、文件哈希和 entryId 不持久化。
-- `MainActivity` 创建插件前调用 `AppDataRecovery.checkOnce`，每个进程检查一次设备 ID、目录登记、游戏库（`app-storage`）、私有目录里的 `backup-settings.json`、端口（`local-service` 的 `port`）和界面偏好（`app-preferences` 的 `theme`、`locale`）。先看目录登记、游戏库和 `backup-settings.json` 有没有 `schemaVersion` 大于当前版本的（规则见 [ADR-0006](../decisions/ADR-0006-stable-release-compatibility.md) 第 9 条）：有就什么都不改，记下这些项，`MainActivity` 只注册 `LaunchAnimation`、`AppPreferences` 和 `AppStorage` 三个插件，网页经 `AppStorage.newerData`（`readNewerData`）读到后只显示“需要更新应用”的提示页，不读游戏配置、不挂载应用。没有时才逐项检查：读不懂的 SharedPreferences 值和 `backup-settings.json` 直接删除，不留副本，各模块随后按没有保存过处理；端口和主题、语言只删除类型不对的值，超出范围的端口由 `ListenerRuntime` 重新生成，不认识的主题和语言读成跟随系统、原值保留。目录登记是 schema 2 但有根目录读不出时，只用格式正确且不重复的根目录重写，算作重置；格式版本不是 2 时整个删除。设备 ID 只按 `device-identity` 里的值判断，那里没有值时生成新的，不算重置，也不提示；备份按设备 ID 归属，只列出当前设备 ID 的备份。界面经 `AppStorage` 插件的 `dataResets`、`dismissDataResets`（`src/platform/app-storage.ts` 的 `readDataResets`、`dismissDataResets`）弹一次提示，只列出被重置的项，不提供打开目录的入口：私有目录用文件管理器打不开。
+- `MainActivity` 创建插件前调用 `AppDataRecovery.checkOnce`，每个进程检查一次设备 ID、目录登记、游戏库（`app-storage`）、私有目录里的 `backup-settings.json`、端口（`local-service` 的 `port`）和界面偏好（`app-preferences` 的 `theme`、`locale`、`addNomedia`）。先看目录登记、游戏库和 `backup-settings.json` 有没有 `schemaVersion` 大于当前版本的（规则见 [ADR-0006](../decisions/ADR-0006-stable-release-compatibility.md) 第 9 条）：有就什么都不改，记下这些项，`MainActivity` 只注册 `LaunchAnimation`、`AppPreferences` 和 `AppStorage` 三个插件，网页经 `AppStorage.newerData`（`readNewerData`）读到后只显示“需要更新应用”的提示页，不读游戏配置、不挂载应用。没有时才逐项检查：读不懂的 SharedPreferences 值和 `backup-settings.json` 直接删除，不留副本，各模块随后按没有保存过处理；端口、主题、语言和 `addNomedia` 只删除类型不对的值，超出范围的端口由 `ListenerRuntime` 重新生成，不认识的主题和语言读成跟随系统、原值保留。目录登记是 schema 2 但有根目录读不出时，只用格式正确且不重复的根目录重写，算作重置；格式版本不是 2 时整个删除。设备 ID 只按 `device-identity` 里的值判断，那里没有值时生成新的，不算重置，也不提示；备份按设备 ID 归属，只列出当前设备 ID 的备份。界面经 `AppStorage` 插件的 `dataResets`、`dismissDataResets`（`src/platform/app-storage.ts` 的 `readDataResets`、`dismissDataResets`）弹一次提示，只列出被重置的项，不提供打开目录的入口：私有目录用文件管理器打不开。
 - 当前层查询不扫描后代；目录 sizeBytes=null，未知文件大小=null，空文件=0。SAF 日期 0 表示未知，映射 null；超出 JS 安全范围的数字拒绝。
 - `openFile(rootId, entryId, signal)` 仅供同包原生代码使用：重查授权、文件类型和已观察到的名称/大小/日期，以 `r` 打开 `InputStream`，调用者必须关闭流。异常为 `DirectoryFailure`，原始 cause 仅留原生层，JS 只见脱敏码/消息。
 
-目录登记、扫描、备份、打包、写入、新文件发布和本机恢复都通过 `DocumentAccess` 接口访问文件：有所有文件访问权限、目录属于系统存储提供者且能换算出实际路径时用 `FileDocumentAccess` 按路径读写，否则用 `SafDocumentAccess`。两种实现返回同样的文档 ID（`卷 ID:相对路径`）、属性和能力标志，设置页“直接读写文件”显示授权状态并跳转系统授权页，决定见 [ADR-0003](../decisions/ADR-0003-android-direct-file-access.md)。文件内容不进入 JavaScript/Base64，平台路径和 URI 不跨桥。
+目录登记、扫描、备份、打包、写入、新文件发布和本机恢复都通过 `DocumentAccess` 接口访问文件：有所有文件访问权限、目录属于系统存储提供者且能换算出实际路径时用 `FileDocumentAccess` 按路径读写，否则用 `SafDocumentAccess`。两种实现返回同样的文档 ID（`卷 ID:相对路径`）、属性和能力标志，设置页“直接读写文件”显示授权状态并跳转系统授权页，决定见 [ADR-0003](../decisions/ADR-0003-android-direct-file-access.md)。文件内容不进入 JavaScript/Base64，平台路径和 URI 不跨桥。系统存储提供者经树 URI 查询已删除的文档时抛 `IllegalArgumentException` 而不是返回空结果；`SafDocumentAccess.query` 在树根仍能查到时把它当作文档不存在（`FileNotFoundException`），删除后的回查据此确认条目已删除。
 
 ## 5. 原生归档
 
@@ -143,7 +146,7 @@ SAF 没有通用排他创建或比较后删除原语；这些复核能发现可�
 
 ## 8. 当前扫描
 
-`SyncScanner` 提供 SAF 递归扫描（只读元数据，不读内容）、空目录及失败部分结果，复用 `DirectoryArchiveSource` 的权限/身份/属性前后复核。`SyncScansPlugin` 只提供 capabilities/start/query/cancel，参数为 schemaVersion/rootId 或 scanId。结果与 Windows 使用同一 SyncScanState，期限、条目/深度/JSON 限制和 32 份结果保留沿用[复制、备份与恢复约定](sync-copy.md)。
+`SyncScanner` 提供 SAF 递归扫描（只读元数据，不读内容）、空目录及失败部分结果，复用 `DirectoryArchiveSource` 的权限/身份/属性前后复核。任意层级名为 `.nomedia` 的普通文件不进入快照，规则见[复制、备份与恢复约定](sync-copy.md)第 2 节。`SyncScansPlugin` 只提供 capabilities/start/query/cancel，参数为 schemaVersion/rootId 或 scanId。结果与 Windows 使用同一 SyncScanState，期限、条目/深度/JSON 限制和 32 份结果保留沿用[复制、备份与恢复约定](sync-copy.md)。
 
 `src/platform/sync-scan-bridge.ts` 核对有限参数、完整结果及 rootId/scanId 上下文；query 的成功包络只代表查到任务，扫描是否成功取决于内部 status。
 
@@ -179,7 +182,7 @@ SAF 没有通用排他创建或比较后删除原语；这些复核能发现可�
 
 `DirectorySyncBackend` 创建目录后核实文档 ID、类型、原始名称及父目录；新文件复用非覆盖发布器。覆盖和删除只查询目标文档本身，父目录用扫描时登记的引用，不列父目录。覆盖以 `rw` 打开一次常规 FD 作为身份句柄，核对名称、类型、链接数、大小和日期，写入前再用 fstat 确认大小、修改时间和状态改变时间没变，然后经这个 FD 写入；拒绝虚拟文档、额外硬链接和无法核实的文件。这期间同一路径的文件被换掉时，内容写进旧文件。`rw` 打开保留旧内容，完整写入并核对字节数后才设置最终长度，再尽量把修改日期设为来源的（经 SAF 写入时设不了）。
 
-第一项失败、取消或未知后停止后项，已确认成功的文件和目录保留。删除排在所有写入之后；删除文件前核对身份、大小和修改日期；`deleteDocument` 会递归，所以文件夹先确认为空再删。写入中断后返回 unknown/result-unknown，旧内容仍可从有效备份读取。备份之后、第一次写目标之前，`InterruptedWrites` 在私有目录 `interrupted-writes/<planId>.json` 落盘标记，结束时删除；上个进程留下的标记由 `SyncWrites.interrupted()` 读取、`dismissInterrupted({ id })` 清除，界面据此提示一次。旧传输、新复制和本机恢复共用 `TargetOperation` 进程互斥。
+第一项失败、取消或未知后停止后项，已确认成功的文件和目录保留。删除排在所有写入之后；删除文件前核对身份、大小和修改日期；`deleteDocument` 会递归，所以文件夹先确认里面没有别的条目再删，只剩 `.nomedia` 时先删它。写入中断后返回 unknown/result-unknown，旧内容仍可从有效备份读取。备份之后、第一次写目标之前，`InterruptedWrites` 在私有目录 `interrupted-writes/<planId>.json` 落盘标记，结束时删除；上个进程留下的标记由 `SyncWrites.interrupted()` 读取、`dismissInterrupted({ id })` 清除，界面据此提示一次。旧传输、新复制和本机恢复共用 `TargetOperation` 进程互斥。
 
 `SyncWriteRuntime` 由应用 Context 持有；最多保留 32 份预览/结果，预览和终态保留 10 分钟。
 

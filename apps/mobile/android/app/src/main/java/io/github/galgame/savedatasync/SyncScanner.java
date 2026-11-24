@@ -46,6 +46,10 @@ final class SyncScanner implements AutoCloseable {
   static final int MAX_DEPTH = 64;
   static final int MAX_PATH = 4096;
   static final int MAX_RESULTS = 32;
+
+  /** 让媒体扫描跳过所在文件夹的标记文件名；扫描结果里不含这个名称的普通文件。 */
+  static final String NOMEDIA_NAME = ".nomedia";
+
   private static final long MAX_SAFE = 9007199254740991L;
   private static final int MEASURE_THREADS = 8;
   private final Source source;
@@ -354,6 +358,18 @@ final class SyncScanner implements AutoCloseable {
     }
   }
 
+  // .nomedia 是各设备自己的相册设置，不比较、不复制、不进备份。
+  private static List<Object> synced(List<Object> entries) {
+    List<Object> result = new ArrayList<>(entries.size());
+    for (Object raw : entries) {
+      Map<?, ?> entry = (Map<?, ?>) raw;
+      if (!("file".equals(entry.get("kind")) && NOMEDIA_NAME.equals(entry.get("name")))) {
+        result.add(raw);
+      }
+    }
+    return result;
+  }
+
   private static String listingKey(List<Object> entries) throws Exception {
     List<Object> values = new ArrayList<>();
     for (Object raw : entries) {
@@ -381,7 +397,7 @@ final class SyncScanner implements AutoCloseable {
 
   private void visit(Job job, String parentId, List<String> parentPath) throws Exception {
     check(job);
-    List<Object> before = source.list(job.rootId, parentId, job.control);
+    List<Object> before = synced(source.list(job.rootId, parentId, job.control));
     check(job);
     final String key = listingKey(before);
     List<Object> ordered = new ArrayList<>(before);
@@ -439,7 +455,7 @@ final class SyncScanner implements AutoCloseable {
     }
     measureFiles(job, files);
     // 读内容期间文件可能被改名或替换，读完再列一次才能确认实测的还是列出的那个条目。
-    String after = listingKey(source.list(job.rootId, parentId, job.control));
+    String after = listingKey(synced(source.list(job.rootId, parentId, job.control)));
     check(job);
     if (!key.equals(after)) {
       throw new ArchiveFailure("source-changed", "The directory changed during the scan.");

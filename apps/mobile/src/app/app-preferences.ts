@@ -7,6 +7,8 @@ import type { AppPreferences } from '@savedata-sync/shared'
 interface AppPreferencesPlugin {
   read(): Promise<unknown>
   write(options: { theme: string; locale: string }): Promise<unknown>
+  readNomediaSetting(): Promise<unknown>
+  writeNomediaSetting(options: { shouldAddNomedia: boolean }): Promise<unknown>
 }
 
 const NATIVE =
@@ -67,4 +69,34 @@ export function subscribeAppPreferences(listener: () => void): () => void {
 /** 在组件中读取当前偏好，偏好变化时重新渲染。 */
 export function useAppPreferences(): AppPreferences {
   return useSyncExternalStore(subscribeAppPreferences, getAppPreferences)
+}
+
+/**
+ * 读取是否自动添加 .nomedia。
+ *
+ * @returns 没有保存过、保存的值无效或没有原生插件时为 false。
+ * @throws Error 原生插件读取失败。
+ */
+export async function readNomediaSetting(): Promise<boolean> {
+  if (!NATIVE) {
+    return false
+  }
+  const value = await NATIVE.readNomediaSetting()
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'shouldAddNomedia' in value &&
+    value.shouldAddNomedia === true
+  )
+}
+
+/**
+ * 保存是否自动添加 .nomedia；没有原生插件时什么也不做。
+ *
+ * @throws Error 原生插件保存失败。
+ */
+export async function writeNomediaSetting(shouldAddNomedia: boolean): Promise<void> {
+  if (NATIVE) {
+    await NATIVE.writeNomediaSetting({ shouldAddNomedia })
+  }
 }

@@ -3,12 +3,14 @@ import { Button, List } from 'antd-mobile'
 import { APP_LOCALES, APP_VERSION, LOCALE_NAMES, toShownError } from '@savedata-sync/shared'
 import type {
   AppPreferences,
+  LibraryGame,
   LocalePreference,
   ShownError,
   ThemePreference,
 } from '@savedata-sync/shared'
 import { useT } from '@savedata-sync/shared/ui'
 import { useFailureMessage } from '../../app/failure-message'
+import { setNomediaSetting, useNomedia } from '../../app/nomedia'
 import { useAllFilesAccess } from '../../app/use-all-files-access'
 import type { MobileSyncAdapter } from '../../platform/sync-adapter'
 import { BackupKeepCountField } from '../../components/BackupKeepCountField'
@@ -17,14 +19,17 @@ import { SwitchItem } from '../../components/SwitchItem'
 
 const THEMES: readonly ThemePreference[] = ['system', 'light', 'dark']
 
-/** 应用设置：外观、备份库的保留份数和存储权限，改动立即保存。 */
+/** 应用设置：外观、备份库的保留份数、存储权限和自动添加 .nomedia，改动立即保存。 */
 export function SettingsPage({
   sync,
+  games,
   preferences,
   onChange,
   onOverlayChange,
 }: {
   readonly sync: MobileSyncAdapter
+  /** 游戏库里的全部游戏；打开自动添加 .nomedia 时为它们补上，并按 ID 显示添加失败的游戏名。 */
+  readonly games: readonly LibraryGame[]
   readonly preferences: AppPreferences
   readonly onChange: (next: AppPreferences) => void
   readonly onOverlayChange: (close: (() => void) | null) => void
@@ -65,6 +70,13 @@ export function SettingsPage({
     }
   }, [sync, version, t])
   const directAccess = useAllFilesAccess()
+  const nomedia = useNomedia()
+  const nomediaFailures = games.filter((game) => nomedia.failedGameIds.includes(game.id))
+  function changeNomedia(shouldAddNomedia: boolean): void {
+    setNomediaSetting(shouldAddNomedia, games).catch((cause: unknown) => {
+      showFailure(toShownError(cause), t('settings.saveFailed'))
+    })
+  }
   function openDirectAccessSettings(): void {
     directAccess.openSettings().catch((cause: unknown) => {
       setBackupError({ context: t('directAccess.openFailed'), error: toShownError(cause) })
@@ -124,6 +136,20 @@ export function SettingsPage({
             isDisabled={directAccess.isOpening}
             onChange={openDirectAccessSettings}
           />
+          <SwitchItem
+            title={t('settings.addNomedia')}
+            isChecked={nomedia.shouldAddNomedia}
+            onChange={changeNomedia}
+          />
+          {nomediaFailures.length > 0 ? (
+            <List.Item
+              description={nomediaFailures.map((game) => (
+                <div key={game.id}>{game.name}</div>
+              ))}
+            >
+              {t('settings.addNomediaFailed')}
+            </List.Item>
+          ) : null}
         </List>
       )}
       <List mode="card" header={t('settings.about')}>

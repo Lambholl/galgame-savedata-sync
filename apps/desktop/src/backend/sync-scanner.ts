@@ -8,7 +8,7 @@ import {
   isOpaqueId,
   isSyncPath,
   isSyncSnapshot,
-  isWriteCandidateName,
+  isUnsyncedFileName,
 } from '@savedata-sync/shared'
 import type {
   DirectoryListing,
@@ -44,9 +44,9 @@ interface ScanJob {
 }
 
 // 写入途中进程被结束时，候选文件会留在目标文件旁边。扫描跳过它们，避免残留被比较和复制到另一台设备。
-// 残留不在这里删除：进程结束后无法确认它属于本应用。
+// 残留不在这里删除：进程结束后无法确认它属于本应用。.nomedia 是各设备自己的相册设置，同样不同步。
 function savedEntries(value: DirectoryListing): EntryMetadata[] {
-  return value.entries.filter((entry) => entry.kind !== 'file' || !isWriteCandidateName(entry.name))
+  return value.entries.filter((entry) => entry.kind !== 'file' || !isUnsyncedFileName(entry.name))
 }
 
 function listingKey(value: DirectoryListing): string {

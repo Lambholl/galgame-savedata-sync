@@ -1,7 +1,7 @@
 ---
 doc_type: architecture
 status: active
-updated: 2026-11-22
+updated: 2026-11-24
 tags: [复制, 备份, 恢复]
 ---
 
@@ -39,6 +39,7 @@ Windows `WindowsDirectoryAdapter.assertCacheIsolated` 检查应用存储与已�
 - 每个非根条目的父路径必须有对应目录条目。相同路径或相同 ID 不能重复；SAF 同名不同 ID 报 `name-conflict`，不能静默选一个。
 - 根级 `error` 表示扫描未完成或失败，已读条目可供说明，整份结果阻止执行。成功的空数组表示真实空目录。
 - 路径段保留原始名称，不改写大小写或 Unicode；快照可表示不能跨端创建的名称，计划将其列为冲突。平台路径与 URI 留原生层。
+- 任意层级名为 `.nomedia` 的普通文件不进入快照（共享包 `isUnsyncedFileName`，Android `SyncScanner.NOMEDIA_NAME`），所以不进入计划、写入前备份、手动备份和本机恢复，删除多出的条目和恢复后它仍然留在目标里。它是各设备自己的相册设置，见 [REQ-026](../requirements/product.md#2-需求清单)。名称精确匹配，`.NOMEDIA` 照常同步。电脑端扫描另跳过写入候选文件（[Windows 平台层](windows.md)第 11 节）。
 
 扫描最多 10000 条、深度 64、相对路径共 4096 个 UTF-16 码元，单个名称最多 255 个 UTF-16 码元。读取已有不可移植名称可报冲突，但不按该名称创建新文件。扫描截止时间 30 分钟、显式 IO 缓冲最多 64 KiB；超限或读取失败均返回完整失败状态。目录大小始终为 null，不做后代字节汇总。
 

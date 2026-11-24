@@ -10,7 +10,8 @@ import {
   compareSyncPaths,
   createSyncPlan,
   isSyncFileWrite,
-  isWriteCandidateName,
+  NOMEDIA_NAME,
+  isUnsyncedFileName,
   isSyncPlan,
   isSyncWriteEntry,
   matchesSyncPlan,
@@ -369,7 +370,7 @@ export class WindowsSyncWriter {
         )
       }
       for (const entry of listing.value.entries) {
-        if (entry.kind === 'file' && isWriteCandidateName(entry.name)) {
+        if (entry.kind === 'file' && isUnsyncedFileName(entry.name)) {
           continue
         }
         const path = [...next.path, entry.name]
@@ -551,7 +552,7 @@ export class WindowsSyncWriter {
     }
   }
   /**
-   * 删除一项目标多出的条目：文件先核对身份、大小和修改日期，目录只删空目录。
+   * 删除一项目标多出的条目：文件先核对身份、大小和修改日期；目录只删空目录，或只含 NOMEDIA_NAME 文件的目录（连同该文件）。
    * 系统已开始删除但结果没能确认时报 unknown；条目还在且身份未变时按失败抛出。
    */
   private async remove(job: WriteJob, operation: SyncPlanEntry): Promise<SyncWriteOutcome> {
@@ -561,12 +562,16 @@ export class WindowsSyncWriter {
       isDirectory = operation.action === 'delete-directory'
     await this.check(job)
     let identity: FileIdentity
+    let nomediaPath: string | null = null
     if (isDirectory) {
       const location = required(job.locations.get(syncPathKey(operation.path)))
       await location.verify()
-      if ((await readdir(location.path)).length > 0) {
+      // 扫描看不到 .nomedia，计划里不会有删除它的一步；文件夹里只剩它时随文件夹一起删掉。
+      const children = await readdir(location.path, { withFileTypes: true })
+      if (children.some((child) => !child.isFile() || child.name !== NOMEDIA_NAME)) {
         throw new ArchiveError('source-changed', 'The directory to delete is no longer empty.')
       }
+      nomediaPath = children.length > 0 ? join(location.path, NOMEDIA_NAME) : null
       identity = location.identity
     } else {
       identity = getFileIdentity(
@@ -576,6 +581,9 @@ export class WindowsSyncWriter {
     await this.check(job)
     checkArchiveAbort(job.signal)
     try {
+      if (nomediaPath !== null) {
+        await this.io.unlink(nomediaPath)
+      }
       await (isDirectory ? this.io.rmdir(path) : this.io.unlink(path))
     } catch (error) {
       const current = await lstat(path, { bigint: true }).catch(() => null)

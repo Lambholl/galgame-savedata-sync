@@ -18,6 +18,7 @@ export interface DirectoryNativePlugin {
   chooseDirectory(): Promise<unknown>
   listRoots(): Promise<unknown>
   listDirectory(options: { rootId: string; parentId: string | null }): Promise<unknown>
+  addNomedia(options: { rootId: string }): Promise<unknown>
 }
 
 /** 本机目录接口：选择、列出和浏览已登记的目录。所有方法的失败都以错误结果返回。 */
@@ -31,6 +32,19 @@ export interface AndroidDirectoryApi {
     rootId: string,
     parentId?: string | null,
   ): Promise<OperationResult<DirectoryListing>>
+  /**
+   * 在根目录下新建空的 .nomedia 文件，已有同名普通文件时不改动；之后请求系统媒体库重扫根目录。
+   *
+   * @returns 成功时为 created（新建）或 exists（已经有了）；没有写权限、同名的是文件夹或读写失败时返回错误结果。
+   */
+  addNomedia(rootId: string): Promise<OperationResult<NomediaOutcome>>
+}
+
+/** 添加 .nomedia 的结果：created 是新建，exists 是已经有了。 */
+export type NomediaOutcome = 'created' | 'exists'
+
+function isNomediaOutcome(value: unknown): value is NomediaOutcome {
+  return value === 'created' || value === 'exists'
 }
 
 const BRIDGE_ERROR: OperationError = {
@@ -111,6 +125,29 @@ export function createDirectoryBridge(
           return { status: 'error', error: BRIDGE_ERROR }
         }
         return result
+      } catch {
+        return { status: 'error', error: BRIDGE_ERROR }
+      }
+    },
+    async addNomedia(rootId: string): Promise<OperationResult<NomediaOutcome>> {
+      if (!isOpaqueId(rootId)) {
+        return {
+          status: 'error',
+          error: {
+            code: 'invalid-request',
+            message: 'The directory reference format is invalid.',
+            canRetry: false,
+          },
+        }
+      }
+      if (!isAndroid()) {
+        return { status: 'error', error: UNSUPPORTED }
+      }
+      try {
+        const result = await plugin.addNomedia({ rootId })
+        return isOperationResult(result, isNomediaOutcome)
+          ? result
+          : { status: 'error', error: BRIDGE_ERROR }
       } catch {
         return { status: 'error', error: BRIDGE_ERROR }
       }

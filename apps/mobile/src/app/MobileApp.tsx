@@ -65,6 +65,7 @@ import { GamesPage } from '../features/games/GamesPage'
 import { GameSettingsPage } from '../features/games/GameSettingsPage'
 import { SettingsPage } from '../features/settings/SettingsPage'
 import { setAppPreferences, useAppPreferences } from './app-preferences'
+import { addNomedia } from './nomedia'
 import { SyncCopyPage } from '../features/transfer/SyncCopyPage'
 import { SyncTaskDetails } from '../features/transfer/SyncTaskDetails'
 import { useSyncTasks } from '../features/transfer/use-sync-tasks'
@@ -565,7 +566,9 @@ export function MobileApp({
         throw new OperationFailure(result.error.code, result.error.message)
       }
       if (result.status === 'selected') {
-        await saveGame({ ...game, rootId: result.directory.rootId })
+        const item = { ...game, rootId: result.directory.rootId }
+        await saveGame(item)
+        addNomedia([item])
       }
     })
   }
@@ -709,6 +712,7 @@ export function MobileApp({
             links: [],
           }
       await adapter.saveGames([...current.games, item])
+      addNomedia([item])
       if (hasPosterFailed) {
         appMessage.show({ type: 'warning', content: t('poster.importFailed'), slot: 'poster' })
       }
@@ -1237,6 +1241,7 @@ export function MobileApp({
     body = (
       <SettingsPage
         sync={sync}
+        games={config.games}
         preferences={appPreferences}
         onChange={(next) => {
           setAppPreferences(next).catch((failure: unknown) => {

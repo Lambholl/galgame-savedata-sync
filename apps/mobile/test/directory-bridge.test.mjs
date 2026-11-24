@@ -31,7 +31,7 @@ function fixture() {
   }
 }
 
-test('有限桥保留取消与恢复语义，只接受目录引用，不暴露内容/写入接口', async () => {
+test('有限桥保留取消与恢复语义，只接受目录引用，写入只有添加 .nomedia', async () => {
   const state = fixture()
   const api = createDirectoryBridge(state.plugin, () => true)
   assert.deepEqual(await api.chooseDirectory(), { status: 'selected', directory: root })
@@ -40,7 +40,12 @@ test('有限桥保留取消与恢复语义，只接受目录引用，不暴露�
   assert.deepEqual((await api.listRoots()).value, [root])
   assert.deepEqual((await api.listDirectory(root.rootId)).value, listing)
   assert.deepEqual(state.calls, [{ rootId: root.rootId, parentId: null }])
-  assert.deepEqual(Object.keys(api).sort(), ['chooseDirectory', 'listDirectory', 'listRoots'])
+  assert.deepEqual(Object.keys(api).sort(), [
+    'addNomedia',
+    'chooseDirectory',
+    'listDirectory',
+    'listRoots',
+  ])
   assert.equal(Object.isFrozen(api), true)
 })
 

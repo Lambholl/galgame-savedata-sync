@@ -634,6 +634,27 @@ const COMMANDS = {
           : adb(['shell', 'ls', '-laR', `${FIXTURE_ROOT}/${requireName(name)}`]),
       ),
   },
+  'media-ls': {
+    group: `测试文件（只在 ${FIXTURE_ROOT} 下）`,
+    usage: '',
+    summary: '系统媒体库收录的测试目录条目：媒体类型（1 是图片，0 是不算媒体）和相对路径',
+    run: () => {
+      // 媒体库按实际路径记录，不认 /sdcard 这个别名，所以按测试目录的末段匹配。
+      const marker = `/${FIXTURE_ROOT.split('/').slice(-2).join('/')}/`
+      const output = adb([
+        'shell',
+        `content query --uri content://media/external/file --projection _data:media_type --where "_data LIKE '%${marker}%'"`,
+      ])
+      const rows = []
+      for (const line of output.split('\n')) {
+        const match = /_data=(\/.*), media_type=(\d+)$/.exec(line.trim())
+        if (match) {
+          rows.push(`${match[2]} ${match[1].slice(match[1].indexOf(marker) + marker.length)}`)
+        }
+      }
+      print(rows.length > 0 ? rows.sort().join('\n') : output.trim())
+    },
+  },
   'fixture-sum': {
     group: `测试文件（只在 ${FIXTURE_ROOT} 下）`,
     usage: '<名称>',

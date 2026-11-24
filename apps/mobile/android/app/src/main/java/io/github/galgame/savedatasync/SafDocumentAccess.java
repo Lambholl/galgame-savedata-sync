@@ -59,6 +59,17 @@ final class SafDocumentAccess implements DocumentAccess {
         throw new IOException("Provider ID mismatch");
       }
       return snapshot;
+    } catch (IllegalArgumentException cause) {
+      // 系统存储提供者经树 URI 查询已删除的文档时，判断不了它是否在树内，抛 IllegalArgumentException
+      // 而不是返回空结果；原始的 FileNotFoundException 跨进程后丢失。树根还能查到时，按文档不在这棵树里处理。
+      String rootId = DocumentsContract.getTreeDocumentId(tree);
+      if (documentId.equals(rootId)) {
+        throw cause;
+      }
+      query(tree, rootId, signal);
+      FileNotFoundException missing = new FileNotFoundException("Document missing from the tree");
+      missing.initCause(cause);
+      throw missing;
     }
   }
 

@@ -195,6 +195,20 @@ public class DirectoriesPlugin extends Plugin {
     );
   }
 
+  /** 在根目录下补上 .nomedia；参数只能是 rootId。 */
+  @PluginMethod
+  public void addNomedia(PluginCall call) {
+    JSObject data = call.getData();
+    Object root = data.opt("rootId");
+    if (data.length() != 1 || !DocumentValues.isId(root)) {
+      call.resolve(
+        new DirectoryFailure("invalid-request", "Directory write parameters are invalid.").result()
+      );
+      return;
+    }
+    submit(call, signal -> success(store().addNomedia((String) root, signal)));
+  }
+
   @Override
   protected void handleOnDestroy() {
     isDestroyed = true;

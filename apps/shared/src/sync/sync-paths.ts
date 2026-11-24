@@ -47,6 +47,17 @@ export function isWriteCandidateName(name: string): boolean {
   return WRITE_CANDIDATE_NAME.test(name)
 }
 
+/** 让 Android 媒体扫描跳过所在文件夹的标记文件名。 */
+export const NOMEDIA_NAME = '.nomedia'
+
+/**
+ * 判断普通文件是否不参与扫描、比较、备份和恢复：写入候选文件和 NOMEDIA_NAME。
+ * 只做精确匹配，大小写不同的名称照常同步。
+ */
+export function isUnsyncedFileName(name: string): boolean {
+  return name === NOMEDIA_NAME || isWriteCandidateName(name)
+}
+
 /** 生成路径的比较键：用 JSON 数组编码，名称含分隔符时也不会碰撞。 */
 export function syncPathKey(path: readonly string[]): string {
   return JSON.stringify(path)

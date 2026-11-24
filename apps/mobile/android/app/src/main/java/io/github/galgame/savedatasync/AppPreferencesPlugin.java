@@ -15,13 +15,16 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 
-/** 界面偏好（主题、语言）的原生插件：偏好保存在应用私有 SharedPreferences，主题同时设置 AppCompat 夜间模式。 */
+/** 界面偏好（主题、语言、自动添加 .nomedia）的原生插件：偏好保存在应用私有 SharedPreferences，主题同时设置 AppCompat 夜间模式。 */
 @CapacitorPlugin(name = "AppPreferences")
 public class AppPreferencesPlugin extends Plugin {
 
   static final String FILE = "app-preferences";
   static final List<String> THEMES = Arrays.asList("system", "light", "dark");
   static final List<String> LOCALES = Arrays.asList("system", "zh-CN", "zh-TW", "en-US", "ja-JP");
+
+  /** “自动添加 .nomedia”开关在 {@link #FILE} 里的键，值为布尔值；没有这个键时开关关闭。 */
+  static final String ADD_NOMEDIA = "addNomedia";
 
   private static SharedPreferences store(Context context) {
     return context.getSharedPreferences(FILE, Context.MODE_PRIVATE);
@@ -65,6 +68,38 @@ public class AppPreferencesPlugin extends Plugin {
     value.put("theme", stored(store, "theme", THEMES));
     value.put("locale", stored(store, "locale", LOCALES));
     return value;
+  }
+
+  // 其他类型的值当作没有保存，按关闭处理；类型不对的值在启动时由 AppDataRecovery 删除。
+  private static boolean shouldAddNomedia(SharedPreferences store) {
+    return Boolean.TRUE.equals(store.getAll().get(ADD_NOMEDIA));
+  }
+
+  private static JSObject nomediaSnapshot(SharedPreferences store) {
+    JSObject value = new JSObject();
+    value.put("shouldAddNomedia", shouldAddNomedia(store));
+    return value;
+  }
+
+  @PluginMethod
+  public void readNomediaSetting(PluginCall call) {
+    call.resolve(nomediaSnapshot(store(getContext())));
+  }
+
+  /** 保存是否自动添加 .nomedia，返回保存后的值。 */
+  @PluginMethod
+  public void writeNomediaSetting(PluginCall call) {
+    Boolean shouldAddNomedia = call.getBoolean("shouldAddNomedia");
+    if (shouldAddNomedia == null) {
+      call.reject("invalid-request");
+      return;
+    }
+    SharedPreferences store = store(getContext());
+    if (!store.edit().putBoolean(ADD_NOMEDIA, shouldAddNomedia).commit()) {
+      call.reject("io-failure");
+      return;
+    }
+    call.resolve(nomediaSnapshot(store));
   }
 
   @PluginMethod

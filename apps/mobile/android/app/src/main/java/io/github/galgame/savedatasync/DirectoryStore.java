@@ -6,12 +6,14 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.UriPermission;
 import android.database.Cursor;
+import android.media.MediaScannerConnection;
 import android.net.Uri;
 import android.os.CancellationSignal;
 import android.os.OperationCanceledException;
 import android.provider.DocumentsContract;
 import android.provider.DocumentsContract.Document;
 import com.getcapacitor.JSObject;
+import java.io.File;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -418,6 +420,61 @@ final class DirectoryStore {
         );
       }
       return new PublicationDirectory(rootId, parentId, id, current.name, root.uri);
+    } catch (Exception cause) {
+      throw DirectoryFailure.from(cause);
+    }
+  }
+
+  /**
+   * 在根目录下新建空的 {@link SyncScanner#NOMEDIA_NAME} 文件，已有同名普通文件时不改动；之后请求系统媒体库重扫根目录。
+   *
+   * <p>重扫在后台进行，结果不回报；根目录不属于系统存储提供者时不重扫。
+   *
+   * @return 新建时为 {@code "created"}，已经存在时为 {@code "exists"}。
+   * @throws DirectoryFailure 没有持久写权限（permission-denied），根目录不支持新建或同名的是文件夹
+   *     （unsupported-operation），或者提供者读写失败。
+   */
+  synchronized String addNomedia(String rootId, CancellationSignal signal) throws DirectoryFailure {
+    try {
+      PublicationDirectory root = publicationDirectory(rootId, null, signal, true);
+      DocumentAccess documents = access(root.tree);
+      String outcome = "created";
+      for (Snapshot child : documents.children(root.tree, root.documentId, signal)) {
+        if (SyncScanner.NOMEDIA_NAME.equals(child.name)) {
+          if (child.isDirectory) {
+            throw new DirectoryFailure(
+              "unsupported-operation",
+              "A folder with the same name already exists."
+            );
+          }
+          outcome = "exists";
+        }
+      }
+      if (outcome.equals("created")) {
+        signal.throwIfCanceled();
+        String id = documents.create(
+          root.tree,
+          root.documentId,
+          "application/octet-stream",
+          SyncScanner.NOMEDIA_NAME
+        );
+        // 列出之后有同名条目出现时，SAF 会换个名字创建；多出来的文件删掉，不留在用户目录里。
+        if (!SyncScanner.NOMEDIA_NAME.equals(documents.query(root.tree, id, signal).name)) {
+          documents.delete(root.tree, id);
+          throw new DirectoryFailure("source-changed", "The directory changed. Try again.");
+        }
+      }
+      // 新建 .nomedia 不会让媒体库重扫所在目录，目录里的图片会继续出现在相册里，要按实际路径请求重扫。
+      // 已有 .nomedia 时也重扫：它可能是在媒体库没有重扫的情况下放进来的。
+      File directory = DirectoryDisplay.location(
+        context,
+        root.tree.getAuthority(),
+        root.documentId
+      );
+      if (directory != null) {
+        MediaScannerConnection.scanFile(context, new String[] { directory.getPath() }, null, null);
+      }
+      return outcome;
     } catch (Exception cause) {
       throw DirectoryFailure.from(cause);
     }

@@ -35,6 +35,8 @@ export const zhCN = {
   'settings.version': '版本',
   'settings.storage': '存储',
   'settings.directAccess': '直接读写文件',
+  'settings.addNomedia': '自动添加 .nomedia',
+  'settings.addNomediaFailed': '以下游戏的存档目录未能添加 .nomedia',
   'directAccess.openFailed': '无法打开系统授权页',
   'directAccess.prompt.title': '开启直接读写文件？',
   'directAccess.prompt.text': '允许“所有文件访问权限”后，扫描、备份和写入会快很多。',
