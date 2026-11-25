@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdir, readFile, readdir, rmdir, unlink, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, readdir, rm, rmdir, unlink, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { PassThrough, Readable } from 'node:stream'
 import { createDesktopArchiveAdapter } from '../apps/desktop/src/backend/archive-adapter.ts'
@@ -19,6 +19,10 @@ assert.ok(
   ['prepare', 'verify', 'verify-device', 'verify-device-saf'].includes(mode),
   'Use prepare, verify, verify-device or verify-device-saf',
 )
+if (mode === 'prepare') {
+  // 上次运行留下的目录配置可能是现在读不懂的旧格式，每次准备都从空目录开始。
+  await rm(OUTPUT, { recursive: true, force: true })
+}
 await mkdir(OUTPUT, { recursive: true })
 const source = await createDirectoryAdapter(join(OUTPUT, 'directories.json'))
 const privateDirectory = join(OUTPUT, 'private')

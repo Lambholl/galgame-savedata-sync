@@ -28,7 +28,7 @@ tags: [代码地图]
 | `scripts/check-text.mjs`、`scripts/check-dependency-specs.mjs`、`eslint.config.mjs`、`tsconfig.base.json` | 编码、格式、依赖版本写法、lint 和严格类型检查 | 生成目录不作为手写代码格式化 |
 | `scripts/free-port.mjs`、`scripts/dev-android.mjs`、`apps/desktop/scripts/dev.mjs` | 开发服务器选端口：从首选端口往后找空闲的。`dev:android` 在本进程启动移动端 Vite，并把手机上的 5173 经 `device.mjs reverse` 接到实际端口；电脑端 `pnpm dev` 把实际端口经 `tauri dev --config` 写进 devUrl、启动命令和 devCsp | 选好端口后以 strictPort 启动，冲突时直接失败；手机上的端口固定，和 `android-build.mjs` 写入的 `server.url` 一致 |
 | `scripts/android-build.mjs`、`scripts/android-open.mjs` | 原生构建、单元/lint/双 APK 检查、依赖清单与 IDE 入口；`--dev-server` 在同步生成的 `capacitor.config.json` 里写入 `server.url`，构建加载电脑 Vite 的 debug 包 | 不连接设备；只对子进程传入 SDK/JDK；IDE 不存在时明确失败；Windows 以 `.\gradlew.bat` 显式相对路径调用 Wrapper，兼容设置了 NoDefaultCurrentDirectoryInExePath 的 shell；`app/build.gradle` 在配置带 `server.url` 时拒绝构建 release 包 |
-| `scripts/verify-archive-interop.mjs` | 构建前 Windows 准备、构建后 Windows 接收 Java 输出，另支持设备产物及 SAF 原文验证 | 只操作固定报告目录中的合成数据，测试 APK 不包含主机路径配置 |
+| `scripts/verify-archive-interop.mjs` | 构建前 Windows 准备、构建后 Windows 接收 Java 输出，另支持设备产物及 SAF 原文验证 | 只操作固定报告目录中的合成数据，准备时先清空这个目录，测试 APK 不包含主机路径配置 |
 | `scripts/security-check.mjs`、`scripts/toolchain-policy.mjs` | npm 全量审计、pnpm 公告与 Node 安全补丁门禁 | 查询失败即失败；Node 的安全发布和维护期运行时向官方查询，打包进 sidecar 的 Node 达不到所在主版本最新的安全发布时失败，本机 Node 只提示 |
 | `scripts/android-inventory.gradle`、`scripts/security-android.mjs` | 解析 Maven 实际依赖并查询 OSV | 含运行、测试和构建图；未解析依赖导致失败；临时报告在 .reports/ |
 | `.github/workflows/ci.yml` | Windows 工程检查（含 Clippy 和 rustfmt）与 Android 构建 CI | Action 固定 commit SHA；Rust 编译缓存用 rust-cache；只处理分支 push 与 PR，tag 交给发布流程 |
