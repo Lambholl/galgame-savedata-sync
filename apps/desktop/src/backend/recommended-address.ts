@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process'
+import { access, readFile } from 'node:fs/promises'
 import { isIPv4 } from 'node:net'
 import { networkInterfaces } from 'node:os'
 import { join } from 'node:path'
@@ -19,19 +20,25 @@ const TCPIP_INTERFACES_KEY =
 /** Characteristics 的 NCF_VIRTUAL 和 NCF_PHYSICAL 位，由网卡驱动安装信息写入。 */
 const NCF_VIRTUAL = 0x1
 const NCF_PHYSICAL = 0x4
+/** `/proc/net/route` 的 Flags 列里表示路由已启用的位（内核的 RTF_UP）。 */
+const RTF_UP = 0x1
 
 /** 本机一个 IPv4 地址及其所在网卡的信息，用来判断其他设备能不能访问到它。 */
 export interface NetworkAddressCandidate {
   readonly address: string
   readonly interfaceName: string
   /**
-   * 网卡驱动声明自己是物理网卡（NCF_PHYSICAL 且不是 NCF_VIRTUAL），如 PCI 有线网卡、无线网卡和 USB 网卡；
-   * 虚拟机、Hyper-V、VPN、代理和热点网卡都不是。注册表里找不到这个地址时按非物理网卡处理。
+   * 地址在物理网卡上，如 PCI 有线网卡、无线网卡和 USB 网卡；虚拟机、Hyper-V、Docker、网桥、VPN、代理和热点网卡都不是。
+   * Windows 上指网卡驱动声明了 NCF_PHYSICAL 且没有 NCF_VIRTUAL，注册表里找不到这个地址时按非物理网卡处理；
+   * Linux 上指 `/sys/class/net/<网卡>/device` 存在。
    */
   readonly isPhysical: boolean
   /** 地址所在网卡上有 IPv4 默认路由。 */
   readonly hasDefaultRoute: boolean
-  /** 有默认路由时取默认路由的 metric，否则取本机地址主机路由的 metric。越小越优先。 */
+  /**
+   * 有默认路由时取默认路由的 metric；没有时 Windows 取本机地址主机路由的 metric，Linux 取这块网卡上路由的最小 metric。
+   * 越小越优先。
+   */
   readonly metric: number
 }
 
@@ -41,6 +48,20 @@ export interface LocalRouteMetrics {
   readonly defaultRoutes: ReadonlyMap<string, number>
   /** 本机地址 → 指向它自己的主机路由（/32）的 metric，等于接口 metric 加 256。 */
   readonly hostRoutes: ReadonlyMap<string, number>
+}
+
+/** `/proc/net/route` 中按网卡名整理出的路由 metric。 */
+export interface InterfaceRouteMetrics {
+  /** 网卡名 → 经它出去的默认路由（0.0.0.0/0）中最小的 metric。 */
+  readonly defaultRoutes: ReadonlyMap<string, number>
+  /** 网卡名 → 它上面全部路由中最小的 metric。 */
+  readonly interfaceRoutes: ReadonlyMap<string, number>
+}
+
+/** 本机一块网卡上的一个非回环 IPv4 地址。 */
+interface LocalAddress {
+  readonly address: string
+  readonly interfaceName: string
 }
 
 /** Windows 移动热点和 Internet 连接共享固定使用的本机地址；这块网卡是虚拟的、没有默认路由，但连上热点的设备能访问。 */
@@ -73,6 +94,36 @@ export function parseRoutePrint(output: string): LocalRouteMetrics {
     }
   }
   return { defaultRoutes, hostRoutes }
+}
+
+/**
+ * 解析 Linux 的 `/proc/net/route`（主路由表）。目标和掩码是小端序的十六进制，
+ * 默认路由两列都是 00000000；Flags 是十六进制，只统计带 RTF_UP 的路由；Metric 是十进制。表头行被跳过。
+ */
+export function parseProcNetRoute(output: string): InterfaceRouteMetrics {
+  const defaultRoutes = new Map<string, number>()
+  const interfaceRoutes = new Map<string, number>()
+  for (const line of output.split('\n')) {
+    const [name = '', destination = '', , flags = '', , , metricText = '', mask = ''] = line
+      .trim()
+      .split(/\s+/)
+    const metric = Number(metricText)
+    if (
+      !/^[0-9A-F]{8}$/i.test(destination) ||
+      !/^[0-9A-F]{8}$/i.test(mask) ||
+      !/^[0-9A-F]+$/i.test(flags) ||
+      (Number.parseInt(flags, 16) & RTF_UP) === 0 ||
+      !/^\d+$/.test(metricText) ||
+      !Number.isSafeInteger(metric)
+    ) {
+      continue
+    }
+    setMinimum(interfaceRoutes, name, metric)
+    if (Number.parseInt(destination, 16) === 0 && Number.parseInt(mask, 16) === 0) {
+      setMinimum(defaultRoutes, name, metric)
+    }
+  }
+  return { defaultRoutes, interfaceRoutes }
 }
 
 /** `reg query` 输出中的一个值；data 是 reg 打印的原文，REG_MULTI_SZ 各项以 `\0` 分隔。 */
@@ -214,15 +265,9 @@ async function readRegistry(args: readonly string[]): Promise<string> {
   }
 }
 
-/**
- * 读取本机非回环 IPv4 地址，查询路由表和注册表，返回按 rankNetworkAddresses 选出并排序的地址。
- * 系统命令在隐藏窗口里运行，每个最长等 10 秒。
- * 路由表读取失败或不是 Windows 时 reject；注册表读取失败时按没有物理网卡处理。
- */
-export async function queryNetworkAddresses(): Promise<NetworkAddressCandidate[]> {
-  if (process.platform !== 'win32') {
-    throw new Error('Network address selection requires Windows.')
-  }
+async function describeWindowsAddresses(
+  addresses: readonly LocalAddress[],
+): Promise<NetworkAddressCandidate[]> {
   const [routes, classIds, classCharacteristics, tcpip] = await Promise.all([
     runSystemTool('route.exe', ['print', '-4']),
     readRegistry([ADAPTER_CLASS_KEY, '/s', '/v', 'NetCfgInstanceId']),
@@ -231,22 +276,75 @@ export async function queryNetworkAddresses(): Promise<NetworkAddressCandidate[]
   ])
   const { defaultRoutes, hostRoutes } = parseRoutePrint(routes)
   const physical = parsePhysicalAddresses(`${classIds}\n${classCharacteristics}`, tcpip)
-  return rankNetworkAddresses(
-    Object.entries(networkInterfaces()).flatMap(([interfaceName, items]) =>
-      (items ?? [])
-        .filter((item) => item.family === 'IPv4' && !item.internal)
-        .map(({ address }) => {
-          const defaultMetric = defaultRoutes.get(address)
-          return {
-            address,
-            interfaceName,
-            isPhysical: physical.has(address),
-            hasDefaultRoute: defaultMetric !== undefined,
-            metric: defaultMetric ?? hostRoutes.get(address) ?? UNKNOWN_METRIC,
-          }
-        }),
-    ),
+  return addresses.map(({ address, interfaceName }) => {
+    const defaultMetric = defaultRoutes.get(address)
+    return {
+      address,
+      interfaceName,
+      isPhysical: physical.has(address),
+      hasDefaultRoute: defaultMetric !== undefined,
+      metric: defaultMetric ?? hostRoutes.get(address) ?? UNKNOWN_METRIC,
+    }
+  })
+}
+
+async function hasDeviceLink(device: string): Promise<boolean> {
+  try {
+    await access(join('/sys/class/net', device, 'device'))
+    return true
+  } catch {
+    // 网桥、veth、TUN 等虚拟网卡没有 device 链接；读不到 sysfs 时同样按非物理网卡处理，只影响排序。
+    return false
+  }
+}
+
+async function describeLinuxAddresses(
+  addresses: readonly LocalAddress[],
+): Promise<NetworkAddressCandidate[]> {
+  const { defaultRoutes, interfaceRoutes } = parseProcNetRoute(
+    await readFile('/proc/net/route', 'latin1'),
   )
+  // os.networkInterfaces 把带标签的附加地址报成 `eth0:1`；路由表和 sysfs 只认冒号前的网卡名，内核不允许网卡名含冒号。
+  const deviceOf = (interfaceName: string): string => interfaceName.split(':')[0] ?? interfaceName
+  const devices = [...new Set(addresses.map(({ interfaceName }) => deviceOf(interfaceName)))]
+  const physical = new Set(
+    (
+      await Promise.all(
+        devices.map(async (device) => ((await hasDeviceLink(device)) ? device : null)),
+      )
+    ).filter((device) => device !== null),
+  )
+  return addresses.map(({ address, interfaceName }) => {
+    const device = deviceOf(interfaceName)
+    const defaultMetric = defaultRoutes.get(device)
+    return {
+      address,
+      interfaceName,
+      isPhysical: physical.has(device),
+      hasDefaultRoute: defaultMetric !== undefined,
+      metric: defaultMetric ?? interfaceRoutes.get(device) ?? UNKNOWN_METRIC,
+    }
+  })
+}
+
+/**
+ * 读取本机非回环 IPv4 地址，按系统的路由表和网卡信息返回 rankNetworkAddresses 选出并排序的地址。
+ * Windows 上运行 route 和 reg，每个最长等 QUERY_TIMEOUT_MS，窗口隐藏；Linux 上读 `/proc/net/route` 和 `/sys/class/net`。
+ * 路由表读取失败或系统不是 Windows 和 Linux 时 reject；网卡信息读取失败时按没有物理网卡处理。
+ */
+export async function queryNetworkAddresses(): Promise<NetworkAddressCandidate[]> {
+  const addresses = Object.entries(networkInterfaces()).flatMap(([interfaceName, items]) =>
+    (items ?? [])
+      .filter((item) => item.family === 'IPv4' && !item.internal)
+      .map(({ address }) => ({ address, interfaceName })),
+  )
+  if (process.platform === 'win32') {
+    return rankNetworkAddresses(await describeWindowsAddresses(addresses))
+  }
+  if (process.platform === 'linux') {
+    return rankNetworkAddresses(await describeLinuxAddresses(addresses))
+  }
+  throw new Error('Network address selection requires Windows or Linux.')
 }
 
 /** 带缓存的本机 IPv4 地址读取器。 */

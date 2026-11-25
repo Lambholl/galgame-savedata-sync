@@ -32,6 +32,12 @@ import { DesktopSyncScanner } from '../src/backend/sync-scanner.ts'
 // 样本按格式版本冻结在 fixtures/compat：<所属端>/<数据项>/v<版本>.json，备份是 shared/backup/v<清单版本>/ 下的备份库。
 const COMPAT = fileURLToPath(new URL('./fixtures/compat/', import.meta.url))
 
+// 目录登记和备份库位置保存本机绝对路径，Windows 和 Linux 互不认对方的写法，所以这两项按平台各存一份样本：
+// Windows 的在数据项目录下，Linux 的在它的 linux 子目录里，每个平台只核对自己的样本。
+function platformSamples(directory) {
+  return process.platform === 'linux' ? `${directory}/linux` : directory
+}
+
 async function createBase(t) {
   const base = await mkdtemp(join(await realpath(tmpdir()), 'savedata-compat-test-'))
   t.after(() => rm(base, { recursive: true, force: true }))
@@ -83,7 +89,7 @@ const ITEMS = [
   },
   {
     item: 'directories',
-    directory: 'desktop/directories',
+    directory: platformSamples('desktop/directories'),
     version: DIRECTORY_REGISTRY_SCHEMA_VERSION,
     read: async (path) => {
       const registry = await loadDirectoryRegistry(path)
@@ -113,7 +119,7 @@ const ITEMS = [
   },
   {
     item: 'backup-library',
-    directory: 'desktop/backup-library',
+    directory: platformSamples('desktop/backup-library'),
     version: BACKUP_LOCATION_SCHEMA_VERSION,
     read: async (path) => {
       const location = await readBackupLocation(path)

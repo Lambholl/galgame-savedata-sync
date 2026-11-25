@@ -38,6 +38,8 @@ const RECONNECT_DELAY_MS = 2000
 const CONTROL_GRACE_MS = 10_000
 /** 按设备 ID 查找新地址的时长。 */
 const LOOKUP_TIMEOUT_MS = 5000
+/** 计算机名为空时发给对方的本机名称，让对方至少能看出是哪种系统的电脑。 */
+const FALLBACK_NAME = process.platform === 'linux' ? 'Linux' : 'Windows'
 /** 这些错误说明地址上可能已经不是这台设备，可以换地址再试。 */
 const RELOCATABLE_CODES: readonly OperationErrorCode[] = [
   'network-failure',
@@ -120,7 +122,7 @@ export class DesktopDialer implements LibraryDialer {
   private readonly localName: string
 
   /**
-   * @param displayName 交换目录表时发给对方的本机名称，默认用计算机名。
+   * @param displayName 交换目录表时发给对方的本机名称，默认用计算机名，两者都为空时用 FALLBACK_NAME。
    */
   constructor(
     private readonly library: DialerLibrary,
@@ -129,7 +131,7 @@ export class DesktopDialer implements LibraryDialer {
     displayName?: string,
   ) {
     this.localName =
-      (displayName ?? hostname()).trim().slice(0, LIBRARY_LIMITS.maxNameLength) || 'Windows'
+      (displayName ?? hostname()).trim().slice(0, LIBRARY_LIMITS.maxNameLength) || FALLBACK_NAME
   }
 
   /** 连接状态和附近的设备，不续期搜索。 */

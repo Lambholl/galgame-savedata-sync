@@ -122,7 +122,7 @@ accepted。都还没实现，随 1.1.0 发布，拆分和进度见[工作包登�
 | --- | --- |
 | `apps/desktop/src-tauri/src/storage.rs` | 存储目录和便携模式判断 |
 | `apps/desktop/scripts/build-sidecar-exe.mjs`、`package-windows.mjs` | sidecar 编译和打包，要增加 Linux 目标 |
-| `apps/desktop/src/backend/recommended-address.ts` | 推荐地址，要增加 Linux 实现 |
+| `apps/desktop/src/backend/recommended-address.ts` | 推荐地址，Windows 和 Linux 各有实现 |
 | `apps/desktop/src/backend/directory-paths.ts`、`directory-adapter.ts` | 符号链接和特殊条目处理 |
 | `apps/shared/src/protocol/contracts.ts`、`validation.ts`、`apps/shared/src/connection/discovery.ts` | 设备平台的协议定义和校验 |
 | `apps/shared/src/library/library.ts`、`apps/mobile/android/.../ListenerLibrary.java`、`TransferSchema.java` | 游戏库版本和平台校验 |
