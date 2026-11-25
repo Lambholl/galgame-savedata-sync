@@ -1,15 +1,32 @@
 import { OperationFailure } from '../../result.ts'
-import { POSTER_LIMITS, POSTER_OUTPUT } from '../../poster/poster-contracts.ts'
+import {
+  POSTER_ENCODINGS,
+  POSTER_LIMITS,
+  POSTER_MIME_TYPES,
+  POSTER_OUTPUT,
+  detectPosterFormat,
+} from '../../poster/poster-contracts.ts'
 import type { PosterImageData } from '../../poster/poster-contracts.ts'
 
-/** 把 base64 内容解码成 Blob。 */
-export function base64ToBlob(data: string, mimeType: string): Blob {
+function base64ToBytes(data: string): Uint8Array<ArrayBuffer> {
   const binary = atob(data)
   const bytes = new Uint8Array(binary.length)
   for (let index = 0; index < binary.length; index++) {
     bytes[index] = binary.charCodeAt(index)
   }
-  return new Blob([bytes], { type: mimeType })
+  return bytes
+}
+
+/** 把 base64 内容解码成 Blob。 */
+export function base64ToBlob(data: string, mimeType: string): Blob {
+  return new Blob([base64ToBytes(data)], { type: mimeType })
+}
+
+/** 把 base64 编码的封面文件解码成 Blob，类型按文件开头的字节判断；判断不出时类型为空。 */
+export function posterFileToBlob(data: string): Blob {
+  const bytes = base64ToBytes(data)
+  const format = detectPosterFormat(bytes)
+  return new Blob([bytes], { type: format === null ? '' : POSTER_MIME_TYPES[format] })
 }
 
 /** 把 Blob 的内容编码成 base64。 */
@@ -25,13 +42,13 @@ export async function blobToBase64(blob: Blob): Promise<string> {
 }
 
 /**
- * 把下载或选取的图片等比缩小到 POSTER_OUTPUT 的宽高以内，编码成 WebP。
+ * 把下载或选取的图片等比缩小到 POSTER_OUTPUT 的宽高以内，按 POSTER_ENCODINGS 的顺序取 WebView 能编码的第一种格式。
  *
- * @returns base64 编码的 WebP。
+ * @returns base64 编码的封面文件。
  * @throws OperationFailure 图片解码不了时 code 为 invalid-request；结果超过
- *   POSTER_LIMITS.maxSavedBytes 时为 resource-limit；WebView 不能用 canvas 编码 WebP 时为 internal-error。
+ *   POSTER_LIMITS.maxSavedBytes 时为 resource-limit；WebView 一种格式都编码不了时为 internal-error。
  */
-export async function encodePosterWebp(image: PosterImageData): Promise<string> {
+export async function encodePosterImage(image: PosterImageData): Promise<string> {
   let bitmap: ImageBitmap
   try {
     bitmap = await createImageBitmap(base64ToBlob(image.data, image.mimeType))
@@ -55,12 +72,20 @@ export async function encodePosterWebp(image: PosterImageData): Promise<string> 
   context.imageSmoothingQuality = 'high'
   context.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
   bitmap.close()
-  const blob = await new Promise<Blob | null>((resolve) =>
-    canvas.toBlob(resolve, 'image/webp', POSTER_OUTPUT.webpQuality),
-  )
-  // 不支持 WebP 编码的环境会退回 PNG，保存端只收 WebP。
-  if (!blob || blob.type !== 'image/webp') {
-    throw new OperationFailure('internal-error', 'WebP encoding is unavailable.')
+  // 编码不了某种格式时 toBlob 不报错，而是改用 PNG，所以按结果的类型判断，例如 WebKit 不能编码 WebP。
+  let blob: Blob | null = null
+  for (const format of POSTER_ENCODINGS) {
+    const mimeType = POSTER_MIME_TYPES[format]
+    const encoded = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob(resolve, mimeType, POSTER_OUTPUT.quality),
+    )
+    if (encoded?.type === mimeType) {
+      blob = encoded
+      break
+    }
+  }
+  if (!blob) {
+    throw new OperationFailure('internal-error', 'The poster cannot be encoded.')
   }
   if (blob.size > POSTER_LIMITS.maxSavedBytes) {
     throw new OperationFailure('resource-limit', 'The encoded poster is too large.')

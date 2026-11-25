@@ -31,13 +31,46 @@ export const POSTER_LIMITS = {
   maxPreviewDownloads: 4,
 } as const
 
-/** 保存的封面图：等比缩小到宽高上限以内（小图不放大），编码成 WebP。 */
+/** 保存的封面图：等比缩小到宽高上限以内（小图不放大），按 POSTER_ENCODINGS 的顺序编码。 */
 export const POSTER_OUTPUT = {
   maxWidth: 720,
   maxHeight: 960,
-  /** WebP 编码质量，0～1。 */
-  webpQuality: 0.85,
+  /** WebP 和 JPEG 的编码质量，0～1。 */
+  quality: 0.85,
 } as const
+
+/** 封面文件的图片格式。 */
+export type PosterFormat = 'webp' | 'jpeg' | 'png'
+
+/** 各封面格式的 MIME 类型。 */
+export const POSTER_MIME_TYPES: Readonly<Record<PosterFormat, string>> = {
+  webp: 'image/webp',
+  jpeg: 'image/jpeg',
+  png: 'image/png',
+}
+
+/** 编码封面时依次尝试的格式：WebView 编码不了前一种时用后一种。 */
+export const POSTER_ENCODINGS: readonly PosterFormat[] = ['webp', 'jpeg', 'png']
+
+const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]
+
+function hasAscii(bytes: Uint8Array, offset: number, text: string): boolean {
+  return [...text].every((char, index) => bytes[offset + index] === char.charCodeAt(0))
+}
+
+/** 按文件开头的字节判断封面格式，不看扩展名或 MIME 类型；不是 WebP、JPEG、PNG 时返回 null。 */
+export function detectPosterFormat(bytes: Uint8Array): PosterFormat | null {
+  if (bytes.length >= 12 && hasAscii(bytes, 0, 'RIFF') && hasAscii(bytes, 8, 'WEBP')) {
+    return 'webp'
+  }
+  if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) {
+    return 'jpeg'
+  }
+  if (PNG_SIGNATURE.every((byte, index) => bytes[index] === byte)) {
+    return 'png'
+  }
+  return null
+}
 
 /** 执行器的超时，单位毫秒。 */
 export const POSTER_TIMEOUTS_MS = {
@@ -272,7 +305,7 @@ export interface PosterSaveResult {
 
 /** 读出的封面。 */
 export interface PosterFileData {
-  /** base64 编码的 WebP 内容。 */
+  /** base64 编码的封面文件，格式见 PosterFormat。 */
   readonly data: string
 }
 
@@ -322,7 +355,7 @@ export interface PeerPoster {
   readonly hash: string
   /** 对端记录的封面出处；对端配置里没有记录时为 null。 */
   readonly source: PosterOrigin | null
-  /** base64 编码的 WebP 内容，解码后不超过 POSTER_LIMITS.maxSavedBytes。 */
+  /** base64 编码的封面文件，格式见 PosterFormat，解码后不超过 POSTER_LIMITS.maxSavedBytes。 */
   readonly data: string
 }
 

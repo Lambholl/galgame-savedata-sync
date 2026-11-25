@@ -103,7 +103,7 @@ public class PosterPlugin extends Plugin {
           JSONObject game = games.getJSONObject(i);
           String posterHash = game.optString("posterHash", null);
           if (posterHash != null) {
-            kept.add(PosterStore.fileName(game.getString("id"), posterHash));
+            kept.addAll(PosterStore.fileNames(game.getString("id"), posterHash));
           }
         }
       }

@@ -1,11 +1,16 @@
 import { createHash, randomUUID } from 'node:crypto'
 import { mkdir, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises'
 import { extname, join } from 'node:path'
-import { POSTER_LIMITS, isOpaqueId, isPosterHash } from '@savedata-sync/shared'
-import type { LibraryGame, PosterImageData } from '@savedata-sync/shared'
+import { POSTER_LIMITS, detectPosterFormat, isOpaqueId, isPosterHash } from '@savedata-sync/shared'
+import type { LibraryGame, PosterFormat, PosterImageData } from '@savedata-sync/shared'
 import { HttpOperationError } from './http-errors.ts'
 
-const POSTER_EXTENSION = '.webp'
+/** 封面文件按格式用的扩展名。 */
+const POSTER_EXTENSIONS: Readonly<Record<PosterFormat, string>> = {
+  webp: '.webp',
+  jpeg: '.jpg',
+  png: '.png',
+}
 
 /** 本机选图对话框允许的扩展名和对应的 MIME 类型。 */
 const PICKED_IMAGE_TYPES: Readonly<Record<string, string>> = {
@@ -16,23 +21,20 @@ const PICKED_IMAGE_TYPES: Readonly<Record<string, string>> = {
   '.gif': 'image/gif',
 }
 
-function isWebp(data: Buffer): boolean {
-  return (
-    data.length >= 12 &&
-    data.toString('latin1', 0, 4) === 'RIFF' &&
-    data.toString('latin1', 8, 12) === 'WEBP'
-  )
+function posterFileName(gameId: string, posterHash: string, format: PosterFormat): string {
+  return `${gameId}.${posterHash}${POSTER_EXTENSIONS[format]}`
 }
 
-function posterFileName(gameId: string, posterHash: string): string {
-  return `${gameId}.${posterHash}${POSTER_EXTENSION}`
+/** 一个封面可能的文件名：posterHash 是内容的 hash，实际只会有其中一个。 */
+function posterFileNames(gameId: string, posterHash: string): string[] {
+  return Object.values(POSTER_EXTENSIONS).map((extension) => `${gameId}.${posterHash}${extension}`)
 }
 
 function isMissing(error: unknown): boolean {
   return error instanceof Error && 'code' in error && error.code === 'ENOENT'
 }
 
-/** 游戏封面文件，存在一个目录里，文件名是 `<游戏 ID>.<posterHash>.webp`。 */
+/** 游戏封面文件，存在一个目录里，文件名是 `<游戏 ID>.<posterHash>.<扩展名>`，扩展名按文件格式。 */
 export class PosterStore {
   readonly #directory: string
 
@@ -50,7 +52,7 @@ export class PosterStore {
     await mkdir(this.#directory, { recursive: true })
     const kept = new Set(
       games.flatMap((game) =>
-        game.posterHash === undefined ? [] : [posterFileName(game.id, game.posterHash)],
+        game.posterHash === undefined ? [] : posterFileNames(game.id, game.posterHash),
       ),
     )
     for (const entry of await readdir(this.#directory, { withFileTypes: true })) {
@@ -69,21 +71,25 @@ export class PosterStore {
   /**
    * 保存一个游戏的封面；同样内容的文件已存在时覆盖。
    *
-   * @param data base64 编码的 WebP。
+   * @param data base64 编码的封面文件，格式按开头的字节判断。
    * @returns 文件内容的 SHA-256，64 位小写十六进制。
-   * @throws HttpOperationError gameId 格式不对或内容不是 WebP 时 code 为 invalid-request；
+   * @throws HttpOperationError gameId 格式不对或内容不是 WebP、JPEG、PNG 时 code 为 invalid-request；
    *   超过 POSTER_LIMITS.maxSavedBytes 时为 resource-limit；写入失败时为 io-failure。
    */
   async save(gameId: string, data: string): Promise<string> {
     const content = Buffer.from(data, 'base64')
-    if (!isOpaqueId(gameId) || !isWebp(content)) {
-      throw new HttpOperationError('invalid-request', 'The poster must be a WebP image.')
+    const format = detectPosterFormat(content)
+    if (!isOpaqueId(gameId) || format === null) {
+      throw new HttpOperationError(
+        'invalid-request',
+        'The poster must be a WebP, JPEG or PNG image.',
+      )
     }
     if (content.length > POSTER_LIMITS.maxSavedBytes) {
       throw new HttpOperationError('resource-limit', 'The poster file is too large.')
     }
     const posterHash = createHash('sha256').update(content).digest('hex')
-    const target = join(this.#directory, posterFileName(gameId, posterHash))
+    const target = join(this.#directory, posterFileName(gameId, posterHash, format))
     const temporary = `${target}.${randomUUID()}.tmp`
     try {
       await mkdir(this.#directory, { recursive: true })
@@ -99,7 +105,7 @@ export class PosterStore {
   /**
    * 读出一个游戏的封面。
    *
-   * @returns base64 编码的 WebP。
+   * @returns base64 编码的封面文件。
    * @throws HttpOperationError 参数格式不对时 code 为 invalid-request；文件不存在时为 not-found；
    *   读取失败时为 io-failure。
    */
@@ -107,15 +113,17 @@ export class PosterStore {
     if (!isOpaqueId(gameId) || !isPosterHash(posterHash)) {
       throw new HttpOperationError('invalid-request', 'The poster parameters are invalid.')
     }
-    try {
-      const content = await readFile(join(this.#directory, posterFileName(gameId, posterHash)))
-      return content.toString('base64')
-    } catch (error) {
-      if (isMissing(error)) {
-        throw new HttpOperationError('not-found', 'The poster file does not exist.', error)
+    for (const name of posterFileNames(gameId, posterHash)) {
+      try {
+        const content = await readFile(join(this.#directory, name))
+        return content.toString('base64')
+      } catch (error) {
+        if (!isMissing(error)) {
+          throw new HttpOperationError('io-failure', 'Failed to read the poster.', error)
+        }
       }
-      throw new HttpOperationError('io-failure', 'Failed to read the poster.', error)
     }
+    throw new HttpOperationError('not-found', 'The poster file does not exist.')
   }
 }
 

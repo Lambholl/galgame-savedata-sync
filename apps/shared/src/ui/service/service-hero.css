@@ -1,13 +1,15 @@
 /*
  * 本机服务卡片、主开关和连接二维码，只引用 --ss-* 设计变量。
- * 排版按卡片自身宽度分三档：
- *   720px 及以上：信息 | 二维码 | 开关；
- *   520～719px：信息 | 开关，二维码收进地址旁的按钮；
- *   520px 以下：标题和运行信息在左、开关在右，地址单独占一整行，不会被开关压住。
+ * 排版分三种：
+ *   地址旁放得下二维码时：信息 | 二维码 | 开关；
+ *   放不下时（ServiceHero 量出实际宽度后加 is-qr-folded）：信息 | 开关，二维码收进地址旁的按钮；
+ *   卡片 520px 以下：标题和运行信息在左、开关在右，地址单独占一整行，不会被开关压住。
  * 紧凑排版（is-compact）在这三档之上缩小开关和边距，二维码总是收进按钮，见文件末尾。
  */
 
 .ss-service-hero {
+  /* 开关身后的光晕比开关大出的宽度；ServiceHero 判断能不能放下二维码时也用它。 */
+  --ss-service-glow: 18px;
   container-type: inline-size;
   border-radius: var(--ss-r-lg);
   background: var(--ss-raised);
@@ -195,7 +197,7 @@
 .ss-service-toggle-slot::before {
   content: '';
   position: absolute;
-  inset: -18px;
+  inset: calc(-1 * var(--ss-service-glow));
   border-radius: 50%;
   background: var(--ss-group);
   transition: background 0.3s;
@@ -311,16 +313,22 @@
   display: none;
 }
 
-@container (max-width: 719px) {
+/* 收起的二维码只隐藏、不占位置，ServiceHero 仍要量它的宽度来判断能不能展开。 */
+.ss-service-hero.is-qr-folded .ss-service-qr {
+  position: absolute;
+  visibility: hidden;
+}
+.ss-service-hero.is-qr-folded .ss-service-qr-button {
+  display: grid;
+}
+
+@container (max-width: 519px) {
   .ss-service-qr {
     display: none;
   }
   .ss-service-hero .ss-service-qr-button {
     display: grid;
   }
-}
-
-@container (max-width: 519px) {
   .ss-service-body {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
@@ -376,6 +384,7 @@
  * 选择器比按宽度切换的档位多一层，任何宽度下都优先。
  */
 .ss-service-hero.is-compact {
+  --ss-service-glow: 12px;
   border-radius: var(--ss-r-md);
 }
 .ss-service-hero.is-compact .ss-service-body {
@@ -383,9 +392,6 @@
 }
 .ss-service-hero.is-compact .ss-service-qr-button {
   display: grid;
-}
-.ss-service-hero.is-compact .ss-service-toggle-slot::before {
-  inset: -12px;
 }
 .ss-service-hero.is-compact .ss-service-toggle {
   width: 88px;

@@ -35,7 +35,7 @@ tags: [Windows, 电脑端, Tauri, sidecar, 存储目录]
 
 电脑端由两个进程组成（[ADR-0005](../decisions/ADR-0005-tauri-sidecar-and-storage-layout.md)）：
 
-- Tauri 宿主 `src-tauri`（Rust）：启动 sidecar，收到 `ready` 后打开主窗口，把界面请求经 `backend_invoke` 命令转给 sidecar，并应 sidecar 的 `host-request` 提供目录和图片文件选择器（`tauri-plugin-dialog`）、打开文件夹（`tauri-plugin-opener`）和窗口明暗。`storage.rs` 算出存储目录，`sidecar.rs` 管理 sidecar 进程和消息，`main.rs` 管窗口和生命周期。应用单实例运行（`tauri-plugin-single-instance`），再次启动时聚焦已有窗口；窗口没有菜单栏。
+- Tauri 宿主 `src-tauri`（Rust）：启动 sidecar，收到 `ready` 后打开主窗口，把界面请求经 `backend_invoke` 命令转给 sidecar，并应 sidecar 的 `host-request` 提供目录和图片文件选择器（`tauri-plugin-dialog`）、打开文件夹（`tauri-plugin-opener`）和窗口明暗。`storage.rs` 算出存储目录，`sidecar.rs` 管理 sidecar 进程和消息，`main.rs` 管窗口和生命周期。应用单实例运行（`tauri-plugin-single-instance`），再次启动时聚焦已有窗口；窗口没有菜单栏。Linux 上文件选择器用 GTK3 的对话框（`rfd` 的 `gtk3` 特性），不经桌面门户。
 - Node sidecar `src/sidecar/index.ts`（构建为 `out/sidecar/index.cjs`）：命令行参数 `--config-dir`、`--data-dir`、`--backup-dir`、`--cache-dir` 必须是绝对路径，`--languages <逗号分隔>` 可选。和宿主在 stdin/stdout 上每行交换一条 UTF-8 JSON，stderr 只写日志。宿主发 `invoke`（通道请求）、`shutdown`（停止服务）和 `host-result`；sidecar 发 `ready`（窗口标题、浅色和深色背景色、意外退出时的提示）、`fatal`（初始化失败，附可直接显示的标题和正文，随后以退出码 1 退出）、`result`、`shutdown-result`（`isStopped` 为 false 时附可直接显示的失败提示，进程继续运行）和 `host-request`（`chooseDirectory`、`chooseImageFile`、`openPath`、`setTheme`）。消息格式在 `src/sidecar/protocol.ts`，宿主的解析在 `src-tauri/src/sidecar.rs`，两边一起改。
 
 调试版宿主用 PATH 里的 `node` 运行 `out/sidecar/index.cjs`；发布版运行主程序旁边的 `savedata-sync-backend.exe`（打包见第 3 节）。`vite.sidecar.config.ts` 把 sidecar 打成单个 CommonJS 文件（pkg 直接打包 CommonJS 入口），第三方包全部打进产物，运行时只依赖 Node 内置模块。发布版内嵌的 Node 只带英文区域数据（small-icu），sidecar 和它加载的共享代码不用 `Intl.DateTimeFormat`、`toLocale*` 等依赖区域数据的接口，时间一律用毫秒时间戳或 ISO 8601 传给界面。
@@ -86,11 +86,11 @@ sidecar 可执行文件由 `apps/desktop/scripts/build-sidecar-exe.mjs` 用 `@ya
 
 应用标识为 `io.github.galgame.savedatasync`，产品名 `Savedata Sync`（安装目录、快捷方式和系统“应用”列表里的名称都用它，不随界面语言变化；窗口标题由 sidecar 按界面语言给出），主程序文件名 `SavedataSync`。WebView 数据放在缓存目录的 `webview` 子目录；界面不使用 localStorage、IndexedDB 等浏览器存储，删掉这个目录不丢数据。
 
-公共原图为仓库根目录的 `assets/app-logo.webp`（512 × 512 透明无损 WebP）。侧栏以 64×64 显示，HTML 图标和界面通过构建引用同一资源。`resources/app-icon.ico` 提供 Windows 多尺寸图标（16、20、24、32、40、48、64、96、128、256，256 为 PNG、其余为 32 位 BMP），由 `tauri.conf.json` 的 `bundle.icon` 指定，`tauri-build` 把它写进主程序资源，窗口也使用它。
+公共原图为仓库根目录的 `assets/app-logo.webp`（512 × 512 透明无损 WebP）。侧栏以 64×64 显示，HTML 图标和界面通过构建引用同一资源。`resources/app-icon.ico` 提供 Windows 多尺寸图标（16、20、24、32、40、48、64、96、128、256，256 为 PNG、其余为 32 位 BMP），由 `tauri.conf.json` 的 `bundle.icon` 指定，`tauri-build` 把它写进主程序资源，窗口也使用它。Linux 的窗口图标要 PNG，`bundle.icon` 另列 `resources/app-icon.png`，内容就是 ICO 里 256×256 的那一帧。
 
 ## 4. 系统明暗主题
 
-桌面默认跟随 Windows 系统外观，也可以在设置中选择浅色或深色；选择保存在本机，重启后继续使用。sidecar 读取偏好后经 `setTheme` 请求宿主设置窗口主题（跟随系统时传 None），WebView 的 `prefers-color-scheme` 随之变化；Renderer 读取 `prefers-color-scheme` 并切换 antd 的 `defaultAlgorithm`/`darkAlgorithm`，组件卸载释放监听。宿主先隐藏创建窗口，按实际明暗设好背景色再显示；切换主题和系统明暗变化时同步更新背景色。背景色取共用色板 `PALETTES` 的 `bg`，由 `ready` 消息带给宿主。主题使用共用色板与组件库语义色。
+桌面默认跟随系统外观，也可以在设置中选择浅色或深色；选择保存在本机，重启后继续使用。sidecar 读取偏好后经 `setTheme` 请求宿主设置窗口主题（跟随系统时传 None）。Renderer 用共享包的 `resolveTheme` 定主题：选了浅色或深色时直接用偏好，跟随系统时读 `prefers-color-scheme`，再切换 antd 的 `defaultAlgorithm`/`darkAlgorithm`，组件卸载释放监听。不能只读媒体查询：Windows 上 WebView2 的 `prefers-color-scheme` 跟着宿主设置的窗口主题变，Linux 上 WebKitGTK 的跟着 GTK 主题，宿主设置窗口主题只改 GTK 的深色偏好（`gtk-application-prefer-dark-theme`），GTK 主题本身是深色（如 Kali-Dark）时选浅色也仍报深色。Linux 上宿主判断“系统明暗”用桌面门户的 `color-scheme`，界面跟随系统时用的是 GTK 主题，两者不一致的桌面上窗口背景色可能和界面明暗不同。宿主先隐藏创建窗口，按实际明暗设好背景色再显示；切换主题和系统明暗变化时同步更新背景色。背景色取共用色板 `PALETTES` 的 `bg`，由 `ready` 消息带给宿主。主题使用共用色板与组件库语义色。
 
 ## 5. 目录适配器
 
@@ -121,7 +121,7 @@ sidecar 可执行文件由 `apps/desktop/scripts/build-sidecar-exe.mjs` 用 `@ya
 - 快照含设备 ID、本机设备名、配置端口、实际监听地址与开始监听的时间（Unix 毫秒）、本机 IPv4 地址、运行错误和局域网广播状态；没有 sessionId、私有路径或文件内容。
 - 本机 IPv4 由 `recommended-address.ts` 推荐：Windows 用 `route print -4` 查默认路由和 metric，用 `reg query` 查网卡驱动是否标记为物理网卡（NCF_PHYSICAL），按 IP 和 `os.networkInterfaces()` 对应，不启动 PowerShell，通常 0.2–0.3 秒；Linux 读 `/proc/net/route` 和 `/sys/class/net/<网卡>/device`，按网卡名对应，不运行外部命令。先取物理网卡且有默认网关的地址，没有时取任意有默认网关的地址，再加 Windows 移动热点 192.168.137.1；排除代理软件常用的 198.18.0.0/15，一个都没有时退回全部可用地址；按推荐顺序、去重，最多 8 个。服务每次启动后在后台重新读取，读到之前为 `null`，设备页显示读取中；之后缓存 30 秒并在后台刷新；查询失败时为空数组。
 - 设备页用设备 ID、实际端口和这组地址生成连接二维码，第一个地址作为显示和复制的地址。已保存的设备按最近连接排序：`library-store.ts` 在每次新连接（目录请求带 `x-sync-connect: 1`）时把该设备移到开头，连接期间的目录刷新不改顺序。
-- 设备页的本机服务卡片用 shared/ui `ServiceHero` 的常规排版，运行信息只有运行时长和局域网广播状态，连着哪台设备看下方设备列表里设备图标的绿点。已保存的设备行只显示名称和地址，状态只靠图标颜色表示：灰色是离线，蓝色是在线（附近搜到或已连接），已连接再在右下角加绿点；附近搜到时地址换成搜到的地址。服务停止时显示端口输入框和换随机端口的图标按钮（shared/ui `ShuffleIcon`，悬停提示“随机生成”）；窗口窄到一行放不下时，输入框和按钮一起换到标签下一行。设备列表的行不能点，不加悬停反馈。
+- 设备页的本机服务卡片用 shared/ui `ServiceHero` 的常规排版，运行信息只有运行时长和局域网广播状态。地址按原本的字号放在二维码左边放不下时，二维码收进地址旁的按钮，地址不缩小；放不放得下由 `ServiceHero` 量出地址的实际宽度来判断，不按固定的卡片宽度：比较的是看得见的边，复制按钮只算图标，地址行可以伸进二维码左侧的间距，和开关光晕（`--ss-service-glow`）伸进右侧间距一样多，二维码两边的空隙看起来一样宽；换字体或改系统缩放也不会把地址压到二维码底下。连着哪台设备看下方设备列表里设备图标的绿点。已保存的设备行只显示名称和地址，状态只靠图标颜色表示：灰色是离线，蓝色是在线（附近搜到或已连接），已连接再在右下角加绿点；附近搜到时地址换成搜到的地址。服务停止时显示端口输入框和换随机端口的图标按钮（shared/ui `ShuffleIcon`，悬停提示“随机生成”）；窗口窄到一行放不下时，输入框和按钮一起换到标签下一行。设备列表的行不能点，不加悬停反馈。
 - `chooseTarget()` 打开原生系统选择器，选中后登记为本机目录并返回 `DirectorySelectionResult`，取消返回 cancelled。全部 Promise 将失败转为脱敏错误。界面每秒读取状态，卸载停止轮询。
 
 服务开始监听后，`src/backend/discovery-advertiser.ts` 用 `@homebridge/ciao` 在局域网广播 `_savedata-sync._tcp`（格式见[共享包](shared-package.md#9-发现与连接二维码)）：实例名取本机名称，TXT 的 `pf` 取 `src/backend/local-platform.ts` 的 `LOCAL_PLATFORM`（Linux 上为 `linux`，其余为 `windows`；设备描述、目录表交换和封面 User-Agent 用同一个值），SRV 主机名由设备 ID 生成，只发 IPv4，每块网卡只回答这块网卡的地址；网卡增减或地址变化后 ciao 每 15 秒检查一次并重新宣告。停止服务和退出应用时发送 goodbye 包并关闭 UDP 5353 套接字，最多等 3 秒。广播失败不影响 HTTP 服务，快照的 `discovery.status` 为 `failed`，每 30 秒重试。`advertising` 只表示本机已发出宣告，防火墙拦截 UDP 5353 时其他设备仍然搜不到。
@@ -294,5 +294,7 @@ HTTP 测试使用真实回环 HTTP/TCP。
 数据文件的启动检查由 `test/data-recovery.test.mjs` 覆盖两件事：有数据由更新版本写入时报告这些项、所有文件不改名；旧版本和损坏的文件改名，界面偏好里不认识的字段不算读不懂。`test/compat-samples.test.mjs` 另外核对每条迁移链从基线到当前版本每个版本各有一步，低于 1.0 基线的数据改名保留；迁移执行函数的规则由共享包的 `test/migration.test.mjs` 覆盖。迁移后写回由旧版本样本覆盖：启动检查把游戏库 v2 样本迁移并写回后，只认当前版本的读取模块能读出。用构建出的 sidecar 和临时数据目录验证过：游戏库是更新版本、身份文件同时损坏时，按系统语言（中文、英文）发出“需要更新应用”的 fatal 提示，两个文件都原样保留；Tauri 宿主里的提示框没有实际打开看过。读不懂时的启动处理用临时脚本经 `startBackend` 验证过：六个数据文件分别是坏 JSON、非 UTF-8、错误的格式版本、字段取值越界或目录时都能启动，原文件改名保留，重置项列表完整，再次启动不重复报告。在开发版的便携模式下验证过界面：提示列出对应项，“打开数据文件夹”打开数据目录，关闭提示后列表清空。
 
 自定义备份库位置没有长期测试。在开发版的便携模式下验证过：经系统选择器换位置后位置文件写入、设置页显示新路径；文件夹改名后显示不可用，列表和打开文件夹报 `backup-unavailable`，文件夹不重建；位置不可用时重启照常；换回默认位置删掉位置文件；位置文件读不懂时按第 7 节改名并提示。本机手动备份、换位置后新备份的写入和恢复、备份库不可用时开着备份的传输被拒绝，以及和手机之间的备份相关传输，在开发版上和真机一起验收过。
+
+Tauri 宿主的开发版在 Linux X11 会话上验证过：窗口和界面加载、明暗主题、中日文字体、目录和图片选择器、设置封面、打开文件夹、关闭窗口后主程序和 sidecar 都退出、第二个实例启动后立即退出；sidecar 收到停止请求和 stdin 关闭时都停止服务后退出。Wayland 会话和在 WebKitGTK 上逐页检查界面还没做，排在 WP-083。WebKitGTK 没有 Chrome DevTools Protocol，界面只能用它自带的 Web Inspector 查看。
 
 调试构建的宿主在环境变量 `SAVEDATA_SYNC_DEVTOOLS_PORT` 是端口号时，让 WebView2 在这个端口开放 Chrome DevTools Protocol，可以用 CDP 脚本读写界面；发布构建没有这段代码。

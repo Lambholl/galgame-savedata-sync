@@ -46,7 +46,7 @@ import { PAGE_TITLE_KEYS } from './navigation-types'
 import {
   ErrorText,
   GameActions,
-  encodePosterWebp,
+  encodePosterImage,
   restoreObservationPreview,
   syncTaskPreview,
   usePageNavigation,
@@ -582,7 +582,7 @@ export function MobileApp({
   ): Promise<void> {
     let data: string
     try {
-      data = await encodePosterWebp(image)
+      data = await encodePosterImage(image)
     } catch (cause) {
       // 解码失败说明选的文件不是能识别的图片，换成能看懂的提示；其他失败照常显示。
       if (cause instanceof OperationFailure && cause.code === 'invalid-request') {

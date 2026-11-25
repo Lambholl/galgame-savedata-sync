@@ -49,7 +49,7 @@ final class ListenerLibrary {
     /**
      * 读出本机一个游戏的封面文件。
      *
-     * @return WebP 文件内容。
+     * @return 封面文件内容。
      * @throws ArchiveFailure 文件不存在时为 not-found，读取失败时为 io-failure。
      */
     byte[] poster(String gameId, String posterHash) throws Exception;

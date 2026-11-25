@@ -20,7 +20,7 @@
   "bundle": {
     "active": false,
     "targets": ["nsis"],
-    "icon": ["../resources/app-icon.ico"],
+    "icon": ["../resources/app-icon.ico", "../resources/app-icon.png"],
     "shortDescription": "LAN savedata sync between Windows and Android",
     "windows": {
       "nsis": {

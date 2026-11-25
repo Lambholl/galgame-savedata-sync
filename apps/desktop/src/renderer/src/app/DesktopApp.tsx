@@ -48,7 +48,7 @@ import {
 } from '@savedata-sync/shared/ui'
 import { useAppMessage } from './app-message.ts'
 import { useShowFailure } from './failure-message.ts'
-import { encodePosterWebp, usePosterUrls } from '@savedata-sync/shared/ui'
+import { encodePosterImage, usePosterUrls } from '@savedata-sync/shared/ui'
 import type { TaskStripInfo } from '@savedata-sync/shared/ui'
 import { PAGE_TITLE_KEYS } from './navigation.ts'
 import type { Confirmation, Page, PageContext } from './navigation.ts'
@@ -433,7 +433,7 @@ export function DesktopApp({
   ): Promise<void> {
     let data: string
     try {
-      data = await encodePosterWebp(image)
+      data = await encodePosterImage(image)
     } catch (cause) {
       // 解码失败说明选的文件不是能识别的图片，换成能看懂的提示；其他失败照常显示。
       if (cause instanceof OperationFailure && cause.code === 'invalid-request') {

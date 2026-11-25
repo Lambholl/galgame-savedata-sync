@@ -3,6 +3,7 @@ import {
   DEFAULT_APP_PREFERENCES,
   OperationFailure,
   resolveLocale,
+  resolveTheme,
   toShownError,
   unwrap,
 } from '@savedata-sync/shared'
@@ -19,7 +20,8 @@ export interface AppPreferencesState {
   readonly save: (next: AppPreferences) => Promise<ShownError | null>
 }
 
-// 主进程按偏好设置 nativeTheme.themeSource，prefers-color-scheme 随之变化，所以主题直接读媒体查询。
+// 选了浅色或深色时直接用偏好，不读媒体查询：Linux 上 WebKitGTK 的 prefers-color-scheme 跟着 GTK 主题，
+// 宿主设置窗口明暗只改 GTK 的深色偏好，GTK 主题本身是深色时界面仍会报深色。
 /** 读取和保存界面偏好，并把解析出的主题写到 <html data-theme>。 */
 export function useAppPreferences(): AppPreferencesState {
   const [preferences, setPreferences] = useState(DEFAULT_APP_PREFERENCES)
@@ -44,7 +46,7 @@ export function useAppPreferences(): AppPreferencesState {
     media.addEventListener('change', update)
     return () => media.removeEventListener('change', update)
   }, [])
-  const theme: ResolvedTheme = isDark ? 'dark' : 'light'
+  const theme: ResolvedTheme = resolveTheme(preferences.theme, isDark)
   useEffect(() => {
     document.documentElement.dataset.theme = theme
   }, [theme])

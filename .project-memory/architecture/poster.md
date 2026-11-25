@@ -41,7 +41,7 @@ REQ-024 的设计。需求见[产品需求](../requirements/product.md)。
 | 位置 | 职责 |
 | --- | --- |
 | `apps/shared/src/poster/` | 已实现。`PosterSearchClient` 按来源生成请求、交给注入的执行器、解析成统一候选，按 `POSTER_REQUEST_INTERVALS_MS` 给各来源排队，失败抛带来源和错误码的 `PosterSearchError`；另有主机白名单、执行器响应守卫、`createPosterUserAgent` 和默认关键词。`PosterApi` 是两端原生层的五个方法（第 6 节），`createPosterAdapter` 把它包成带 `PosterSearchClient` 的 `PosterAdapter`，一个应用进程只建一个。纯 TypeScript，不做 IO，计时由注入的 `PosterClock` 提供 |
-| `apps/shared/src/ui/poster/` | 已实现。`PosterCover`（游戏卡片、候选和缩略图共用的 3:4 封面，图片加载失败时退回占位）、`PosterRow`（设置页的封面一行）、`PosterCandidateGrid`、`PosterSearchState`（加载、无结果、失败和重试）、`poster-labels.ts`（来源显示名、封面类别文案）、`encodePosterWebp`（WebView canvas 缩放编码）；Hook `usePosterSearch`（来源、关键词、NextMoe 作品两步和预览图下载）、`usePosterUrls`（游戏封面读出成 `blob:` URL）。这些只依赖 `PosterAdapter`，两端共用；弹层和选图后的保存流程留在各端 |
+| `apps/shared/src/ui/poster/` | 已实现。`PosterCover`（游戏卡片、候选和缩略图共用的 3:4 封面，图片加载失败时退回占位）、`PosterRow`（设置页的封面一行）、`PosterCandidateGrid`、`PosterSearchState`（加载、无结果、失败和重试）、`poster-labels.ts`（来源显示名、封面类别文案）、`encodePosterImage`（WebView canvas 缩放编码）；Hook `usePosterSearch`（来源、关键词、NextMoe 作品两步和预览图下载）、`usePosterUrls`（游戏封面读出成 `blob:` URL）。这些只依赖 `PosterAdapter`，两端共用；弹层和选图后的保存流程留在各端 |
 | 电脑界面 `features/games/PosterSearchModal.tsx`，`platform/poster-adapter.ts` | 已实现。antd Modal 搜索弹层；适配器接 `window.desktopPoster` |
 | 电脑 sidecar `backend/poster-*.ts` | 已实现。用 `node:https` 执行请求和下载图片；封面文件读写；通道 `desktopPoster` |
 | 移动界面 `features/games/PosterSearchSheet.tsx`，`platform/poster-bridge.ts`、`posters.ts` | 已实现。底部弹层搜索；桥接校验原生插件 `Poster` 的参数和结果 |
@@ -132,10 +132,10 @@ VNDB 和 NextMoe 用译名、原名都能搜到；Bangumi 和 Steam 只适合补
 
 ## 6. 封面存储
 
-- 下载或选中的图片在 WebView 里用 canvas 等比缩小到 `POSTER_OUTPUT` 的宽高（720×960）以内（小图不放大），用 `canvas.toBlob('image/webp', POSTER_OUTPUT.webpQuality)` 转成 WebP 后交给原生层保存；解码不了的文件提示“读不了这张图片”。两端 WebView 都基于 Chromium（Windows WebView2、Android System WebView），都能编码 WebP；同等画质下比 JPEG 小，NextMoe 的原图本身就是 WebP。显示的卡片最宽约 180px，高分屏下 720 宽也够用。
+- 下载或选中的图片在 WebView 里用 canvas 等比缩小到 `POSTER_OUTPUT` 的宽高（720×960）以内（小图不放大），按 `POSTER_ENCODINGS` 的顺序（WebP、JPEG、PNG）调用 `canvas.toBlob(..., POSTER_OUTPUT.quality)`，用第一个 WebView 真正按所请求格式编码出来的结果交给原生层保存；解码不了的文件提示“读不了这张图片”。WebP 同等画质下比 JPEG 小，NextMoe 的原图本身就是 WebP，所以排在最前。Chromium 内核的 WebView（Windows WebView2、Android System WebView）能编码 WebP；Linux 的 WebKitGTK 不支持，请求 WebP 时返回 PNG，于是落到 JPEG。PNG 兜底给连 JPEG 也编码不了的 WebView。显示的卡片最宽约 180px，高分屏下 720 宽也够用。
 - `LibraryGame` 有可选字段 `posterHash`（封面文件内容的 SHA-256，64 位小写十六进制）和 `posterSource`（封面出处 `PosterOrigin`：四个搜索来源之一，或 `local` 表示本机图片），没有封面时都省略。字段可选，`schemaVersion` 保持 2；有 `posterHash` 没有 `posterSource` 的配置照常读取，设置行只显示尺寸。
-- 文件：电脑在数据目录的 `posters/`，Android 在应用内部存储的 `posters/`，文件名 `<游戏 ID>.<posterHash>.webp`。同一个游戏换封面时新旧文件名不同，游戏库配置里的 `posterHash` 决定用哪一张。
-- 保存只接受 WebP（文件头 `RIFF….WEBP`），不超过 `POSTER_LIMITS.maxSavedBytes`（1 MiB），先写临时文件再改名。
+- 文件：电脑在数据目录的 `posters/`，Android 在应用内部存储的 `posters/`，文件名 `<游戏 ID>.<posterHash>.<扩展名>`，扩展名按文件格式：WebP 为 `.webp`，JPEG 为 `.jpg`，PNG 为 `.png`。读取时依次试这三个文件名，清理时游戏库引用的 `posterHash` 对应的三个文件名都保留。同一个游戏换封面时新旧文件名不同，游戏库配置里的 `posterHash` 决定用哪一张。
+- 保存只接受 WebP、JPEG、PNG，按文件开头的字节判断格式（共享包 `detectPosterFormat`，Android 在 `PosterStore` 里按同样的规则判断），不看扩展名或 MIME 类型；不超过 `POSTER_LIMITS.maxSavedBytes`（1 MiB），先写临时文件再改名。
 - 启动时删除游戏库没有引用的封面文件和残留的临时文件：换掉的旧封面、已移除游戏的封面、保存了文件但没写进配置的封面，都在下次启动时清掉。
 
 两端原生层提供同样的五个方法，参数和结果按共享包的格式校验：
@@ -145,7 +145,7 @@ VNDB 和 NextMoe 用译名、原名都能搜到；Bangumi 和 Steam 只适合补
 | `request(request)` | 执行 `PosterHttpRequest`，返回 `PosterHttpResponse`；连不上返回 `network-failure` |
 | `downloadImage(url)` | 下载候选图片，返回 `{ mimeType, data }`（base64）；地址不在图片主机白名单返回 `invalid-request` |
 | `pickImage()` | 电脑打开文件对话框（JPEG、PNG、WebP、GIF），Android 打开系统照片选择器；返回 `{ mimeType, data }`，取消时为 null；超过 `POSTER_LIMITS.maxImageBytes` 返回 `resource-limit` |
-| `save(gameId, data)` | 保存缩放后的 WebP，返回 `posterHash`；之后由界面把 `posterHash` 写进游戏库 |
+| `save(gameId, data)` | 保存缩放后的封面文件，返回 `posterHash`；之后由界面把 `posterHash` 写进游戏库 |
 | `read(gameId, posterHash)` | 读出封面，返回 `data`；文件不存在返回 `not-found` |
 
 界面按 `posterHash` 缓存 `blob:` URL；换封面后 hash 变化，界面换新图。
@@ -157,7 +157,7 @@ Android 的五个方法是 Capacitor 插件 `Poster`（`PosterPlugin.java`），
 ## 7. 对端封面
 
 - `CatalogGame` 有必填字段 `posterHash: string | null`，没有封面时为 null；目录表交换时两端都校验它（Android 在 `ListenerLibrary`、`TransferEngine`、`SyncJobModel`）。
-- 控制通道请求方法 `poster.read`：参数 `{ gameId }`，应答 `PeerPoster`：`{ hash, source, data }`，`source` 是对端的 `posterSource`，没有时为 null，`data` 是 WebP 文件的 base64，不带 MIME 类型。游戏不存在或没有封面时答复 `not-found`。保存的封面不超过 1 MiB，base64 后远小于控制消息 8 MiB 的上限。
+- 控制通道请求方法 `poster.read`：参数 `{ gameId }`，应答 `PeerPoster`：`{ hash, source, data }`，`source` 是对端的 `posterSource`，没有时为 null，`data` 是封面文件的 base64，不带 MIME 类型，接收方按开头的字节判断格式。游戏不存在或没有封面时答复 `not-found`。保存的封面不超过 1 MiB，base64 后远小于控制消息 8 MiB 的上限。
 - 两个方向都能请求：监听方经 `ControlHub.serve`（电脑）、`ListenerControl.requests`（Android）登记的处理函数应答，按本机游戏库读封面文件；拨号方经 `DialerControlSocket.request`（电脑）、`control-channel.ts` 的 `request`（移动端网页）发请求，并在 `dialer-session.ts`、`library-adapter.ts` 里应答对方的 `poster.read`。界面统一调 `peerPoster(deviceId, gameId)`，按本机在这条连接里的角色选路。Android 本机服务另开一个 `PosterStore` 读同一个 `posters/` 目录；保存先写临时文件再改名，读到的总是完整文件。
 - 两端的 `PROTOCOL_VERSION` 须相同。
 - 导入游戏时，对端目录表里的 `posterHash` 不为空就先请求封面并保存，再把游戏连同 `posterHash`、`posterSource` 一次写进游戏库（共享包 `importPeerPoster`）。应答的 hash 或保存后的 hash 与目录表不一致、请求失败或保存失败时，游戏照常导入，不带封面，保存后用 Message 提示一次“游戏已导入，封面未能导入”（`poster.importFailed`）。

@@ -22,7 +22,7 @@ export interface PosterApi {
   downloadImage(url: string): Promise<OperationResult<PosterImageData>>
   /** 打开选图界面读取一张图片；取消时 value 为 null，超过大小上限返回 resource-limit。 */
   pickImage(): Promise<OperationResult<PosterImageData | null>>
-  /** 保存游戏的封面（base64 WebP），返回要写进游戏库的 posterHash。 */
+  /** 保存游戏的封面（base64 编码的封面文件，格式见 PosterFormat），返回要写进游戏库的 posterHash。 */
   save(gameId: string, data: PosterFileData): Promise<OperationResult<PosterSaveResult>>
   /** 读出游戏的封面；文件不存在返回 not-found。 */
   read(gameId: string, posterHash: string): Promise<OperationResult<PosterFileData>>
@@ -41,14 +41,14 @@ export interface PosterAdapter {
   /**
    * 保存游戏的封面。
    *
-   * @param data base64 编码的 WebP。
+   * @param data base64 编码的封面文件，格式见 PosterFormat。
    * @returns 要写进 LibraryGame.posterHash 的值。
    */
   save(gameId: string, data: string): Promise<string>
   /**
    * 读出游戏的封面。
    *
-   * @returns base64 编码的 WebP。
+   * @returns base64 编码的封面文件。
    * @throws OperationFailure 文件不存在时 code 为 not-found。
    */
   read(gameId: string, posterHash: string): Promise<string>

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { LibraryGame } from '../../library/library.ts'
 import type { PosterAdapter } from '../../poster/poster-adapter.ts'
-import { base64ToBlob } from './poster-image.ts'
+import { posterFileToBlob } from './poster-image.ts'
 
 function posterKey(gameId: string, posterHash: string): string {
   return `${gameId}/${posterHash}`
@@ -57,7 +57,7 @@ export function usePosterUrls(
           if (isDisposedRef.current || cache.has(key)) {
             return
           }
-          cache.set(key, URL.createObjectURL(base64ToBlob(data, 'image/webp')))
+          cache.set(key, URL.createObjectURL(posterFileToBlob(data)))
           setLoaded(new Map(cache))
         },
         () => {
