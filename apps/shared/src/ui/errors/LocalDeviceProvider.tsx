@@ -4,7 +4,7 @@ import { localDeviceContext } from './local-device-context.ts'
 
 /** LocalDeviceProvider 的参数。 */
 export interface LocalDeviceProviderProps {
-  /** 本机在连接里的角色：电脑端为 listener，移动端为 dialer。 */
+  /** 本机在连接里的角色：桌面端为 listener，移动端为 dialer。 */
   readonly device: ErrorDevice
   /** 在这台设备上显示的界面。 */
   readonly children: ReactNode

@@ -17,7 +17,7 @@ public class SyncScannerTest {
 
   @Test
   public void scanSkipsNomediaFilesAtEveryLevel() throws Exception {
-    // 和电脑端 sync-scanner.test.mjs 用同一组条目：根目录和子目录各有一个 .nomedia。
+    // 和桌面端 sync-scanner.test.mjs 用同一组条目：根目录和子目录各有一个 .nomedia。
     Map<String, List<Object>> listings = new LinkedHashMap<>();
     listings.put(null, Arrays.asList(file("n1", null, ".nomedia"), directory("d1", "save")));
     listings.put("d1", Arrays.asList(file("n2", "d1", ".nomedia"), file("f1", "d1", "a.sav")));

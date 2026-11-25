@@ -4,7 +4,7 @@
 // 用法：node scripts/device/cdp.mjs <端口> <表达式|@脚本.js> [页面 URL 片段]
 //       node scripts/device/cdp.mjs <端口> --list
 // - Android：先 node scripts/device/device.mjs cdp-forward <端口>；应用重启后进程号变了，要重新转发。
-// - 电脑端：调试构建在环境变量 SAVEDATA_SYNC_DEVTOOLS_PORT=<端口> 下启动，WebView2 在这个端口开放 CDP。
+// - 桌面端：调试构建在环境变量 SAVEDATA_SYNC_DEVTOOLS_PORT=<端口> 下启动，WebView2 在这个端口开放 CDP。
 // 表达式包在 async 函数体里执行：可以用 await，要返回值就写 return。
 // 返回值经 returnByValue 传回，DOM 节点等不能序列化的值会变成空对象，先在页面里转成文本或普通对象。
 import { readFileSync } from 'node:fs'

@@ -186,7 +186,7 @@ public class ArchiveAdapterTest {
       fixtureBytes("tarBase64"),
       collect(new GZIPInputStream(new ByteArrayInputStream(encoded)))
     );
-    // 供 verify-archive-interop.mjs 用电脑端的接收实现复验 Java 产物。
+    // 供 verify-archive-interop.mjs 用桌面端的接收实现复验 Java 产物。
     Path report = new java.io.File("build/reports/archive-interop").toPath();
     Files.createDirectories(report);
     Files.write(report.resolve("java.gz"), encoded);

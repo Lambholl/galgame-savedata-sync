@@ -11,7 +11,7 @@ tags: [代码地图]
 
 - [1. 根目录与工具](#1-根目录与工具)
 - [2. 共享包](#2-共享包)
-- [3. 电脑端](#3-电脑端)
+- [3. 桌面端](#3-桌面端)
 - [4. 移动端网页层](#4-移动端网页层)
 - [5. Android 原生](#5-android-原生)
 
@@ -26,7 +26,7 @@ tags: [代码地图]
 | `scripts/doctor.mjs`、`scripts/local-environment.mjs` | 开发工具入口 | 使用方式见 `docs/development.md` |
 | `scripts/device/device.mjs`、`adb-guard.mjs`、`cdp.mjs`、`test-data.mjs`、`tree-hash.mjs`、`frida/` | 真机调试：adb 白名单入口和参数危险词检查、CDP 执行、开发服务器端口的 adb reverse、调试包诊断广播（`diag`）、合成测试数据和目录清单比对、经 uv 运行的 frida 附加 | 只经 `device.mjs` 调 adb；新增子命令要用固定模板加校验过的取值，删除只开放测试文件临时区；用法见 `docs/development.md` |
 | `scripts/check-text.mjs`、`scripts/check-dependency-specs.mjs`、`eslint.config.mjs`、`tsconfig.base.json` | 编码、格式、依赖版本写法、lint 和严格类型检查 | 生成目录不作为手写代码格式化 |
-| `scripts/free-port.mjs`、`scripts/dev-android.mjs`、`apps/desktop/scripts/dev.mjs` | 开发服务器选端口：从首选端口往后找空闲的。`dev:android` 在本进程启动移动端 Vite，并把手机上的 5173 经 `device.mjs reverse` 接到实际端口；电脑端 `pnpm dev` 把实际端口经 `tauri dev --config` 写进 devUrl、启动命令和 devCsp | 选好端口后以 strictPort 启动，冲突时直接失败；手机上的端口固定，和 `android-build.mjs` 写入的 `server.url` 一致 |
+| `scripts/free-port.mjs`、`scripts/dev-android.mjs`、`apps/desktop/scripts/dev.mjs` | 开发服务器选端口：从首选端口往后找空闲的。`dev:android` 在本进程启动移动端 Vite，并把手机上的 5173 经 `device.mjs reverse` 接到实际端口；桌面端 `pnpm dev` 把实际端口经 `tauri dev --config` 写进 devUrl、启动命令和 devCsp | 选好端口后以 strictPort 启动，冲突时直接失败；手机上的端口固定，和 `android-build.mjs` 写入的 `server.url` 一致 |
 | `scripts/android-build.mjs`、`scripts/android-open.mjs` | 原生构建、单元/lint/双 APK 检查、依赖清单与 IDE 入口；`--dev-server` 在同步生成的 `capacitor.config.json` 里写入 `server.url`，构建加载电脑 Vite 的 debug 包 | 不连接设备；只对子进程传入 SDK/JDK；IDE 不存在时明确失败；Windows 以 `.\gradlew.bat` 显式相对路径调用 Wrapper，兼容设置了 NoDefaultCurrentDirectoryInExePath 的 shell；`app/build.gradle` 在配置带 `server.url` 时拒绝构建 release 包 |
 | `scripts/verify-archive-interop.mjs` | 构建前 Windows 准备、构建后 Windows 接收 Java 输出，另支持设备产物及 SAF 原文验证 | 只操作固定报告目录中的合成数据，准备时先清空这个目录，测试 APK 不包含主机路径配置 |
 | `scripts/security-check.mjs`、`scripts/toolchain-policy.mjs` | npm 全量审计、pnpm 公告与 Node 安全补丁门禁 | 查询失败即失败；Node 的安全发布和维护期运行时向官方查询，打包进 sidecar 的 Node 达不到所在主版本最新的安全发布时失败，本机 Node 只提示 |
@@ -49,13 +49,13 @@ tags: [代码地图]
 | `apps/shared/src/ui/navigation/page-navigation.ts`、`use-page-navigation.ts` | 两端共用的页面导航：前者是来源记录、返回目标和切页方向的纯函数，后者把它接到 React 状态 | 页面名称和上下文由各端定义；跳转关系写在 DesktopApp、MobileApp |
 | `apps/shared/test/` | 运行时数据关系回归；字段和线格式见[共享包](../architecture/shared-package.md) | — |
 
-## 3. 电脑端
+## 3. 桌面端
 
 | 路径 | 作用 | 重要约定 |
 | --- | --- | --- |
 | `apps/desktop/` | Tauri 宿主 `src-tauri`、后端 `src/backend`、sidecar 入口 `src/sidecar`、bridge `src/bridge` 和独立 antd 界面 `src/renderer` | 界面只能调用 `backend_invoke`，由宿主转给 sidecar |
 | `apps/desktop/src-tauri/src/main.rs`、`sidecar.rs`、`storage.rs`、`capabilities/main.json`、`tauri.conf.json` | 宿主：窗口、单实例、`backend_invoke` 命令、sidecar 进程和消息、平台能力（目录选择器、打开文件夹、明暗）、存储目录和便携模式 | `sidecar.rs` 的消息类型和 `src/sidecar/protocol.ts` 一起改；capability 只授权 `main` 窗口调用 `backend_invoke` |
-| `apps/desktop/scripts/package-windows.mjs`、`build-sidecar-exe.mjs` | Windows 打包：sidecar 用 `@yao-pkg/pkg` 编成独立可执行文件，`tauri build` 产出 NSIS 安装包，再打免安装 zip | 只在 Windows x64 上运行；`bundle.externalBin` 只在打包时通过 `--config` 登记，见 [电脑端平台层](../architecture/desktop.md#3-分发包与应用标识) |
+| `apps/desktop/scripts/package-windows.mjs`、`build-sidecar-exe.mjs` | Windows 打包：sidecar 用 `@yao-pkg/pkg` 编成独立可执行文件，`tauri build` 产出 NSIS 安装包，再打免安装 zip | 只在 Windows x64 上运行；`bundle.externalBin` 只在打包时通过 `--config` 登记，见 [桌面端平台层](../architecture/desktop.md#3-分发包与应用标识) |
 | `apps/desktop/src/backend/backend.ts`、`channel-registry.ts` | `startBackend` 初始化配置、数据、备份库、缓存四个目录和各服务，登记全部界面通道，`stop` 按顺序释放；`ChannelRouter` 按通道名分发界面请求 | 后端是纯 Node 代码，平台能力（目录选择器、打开路径、明暗主题）经 `DesktopHost` 由宿主提供；能调用通道的页面由 Tauri capability 限定 |
 | `apps/desktop/src/sidecar/index.ts`、`protocol.ts`、`vite.sidecar.config.ts` | sidecar 入口：从命令行读四个存储目录，stdin/stdout 按行 JSON 与宿主交换消息，构建为 `out/sidecar/index.cjs` | stdout 只写协议消息，`console.log` 改写到 stderr；stdin 关闭时停止服务后退出；第三方包全部打进产物 |
 | `apps/desktop/src/renderer/src/app`、`features`、`components`、`styles`、`platform`、`vite.config.ts` | 独立桌面导航、居中弹窗、antd 页面及 bridge 接入；`platform/desktop-bridges.ts` 在 Tauri 窗口里安装各 `window.desktop*` 接口 | 两端源码互不导入；桌面传输页可请求移动端扫描并在电脑确认计划（TransferPage、backend/remote-sync-requests.ts），实际复制由移动端执行 |
@@ -70,12 +70,12 @@ tags: [代码地图]
 | `apps/desktop/src/backend/dialer-sync.ts` | 电脑作为拨号方的复制：两端扫描、计划、任务登记、内容上传下载、取消、结果补读，处理对方经控制通道发起的 `sync.*` 请求 | 和监听方任务共用写入名额；准备和任务只在内存，结束后保留 10 分钟、各最多 32 份；`sync-ipc.ts` 按设备把请求分给它或监听方部分 |
 | `apps/desktop/src/backend/discovery-browser.ts` | 用 `bonjour-service` 搜索附近设备，按设备 ID 合并地址，排除本机 | 只在设备页可见时搜索；连接已保存的设备时由 `dialer-session.ts` 按设备 ID 查找 5 秒 |
 | `apps/desktop/src/bridge/dialer-bridge.ts`、`src/backend/dialer-ipc.ts`、`src/renderer/src/features/devices/AddDeviceDialog.tsx` | 拨号桥（状态、附近设备、连接、连接已保存设备）和手动输入地址的对话框 | 通道校验参数：地址 1～16 个且已规范化，设备 ID 为不透明 ID 或 null |
-| `apps/desktop/src/backend/poster-http.ts`、`poster-store.ts`、`poster-ipc.ts`、`src/bridge/poster-bridge.ts` | 电脑端封面执行器：接口请求、图片下载、本机选图、封面文件的保存、读取和启动清理 | 请求和下载前按共享包的白名单检查地址，User-Agent 由 `createPosterUserAgent` 生成；封面文件在数据目录的 `posters/`，文件名带 `posterHash`，配置里没引用的文件启动时删除；设计见[游戏封面](../architecture/poster.md#6-封面存储) |
+| `apps/desktop/src/backend/poster-http.ts`、`poster-store.ts`、`poster-ipc.ts`、`src/bridge/poster-bridge.ts` | 桌面端封面执行器：接口请求、图片下载、本机选图、封面文件的保存、读取和启动清理 | 请求和下载前按共享包的白名单检查地址，User-Agent 由 `createPosterUserAgent` 生成；封面文件在数据目录的 `posters/`，文件名带 `posterHash`，配置里没引用的文件启动时删除；设计见[游戏封面](../architecture/poster.md#6-封面存储) |
 | `apps/desktop/src/backend/sync-scanner.ts`、HTTP sync 路由、service bridge/IPC | Windows 本次递归扫描（只列目录，取大小和修改日期）及会话内查询/取消 | 单扫描，最多保留 32 份结果，有条目、深度、JSON 和期限预算；只读源；取消或停止要等流关闭；结果不持久化 |
 | `apps/desktop/src/backend/sync-writer.ts`、`sync-target-files.ts`、`target-operation.ts`、`publication-errors.ts`、`interrupted-writes.ts`、`test/sync-writer.test.mjs`；directory-adapter、启动 | 确认计划的目标目录创建、同卷候选替换和本机恢复；接收远端内容时等内容收齐再写入；复制和恢复共用 `TargetOperation` 互斥 | 写入前备份目标目录全部文件，内容收齐后重新核对目标，逐项报告实际结果，首次失败停止；同路径对象替换产生新 ID；原生流和候选不跨桥 |
 | `apps/desktop/src/backend/restore-registry.ts`、`sync-ipc.ts`、`src/bridge/sync-bridge.ts` | 进程内异步恢复、有限复制与恢复桥、同次原生计划/结果核对 | 普通准备不占目标名额，确认后借用并保留至清理成功；任务和结果可在页面刷新后查询；不接收路径或字节；电脑发起的方法转给 `remote-sync-requests.ts` |
 | `apps/desktop/src/renderer/src/features/backup`、`features/transfer/SyncCopyDetails.tsx`、`use-sync-details.ts`、`platform/sync-adapter.ts` | 备份开关/列表、恢复预览与确认、复制计划/实际结果、普通本机重扫 | 复用原生计划和结果；发送完成和移动端实际写入是两个状态；切页只停止轮询，不取消原生任务 |
-| `apps/desktop/test/` | Windows 目录、归档、HTTP、扫描、备份与写入的最小长期回归；接口见 [电脑端平台层](../architecture/desktop.md) | 测试只用合成数据；真实目录只读验证，机器路径不提交 |
+| `apps/desktop/test/` | Windows 目录、归档、HTTP、扫描、备份与写入的最小长期回归；接口见 [桌面端平台层](../architecture/desktop.md) | 测试只用合成数据；真实目录只读验证，机器路径不提交 |
 
 ## 4. 移动端网页层
 

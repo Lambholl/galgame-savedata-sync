@@ -37,7 +37,7 @@ accepted。规则从 1.0.0 起生效。
 
 ## 背景
 
-0.x 阶段不保留兼容代码：落盘格式、协议字段和接口变化时直接换成新的，读到其他版本按读不懂的数据处理。电脑端把文件改名保留后用默认值启动，Android 直接删除这项数据；Android 的设备 ID 重新生成后，对端要重新添加本机。
+0.x 阶段不保留兼容代码：落盘格式、协议字段和接口变化时直接换成新的，读到其他版本按读不懂的数据处理。桌面端把文件改名保留后用默认值启动，Android 直接删除这项数据；Android 的设备 ID 重新生成后，对端要重新添加本机。
 
 1.0 起用户的游戏配置、目录登记和备份要跨版本保留，上面的处理在版本升级或降级时会丢数据。
 
@@ -60,13 +60,13 @@ accepted。规则从 1.0.0 起生效。
 
 ### 落盘格式
 
-4. 兼容范围包括电脑端的 `identity.json`、`directories.json`、游戏库配置、`backup-settings.json`、`backup-library.json`、服务端口设置、界面偏好，Android 上对应的存储项，以及备份清单和备份文件夹结构。中断写入标记只用于下次启动时提示，读不懂时直接删除，不在兼容范围内。
-5. 结构化数据带 `schemaVersion`，当前版本由常量给出：共享包的 `LIBRARY_SCHEMA_VERSION`、`BACKUP_SETTINGS_SCHEMA_VERSION`，电脑端的 `DEVICE_IDENTITY_SCHEMA_VERSION`、`DIRECTORY_REGISTRY_SCHEMA_VERSION`、`BACKUP_LOCATION_SCHEMA_VERSION`，Android 的 `ListenerLibrary.LIBRARY_VERSION`、`DirectoryStore.REGISTRY_VERSION`、`BackupModel.SETTINGS_VERSION`。Android 的设备 ID 是单个字符串，没有版本。
+4. 兼容范围包括桌面端的 `identity.json`、`directories.json`、游戏库配置、`backup-settings.json`、`backup-library.json`、服务端口设置、界面偏好，Android 上对应的存储项，以及备份清单和备份文件夹结构。中断写入标记只用于下次启动时提示，读不懂时直接删除，不在兼容范围内。
+5. 结构化数据带 `schemaVersion`，当前版本由常量给出：共享包的 `LIBRARY_SCHEMA_VERSION`、`BACKUP_SETTINGS_SCHEMA_VERSION`，桌面端的 `DEVICE_IDENTITY_SCHEMA_VERSION`、`DIRECTORY_REGISTRY_SCHEMA_VERSION`、`BACKUP_LOCATION_SCHEMA_VERSION`，Android 的 `ListenerLibrary.LIBRARY_VERSION`、`DirectoryStore.REGISTRY_VERSION`、`BackupModel.SETTINGS_VERSION`。Android 的设备 ID 是单个字符串，没有版本。
 6. 主题、语言和端口这类简单设置不带版本，宽容读取：不认识的字段忽略，单个字段无效时读成默认值，不提示；只有文件不是 JSON 对象（Android 是值的类型不对）时按读不懂处理。将来改简单设置的格式时换用新的字段名或键名，不改变已有字段的含义。
 7. 1.0 的格式是基线，0.x 的数据不迁移，不识别 0.x 的格式，统一按读不懂的数据处理。0.x 各格式的版本号都不大于 1.0，不会被当成更新版本。
 8. 读到旧版本时按版本逐级迁移到当前版本再写回；迁移失败按读不懂的数据处理。迁移在启动检查读取这项数据之前执行。迁移链的结构见 [ADR-0007](ADR-0007-linux-desktop.md#落盘格式迁移链)。
-9. 读到比当前版本新的数据（JSON 对象的整数 `schemaVersion` 大于当前版本）时，所有数据都不改动，应用不启动：电脑端 sidecar 发出 fatal 提示后退出，Android 只显示提示页、不注册其余原生插件，本机服务不会恢复。普通用户在 Android 上不能保留数据降级安装，这种情况几乎只出现在电脑端。
-10. 内容损坏的数据沿用现有处理：电脑端改名保留后用默认值，Android 删除后用默认值。
+9. 读到比当前版本新的数据（JSON 对象的整数 `schemaVersion` 大于当前版本）时，所有数据都不改动，应用不启动：桌面端 sidecar 发出 fatal 提示后退出，Android 只显示提示页、不注册其余原生插件，本机服务不会恢复。普通用户在 Android 上不能保留数据降级安装，这种情况几乎只出现在桌面端。
+10. 内容损坏的数据沿用现有处理：桌面端改名保留后用默认值，Android 删除后用默认值。
 11. 改落盘格式要维护者同意，同时写迁移和长期测试，见[测试约定](../standards/testing.md)。
 
 ### 备份和设备 ID
@@ -111,7 +111,7 @@ accepted。规则从 1.0.0 起生效。
 
 | 文件 | 说明 |
 | --- | --- |
-| `apps/desktop/src/backend/data-recovery.ts` | 电脑端启动时检查数据文件 |
+| `apps/desktop/src/backend/data-recovery.ts` | 桌面端启动时检查数据文件 |
 | `apps/mobile/android/app/src/main/java/io/github/galgame/savedatasync/AppDataRecovery.java` | Android 启动时检查私有数据 |
 | `apps/shared/src/protocol/contracts.ts` | `PROTOCOL_VERSION` |
 | `scripts/app-version.mjs` | 按 tag 计算版本号 |

@@ -12,7 +12,7 @@ Windows 与 Android 的局域网存档同步工具。
 
 [下载](#下载) · [快速上手](#快速上手) · [注意事项](#注意事项) · [常见问题](#常见问题) · [开发指南](docs/development.md)
 
-<img src="assets/screenshots/games.webp" alt="电脑端和移动端的游戏页" width="900">
+<img src="assets/screenshots/games.webp" alt="桌面端和移动端的游戏页" width="900">
 
 </div>
 
@@ -26,7 +26,7 @@ Windows 与 Android 的局域网存档同步工具。
 - **免费开源**：采用 [GNU AGPL v3.0](LICENSE) 许可。
 
 <p align="center">
-  <img src="assets/screenshots/devices.webp" alt="电脑端和移动端的设备页" width="900">
+  <img src="assets/screenshots/devices.webp" alt="桌面端和移动端的设备页" width="900">
   <br />
   <img src="assets/screenshots/transfer.webp" alt="移动端的传输存档、传输详情和备份与恢复页" width="900">
 </p>
@@ -59,7 +59,7 @@ Windows 与 Android 的局域网存档同步工具。
 ## 注意事项
 
 - **备份默认关闭**：需要保留覆盖前的文件时，请在传输预览页开启“写入前备份”，或在游戏的“备份与恢复”页手动备份。每个游戏默认保留 10 份备份（可在设置中修改，上限 4096 份）；恢复前同样会自动备份当前目录。
-- **备份位置与卸载**：电脑端备份默认位于 `%LOCALAPPDATA%\galgame-savedata-sync\backups`（可在设置中更改位置，卸载不删除）；Android 端备份位于 `Android/data/io.github.galgame.savedatasync/files/backups/`，**卸载应用或清除应用数据会一并删除所有配置与备份**。
+- **备份位置与卸载**：桌面端备份默认位于 `%LOCALAPPDATA%\galgame-savedata-sync\backups`（Windows）或 `~/.local/share/galgame-savedata-sync/backups`（Linux），可在设置中更改位置，卸载不删除；移动端备份位于 `Android/data/io.github.galgame.savedatasync/files/backups/`，**卸载应用或清除应用数据会一并删除所有配置与备份**。
 - **Android 直接读写文件**：默认通过系统目录授权读写文件，受系统限制写入后无法保留修改时间，导致下次对比时仍会显示文件存在差异。在设置中开启“直接读写文件”并授予“所有文件访问权限”后，可加快大存档读写速度并正确保留修改时间。受 Android 系统限制，无法选择 `Android/data` 和 `Android/obb` 内的目录。
 - **避免相册收录存档截图**：若存档目录中包含游戏截图，可在 Android 端设置中开启“自动添加 `.nomedia`”（传输和备份会自动跳过该文件）。
 - **局域网明文传输**：设备间通过明文 HTTP 直接通信，**未加密且无配对密码**。请仅在家庭网络等可信环境中使用，使用完毕后建议关闭本机服务。

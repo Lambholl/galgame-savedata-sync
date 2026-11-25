@@ -111,11 +111,11 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profil
 | `pnpm lint` / `pnpm typecheck` / `pnpm build` | 单独运行对应检查或构建 |
 | `pnpm test` | 运行共享包与桌面端 sidecar 测试（无需 Android 工具） |
 | `pnpm test:all` | 运行 `pnpm test` 与 `pnpm android:test` |
-| `pnpm release:loopback` | 发版前本地双端回环测试：启动两个电脑端后端经 `127.0.0.1` 双向传输并验证备份与恢复 |
+| `pnpm release:loopback` | 发版前本地双端回环测试：启动两个桌面端后端经 `127.0.0.1` 双向传输并验证备份与恢复 |
 | `pnpm doctor` | 检查本机工具链（支持 `--desktop`、`--json`） |
 | `pnpm android:sync` | 构建移动端前端资源并同步至 Android 工程 |
 | `pnpm android:build` | 构建 debug APK（加 `--release` 构建签名后的 release APK） |
-| `pnpm android:build:dev-server` | 构建加载电脑端 Vite 开发服务器的 debug APK |
+| `pnpm android:build:dev-server` | 构建加载桌面端 Vite 开发服务器的 debug APK |
 | `pnpm android:install` | 覆盖安装 debug APK 到已连接设备（保留应用数据） |
 | `pnpm android:unit` | 运行 Java 单元测试与 Windows/Java 归档互通检查（复用 Gradle 守护进程） |
 | `pnpm android:test` | 在 `android:unit` 基础上运行 Android lint 并构建调试与测试 APK |
@@ -130,7 +130,7 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profil
 | 路径 | 内容 |
 | --- | --- |
 | `apps/shared` | 两端共用的通信协议、数据模型、校验规则与纯展示组件 |
-| `apps/desktop` | Windows 桌面端：Tauri 宿主（`src-tauri`）、Node 后端 sidecar 与 React 界面 |
+| `apps/desktop` | 桌面端（Windows、Linux）：Tauri 宿主（`src-tauri`）、Node 后端 sidecar 与 React 界面 |
 | `apps/mobile` | 移动端：React 前端页面及 `android/` 下的 Capacitor 原生工程 |
 | `scripts` | 检查、构建、版本号计算与安全审计脚本；`scripts/device` 为真机调试工具 |
 | `.project-memory` | 需求、架构、接口约定、决策、计划与测试记录 |
@@ -302,8 +302,8 @@ keytool -genkeypair -v -keystore savedata-sync-release.jks -alias savedata-sync 
 从 `1.0.0` 起按以下规则保持数据与备份兼容（设计见 [ADR-0006](../.project-memory/decisions/ADR-0006-stable-release-compatibility.md)）：
 
 - **结构化数据迁移**：设备身份（`identity.json`）、目录登记（`directories.json`）、游戏库配置、`backup-settings.json`、`backup-library.json` 及 Android 端对应存储均带 `schemaVersion`。版本升级时按版本逐级自动迁移，修改已有格式须同步编写迁移逻辑与兼容测试；主题、语言、端口等简单设置采用宽容读取（忽略未知字段，无效字段回退默认值）。
-- **遇到更新版本写入的数据**：若读到整数 `schemaVersion` 高于当前应用版本的数据，两端均不改动任何数据并阻止启动（电脑端 sidecar 报致命错误退出；Android 仅显示提示页，不注册业务插件、不恢复本机服务）。
-- **遇到损坏或 `0.x` 旧数据**：`1.0.0` 为兼容基线，**不迁移 `0.x` 测试版数据**，统一按读不懂的数据处理；内容损坏时同样适用。电脑端将原文件改名留在原目录后以默认值启动，Android 端删除该项数据后以默认值启动。
+- **遇到更新版本写入的数据**：若读到整数 `schemaVersion` 高于当前应用版本的数据，两端均不改动任何数据并阻止启动（桌面端 sidecar 报致命错误退出；Android 仅显示提示页，不注册业务插件、不恢复本机服务）。
+- **遇到损坏或 `0.x` 旧数据**：`1.0.0` 为兼容基线，**不迁移 `0.x` 测试版数据**，统一按读不懂的数据处理；内容损坏时同样适用。桌面端将原文件改名留在原目录后以默认值启动，Android 端删除该项数据后以默认值启动。
 - **备份与设备 ID**：`1.0.0` 起写入的备份在整个 `1.x` 内均可列出和恢复；设备 ID 仅在首次启动或数据损坏时生成，版本升级不重新生成。
 - **协议互通**：两端的 `PROTOCOL_VERSION`、`/v1/sync/capabilities.schemaVersion` 与控制消息版本必须一致，不做版本协商；版本不匹配时发现列表提示版本不同，连接与发起任务前提示更新两端。
 - **卸载影响**：卸载 Android 应用或清除应用数据会删除配置、目录访问授权与 `Android/data/io.github.galgame.savedatasync/files/backups/` 下的备份；卸载或删除桌面端程序后，`%APPDATA%\galgame-savedata-sync` 与 `%LOCALAPPDATA%\galgame-savedata-sync`（或免安装版的 `portable_data`）中的数据仍会保留。

@@ -38,7 +38,7 @@ accepted。组件库用 antd + antd-mobile；与两端交互差异无关的渲�
 
 1. 组件库用 Windows antd、Android antd-mobile；弹窗、开关、数字框、选择器、提示消息等交互控件用库组件。数字框：移动端 antd-mobile Stepper，电脑 antd InputNumber `mode="spinner"`，单位写进标签。
 2. 共用部分全部放 apps/shared，分两个入口：
-   - 主入口 `@savedata-sync/shared` 只用纯 TypeScript，供电脑后端、原生协议校验和 node 测试使用：两端差异（diff/only/文件夹含差异）、计划统计、任务阶段映射、备份策略解析、文件类型识别、路径分段、显示格式化、文案。
+   - 主入口 `@savedata-sync/shared` 只用纯 TypeScript，供桌面端后端、原生协议校验和 node 测试使用：两端差异（diff/only/文件夹含差异）、计划统计、任务阶段映射、备份策略解析、文件类型识别、路径分段、显示格式化、文案。
    - 界面入口 `@savedata-sync/shared/ui`（目录 apps/shared/src/ui）放 React 展示组件与整页主体：游戏封面卡片、文件行与双栏目录、方向条、计划摘要与计划列表、传输详情主体（进度环、阶段条、结论、结果列表）、备份时间线、PathText、FileTypeIcon 等。可依赖 React、@ant-design/icons 和不涉及平台交互的 antd 组件（如 Flex）；禁止 antd-mobile、Tauri、Capacitor、Node 与平台接口。
    - 主入口不得导入 ui 入口，ESLint 按目录分别限制；颜色、圆角与字体只在主入口 `preferences/design-tokens.ts` 取值；ui 入口的 `designTheme` 由它生成两端 ConfigProvider 主题，`installDesignTokens` 写出两端样式表共用的 `--ss-*` CSS 变量。
 3. 两端差异只通过排版参数传入（方向、尺寸、边距、紧凑程度）。操作入口与平台交互（底部弹层/抽屉/对话框、返回键、系统选择器、确认、提示消息）留在各端，由各端把回调和操作区传给共用主体。

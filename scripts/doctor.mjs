@@ -45,7 +45,7 @@ for (const [name, command, isBatch] of [
   addCheck(name, result.ok ? 'ok' : 'fail', result.output || `${command} could not run`)
 }
 
-// 电脑端的 Tauri 宿主用 Rust 编译；rustup 默认装在 ~/.cargo/bin，不一定在 PATH 里。
+// 桌面端的 Tauri 宿主用 Rust 编译；rustup 默认装在 ~/.cargo/bin，不一定在 PATH 里。
 const cargo = getVersion('cargo')
 addCheck(
   'Rust (cargo)',

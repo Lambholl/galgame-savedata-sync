@@ -167,7 +167,7 @@ public class ArchiveSafTest {
       Base64.getDecoder().decode(fixture.getString("tarBase64")),
       smallBytes(new java.util.zip.GZIPInputStream(new ByteArrayInputStream(bytes)))
     );
-    // 保留合成格式产物，供主机上用电脑端的接收实现复验；不含真实数据。
+    // 保留合成格式产物，供主机上用桌面端的接收实现复验；不含真实数据。
     Files.write(context().getCacheDir().toPath().resolve("archive-device-java.gz"), bytes);
     assertCleanCache();
   }
@@ -263,7 +263,7 @@ public class ArchiveSafTest {
       try (OutputStream output = Files.newOutputStream(packed)) {
         adapter.sendFiles(selected.outgoing(), output, new ArchiveControl(), null);
       }
-      // 保留这次合成的 SAF 归档和成员清单，供电脑端独立解包；不保存真实目录内容。
+      // 保留这次合成的 SAF 归档和成员清单，供桌面端独立解包；不保存真实目录内容。
       Files.copy(
         packed,
         context().getCacheDir().toPath().resolve("archive-device-saf.gz"),
