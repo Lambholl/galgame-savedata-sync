@@ -75,6 +75,12 @@ final class ListenerLibrary {
 
   /** 游戏库配置的格式版本，与共享 LIBRARY_SCHEMA_VERSION 相同。 */
   static final int LIBRARY_VERSION = 2;
+  /** 游戏库配置的迁移链，步骤与共享 LIBRARY_MIGRATIONS 一一对应。 */
+  static final DataMigration.Chain LIBRARY_MIGRATIONS = new DataMigration.Chain(
+    2,
+    LIBRARY_VERSION,
+    Map.of()
+  );
   /** 已保存设备的最多台数，也是一个游戏的关联和排除设备的最多条数；与共享 LIBRARY_LIMITS.maxDevices 相同。 */
   private static final int MAX_DEVICES = 32;
   /** 设备名和游戏名的最大长度（UTF-16 码元），与共享 LIBRARY_LIMITS.maxNameLength 相同。 */

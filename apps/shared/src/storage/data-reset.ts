@@ -52,21 +52,6 @@ export function isVersionedDataList(value: unknown): value is readonly Versioned
 }
 
 /**
- * 判断数据是否由更新版本的应用写入：value 是 JSON 对象，且 schemaVersion 是大于 currentVersion 的整数。
- * 其余内容（包括旧版本和没有 schemaVersion 的内容）都返回 false。
- */
-export function isNewerSchemaVersion(value: unknown, currentVersion: number): boolean {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    !Array.isArray(value) &&
-    'schemaVersion' in value &&
-    Number.isSafeInteger(value.schemaVersion) &&
-    (value.schemaVersion as number) > currentVersion
-  )
-}
-
-/**
  * 读不懂的数据文件改名后的文件名：`<名称>.unreadable-<UTC 时间>.<扩展名>`，时间形如 `20261123T081530Z`。
  *
  * @param fileName 原文件名，不含目录；没有扩展名时结果也没有扩展名。

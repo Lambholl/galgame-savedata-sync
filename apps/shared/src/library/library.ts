@@ -5,9 +5,17 @@ import { isArrayOf } from '../validation/data-validation.ts'
 import { OperationFailure } from '../result.ts'
 import { isPosterHash, isPosterOrigin } from '../poster/poster-contracts.ts'
 import type { PosterOrigin } from '../poster/poster-contracts.ts'
+import type { MigrationChain } from '../storage/migration.ts'
 
 /** 游戏库配置的格式版本。 */
 export const LIBRARY_SCHEMA_VERSION = 2
+
+/** 游戏库配置的迁移链。 */
+export const LIBRARY_MIGRATIONS: MigrationChain = {
+  baseVersion: 2,
+  currentVersion: LIBRARY_SCHEMA_VERSION,
+  steps: {},
+}
 
 /** 游戏库配置和目录表的数量与长度上限，两端相同。 */
 export const LIBRARY_LIMITS = {

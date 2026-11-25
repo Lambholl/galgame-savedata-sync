@@ -27,6 +27,8 @@ tags: [共享包, 数据模型, 守卫]
 
 设备描述、发现 TXT 和连接二维码使用数字 `PROTOCOL_VERSION=4`。本地目录桥使用 DeviceDescriptor、DirectoryReference、EntryMetadata、DirectoryListing 和 DirectorySelectionResult；HTTP 的 DeviceResponse 为 `OperationResult<BatchDeviceDescriptor>`，包装本地 device 并提供 sessionId/limits。1.0 起协议与能力版本只在次版本升级且须维护者同意，两端的 `PROTOCOL_VERSION`、`/v1/sync/capabilities.schemaVersion` 和控制消息版本必须相同，不做版本协商；同一次版本下的不同补丁版本可互连，不同版本连接前提示更新两端（见 [ADR-0006](../decisions/ADR-0006-stable-release-compatibility.md)）。
 
+落盘格式的迁移在 `src/storage/migration.ts`：`migrateData(value, chain, isValid)` 按 `schemaVersion` 把已解析的 JSON 逐步迁移到当前版本，结果为 current、migrated（带要写回的内容）、newer 或 unreadable；低于基线、没有整数版本号、某一步抛错或没把版本加一、迁移结果不过校验都是 unreadable。每种数据登记一条 `MigrationChain`（`baseVersion` 是 1.0 写入的版本，`steps` 按起始版本各一步）：共享包有 `LIBRARY_MIGRATIONS`、`BACKUP_SETTINGS_MIGRATIONS`，电脑端有 `DEVICE_IDENTITY_MIGRATIONS`、`DIRECTORY_REGISTRY_MIGRATIONS`、`BACKUP_LOCATION_MIGRATIONS`，Android 的 `DataMigration` 用 Java 实现同样的规则。目前各链都没有步骤。改格式时加一步并把当前版本加一，执行函数不变，规则见 [ADR-0007](../decisions/ADR-0007-linux-desktop.md#落盘格式迁移链)。
+
 设备接口和归档格式见[设备接口与归档格式](transfer-protocol.md)；共享包负责数据与关系约束，Windows 私有归档、HTTP 服务、受保护写入、Java 归档及 Android 原生网络都在平台层实现。
 
 ## 2. 本地目录与设备模型

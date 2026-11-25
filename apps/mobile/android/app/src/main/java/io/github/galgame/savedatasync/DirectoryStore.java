@@ -41,6 +41,12 @@ final class DirectoryStore {
   static final String REGISTRY = "registry";
   /** 目录登记的格式版本。 */
   static final int REGISTRY_VERSION = 2;
+  /** 目录登记的迁移链。 */
+  static final DataMigration.Chain REGISTRY_MIGRATIONS = new DataMigration.Chain(
+    2,
+    REGISTRY_VERSION,
+    Map.of()
+  );
   private final ContentResolver resolver;
   private final SafDocumentAccess saf;
   private final FileDocumentAccess files;

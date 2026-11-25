@@ -1,12 +1,20 @@
 import { randomUUID } from 'node:crypto'
 import { readFile, rename, unlink, writeFile } from 'node:fs/promises'
 import { isAbsolute } from 'node:path'
+import type { MigrationChain } from '@savedata-sync/shared'
 
 /** 自定义备份库位置文件的文件名，放在数据目录里；没有这个文件时用默认位置。 */
 export const BACKUP_LOCATION_FILE = 'backup-library.json'
 
 /** 自定义备份库位置文件的格式版本。 */
 export const BACKUP_LOCATION_SCHEMA_VERSION = 1
+
+/** 自定义备份库位置文件的迁移链。 */
+export const BACKUP_LOCATION_MIGRATIONS: MigrationChain = {
+  baseVersion: 1,
+  currentVersion: BACKUP_LOCATION_SCHEMA_VERSION,
+  steps: {},
+}
 
 /** 自定义备份库位置文件的内容。 */
 export interface BackupLocationConfig {

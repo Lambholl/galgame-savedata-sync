@@ -9,16 +9,19 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import org.json.JSONException;
 import org.json.JSONObject;
 
 /**
  * 应用私有数据的启动检查。
  *
- * <p>有数据由更新版本的应用写入时，所有数据都不改动，只记下这些数据项；否则内容读不懂的数据直接删除，之后读取它的模块按没有保存过处理，用默认值。
+ * <p>有数据由更新版本的应用写入时，所有数据都不改动，只记下这些数据项；否则旧版本的数据先按迁移链迁移到当前版本并写回，
+ * 内容读不懂的数据（包括版本低于 1.0 基线和迁移失败的）直接删除，之后读取它的模块按没有保存过处理，用默认值。
  *
  * <p>数据项名称和 shared 的 DataResetItem 一致。线程安全。
  */
@@ -132,7 +135,7 @@ final class AppDataRecovery {
   /**
    * 判断保存的值是否由更新版本写入：值是 JSON 对象字符串，整数 schemaVersion 大于 currentVersion。
    *
-   * <p>规则与 shared 的 isNewerSchemaVersion 相同。
+   * <p>规则与 shared 的 migrateData 判断 newer 的规则相同。
    */
   static boolean isNewer(Object saved, int currentVersion) {
     if (!(saved instanceof String)) {
@@ -146,6 +149,34 @@ final class AppDataRecovery {
       );
     } catch (JSONException unreadable) {
       return false;
+    }
+  }
+
+  /** 把 store 里 key 的旧版本值迁移到当前版本并写回；不需要或不能迁移时不改动，由之后的检查判断能否读取。 */
+  private static void migrate(SharedPreferences store, String key, DataMigration.Chain chain)
+    throws Exception {
+    Object saved = store.getAll().get(key);
+    if (!(saved instanceof String)) {
+      return;
+    }
+    Object migrated;
+    try {
+      migrated = DataMigration.migrate(
+        TransferJson.parse(((String) saved).getBytes(StandardCharsets.UTF_8)),
+        chain
+      );
+    } catch (Exception unreadable) {
+      // 不是 JSON 的值由之后的检查删除。
+      return;
+    }
+    if (
+      migrated != null &&
+      !store
+        .edit()
+        .putString(key, new String(TransferJson.bytes(migrated), StandardCharsets.UTF_8))
+        .commit()
+    ) {
+      throw new IOException("Migrated data could not be saved: " + key);
     }
   }
 
@@ -170,6 +201,7 @@ final class AppDataRecovery {
       DirectoryStore.PREFERENCES,
       Context.MODE_PRIVATE
     );
+    migrate(store, DirectoryStore.REGISTRY, DirectoryStore.REGISTRY_MIGRATIONS);
     Object saved = store.getAll().get(DirectoryStore.REGISTRY);
     if (saved == null) {
       return false;
@@ -190,11 +222,12 @@ final class AppDataRecovery {
     return true;
   }
 
-  private static boolean checkLibrary(Context context) throws IOException {
+  private static boolean checkLibrary(Context context) throws Exception {
     SharedPreferences store = context.getSharedPreferences(
       AppStoragePlugin.FILE,
       Context.MODE_PRIVATE
     );
+    migrate(store, AppStoragePlugin.LIBRARY, ListenerLibrary.LIBRARY_MIGRATIONS);
     Object saved = store.getAll().get(AppStoragePlugin.LIBRARY);
     if (saved == null) {
       return false;
@@ -210,7 +243,7 @@ final class AppDataRecovery {
     }
   }
 
-  private static boolean checkBackupSettings(Context context) throws IOException {
+  private static boolean checkBackupSettings(Context context) throws Exception {
     Path path = new File(context.getFilesDir(), BackupStore.SETTINGS_FILE).toPath();
     if (!Files.exists(path, LinkOption.NOFOLLOW_LINKS)) {
       return false;
@@ -220,6 +253,7 @@ final class AppDataRecovery {
       Files.size(path) <= TransferJson.MAX_BYTES;
     if (isReadable) {
       byte[] bytes = Files.readAllBytes(path);
+      bytes = migrateFile(path, bytes, BackupModel.SETTINGS_MIGRATIONS);
       try {
         BackupModel.settings(TransferJson.parse(bytes));
         return false;
@@ -229,6 +263,39 @@ final class AppDataRecovery {
     }
     Files.delete(path);
     return true;
+  }
+
+  /**
+   * 把文件内容 bytes 的旧版本迁移到当前版本，先写临时文件再改名替换 path。
+   *
+   * @return 写回后的内容；不需要或不能迁移时返回原来的 bytes，不改动文件。
+   */
+  private static byte[] migrateFile(Path path, byte[] bytes, DataMigration.Chain chain)
+    throws Exception {
+    Object migrated;
+    try {
+      migrated = DataMigration.migrate(TransferJson.parse(bytes), chain);
+    } catch (Exception unreadable) {
+      // 不是 JSON 的文件由之后的检查删除。
+      return bytes;
+    }
+    if (migrated == null) {
+      return bytes;
+    }
+    byte[] next = TransferJson.bytes(migrated);
+    Path temporary = path.resolveSibling(".migrating-" + UUID.randomUUID() + ".tmp");
+    try {
+      Files.write(temporary, next);
+      Files.move(
+        temporary,
+        path,
+        StandardCopyOption.ATOMIC_MOVE,
+        StandardCopyOption.REPLACE_EXISTING
+      );
+    } finally {
+      Files.deleteIfExists(temporary);
+    }
+    return next;
   }
 
   // 端口超出范围时由 ListenerRuntime 重新生成，这里只删除类型不对、读取时会抛错的值。

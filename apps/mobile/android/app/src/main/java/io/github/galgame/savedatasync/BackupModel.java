@@ -231,6 +231,12 @@ final class BackupModel {
 
   /** 备份设置的格式版本，与 shared 的 BACKUP_SETTINGS_SCHEMA_VERSION 保持一致。 */
   static final int SETTINGS_VERSION = 4;
+  /** 备份设置的迁移链，步骤与 shared 的 BACKUP_SETTINGS_MIGRATIONS 一一对应。 */
+  static final DataMigration.Chain SETTINGS_MIGRATIONS = new DataMigration.Chain(
+    4,
+    SETTINGS_VERSION,
+    Map.of()
+  );
 
   /** 备份清单的格式版本，与 shared 的 BACKUP_MANIFEST_SCHEMA_VERSION 保持一致。 */
   static final int MANIFEST_VERSION = 1;

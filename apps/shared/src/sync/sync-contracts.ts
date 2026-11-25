@@ -1,4 +1,5 @@
 import type { CapabilityState, OperationError } from '../protocol/contracts.ts'
+import type { MigrationChain } from '../storage/migration.ts'
 
 /** 复制功能的 schema 版本，与 PROTOCOL_VERSION 分别计数。 */
 export const SYNC_SCHEMA_VERSION = 1
@@ -8,6 +9,12 @@ export const SYNC_SCHEMA_VERSION = 1
 export const SYNC_CAPABILITIES_VERSION = 8
 /** 备份库设置文件的格式版本。 */
 export const BACKUP_SETTINGS_SCHEMA_VERSION = 4
+/** 备份库设置文件的迁移链。 */
+export const BACKUP_SETTINGS_MIGRATIONS: MigrationChain = {
+  baseVersion: 4,
+  currentVersion: BACKUP_SETTINGS_SCHEMA_VERSION,
+  steps: {},
+}
 /** 备份清单的格式版本。 */
 export const BACKUP_MANIFEST_SCHEMA_VERSION = 1
 

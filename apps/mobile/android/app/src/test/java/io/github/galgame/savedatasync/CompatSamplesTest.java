@@ -13,9 +13,11 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -73,6 +75,13 @@ public class CompatSamplesTest {
 
   private static Object json(Path path) throws Exception {
     return TransferJson.parse(Files.readAllBytes(path));
+  }
+
+  /** 样本按迁移链迁移到当前版本后的内容；已是当前版本时原样返回。 */
+  private static Object migrated(Path sample, DataMigration.Chain chain) throws Exception {
+    Object value = json(sample);
+    Object next = DataMigration.migrate(value, chain);
+    return next != null ? next : value;
   }
 
   /** 按 JSON 重新解析，比较时不区分 Integer 和 Long。 */
@@ -185,9 +194,38 @@ public class CompatSamplesTest {
   }
 
   @Test
+  public void everyMigrationChainHasOneStepPerVersionFromBaseToCurrent() {
+    Map<String, DataMigration.Chain> chains = Map.of(
+      "library",
+      ListenerLibrary.LIBRARY_MIGRATIONS,
+      "backup-settings",
+      BackupModel.SETTINGS_MIGRATIONS,
+      "directories",
+      DirectoryStore.REGISTRY_MIGRATIONS
+    );
+    Map<String, Integer> current = Map.of(
+      "library",
+      ListenerLibrary.LIBRARY_VERSION,
+      "backup-settings",
+      BackupModel.SETTINGS_VERSION,
+      "directories",
+      DirectoryStore.REGISTRY_VERSION
+    );
+    for (Map.Entry<String, DataMigration.Chain> entry : chains.entrySet()) {
+      DataMigration.Chain chain = entry.getValue();
+      assertEquals(entry.getKey(), (int) current.get(entry.getKey()), chain.currentVersion);
+      Set<Integer> expected = new HashSet<>();
+      for (int from = chain.baseVersion; from < chain.currentVersion; from++) {
+        expected.add(from);
+      }
+      assertEquals(entry.getKey(), expected, chain.steps.keySet());
+    }
+  }
+
+  @Test
   public void everyLibrarySampleIsReadable() throws Exception {
     for (Path sample : samples("shared/library")) {
-      ListenerLibrary.checkConfig(json(sample));
+      ListenerLibrary.checkConfig(migrated(sample, ListenerLibrary.LIBRARY_MIGRATIONS));
     }
   }
 
@@ -196,7 +234,10 @@ public class CompatSamplesTest {
     throws Exception {
     for (Path sample : samples("shared/backup-settings")) {
       Path privateDirectory = temporaryDirectory();
-      Files.copy(sample, privateDirectory.resolve(BackupStore.SETTINGS_FILE));
+      Files.write(
+        privateDirectory.resolve(BackupStore.SETTINGS_FILE),
+        TransferJson.bytes(migrated(sample, BackupModel.SETTINGS_MIGRATIONS))
+      );
       BackupStore store = store(privateDirectory, privateDirectory, UUID.randomUUID().toString());
       Map<String, Object> settings = store.settings();
       if (version(sample) == BackupModel.SETTINGS_VERSION) {

@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { lstat, mkdir, open, rename, unlink } from 'node:fs/promises'
 import { dirname, isAbsolute, join } from 'node:path'
 import { isOpaqueId } from '@savedata-sync/shared'
+import type { MigrationChain } from '@savedata-sync/shared'
 import type { FileIdentity } from './directory-paths.ts'
 import { hasSameIdentity, isWithinDirectory } from './directory-paths.ts'
 import { DirectoryAccessError } from './directory-errors.ts'
@@ -15,6 +16,13 @@ export interface StoredDirectory {
 
 /** 目录配置文件的格式版本。 */
 export const DIRECTORY_REGISTRY_SCHEMA_VERSION = 2
+
+/** 目录配置文件的迁移链。 */
+export const DIRECTORY_REGISTRY_MIGRATIONS: MigrationChain = {
+  baseVersion: 2,
+  currentVersion: DIRECTORY_REGISTRY_SCHEMA_VERSION,
+  steps: {},
+}
 
 /** 目录配置文件：用户选定的根目录。 */
 export interface DirectoryRegistry {

@@ -2,10 +2,18 @@ import { randomUUID } from 'node:crypto'
 import { lstat, mkdir, open, readFile, rename, unlink } from 'node:fs/promises'
 import { dirname, isAbsolute, join } from 'node:path'
 import { isOpaqueId } from '@savedata-sync/shared'
+import type { MigrationChain } from '@savedata-sync/shared'
 import { DirectoryAccessError } from './directory-errors.ts'
 
 /** 设备身份文件的格式版本。 */
 export const DEVICE_IDENTITY_SCHEMA_VERSION = 1
+
+/** 设备身份文件的迁移链。 */
+export const DEVICE_IDENTITY_MIGRATIONS: MigrationChain = {
+  baseVersion: 1,
+  currentVersion: DEVICE_IDENTITY_SCHEMA_VERSION,
+  steps: {},
+}
 
 /** 设备身份文件：这次安装的稳定设备 ID。 */
 export interface DeviceIdentity {

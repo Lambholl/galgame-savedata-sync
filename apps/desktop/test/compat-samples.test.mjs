@@ -7,22 +7,30 @@ import { fileURLToPath } from 'node:url'
 import test from 'node:test'
 import {
   BACKUP_MANIFEST_SCHEMA_VERSION,
+  BACKUP_SETTINGS_MIGRATIONS,
   BACKUP_SETTINGS_SCHEMA_VERSION,
   DATA_RESET_ITEMS,
+  LIBRARY_MIGRATIONS,
   LIBRARY_SCHEMA_VERSION,
   isLibraryConfig,
 } from '@savedata-sync/shared'
 import {
   BACKUP_LOCATION_FILE,
+  BACKUP_LOCATION_MIGRATIONS,
   BACKUP_LOCATION_SCHEMA_VERSION,
   readBackupLocation,
   saveBackupLocation,
 } from '../src/backend/backup-location.ts'
 import { createDesktopBackupStore } from '../src/backend/backup-store.ts'
 import { NewerDataError, setAsideUnreadableData } from '../src/backend/data-recovery.ts'
-import { DEVICE_IDENTITY_SCHEMA_VERSION, loadDeviceId } from '../src/backend/device-identity.ts'
+import {
+  DEVICE_IDENTITY_MIGRATIONS,
+  DEVICE_IDENTITY_SCHEMA_VERSION,
+  loadDeviceId,
+} from '../src/backend/device-identity.ts'
 import { createDirectoryAdapter } from '../src/backend/directory-adapter.ts'
 import {
+  DIRECTORY_REGISTRY_MIGRATIONS,
   DIRECTORY_REGISTRY_SCHEMA_VERSION,
   loadDirectoryRegistry,
   saveDirectoryRegistry,
@@ -76,7 +84,7 @@ async function withBackupStore(settingsPath, work) {
 }
 
 /**
- * 带版本的数据项。read 用读取这项数据的模块读出内容，读不了时抛错；
+ * 带版本的数据项。migrations 是它的迁移链；read 用读取这项数据的模块读出内容，读不了时抛错；
  * write 用写入模块把读出的内容写回，没有单独写入接口的数据项为 null。
  */
 const ITEMS = [
@@ -84,6 +92,7 @@ const ITEMS = [
     item: 'device-identity',
     directory: 'desktop/device-identity',
     version: DEVICE_IDENTITY_SCHEMA_VERSION,
+    migrations: DEVICE_IDENTITY_MIGRATIONS,
     read: async (path) => ({ deviceId: await loadDeviceId(path) }),
     write: null,
   },
@@ -91,6 +100,7 @@ const ITEMS = [
     item: 'directories',
     directory: platformSamples('desktop/directories'),
     version: DIRECTORY_REGISTRY_SCHEMA_VERSION,
+    migrations: DIRECTORY_REGISTRY_MIGRATIONS,
     read: async (path) => {
       const registry = await loadDirectoryRegistry(path)
       assert.ok(registry)
@@ -102,6 +112,7 @@ const ITEMS = [
     item: 'library',
     directory: 'shared/library',
     version: LIBRARY_SCHEMA_VERSION,
+    migrations: LIBRARY_MIGRATIONS,
     read: async (path) => {
       const value = await readJson(path)
       assert.ok(isLibraryConfig(value))
@@ -113,6 +124,7 @@ const ITEMS = [
     item: 'backup-settings',
     directory: 'shared/backup-settings',
     version: BACKUP_SETTINGS_SCHEMA_VERSION,
+    migrations: BACKUP_SETTINGS_MIGRATIONS,
     read: (path) => withBackupStore(path, (store) => store.settings()),
     write: (path, settings) =>
       withBackupStore(path, (store) => store.setKeepCount(settings.keepCount)),
@@ -121,6 +133,7 @@ const ITEMS = [
     item: 'backup-library',
     directory: platformSamples('desktop/backup-library'),
     version: BACKUP_LOCATION_SCHEMA_VERSION,
+    migrations: BACKUP_LOCATION_MIGRATIONS,
     read: async (path) => {
       const location = await readBackupLocation(path)
       assert.ok(location)
@@ -153,6 +166,17 @@ test('每个带版本的数据项和备份清单在当前格式版本都有样�
   }
   const backups = await readdir(join(COMPAT, 'shared/backup'))
   assert.ok(backups.includes(`v${BACKUP_MANIFEST_SCHEMA_VERSION}`))
+})
+
+test('每条迁移链从基线到当前版本每个版本都有一步，没有多余的步骤', () => {
+  for (const { item, version, migrations } of ITEMS) {
+    assert.equal(migrations.currentVersion, version, item)
+    const expected = []
+    for (let from = migrations.baseVersion; from < version; from++) {
+      expected.push(String(from))
+    }
+    assert.deepEqual(Object.keys(migrations.steps), expected, item)
+  }
 })
 
 test('全部样本启动检查不重置，读取模块能读出', async (t) => {
@@ -207,6 +231,30 @@ test('数据写成更高版本时拒绝启动，所有数据文件原样保留',
     assert.equal(await readFile(path, 'utf8'), text)
   }
   assert.equal((await readdir(base)).length, written.size)
+})
+
+test('版本低于 1.0 基线的数据按读不懂处理，改名保留', async (t) => {
+  const base = await createBase(t)
+  const paths = dataPaths(base)
+  for (const entry of ITEMS) {
+    const sample = await currentSample(entry)
+    await writeFile(
+      paths[entry.item],
+      JSON.stringify({
+        ...(await readJson(sample.path)),
+        schemaVersion: entry.migrations.baseVersion - 1,
+      }),
+    )
+  }
+
+  assert.deepEqual(
+    await setAsideUnreadableData(paths),
+    DATA_RESET_ITEMS.filter((name) => ITEMS.some((entry) => entry.item === name)),
+  )
+  assert.equal((await readdir(base)).length, ITEMS.length)
+  for (const entry of ITEMS) {
+    await assert.rejects(readFile(paths[entry.item]), { code: 'ENOENT' })
+  }
 })
 
 /** 把某个清单版本的备份样本放进新的备份库，返回打开的备份存储和样本清单。 */
