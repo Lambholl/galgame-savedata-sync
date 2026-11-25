@@ -1,4 +1,4 @@
-import { copyFile, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
@@ -63,6 +63,7 @@ export async function buildSidecarExecutable(version) {
     try {
       const packed = join(workDirectory, 'sidecar.exe')
       await pkg({ input: SIDECAR_BUNDLE, targets: [`${NODE_RANGE}-win-x64`], output: packed })
+      await mkdir(dirname(output), { recursive: true })
       await copyFile(packed, output)
     } finally {
       if (previousNodePath === undefined) {
