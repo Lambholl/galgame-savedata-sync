@@ -22,7 +22,7 @@ tags: [代码地图]
 | 路径 | 作用 | 重要约定 |
 | --- | --- | --- |
 | `package.json`、`pnpm-workspace.yaml`、`pnpm-lock.yaml` | pnpm 工作区、固定版本与工程入口 | 私有工作区；使用指定 pnpm，不依赖系统全局 Gradle |
-| `README.md`、`docs/development.md` | 用户说明；开发命令、工具要求与检查范围 | 版本约束以工程配置为准 |
+| `README.md`、`docs/development.md` | 用户说明；开发命令、工具要求与检查范围 | 版本约束以工程配置为准；README 的截图在 `assets/screenshots/`，界面改版后在 release 时跟着更新 |
 | `scripts/doctor.mjs`、`scripts/local-environment.mjs` | 开发工具入口 | 使用方式见 `docs/development.md` |
 | `scripts/device/device.mjs`、`adb-guard.mjs`、`cdp.mjs`、`test-data.mjs`、`tree-hash.mjs`、`frida/` | 真机调试：adb 白名单入口和参数危险词检查、CDP 执行、开发服务器端口的 adb reverse、调试包诊断广播（`diag`）、合成测试数据和目录清单比对、经 uv 运行的 frida 附加 | 只经 `device.mjs` 调 adb；新增子命令要用固定模板加校验过的取值，删除只开放测试文件临时区；用法见 `docs/development.md` |
 | `scripts/check-text.mjs`、`scripts/check-dependency-specs.mjs`、`eslint.config.mjs`、`tsconfig.base.json` | 编码、格式、依赖版本写法、lint 和严格类型检查 | 生成目录不作为手写代码格式化 |

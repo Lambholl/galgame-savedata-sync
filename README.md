@@ -12,6 +12,8 @@ Windows 与 Android 的局域网存档同步工具。
 
 [下载](#下载) · [快速上手](#快速上手) · [注意事项](#注意事项) · [常见问题](#常见问题) · [开发指南](docs/development.md)
 
+<img src="assets/screenshots/games.webp" alt="电脑端和移动端的游戏页" width="900">
+
 </div>
 
 ## 功能
@@ -22,6 +24,12 @@ Windows 与 Android 的局域网存档同步工具。
 - **多种连接方式**：支持局域网自动发现、扫描二维码（移动端）与手动输入地址；对端更换 IP 后可自动重连。
 - **后台保活**：Android 端切至后台后，已开启的本机服务与进行中的传输会在通知栏保活。
 - **免费开源**：采用 [GNU AGPL v3.0](LICENSE) 许可。
+
+<p align="center">
+  <img src="assets/screenshots/devices.webp" alt="电脑端和移动端的设备页" width="900">
+  <br />
+  <img src="assets/screenshots/transfer.webp" alt="移动端的传输存档、传输详情和备份与恢复页" width="900">
+</p>
 
 ## 下载
 
