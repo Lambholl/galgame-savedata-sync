@@ -20,7 +20,7 @@ tags: [工作包]
 
 | ID | 工作包 | 内容与完成标准 | 依赖 | 状态 |
 | --- | --- | --- | --- | --- |
-| WP-083 | Linux 实机验收和用户文档 | 维护者在 X11 会话上用开发版验收过：与 Android 双向传输、写入和备份正常，各页面渲染正常（服务卡片的问题见 BUG-035）。剩余：Wayland 会话（可用 XFCE 4.20 的 Wayland 会话加 labwc）上验收窗口、选择器、打开文件夹、明暗主题和复制地址，差异写进[电脑端平台层](../architecture/desktop.md)；实机验收 Linux 与 Windows 双向传输，Wine 或 Proton 前缀里的存档目录，系统已运行 avahi-daemon 时的自动发现，ufw 或 firewalld 开启时的连接；README 增加 Linux 下载、`libfuse2` 和防火墙放行说明；把 REQ-027 并入 REQ-001，更新范围和约束里的平台，验收结果写进测试文档。完成标准：验收场景全部通过，或未通过项登记在已知问题 | 无 | planned |
+| WP-083 | Linux 实机验收和用户文档 | 维护者在 X11 会话上用开发版验收过：与 Android 双向传输、写入和备份正常，各页面渲染正常。剩余：Wayland 会话（可用 XFCE 4.20 的 Wayland 会话加 labwc）上验收窗口、选择器、打开文件夹、明暗主题和复制地址，差异写进[电脑端平台层](../architecture/desktop.md)；实机验收 Linux 与 Windows 双向传输，Wine 或 Proton 前缀里的存档目录，系统已运行 avahi-daemon 时的自动发现，ufw 或 firewalld 开启时的连接；README 增加 Linux 下载、`libfuse2` 和防火墙放行说明；把 REQ-027 并入 REQ-001，更新范围和约束里的平台，验收结果写进测试文档。完成标准：验收场景全部通过，或未通过项登记在已知问题 | 无 | planned |
 
 ## 2. 执行与拆分规则
 

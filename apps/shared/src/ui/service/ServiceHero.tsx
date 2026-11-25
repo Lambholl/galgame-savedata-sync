@@ -83,6 +83,40 @@ function wavyCircle(lobes: number, radius: number, depth: number): string {
 }
 const WAVY_PATH = wavyCircle(9, 44, 3.2)
 
+/** 地址行里看得见的右边缘：按钮只算图标，不算图标四周的空白；没有看得见的内容时是地址行的左边缘。 */
+function visibleRight(row: HTMLElement, isQrButtonIncluded: boolean): number {
+  const rights = Array.from(row.children)
+    .filter(
+      (child) =>
+        child.getClientRects().length > 0 &&
+        (isQrButtonIncluded || !child.classList.contains('ss-service-qr-button')),
+    )
+    .map((child) => {
+      const icon = child.tagName === 'BUTTON' ? child.querySelector('.anticon') : null
+      return (icon ?? child).getBoundingClientRect().right
+    })
+  return Math.max(row.getBoundingClientRect().left, ...rights)
+}
+
+/** 二维码按钮显示时在地址行末尾多占的看得见的宽度；地址行里没有二维码按钮时为 0。 */
+function qrButtonWidth(row: HTMLElement): number {
+  const button = row.querySelector('.ss-service-qr-button')
+  if (button === null) {
+    return 0
+  }
+  if (button.getClientRects().length > 0) {
+    return visibleRight(row, true) - visibleRight(row, false)
+  }
+  // 二维码在场时按钮隐藏着；它和复制按钮一样大，按复制按钮推算。
+  const copyButton = row.querySelector('.ss-service-icon-button:not(.ss-service-qr-button)')
+  const copyIcon = copyButton?.querySelector('.anticon')
+  if (!copyButton || !copyIcon) {
+    return 0
+  }
+  const rowGap = parseFloat(getComputedStyle(row).columnGap) || 0
+  return rowGap + copyIcon.getBoundingClientRect().right - copyButton.getBoundingClientRect().left
+}
+
 /** 把 startedAt 到现在的时长写成 `时:分:秒`，每秒刷新；startedAt 为 null 时返回 null。 */
 function useUptime(startedAt: number | null): string | null {
   const [now, setNow] = useState(() => Date.now())
@@ -132,53 +166,49 @@ export function ServiceHero({
   const bodyRef = useRef<HTMLDivElement>(null)
   const addressRef = useRef<HTMLDivElement>(null)
   const qrRef = useRef<HTMLDivElement>(null)
-  const toggleRef = useRef<HTMLDivElement>(null)
-  // 地址按原本的字号放不下时收起二维码，不缩小地址。地址的宽度随字体变化，CSS 算不出来，只能量。
-  // 按“二维码在场时信息栏有多宽”判断：收起的二维码只隐藏、不占位置，仍量得到宽度，
-  // 地址的字号只随卡片宽度变化，所以收起和展开两种状态下算出的结论相同，不会来回切换。
-  // 比的是看得见的边：开关的光晕伸进二维码右侧的间距 --ss-service-glow，地址行也可以伸进左侧间距同样多，
-  // 两边留出的空隙看起来一样宽；按钮只算图标，不算图标四周的空白。
+  // 地址的宽度随字体变化，CSS 算不出来，只能量。地址按原本的字号放不下时先收起二维码；
+  // 二维码已经收起或者地址单独占一行时还放不下，才按放得下的比例缩小地址（--ss-address-scale）。
+  // 每次先把比例还原成 1 再量，量到的是原本的宽度，结论不随当前比例变化，不会来回切换。
   useLayoutEffect(() => {
     const body = bodyRef.current
-    const addressRow = addressRef.current
-    const qr = qrRef.current
-    const toggle = toggleRef.current
-    if (!hasInlineQr || !body || !addressRow || !qr || !toggle) {
+    const row = addressRef.current
+    if (!isRunning || !body || !row) {
       return
     }
     const measure = (): void => {
-      // 地址行不换行也不收缩，各部分按原本的宽度排开。二维码按钮只在收起时出现，不算进去。
-      const visibleRight = Math.max(
-        ...Array.from(addressRow.children)
-          .filter(
-            (child) =>
-              child.getClientRects().length > 0 &&
-              !child.classList.contains('ss-service-qr-button'),
-          )
-          .map((child) => {
-            const icon = child.tagName === 'BUTTON' ? child.querySelector('.anticon') : null
-            return (icon ?? child).getBoundingClientRect().right
-          }),
-      )
-      const needed = visibleRight - addressRow.getBoundingClientRect().left
+      row.style.setProperty('--ss-address-scale', '1')
       const bodyStyle = getComputedStyle(body)
-      const infoWidth =
-        body.clientWidth -
-        (parseFloat(bodyStyle.paddingLeft) || 0) -
-        (parseFloat(bodyStyle.paddingRight) || 0) -
-        toggle.getBoundingClientRect().width -
-        qr.getBoundingClientRect().width -
-        2 * (parseFloat(bodyStyle.columnGap) || 0)
-      const glow = parseFloat(getComputedStyle(toggle).getPropertyValue('--ss-service-glow')) || 0
-      setIsQrFolded(Math.ceil(needed) > infoWidth + glow)
+      const isStacked = bodyStyle.getPropertyValue('--ss-service-stacked').trim() === '1'
+      const glow = parseFloat(bodyStyle.getPropertyValue('--ss-service-glow')) || 0
+      const rowBox = row.getBoundingClientRect()
+      const textWidth = row.querySelector('.ss-copyable')?.getBoundingClientRect().width ?? 0
+      const needed = visibleRight(row, false) - rowBox.left
+      // 收起的二维码只隐藏、不占位置，仍量得到宽度。
+      const qrBox = qrRef.current?.getBoundingClientRect()
+      const qrSpace = qrBox === undefined ? 0 : qrBox.width + (parseFloat(bodyStyle.columnGap) || 0)
+      const wasFolded = body.parentElement?.classList.contains('is-qr-folded') ?? false
+      // 二维码收起后地址行的右边：二维码在场时地址行到二维码左侧的间距为止，收起后伸到开关左侧的间距为止。
+      const foldedRight = wasFolded ? rowBox.right : rowBox.right + qrSpace
+      // 开关的光晕伸进二维码右侧的间距 --ss-service-glow，地址行也可以伸进二维码左侧的间距同样多，两边空隙看起来一样宽。
+      // 地址单独占一行时二维码总是收起，沿用原来的结论，回到并排时不会先展开再收起。
+      const isFolded = isStacked
+        ? wasFolded
+        : !hasInlineQr || Math.ceil(needed) > foldedRight - qrSpace + glow - rowBox.left
+      setIsQrFolded(isFolded)
+      if (textWidth > 0 && (isStacked || isFolded)) {
+        const room = (isStacked ? rowBox.right : foldedRight) - rowBox.left - qrButtonWidth(row)
+        // 只有地址文字随字号缩放，间距和按钮的宽度不变。
+        const scale = Math.min(1, (room - (needed - textWidth)) / textWidth)
+        row.style.setProperty('--ss-address-scale', String(Math.floor(scale * 100) / 100))
+      }
     }
     const observer = new ResizeObserver(measure)
     observer.observe(body)
-    for (const child of Array.from(addressRow.children)) {
+    for (const child of Array.from(row.children)) {
       observer.observe(child)
     }
     return () => observer.disconnect()
-  }, [hasInlineQr, address, isAddressLoading])
+  }, [isRunning, hasInlineQr, address, isAddressLoading, qrText])
   const heroClasses = [
     'ss-service-hero',
     `is-${state}`,
@@ -261,7 +291,7 @@ export function ServiceHero({
             <ConnectionQr text={qrText} size={132} label={t('service.qrTitle')} />
           </div>
         ) : null}
-        <div className="ss-service-toggle-slot" ref={toggleRef}>
+        <div className="ss-service-toggle-slot">
           <button
             type="button"
             className={`ss-service-toggle is-${state}`}
