@@ -1,11 +1,11 @@
 ---
 doc_type: adr
 status: accepted
-updated: 2026-11-23
+updated: 2026-11-26
 tags: [决策, 电脑端, Tauri, sidecar, 存储目录, 便携模式, 备份库]
 ---
 
-# ADR-0005 电脑端改用 Tauri 宿主和 Node sidecar，重新规划存储目录
+# ADR-0005 电脑端采用 Tauri 宿主和 Node sidecar，存储目录按配置、数据、备份库、缓存分开
 
 ## 目录
 
@@ -54,7 +54,7 @@ accepted。宿主、sidecar、存储目录、Windows 打包、数据文件读不
 
 ### 分发
 
-6. Windows x64 发布 NSIS 安装包和免安装 zip 两种。zip 里主程序和 sidecar 放在同一文件夹。
+6. Windows x64 发布 NSIS 安装包和免安装 zip 两种。zip 里主程序和 sidecar 放在同一文件夹。Linux 的分发形式见 [ADR-0007](ADR-0007-linux-desktop.md)。
 
 ### 存储目录
 
@@ -73,7 +73,7 @@ accepted。宿主、sidecar、存储目录、Windows 打包、数据文件读不
 
 ### 便携模式
 
-11. 主程序所在文件夹里存在 `portable_data` 文件夹时进入便携模式：配置、数据、默认备份库和缓存都放在它下面的 `config\`、`data\`、`backups\`、`cache\` 里，不读写系统目录。应用不主动创建 `portable_data`，由用户自己建；zip 包里不带这个文件夹。
+11. 主程序所在文件夹里存在 `portable_data` 文件夹时进入便携模式：配置、数据、默认备份库和缓存都放在它下面的 `config\`、`data\`、`backups\`、`cache\` 里，不读写系统目录。应用不主动创建 `portable_data`，由用户自己建；zip 包里不带这个文件夹。Linux 上 AppImage 按 `.AppImage` 文件所在的文件夹判断，deb 安装版不支持便携模式（[ADR-0007](ADR-0007-linux-desktop.md)）。
 
 ### 备份库位置
 
@@ -94,8 +94,8 @@ accepted。宿主、sidecar、存储目录、Windows 打包、数据文件读不
 
 ### 正面影响
 
-- 分发包不再包含 Chromium。
-- 设备身份、备份和缓存不再进入 Roaming。
+- 分发包不含 Chromium。
+- 设备身份、备份和缓存不放在 Roaming。
 - 备份库可以放到容量更大的盘上。
 
 ### 负面影响

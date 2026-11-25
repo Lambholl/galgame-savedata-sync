@@ -1,7 +1,7 @@
 ---
 doc_type: api-contracts
 status: active
-updated: 2026-11-25
+updated: 2026-11-26
 tags: [API, 接口约定]
 ---
 
@@ -107,7 +107,7 @@ tags: [API, 接口约定]
 | Windows 私有归档 | createWindowsArchiveAdapter、checkStagingSpace、sendFiles/receiveFiles、retryCleanup；receiveFiles 返回解包后的 openFile/dispose；source 仍只读；目录流提供 verifyUnchanged 与缓存隔离检查 | 不返回可供 Renderer 使用的路径/句柄；按计划逐成员核对并通过 gzip CRC32、ISIZE 校验后返回私有缓存；HTTP 和目标写入交给上层；调用者关闭流并 dispose，清理失败另报 cleanupError |
 | Capacitor Directories 插件 | chooseDirectory/listRoots/listDirectory；系统选择器与 READ 持久授权、当前层元数据和本地 ID；原生读写只经 `DocumentAccess`，有所有文件访问权限且目录属于系统存储提供者时按路径读写，两种实现返回相同的 ID 和属性 | URI/documentId 留在原生层，不接收任意路径；写入能力均不支持；原生只读流由同包调用者消费并关闭，不将内容或 Base64 交给 JS |
 | Android 当前扫描 | SyncScansPlugin 的 capabilities/start/query/cancel；start 接收 schemaVersion=1/rootId，query/cancel 接收 scanId，返回 OperationResult 包络及共享 SyncScanState | 本次递归读取及原生 SHA-256；未知长度按流实测，源变化/权限/预算/取消分别报告；结果限时存内存，不加保活或前后台处理；调用见[Android 平台层](android.md) |
-| Android 独立备份 | BackupStore/Model/Files、AndroidBackupIo、ManualBackupRuntime 提供 `Android/data` 中备份的创建、本机异步手动备份、校验、按份数（1–4096）平级轮换、设置/容量及恢复材料引用；SyncBackupsPlugin 提供 read/list/manifest/setKeepCount/rotate/cleanupIncomplete/deleteBackup/deleteGameBackups 及 startManual/currentManual/manualState/cancelManual | 写入前备份由原生确认计划编排调用，手动备份由应用级 `ManualBackupRuntime` 在 Activity 销毁后继续执行；设置、手动备份及显式维护争用与传输/恢复相同的目标名额，实际任务清理前拒绝变更。SAF 读取后校验，按 `backups/游戏名/UTC 时间/` 落盘/回读/提交，用户可直接删除；设置在内部 backup-settings.json；查询仅公开 ID/摘要/清单/状态，displayPath 仅供展示；不跨桥传内容/句柄，不新增备份目录选择；错误与资源责任见[Android 平台层](android.md) |
+| Android 独立备份 | BackupStore/Model/Files、AndroidBackupIo、ManualBackupRuntime 提供 `Android/data` 中备份的创建、本机异步手动备份、校验、按份数（1–4096）平级轮换、设置/容量及恢复材料引用；SyncBackupsPlugin 提供 read/list/manifest/setKeepCount/rotate/cleanupIncomplete/deleteBackup/deleteGameBackups 及 startManual/currentManual/manualState/cancelManual | 写入前备份由原生确认计划编排调用，手动备份由应用级 `ManualBackupRuntime` 在 Activity 销毁后继续执行；设置、手动备份及显式维护争用与传输/恢复相同的目标名额，实际任务清理前拒绝变更。SAF 读取后校验，按 `backups/游戏名/UTC 时间/` 落盘/回读/提交，用户可直接删除；设置在内部 backup-settings.json；查询仅公开 ID/摘要/清单/状态，displayPath 仅供展示；不跨桥传内容/句柄，不提供备份目录选择；错误与资源责任见[Android 平台层](android.md) |
 | Android 受保护写入与本机恢复 | SyncPlanModel 重算可执行计划，SyncWriter.apply 与 DirectorySyncBackend 执行原生目标写入；SyncWrites/TS bridge 提供 bindProject/prepareRestore/preview/execute/query/current/cancel/release/retryCleanup | 平台从保存配置绑定项目/根，原生检查持久写权限和固定预览；完整输入/目标复核、容量和有效备份后创建/覆盖/回读，rw 不预截断；本机恢复强制保护当前内容。current 返回活动或最近恢复 ID，页面据此找回预览和结果；清理失败记录继续保留，明确重试后更新清理状态。输入引用/取消/清理与实际结果分开，仅公开 DTO/ID，不公开 URI/路径/流；详见[Android 平台层](android.md) |
 | Java 私有归档 | ArchiveAdapter 的 checkStagingSpace、sendFiles/receiveFiles、retryCleanup；receiveFiles 返回 Staged.openFile/close；源文件经 ArchiveModel.Source 读取并前后复核；ArchiveControl 取消时关闭读流，资源、期限与清理错误分别检查 | 按计划逐成员核对并通过 gzip CRC32、ISIZE 校验后才返回句柄；私有缓存路径和所有权进程独占，清理失败保留名额可重试；无 URI/内容跨桥；网络、目标写入与前台调度由对应模块负责；用法见[Android 平台层](android.md) |
 | Android 原生连接 | HttpTransfersPlugin、TransferSchema/Http/Engine、TS 桥；connect/disconnect、连接列表与选择、目录表交换、控制通道、远端根和当前层、本机设备名、通知权限和 chooseTarget | 严格 JSON/头/预算和会话；连接和默认网络无进展等待 5 秒，初次握手总期限 5 秒；`TransferRuntime` 持有进程内唯一的 `TransferEngine`；URI/字节不跨桥；用法见[Android 平台层](android.md) |
@@ -149,7 +149,7 @@ Windows 的 `DesktopLibrary` 在应用私有目录原子保存游戏/设备配�
 
 在线以控制连接为准：监听方看控制连接是否打开，拨号方看本机控制状态（Android 原生层或电脑端后端）；拨号方控制连接关闭 10 秒（或收到 4001）且没有活动任务时释放连接，活动传输仍保留原任务查询上下文。两端从已连接变为未连接时，通过 antd `message` 提示一次“连接已断开”；持续离线不重复提示，也不增加持久错误条或诊断断开原因。拨号方连接失败也使用同一 `message`，颜色和圆角随本端明暗主题同步。
 
-Android 桥提供 `connections`、`selectDevice`、`disconnectDevice`、`exchangeCatalog`；原生和界面均限制单连接。Activity 重建查询原生连接和当前任务，连接和持续通知见第 4 节“Android 原生连接”“生命周期”。对端主动关联只合并公开元数据，目录写权限来自本机系统选择器；本机解除关联只改本机配置，对端仍会报这条关联，所以解除的关联（设备 ID 加对端游戏 ID）记进该游戏的 `excludedLinks`，合并时跳过；对端之后新导入或新关联的游戏 ID 不同，照常合并。`excludedLinks` 最多 `LIBRARY_LIMITS.maxDevices` 条，超出时丢掉最早的；旧配置的 `excludedDevices` 不再读取。对端有几个游戏关联同一个本机游戏时，优先本机已关联的那条，否则取第一条。合并关联（共享 `mergeCatalogLinks`、Android `ListenerLibrary.mergeLinks`）时，对端已把本机记着的那个游戏改关联到本机另一个现存游戏，才移除本机的旧关联；对端的关联指向本机已删除的游戏时视为它还没更新的旧关联，本机关联保留，并在下一次交换时更新对端。
+Android 桥提供 `connections`、`selectDevice`、`disconnectDevice`、`exchangeCatalog`；原生和界面均限制单连接。Activity 重建查询原生连接和当前任务，连接和持续通知见第 4 节“Android 原生连接”“生命周期”。对端主动关联只合并公开元数据，目录写权限来自本机系统选择器；本机解除关联只改本机配置，对端仍会报这条关联，所以解除的关联（设备 ID 加对端游戏 ID）记进该游戏的 `excludedLinks`，合并时跳过；对端之后新导入或新关联的游戏 ID 不同，照常合并。`excludedLinks` 最多 `LIBRARY_LIMITS.maxDevices` 条，超出时丢掉最早的；配置里的 `excludedDevices` 字段读取时忽略。对端有几个游戏关联同一个本机游戏时，优先本机已关联的那条，否则取第一条。合并关联（共享 `mergeCatalogLinks`、Android `ListenerLibrary.mergeLinks`）时，对端已把本机记着的那个游戏改关联到本机另一个现存游戏，才移除本机的旧关联；对端的关联指向本机已删除的游戏时视为它还没更新的旧关联，本机关联保留，并在下一次交换时更新对端。
 
 新增设备的默认名称使用对端声明：Windows `/v1/device` 默认返回系统计算机名称，Android catalog 优先读取系统设备名称，读取失败或空值时使用型号，名称限 128 个 UTF-16 码元且截断不拆开代理对。重新连接或目录表交换不覆盖已保存的名称。
 

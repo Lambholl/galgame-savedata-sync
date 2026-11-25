@@ -2,8 +2,8 @@
 doc_type: open-questions
 status: active
 id_prefix: Q
-id_high_water: 25
-updated: 2026-11-23
+id_high_water: 26
+updated: 2026-11-26
 tags: [开放问题]
 ---
 
@@ -13,7 +13,7 @@ tags: [开放问题]
 
 | ID | 问题 | 影响 | 负责人 | 状态 |
 | --- | --- | --- | --- | --- |
-| Q-001 | 是否正式选定 React + TypeScript + Vite、Windows Electron + antd、Android Capacitor + antd-mobile？ | 结论：采用该 React 双端技术栈；平台文件与发现能力按架构适配。电脑端宿主改为 Tauri + Node sidecar，见 [ADR-0005](../decisions/ADR-0005-tauri-sidecar-and-storage-layout.md) | 维护者 | closed |
+| Q-001 | 是否正式选定 React + TypeScript + Vite、Windows Electron + antd、Android Capacitor + antd-mobile？ | 结论：采用该 React 双端技术栈；平台文件与发现能力按架构适配。电脑端宿主采用 Tauri + Node sidecar，不用 Electron，见 [ADR-0005](../decisions/ADR-0005-tauri-sidecar-and-storage-layout.md) | 维护者 | closed |
 | Q-002 | 首次配对采用发现列表、扫码、配对码中的哪些入口？ | 结论：首版采用发现列表、扫码和手动 IP，都在 M-003 实现；配对码不纳入首版 | 维护者 | closed |
 | Q-003 | 是否在首版加入 mDNS/DNS-SD 自动发现？ | 结论：加入 mDNS/DNS-SD 自动发现及改址重连，另提供手动 IP 入口；稳定设备 ID 与目录配置关联，地址变化不重建映射 | 维护者 | closed |
 | Q-004 | 首版采用覆盖复制，还是同时提供会删除目标端独有条目的镜像模式？ | 结论：不分两种模式，传输页用一个开关选择保留或删除目标多出的条目，默认保留；删除时计划页预览删除项，完成后目标与来源一致 | 维护者 | closed |
@@ -33,8 +33,9 @@ tags: [开放问题]
 | Q-018 | Android 开着本机服务时，应用退到后台或 Activity 销毁后服务是否继续监听？ | 结论：继续监听。本机服务开着时由前台服务和常驻通知保持，应用退到后台或 Activity 销毁都不停止；约束见[项目约束](constraints.md)的“Android 生命周期”，实现方式见 ADR-0004 | 维护者 | closed |
 | Q-019 | 一台设备能否同时作为监听方被别的设备连着，又作为拨号方去连另一台设备？ | 结论：不能。任何设备同一时刻只有一条连接，作为监听方被连着或作为拨号方连着别人，二者只能有一个；拒绝方式见 ADR-0004 | 维护者 | closed |
 | Q-020 | 传输开始时另一端自动打开传输详情（REQ-023）：另一端正在别的页面操作时是否也直接切换？电脑窗口最小化或在后台时是否还原并抢焦点？ | 结论：总是切换到传输详情，返回目标按现有规则回游戏页。电脑只切换页面，不还原窗口、不抢焦点、不闪烁任务栏；Android 在后台时只切换页面，Android 不允许后台应用把自己切到前台，进度看传输通知 | 维护者 | closed |
-| Q-021 | 手动备份并入轮换后，保留份数怎么定？计划页的本次备份开关由哪一端决定？ | 结论：保留份数范围 1–4096（默认 10），归存放备份的设备，整个备份库一个值，不按游戏单独设置；传输前、恢复前和手动备份平级轮换，都按存放备份的设备上的值计数，与发起端无关；网络接口与控制通道不带保留份数。备份开关由发起传输的一端按次选择，每次默认关闭，不保存，也不读取任何一端的持久设置；两端的全局和按游戏的备份开关一并去掉。`sync.confirm` 和本机确认带 `shouldBackup`，接收端不再与本机设置核对，`SYNC_CAPABILITIES_VERSION` 升到 8，两端已实现 | 维护者 | closed |
+| Q-021 | 手动备份并入轮换后，保留份数怎么定？计划页的本次备份开关由哪一端决定？ | 结论：保留份数范围 1–4096（默认 10），归存放备份的设备，整个备份库一个值，不按游戏单独设置；传输前、恢复前和手动备份平级轮换，都按存放备份的设备上的值计数，与发起端无关；网络接口与控制通道不带保留份数。备份开关由发起传输的一端按次选择，每次默认关闭，不保存，也不读取任何一端的持久设置；两端没有全局和按游戏的备份开关。`sync.confirm` 和本机确认带 `shouldBackup`，接收端不与本机设置核对，对应 `SYNC_CAPABILITIES_VERSION` 8，两端已实现 | 维护者 | closed |
 | Q-022 | 封面搜索的请求构造和响应解析放在哪里：共享包写一份，Android Java 和电脑 sidecar 只做受限的 HTTP 执行器；还是 Android 另用 Java 写一份完整实现？ | 结论：请求构造、响应解析、关键词清理、限流和错误分类在共享包写一份，两端 WebView 跑同一份搜索流程；电脑 sidecar 和 Android Java 只提供受限的 HTTP 执行器，见[游戏封面](../architecture/poster.md#2-模块划分) | 维护者 | closed |
 | Q-023 | 保存的封面尺寸和格式？ | 结论：WebView canvas 等比缩小到 720×960 以内、编码为 WebP（质量 0.85），`LibraryGame` 加可选的 `posterHash`、不升 `schemaVersion`，见[游戏封面](../architecture/poster.md#6-封面存储) | 维护者 | closed |
-| Q-024 | 导入对端游戏时封面怎么传？ | 结论：`CatalogGame` 加 `posterHash`，控制通道加 `poster.read` 返回 base64，`PROTOCOL_VERSION` 升到 4，取封面失败不挡导入，见[游戏封面](../architecture/poster.md#7-对端封面) | 维护者 | closed |
+| Q-024 | 导入对端游戏时封面怎么传？ | 结论：`CatalogGame` 加 `posterHash`，控制通道加 `poster.read` 返回 base64，对应 `PROTOCOL_VERSION` 4，取封面失败不挡导入，见[游戏封面](../architecture/poster.md#7-对端封面) | 维护者 | closed |
 | Q-025 | 封面范围的两个假设是否成立：可以移除封面恢复占位；对端封面只在导入时取一次，之后不跟随 | 结论：两项都采用，见[游戏封面](../architecture/poster.md#1-范围)第 1 节 | 维护者 | closed |
+| Q-026 | 同步目录里的符号链接和特殊文件（[ADR-0007](../decisions/ADR-0007-linux-desktop.md#符号链接和特殊文件) 第 17 条）怎么呈现和处理：(1) 在两端的目录列表里显示为“不支持的条目”，还是不显示；显示需要协议增加一种条目类型，随 1.1.0 的协议升级一起做。(2) 来源有同名的文件或文件夹时，目标端的这类条目是让该项失败，还是整个计划不能开始。(3) 选择“删除目标多出的条目”时是否删除这类条目 | 决定 WP-078 的协议字段、计划和界面。建议：显示为不支持的条目；同名时该项失败并在结果里说明；不删除，计划页列出保留的这类条目 | 维护者 | open |

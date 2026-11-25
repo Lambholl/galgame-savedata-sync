@@ -1,7 +1,7 @@
 ---
 doc_type: architecture
 status: active
-updated: 2026-11-25
+updated: 2026-11-26
 tags: [Windows, 电脑端, Tauri, sidecar, 存储目录]
 ---
 
@@ -139,7 +139,7 @@ sidecar 可执行文件由 `apps/desktop/scripts/build-sidecar-exe.mjs` 用 `@ya
 | 备份库 | `%LOCALAPPDATA%\galgame-savedata-sync\backups\` | 默认位置，用户可在设置页换到别的文件夹，见第 12 节 |
 | 缓存 | `%LOCALAPPDATA%\galgame-savedata-sync\cache\` | `transfer-archives-v1/`、`webview/` |
 
-主程序所在文件夹里有 `portable_data` 文件夹时进入便携模式，四个目录换成它下面的 `config`、`data`、`backups`、`cache`；应用不创建 `portable_data`。宿主在 Linux 上按 XDG 目录计算（位置见 ADR-0005），Linux 还没构建和测试。
+主程序所在文件夹里有 `portable_data` 文件夹时进入便携模式，四个目录换成它下面的 `config`、`data`、`backups`、`cache`；应用不创建 `portable_data`。宿主在 Linux 上按 XDG 目录计算（位置见 ADR-0005），Linux 还没构建和测试，支持计划见 [ADR-0007](../decisions/ADR-0007-linux-desktop.md)。
 
 启动时 `startBackend` 创建四个目录并解析成真实路径，兼容系统目录重定向；然后把配置、数据、缓存目录登记为私有目录，备份库由备份存储登记。目录适配器拒绝把私有目录和备份库及其父子目录选作同步根。
 
@@ -289,7 +289,7 @@ HTTP 测试使用真实回环 HTTP/TCP。
 
 实际桌面窗口、系统选择器、Android LAN 双向、取消、清理重试和界面结果在 Electron 宿主上验收过，见[验收标准](../testing/acceptance.md)。Tauri 宿主在 Windows 上验证过：窗口和界面加载、深浅色切换和重启后恢复、系统目录选择器、服务启动和局域网广播、关闭窗口时停止服务后退出、sidecar 意外退出的提示、宿主被强制结束后 sidecar 自行退出，以及安装模式和便携模式的存储位置。和移动端的连接与双向传输在 Tauri 宿主上验收过。宿主和 sidecar 之间的消息解析不进长期测试：两者一起发布，格式不一致时应用启动即出错。
 
-打包产物在 `PATH` 里没有 `node` 的环境下验证过：免安装版（建了 `portable_data`）和安装版都能打开窗口、启动服务并广播，关闭窗口后主程序和 sidecar 都退出，免安装版的数据只写进 `portable_data`；按当前用户静默安装和卸载验证过，卸载后存储目录保留。后端改用 pkg 打包后，免安装版的打开窗口、启动服务并广播和关闭后退出重测过。打包产物上其他功能的验证范围见[测试约定](../standards/testing.md)。电脑拨号没有长期测试，连接和传输的验收结论见[验收标准](../testing/acceptance.md)第 3 节。
+打包产物在 `PATH` 里没有 `node` 的环境下验证过：免安装版（建了 `portable_data`）和安装版都能打开窗口、启动服务并广播，关闭窗口后主程序和 sidecar 都退出，免安装版的数据只写进 `portable_data`；按当前用户静默安装和卸载验证过，卸载后存储目录保留。sidecar 由 pkg 编译的免安装版上，打开窗口、启动服务并广播和关闭后退出都验证过。打包产物上其他功能的验证范围见[测试约定](../standards/testing.md)。电脑拨号没有长期测试，连接和传输的验收结论见[验收标准](../testing/acceptance.md)第 3 节。
 
 数据文件的启动检查由 `test/data-recovery.test.mjs` 覆盖两件事：有数据由更新版本写入时报告这些项、所有文件不改名；旧版本和损坏的文件改名，界面偏好里不认识的字段不算读不懂。用构建出的 sidecar 和临时数据目录验证过：游戏库是更新版本、身份文件同时损坏时，按系统语言（中文、英文）发出“需要更新应用”的 fatal 提示，两个文件都原样保留；Tauri 宿主里的提示框没有实际打开看过。读不懂时的启动处理用临时脚本经 `startBackend` 验证过：六个数据文件分别是坏 JSON、非 UTF-8、错误的格式版本、字段取值越界或目录时都能启动，原文件改名保留，重置项列表完整，再次启动不重复报告。在开发版的便携模式下验证过界面：提示列出对应项，“打开数据文件夹”打开数据目录，关闭提示后列表清空。
 

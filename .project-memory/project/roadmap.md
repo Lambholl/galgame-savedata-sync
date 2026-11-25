@@ -2,8 +2,8 @@
 doc_type: roadmap
 status: active
 id_prefix: M
-id_high_water: 6
-updated: 2026-11-25
+id_high_water: 7
+updated: 2026-11-26
 tags: [路线图, 里程碑]
 ---
 
@@ -20,9 +20,10 @@ tags: [路线图, 里程碑]
 
 | 里程碑 | 目标 | 计划时间 | 状态 |
 | --- | --- | --- | --- |
+| M-007 | 1.1.0：电脑端支持 Linux x86_64，发布 AppImage 和 deb；设备平台增加 `'linux'`，协议和游戏库升版本，建立落盘格式迁移链（[ADR-0007](../decisions/ADR-0007-linux-desktop.md)） | 待补充 | planned |
 
 ## 2. 当前计划
 
 | 优先级 | 事项 | 依赖 | 状态 |
 | --- | --- | --- | --- |
-| P3 | 电脑端支持 Linux：存储目录已按 XDG 规划；推荐地址模块（现用 `route print`、`reg query`）、短路径测试和 `Windows*` 命名要另做 | 无 | planned |
+| P1 | M-007 电脑端支持 Linux，按 WP-076 至 WP-083 推进 | 无 | planned |

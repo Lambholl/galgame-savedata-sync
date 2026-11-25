@@ -1,7 +1,7 @@
 ---
 doc_type: adr
 status: accepted
-updated: 2026-11-24
+updated: 2026-11-26
 tags: [决策, 正式版, 兼容性, 版本号, 迁移]
 ---
 
@@ -64,7 +64,7 @@ accepted。规则从 1.0.0 起生效。
 5. 结构化数据带 `schemaVersion`，当前版本由常量给出：共享包的 `LIBRARY_SCHEMA_VERSION`、`BACKUP_SETTINGS_SCHEMA_VERSION`，电脑端的 `DEVICE_IDENTITY_SCHEMA_VERSION`、`DIRECTORY_REGISTRY_SCHEMA_VERSION`、`BACKUP_LOCATION_SCHEMA_VERSION`，Android 的 `ListenerLibrary.LIBRARY_VERSION`、`DirectoryStore.REGISTRY_VERSION`、`BackupModel.SETTINGS_VERSION`。Android 的设备 ID 是单个字符串，没有版本。
 6. 主题、语言和端口这类简单设置不带版本，宽容读取：不认识的字段忽略，单个字段无效时读成默认值，不提示；只有文件不是 JSON 对象（Android 是值的类型不对）时按读不懂处理。将来改简单设置的格式时换用新的字段名或键名，不改变已有字段的含义。
 7. 1.0 的格式是基线，0.x 的数据不迁移，不识别 0.x 的格式，统一按读不懂的数据处理。0.x 各格式的版本号都不大于 1.0，不会被当成更新版本。
-8. 读到旧版本时按版本逐级迁移到当前版本再写回；迁移失败按读不懂的数据处理。1.0 没有要迁移的旧版本，迁移代码在第一次改结构化数据的格式时加入，加在启动检查读取这项数据之前。
+8. 读到旧版本时按版本逐级迁移到当前版本再写回；迁移失败按读不懂的数据处理。1.0 没有要迁移的旧版本，迁移代码在第一次改结构化数据的格式时加入，加在启动检查读取这项数据之前。迁移链的结构见 [ADR-0007](ADR-0007-linux-desktop.md#落盘格式迁移链)。
 9. 读到比当前版本新的数据（JSON 对象的整数 `schemaVersion` 大于当前版本）时，所有数据都不改动，应用不启动：电脑端 sidecar 发出 fatal 提示后退出，Android 只显示提示页、不注册其余原生插件，本机服务不会恢复。普通用户在 Android 上不能保留数据降级安装，这种情况几乎只出现在电脑端。
 10. 内容损坏的数据沿用现有处理：电脑端改名保留后用默认值，Android 删除后用默认值。
 11. 改落盘格式要维护者同意，同时写迁移和长期测试，见[测试约定](../standards/testing.md)。

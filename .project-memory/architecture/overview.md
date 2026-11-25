@@ -1,7 +1,7 @@
 ---
 doc_type: architecture-overview
 status: active
-updated: 2026-11-23
+updated: 2026-11-26
 tags: [架构总览]
 ---
 
@@ -96,7 +96,7 @@ tags: [架构总览]
 | --- | --- | --- |
 | 明文 HTTP、手选方向、无历史基线、目录不递归计算大小 | 产品决定；具体约束见[产品需求](../requirements/product.md) | accepted |
 | React 双端技术栈 | React + TypeScript + Vite，Windows Tauri + antd，Android Capacitor + antd-mobile | accepted |
-| 电脑端宿主和存储目录 | 改用 Tauri 宿主和 Node sidecar，存储按 Roaming（界面偏好）、Local（数据、备份库）、缓存分开，支持 `portable_data` 便携模式和自定义备份库；打包和自定义备份库还没做，见 [ADR-0005](../decisions/ADR-0005-tauri-sidecar-and-storage-layout.md) | accepted |
+| 电脑端宿主和存储目录 | Tauri 宿主和 Node sidecar，存储按 Roaming（界面偏好）、Local（数据、备份库）、缓存分开，支持 `portable_data` 便携模式和自定义备份库，见 [ADR-0005](../decisions/ADR-0005-tauri-sidecar-and-storage-layout.md) | accepted |
 | 稳定 ID、地址和目录映射解耦 | 改址后保留目录配置；连保存的地址时同时按设备 ID 查找 5 秒（Q-016），原地址连不上又没查到时再手动改址或扫码 | accepted |
 | 首次连接入口 | 发现列表、扫码和手动 IP，三个入口都核对设备 ID | accepted |
 | 连接与传输角色 | 监听方提供服务、拨号方编排传输，方向和两端按角色命名；一台设备同一时刻只有一条连接；见 [ADR-0004](../decisions/ADR-0004-symmetric-listener-dialer-roles.md) | accepted |
