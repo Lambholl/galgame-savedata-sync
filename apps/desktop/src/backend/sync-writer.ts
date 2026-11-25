@@ -28,10 +28,10 @@ import type {
   SyncSnapshot,
   SyncWriteOutcome,
 } from '@savedata-sync/shared'
-import type { NativeDirectoryLocation, WindowsDirectoryAdapter } from './directory-adapter.ts'
+import type { NativeDirectoryLocation, DesktopDirectoryAdapter } from './directory-adapter.ts'
 import { getFileIdentity, hasSameIdentity, inspectLocalPath } from './directory-paths.ts'
 import type { FileIdentity } from './directory-paths.ts'
-import type { WindowsBackupHandle, WindowsBackupStore } from './backup-store.ts'
+import type { DesktopBackupHandle, DesktopBackupStore } from './backup-store.ts'
 import {
   ArchiveCancelledError,
   ArchiveError,
@@ -56,7 +56,7 @@ import {
 import type { SyncCandidate, SyncTargetIO } from './sync-target-files.ts'
 
 /** 写入用的输入，可以重复读取；快照必须与确认的计划相符，打开的流由写入器关闭。 */
-export interface WindowsSyncMaterial {
+export interface DesktopSyncMaterial {
   readonly snapshot: SyncSnapshot
   readonly openFile: (
     entryId: string,
@@ -68,7 +68,7 @@ export interface WindowsSyncMaterial {
   readonly ready?: () => Promise<void>
 }
 /** 写入器的依赖：authorize 核对计划的项目和目标根目录仍与本机配置一致。 */
-export interface WindowsSyncWriterOptions {
+export interface DesktopSyncWriterOptions {
   readonly authorize: (plan: SyncPlan) => void | Promise<void>
   /** 写入标记的存储；不传时不记录写入标记。 */
   readonly interruptedWrites?: Pick<InterruptedWriteStore, 'begin' | 'end'>
@@ -76,7 +76,7 @@ export interface WindowsSyncWriterOptions {
   readonly timeoutMs?: number
 }
 /** apply 的选项。阶段回调抛出的错误被忽略。 */
-export interface WindowsSyncWriteOptions {
+export interface DesktopSyncWriteOptions {
   readonly signal?: AbortSignal
   /** 调用方已取得的写入名额；给出时写入器借用它，不负责释放。 */
   readonly lease?: { readonly token: symbol; readonly acceptedAt: number }
@@ -96,9 +96,9 @@ export interface WindowsSyncWriteOptions {
   ) => void
 }
 /** 恢复预览：apply 和 close 二选一，调用前一直持有备份的引用。 */
-export interface WindowsRestorePreparation {
+export interface DesktopRestorePreparation {
   readonly plan: SyncPlan
-  readonly apply: (options?: WindowsSyncWriteOptions) => Promise<SyncApplyResult>
+  readonly apply: (options?: DesktopSyncWriteOptions) => Promise<SyncApplyResult>
   readonly close: () => Promise<void>
 }
 interface WriteJob {
@@ -213,20 +213,20 @@ function outcome(
  * 执行已确认的计划：整批复核和备份后逐个文件发布，结果只记录实际观察到的情况。
  * 执行期间占用写入名额；清理失败时保留名额，由 retryCleanup 释放。
  */
-export class WindowsSyncWriter {
+export class DesktopSyncWriter {
   private readonly io: SyncTargetIO
   private readonly timeoutMs: number
   private readonly usedIds = new Set<string>()
-  private readonly preparations = new Set<WindowsBackupHandle>()
+  private readonly preparations = new Set<DesktopBackupHandle>()
   private job: WriteJob | null = null
   private isStopped = false
-  private readonly source: WindowsDirectoryAdapter
-  private readonly backups: WindowsBackupStore
-  private readonly options: WindowsSyncWriterOptions
+  private readonly source: DesktopDirectoryAdapter
+  private readonly backups: DesktopBackupStore
+  private readonly options: DesktopSyncWriterOptions
   constructor(
-    source: WindowsDirectoryAdapter,
-    backups: WindowsBackupStore,
-    options: WindowsSyncWriterOptions,
+    source: DesktopDirectoryAdapter,
+    backups: DesktopBackupStore,
+    options: DesktopSyncWriterOptions,
   ) {
     this.source = source
     this.backups = backups
@@ -244,8 +244,8 @@ export class WindowsSyncWriter {
   /** 执行计划：非法、过期、重复确认或 busy 时拒绝；任务接受后的失败和取消都返回完整的逐项结果。 */
   apply(
     value: SyncPlan,
-    material: WindowsSyncMaterial | null,
-    options: WindowsSyncWriteOptions = {},
+    material: DesktopSyncMaterial | null,
+    options: DesktopSyncWriteOptions = {},
   ): Promise<SyncApplyResult> {
     if (
       !isSyncPlan(value) ||
@@ -332,7 +332,7 @@ export class WindowsSyncWriter {
     return job.worker
   }
   private emit(
-    options: WindowsSyncWriteOptions,
+    options: DesktopSyncWriteOptions,
     stage: 'checking' | 'backing-up' | 'writing',
     path: readonly string[] | null = null,
   ): void {
@@ -342,7 +342,7 @@ export class WindowsSyncWriter {
       /* 观察者失败不改变任务实际结果。 */
     }
   }
-  private reportWritten(options: WindowsSyncWriteOptions, bytesWritten: number): void {
+  private reportWritten(options: DesktopSyncWriteOptions, bytesWritten: number): void {
     try {
       options.onWriteProgress?.(bytesWritten)
     } catch {
@@ -510,7 +510,7 @@ export class WindowsSyncWriter {
   private async file(
     job: WriteJob,
     operation: SyncPlanEntry,
-    material: WindowsSyncMaterial,
+    material: DesktopSyncMaterial,
     onWritten: (bytesWritten: number) => void,
   ): Promise<SyncWriteOutcome> {
     const parent = this.parent(job, operation),
@@ -642,8 +642,8 @@ export class WindowsSyncWriter {
   }
   private async run(
     job: WriteJob,
-    material: WindowsSyncMaterial | null,
-    options: WindowsSyncWriteOptions,
+    material: DesktopSyncMaterial | null,
+    options: DesktopSyncWriteOptions,
   ): Promise<SyncApplyResult> {
     const operations = job.plan.entries.filter(isSyncWriteEntry)
     const outcomes = operations.map((entry) => outcome(entry, 'not-attempted'))
@@ -788,7 +788,7 @@ export class WindowsSyncWriter {
     rootId: string,
     backupId: string,
     target: SyncSnapshot,
-  ): Promise<WindowsRestorePreparation> {
+  ): Promise<DesktopRestorePreparation> {
     if (this.isStopped || target.rootId !== rootId || target.deviceId !== this.source.deviceId) {
       throw new ArchiveError('invalid-request', 'The restore target is invalid.')
     }

@@ -28,21 +28,21 @@ import type {
   SyncJobState,
   SyncTransferState,
 } from '@savedata-sync/shared'
-import type { WindowsArchiveAdapter } from './archive-adapter.ts'
-import type { WindowsDirectoryAdapter } from './directory-adapter.ts'
+import type { DesktopArchiveAdapter } from './archive-adapter.ts'
+import type { DesktopDirectoryAdapter } from './directory-adapter.ts'
 import { HttpOperationError, toHttpError } from './http-errors.ts'
 import { inspectHttpRequest, readHttpJson, sendHttpFailure, sendHttpJson } from './http-wire.ts'
 import type { DesktopLibrary } from './library-store.ts'
-import { WindowsSyncScanner } from './sync-scanner.ts'
-import type { WindowsScanSource } from './sync-scanner.ts'
-import { WindowsSyncRegistry } from './sync-registry.ts'
-import { WindowsRemoteSyncRequests } from './remote-sync-requests.ts'
+import { DesktopSyncScanner } from './sync-scanner.ts'
+import type { DesktopScanSource } from './sync-scanner.ts'
+import { DesktopSyncRegistry } from './sync-registry.ts'
+import { DesktopRemoteSyncRequests } from './remote-sync-requests.ts'
 import { ControlHub } from './control-hub.ts'
-import type { WindowsSyncWriter } from './sync-writer.ts'
-import type { WindowsBackupStore } from './backup-store.ts'
+import type { DesktopSyncWriter } from './sync-writer.ts'
+import type { DesktopBackupStore } from './backup-store.ts'
 import { hasTargetOperation } from './target-operation.ts'
 
-type HttpDirectorySource = Pick<WindowsDirectoryAdapter, 'deviceId' | 'listRoots' | 'listDirectory'>
+type HttpDirectorySource = Pick<DesktopDirectoryAdapter, 'deviceId' | 'listRoots' | 'listDirectory'>
 
 /** 监听选项；缺省时监听回环地址和动态端口。 */
 export interface HttpListenOptions {
@@ -60,38 +60,38 @@ export interface HttpListenerAddress {
 }
 
 /** HTTP 服务的选项。 */
-export interface WindowsHttpOptions {
+export interface DesktopHttpOptions {
   /** 复制任务的期限，只能比 BATCH_TIMEOUTS_MS 的对应项短。 */
   readonly timeouts?: Partial<{ readonly [Key in keyof typeof BATCH_TIMEOUTS_MS]: number }>
   readonly library?: DesktopLibrary
   readonly displayName?: string
-  readonly scanSource?: WindowsScanSource
+  readonly scanSource?: DesktopScanSource
   readonly sync?: {
-    readonly writer: WindowsSyncWriter
-    readonly backups: WindowsBackupStore
+    readonly writer: DesktopSyncWriter
+    readonly backups: DesktopBackupStore
     readonly archive: Pick<
-      WindowsArchiveAdapter,
+      DesktopArchiveAdapter,
       'sendFiles' | 'receiveFiles' | 'retryCleanup' | 'checkStagingSpace'
     >
   }
 }
 
 /** 本机 v1 HTTP 服务，提供设备信息、目录浏览、目录表交换、复制任务、远程复制请求和控制通道。 */
-export class WindowsHttpService {
+export class DesktopHttpService {
   private readonly source: HttpDirectorySource
-  private readonly options: WindowsHttpOptions
+  private readonly options: DesktopHttpOptions
   private readonly sockets = new Set<Socket>()
   private server: Server | null = null
   private address: HttpListenerAddress | null = null
   private stopping: Promise<void> | null = null
   private starting: Promise<HttpListenerAddress> | null = null
   private runtimeError: OperationError | null = null
-  private scanner: WindowsSyncScanner | null = null
-  private syncRegistry: WindowsSyncRegistry | null = null
-  private remoteRequests: WindowsRemoteSyncRequests | null = null
+  private scanner: DesktopSyncScanner | null = null
+  private syncRegistry: DesktopSyncRegistry | null = null
+  private remoteRequests: DesktopRemoteSyncRequests | null = null
   private control: ControlHub | null = null
 
-  constructor(source: HttpDirectorySource, options: WindowsHttpOptions = {}) {
+  constructor(source: HttpDirectorySource, options: DesktopHttpOptions = {}) {
     this.source = source
     this.options = options
     if (options.scanSource && options.scanSource.deviceId !== source.deviceId) {
@@ -141,7 +141,7 @@ export class WindowsHttpService {
     return this.syncRegistry?.getStates() ?? []
   }
   /** 读取本机发起的复制请求；没有请求或服务没运行时为 null。服务停止时请求一并丢弃。 */
-  remoteSyncRequest(): ReturnType<WindowsRemoteSyncRequests['state']> {
+  remoteSyncRequest(): ReturnType<DesktopRemoteSyncRequests['state']> {
     return this.remoteRequests?.state() ?? null
   }
   /**
@@ -153,25 +153,25 @@ export class WindowsHttpService {
     projectId: string,
     peerId: string,
     direction: 'dialer-to-listener' | 'listener-to-dialer',
-  ): ReturnType<WindowsRemoteSyncRequests['start']> {
+  ): ReturnType<DesktopRemoteSyncRequests['start']> {
     return this.requireRemote().start(projectId, peerId, direction)
   }
   /** 读取移动端回报的计划；服务没运行时抛错。 */
-  remoteSyncPlan(requestId: string): ReturnType<WindowsRemoteSyncRequests['plan']> {
+  remoteSyncPlan(requestId: string): ReturnType<DesktopRemoteSyncRequests['plan']> {
     return this.requireRemote().plan(requestId)
   }
   /** 确认计划并让移动端开始执行；服务没运行时抛错。 */
   confirmRemoteSync(
     requestId: string,
     choices: SyncPlanChoices,
-  ): ReturnType<WindowsRemoteSyncRequests['confirm']> {
+  ): ReturnType<DesktopRemoteSyncRequests['confirm']> {
     return this.requireRemote().confirm(requestId, choices)
   }
   /** 取消发起的请求；服务没运行时抛错。 */
-  cancelRemoteSync(requestId: string): ReturnType<WindowsRemoteSyncRequests['cancel']> {
+  cancelRemoteSync(requestId: string): ReturnType<DesktopRemoteSyncRequests['cancel']> {
     return this.requireRemote().cancel(requestId)
   }
-  private requireRemote(): WindowsRemoteSyncRequests {
+  private requireRemote(): DesktopRemoteSyncRequests {
     if (!this.remoteRequests) {
       throw new HttpOperationError(
         'unsupported-operation',
@@ -181,17 +181,17 @@ export class WindowsHttpService {
     return this.remoteRequests
   }
   /** 返回复制任务的摘要列表，包括还没登记的本机发起任务。 */
-  syncCopies(): ReturnType<WindowsSyncRegistry['summaries']> {
+  syncCopies(): ReturnType<DesktopSyncRegistry['summaries']> {
     const pending = this.remoteRequests?.pending()
     return [...(this.syncRegistry?.summaries() ?? []), ...(pending ? [pending.summary] : [])]
   }
   /** 返回 ID 为 id、还没登记的本机发起任务；没有时为 null。 */
-  private pendingCopy(id: string): ReturnType<WindowsRemoteSyncRequests['pending']> {
+  private pendingCopy(id: string): ReturnType<DesktopRemoteSyncRequests['pending']> {
     const pending = this.remoteRequests?.pending()
     return pending?.request.jobId === id ? pending : null
   }
   /** 读取复制任务的登记请求；服务会话已结束时抛出 not-found 错误。 */
-  syncCopyRequest(id: string): ReturnType<WindowsSyncRegistry['localRequest']> {
+  syncCopyRequest(id: string): ReturnType<DesktopSyncRegistry['localRequest']> {
     return this.pendingCopy(id)?.request ?? this.localSync().localRequest(id)
   }
   /** 读取复制任务的状态；服务会话已结束时抛出 not-found 错误。 */
@@ -211,7 +211,7 @@ export class WindowsHttpService {
   cleanupSyncCopy(id: string): Promise<void> {
     return this.localSync().localCleanup(id)
   }
-  private localSync(): WindowsSyncRegistry {
+  private localSync(): DesktopSyncRegistry {
     if (!this.syncRegistry) {
       throw new HttpOperationError(
         'not-found',
@@ -244,7 +244,7 @@ export class WindowsHttpService {
     return this.requireScanner().cancel(scanId)
   }
 
-  private requireScanner(): WindowsSyncScanner {
+  private requireScanner(): DesktopSyncScanner {
     if (!this.scanner || !this.address) {
       throw new HttpOperationError(
         'unsupported-operation',
@@ -265,13 +265,13 @@ export class WindowsHttpService {
   }
 
   private async listen(host: string, port: number): Promise<HttpListenerAddress> {
-    this.scanner = this.options.scanSource ? new WindowsSyncScanner(this.options.scanSource) : null
+    this.scanner = this.options.scanSource ? new DesktopSyncScanner(this.options.scanSource) : null
     if (this.options.library) {
       const control = new ControlHub()
       this.control = control
       this.options.library.attachControl(control)
       if (this.options.sync && this.scanner && this.options.scanSource) {
-        const jobs = new WindowsSyncRegistry({
+        const jobs = new DesktopSyncRegistry({
           ...this.options.sync,
           library: this.options.library,
           scanner: this.scanner,
@@ -282,7 +282,7 @@ export class WindowsHttpService {
           ...(this.options.timeouts ? { timeouts: this.options.timeouts } : {}),
         })
         this.syncRegistry = jobs
-        const remote = new WindowsRemoteSyncRequests({
+        const remote = new DesktopRemoteSyncRequests({
           library: this.options.library,
           control,
           deviceId: this.source.deviceId,

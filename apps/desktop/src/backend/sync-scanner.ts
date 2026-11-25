@@ -17,14 +17,14 @@ import type {
   SyncScanState,
   SyncSnapshot,
 } from '@savedata-sync/shared'
-import type { WindowsDirectoryAdapter } from './directory-adapter.ts'
+import type { DesktopDirectoryAdapter } from './directory-adapter.ts'
 import { HttpOperationError, toHttpError } from './http-errors.ts'
 
 /** 扫描用到的只读目录操作。 */
-export type WindowsScanSource = Pick<WindowsDirectoryAdapter, 'deviceId' | 'listDirectory'>
+export type DesktopScanSource = Pick<DesktopDirectoryAdapter, 'deviceId' | 'listDirectory'>
 
 /** 扫描选项：收紧上限。 */
-export interface WindowsScanOptions {
+export interface DesktopScanOptions {
   readonly maxEntries?: number
   readonly timeoutMs?: number
   readonly retentionMs?: number
@@ -61,8 +61,8 @@ function listingKey(value: DirectoryListing): string {
  * 当前会话内的异步只读扫描，只读取目录列表里的类型、大小和修改日期，目录大小为 null。
  * 同一时间只有一个扫描；完成的结果到期清除。
  */
-export class WindowsSyncScanner {
-  private readonly source: WindowsScanSource
+export class DesktopSyncScanner {
+  private readonly source: DesktopScanSource
   private readonly jobs = new Map<string, ScanJob>()
   private readonly maxEntries: number
   private readonly timeoutMs: number
@@ -70,7 +70,7 @@ export class WindowsSyncScanner {
   private active: ScanJob | null = null
   private isClosed = false
 
-  constructor(source: WindowsScanSource, options: WindowsScanOptions = {}) {
+  constructor(source: DesktopScanSource, options: DesktopScanOptions = {}) {
     this.source = source
     this.maxEntries = options.maxEntries ?? SYNC_LIMITS.maxEntries
     this.timeoutMs = options.timeoutMs ?? SYNC_LIMITS.scanTimeoutMs

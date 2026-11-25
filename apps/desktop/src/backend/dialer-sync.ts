@@ -40,8 +40,8 @@ import type {
 import type { DesktopCopySummary, DesktopRemoteRequest } from '../bridge/sync-bridge.ts'
 import type {
   SyncContentFile,
-  WindowsArchiveAdapter,
-  WindowsStagedFiles,
+  DesktopArchiveAdapter,
+  DesktopStagedFiles,
 } from './archive-adapter.ts'
 import { ArchiveCancelledError, ArchiveError, checkArchiveAbort } from './archive-errors.ts'
 import type {
@@ -49,16 +49,16 @@ import type {
   DialerSyncHandler,
   DialerSyncMethod,
   DialerSyncRequest,
-  WindowsDialer,
+  DesktopDialer,
 } from './dialer-session.ts'
 import { HttpOperationError, toHttpError } from './http-errors.ts'
 import type { DesktopLibrary } from './library-store.ts'
 import { contentFiles, emptyResult } from './sync-registry.ts'
-import type { WindowsSyncScanner } from './sync-scanner.ts'
+import type { DesktopSyncScanner } from './sync-scanner.ts'
 import type {
-  WindowsSyncMaterial,
-  WindowsSyncWriteOptions,
-  WindowsSyncWriter,
+  DesktopSyncMaterial,
+  DesktopSyncWriteOptions,
+  DesktopSyncWriter,
 } from './sync-writer.ts'
 import { acquireTargetOperation, releaseTargetOperation } from './target-operation.ts'
 
@@ -102,19 +102,19 @@ const DEVICE_ERRORS: ReadonlySet<OperationErrorCode> = new Set<OperationErrorCod
 ])
 
 /** 拨号方传输引擎的依赖。 */
-export interface WindowsDialerSyncOptions {
+export interface DesktopDialerSyncOptions {
   readonly dialer: Pick<
-    WindowsDialer,
+    DesktopDialer,
     'deviceId' | 'isOpen' | 'connection' | 'verify' | 'refreshCatalog' | 'emit'
   >
   readonly library: Pick<DesktopLibrary, 'snapshot' | 'verifyProjectPeer'>
   /** 本机目录的扫描器，只供本引擎使用。 */
-  readonly scanner: WindowsSyncScanner
+  readonly scanner: DesktopSyncScanner
   readonly archive: Pick<
-    WindowsArchiveAdapter,
+    DesktopArchiveAdapter,
     'sendFiles' | 'receiveFiles' | 'retryCleanup' | 'checkStagingSpace'
   >
-  readonly writer: Pick<WindowsSyncWriter, 'apply' | 'checkSpace' | 'retryCleanup'>
+  readonly writer: Pick<DesktopSyncWriter, 'apply' | 'checkSpace' | 'retryCleanup'>
   readonly deviceId: string
 }
 
@@ -156,7 +156,7 @@ interface Job {
   state: SyncJobState
   remote: SyncJobState | null
   remoteError: OperationError | null
-  staged: WindowsStagedFiles | null
+  staged: DesktopStagedFiles | null
   /** 接收的内容全部解包后完成，失败时带着原因拒绝。 */
   readonly content: Promise<void>
   settleContent: (cause?: unknown) => void
@@ -260,8 +260,8 @@ function route(template: string, key: string, value: string): string {
  * 本机和监听方都可以发起；监听方发起时经控制通道请求本机扫描和执行。
  * 准备和任务只存在内存中，结束后保留 RETENTION_MS、各最多 MAX_RETAINED 份；任务从确认到清理结束占用写入名额。
  */
-export class WindowsDialerSync implements DialerSyncHandler {
-  private readonly options: WindowsDialerSyncOptions
+export class DesktopDialerSync implements DialerSyncHandler {
+  private readonly options: DesktopDialerSyncOptions
   private readonly preparations = new Map<string, Preparation>()
   private readonly jobs = new Map<string, Job>()
   private readonly usedIds = new Set<string>()
@@ -276,7 +276,7 @@ export class WindowsDialerSync implements DialerSyncHandler {
   /** 写入期间上一次读监听方状态的时刻。 */
   private lastHeartbeat = 0
 
-  constructor(options: WindowsDialerSyncOptions) {
+  constructor(options: DesktopDialerSyncOptions) {
     this.options = options
     this.timer = setInterval(() => this.tick(), REPORT_CHECK_MS)
     this.timer.unref()
@@ -1476,7 +1476,7 @@ export class WindowsDialerSync implements DialerSyncHandler {
     this.receiverResult(job, await writing)
   }
 
-  private material(job: Job): WindowsSyncMaterial {
+  private material(job: Job): DesktopSyncMaterial {
     return {
       snapshot: job.request.plan.source,
       openFile: async (entryId) => {
@@ -1498,7 +1498,7 @@ export class WindowsDialerSync implements DialerSyncHandler {
     }
   }
 
-  private writeOptions(job: Job, signal: AbortSignal): WindowsSyncWriteOptions {
+  private writeOptions(job: Job, signal: AbortSignal): DesktopSyncWriteOptions {
     return {
       signal,
       lease: { token: job.token, acceptedAt: job.acceptedAt },

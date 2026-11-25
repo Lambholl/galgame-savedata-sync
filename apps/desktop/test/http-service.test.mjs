@@ -6,7 +6,7 @@ import { isAbsolute, join, relative, sep } from 'node:path'
 import test from 'node:test'
 import { BATCH_LIMITS, PROTOCOL_VERSION } from '@savedata-sync/shared'
 import { createDirectoryAdapter } from '../src/backend/directory-adapter.ts'
-import { WindowsHttpService } from '../src/backend/http-service.ts'
+import { DesktopHttpService } from '../src/backend/http-service.ts'
 
 const unwrap = (result) => {
   assert.equal(result.status, 'success', JSON.stringify(result))
@@ -37,7 +37,7 @@ async function setup(t) {
   await writeFile(join(root, '源 %.sav'), Buffer.from('真实 HTTP 合成存档 😀'))
   const source = await createDirectoryAdapter(join(base, 'control', 'directories.json'))
   const selected = unwrap(await source.registerDirectory(root))
-  const service = new WindowsHttpService(source)
+  const service = new DesktopHttpService(source)
   services.push(service)
   const address = await service.start()
   return { base, source, selected, service, address }

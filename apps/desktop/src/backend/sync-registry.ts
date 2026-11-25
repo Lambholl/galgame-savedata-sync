@@ -30,15 +30,15 @@ import type {
 } from '@savedata-sync/shared'
 import type {
   SyncContentFile,
-  WindowsArchiveAdapter,
-  WindowsStagedFiles,
+  DesktopArchiveAdapter,
+  DesktopStagedFiles,
 } from './archive-adapter.ts'
-import type { WindowsBackupStore } from './backup-store.ts'
+import type { DesktopBackupStore } from './backup-store.ts'
 import type { ControlHub } from './control-hub.ts'
 import type { DesktopLibrary } from './library-store.ts'
-import { WindowsSyncScanner } from './sync-scanner.ts'
-import type { WindowsScanSource } from './sync-scanner.ts'
-import type { WindowsSyncMaterial, WindowsSyncWriter } from './sync-writer.ts'
+import { DesktopSyncScanner } from './sync-scanner.ts'
+import type { DesktopScanSource } from './sync-scanner.ts'
+import type { DesktopSyncMaterial, DesktopSyncWriter } from './sync-writer.ts'
 import { ArchiveCancelledError, checkArchiveAbort } from './archive-errors.ts'
 import { HttpOperationError, toHttpError } from './http-errors.ts'
 import { acquireTargetOperation, releaseTargetOperation } from './target-operation.ts'
@@ -46,16 +46,16 @@ import { openUploadBody } from './upload-body.ts'
 import type { DesktopCopySummary } from '../bridge/sync-bridge.ts'
 
 /** 复制任务登记表的依赖，固定到当前服务会话。 */
-export interface WindowsSyncRegistryOptions {
+export interface DesktopSyncRegistryOptions {
   readonly archive: Pick<
-    WindowsArchiveAdapter,
+    DesktopArchiveAdapter,
     'sendFiles' | 'receiveFiles' | 'retryCleanup' | 'checkStagingSpace'
   >
-  readonly writer: WindowsSyncWriter
-  readonly backups: WindowsBackupStore
+  readonly writer: DesktopSyncWriter
+  readonly backups: DesktopBackupStore
   readonly library: DesktopLibrary
-  readonly scanner: WindowsSyncScanner
-  readonly source: WindowsScanSource
+  readonly scanner: DesktopSyncScanner
+  readonly source: DesktopScanSource
   readonly deviceId: string
   /** 读取对端结果、转发取消；对端的进度摘要由 observe 送入。 */
   readonly control: Pick<ControlHub, 'isOpen' | 'request'>
@@ -75,7 +75,7 @@ interface SyncTask {
   state: SyncJobState
   /** 计划里要传的文件，按 tar 成员的顺序。 */
   readonly files: readonly SyncContentFile[]
-  staged: WindowsStagedFiles | null
+  staged: DesktopStagedFiles | null
   /** 接收端的内容全部解包后完成，失败或取消时拒绝。 */
   readonly content: Promise<void>
   settleContent: (cause?: unknown) => void
@@ -184,15 +184,15 @@ export function emptyResult(
  * 任务从登记到写入和缓存清理结束一直占用写入名额。
  * 用过的任务 ID 保留到会话结束；结果保留 10 分钟，最多 32 份，只存在内存中。
  */
-export class WindowsSyncRegistry {
-  private readonly options: WindowsSyncRegistryOptions
+export class DesktopSyncRegistry {
+  private readonly options: DesktopSyncRegistryOptions
   private readonly tasks = new Map<string, SyncTask>()
   private readonly usedIds = new Set<string>()
   private readonly timeouts: { [Key in keyof typeof BATCH_TIMEOUTS_MS]: number }
   private readonly timer: ReturnType<typeof setInterval>
   private active: SyncTask | null = null
   private isStopped = false
-  constructor(options: WindowsSyncRegistryOptions) {
+  constructor(options: DesktopSyncRegistryOptions) {
     this.options = options
     this.timeouts = { ...BATCH_TIMEOUTS_MS, ...options.timeouts }
     for (const key of Object.keys(BATCH_TIMEOUTS_MS) as (keyof typeof BATCH_TIMEOUTS_MS)[]) {
@@ -625,7 +625,7 @@ export class WindowsSyncRegistry {
     })
   }
   private async prepareSource(task: SyncTask): Promise<void> {
-    const scanner = new WindowsSyncScanner(this.options.source)
+    const scanner = new DesktopSyncScanner(this.options.source)
     let scanId: string | null = null
     const abort = (): void => {
       if (scanId !== null) {
@@ -929,7 +929,7 @@ export class WindowsSyncRegistry {
   }
   private async apply(task: SyncTask): Promise<void> {
     this.verify(task)
-    const material: WindowsSyncMaterial | null =
+    const material: DesktopSyncMaterial | null =
       task.request.plan.transferFileCount > 0
         ? {
             snapshot: task.request.plan.source,

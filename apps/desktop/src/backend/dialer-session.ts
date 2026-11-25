@@ -23,8 +23,8 @@ import type {
 import type { DesktopDialResult, DesktopDialerSnapshot } from '../bridge/dialer-bridge.ts'
 import { DialerControlSocket } from './dialer-control.ts'
 import { DialerHttpClient } from './dialer-http.ts'
-import type { WindowsDirectoryAdapter } from './directory-adapter.ts'
-import type { WindowsDiscoveryBrowser } from './discovery-browser.ts'
+import type { DesktopDirectoryAdapter } from './directory-adapter.ts'
+import type { DesktopDiscoveryBrowser } from './discovery-browser.ts'
 import { HttpOperationError, toHttpError } from './http-errors.ts'
 import type { DesktopLibrary, LibraryDialer } from './library-store.ts'
 
@@ -113,7 +113,7 @@ function errorCode(error: unknown): OperationErrorCode {
  * 本机作为拨号方的连接，同一时间只连一台设备；连着时对方可以读取本机游戏的目录和封面。
  * 控制通道异常断开超过 CONTROL_GRACE_MS 仍没恢复时断开；对方以 CONTROL_CLOSE_CODES 里的关闭码关闭时立即断开。
  */
-export class WindowsDialer implements LibraryDialer {
+export class DesktopDialer implements LibraryDialer {
   private session: DialSession | null = null
   private isConnecting = false
   private sync: DialerSyncHandler | null = null
@@ -124,8 +124,8 @@ export class WindowsDialer implements LibraryDialer {
    */
   constructor(
     private readonly library: DialerLibrary,
-    private readonly adapter: Pick<WindowsDirectoryAdapter, 'deviceId' | 'listDirectory'>,
-    private readonly browser: Pick<WindowsDiscoveryBrowser, 'state' | 'watch' | 'find'>,
+    private readonly adapter: Pick<DesktopDirectoryAdapter, 'deviceId' | 'listDirectory'>,
+    private readonly browser: Pick<DesktopDiscoveryBrowser, 'state' | 'watch' | 'find'>,
     displayName?: string,
   ) {
     this.localName =

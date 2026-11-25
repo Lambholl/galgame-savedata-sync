@@ -27,7 +27,7 @@ import type {
 } from '@savedata-sync/shared'
 import type { ControlHub } from './control-hub.ts'
 import type { PosterStore } from './poster-store.ts'
-import type { WindowsDirectoryAdapter } from './directory-adapter.ts'
+import type { DesktopDirectoryAdapter } from './directory-adapter.ts'
 import { HttpOperationError } from './http-errors.ts'
 
 interface PeerRuntime {
@@ -71,7 +71,7 @@ export class DesktopLibrary {
    */
   constructor(
     private readonly file: string,
-    private readonly adapter: WindowsDirectoryAdapter,
+    private readonly adapter: DesktopDirectoryAdapter,
     private readonly posters: Pick<PosterStore, 'read'> | null = null,
   ) {}
   /** 读取游戏库配置；文件不存在时用空库，配置损坏时抛错，原文件保留。 */

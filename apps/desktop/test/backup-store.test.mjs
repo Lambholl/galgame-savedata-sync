@@ -5,9 +5,9 @@ import { isAbsolute, join, relative, sep } from 'node:path'
 import test from 'node:test'
 import { BACKUP_SETTINGS_SCHEMA_VERSION, createSyncPlan } from '@savedata-sync/shared'
 import { createDirectoryAdapter } from '../src/backend/directory-adapter.ts'
-import { createWindowsBackupStore } from '../src/backend/backup-store.ts'
-import { WindowsManualBackupRegistry } from '../src/backend/manual-backup-registry.ts'
-import { WindowsSyncScanner } from '../src/backend/sync-scanner.ts'
+import { createDesktopBackupStore } from '../src/backend/backup-store.ts'
+import { DesktopManualBackupRegistry } from '../src/backend/manual-backup-registry.ts'
+import { DesktopSyncScanner } from '../src/backend/sync-scanner.ts'
 import {
   acquireTargetOperation,
   hasTargetOperation,
@@ -47,14 +47,14 @@ async function setup(t) {
   const adapter = await createDirectoryAdapter(join(privateDir, 'directories.json'))
   const saveRoot = unwrap(await adapter.registerDirectory(saveDir))
   const emptyRoot = unwrap(await adapter.registerDirectory(emptyDir))
-  const backups = await createWindowsBackupStore(
+  const backups = await createDesktopBackupStore(
     adapter,
     join(privateDir, 'backups'),
     privateDir,
     () => '测试游戏',
   )
   cleanups.push(() => backups.stop())
-  const scanner = new WindowsSyncScanner(adapter)
+  const scanner = new DesktopSyncScanner(adapter)
   cleanups.push(() => scanner.stop())
   return { base, saveDir, emptyDir, adapter, saveRoot, emptyRoot, backups, scanner, cleanups }
 }
@@ -193,7 +193,7 @@ test('手动备份管理器支持异步完成、空目录与 TargetOperation 名
       roots: [],
     }),
   }
-  const registry = new WindowsManualBackupRegistry({
+  const registry = new DesktopManualBackupRegistry({
     source: fixture.adapter,
     backups: fixture.backups,
     library,

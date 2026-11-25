@@ -1,7 +1,7 @@
 import { BATCH_LIMITS, isBackupKeepCount, isOpaqueId } from '@savedata-sync/shared'
 import { BACKUP_CHANNELS } from '../bridge/backup-bridge.ts'
-import type { WindowsBackupStore } from './backup-store.ts'
-import type { WindowsManualBackupRegistry } from './manual-backup-registry.ts'
+import type { DesktopBackupStore } from './backup-store.ts'
+import type { DesktopManualBackupRegistry } from './manual-backup-registry.ts'
 import { HttpOperationError, toHttpError } from './http-errors.ts'
 import { hasTargetOperation } from './target-operation.ts'
 import type { ChannelRegistry } from './channel-registry.ts'
@@ -22,8 +22,8 @@ export interface BackupIpcHost {
  */
 export function registerBackupIpc(
   ipc: ChannelRegistry,
-  store: WindowsBackupStore,
-  manualBackups: WindowsManualBackupRegistry,
+  store: DesktopBackupStore,
+  manualBackups: DesktopManualBackupRegistry,
   host: BackupIpcHost,
   hasRunningWork: () => boolean = () => false,
 ): () => void {

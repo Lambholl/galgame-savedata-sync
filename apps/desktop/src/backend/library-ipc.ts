@@ -2,7 +2,7 @@ import { isOpaqueId } from '@savedata-sync/shared'
 import type { LibraryGame } from '@savedata-sync/shared'
 import { LIBRARY_CHANNELS } from '../bridge/library-bridge.ts'
 import type { DesktopLibrary } from './library-store.ts'
-import type { WindowsHttpService } from './http-service.ts'
+import type { DesktopHttpService } from './http-service.ts'
 import { HttpOperationError, toHttpError } from './http-errors.ts'
 import type { ChannelRegistry } from './channel-registry.ts'
 
@@ -14,7 +14,7 @@ import type { ChannelRegistry } from './channel-registry.ts'
 export function registerLibraryIpc(
   ipc: ChannelRegistry,
   library: DesktopLibrary,
-  service: WindowsHttpService,
+  service: DesktopHttpService,
 ): () => void {
   for (const [action, channel] of Object.entries(LIBRARY_CHANNELS)) {
     ipc.handle(channel, async (...args: unknown[]) => {

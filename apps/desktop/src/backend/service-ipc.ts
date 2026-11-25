@@ -3,9 +3,9 @@ import { isOpaqueId } from '@savedata-sync/shared'
 import type { OperationResult } from '@savedata-sync/shared'
 import { SERVICE_CHANNELS } from '../bridge/service-bridge.ts'
 import type { DesktopServiceSnapshot } from '../bridge/service-bridge.ts'
-import type { WindowsDirectoryAdapter } from './directory-adapter.ts'
-import type { WindowsDiscoveryAdvertiser } from './discovery-advertiser.ts'
-import type { WindowsHttpService } from './http-service.ts'
+import type { DesktopDirectoryAdapter } from './directory-adapter.ts'
+import type { DesktopDiscoveryAdvertiser } from './discovery-advertiser.ts'
+import type { DesktopHttpService } from './http-service.ts'
 import { toHttpError } from './http-errors.ts'
 import type { ServicePortSettings } from './service-port-settings.ts'
 import { createNetworkAddressReader } from './recommended-address.ts'
@@ -15,7 +15,7 @@ import type { ChannelRegistry } from './channel-registry.ts'
 interface ServiceIpcOptions {
   readonly portSettings: ServicePortSettings
   /** 服务开始监听后在局域网广播，停止服务后停止广播。 */
-  readonly advertiser: Pick<WindowsDiscoveryAdvertiser, 'start' | 'stop' | 'getState'>
+  readonly advertiser: Pick<DesktopDiscoveryAdvertiser, 'start' | 'stop' | 'getState'>
   /** 打开系统目录选择器，返回选中的绝对路径；取消时返回 null。 */
   readonly chooseTargetPath: () => Promise<string | null>
 }
@@ -36,8 +36,8 @@ function localDeviceName(): string | null {
  */
 export function registerServiceIpc(
   ipc: ChannelRegistry,
-  adapter: WindowsDirectoryAdapter,
-  service: WindowsHttpService,
+  adapter: DesktopDirectoryAdapter,
+  service: DesktopHttpService,
   options: ServiceIpcOptions,
 ): () => void {
   const networkAddresses = createNetworkAddressReader()

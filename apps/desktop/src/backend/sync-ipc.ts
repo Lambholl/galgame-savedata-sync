@@ -1,10 +1,10 @@
 import { BATCH_LIMITS, isOpaqueId } from '@savedata-sync/shared'
 import { SYNC_CHANNELS } from '../bridge/sync-bridge.ts'
 import type { DesktopRemoteRequest } from '../bridge/sync-bridge.ts'
-import type { WindowsDialerSync } from './dialer-sync.ts'
-import type { WindowsHttpService } from './http-service.ts'
+import type { DesktopDialerSync } from './dialer-sync.ts'
+import type { DesktopHttpService } from './http-service.ts'
 import type { InterruptedWriteStore } from './interrupted-writes.ts'
-import type { WindowsRestoreRegistry } from './restore-registry.ts'
+import type { DesktopRestoreRegistry } from './restore-registry.ts'
 import { HttpOperationError, toHttpError } from './http-errors.ts'
 import type { ChannelRegistry } from './channel-registry.ts'
 
@@ -62,9 +62,9 @@ function latestRequest(
  */
 export function registerSyncIpc(
   ipc: ChannelRegistry,
-  service: WindowsHttpService,
-  dialerSync: WindowsDialerSync,
-  restores: WindowsRestoreRegistry,
+  service: DesktopHttpService,
+  dialerSync: DesktopDialerSync,
+  restores: DesktopRestoreRegistry,
   interruptedWrites: InterruptedWriteStore,
 ): () => void {
   let isMutating = false

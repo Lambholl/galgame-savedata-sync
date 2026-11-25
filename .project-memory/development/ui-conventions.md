@@ -1,13 +1,13 @@
 ---
 doc_type: development
 status: active
-updated: 2026-11-25
+updated: 2026-11-26
 tags: [界面, 设计变量, 组件]
 ---
 
 # 界面约定
 
-两端界面写代码时遵守的设计规则。具体页面的实现细节见[实现细节](implementation-notes.md)，平台层见 [Windows 平台层](../architecture/windows.md)和 [Android 平台层](../architecture/android.md)。
+两端界面写代码时遵守的设计规则。具体页面的实现细节见[实现细节](implementation-notes.md)，平台层见 [电脑端平台层](../architecture/desktop.md)和 [Android 平台层](../architecture/android.md)。
 
 ## 目录
 

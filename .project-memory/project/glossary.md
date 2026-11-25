@@ -1,7 +1,7 @@
 ---
 doc_type: glossary
 status: draft
-updated: 2026-11-23
+updated: 2026-11-26
 tags: [术语]
 ---
 
@@ -16,7 +16,7 @@ tags: [术语]
 | 拨号方 | 连接中主动连接对方、编排扫描、计划和任务的一端 | 与平台无关；代码里的 dialer。监听方发起的传输经控制通道交给拨号方执行。当前 Android 和电脑都能担任 |
 | 本机服务 | 设备作为监听方运行的服务，界面上的“本机服务” | Android 上开着时由前台服务和常驻通知保持，应用退到后台或 Activity 销毁都不停止 |
 | 界面用语 | 两端入口和页面统一叫“游戏设置”“传输详情”“传输计划”，动作动词统一用“传输”；“移除”游戏删除它的配置、设备关联和备份，不删存档文件 | 四种语言的文案在 `apps/shared`；后端错误原文用英文，界面按错误码翻译 |
-| 复制任务 | 按计划覆盖、新建或删除文件的传输任务，状态是 `SyncJobState` | 电脑端 `WindowsSyncRegistry`，移动端 `SyncTransferEngine` |
+| 复制任务 | 按计划覆盖、新建或删除文件的传输任务，状态是 `SyncJobState` | 电脑端 `DesktopSyncRegistry`，移动端 `SyncTransferEngine` |
 | 目录表 | 设备之间交换的游戏和目录列表 | 代码里的 catalog |
 | 封面 | 游戏卡片上显示的竖版图片 | 代码里的 poster；界面文案：en-US“Poster”，ja-JP“ポスター”，zh-TW“封面”。不用 cover 和“カバー” |
 | 轮次 | 一份备份 | 代码里的 round |

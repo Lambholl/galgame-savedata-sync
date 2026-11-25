@@ -104,7 +104,7 @@ function pendingLocalState(entry: RemoteEntry, request: SyncJobRequest): SyncJob
  * 本机发起的复制请求登记表，同一时间只保留一个请求，只存在内存中。
  * 经控制通道请移动端扫描，移动端回报计划；本机确认后由移动端执行，并回报最终结果。
  */
-export class WindowsRemoteSyncRequests {
+export class DesktopRemoteSyncRequests {
   private current: RemoteEntry | null = null
   private readonly options: RemoteSyncRequestOptions
   private readonly now: () => number

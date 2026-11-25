@@ -15,11 +15,11 @@ import type {
   SyncRestoreFailureStage,
 } from '@savedata-sync/shared'
 import type { DesktopRestoreState, DesktopRestoreSummary } from '../bridge/sync-bridge.ts'
-import type { WindowsDirectoryAdapter } from './directory-adapter.ts'
-import type { WindowsBackupStore } from './backup-store.ts'
+import type { DesktopDirectoryAdapter } from './directory-adapter.ts'
+import type { DesktopBackupStore } from './backup-store.ts'
 import type { DesktopLibrary } from './library-store.ts'
-import type { WindowsRestorePreparation, WindowsSyncWriter } from './sync-writer.ts'
-import { WindowsSyncScanner } from './sync-scanner.ts'
+import type { DesktopRestorePreparation, DesktopSyncWriter } from './sync-writer.ts'
+import { DesktopSyncScanner } from './sync-scanner.ts'
 import { HttpOperationError, toHttpError } from './http-errors.ts'
 import { ArchiveCancelledError, checkArchiveAbort } from './archive-errors.ts'
 import { acquireTargetOperation, releaseTargetOperation } from './target-operation.ts'
@@ -32,7 +32,7 @@ interface RestoreJob {
   readonly backupId: string
   controller: AbortController
   state: DesktopRestoreState
-  preparation: WindowsRestorePreparation | null
+  preparation: DesktopRestorePreparation | null
   plan: SyncPlan | null
   worker: Promise<void> | null
   timeout: ReturnType<typeof setTimeout> | null
@@ -45,9 +45,9 @@ interface RestoreJob {
   hasBackupCleanup: boolean
 }
 interface RestoreOptions {
-  readonly source: WindowsDirectoryAdapter
-  readonly backups: WindowsBackupStore
-  readonly writer: WindowsSyncWriter
+  readonly source: DesktopDirectoryAdapter
+  readonly backups: DesktopBackupStore
+  readonly writer: DesktopSyncWriter
   readonly library: DesktopLibrary
 }
 function cleanupError(): OperationError {
@@ -59,7 +59,7 @@ function cleanupError(): OperationError {
 }
 
 /** 本机恢复任务的登记表。准备阶段不占用写入名额。 */
-export class WindowsRestoreRegistry {
+export class DesktopRestoreRegistry {
   private readonly options: RestoreOptions
   private readonly jobs = new Map<string, RestoreJob>()
   private readonly timer: ReturnType<typeof setInterval>
@@ -220,7 +220,7 @@ export class WindowsRestoreRegistry {
     return this.state(id)
   }
   private async prepareNow(job: RestoreJob): Promise<void> {
-    const scanner = new WindowsSyncScanner(this.options.source)
+    const scanner = new DesktopSyncScanner(this.options.source)
     let scanId: string | null = null
     const cancel = (): void => {
       if (scanId !== null) {

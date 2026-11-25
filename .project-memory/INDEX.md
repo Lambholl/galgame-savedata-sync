@@ -25,7 +25,7 @@ tags: [索引]
 | 目标、术语、路线图 | `project/` |
 | 需求、范围、约束、开放问题 | `requirements/` |
 | 架构、接口、数据流、决定 | `architecture/`、`decisions/` |
-| 改某一端的平台代码 | `architecture/windows.md`、`architecture/android.md`、`architecture/shared-package.md` |
+| 改某一端的平台代码 | `architecture/desktop.md`、`architecture/android.md`、`architecture/shared-package.md` |
 | 实现、代码位置、已知问题、风险 | `development/` |
 | 写或改代码 | `standards/coding.md`，以及 `development/code-map.md` 里相关路径的约定 |
 | 改界面 | `development/ui-conventions.md` |
@@ -40,12 +40,12 @@ tags: [索引]
 | `architecture/android.md` | Android 平台层 | active | Android, 移动端, SAF, 原生插件 |
 | `architecture/api-contracts.md` | 接口约定 | active | API, 接口约定 |
 | `architecture/dependencies.md` | 架构依赖 | draft | 依赖 |
+| `architecture/desktop.md` | 电脑端平台层 | active | Windows, 电脑端, Tauri, sidecar, 存储目录 |
 | `architecture/overview.md` | 架构总览 | active | 架构总览 |
 | `architecture/poster.md` | 游戏封面 | active | 封面, 外网接口 |
 | `architecture/shared-package.md` | 共享包 | active | 共享包, 数据模型, 守卫 |
 | `architecture/sync-copy.md` | 复制、备份与恢复约定 | active | 复制, 备份, 恢复 |
 | `architecture/transfer-protocol.md` | 设备接口与归档格式 | active | 设备接口, tar.gz, HTTP |
-| `architecture/windows.md` | Windows 平台层 | active | Windows, 电脑端, Tauri, sidecar, 存储目录 |
 | `decisions/ADR-0002-ui-library-and-shared-rendering.md` | ADR-0002 两端使用 antd 系列组件库，与交互差异无关的渲染双端共用 | accepted | 决策, 界面, 组件库, 共用组件 |
 | `decisions/ADR-0003-android-direct-file-access.md` | ADR-0003 Android 所有文件访问权限与统一的文件访问接口 | accepted | 决策, Android, 文件访问, SAF, 所有文件访问权限 |
 | `decisions/ADR-0004-symmetric-listener-dialer-roles.md` | ADR-0004 按监听方和拨号方划分连接与传输职责 | accepted | 决策, 连接, 传输, 监听方, 拨号方, Android, Windows |

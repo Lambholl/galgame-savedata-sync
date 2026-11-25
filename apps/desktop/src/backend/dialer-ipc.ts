@@ -1,6 +1,6 @@
 import { isOpaqueId, normalizeHttpAddress } from '@savedata-sync/shared'
 import { DIALER_CHANNELS, MAX_DIAL_ADDRESSES } from '../bridge/dialer-bridge.ts'
-import type { WindowsDialer } from './dialer-session.ts'
+import type { DesktopDialer } from './dialer-session.ts'
 import { HttpOperationError, toHttpError } from './http-errors.ts'
 import type { ChannelRegistry } from './channel-registry.ts'
 
@@ -21,7 +21,7 @@ function isNormalizedAddress(value: unknown): value is string {
  */
 export function registerDialerIpc(
   ipc: ChannelRegistry,
-  dialer: Pick<WindowsDialer, 'status' | 'watchNearby' | 'connect' | 'connectSaved'>,
+  dialer: Pick<DesktopDialer, 'status' | 'watchNearby' | 'connect' | 'connectSaved'>,
 ): () => void {
   for (const [action, channel] of Object.entries(DIALER_CHANNELS)) {
     ipc.handle(channel, async (...args: unknown[]) => {

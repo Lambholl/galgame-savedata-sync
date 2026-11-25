@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { mkdir, readFile, readdir, rmdir, unlink, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { PassThrough, Readable } from 'node:stream'
-import { createWindowsArchiveAdapter } from '../apps/desktop/src/backend/archive-adapter.ts'
+import { createDesktopArchiveAdapter } from '../apps/desktop/src/backend/archive-adapter.ts'
 import { createDirectoryAdapter } from '../apps/desktop/src/backend/directory-adapter.ts'
 import { REPO_ROOT } from './local-environment.mjs'
 
@@ -23,7 +23,7 @@ await mkdir(OUTPUT, { recursive: true })
 const source = await createDirectoryAdapter(join(OUTPUT, 'directories.json'))
 const privateDirectory = join(OUTPUT, 'private')
 await mkdir(privateDirectory, { recursive: true })
-const archive = await createWindowsArchiveAdapter(source, privateDirectory)
+const archive = await createDesktopArchiveAdapter(source, privateDirectory)
 
 async function collect(stream) {
   const chunks = []

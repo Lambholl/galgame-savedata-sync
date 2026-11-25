@@ -8,11 +8,11 @@ import {
 } from '@savedata-sync/shared'
 import type { OperationError, SyncManualBackupState } from '@savedata-sync/shared'
 import { ArchiveCancelledError, ArchiveError, checkArchiveAbort } from './archive-errors.ts'
-import type { WindowsBackupStore } from './backup-store.ts'
-import type { WindowsDirectoryAdapter } from './directory-adapter.ts'
+import type { DesktopBackupStore } from './backup-store.ts'
+import type { DesktopDirectoryAdapter } from './directory-adapter.ts'
 import { HttpOperationError, toHttpError } from './http-errors.ts'
 import type { DesktopLibrary } from './library-store.ts'
-import { WindowsSyncScanner } from './sync-scanner.ts'
+import { DesktopSyncScanner } from './sync-scanner.ts'
 import { acquireTargetOperation, releaseTargetOperation } from './target-operation.ts'
 
 interface ManualBackupJob {
@@ -29,9 +29,9 @@ interface ManualBackupJob {
 }
 
 /** 创建本机手动备份管理器所需的依赖。 */
-export interface WindowsManualBackupOptions {
-  readonly source: WindowsDirectoryAdapter
-  readonly backups: WindowsBackupStore
+export interface DesktopManualBackupOptions {
+  readonly source: DesktopDirectoryAdapter
+  readonly backups: DesktopBackupStore
   readonly library: Pick<DesktopLibrary, 'snapshot'>
 }
 
@@ -39,13 +39,13 @@ export interface WindowsManualBackupOptions {
  * 本机手动备份的异步任务管理器。
  * 开始时占用 TargetOperation 名额，扫描当前存档目录并提交手动备份，结束后按 BATCH_TIMEOUTS_MS.terminalRetention 保留终态供查询。
  */
-export class WindowsManualBackupRegistry {
-  private readonly options: WindowsManualBackupOptions
+export class DesktopManualBackupRegistry {
+  private readonly options: DesktopManualBackupOptions
   private readonly jobs = new Map<string, ManualBackupJob>()
   private active: ManualBackupJob | null = null
   private isStopped = false
 
-  constructor(options: WindowsManualBackupOptions) {
+  constructor(options: DesktopManualBackupOptions) {
     this.options = options
   }
 
@@ -202,7 +202,7 @@ export class WindowsManualBackupRegistry {
   }
 
   private async run(job: ManualBackupJob): Promise<void> {
-    const scanner = new WindowsSyncScanner(this.options.source)
+    const scanner = new DesktopSyncScanner(this.options.source)
     let scanId: string | null = null
     const abortScan = (): void => {
       if (scanId) {

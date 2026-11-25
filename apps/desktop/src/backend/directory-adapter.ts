@@ -57,8 +57,8 @@ export interface NativeDirectoryLocation {
   readonly describeFile: (name: string, identity: FileIdentity) => Promise<FileMetadata>
 }
 
-/** Windows 本地目录的只读访问：登记、列出和读取目录。条目引用只在当前进程有效。 */
-export class WindowsDirectoryAdapter {
+/** 电脑端本地目录的只读访问：登记、列出和读取目录。条目引用只在当前进程有效。 */
+export class DesktopDirectoryAdapter {
   private readonly configPath: string
   readonly #deviceId: string
   private registry: DirectoryRegistry
@@ -506,7 +506,7 @@ export class WindowsDirectoryAdapter {
 export async function createDirectoryAdapter(
   configPath: string,
   identityPath = join(dirname(configPath), 'identity.json'),
-): Promise<WindowsDirectoryAdapter> {
+): Promise<DesktopDirectoryAdapter> {
   if (!isAbsolute(configPath)) {
     throw new DirectoryAccessError('invalid-request', 'The configuration path must be absolute.')
   }
@@ -518,5 +518,5 @@ export async function createDirectoryAdapter(
   if (registry.roots.length === 0) {
     await saveDirectoryRegistry(configPath, registry)
   }
-  return new WindowsDirectoryAdapter(configPath, registry, deviceId)
+  return new DesktopDirectoryAdapter(configPath, registry, deviceId)
 }

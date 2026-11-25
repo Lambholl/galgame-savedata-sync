@@ -27,7 +27,7 @@ tags: [决策, 电脑端, Tauri, sidecar, 存储目录, 便携模式, 备份库]
 
 ## 状态
 
-accepted。宿主、sidecar、存储目录、Windows 打包、数据文件读不懂时的启动处理和自定义备份库位置已实现；备份库位置的实现和验证情况见 [Windows 平台层](../architecture/windows.md)第 12、15 节。
+accepted。宿主、sidecar、存储目录、Windows 打包、数据文件读不懂时的启动处理和自定义备份库位置已实现；备份库位置的实现和验证情况见 [电脑端平台层](../architecture/desktop.md)第 12、15 节。
 
 ## 替代关系
 
@@ -125,4 +125,4 @@ accepted。宿主、sidecar、存储目录、Windows 打包、数据文件读不
 | `apps/desktop/src/backend/backend.ts` | 后端启动、宿主接口 `DesktopHost` 和停止顺序 |
 | `apps/desktop/src/sidecar/index.ts`、`protocol.ts` | sidecar 入口和 stdio 消息格式 |
 | `apps/desktop/src-tauri/` | Tauri 宿主 |
-| [Windows 平台层](../architecture/windows.md) | 电脑端结构、接口和生命周期 |
+| [电脑端平台层](../architecture/desktop.md) | 电脑端结构、接口和生命周期 |

@@ -18,7 +18,7 @@ import {
   readBackupLocation,
   saveBackupLocation,
 } from '../src/backend/backup-location.ts'
-import { createWindowsBackupStore } from '../src/backend/backup-store.ts'
+import { createDesktopBackupStore } from '../src/backend/backup-store.ts'
 import { NewerDataError, setAsideUnreadableData } from '../src/backend/data-recovery.ts'
 import { DEVICE_IDENTITY_SCHEMA_VERSION, loadDeviceId } from '../src/backend/device-identity.ts'
 import { createDirectoryAdapter } from '../src/backend/directory-adapter.ts'
@@ -27,7 +27,7 @@ import {
   loadDirectoryRegistry,
   saveDirectoryRegistry,
 } from '../src/backend/directory-store.ts'
-import { WindowsSyncScanner } from '../src/backend/sync-scanner.ts'
+import { DesktopSyncScanner } from '../src/backend/sync-scanner.ts'
 
 // 样本按格式版本冻结在 fixtures/compat：<所属端>/<数据项>/v<版本>.json，备份是 shared/backup/v<清单版本>/ 下的备份库。
 const COMPAT = fileURLToPath(new URL('./fixtures/compat/', import.meta.url))
@@ -56,7 +56,7 @@ async function readJson(path) {
 async function withBackupStore(settingsPath, work) {
   const directory = join(settingsPath, '..')
   const adapter = await createDirectoryAdapter(join(directory, 'directories.json'))
-  const store = await createWindowsBackupStore(
+  const store = await createDesktopBackupStore(
     adapter,
     join(directory, 'backups'),
     directory,
@@ -218,7 +218,7 @@ async function openBackupSample(t, version) {
   const identity = await currentSample(ITEMS.find((entry) => entry.item === 'device-identity'))
   await cp(identity.path, join(base, 'identity.json'))
   const adapter = await createDirectoryAdapter(join(base, 'directories.json'))
-  const store = await createWindowsBackupStore(adapter, backups, base, () => null)
+  const store = await createDesktopBackupStore(adapter, backups, base, () => null)
   t.after(() => store.stop())
   return { adapter, saves, store, manifest, roundPath }
 }
@@ -267,7 +267,7 @@ test('清单版本更高的备份不列出、不算残留，轮换时不删除',
   await writeFile(join(saves, 'slot.sav'), 'current save')
   const root = await adapter.registerDirectory(saves)
   assert.equal(root.status, 'success')
-  const scanner = new WindowsSyncScanner(adapter)
+  const scanner = new DesktopSyncScanner(adapter)
   t.after(() => scanner.stop())
   const scan = await scanner.wait(scanner.start(root.value.rootId).scanId)
   await store.setKeepCount(1)

@@ -1,7 +1,7 @@
 import { isOpaqueId } from '@savedata-sync/shared'
 import type { DirectorySelectionResult, OperationError } from '@savedata-sync/shared'
 import { DIRECTORY_CHANNELS } from '../bridge/directory-bridge.ts'
-import type { WindowsDirectoryAdapter } from './directory-adapter.ts'
+import type { DesktopDirectoryAdapter } from './directory-adapter.ts'
 import { toDirectoryError } from './directory-errors.ts'
 import type { ChannelRegistry } from './channel-registry.ts'
 
@@ -24,7 +24,7 @@ function invalidRequest(): { status: 'error'; error: OperationError } {
  */
 export function registerDirectoryIpc(
   ipc: ChannelRegistry,
-  adapter: WindowsDirectoryAdapter,
+  adapter: DesktopDirectoryAdapter,
   choosePath: () => Promise<string | null>,
 ): () => void {
   ipc.handle(

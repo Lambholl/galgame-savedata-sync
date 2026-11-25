@@ -56,7 +56,7 @@ function delay(ms: number): Promise<void> {
  * 在局域网用 mDNS 广播本机 HTTP 服务，DNS-SD 服务类型是 `_savedata-sync._tcp`。
  * 注册失败时状态变为 failed 并定时重试；停止后释放 UDP 5353。
  */
-export class WindowsDiscoveryAdvertiser {
+export class DesktopDiscoveryAdvertiser {
   private responder: Responder | null = null
   private advertisement: DiscoveryAdvertisement | null = null
   private state: DesktopDiscoveryState = OFF_STATE

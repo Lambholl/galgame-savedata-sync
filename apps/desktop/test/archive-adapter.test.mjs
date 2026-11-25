@@ -6,7 +6,7 @@ import { isAbsolute, join, relative, sep } from 'node:path'
 import { PassThrough, Readable } from 'node:stream'
 import { gzipSync, gunzipSync } from 'node:zlib'
 import test from 'node:test'
-import { createWindowsArchiveAdapter } from '../src/backend/archive-adapter.ts'
+import { createDesktopArchiveAdapter } from '../src/backend/archive-adapter.ts'
 import { ArchiveCancelledError, ArchiveError } from '../src/backend/archive-errors.ts'
 import { createDirectoryAdapter } from '../src/backend/directory-adapter.ts'
 
@@ -76,7 +76,7 @@ async function setup(
       modifiedAt: entry.modifiedAt,
     }
   })
-  const archive = await createWindowsArchiveAdapter(source, privateDirectory, options)
+  const archive = await createDesktopArchiveAdapter(source, privateDirectory, options)
   cleanup.archive = archive
   return {
     root,
@@ -235,7 +235,7 @@ test('收紧的成员、总原文、tar 和私有缓存上限在解包前或实�
     { maxTarBytes: 1536 },
     { maxCacheBytes: 16 },
   ]) {
-    const archive = await createWindowsArchiveAdapter(fixture.source, fixture.privateDirectory, {
+    const archive = await createDesktopArchiveAdapter(fixture.source, fixture.privateDirectory, {
       quota,
     })
     await expectFailure(archive, bytes, 'resource-limit', fixture.files)

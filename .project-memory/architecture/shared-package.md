@@ -1,7 +1,7 @@
 ---
 doc_type: architecture
 status: active
-updated: 2026-11-25
+updated: 2026-11-26
 tags: [共享包, 数据模型, 守卫]
 ---
 
@@ -69,7 +69,7 @@ HTTP_ERROR_STATUS 映射错误码到 HTTP 状态，包括 session-mismatch/task-
 
 - 原生层拥有流、压缩器、缓存、任务、回调和监听；向 JS 仅传 JSON 快照，不传文件内容、Base64、句柄或 URI。Android 使用 Java，long 输出前检查 JS 安全整数范围。
 - 发送端按复制计划边读边打包，接收端边收边解包到私有缓存，通过校验后才写入目标。计划、指纹和结果只在当前会话短期存活，没有历史基线。
-- Windows 私有归档、源变化检查及严格 JSON/HTTP 读取见 [Windows 平台层](windows.md)；Java 归档、SAF 写入及 Android 原生网络见 [Android 平台层](android.md)。共同创建名统一名称规则，Windows 竞争检查和 SAF 提供者检查分别执行。
+- Windows 私有归档、源变化检查及严格 JSON/HTTP 读取见 [电脑端平台层](desktop.md)；Java 归档、SAF 写入及 Android 原生网络见 [Android 平台层](android.md)。共同创建名统一名称规则，Windows 竞争检查和 SAF 提供者检查分别执行。
 - Android 用户发起复制后，由 dataSync 前台服务和持续通知保持；切后台或 Activity 重建不会取消已有任务。传输生命周期和平台中断由各端原生层管理。
 
 ## 6. 检查与验证边界

@@ -5,7 +5,7 @@ updated: 2026-11-26
 tags: [Windows, 电脑端, Tauri, sidecar, 存储目录]
 ---
 
-# Windows 平台层
+# 电脑端平台层
 
 ## 目录
 
@@ -29,7 +29,7 @@ tags: [Windows, 电脑端, Tauri, sidecar, 存储目录]
 
 代码在 `apps/desktop`。目录读取模块保持源只读；私有归档负责编解码和缓存清理；HTTP 服务负责设备/目录查询、目录表交换、控制通道和复制任务。桌面提供服务启停、实际地址/端口、目录选择、任务计划与实际结果、备份设置和本机恢复。
 
-电脑作监听方时提供 HTTP 服务和控制通道，接纳拨号方登记的任务；电脑发起的复制经控制通道交给拨号方，对方须开着应用并保持连接，计划在电脑确认、拨号方执行。电脑也能作拨号方连接另一台设备（[ADR-0004](../decisions/ADR-0004-symmetric-listener-dialer-roles.md)）：用 `bonjour-service` 搜索局域网设备，用 `node:http` 和 `ws` 交换目录表、浏览对方目录、保持控制通道，见[第 2 节](#2-游戏与设备界面)。作拨号方时由 `dialer-sync.ts` 的 `WindowsDialerSync` 编排扫描、计划、任务登记、内容上传和下载、取消和结果读取，职责同 Android `SyncTransferEngine`；也处理对方经控制通道发来的 `sync.prepare`、`sync.confirm`、`sync.cancel`、`sync.job.*`，每 0.5 秒推送 `sync.job` 摘要。它和监听方任务共用进程内的写入名额，同一时间只有一个复制任务写入；`sync-ipc.ts` 按本机是否拨号连着所选设备把发起请求交给它或 `remote-sync-requests.ts`，复制任务列表合并两部分，`DesktopCopySummary.localSide` 标明本机是哪一方，传输页和任务详情据此决定方向和两端位置。复制按确认计划执行新增、受保护覆盖、跳过和删除多余项。
+电脑作监听方时提供 HTTP 服务和控制通道，接纳拨号方登记的任务；电脑发起的复制经控制通道交给拨号方，对方须开着应用并保持连接，计划在电脑确认、拨号方执行。电脑也能作拨号方连接另一台设备（[ADR-0004](../decisions/ADR-0004-symmetric-listener-dialer-roles.md)）：用 `bonjour-service` 搜索局域网设备，用 `node:http` 和 `ws` 交换目录表、浏览对方目录、保持控制通道，见[第 2 节](#2-游戏与设备界面)。作拨号方时由 `dialer-sync.ts` 的 `DesktopDialerSync` 编排扫描、计划、任务登记、内容上传和下载、取消和结果读取，职责同 Android `SyncTransferEngine`；也处理对方经控制通道发来的 `sync.prepare`、`sync.confirm`、`sync.cancel`、`sync.job.*`，每 0.5 秒推送 `sync.job` 摘要。它和监听方任务共用进程内的写入名额，同一时间只有一个复制任务写入；`sync-ipc.ts` 按本机是否拨号连着所选设备把发起请求交给它或 `remote-sync-requests.ts`，复制任务列表合并两部分，`DesktopCopySummary.localSide` 标明本机是哪一方，传输页和任务详情据此决定方向和两端位置。复制按确认计划执行新增、受保护覆盖、跳过和删除多余项。
 
 后端代码在 `src/backend`，是纯 Node 代码。`backend.ts` 的 `startBackend` 接收配置、数据、备份库、缓存四个目录（第 7 节）、系统语言列表和宿主接口 `DesktopHost`（目录选择器、图片文件选择器、打开路径、设置明暗主题），初始化全部服务并把界面通道登记到 `ChannelRouter`；`stop` 按“拨号方任务、拨号连接、HTTP 服务和广播、本机恢复、写入器、备份”的顺序释放，失败可以重试。各 `*-ipc.ts` 只校验参数，能调用通道的页面由 Tauri capability 限定。
 
@@ -59,7 +59,7 @@ tags: [Windows, 电脑端, Tauri, sidecar, 存储目录]
 
 游戏与设备配置保存在应用私有目录的 `game-library.json`。一个游戏保存本机一个目录，关联多个对端游戏。同一时间只有一条连接：一台设备连着本机，或本机连着一台设备。连进本机的设备通过 `POST /v1/catalog` 提交自己的目录表并取回电脑目录表，在线状态看 WebSocket 控制通道（`control-hub.ts`）：控制请求 8 秒内要应答，15 秒心跳没有回应按断开处理（`CONTROL_LIMITS`）。运行传输时保留单活动批次限制。
 
-电脑拨号由 `src/backend/dialer-session.ts` 的 `WindowsDialer` 负责，`DesktopLibrary` 通过 `LibraryDialer` 接口读取它的在线状态、对方目录和断开：
+电脑拨号由 `src/backend/dialer-session.ts` 的 `DesktopDialer` 负责，`DesktopLibrary` 通过 `LibraryDialer` 接口读取它的在线状态、对方目录和断开：
 
 - 入口：设备页“添加设备”手动输入 `IP:端口`，附近的设备列表和已保存设备的“连接”按钮。电脑不提供扫码。
 - 连接：先读 `/v1/device`（5 秒），协议版本不同答复 `protocol-mismatch`，地址是本机或设备 ID 和预期不同时失败；再带 `x-sync-connect: 1` 交换目录表，保存设备和连上的地址，最后连控制通道（`dialer-control.ts`）。交换目录表期间有设备连进本机时撤回这次连接，答复 `busy`。
@@ -155,7 +155,7 @@ Node 的路径检查与文件打开是两个操作。本实现检查可观察到
 
 ## 8. 当前扫描
 
-`WindowsSyncScanner` 构造时传入本机目录适配器，`start(rootId)` 返回扫描句柄（最多保留 32 份结果，满时丢掉最旧的），`get(scanId)` 查询，`cancel(scanId)` 显式取消，退出时 `await stop()` 等待关流。原生验证可收紧 maxEntries/timeoutMs/retentionMs，不能放宽固定预算；失败使用脱敏 OperationError，结果只存当前会话。
+`DesktopSyncScanner` 构造时传入本机目录适配器，`start(rootId)` 返回扫描句柄（最多保留 32 份结果，满时丢掉最旧的），`get(scanId)` 查询，`cancel(scanId)` 显式取消，退出时 `await stop()` 等待关流。原生验证可收紧 maxEntries/timeoutMs/retentionMs，不能放宽固定预算；失败使用脱敏 OperationError，结果只存当前会话。
 
 HTTP 服务注入 `scanSource: adapter` 后开放 `/v1/sync/capabilities`、`POST /v1/sync/scans` 和 `GET/DELETE /v1/sync/scans/{scanId}`。请求遵守会话头及严格 JSON，登记只接收 `{ schemaVersion: 1, rootId }`，202 后查询实际结果。注入 `sync` 编排后声明复制/备份为 supported；远端恢复为 unsupported，本机恢复通过独立本地桥执行。
 
@@ -167,10 +167,10 @@ HTTP 服务注入 `scanSource: adapter` 后开放 `/v1/sync/capabilities`、`POS
 
 | 接口 | 输入/输出 | 所有权与失败 |
 | --- | --- | --- |
-| createWindowsArchiveAdapter(source, cacheDirectory, options?) | 目录读取适配器与已有缓存目录的绝对路径 | 缓存固定放 transfer-archives-v1 子目录，不能与任何已登记源根重叠；启动只清理验证过的孤儿缓存；失败抛脱敏 ArchiveError |
+| createDesktopArchiveAdapter(source, cacheDirectory, options?) | 目录读取适配器与已有缓存目录的绝对路径 | 缓存固定放 transfer-archives-v1 子目录，不能与任何已登记源根重叠；启动只清理验证过的孤儿缓存；失败抛脱敏 ArchiveError |
 | archive.checkStagingSpace(bytes) | 解包原文字节数，返回缓存所在卷和需要的字节数 | 超过缓存预算报 resource-limit，空间不足报 insufficient-space |
 | archive.sendFiles(rootId, files, destination, options?) | 复制计划的文件列表（fileId、entryId、大小、修改日期）和可写流 | 按顺序边读边打包 gzip1 写入 destination，写完结束它；文件的大小或修改日期与计划不同、读取期间被改动时抛 source-changed |
-| archive.receiveFiles(files, input, options?) | 计划的文件列表和原始 Node Readable，返回 WindowsStagedFiles | 从调用起接管并最终关闭 input；按计划逐成员核对并通过 gzip 校验后才返回；失败或取消时清理本次缓存 |
+| archive.receiveFiles(files, input, options?) | 计划的文件列表和原始 Node Readable，返回 DesktopStagedFiles | 从调用起接管并最终关闭 input；按计划逐成员核对并通过 gzip 校验后才返回；失败或取消时清理本次缓存 |
 | staged.openFile(fileId) / dispose() | 只读流；fileId 必须属于本次内容 | 调用者必须消费或 destroy；dispose 后所有方法失效 |
 | archive.retryCleanup() | 重试本缓存根的失败清理 | 不删除仍在使用的文件；清理成功后才释放进程互斥 |
 
@@ -184,26 +184,26 @@ HTTP 服务注入 `scanSource: adapter` 后开放 `/v1/sync/capabilities`、`POS
 
 ## 10. HTTP 服务与任务生命周期
 
-`src/backend/http-service.ts` 的 `WindowsHttpService` 构造时不监听网络。应用初始化目录/归档/服务对象，用户点服务按钮后经界面通道启动，监听失败（端口被占用或在系统保留的端口段里）报 `port-unavailable`，退出时等待 stop。原生 API 缺省回环地址和动态端口；自动化 HTTP 检查使用 127.0.0.1。
+`src/backend/http-service.ts` 的 `DesktopHttpService` 构造时不监听网络。应用初始化目录/归档/服务对象，用户点服务按钮后经界面通道启动，监听失败（端口被占用或在系统保留的端口段里）报 `port-unavailable`，退出时等待 stop。原生 API 缺省回环地址和动态端口；自动化 HTTP 检查使用 127.0.0.1。
 
 | 原生 API | 输入/返回 | 责任 |
 | --- | --- | --- |
-| new WindowsHttpService(source, options?) | 目录读取适配器；可选 library、displayName、scanSource、sync（写入器、备份、归档）和仅收紧的 `BATCH_TIMEOUTS_MS` 期限 | 注入 scanSource 和 sync 后开放扫描与复制任务 |
+| new DesktopHttpService(source, options?) | 目录读取适配器；可选 library、displayName、scanSource、sync（写入器、备份、归档）和仅收紧的 `BATCH_TIMEOUTS_MS` 期限 | 注入 scanSource 和 sync 后开放扫描与复制任务 |
 | service.start({host?, port?}) | 返回实际 host/port/sessionId/startedAt | 端口冲突明确失败，不换端口重试；每次重新启动生成会话 |
 | service.getAddress() / getError() | 监听快照或 null；脱敏运行时错误或 null | sessionId 只用于识别服务重启，认证不在这层 |
 | service.stop() | Promise&lt;void&gt; | 关闭连接，取消并等待任务和缓存清理；并发调用共用同一个 Promise；清理失败时端口已关闭，可以再次 stop |
 
 路由和包络见[设备接口与归档格式](transfer-protocol.md#4-http-路由与会话)。除了 device 均核对唯一会话头。JSON 严格 UTF-8、无 BOM/重复解码键、深度不超过 128，按实际 UTF-8 字节执行 8 MiB 请求及响应预算；拒绝编码体、trailer、重复头、歧义 CL/TE、非法/重复查询、错误方法和 Range。请求/响应无进展 60 秒、整个 HTTP 请求 30 分钟、请求头 15 秒及 16 KiB 头预算。
 
-复制任务由 `WindowsSyncRegistry` 登记，期限、留存和结果见[复制、备份与恢复约定](sync-copy.md)。失败、取消和超时等待实际 IO 结束再清理；清理失败保留互斥，明确重试成功后才释放。关闭窗口时宿主等待 sidecar 停止服务（第 1 节）；清理失败显示错误并保留重试机会。
+复制任务由 `DesktopSyncRegistry` 登记，期限、留存和结果见[复制、备份与恢复约定](sync-copy.md)。失败、取消和超时等待实际 IO 结束再清理；清理失败保留互斥，明确重试成功后才释放。关闭窗口时宿主等待 sidecar 停止服务（第 1 节）；清理失败显示错误并保留重试机会。
 
 ## 11. 写入候选残留
 
-写入候选只在当前进程内有所有权。崩溃或强制退出可能在目标目录留下 `.savedata-copy-<UUID>.tmp`、`.savedata-new-<UUID>.tmp` 候选；复制写入时 `WindowsSyncWriter` 开始写目标目录前删除其中的候选文件，扫描也跳过它们（[接口约定](api-contracts.md)第 3 节）。真实断电及其他文件系统还没验证。
+写入候选只在当前进程内有所有权。崩溃或强制退出可能在目标目录留下 `.savedata-copy-<UUID>.tmp`、`.savedata-new-<UUID>.tmp` 候选；复制写入时 `DesktopSyncWriter` 开始写目标目录前删除其中的候选文件，扫描也跳过它们（[接口约定](api-contracts.md)第 3 节）。真实断电及其他文件系统还没验证。
 
 ## 12. 独立备份与恢复材料
 
-`createWindowsBackupStore(adapter, backupDirectory, settingsDirectory, gameName)` 在备份库初始化独立备份，结构和移动端相同：`<游戏名>/<UTC 时间>/` 内含 `backup.json` 和按原路径保存的 `files/`。`gameName` 只决定新备份的文件夹名，备份归属看 `backup.json` 里的 ID。启动时登记备份库，目录适配器拒绝把它及其父子目录选作同步根。用户可以随时删改备份库文件夹，所以每次按实际目录读取。设置在数据目录的 `backup-settings.json`。备份不进入同步比较。
+`createDesktopBackupStore(adapter, backupDirectory, settingsDirectory, gameName)` 在备份库初始化独立备份，结构和移动端相同：`<游戏名>/<UTC 时间>/` 内含 `backup.json` 和按原路径保存的 `files/`。`gameName` 只决定新备份的文件夹名，备份归属看 `backup.json` 里的 ID。启动时登记备份库，目录适配器拒绝把它及其父子目录选作同步根。用户可以随时删改备份库文件夹，所以每次按实际目录读取。设置在数据目录的 `backup-settings.json`。备份不进入同步比较。
 
 备份库位置（[ADR-0005](../decisions/ADR-0005-tauri-sidecar-and-storage-layout.md) 第 12–15 条）：
 
@@ -230,13 +230,13 @@ HTTP 服务注入 `scanSource: adapter` 后开放 `/v1/sync/capabilities`、`POS
 
 每个游戏保留的份数取备份库设置（1–4096，默认 10），不分目录，只统计完整的备份；写入前备份（`copy`、`restore`）与手动备份（`manual`）平级轮换。新轮可读后才轮换；活动恢复句柄保护输入轮次。淘汰先把 `backup.json` 改回 `in-progress.json` 再删文件。文件缺失或大小不符的备份和未提交的一样显示为不完整，不能恢复，不挡新备份，须明确清理；读不懂的内容直接忽略，不自动删除。
 
-`src/backend/manual-backup-registry.ts` 的 `WindowsManualBackupRegistry` 持有本机手动备份异步任务：启动时复核本机游戏目录并占用 `TargetOperation` 名额，扫描当前存档目录并调用 `createManual` 提交，终态按 `BATCH_TIMEOUTS_MS.terminalRetention` 保留供查询，应用退出时随 `stop()` 取消并释放名额。
+`src/backend/manual-backup-registry.ts` 的 `DesktopManualBackupRegistry` 持有本机手动备份异步任务：启动时复核本机游戏目录并占用 `TargetOperation` 名额，扫描当前存档目录并调用 `createManual` 提交，终态按 `BATCH_TIMEOUTS_MS.terminalRetention` 保留供查询，应用退出时随 `stop()` 取消并释放名额。
 
 有限 `window.desktopBackups` 只提供 read/list/manifest/setKeepCount/rotate/cleanupIncomplete/deleteBackup/deleteGameBackups/openFolder/chooseLocation/resetLocation 及手动备份接口 startManual/currentManual/manualState/cancelManual，输入仅为项目、任务、轮次 ID 和保留份数。setKeepCount 在有传输、恢复或手动备份进行时报 busy。read 返回 displayPath（仅供位置展示）、isCustomLocation、isLocationAvailable 和备份库设置；列表使用摘要，单轮详情才返回完整清单。chooseLocation 打开系统目录选择器，取消时返回 null；chooseLocation 和 resetLocation 在有传输、恢复或手动备份进行时报 busy，成功后返回新的 read 结果。设置页在换位置前弹确认框，说明已有备份不搬。
 
 ## 13. 受保护目标写入与本机恢复
 
-`WindowsSyncWriter(adapter, backups, options)` 执行完整确认计划。`WindowsSyncRegistry` 接入 Android → Windows 的 HTTP 接收、缓存和实际结果查询，以及 Windows → Android 的原生源准备和单次下载。源端 POST 接纳后异步重新扫描并核对当前源、形成不可变归档；准备完成且扫描资源释放后才发布 ready。GET 内容只领取一次；无文件的源计划直接报告发送完成。协议见[复制、备份与恢复约定](sync-copy.md#6-http-与本地桥)。
+`DesktopSyncWriter(adapter, backups, options)` 执行完整确认计划。`DesktopSyncRegistry` 接入 Android → Windows 的 HTTP 接收、缓存和实际结果查询，以及 Windows → Android 的原生源准备和单次下载。源端 POST 接纳后异步重新扫描并核对当前源、形成不可变归档；准备完成且扫描资源释放后才发布 ready。GET 内容只领取一次；无文件的源计划直接报告发送完成。协议见[复制、备份与恢复约定](sync-copy.md#6-http-与本地桥)。
 
 | 原生方法 | 输入、输出与资源责任 |
 | --- | --- |
@@ -260,7 +260,7 @@ HTTP 服务注入 `scanSource: adapter` 后开放 `/v1/sync/capabilities`、`POS
 
 “备份与恢复”按游戏读取完整备份与未完成轮次。顶部显示备份库的保留份数和位置，点按打开设置页修改；列表标题显示“已有份数 / 保留份数”。写入前备份在传输页按次选择。页面提供“立即备份”按钮，点击直接启动本机手动备份（不弹确认、不填备注），显示实时进度与取消按钮，完成后刷新列表并自动选中新备份；空目录时提示当前目录没有文件可备份。本机恢复先读取并验证所选备份、扫描当前目录，生成固定预览，用户确认后由后端执行。恢复前始终备份当前目录的全部文件，恢复后当前目录和所选备份一致（备份里没有的文件和空文件夹删除），恢复总是写进游戏当前的目录。
 
-`src/backend/restore-registry.ts` 的 `WindowsRestoreRegistry` 持有恢复任务。关闭详情、切页或刷新 Renderer 只停止页面轮询；本进程中的任务、预览及实际结果仍可按 ID 查询。网络服务停止不取消本机恢复；应用退出先停止网络编排和恢复，再停止写入器与备份。
+`src/backend/restore-registry.ts` 的 `DesktopRestoreRegistry` 持有恢复任务。关闭详情、切页或刷新 Renderer 只停止页面轮询；本进程中的任务、预览及实际结果仍可按 ID 查询。网络服务停止不取消本机恢复；应用退出先停止网络编排和恢复，再停止写入器与备份。
 
 冻结的 `window.desktopSync` API 返回 `Promise<OperationResult<T>>`：
 

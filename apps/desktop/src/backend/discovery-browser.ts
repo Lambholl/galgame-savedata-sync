@@ -98,7 +98,7 @@ function serviceAddresses(service: Service): readonly string[] {
  * 搜到的服务要请求 `/v1/device` 得到 200 才出现在结果里，搜索期间每 QUERY_INTERVAL_MS 重新探测一次；
  * 已出现的服务连续 MAX_PROBE_FAILURES 次探测失败后从结果里去掉。
  */
-export class WindowsDiscoveryBrowser {
+export class DesktopDiscoveryBrowser {
   private bonjour: Bonjour | null = null
   private browser: Browser | null = null
   private queryTimer: NodeJS.Timeout | null = null

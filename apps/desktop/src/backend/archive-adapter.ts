@@ -7,10 +7,10 @@ import { createArchiveCache } from './archive-cache.ts'
 import type { ArchiveCache, ArchiveCacheJob, ArchiveCacheOptions } from './archive-cache.ts'
 import { ArchiveError, checkArchiveAbort, toArchiveError } from './archive-errors.ts'
 import { ArchiveReader, createArchiveHeader, createStrictGunzip } from './archive-format.ts'
-import type { WindowsDirectoryAdapter } from './directory-adapter.ts'
+import type { DesktopDirectoryAdapter } from './directory-adapter.ts'
 import { inspectLocalPath } from './directory-paths.ts'
 
-type ArchiveSource = Pick<WindowsDirectoryAdapter, 'openFile' | 'assertCacheIsolated'>
+type ArchiveSource = Pick<DesktopDirectoryAdapter, 'openFile' | 'assertCacheIsolated'>
 
 /** 复制内容里的一个文件：fileId 是 tar 成员名，大小和修改日期是确认时的值。 */
 export interface SyncContentFile {
@@ -27,7 +27,7 @@ export interface SyncContentOptions {
 }
 
 /** 解包到私有缓存的复制内容。打开的读流用完要关闭；dispose 后所有方法失效。 */
-export interface WindowsStagedFiles {
+export interface DesktopStagedFiles {
   readonly openFile: (fileId: string) => Promise<Readable>
   readonly dispose: () => Promise<void>
 }
@@ -74,8 +74,8 @@ async function* binaryChunks(source: AsyncIterable<unknown>): AsyncGenerator<Buf
   }
 }
 
-/** Windows 的归档编解码器：边读源文件边打包发送 tar.gz，接收时解包到私有缓存。 */
-export class WindowsArchiveAdapter {
+/** 电脑端的归档编解码器：边读源文件边打包发送 tar.gz，接收时解包到私有缓存。 */
+export class DesktopArchiveAdapter {
   private readonly source: ArchiveSource
   private readonly cache: ArchiveCache
 
@@ -185,7 +185,7 @@ export class WindowsArchiveAdapter {
     files: readonly SyncContentFile[],
     input: Readable,
     options: SyncContentOptions = {},
-  ): Promise<WindowsStagedFiles> {
+  ): Promise<DesktopStagedFiles> {
     const earlyError: { value: Error | null } = { value: null }
     const rememberError = (error: Error): void => {
       earlyError.value ??= error
@@ -321,13 +321,13 @@ export class WindowsArchiveAdapter {
 }
 
 /** 在已有的应用私有目录里创建归档编解码器，并清理带本应用标记的遗留缓存任务。 */
-export async function createWindowsArchiveAdapter(
+export async function createDesktopArchiveAdapter(
   source: ArchiveSource,
   privateDirectory: string,
   options: ArchiveCacheOptions = {},
-): Promise<WindowsArchiveAdapter> {
+): Promise<DesktopArchiveAdapter> {
   try {
-    return new WindowsArchiveAdapter(
+    return new DesktopArchiveAdapter(
       source,
       await createArchiveCache(
         privateDirectory,

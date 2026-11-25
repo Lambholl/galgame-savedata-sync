@@ -16,25 +16,25 @@ import { ChannelRouter } from './channel-registry.ts'
 import { createDirectoryAdapter } from './directory-adapter.ts'
 import { registerDirectoryIpc } from './directory-ipc.ts'
 import { toDirectoryError } from './directory-errors.ts'
-import { createWindowsArchiveAdapter } from './archive-adapter.ts'
-import { WindowsHttpService } from './http-service.ts'
-import { WindowsDiscoveryAdvertiser } from './discovery-advertiser.ts'
+import { createDesktopArchiveAdapter } from './archive-adapter.ts'
+import { DesktopHttpService } from './http-service.ts'
+import { DesktopDiscoveryAdvertiser } from './discovery-advertiser.ts'
 import { HttpOperationError, toHttpError } from './http-errors.ts'
 import { registerServiceIpc } from './service-ipc.ts'
 import { ServicePortSettings } from './service-port-settings.ts'
 import { DesktopLibrary } from './library-store.ts'
 import { registerLibraryIpc } from './library-ipc.ts'
-import { WindowsDiscoveryBrowser } from './discovery-browser.ts'
-import { WindowsDialer } from './dialer-session.ts'
-import { WindowsDialerSync } from './dialer-sync.ts'
-import { WindowsSyncScanner } from './sync-scanner.ts'
+import { DesktopDiscoveryBrowser } from './discovery-browser.ts'
+import { DesktopDialer } from './dialer-session.ts'
+import { DesktopDialerSync } from './dialer-sync.ts'
+import { DesktopSyncScanner } from './sync-scanner.ts'
 import { registerDialerIpc } from './dialer-ipc.ts'
-import { createWindowsBackupStore } from './backup-store.ts'
-import { WindowsManualBackupRegistry } from './manual-backup-registry.ts'
+import { createDesktopBackupStore } from './backup-store.ts'
+import { DesktopManualBackupRegistry } from './manual-backup-registry.ts'
 import { BACKUP_LOCATION_FILE } from './backup-location.ts'
 import { registerBackupIpc } from './backup-ipc.ts'
-import { WindowsSyncWriter } from './sync-writer.ts'
-import { WindowsRestoreRegistry } from './restore-registry.ts'
+import { DesktopSyncWriter } from './sync-writer.ts'
+import { DesktopRestoreRegistry } from './restore-registry.ts'
 import { InterruptedWriteStore } from './interrupted-writes.ts'
 import { registerSyncIpc } from './sync-ipc.ts'
 import { AppPreferencesStore } from './preferences-store.ts'
@@ -179,7 +179,7 @@ export async function startBackend(options: BackendOptions): Promise<DesktopBack
       adapter.excludePrivateDirectory(path)
     }
     stage = 'archive-cache'
-    const archive = await createWindowsArchiveAdapter(adapter, cacheDirectory)
+    const archive = await createDesktopArchiveAdapter(adapter, cacheDirectory)
     stage = 'library'
     const posters = new PosterStore(join(dataDirectory, 'posters'))
     const library = new DesktopLibrary(files.library, adapter, posters)
@@ -187,7 +187,7 @@ export async function startBackend(options: BackendOptions): Promise<DesktopBack
     stage = 'posters'
     await posters.prune(library.snapshot().config.games)
     stage = 'backups'
-    const backups = await createWindowsBackupStore(
+    const backups = await createDesktopBackupStore(
       adapter,
       backupDirectory,
       dataDirectory,
@@ -196,7 +196,7 @@ export async function startBackend(options: BackendOptions): Promise<DesktopBack
     )
     stage = 'sync-writer'
     const interruptedWrites = new InterruptedWriteStore(dataDirectory)
-    const syncWriter = new WindowsSyncWriter(adapter, backups, {
+    const syncWriter = new DesktopSyncWriter(adapter, backups, {
       interruptedWrites,
       authorize: (plan) => {
         if (
@@ -222,30 +222,30 @@ export async function startBackend(options: BackendOptions): Promise<DesktopBack
     const portSettings = new ServicePortSettings(files['service-settings'])
     await portSettings.load()
     stage = 'services'
-    const httpService = new WindowsHttpService(adapter, {
+    const httpService = new DesktopHttpService(adapter, {
       scanSource: adapter,
       library,
       sync: { writer: syncWriter, backups, archive },
     })
-    const advertiser = new WindowsDiscoveryAdvertiser()
-    const restores = new WindowsRestoreRegistry({
+    const advertiser = new DesktopDiscoveryAdvertiser()
+    const restores = new DesktopRestoreRegistry({
       source: adapter,
       backups,
       writer: syncWriter,
       library,
     })
-    const manualBackups = new WindowsManualBackupRegistry({
+    const manualBackups = new DesktopManualBackupRegistry({
       source: adapter,
       backups,
       library,
     })
-    const discoveryBrowser = new WindowsDiscoveryBrowser(adapter.deviceId)
-    const dialer = new WindowsDialer(library, adapter, discoveryBrowser)
+    const discoveryBrowser = new DesktopDiscoveryBrowser(adapter.deviceId)
+    const dialer = new DesktopDialer(library, adapter, discoveryBrowser)
     library.attachDialer(dialer)
-    const dialerSync = new WindowsDialerSync({
+    const dialerSync = new DesktopDialerSync({
       dialer,
       library,
-      scanner: new WindowsSyncScanner(adapter),
+      scanner: new DesktopSyncScanner(adapter),
       archive,
       writer: syncWriter,
       deviceId: adapter.deviceId,

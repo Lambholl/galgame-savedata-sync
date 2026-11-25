@@ -6,7 +6,7 @@ import { join } from 'node:path'
 import test from 'node:test'
 import { NOMEDIA_NAME, writeCandidateName } from '@savedata-sync/shared'
 import { createDirectoryAdapter } from '../src/backend/directory-adapter.ts'
-import { WindowsSyncScanner } from '../src/backend/sync-scanner.ts'
+import { DesktopSyncScanner } from '../src/backend/sync-scanner.ts'
 
 test('扫描跳过任意层级的 .nomedia 文件', async (t) => {
   // 和 Android SyncScannerTest 用同一组条目：根目录和子目录各有一个 .nomedia。
@@ -21,7 +21,7 @@ test('扫描跳过任意层级的 .nomedia 文件', async (t) => {
   const adapter = await createDirectoryAdapter(join(base, 'control', 'directories.json'))
   const selected = await adapter.registerDirectory(root)
   assert.equal(selected.status, 'success')
-  const scanner = new WindowsSyncScanner(adapter)
+  const scanner = new DesktopSyncScanner(adapter)
   t.after(() => scanner.stop())
   const state = await scanner.wait(scanner.start(selected.value.rootId).scanId)
 
@@ -45,7 +45,7 @@ test('扫描跳过写入中断留下的候选文件，其余文件照常列出',
   const adapter = await createDirectoryAdapter(join(base, 'control', 'directories.json'))
   const selected = await adapter.registerDirectory(root)
   assert.equal(selected.status, 'success')
-  const scanner = new WindowsSyncScanner(adapter)
+  const scanner = new DesktopSyncScanner(adapter)
   t.after(() => scanner.stop())
   const state = await scanner.wait(scanner.start(selected.value.rootId).scanId)
 

@@ -5,12 +5,12 @@ import { join } from 'node:path'
 import { Readable } from 'node:stream'
 import test from 'node:test'
 import { createSyncPlan, NOMEDIA_NAME } from '@savedata-sync/shared'
-import { createWindowsBackupStore } from '../src/backend/backup-store.ts'
+import { createDesktopBackupStore } from '../src/backend/backup-store.ts'
 import { createDirectoryAdapter } from '../src/backend/directory-adapter.ts'
 import { InterruptedWriteStore } from '../src/backend/interrupted-writes.ts'
-import { WindowsSyncScanner } from '../src/backend/sync-scanner.ts'
+import { DesktopSyncScanner } from '../src/backend/sync-scanner.ts'
 import { SYNC_TARGET_IO } from '../src/backend/sync-target-files.ts'
-import { WindowsSyncWriter } from '../src/backend/sync-writer.ts'
+import { DesktopSyncWriter } from '../src/backend/sync-writer.ts'
 
 const SOURCE_MODIFIED_AT = Date.UTC(2026, 0, 1)
 
@@ -29,17 +29,17 @@ async function setup(t, { io } = {}) {
   const adapter = await createDirectoryAdapter(join(privateDir, 'directories.json'))
   const selected = await adapter.registerDirectory(target)
   assert.equal(selected.status, 'success')
-  const backups = await createWindowsBackupStore(
+  const backups = await createDesktopBackupStore(
     adapter,
     join(privateDir, 'backups'),
     privateDir,
     () => 'Writer Test',
   )
   t.after(() => backups.stop())
-  const scanner = new WindowsSyncScanner(adapter)
+  const scanner = new DesktopSyncScanner(adapter)
   t.after(() => scanner.stop())
   const interruptedWrites = new InterruptedWriteStore(privateDir)
-  const writer = new WindowsSyncWriter(adapter, backups, {
+  const writer = new DesktopSyncWriter(adapter, backups, {
     authorize: () => undefined,
     interruptedWrites,
     ...(io ? { io } : {}),

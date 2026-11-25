@@ -31,7 +31,7 @@ import type {
   SyncPlan,
   SyncSnapshot,
 } from '@savedata-sync/shared'
-import type { WindowsDirectoryAdapter } from './directory-adapter.ts'
+import type { DesktopDirectoryAdapter } from './directory-adapter.ts'
 import type { FileIdentity } from './directory-paths.ts'
 import { getFileIdentity, hasSameIdentity, inspectLocalPath } from './directory-paths.ts'
 import { ArchiveError, checkArchiveAbort, toArchiveError } from './archive-errors.ts'
@@ -49,7 +49,7 @@ import type { BackupDiskIO } from './backup-files.ts'
 import { BACKUP_LOCATION_FILE, readBackupLocation, saveBackupLocation } from './backup-location.ts'
 
 type BackupSource = Pick<
-  WindowsDirectoryAdapter,
+  DesktopDirectoryAdapter,
   | 'deviceId'
   | 'assertCacheIsolated'
   | 'excludePrivateDirectory'
@@ -57,7 +57,7 @@ type BackupSource = Pick<
   | 'locateNativeDirectory'
 >
 /** 备份库的位置。 */
-export interface WindowsBackupLocation {
+export interface DesktopBackupLocation {
   /** 备份库文件夹的绝对路径。 */
   readonly path: string
   /** 是否是用户选择的位置；false 表示默认位置。 */
@@ -71,17 +71,17 @@ interface BackupRound {
   readonly isComplete: boolean
 }
 /** 备份查询结果：已提交备份的清单和需要清理的残留备份。 */
-export interface WindowsBackupListing {
+export interface DesktopBackupListing {
   readonly backups: readonly SyncBackupManifest[]
   readonly incomplete: readonly SyncIncompleteBackup[]
 }
 /** 创建备份的结果。manifest 为 null 表示没有创建备份；提交后轮换旧备份失败时错误在 cleanupError，这份备份仍然有效。 */
-export interface WindowsBackupCommit {
+export interface DesktopBackupCommit {
   readonly manifest: SyncBackupManifest | null
   readonly cleanupError: KnownOperationError | null
 }
 /** 创建备份的选项：取消信号、更短的期限和复制进度。 */
-export interface WindowsBackupOptions {
+export interface DesktopBackupOptions {
   readonly signal?: AbortSignal
   readonly timeoutMs?: number
   /** 每写入一块后收到这次备份累计已复制的字节数；抛出的错误被忽略。 */
@@ -120,7 +120,7 @@ function targetFile(plan: SyncPlan, entryId: string | null): SyncEntry & { sizeB
   }
   return { ...entry, sizeBytes: entry.sizeBytes }
 }
-function operationSignal(controller: AbortController, options: WindowsBackupOptions): AbortSignal {
+function operationSignal(controller: AbortController, options: DesktopBackupOptions): AbortSignal {
   const timeoutMs = options.timeoutMs ?? SYNC_LIMITS.scanTimeoutMs
   if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > SYNC_LIMITS.scanTimeoutMs) {
     throw new ArchiveError('invalid-request', 'The backup deadline is invalid.')
@@ -195,12 +195,12 @@ async function occupiedBytes(round: BackupRound): Promise<number | null> {
 }
 
 /** 已完整校验、用于恢复的一份备份。release 前这份备份不参加轮换；关闭全部读流后才能 release。 */
-export class WindowsBackupHandle {
-  private readonly store: WindowsBackupStore
+export class DesktopBackupHandle {
+  private readonly store: DesktopBackupStore
   private readonly round: BackupRound
   private readonly readers = new Set<Readable>()
   private isReleased = false
-  constructor(store: WindowsBackupStore, round: BackupRound) {
+  constructor(store: DesktopBackupStore, round: BackupRound) {
     this.store = store
     this.round = round
   }
@@ -333,21 +333,21 @@ export class WindowsBackupHandle {
  * 持久备份的存储，目录结构为 备份库/游戏名/时间/，内含 backup.json 和按原路径保存的 files/。
  * 每次操作都按磁盘上的实际目录重新读取，一份备份损坏不影响其他备份；元数据操作、创建、轮换和更换位置串行执行。
  */
-export class WindowsBackupStore {
+export class DesktopBackupStore {
   private readonly source: BackupSource
   private readonly defaultPath: string
   private readonly settingsDirectory: string
   private readonly gameName: (projectId: string) => string | null
   private readonly io: BackupDiskIO
   private queue: Promise<void> = Promise.resolve()
-  private readonly handles = new Map<WindowsBackupHandle, string>()
+  private readonly handles = new Map<DesktopBackupHandle, string>()
   private active: AbortController | null = null
   private stopping: Promise<void> | null = null
   private isClosed = false
-  #location: WindowsBackupLocation
+  #location: DesktopBackupLocation
   constructor(
     source: BackupSource,
-    location: WindowsBackupLocation,
+    location: DesktopBackupLocation,
     defaultPath: string,
     settingsDirectory: string,
     gameName: (projectId: string) => string | null,
@@ -365,7 +365,7 @@ export class WindowsBackupStore {
     return this.#location.path
   }
   /** 当前备份库的位置。 */
-  get location(): WindowsBackupLocation {
+  get location(): DesktopBackupLocation {
     return this.#location
   }
   private get settingsFile(): string {
@@ -434,7 +434,7 @@ export class WindowsBackupStore {
    * @throws ArchiveError path 不是已存在的文件夹时错误码为 invalid-request；和已登记的根目录或应用的私有目录互相包含时为
    * path-outside-root；有备份正在用于恢复时为 busy；保存位置失败时为 io-failure 等文件系统错误。失败时位置不变。
    */
-  relocate(path: string | null): Promise<WindowsBackupLocation> {
+  relocate(path: string | null): Promise<DesktopBackupLocation> {
     if (path !== null && (typeof path !== 'string' || !isAbsolute(path))) {
       throw new ArchiveError('invalid-request', 'The backup library location is invalid.')
     }
@@ -442,7 +442,7 @@ export class WindowsBackupStore {
       if (this.handles.size) {
         throw new ArchiveError('busy', 'A backup is being used for a restore.')
       }
-      let next: WindowsBackupLocation = { path: this.defaultPath, isCustom: false }
+      let next: DesktopBackupLocation = { path: this.defaultPath, isCustom: false }
       if (path !== null) {
         const canonical = await realpath(path).catch((error: unknown) => {
           throw new ArchiveError('invalid-request', 'The selected folder does not exist.', error)
@@ -532,7 +532,7 @@ export class WindowsBackupStore {
     return result
   }
   /** 列出这个游戏在本机所有目录下的已提交备份和残留备份。 */
-  list(projectId: string): Promise<WindowsBackupListing> {
+  list(projectId: string): Promise<DesktopBackupListing> {
     group(projectId)
     return this.exclusive(async () => {
       const rounds = (await this.rounds()).filter((round) => isInGroup(round, projectId))
@@ -649,7 +649,7 @@ export class WindowsBackupStore {
     throw new ArchiveError('io-failure', 'The backup folder could not be created.')
   }
   /** 备份计划要求保护的目标文件；计划不要求备份或没有这类文件时，结果的 manifest 为 null。 */
-  create(plan: SyncPlan, options: WindowsBackupOptions = {}): Promise<WindowsBackupCommit> {
+  create(plan: SyncPlan, options: DesktopBackupOptions = {}): Promise<DesktopBackupCommit> {
     if (!isSyncPlan(plan) || !plan.canExecute || plan.target.deviceId !== this.source.deviceId) {
       throw new ArchiveError(
         'invalid-request',
@@ -672,8 +672,8 @@ export class WindowsBackupStore {
   createManual(
     projectId: string,
     snapshot: SyncSnapshot,
-    options: WindowsBackupOptions = {},
-  ): Promise<WindowsBackupCommit> {
+    options: DesktopBackupOptions = {},
+  ): Promise<DesktopBackupCommit> {
     if (
       !isOpaqueId(projectId) ||
       !isSyncSnapshot(snapshot) ||
@@ -715,8 +715,8 @@ export class WindowsBackupStore {
     rootId: string,
     reason: SyncBackupReason,
     targets: readonly (SyncEntry & { sizeBytes: number })[],
-    options: WindowsBackupOptions,
-  ): Promise<WindowsBackupCommit> {
+    options: DesktopBackupOptions,
+  ): Promise<DesktopBackupCommit> {
     return this.exclusive(async () => {
       const controller = new AbortController(),
         signal = operationSignal(controller, options)
@@ -853,8 +853,8 @@ export class WindowsBackupStore {
   acquire(
     projectId: string,
     backupId: string,
-    options: WindowsBackupOptions = {},
-  ): Promise<WindowsBackupHandle> {
+    options: DesktopBackupOptions = {},
+  ): Promise<DesktopBackupHandle> {
     group(projectId)
     return this.exclusive(async () => {
       if (this.handles.size >= 32) {
@@ -869,7 +869,7 @@ export class WindowsBackupStore {
       }
       const controller = new AbortController(),
         signal = operationSignal(controller, options)
-      const handle = new WindowsBackupHandle(this, round)
+      const handle = new DesktopBackupHandle(this, round)
       this.handles.set(handle, backupId)
       this.active = controller
       try {
@@ -894,7 +894,7 @@ export class WindowsBackupStore {
    * @returns 轮换失败时返回错误，否则返回 null。
    */
   async release(
-    handle: WindowsBackupHandle,
+    handle: DesktopBackupHandle,
     projectId: string,
   ): Promise<KnownOperationError | null> {
     this.handles.delete(handle)
@@ -985,13 +985,13 @@ export class WindowsBackupStore {
  * @throws ArchiveError 参数无效、默认位置的备份库和已登记的同步目录互相包含，或同一备份库已经打开时抛出。
  * @throws Error 备份库位置文件读不懂或读取失败时抛出。
  */
-export async function createWindowsBackupStore(
+export async function createDesktopBackupStore(
   source: BackupSource,
   defaultDirectory: string,
   settingsDirectory: string,
   gameName: (projectId: string) => string | null,
   io: Partial<BackupDiskIO> = {},
-): Promise<WindowsBackupStore> {
+): Promise<DesktopBackupStore> {
   if (
     !isAbsolute(defaultDirectory) ||
     !isAbsolute(settingsDirectory) ||
@@ -1003,7 +1003,7 @@ export async function createWindowsBackupStore(
   const saved = await readBackupLocation(join(settingsDirectory, BACKUP_LOCATION_FILE))
   // 用户选的位置暂时不可用时按保存的路径记下，root() 会报 backup-unavailable。
   const customPath = saved === null ? null : await realpath(saved).catch((): string => saved)
-  const location: WindowsBackupLocation =
+  const location: DesktopBackupLocation =
     customPath === null || customPath === defaultDirectory
       ? { path: defaultDirectory, isCustom: false }
       : { path: customPath, isCustom: true }
@@ -1020,7 +1020,7 @@ export async function createWindowsBackupStore(
     source.excludePrivateDirectory(location.path)
   }
   stores.add(location.path)
-  return new WindowsBackupStore(source, location, defaultDirectory, settingsDirectory, gameName, {
+  return new DesktopBackupStore(source, location, defaultDirectory, settingsDirectory, gameName, {
     ...BACKUP_DISK_IO,
     ...io,
   })

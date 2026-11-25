@@ -1,7 +1,7 @@
 ---
 doc_type: code-map
 status: active
-updated: 2026-11-25
+updated: 2026-11-26
 tags: [代码地图]
 ---
 
@@ -55,7 +55,7 @@ tags: [代码地图]
 | --- | --- | --- |
 | `apps/desktop/` | Tauri 宿主 `src-tauri`、后端 `src/backend`、sidecar 入口 `src/sidecar`、bridge `src/bridge` 和独立 antd 界面 `src/renderer` | 界面只能调用 `backend_invoke`，由宿主转给 sidecar |
 | `apps/desktop/src-tauri/src/main.rs`、`sidecar.rs`、`storage.rs`、`capabilities/main.json`、`tauri.conf.json` | 宿主：窗口、单实例、`backend_invoke` 命令、sidecar 进程和消息、平台能力（目录选择器、打开文件夹、明暗）、存储目录和便携模式 | `sidecar.rs` 的消息类型和 `src/sidecar/protocol.ts` 一起改；capability 只授权 `main` 窗口调用 `backend_invoke` |
-| `apps/desktop/scripts/package-windows.mjs`、`build-sidecar-exe.mjs` | Windows 打包：sidecar 用 `@yao-pkg/pkg` 编成独立可执行文件，`tauri build` 产出 NSIS 安装包，再打免安装 zip | 只在 Windows x64 上运行；`bundle.externalBin` 只在打包时通过 `--config` 登记，见 [Windows 平台层](../architecture/windows.md#3-分发包与应用标识) |
+| `apps/desktop/scripts/package-windows.mjs`、`build-sidecar-exe.mjs` | Windows 打包：sidecar 用 `@yao-pkg/pkg` 编成独立可执行文件，`tauri build` 产出 NSIS 安装包，再打免安装 zip | 只在 Windows x64 上运行；`bundle.externalBin` 只在打包时通过 `--config` 登记，见 [电脑端平台层](../architecture/desktop.md#3-分发包与应用标识) |
 | `apps/desktop/src/backend/backend.ts`、`channel-registry.ts` | `startBackend` 初始化配置、数据、备份库、缓存四个目录和各服务，登记全部界面通道，`stop` 按顺序释放；`ChannelRouter` 按通道名分发界面请求 | 后端是纯 Node 代码，平台能力（目录选择器、打开路径、明暗主题）经 `DesktopHost` 由宿主提供；能调用通道的页面由 Tauri capability 限定 |
 | `apps/desktop/src/sidecar/index.ts`、`protocol.ts`、`vite.sidecar.config.ts` | sidecar 入口：从命令行读四个存储目录，stdin/stdout 按行 JSON 与宿主交换消息，构建为 `out/sidecar/index.cjs` | stdout 只写协议消息，`console.log` 改写到 stderr；stdin 关闭时停止服务后退出；第三方包全部打进产物 |
 | `apps/desktop/src/renderer/src/app`、`features`、`components`、`styles`、`platform`、`vite.config.ts` | 独立桌面导航、居中弹窗、antd 页面及 bridge 接入；`platform/desktop-bridges.ts` 在 Tauri 窗口里安装各 `window.desktop*` 接口 | 两端源码互不导入；桌面传输页可请求移动端扫描并在电脑确认计划（TransferPage、backend/remote-sync-requests.ts），实际复制由移动端执行 |
@@ -75,7 +75,7 @@ tags: [代码地图]
 | `apps/desktop/src/backend/sync-writer.ts`、`sync-target-files.ts`、`target-operation.ts`、`publication-errors.ts`、`interrupted-writes.ts`、`test/sync-writer.test.mjs`；directory-adapter、启动 | 确认计划的目标目录创建、同卷候选替换和本机恢复；接收远端内容时等内容收齐再写入；复制和恢复共用 `TargetOperation` 互斥 | 写入前备份目标目录全部文件，内容收齐后重新核对目标，逐项报告实际结果，首次失败停止；同路径对象替换产生新 ID；原生流和候选不跨桥 |
 | `apps/desktop/src/backend/restore-registry.ts`、`sync-ipc.ts`、`src/bridge/sync-bridge.ts` | 进程内异步恢复、有限复制与恢复桥、同次原生计划/结果核对 | 普通准备不占目标名额，确认后借用并保留至清理成功；任务和结果可在页面刷新后查询；不接收路径或字节；电脑发起的方法转给 `remote-sync-requests.ts` |
 | `apps/desktop/src/renderer/src/features/backup`、`features/transfer/SyncCopyDetails.tsx`、`use-sync-details.ts`、`platform/sync-adapter.ts` | 备份开关/列表、恢复预览与确认、复制计划/实际结果、普通本机重扫 | 复用原生计划和结果；发送完成和移动端实际写入是两个状态；切页只停止轮询，不取消原生任务 |
-| `apps/desktop/test/` | Windows 目录、归档、HTTP、扫描、备份与写入的最小长期回归；接口见 [Windows 平台层](../architecture/windows.md) | 测试只用合成数据；真实目录只读验证，机器路径不提交 |
+| `apps/desktop/test/` | Windows 目录、归档、HTTP、扫描、备份与写入的最小长期回归；接口见 [电脑端平台层](../architecture/desktop.md) | 测试只用合成数据；真实目录只读验证，机器路径不提交 |
 
 ## 4. 移动端网页层
 
