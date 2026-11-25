@@ -20,9 +20,7 @@ tags: [工作包]
 
 | ID | 工作包 | 内容与完成标准 | 依赖 | 状态 |
 | --- | --- | --- | --- | --- |
-| WP-080 | 设备平台增加 linux | 代码已按 [ADR-0007](../decisions/ADR-0007-linux-desktop.md#平台标识) 第 8 至 10 条实现。剩余真机验证：Android 与 1.1.0 电脑端互连正常；记录 1.0 设备遇到 Linux 设备时的实际表现 | 无 | active |
-| WP-082 | Linux 打包、CI 和发布 | sidecar 增加 linux-x64 目标；打包脚本在 Linux 上产出 AppImage 和 deb（deb 声明 WebKitGTK 4.1 依赖）；AppImage 按 `APPIMAGE` 判断便携模式（`storage.rs`）；CI 增加 `ubuntu-22.04` 的 `pnpm check` 和桌面端测试，发布工作流增加 Linux 产物。完成标准：在没装开发依赖的 Ubuntu 22.04 和 Debian 12 上安装 deb、运行 AppImage 并完成一次传输 | WP-080 | planned |
-| WP-083 | Linux 实机验收和用户文档 | 在 WebKitGTK 上按 [界面约定](ui-conventions.md) 逐页检查界面；Wayland 会话（可用 XFCE 4.20 的 Wayland 会话加 labwc）上验收窗口、选择器、打开文件夹、明暗主题和复制地址，差异写进[电脑端平台层](../architecture/desktop.md)；实机验收 Linux 与 Android、Linux 与 Windows 双向传输，Wine 或 Proton 前缀里的存档目录，系统已运行 avahi-daemon 时的自动发现，ufw 或 firewalld 开启时的连接；README 增加 Linux 下载、`libfuse2` 和防火墙放行说明；把 REQ-027 并入 REQ-001，更新范围和约束里的平台，验收结果写进测试文档。完成标准：验收场景全部通过，或未通过项登记在已知问题 | WP-082 | planned |
+| WP-083 | Linux 实机验收和用户文档 | 维护者在 X11 会话上用开发版验收过：与 Android 双向传输、写入和备份正常，各页面渲染正常（服务卡片的问题见 BUG-035）。剩余：Wayland 会话（可用 XFCE 4.20 的 Wayland 会话加 labwc）上验收窗口、选择器、打开文件夹、明暗主题和复制地址，差异写进[电脑端平台层](../architecture/desktop.md)；实机验收 Linux 与 Windows 双向传输，Wine 或 Proton 前缀里的存档目录，系统已运行 avahi-daemon 时的自动发现，ufw 或 firewalld 开启时的连接；README 增加 Linux 下载、`libfuse2` 和防火墙放行说明；把 REQ-027 并入 REQ-001，更新范围和约束里的平台，验收结果写进测试文档。完成标准：验收场景全部通过，或未通过项登记在已知问题 | 无 | planned |
 
 ## 2. 执行与拆分规则
 

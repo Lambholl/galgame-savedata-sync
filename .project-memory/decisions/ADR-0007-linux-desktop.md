@@ -27,7 +27,7 @@ tags: [决策, Linux, 电脑端, 分发, 平台标识, 迁移, 符号链接]
 
 ## 状态
 
-accepted。平台标识（第 8 至 10 条）、迁移链（第 11 至 15 条）和符号链接与特殊文件（第 16、17 条）已实现，其余还没实现；随 1.1.0 发布，拆分和进度见[工作包登记](../development/work-packages.md)和[路线图](../project/roadmap.md) M-007。
+accepted。全部已实现；随 1.1.0 发布，拆分和进度见[工作包登记](../development/work-packages.md)和[路线图](../project/roadmap.md) M-007。
 
 ## 替代关系
 
@@ -100,7 +100,7 @@ accepted。平台标识（第 8 至 10 条）、迁移链（第 11 至 15 条）
 ### 负面影响
 
 - 1.1.0 起协议和游戏库的版本都变了，Windows 和 Android 要一起升级；降级回 1.0 的应用会因为游戏库版本更新而拒绝启动。
-- 1.0 的设备收到 `'linux'` 的发现广播或握手时，可能直接丢弃或报格式错误，而不是提示版本不同；这取决于 1.0 先校验版本还是平台字段，还没测。
+- 1.0 的设备连接 Linux 设备时提示版本不支持，实测如此。
 - AppImage 内含 WebKitGTK，体积比 deb 大；Ubuntu 22.04 及以后要另装 `libfuse2` 才能直接运行 AppImage。
 - 发布工作流要增加 Linux 构建，Rust 和 WebKitGTK 的构建依赖要进 CI。
 - Linux 上没有 Windows 防火墙那样的首次运行提示，开着 ufw 或 firewalld 时端口要用户自己放行。
@@ -121,7 +121,7 @@ accepted。平台标识（第 8 至 10 条）、迁移链（第 11 至 15 条）
 | 文件 | 说明 |
 | --- | --- |
 | `apps/desktop/src-tauri/src/storage.rs` | 存储目录和便携模式判断 |
-| `apps/desktop/scripts/build-sidecar-exe.mjs`、`package-windows.mjs` | sidecar 编译和打包，要增加 Linux 目标 |
+| `apps/desktop/scripts/build-sidecar-exe.mjs`、`package-linux.mjs` | sidecar 编译和 Linux 打包 |
 | `apps/desktop/src/backend/recommended-address.ts` | 推荐地址，Windows 和 Linux 各有实现 |
 | `apps/desktop/src/backend/directory-paths.ts`、`directory-adapter.ts` | 符号链接和特殊条目处理 |
 | `apps/shared/src/protocol/contracts.ts`、`validation.ts`、`apps/shared/src/connection/discovery.ts` | 设备平台的协议定义和校验 |

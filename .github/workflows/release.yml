@@ -12,7 +12,38 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # Linux 包在支持的最早 LTS 上构建，二进制要求的 glibc 不高于它的版本；产物交给下面的 release 一起发布。
+  linux:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '22'
+          cache: pnpm
+      # patchelf 给 sidecar 预设 RUNPATH，见 apps/desktop/scripts/build-sidecar-exe.mjs。
+      - run: sudo apt-get update && sudo apt-get install -y build-essential pkg-config file patchelf libssl-dev libxdo-dev librsvg2-dev libwebkit2gtk-4.1-dev
+      # 和 Windows 一样不加 Rust 编译缓存，发布包里的宿主从源码完整编译。
+      - run: rustup toolchain install stable --profile minimal
+      - run: pnpm install --frozen-lockfile
+      # tag 是否在 origin/master 上由 release 检查，这里只确认版本号能从 tag 推算出来。
+      - run: node scripts/app-version.mjs
+      - run: pnpm test
+      - run: pnpm desktop:package
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: linux-packages
+          path: |
+            apps/desktop/release/*.AppImage
+            apps/desktop/release/*.deb
+          if-no-files-found: error
+          retention-days: 1
+
   release:
+    needs: linux
     runs-on: windows-latest
     env:
       RELEASE_TAG: ${{ github.ref_name }}
@@ -84,12 +115,19 @@ jobs:
             Sort-Object { [version]$_.Directory.Name } | Select-Object -Last 1
           & $apksigner.FullName verify --print-certs apps/mobile/android/app/build/outputs/apk/release/app-release.apk
           if ($LASTEXITCODE -ne 0) { throw 'Android 安装包签名校验失败' }
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: linux-packages
+          path: release-assets
       - name: Prepare release assets
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
           $version = $env:RELEASE_TAG.TrimStart('v')
           New-Item -ItemType Directory -Path release-assets -Force | Out-Null
+          foreach ($name in "SavedataSync-$version-x86_64.AppImage", "SavedataSync-$version-amd64.deb") {
+            if (-not (Test-Path -LiteralPath "release-assets/$name")) { throw "缺少 Linux 产物 $name" }
+          }
           foreach ($name in "SavedataSync-$version-Setup-x64.exe", "SavedataSync-$version-Portable-x64.zip") {
             Copy-Item -LiteralPath "apps/desktop/release/$name" -Destination "release-assets/$name"
           }

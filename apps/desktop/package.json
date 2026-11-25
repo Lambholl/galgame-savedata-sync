@@ -8,7 +8,7 @@
     "dev:renderer": "vite",
     "build": "vite build && pnpm build:sidecar",
     "build:sidecar": "vite build -c vite.sidecar.config.ts",
-    "package": "node scripts/package-windows.mjs",
+    "package": "node scripts/package.mjs",
     "tauri": "tauri",
     "typecheck": "tsc --noEmit",
     "test": "node --experimental-strip-types --test test/*.test.mjs"

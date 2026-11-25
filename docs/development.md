@@ -11,6 +11,7 @@
 - [常用命令](#常用命令)
 - [仓库结构](#仓库结构)
 - [Windows 打包](#windows-打包)
+- [Linux 打包](#linux-打包)
 - [Android 构建与调试](#android-构建与调试)
   - [用 Chrome 检查页面](#用-chrome-检查页面)
   - [加载电脑上的开发服务器](#加载电脑上的开发服务器)
@@ -74,7 +75,7 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profil
 - rustup 把工具装在 `~/.cargo/bin`，新开终端或执行 `. "$HOME/.cargo/env"` 后生效。
 - `pnpm lint` 的 Checkstyle 需要 JDK 21–24，只开发桌面端时也要装。软件源里有 `openjdk-21-jdk` 时直接安装，没有时另装 Eclipse Temurin 21；脚本不读系统默认的 `java`，要在 `dev.local.json` 的 `javaHome` 或 `JAVA_HOME` 里指定 JDK 21 的路径（Debian 系的 apt 包装在 `/usr/lib/jvm/java-21-openjdk-amd64`）。
 - 从 Windows 复制过来的仓库要删掉 `node_modules` 后重新 `pnpm install`，其中带有平台相关的二进制。
-- Linux 打包还没有实现，`pnpm desktop:package` 只支持 Windows x64。
+- 打包另需 `patchelf`（`sudo apt install patchelf`），见 [Linux 打包](#linux-打包)。
 
 ## 本机工具路径
 
@@ -104,7 +105,7 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profil
 | `pnpm dev:desktop` | 启动桌面端开发模式 |
 | `pnpm dev:mobile` | 在浏览器中启动移动端前端开发服务器 |
 | `pnpm dev:android` | 启动移动端前端开发服务器并做 USB 端口转发，供真机加载 |
-| `pnpm desktop:package` | 打包 Windows x64 安装包与免安装 zip |
+| `pnpm desktop:package` | 打包桌面端：Windows x64 上产出安装包与免安装 zip，Linux x64 上产出 AppImage 与 deb |
 | `pnpm check` | 提交前全量检查：typecheck、ESLint、Checkstyle、Clippy、构建、编码与格式化检查 |
 | `pnpm format` | 自动修复 ESLint 并运行 Prettier 与 `rustfmt` |
 | `pnpm lint` / `pnpm typecheck` / `pnpm build` | 单独运行对应检查或构建 |
@@ -145,6 +146,20 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profil
 
 - 后端 sidecar 由 `@yao-pkg/pkg` 编成 `savedata-sync-backend.exe`，内嵌预编译 Node 22（仅含英文区域数据），与本机 `node` 版本无关；升级 `@yao-pkg/pkg` 后可更新内嵌 Node。首次打包时 pkg-fetch 与 Tauri 会从 GitHub 下载基础二进制与 NSIS 工具。
 - 运行 [build-sidecar-exe.mjs](../apps/desktop/scripts/build-sidecar-exe.mjs) 可单独生成 sidecar 可执行文件到 `apps/desktop/src-tauri/binaries/`（已被 Git 忽略）。
+
+## Linux 打包
+
+`pnpm desktop:package` 在 Linux x64 上构建产物到 `apps/desktop/release/`：
+
+| 产物 | 说明 |
+| --- | --- |
+| `SavedataSync-<版本>-x86_64.AppImage` | 内含 WebKitGTK，可放在任意文件夹运行；同一文件夹里有 `portable_data` 时数据写在里面 |
+| `SavedataSync-<版本>-amd64.deb` | 依赖系统的 `libwebkit2gtk-4.1-0` 和 `libgtk-3-0`，数据始终写在 XDG 目录 |
+
+- 构建依赖见 [Linux 环境准备](#linux-环境准备)，另需 `patchelf`：sidecar 打包前要预设 RUNPATH，否则生成 AppImage 时 linuxdeploy 会改写 sidecar，pkg 附在文件末尾的代码随之损坏。打包脚本最后核对 AppImage 里的 sidecar 和构建出的一致，不一致时失败。
+- 发布包在 Ubuntu 22.04 上构建，在更新的发行版上构建的包可能要求更高的 glibc。
+- 首次打包时 Tauri 会从 GitHub 下载 linuxdeploy 和 AppImage 运行时。
+- 在没有 FUSE 2 的系统上运行 AppImage 时设环境变量 `APPIMAGE_EXTRACT_AND_RUN=1`，或者安装 `libfuse2`。
 
 ## Android 构建与调试
 
@@ -330,9 +345,9 @@ git tag -a v1.0.0 -m "1.0.0"
 git push --atomic origin master v1.0.0
 ```
 
-推送 tag 后触发[发布工作流](../.github/workflows/release.yml)（需仓库 Actions 具备 `contents: write` 权限）：校验 tag 与 `origin/master`、运行 `pnpm check` 与 `pnpm test:all`、打包 Windows x64 安装包与免安装 zip、构建并校验签名后的 Android release APK、生成 `SHA256SUMS.txt`、上传 Actions artifact 并创建**草稿 GitHub Release**。
+推送 tag 后触发[发布工作流](../.github/workflows/release.yml)（需仓库 Actions 具备 `contents: write` 权限）：校验 tag 与 `origin/master`、运行 `pnpm check` 与 `pnpm test:all`、打包 Windows x64 安装包与免安装 zip、在 Ubuntu 22.04 上打包 Linux 的 AppImage 与 deb、构建并校验签名后的 Android release APK、生成 `SHA256SUMS.txt`、上传 Actions artifact 并创建**草稿 GitHub Release**。
 
-若工作流失败，须经维护者同意后删除 tag，修复后再重新打 tag。发布前在草稿 Release 页面补充已知问题、安装限制与兼容变更说明（发布 `1.0.0` 时写明 `0.x` 的数据不迁移）。日常分支推送与 PR 仅运行 `pnpm check` 与 Android debug 构建，不保留产物。
+若工作流失败，须经维护者同意后删除 tag，修复后再重新打 tag。发布前在草稿 Release 页面补充已知问题、安装限制与兼容变更说明（发布 `1.0.0` 时写明 `0.x` 的数据不迁移）。日常分支推送与 PR 在 Windows 上运行 `pnpm check` 与 Android debug 构建，在 Ubuntu 22.04 上运行 `pnpm check` 与 `pnpm test`，不保留产物。
 
 ## 依赖版本与更新
 

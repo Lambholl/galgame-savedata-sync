@@ -75,14 +75,21 @@ tags: [Windows, 电脑端, Tauri, sidecar, 存储目录]
 
 ## 3. 分发包与应用标识
 
-`pnpm desktop:package`（`apps/desktop/scripts/package-windows.mjs`）只在 Windows x64 上运行，输出到 `apps/desktop/release/`：
+`pnpm desktop:package`（`apps/desktop/scripts/package.mjs`）按本机平台调用 `package-windows.mjs` 或 `package-linux.mjs`，输出到 `apps/desktop/release/`。Windows x64 上的产物：
 
 - `SavedataSync-<版本>-Setup-x64.exe`：NSIS 安装包，安装时选择只为当前用户安装（`%LOCALAPPDATA%\Savedata Sync`）或为所有用户安装（`%ProgramFiles%\Savedata Sync`，需要管理员权限）；管理员账户启动安装包时先弹出 UAC（NSIS MultiUser 的执行级别为 `Highest`）；界面语言和应用一致，按系统语言在英文、简体中文、繁体中文和日文间选择，都不匹配时用英文；缺少 WebView2 时下载引导程序安装。卸载只删除程序文件，存储目录保留。
 - `SavedataSync-<版本>-Portable-x64.zip`：一个文件夹，内含 `SavedataSync.exe` 和 `savedata-sync-backend.exe`，不带 `portable_data`。
 
 版本号取 `scripts/app-version.mjs` 的推算结果去掉构建元数据，打包时通过 `tauri build --config` 写入；界面显示完整版本。`tauri.conf.json` 的 `version` 固定为 `0.0.0`，`bundle.active` 为 false，打包时才打开并登记 `bundle.externalBin`：登记后 `tauri dev` 和 `cargo build` 也要求 sidecar 可执行文件已经存在。
 
-sidecar 可执行文件由 `apps/desktop/scripts/build-sidecar-exe.mjs` 用 `@yao-pkg/pkg` 生成：先用 pkg 固定的 pkg-fetch 下载预编译的 Node 22 基础二进制（按 pkg-fetch 登记的哈希校验，没有预编译文件时报错，不从源码编译），用 resedit 把文件说明、产品名和版本号改成本应用的（图标和版权声明保留 Node 的），再经 `PKG_NODE_PATH` 交给 pkg 打包 `out/sidecar/index.cjs`，输出到 `src-tauri/binaries/savedata-sync-backend-x86_64-pc-windows-msvc.exe`（Git 忽略）。Tauri 把它复制到主程序旁并改名为 `savedata-sync-backend.exe`。内嵌的 Node 版本由锁文件里的 pkg 版本决定（pkg 6.26.0 对应 Node 22.23.5），和执行打包命令的 Node 无关；`@yao-pkg/pkg` 写范围版本，`pnpm update` 升级 pkg 即可拿到 Node 安全补丁。sidecar 可执行文件约 59 MB，安装包约 18 MiB，免安装 zip 约 25 MB，都没有数字签名。选 pkg 不选 Node SEA：同样内嵌 Node 22，SEA 用的官方 Node 带完整区域数据，可执行文件大约多 30 MB。
+Linux x64 上的产物（规则见 [ADR-0007](../decisions/ADR-0007-linux-desktop.md#支持范围与分发)）：
+
+- `SavedataSync-<版本>-x86_64.AppImage`：在 Ubuntu 22.04 上构建约 104 MiB，内含构建机的 WebKitGTK 和 GTK，运行时要 FUSE 2 或 `APPIMAGE_EXTRACT_AND_RUN=1`。按 AppImage 的惯例，Wayland 客户端、X11、Mesa（`libgbm`、`libEGL`、`libGLESv2`）等桌面基础库不打进包里，由系统提供，普通桌面都装有这些库。
+- `SavedataSync-<版本>-amd64.deb`：约 32 MiB，包名 `savedata-sync`，依赖 `libwebkit2gtk-4.1-0` 和 `libgtk-3-0`（Tauri 自动声明），主程序和 sidecar 装在 `/usr/bin`，另装桌面启动项和 256×256 图标。
+
+两种包都由 Tauri 生成，打包时打开 `bundle.targets` 的 `deb` 和 `appimage`。AppImage 由 linuxdeploy 组装，它会用 patchelf 把 `usr/bin` 里每个可执行文件的 RUNPATH 改成 `$ORIGIN/../lib`，没有排除选项；这一改写会挪动文件内容，pkg 附在 sidecar 末尾的代码按固定偏移读取，改写后 sidecar 启动即崩溃。所以 `build-sidecar-exe.mjs` 在 Linux 上先用 patchelf 把基础 Node 的 RUNPATH 设成同样的值再交给 pkg，linuxdeploy 写同样长的值时原地覆盖，文件不变；`package-linux.mjs` 最后解出 AppImage 里的 sidecar 和构建结果逐字节比较，不同就失败。Linux 版 sidecar 要求的 glibc 不高于 2.28，主程序要求的版本取决于构建机。在 Ubuntu 22.04 容器里打出的两个包，在没装开发依赖的 Ubuntu 22.04 容器里验证过：deb 用 `apt install` 装上后依赖齐全，AppImage 在只装了 GTK 3 和 Mesa、没有 WebKitGTK 的系统上运行；两者都能打开窗口、启动 sidecar，数据分别写进 XDG 目录和 `portable_data`。deb 的维护者字段为 Tauri 按 `identifier` 推出的 `github`：设 `bundle.publisher` 会同时改变 Windows 安装包登记表项的路径，已装的 1.0 认不出来。
+
+sidecar 可执行文件由 `apps/desktop/scripts/build-sidecar-exe.mjs` 用 `@yao-pkg/pkg` 生成：先用 pkg 固定的 pkg-fetch 下载预编译的 Node 22 基础二进制（按 pkg-fetch 登记的哈希校验，没有预编译文件时报错，不从源码编译），用 resedit 把文件说明、产品名和版本号改成本应用的（图标和版权声明保留 Node 的），再经 `PKG_NODE_PATH` 交给 pkg 打包 `out/sidecar/index.cjs`，输出到 `src-tauri/binaries/savedata-sync-backend-<目标三元组>`（Windows 为 `x86_64-pc-windows-msvc.exe`，Linux 为 `x86_64-unknown-linux-gnu`，Git 忽略）。Tauri 把它复制到主程序旁并改名为 `savedata-sync-backend`（Windows 加 `.exe`）。Linux 上不改版本信息，ELF 没有这类资源。内嵌的 Node 版本由锁文件里的 pkg 版本决定（pkg 6.26.0 对应 Node 22.23.5），和执行打包命令的 Node 无关；`@yao-pkg/pkg` 写范围版本，`pnpm update` 升级 pkg 即可拿到 Node 安全补丁。sidecar 可执行文件约 59 MB，安装包约 18 MiB，免安装 zip 约 25 MB，都没有数字签名。选 pkg 不选 Node SEA：同样内嵌 Node 22，SEA 用的官方 Node 带完整区域数据，可执行文件大约多 30 MB。
 
 应用标识为 `io.github.galgame.savedatasync`，产品名 `Savedata Sync`（安装目录、快捷方式和系统“应用”列表里的名称都用它，不随界面语言变化；窗口标题由 sidecar 按界面语言给出），主程序文件名 `SavedataSync`。WebView 数据放在缓存目录的 `webview` 子目录；界面不使用 localStorage、IndexedDB 等浏览器存储，删掉这个目录不丢数据。
 
@@ -139,7 +146,7 @@ sidecar 可执行文件由 `apps/desktop/scripts/build-sidecar-exe.mjs` 用 `@ya
 | 备份库 | `%LOCALAPPDATA%\galgame-savedata-sync\backups\` | 默认位置，用户可在设置页换到别的文件夹，见第 12 节 |
 | 缓存 | `%LOCALAPPDATA%\galgame-savedata-sync\cache\` | `transfer-archives-v1/`、`webview/` |
 
-主程序所在文件夹里有 `portable_data` 文件夹时进入便携模式，四个目录换成它下面的 `config`、`data`、`backups`、`cache`；应用不创建 `portable_data`。宿主在 Linux 上按 XDG 目录计算（位置见 ADR-0005），Linux 还没构建和测试，支持计划见 [ADR-0007](../decisions/ADR-0007-linux-desktop.md)。
+程序所在文件夹里有 `portable_data` 文件夹时进入便携模式，四个目录换成它下面的 `config`、`data`、`backups`、`cache`；应用不创建 `portable_data`。程序所在文件夹一般是主程序所在的文件夹；从 AppImage 运行时主程序在临时挂载点里，改用环境变量 `APPIMAGE` 所指 `.AppImage` 文件所在的文件夹，并要求主程序确实在 `APPDIR` 下，防止从另一个 AppImage 启动时继承来的变量生效（`storage.rs`）。deb 的主程序在 `/usr/bin`，那里不会有 `portable_data`，始终用 XDG 目录（位置见 ADR-0005）。AppImage 的便携模式在 Linux 上验证过：数据只写进 `.AppImage` 旁边的 `portable_data`。
 
 启动时 `startBackend` 创建四个目录并解析成真实路径，兼容系统目录重定向；然后把配置、数据、缓存目录登记为私有目录，备份库由备份存储登记。目录适配器拒绝把私有目录和备份库及其父子目录选作同步根。
 

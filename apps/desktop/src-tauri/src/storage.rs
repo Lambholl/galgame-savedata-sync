@@ -5,7 +5,7 @@ use tauri::{AppHandle, Manager, Runtime};
 
 /// 系统目录下本应用的文件夹名。
 const APP_DIRECTORY_NAME: &str = "galgame-savedata-sync";
-/// 主程序所在文件夹里存在这个文件夹时进入便携模式。
+/// 程序所在文件夹里存在这个文件夹时进入便携模式，程序所在文件夹见 [`program_directory`]。
 const PORTABLE_DIRECTORY_NAME: &str = "portable_data";
 
 /// 宿主和 sidecar 使用的存储目录，都是绝对路径，不一定已经存在。
@@ -36,16 +36,36 @@ impl StorageDirectories {
     }
 }
 
-/// 算出存储目录：主程序所在文件夹里有 `portable_data` 时用它下面的子目录，否则用系统的用户目录。
+/// 用户眼里程序所在的文件夹：从 AppImage 运行时是 `.AppImage` 文件所在的文件夹，否则是主程序所在的文件夹。
+///
+/// # Errors
+///
+/// 取不到主程序路径时返回错误说明。
+fn program_directory() -> Result<Option<PathBuf>, String> {
+    let executable = std::env::current_exe()
+        .map_err(|error| format!("Cannot locate the executable: {error}"))?;
+    // AppImage 运行时把主程序挂载在临时目录（APPDIR），APPIMAGE 是 .AppImage 文件的路径。
+    // 从 AppImage 启动的程序会把这两个变量传给子进程，所以要求主程序确实在 APPDIR 里。
+    if cfg!(target_os = "linux") {
+        if let (Some(image), Some(mount)) =
+            (std::env::var_os("APPIMAGE"), std::env::var_os("APPDIR"))
+        {
+            if executable.starts_with(&mount) {
+                return Ok(Path::new(&image).parent().map(Path::to_path_buf));
+            }
+        }
+    }
+    Ok(executable.parent().map(Path::to_path_buf))
+}
+
+/// 算出存储目录：程序所在文件夹（见 [`program_directory`]）里有 `portable_data` 时用它下面的子目录，
+/// 否则用系统的用户目录。
 ///
 /// # Errors
 ///
 /// 取不到主程序路径或系统的用户目录时返回错误说明。
 pub fn resolve<R: Runtime>(app: &AppHandle<R>) -> Result<StorageDirectories, String> {
-    let executable = std::env::current_exe()
-        .map_err(|error| format!("Cannot locate the executable: {error}"))?;
-    if let Some(portable) = executable
-        .parent()
+    if let Some(portable) = program_directory()?
         .map(|directory| directory.join(PORTABLE_DIRECTORY_NAME))
         .filter(|path| path.is_dir())
     {
