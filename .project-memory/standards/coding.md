@@ -1,7 +1,7 @@
 ---
 doc_type: standards-coding
 status: active
-updated: 2026-11-25
+updated: 2026-11-26
 tags: [编码规范]
 ---
 
@@ -84,6 +84,5 @@ tags: [编码规范]
 
 | 规则 | 原因 | 适用范围 |
 | --- | --- | --- |
-| 改 `apps/desktop` 前按 `apps/desktop/AGENTS.md` 读取 `antd` 技能，按实际安装的 antd 版本查询 API；改完对变更文件运行 `antd lint --format json` | 桌面端 antd 用法以实际版本为准 | `apps/desktop` |
 | 日常只编译桌面运行资源，不生成免安装版；打包要维护者明确要求 | 打包慢，产物不进 Git | Windows 交付 |
 | 界面原型只留在本地（`docs/design/`、`.reports/`，都已被 Git 忽略） | 原型不是当前实现，提交后容易被当成规格 | 设计稿 |
