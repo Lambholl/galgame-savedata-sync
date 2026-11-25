@@ -31,34 +31,14 @@ import androidx.core.splashscreen.SplashScreenViewProvider;
  */
 final class LaunchAnimation {
 
-  private static final int FRAME_MS = 25;
-  private static final int BETWEEN_BLINKS_MS = 150;
-  private static final int REVEAL_START_MS = 8 * FRAME_MS;
+  private static final int EYES_CLOSED_MS = 100;
+  private static final int FIRST_BLINK_END_MS = 200;
+  private static final int SECOND_BLINK_END_MS = 550;
   private static final int REVEAL_END_MS = 700;
   private static final int AFTER_REVEAL_MS = 250;
   private static final int SLIDE_MS = 400;
   private static final int EXIT_MS = REVEAL_END_MS + AFTER_REVEAL_MS + SLIDE_MS;
   private static final int MAX_WAIT_MS = 5000;
-  private static final int[] FRAMES = {
-    R.drawable.splash_open,
-    R.drawable.splash_slight,
-    R.drawable.splash_half,
-    R.drawable.splash_near,
-    R.drawable.splash_closed,
-    R.drawable.splash_near,
-    R.drawable.splash_half,
-    R.drawable.splash_slight,
-    R.drawable.splash_open,
-    R.drawable.splash_slight,
-    R.drawable.splash_half,
-    R.drawable.splash_near,
-    R.drawable.splash_closed,
-    R.drawable.splash_near,
-    R.drawable.splash_half,
-    R.drawable.splash_slight,
-    R.drawable.splash_open,
-  };
-  private static final int BLINK_MS = (FRAMES.length - 1) * FRAME_MS + BETWEEN_BLINKS_MS;
 
   private final Handler handler = new Handler(Looper.getMainLooper());
   private final Runnable timeout = this::stop;
@@ -101,20 +81,10 @@ final class LaunchAnimation {
         viewportScale
     );
     iconHeight = iconWidth;
-    // 五张 WebP 在播放前解码；沿用系统图标实际尺寸。
-    Drawable[] frames = new Drawable[FRAMES.length];
-    for (int i = 0; i < FRAMES.length; i++) {
-      // 五张图片只解码一次；同一帧在闭眼与睁眼阶段复用。
-      for (int j = 0; j < i; j++) {
-        if (FRAMES[j] == FRAMES[i]) {
-          frames[i] = frames[j];
-          break;
-        }
-      }
-      if (frames[i] == null) {
-        frames[i] = AppCompatResources.getDrawable(window.getContext(), FRAMES[i]).mutate();
-      }
-    }
+    Drawable[] frames = {
+      AppCompatResources.getDrawable(window.getContext(), R.drawable.splash_open).mutate(),
+      AppCompatResources.getDrawable(window.getContext(), R.drawable.splash_closed).mutate(),
+    };
     // Android 12+ 把静态图当作自适应前景放大 1.5 倍；旧版兼容库直接裁 2/3 圆。
     Bitmap portrait = BitmapFactory.decodeResource(
       window.getResources(),
@@ -132,20 +102,17 @@ final class LaunchAnimation {
     animator.addUpdateListener(value -> {
       int elapsed = (int) value.getAnimatedValue();
       elapsedMs = elapsed;
-      int index =
-        elapsed < 8 * FRAME_MS
-          ? elapsed / FRAME_MS
-          : elapsed < 8 * FRAME_MS + BETWEEN_BLINKS_MS
-            ? 8
-            : Math.min(
-                9 + (elapsed - 8 * FRAME_MS - BETWEEN_BLINKS_MS) / FRAME_MS,
-                FRAMES.length - 1
-              );
-      blink.showFrame(index);
+      boolean hasClosedEyes =
+        (elapsed >= FIRST_BLINK_END_MS - EYES_CLOSED_MS && elapsed < FIRST_BLINK_END_MS) ||
+        (elapsed >= SECOND_BLINK_END_MS - EYES_CLOSED_MS && elapsed < SECOND_BLINK_END_MS);
+      blink.setEyesClosed(hasClosedEyes);
       blink.reveal(
         Math.max(
           0f,
-          Math.min(1f, (elapsed - REVEAL_START_MS) / (float) (REVEAL_END_MS - REVEAL_START_MS))
+          Math.min(
+            1f,
+            (elapsed - FIRST_BLINK_END_MS) / (float) (REVEAL_END_MS - FIRST_BLINK_END_MS)
+          )
         )
       );
       avatar.invalidate();
@@ -326,7 +293,7 @@ final class LaunchAnimation {
       // 背景单独淡出；角色绘制始终使用完整不透明度。
       float backgroundProgress = Math.max(
         0f,
-        (elapsedMs - BLINK_MS) / (float) (EXIT_MS - BLINK_MS)
+        (elapsedMs - SECOND_BLINK_END_MS) / (float) (EXIT_MS - SECOND_BLINK_END_MS)
       );
       background.setAlpha(Math.round(255 * (1f - backgroundProgress)));
       canvas.drawRect(0, 0, getWidth(), getHeight(), background);
@@ -374,7 +341,7 @@ final class LaunchAnimation {
       Paint.ANTI_ALIAS_FLAG | Paint.DITHER_FLAG | Paint.FILTER_BITMAP_FLAG
     );
     private final Path mask = new Path();
-    private int index;
+    private boolean hasClosedEyes;
     private float revealFraction;
 
     BlinkDrawable(Drawable[] frames, Bitmap fullPortrait, int rasterSize) {
@@ -384,7 +351,7 @@ final class LaunchAnimation {
       int inset = (int) (this.rasterSize / ((2f / 3f) * 2));
       sourceOrigin = rasterSize > 0 ? center - inset : 0;
       sourceSize = rasterSize > 0 ? inset * 2 : this.rasterSize;
-      // 只预绘制一张完整立绘；眼睛从现有五帧取局部，避免复制五份身体位图。
+      // 睁眼立绘和头像共用宽度与头部位置，展开遮罩时可以直接叠上闭眼区域。
       float height = (fullPortrait.getHeight() * sourceSize) / (float) fullPortrait.getWidth();
       portrait = Bitmap.createBitmap(sourceSize, (int) Math.ceil(height), Bitmap.Config.ARGB_8888);
       new Canvas(portrait).drawBitmap(
@@ -404,15 +371,6 @@ final class LaunchAnimation {
       Path systemMask = shape.getIconMask();
       // 与系统 AdaptiveForegroundDrawable 一样，中心和前景半宽都按整数截断。
       for (int i = 0; i < frames.length; i++) {
-        for (int j = 0; j < i; j++) {
-          if (frames[i] == frames[j]) {
-            rasterFrames[i] = rasterFrames[j];
-            break;
-          }
-        }
-        if (rasterFrames[i] != null) {
-          continue;
-        }
         Bitmap bitmap = Bitmap.createBitmap(rasterSize, rasterSize, Bitmap.Config.ARGB_8888);
         Canvas canvas = new Canvas(bitmap);
         canvas.clipPath(systemMask);
@@ -423,12 +381,8 @@ final class LaunchAnimation {
       }
     }
 
-    void showFrame(int index) {
-      if (this.index == index) {
-        return;
-      }
-      this.index = index;
-      invalidateSelf();
+    void setEyesClosed(boolean hasClosedEyes) {
+      this.hasClosedEyes = hasClosedEyes;
     }
 
     void reveal(float fraction) {
@@ -463,12 +417,14 @@ final class LaunchAnimation {
         bounds.left + (sourceOrigin + sourceSize) * scaleX,
         bounds.top + (sourceOrigin + portrait.getHeight()) * scaleY
       );
-      // 眼睛范围按 648px 逻辑坐标定义，与素材分辨率无关，并覆盖眨眼差异和滤波边缘。
+      // 范围取自 444 像素宽的头像帧，四周留出位图缩放时的滤波余量。
+      float pixelWidth = (sourceSize * scaleX) / 444f;
+      float pixelHeight = (sourceSize * scaleY) / 444f;
       eyeBounds.set(
-        portraitBounds.left + (sourceSize * scaleX * 218) / 648,
-        portraitBounds.top + (sourceSize * scaleY * 313) / 648,
-        portraitBounds.left + (sourceSize * scaleX * 428) / 648,
-        portraitBounds.top + (sourceSize * scaleY * 395) / 648
+        portraitBounds.left + 136 * pixelWidth,
+        portraitBounds.top + 209 * pixelHeight,
+        portraitBounds.left + 306 * pixelWidth,
+        portraitBounds.top + 279 * pixelHeight
       );
       if (rasterFrames != null) {
         return;
@@ -518,12 +474,15 @@ final class LaunchAnimation {
       final int saved = canvas.save();
       canvas.clipPath(mask);
       canvas.drawBitmap(portrait, null, portraitBounds, bitmapPaint);
-      canvas.clipRect(eyeBounds);
-      drawHead(canvas);
+      if (hasClosedEyes) {
+        canvas.clipRect(eyeBounds);
+        drawHead(canvas);
+      }
       canvas.restoreToCount(saved);
     }
 
     private void drawHead(Canvas canvas) {
+      int index = hasClosedEyes ? 1 : 0;
       if (rasterFrames != null) {
         canvas.drawBitmap(rasterFrames[index], null, getBounds(), bitmapPaint);
         return;

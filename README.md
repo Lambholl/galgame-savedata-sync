@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="assets/app-logo.png" alt="Galgame SaveData Sync" width="256">
+<img src="assets/app-logo.webp" alt="Galgame SaveData Sync" width="256">
 
 # Galgame SaveData Sync
 

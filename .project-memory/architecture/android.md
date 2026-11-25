@@ -76,7 +76,7 @@ Android 可作拨号方和监听方。作拨号方时原生层连接监听方、
 
 Android 使用日夜主题及 `values`/`values-night` 的窗口/启动背景，WebView 为透明底色；运行中以 MainActivity 的 `savedata:theme-change` 原生通知（仅含 `isDark: boolean`）为准修正 WebView 缓存的媒体查询，并用 Capacitor 内置 `SystemBars` 显式同步系统栏图标颜色。应用自行渲染暗色，关闭原生自动反色。设置页可选择跟随系统、浅色或深色，偏好保存到原生存储。
 
-`drawable-nodpi/app_logo.png` 与仓库根目录 `assets/app-logo.png` 使用同一份 PNG。Manifest 的 icon 和 roundIcon 直接引用该图片，保留透明背景；显示形状由系统和启动器决定。系统启动画面用 `drawable-nodpi/splash_open.webp`，随后由原生开屏动画接管。应用页面保留文字标识，不加 logo。
+`drawable-nodpi/app_logo.png` 与仓库根目录 `assets/app-logo.webp` 使用同一份 PNG。Manifest 的 icon 和 roundIcon 直接引用该图片，保留透明背景；显示形状由系统和启动器决定。系统启动画面用 `drawable-nodpi/splash_open.webp`，随后由原生开屏动画接管。应用页面保留文字标识，不加 logo。
 
 ## 4. 目录桥与原生边界
 

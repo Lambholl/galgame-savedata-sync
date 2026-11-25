@@ -86,7 +86,7 @@ sidecar 可执行文件由 `apps/desktop/scripts/build-sidecar-exe.mjs` 用 `@ya
 
 应用标识为 `io.github.galgame.savedatasync`，产品名 `Savedata Sync`（安装目录、快捷方式和系统“应用”列表里的名称都用它，不随界面语言变化；窗口标题由 sidecar 按界面语言给出），主程序文件名 `SavedataSync`。WebView 数据放在缓存目录的 `webview` 子目录；界面不使用 localStorage、IndexedDB 等浏览器存储，删掉这个目录不丢数据。
 
-公共原图为仓库根目录的 `assets/app-logo.png`（透明 PNG）。侧栏以 64×64 显示，HTML 图标和界面通过构建引用同一资源。`resources/app-icon.ico` 提供 Windows 多尺寸图标，由 `tauri.conf.json` 的 `bundle.icon` 指定，`tauri-build` 把它写进主程序资源，窗口也使用它。
+公共原图为仓库根目录的 `assets/app-logo.webp`（透明 PNG）。侧栏以 64×64 显示，HTML 图标和界面通过构建引用同一资源。`resources/app-icon.ico` 提供 Windows 多尺寸图标，由 `tauri.conf.json` 的 `bundle.icon` 指定，`tauri-build` 把它写进主程序资源，窗口也使用它。
 
 ## 4. 系统明暗主题
 

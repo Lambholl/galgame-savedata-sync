@@ -14,7 +14,7 @@ import {
   DesktopOutlined,
   SettingOutlined,
 } from '@ant-design/icons'
-import appLogo from '../../../../../../assets/app-logo.png'
+import appLogo from '../../../../../../assets/app-logo.webp'
 import { isRootPage } from './navigation.ts'
 import type { Page } from './navigation.ts'
 import type { ResolvedTheme } from '@savedata-sync/shared'
@@ -71,7 +71,7 @@ export function DesktopShell({
       <div className={`library-app library-desktop ${isDark ? 'library-dark' : ''}`}>
         <aside className="library-sidebar">
           <div className="library-brand">
-            <img src={appLogo} alt="" width={64} height={64} />
+            <img src={appLogo} alt="" width={128} height={128} />
             <span>{t('app.name')}</span>
           </div>
           <Menu
