@@ -1,5 +1,5 @@
 import { PROTOCOL_VERSION } from './contracts.ts'
-import type { OperationErrorCode } from './contracts.ts'
+import type { DevicePlatform, OperationErrorCode } from './contracts.ts'
 
 /** 会话使用的 HTTP 头。 */
 export const HTTP_HEADERS = {
@@ -45,6 +45,11 @@ export const HTTP_ERROR_STATUS = {
   'cleanup-failed': 500,
   'result-unknown': 404,
 } as const satisfies Readonly<Record<OperationErrorCode, number | null>>
+
+/** 判断是不是 DevicePlatform 的取值。 */
+export function isDevicePlatform(value: unknown): value is DevicePlatform {
+  return value === 'windows' || value === 'linux' || value === 'android'
+}
 
 /** 判断协议版本是否等于当前的 PROTOCOL_VERSION。 */
 export function isProtocolVersionSupported(value: unknown): value is typeof PROTOCOL_VERSION {

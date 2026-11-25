@@ -1,4 +1,5 @@
 import {
+  isDevicePlatform,
   isIpv4Address,
   isListeningPort,
   isOpaqueId,
@@ -94,7 +95,7 @@ function isNearbyDevice(value: unknown): value is DesktopNearbyDevice {
     'deviceId' in value &&
     isOpaqueId(value.deviceId) &&
     'platform' in value &&
-    (value.platform === 'windows' || value.platform === 'android') &&
+    isDevicePlatform(value.platform) &&
     'name' in value &&
     typeof value.name === 'string' &&
     'port' in value &&
@@ -122,7 +123,7 @@ function isSnapshot(value: unknown): value is DesktopDialerSnapshot {
         'deviceId' in session &&
         isOpaqueId(session.deviceId) &&
         'platform' in session &&
-        (session.platform === 'windows' || session.platform === 'android') &&
+        isDevicePlatform(session.platform) &&
         'address' in session &&
         typeof session.address === 'string' &&
         'state' in session &&

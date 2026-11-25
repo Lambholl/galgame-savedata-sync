@@ -1,6 +1,6 @@
 import type { DeviceDescriptor, DirectoryReference } from '../protocol/contracts.ts'
 import { isDirectoryReference } from '../protocol/validation.ts'
-import { isOpaqueId } from '../protocol/protocol.ts'
+import { isDevicePlatform, isOpaqueId } from '../protocol/protocol.ts'
 import { isArrayOf } from '../validation/data-validation.ts'
 import { OperationFailure } from '../result.ts'
 import { isPosterHash, isPosterOrigin } from '../poster/poster-contracts.ts'
@@ -8,13 +8,16 @@ import type { PosterOrigin } from '../poster/poster-contracts.ts'
 import type { MigrationChain } from '../storage/migration.ts'
 
 /** 游戏库配置的格式版本。 */
-export const LIBRARY_SCHEMA_VERSION = 2
+export const LIBRARY_SCHEMA_VERSION = 3
 
 /** 游戏库配置的迁移链。 */
 export const LIBRARY_MIGRATIONS: MigrationChain = {
   baseVersion: 2,
   currentVersion: LIBRARY_SCHEMA_VERSION,
-  steps: {},
+  steps: {
+    // 版本 3 的平台多了 linux，已有内容不变；版本号加一让 1.0 拒绝启动，而不是把含 linux 的游戏库当成损坏数据。
+    2: (value) => ({ ...value, schemaVersion: 3 }),
+  },
 }
 
 /** 游戏库配置和目录表的数量与长度上限，两端相同。 */
@@ -110,9 +113,6 @@ function text(value: unknown): value is string {
 function unique<T>(items: readonly T[], key: (item: T) => string): boolean {
   return new Set(items.map(key)).size === items.length
 }
-function isPlatform(value: unknown): value is DeviceDescriptor['platform'] {
-  return value === 'windows' || value === 'android'
-}
 function isLink(value: unknown): value is GameLink {
   return record(value) && isOpaqueId(value.deviceId) && isOpaqueId(value.gameId)
 }
@@ -122,7 +122,7 @@ export function isSavedDevice(value: unknown): value is SavedDevice {
     record(value) &&
     isOpaqueId(value.id) &&
     text(value.name) &&
-    isPlatform(value.platform) &&
+    isDevicePlatform(value.platform) &&
     typeof value.isBlocked === 'boolean' &&
     (value.address === null ||
       (typeof value.address === 'string' &&
@@ -210,7 +210,7 @@ export function isCatalogHello(value: unknown): value is CatalogHello {
     catalog(value) &&
     isOpaqueId(value.deviceId) &&
     text(value.name) &&
-    isPlatform(value.platform) &&
+    isDevicePlatform(value.platform) &&
     (value.games as readonly CatalogGame[]).every(
       (item) => item.root === null || item.root.deviceId === value.deviceId,
     )

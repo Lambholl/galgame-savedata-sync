@@ -308,13 +308,14 @@ export function TransferPage({
   const localEnd: PlanEndpoint = { name: localName, kind: 'pc' }
   const peerEnd: PlanEndpoint = {
     name: peerName,
-    kind: peerPlatform === 'windows' ? 'pc' : 'mobile',
+    kind: peerPlatform === 'android' ? 'mobile' : 'pc',
   }
   const localEndpoint: TransferEndpoint = {
     name: localName,
     caption: deviceName ?? '',
     isOnline: null,
     rootName: localRoot?.displayName ?? '—',
+    // 只用来选电脑图标，Windows 和 Linux 显示相同。
     platform: 'windows',
   }
   const peerEndpoint: TransferEndpoint = {

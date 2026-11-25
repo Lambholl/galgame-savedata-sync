@@ -17,7 +17,7 @@ function PlatformIcon({
 }: {
   readonly platform: DeviceDescriptor['platform']
 }): React.JSX.Element {
-  return platform === 'windows' ? <DesktopOutlined /> : <AndroidOutlined />
+  return platform === 'android' ? <AndroidOutlined /> : <DesktopOutlined />
 }
 
 /**

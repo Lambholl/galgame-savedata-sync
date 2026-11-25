@@ -30,7 +30,7 @@ tags: [API, 接口约定]
 
 | 模型 | 当前字段与约束 |
 | --- | --- |
-| DeviceDescriptor | protocolVersion=4（`PROTOCOL_VERSION`）、deviceId、displayName、platform、capabilities；稳定 ID 与地址分离 |
+| DeviceDescriptor | protocolVersion=5（`PROTOCOL_VERSION`）、deviceId、displayName、platform（`windows`、`linux` 或 `android`）、capabilities；稳定 ID 与地址分离 |
 | DirectoryReference | rootId、deviceId、displayName、authorization；授权状态 granted/expired/unavailable/unverified；可选 displayPath 是完整展示路径或提供者地址，parentName 是可取得的父目录名。两个字段只用于展示和默认游戏名，文件操作只传不透明引用；目录表随 `/v1/roots` 发给对端时带着 displayPath，对端在关联设备列表里显示为对端的存档路径；守卫也接受不含这两个字段的格式 |
 | EntryMetadata | rootId、entryId、parentId、name、kind、sizeBytes、modifiedAt、capabilities；file/directory 联合；根层 parentId=null，parentId 不指向自身；文件夹大小恒为 null，文件未知大小为 null，空文件为 0 |
 | DirectoryListing | rootId、parentId、observedAt、entries；成功空数组表示空目录；条目须属于同一根/层且 ID 不重复；错误用独立包络 |
@@ -119,7 +119,7 @@ tags: [API, 接口约定]
 
 数据声明和映射由共享包提供；监听方 HTTP 使用严格 JSON/路由/头/会话和 UTF-8 字节预算，双端私有归档负责实际流、格式和长度校验。完整声明见[共享包](shared-package.md)。
 
-- 设备描述只接受数字版本 4（`PROTOCOL_VERSION`）；封闭 DTO 拒绝缺失和额外字段。ID 为 1–128 个 ASCII 字符，首位字母或数字，后续允许字母、数字、下划线和短横线，不接收路径或 URI；复制内容的 fileId 使用受限连续编号。
+- 设备描述只接受数字版本 5（`PROTOCOL_VERSION`）；封闭 DTO 拒绝缺失和额外字段。ID 为 1–128 个 ASCII 字符，首位字母或数字，后续允许字母、数字、下划线和短横线，不接收路径或 URI；复制内容的 fileId 使用受限连续编号。
 - 字节数为非负安全整数；时间是 ±8.64e15 范围内的 Unix 毫秒整数，0 和负数有实际含义，未知修改日期用 null。文本非空白且最长 1024 个 UTF-16 码元。
 - 新文件名最长 255 个 UTF-16 码元，路径字符、控制字符、未配对代理项、Windows 保留名和尾部点/空格会被拒绝；改名和归一化不会发生。
 - JSON 使用 OperationResult 包络，重复键和非法 UTF-8 会被拒绝。查询 200 表示请求成功，任务是否成功要看任务状态。复制内容为原始 gzip，流开始后的失败通过接收校验和任务状态核实。
@@ -165,7 +165,7 @@ Android 桥提供 `connections`、`selectDevice`、`disconnectDevice`、`exchang
 
 - DNS-SD：服务类型 `_savedata-sync._tcp`，实例名是截到 63 个 UTF-8 字节的显示名，TXT 为 `v`、`id`、`pf`。地址和端口取 SRV 与 A 记录，拨号方只用 IPv4。
 - 二维码：`savedata-sync://connect?v=1&id=<设备 ID>&p=<端口>&a=<IPv4>,…`，1–8 个地址按推荐顺序排列，拨号方依次尝试。两端设备页在本机服务运行时显示，载荷取服务快照的 `deviceId`、实际端口和 `listener.ipv4Addresses`；没有地址时不显示二维码。虚拟机、Hyper-V、代理软件的虚拟网卡不进二维码：其他设备访问不到，列出来会暴露本机内部网络，扫码端还会去连它所在网络里碰巧同址的主机。
-- 电脑端广播：HTTP 服务监听期间由 sidecar 广播，停止服务或退出应用时发 goodbye 包。SRV 主机名是 `savedata-sync-<设备 ID>`（小写，`_` 换成 `-`），不用显示名；只发 A 记录，每块网卡只回答这块网卡的地址。实例名重名时自动加序号。广播失败时 HTTP 服务照常运行，服务快照的 `discovery` 显示失败并每 30 秒重试；防火墙拦截 UDP 5353 时本机察觉不到。实现见 [电脑端平台层](desktop.md#6-界面通道与服务控制)。
+- 电脑端广播：HTTP 服务监听期间由 sidecar 广播，TXT 的 `pf` 在 Linux 上为 `linux`，其余为 `windows`；停止服务或退出应用时发 goodbye 包。SRV 主机名是 `savedata-sync-<设备 ID>`（小写，`_` 换成 `-`），不用显示名；只发 A 记录，每块网卡只回答这块网卡的地址。实例名重名时自动加序号。广播失败时 HTTP 服务照常运行，服务快照的 `discovery` 显示失败并每 30 秒重试；防火墙拦截 UDP 5353 时本机察觉不到。实现见 [电脑端平台层](desktop.md#6-界面通道与服务控制)。
 - Android 广播：本机服务运行期间用 NsdManager 注册，TXT 的 `pf` 为 `android`，注册失败 30 秒后重试，停止服务时注销；二维码地址优先 Wi-Fi 和以太网，再是热点，不含移动网络和 VPN。实现见 [Android 平台层](android.md#14-本机服务监听方)。
 - Android 搜索：只在有页面订阅时用 NsdManager 搜索，Activity 停止时暂停；结果只含 IPv4 地址和探测 `/v1/device` 回 200 的服务，TXT 由 `parseDiscoveryTxt` 校验后按设备 ID 合并，协议版本不同的只保留实例名。接口见[Android 平台层](android.md#12-局域网设备搜索)。
 - 版本：两种格式的 `v` 都是 `PROTOCOL_VERSION`。版本不同时解析结果为 `unsupported-version`，其余字段不解析；不合法时为 `invalid`。

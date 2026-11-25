@@ -16,7 +16,7 @@ function PlatformIcon({
 }: {
   readonly platform: DeviceDescriptor['platform']
 }): React.JSX.Element {
-  return platform === 'windows' ? <DesktopOutlined /> : <AndroidOutlined />
+  return platform === 'android' ? <AndroidOutlined /> : <DesktopOutlined />
 }
 
 /** 连接按钮。blockedBy 不为 null 时禁用，悬停提示先断开那台设备。 */

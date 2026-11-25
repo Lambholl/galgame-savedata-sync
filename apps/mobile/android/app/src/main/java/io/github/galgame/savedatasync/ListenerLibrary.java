@@ -74,12 +74,17 @@ final class ListenerLibrary {
   }
 
   /** 游戏库配置的格式版本，与共享 LIBRARY_SCHEMA_VERSION 相同。 */
-  static final int LIBRARY_VERSION = 2;
+  static final int LIBRARY_VERSION = 3;
   /** 游戏库配置的迁移链，步骤与共享 LIBRARY_MIGRATIONS 一一对应。 */
   static final DataMigration.Chain LIBRARY_MIGRATIONS = new DataMigration.Chain(
     2,
     LIBRARY_VERSION,
-    Map.of()
+    // 版本 3 的平台多了 linux，已有内容不变；版本号加一让 1.0 拒绝启动，而不是把含 linux 的游戏库当成损坏数据删除。
+    Map.of(2, value -> {
+      Map<String, Object> next = new LinkedHashMap<>(value);
+      next.put("schemaVersion", 3);
+      return next;
+    })
   );
   /** 已保存设备的最多台数，也是一个游戏的关联和排除设备的最多条数；与共享 LIBRARY_LIMITS.maxDevices 相同。 */
   private static final int MAX_DEVICES = 32;
@@ -694,7 +699,7 @@ final class ListenerLibrary {
     );
     final String peerId = id(hello.get("deviceId"));
     require(isName(hello.get("name")));
-    TransferSchema.one(hello.get("platform"), "windows", "android");
+    TransferSchema.platform(hello.get("platform"));
     List<Object> games = list(hello.get("games"));
     List<Object> links = list(hello.get("links"));
     require(games.size() <= MAX_GAMES && links.size() <= MAX_GAMES);
@@ -737,7 +742,7 @@ final class ListenerLibrary {
     for (Object item : devices) {
       Map<String, Object> device = map(item);
       require(deviceIds.add(id(device.get("id"))) && isName(device.get("name")));
-      TransferSchema.one(device.get("platform"), "windows", "android");
+      TransferSchema.platform(device.get("platform"));
       require(device.get("isBlocked") instanceof Boolean);
       Object address = device.get("address");
       require(

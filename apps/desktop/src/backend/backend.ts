@@ -44,6 +44,7 @@ import { registerDataResetIpc } from './data-reset-ipc.ts'
 import { createPosterHttp } from './poster-http.ts'
 import { PosterStore } from './poster-store.ts'
 import { registerPosterIpc } from './poster-ipc.ts'
+import { LOCAL_PLATFORM } from './local-platform.ts'
 
 /** 后端需要宿主提供的平台能力。 */
 export interface DesktopHost {
@@ -281,7 +282,7 @@ export async function startBackend(options: BackendOptions): Promise<DesktopBack
     registerDialerIpc(router, dialer)
     registerPosterIpc(
       router,
-      createPosterHttp(createPosterUserAgent(APP_VERSION, 'windows')),
+      createPosterHttp(createPosterUserAgent(APP_VERSION, LOCAL_PLATFORM)),
       posters,
       () => host.chooseImageFile(translate()('game.choosePoster')),
     )

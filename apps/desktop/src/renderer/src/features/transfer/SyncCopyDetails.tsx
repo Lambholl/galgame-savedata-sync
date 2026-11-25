@@ -63,7 +63,7 @@ export function SyncCopyDetails({
   const localEnd: PlanEndpoint = { name: t('transfer.local'), kind: 'pc' }
   const peerEnd: PlanEndpoint = {
     name: peer?.device.name ?? t('common.unknown'),
-    kind: peer?.device.platform === 'windows' ? 'pc' : 'mobile',
+    kind: peer?.device.platform === 'android' ? 'mobile' : 'pc',
   }
   const isUpload = task.role === 'receiver'
   // 按钮和正文读同一份状态；列表摘要另有轮询，用它会出现正文已完成、按钮还是取消的一瞬间。

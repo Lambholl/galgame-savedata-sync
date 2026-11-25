@@ -123,7 +123,7 @@ VNDB 和 NextMoe 用译名、原名都能搜到；Bangumi 和 Steam 只适合补
 
 ## 5. 公共请求规则
 
-- 请求头：`Accept: application/json`；`User-Agent: Lambholl/galgame-savedata-sync/<APP_VERSION> (<Windows|Android>) (https://github.com/Lambholl/galgame-savedata-sync)`，四个来源相同，不带用户或设备信息。Bangumi 要求非浏览器调用方的 User-Agent 带开发者 ID 和应用名，分发的应用带版本号，开源项目带主页。下载图片时 `Accept: image/*`。
+- 请求头：`Accept: application/json`；`User-Agent: Lambholl/galgame-savedata-sync/<APP_VERSION> (<Windows|Linux|Android>) (https://github.com/Lambholl/galgame-savedata-sync)`，四个来源相同，不带用户或设备信息。Bangumi 要求非浏览器调用方的 User-Agent 带开发者 ID 和应用名，分发的应用带版本号，开源项目带主页。下载图片时 `Accept: image/*`。
 - 超时：连接 15 秒，读取 20 秒。
 - 上限：JSON 响应 4 MiB，图片 20 MiB（先看 `Content-Length`，再按实际读取字节数截断）。
 - 限流按来源排队：VNDB 1.55 秒、NextMoe 1.3 秒，Bangumi 和 Steam 不限；预览图并发最多 4 张。
@@ -159,7 +159,7 @@ Android 的五个方法是 Capacitor 插件 `Poster`（`PosterPlugin.java`），
 - `CatalogGame` 有必填字段 `posterHash: string | null`，没有封面时为 null；目录表交换时两端都校验它（Android 在 `ListenerLibrary`、`TransferEngine`、`SyncJobModel`）。
 - 控制通道请求方法 `poster.read`：参数 `{ gameId }`，应答 `PeerPoster`：`{ hash, source, data }`，`source` 是对端的 `posterSource`，没有时为 null，`data` 是 WebP 文件的 base64，不带 MIME 类型。游戏不存在或没有封面时答复 `not-found`。保存的封面不超过 1 MiB，base64 后远小于控制消息 8 MiB 的上限。
 - 两个方向都能请求：监听方经 `ControlHub.serve`（电脑）、`ListenerControl.requests`（Android）登记的处理函数应答，按本机游戏库读封面文件；拨号方经 `DialerControlSocket.request`（电脑）、`control-channel.ts` 的 `request`（移动端网页）发请求，并在 `dialer-session.ts`、`library-adapter.ts` 里应答对方的 `poster.read`。界面统一调 `peerPoster(deviceId, gameId)`，按本机在这条连接里的角色选路。Android 本机服务另开一个 `PosterStore` 读同一个 `posters/` 目录；保存先写临时文件再改名，读到的总是完整文件。
-- `PROTOCOL_VERSION` 为 4，两端须同版。
+- 两端的 `PROTOCOL_VERSION` 须相同。
 - 导入游戏时，对端目录表里的 `posterHash` 不为空就先请求封面并保存，再把游戏连同 `posterHash`、`posterSource` 一次写进游戏库（共享包 `importPeerPoster`）。应答的 hash 或保存后的 hash 与目录表不一致、请求失败或保存失败时，游戏照常导入，不带封面，保存后用 Message 提示一次“游戏已导入，封面未能导入”（`poster.importFailed`）。
 - 实测：电脑/电脑和电脑/Android 上，监听方和拨号方互相导入带封面的游戏都能带上封面；对端封面文件缺失时游戏照常导入并提示一次；版本 3 和 4 的电脑端互相连接报 `protocol-mismatch`，附近设备列表显示版本不同。
 

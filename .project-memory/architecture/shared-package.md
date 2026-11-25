@@ -25,9 +25,9 @@ tags: [共享包, 数据模型, 守卫]
 
 `@savedata-sync/shared/ui`（`src/ui`）放两端共用的 React 展示组件，例如 PathText；它可以依赖 React、`@ant-design/icons` 与不涉及平台交互的 antd 组件，主入口不得导入它，因此电脑端 sidecar 和 node 测试不会加载 React。组件参数逐项声明，不接受样式参数，规则见 [ADR-0002](../decisions/ADR-0002-ui-library-and-shared-rendering.md) 与 `eslint.config.mjs`。
 
-设备描述、发现 TXT 和连接二维码使用数字 `PROTOCOL_VERSION=4`。本地目录桥使用 DeviceDescriptor、DirectoryReference、EntryMetadata、DirectoryListing 和 DirectorySelectionResult；HTTP 的 DeviceResponse 为 `OperationResult<BatchDeviceDescriptor>`，包装本地 device 并提供 sessionId/limits。1.0 起协议与能力版本只在次版本升级且须维护者同意，两端的 `PROTOCOL_VERSION`、`/v1/sync/capabilities.schemaVersion` 和控制消息版本必须相同，不做版本协商；同一次版本下的不同补丁版本可互连，不同版本连接前提示更新两端（见 [ADR-0006](../decisions/ADR-0006-stable-release-compatibility.md)）。
+设备描述、发现 TXT 和连接二维码使用数字 `PROTOCOL_VERSION=5`。设备平台 `DevicePlatform` 为 `windows`、`linux` 或 `android`，由 `isDevicePlatform` 校验；`windows` 和 `linux` 都是电脑，界面按电脑显示。本地目录桥使用 DeviceDescriptor、DirectoryReference、EntryMetadata、DirectoryListing 和 DirectorySelectionResult；HTTP 的 DeviceResponse 为 `OperationResult<BatchDeviceDescriptor>`，包装本地 device 并提供 sessionId/limits。1.0 起协议与能力版本只在次版本升级且须维护者同意，两端的 `PROTOCOL_VERSION`、`/v1/sync/capabilities.schemaVersion` 和控制消息版本必须相同，不做版本协商；同一次版本下的不同补丁版本可互连，不同版本连接前提示更新两端（见 [ADR-0006](../decisions/ADR-0006-stable-release-compatibility.md)）。
 
-落盘格式的迁移在 `src/storage/migration.ts`：`migrateData(value, chain, isValid)` 按 `schemaVersion` 把已解析的 JSON 逐步迁移到当前版本，结果为 current、migrated（带要写回的内容）、newer 或 unreadable；低于基线、没有整数版本号、某一步抛错或没把版本加一、迁移结果不过校验都是 unreadable。每种数据登记一条 `MigrationChain`（`baseVersion` 是 1.0 写入的版本，`steps` 按起始版本各一步）：共享包有 `LIBRARY_MIGRATIONS`、`BACKUP_SETTINGS_MIGRATIONS`，电脑端有 `DEVICE_IDENTITY_MIGRATIONS`、`DIRECTORY_REGISTRY_MIGRATIONS`、`BACKUP_LOCATION_MIGRATIONS`，Android 的 `DataMigration` 用 Java 实现同样的规则。目前各链都没有步骤。改格式时加一步并把当前版本加一，执行函数不变，规则见 [ADR-0007](../decisions/ADR-0007-linux-desktop.md#落盘格式迁移链)。
+落盘格式的迁移在 `src/storage/migration.ts`：`migrateData(value, chain, isValid)` 按 `schemaVersion` 把已解析的 JSON 逐步迁移到当前版本，结果为 current、migrated（带要写回的内容）、newer 或 unreadable；低于基线、没有整数版本号、某一步抛错或没把版本加一、迁移结果不过校验都是 unreadable。每种数据登记一条 `MigrationChain`（`baseVersion` 是 1.0 写入的版本，`steps` 按起始版本各一步）：共享包有 `LIBRARY_MIGRATIONS`、`BACKUP_SETTINGS_MIGRATIONS`，电脑端有 `DEVICE_IDENTITY_MIGRATIONS`、`DIRECTORY_REGISTRY_MIGRATIONS`、`BACKUP_LOCATION_MIGRATIONS`，Android 的 `DataMigration` 用 Java 实现同样的规则。目前只有游戏库的链有一步：从 2 到 3 只改版本号，Android 的 `ListenerLibrary.LIBRARY_MIGRATIONS` 相同；其余各链没有步骤。改格式时加一步并把当前版本加一，执行函数不变，规则见 [ADR-0007](../decisions/ADR-0007-linux-desktop.md#落盘格式迁移链)。
 
 设备接口和归档格式见[设备接口与归档格式](transfer-protocol.md)；共享包负责数据与关系约束，Windows 私有归档、HTTP 服务、受保护写入、Java 归档及 Android 原生网络都在平台层实现。
 
@@ -111,7 +111,7 @@ withGameLink、withoutGameLink、createImportedGame 返回新的游戏配置，�
 
 | 格式 | 内容 | 函数 |
 | --- | --- | --- |
-| DNS-SD 服务 | 服务类型 `_savedata-sync._tcp`（`DISCOVERY_SERVICE`）。实例名是显示名，按码位截到 63 个 UTF-8 字节，重名时由系统加后缀，只用于显示。TXT 为 `v`（协议版本）、`id`（设备 ID）、`pf`（`windows` 或 `android`），端口和地址取 SRV 与 A 记录 | `createDiscoveryInstanceName`、`createDiscoveryTxt`、`parseDiscoveryTxt` |
+| DNS-SD 服务 | 服务类型 `_savedata-sync._tcp`（`DISCOVERY_SERVICE`）。实例名是显示名，按码位截到 63 个 UTF-8 字节，重名时由系统加后缀，只用于显示。TXT 为 `v`（协议版本）、`id`（设备 ID）、`pf`（`windows`、`linux` 或 `android`），端口和地址取 SRV 与 A 记录 | `createDiscoveryInstanceName`、`createDiscoveryTxt`、`parseDiscoveryTxt` |
 | 连接二维码 | `savedata-sync://connect?v=1&id=<设备 ID>&p=<端口>&a=<IPv4>,<IPv4>`，地址 1–8 个、按推荐顺序、不重复。监听方显示，只有移动端扫码 | `createConnectionQrText`、`parseConnectionQrText` |
 | 候选地址 | 把 IPv4 列表和端口转成依次尝试的 `http://ip:port`，保留顺序，跳过非 IPv4 和重复项 | `createConnectionCandidates`、`isIpv4Address`、`isListeningPort` |
 

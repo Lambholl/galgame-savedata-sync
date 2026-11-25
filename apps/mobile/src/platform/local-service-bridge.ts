@@ -2,6 +2,7 @@ import {
   isCatalogPush,
   isDirectoryListing,
   isIpv4Address,
+  isDevicePlatform,
   isListeningPort,
   isOpaqueId,
   isOperationError,
@@ -154,7 +155,7 @@ function isPeers(value: unknown): value is readonly ListenerPeer[] {
         isOpaqueId(item.deviceId) &&
         typeof item.name === 'string' &&
         item.name.trim() !== '' &&
-        (item.platform === 'windows' || item.platform === 'android') &&
+        isDevicePlatform(item.platform) &&
         typeof item.isOpen === 'boolean' &&
         isCatalogPush({ games: item.games, links: [] }),
     )

@@ -7,6 +7,7 @@ import {
 } from '@savedata-sync/shared'
 import type { OperationError } from '@savedata-sync/shared'
 import type { DesktopDiscoveryState } from '../bridge/service-bridge.ts'
+import { LOCAL_PLATFORM } from './local-platform.ts'
 
 /** 注册失败后，服务仍在运行时隔多久重新注册。 */
 const RETRY_DELAY_MS = 30_000
@@ -115,7 +116,7 @@ export class DesktopDiscoveryAdvertiser {
         type: DISCOVERY_SERVICE.name,
         hostname: createHostLabel(advertisement.deviceId),
         port: advertisement.port,
-        txt: createDiscoveryTxt({ deviceId: advertisement.deviceId, platform: 'windows' }),
+        txt: createDiscoveryTxt({ deviceId: advertisement.deviceId, platform: LOCAL_PLATFORM }),
         disabledIpv6: true,
       })
       service.on('name-change', (name: string) => {

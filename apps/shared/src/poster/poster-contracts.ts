@@ -162,6 +162,7 @@ const PROJECT_HOMEPAGE = 'https://github.com/Lambholl/galgame-savedata-sync'
 
 const PLATFORM_NAMES: Readonly<Record<DeviceDescriptor['platform'], string>> = {
   windows: 'Windows',
+  linux: 'Linux',
   android: 'Android',
 }
 

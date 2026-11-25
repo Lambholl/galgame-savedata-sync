@@ -136,7 +136,7 @@ SAF 没有通用排他创建或比较后删除原语；这些复核能发现可�
 | listRemoteRoots / listRemoteDirectory | 校验设备身份、根/父层及唯一条目，仅读取当前层 |
 | deviceName | 本机设备名，规则见[接口约定](api-contracts.md) |
 
-`TransferJson` 严格拒绝重复键、坏 UTF-8、未配对代理项、附加内容、超限深度/节点及非安全整数，JSON 单项 8 MiB。`TransferSchema` 校验设备描述、目录列表、条目元数据和错误信封的封闭字段。`TransferRuntime` 持有进程内唯一的 `TransferEngine`，`SyncTransferRuntime` 和 `ListenerRuntime` 共用它的连接。
+`TransferJson` 严格拒绝重复键、坏 UTF-8、未配对代理项、附加内容、超限深度/节点及非安全整数，JSON 单项 8 MiB。`TransferSchema` 校验设备描述、目录列表、条目元数据和错误信封的封闭字段，设备平台接受 `windows`、`linux`、`android`。`TransferRuntime` 持有进程内唯一的 `TransferEngine`，`SyncTransferRuntime` 和 `ListenerRuntime` 共用它的连接。
 
 `TransferHttp.Client` 使用无代理的 HttpURLConnection，明确 identity，关闭自动解压、重定向和缓存。连接和默认网络无进展等待 5 秒。连接失败以短时消息显示原始 HTTP 状态、协议错误码或系统 errno/异常类型。首次 catalog 请求携带 `x-sync-connect: 1`，表示主动建立新连接。取消线程断开连接，原 I/O 线程关闭网络缓冲流，避免 Android Okio 与 read 并发 close。
 

@@ -23,7 +23,7 @@ tags: [设备接口, tar.gz, HTTP]
 
 ## 2. 设备描述与固定上限
 
-`GET /v1/device` 返回 `OperationResult<BatchDeviceDescriptor>`：`device: DeviceDescriptor`、`sessionId: ID`、`limits: BatchLimits`。`device.protocolVersion` 为 `PROTOCOL_VERSION`（数字 4），它同时是发现 TXT 和连接二维码的 `v`，版本不同的设备在发现和扫码时就标为版本不同。`DeviceCapabilities` 只有 `canListRoots`，报告目录浏览能力；复制能力由 `/v1/sync/capabilities` 报告。
+`GET /v1/device` 返回 `OperationResult<BatchDeviceDescriptor>`：`device: DeviceDescriptor`、`sessionId: ID`、`limits: BatchLimits`。`device.protocolVersion` 为 `PROTOCOL_VERSION`（数字 5），它同时是发现 TXT 和连接二维码的 `v`，版本不同的设备在发现和扫码时就标为版本不同。`DeviceCapabilities` 只有 `canListRoots`，报告目录浏览能力；复制能力由 `/v1/sync/capabilities` 报告。
 
 `BatchLimits` 是两端相同的固定常量，不允许请求放宽：
 

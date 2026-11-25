@@ -131,7 +131,7 @@ function EndpointCard({
   const content = (
     <>
       <span className="ss-end-name">
-        {endpoint.platform === 'windows' ? (
+        {endpoint.platform !== 'android' ? (
           <DesktopOutlined className="ss-end-icon" />
         ) : (
           <MobileOutlined className="ss-end-icon" />

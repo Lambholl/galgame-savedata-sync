@@ -11,7 +11,12 @@ import type {
   OperationError,
   OperationResult,
 } from './contracts.ts'
-import { HTTP_ERROR_STATUS, isOpaqueId, isProtocolVersionSupported } from './protocol.ts'
+import {
+  HTTP_ERROR_STATUS,
+  isDevicePlatform,
+  isOpaqueId,
+  isProtocolVersionSupported,
+} from './protocol.ts'
 
 import {
   hasShape,
@@ -46,7 +51,7 @@ export function isDeviceDescriptor(value: unknown): value is DeviceDescriptor {
     isProtocolVersionSupported(value.protocolVersion) &&
     isOpaqueId(value.deviceId) &&
     isText(value.displayName) &&
-    (value.platform === 'windows' || value.platform === 'android') &&
+    isDevicePlatform(value.platform) &&
     isDeviceCapabilities(value.capabilities)
   )
 }

@@ -27,7 +27,7 @@ tags: [决策, Linux, 电脑端, 分发, 平台标识, 迁移, 符号链接]
 
 ## 状态
 
-accepted。迁移链（第 11 至 15 条）和符号链接与特殊文件（第 16、17 条）已实现，其余还没实现；随 1.1.0 发布，拆分和进度见[工作包登记](../development/work-packages.md)和[路线图](../project/roadmap.md) M-007。
+accepted。平台标识（第 8 至 10 条）、迁移链（第 11 至 15 条）和符号链接与特殊文件（第 16、17 条）已实现，其余还没实现；随 1.1.0 发布，拆分和进度见[工作包登记](../development/work-packages.md)和[路线图](../project/roadmap.md) M-007。
 
 ## 替代关系
 
@@ -62,7 +62,7 @@ accepted。迁移链（第 11 至 15 条）和符号链接与特殊文件（第 
 
 8. 设备平台增加 `'linux'`，用于协议的设备描述、发现广播 TXT 和游戏库保存的设备。界面上 `'linux'` 和 `'windows'` 一样按电脑显示（电脑图标、`pc` 类型）；封面请求的 User-Agent 写 Linux。
 9. 1.1.0 的 `PROTOCOL_VERSION` 为 5（1.0 为 4），两端要一起更新到 1.1.0，发布说明写明。
-10. 1.1.0 的游戏库版本为 3（1.0 为 2），即共享包 `LIBRARY_SCHEMA_VERSION` 和 Android `ListenerLibrary.LIBRARY_VERSION`。从 2 到 3 的数据不用转换，迁移步骤原样返回；版本号加一的作用是让降级回 1.0 的应用按 ADR-0006 第 9 条拒绝启动，而不是把含 `'linux'` 的游戏库当成损坏数据（Android 上会被删除）。
+10. 1.1.0 的游戏库版本为 3（1.0 为 2），即共享包 `LIBRARY_SCHEMA_VERSION` 和 Android `ListenerLibrary.LIBRARY_VERSION`。从 2 到 3 的数据不用转换，迁移步骤只把版本号改成 3；版本号加一的作用是让降级回 1.0 的应用按 ADR-0006 第 9 条拒绝启动，而不是把含 `'linux'` 的游戏库当成损坏数据（Android 上会被删除）。
 
 ### 落盘格式迁移链
 

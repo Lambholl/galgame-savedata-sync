@@ -1,6 +1,6 @@
 import type { DeviceDescriptor } from '../protocol/contracts.ts'
 import { PROTOCOL_VERSION } from '../protocol/contracts.ts'
-import { isOpaqueId } from '../protocol/protocol.ts'
+import { isDevicePlatform, isOpaqueId } from '../protocol/protocol.ts'
 import { isRecord } from '../validation/data-validation.ts'
 import { OperationFailure } from '../result.ts'
 
@@ -102,7 +102,7 @@ export function parseDiscoveryTxt(record: unknown): DiscoveryTxtResult {
   }
   const deviceId = readTxtField(record, 'id'),
     platform = readTxtField(record, 'pf')
-  if (!isOpaqueId(deviceId) || (platform !== 'windows' && platform !== 'android')) {
+  if (!isOpaqueId(deviceId) || !isDevicePlatform(platform)) {
     return { status: 'invalid' }
   }
   return { status: 'valid', identity: { deviceId, platform } }

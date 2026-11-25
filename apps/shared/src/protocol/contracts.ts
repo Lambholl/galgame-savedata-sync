@@ -1,5 +1,5 @@
 /** 设备描述、发现 TXT 和连接二维码的协议版本。不兼容的变更使用新版本号。 */
-export const PROTOCOL_VERSION = 4
+export const PROTOCOL_VERSION = 5
 
 /** 能力状态。supported 表示平台声明支持，调用仍可能失败。 */
 export type CapabilityState = 'supported' | 'unsupported' | 'unknown'
@@ -18,12 +18,15 @@ export interface DeviceCapabilities {
   readonly canListRoots: CapabilityState
 }
 
+/** 设备平台；windows 和 linux 是电脑端，界面按电脑显示。 */
+export type DevicePlatform = 'windows' | 'linux' | 'android'
+
 /** 设备描述：这次安装的稳定身份和显示信息。 */
 export interface DeviceDescriptor {
   readonly protocolVersion: typeof PROTOCOL_VERSION
   readonly deviceId: string
   readonly displayName: string
-  readonly platform: 'windows' | 'android'
+  readonly platform: DevicePlatform
   readonly capabilities: DeviceCapabilities
 }
 

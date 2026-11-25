@@ -41,6 +41,7 @@ import { ControlHub } from './control-hub.ts'
 import type { DesktopSyncWriter } from './sync-writer.ts'
 import type { DesktopBackupStore } from './backup-store.ts'
 import { hasTargetOperation } from './target-operation.ts'
+import { LOCAL_PLATFORM } from './local-platform.ts'
 
 type HttpDirectorySource = Pick<DesktopDirectoryAdapter, 'deviceId' | 'listRoots' | 'listDirectory'>
 
@@ -532,7 +533,7 @@ export class DesktopHttpService {
         protocolVersion: PROTOCOL_VERSION,
         deviceId: this.source.deviceId,
         displayName: this.options.displayName ?? hostname(),
-        platform: 'windows',
+        platform: LOCAL_PLATFORM,
         capabilities: { canListRoots: 'supported' },
       }
       sendHttpJson(response, 200, {

@@ -17,7 +17,7 @@ import java.util.Set;
 final class TransferSchema {
 
   /** 设备描述、发现 TXT 和连接二维码的协议版本，与共享 PROTOCOL_VERSION 相同。 */
-  static final int PROTOCOL_VERSION = 4;
+  static final int PROTOCOL_VERSION = 5;
 
   static final String ERROR_CODES =
     "invalid-request protocol-mismatch session-mismatch task-conflict invalid-archive " +
@@ -77,6 +77,11 @@ final class TransferSchema {
     require(Arrays.asList(values).contains(value));
   }
 
+  /** 校验设备平台，取值与 shared 的 DevicePlatform 相同。 */
+  static void platform(Object value) throws ArchiveFailure {
+    one(value, "windows", "linux", "android");
+  }
+
   static String fileId(Object value, int index) throws ArchiveFailure {
     require(ArchiveModel.id(index).equals(value));
     return (String) value;
@@ -119,7 +124,7 @@ final class TransferSchema {
     }
     id(device.get("deviceId"));
     text(device.get("displayName"));
-    one(device.get("platform"), "windows", "android");
+    platform(device.get("platform"));
     Map<String, Object> capabilities = shape(device.get("capabilities"), "canListRoots");
     for (Object capability : capabilities.values()) {
       one(capability, "supported", "unsupported", "unknown");

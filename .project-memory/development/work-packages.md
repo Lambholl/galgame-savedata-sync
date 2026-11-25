@@ -20,7 +20,7 @@ tags: [工作包]
 
 | ID | 工作包 | 内容与完成标准 | 依赖 | 状态 |
 | --- | --- | --- | --- | --- |
-| WP-080 | 设备平台增加 linux | 协议设备描述、发现 TXT、游戏库和 Android `TransferSchema`、`ListenerLibrary` 接受 `'linux'`；`PROTOCOL_VERSION` 升到 5；游戏库版本两端都升到 3，迁移步骤原样返回，加 v2 样本测试；界面按电脑显示，封面 User-Agent 写 Linux；sidecar 在 Linux 上上报 `'linux'`。完成标准：共享包、桌面端和 Android 单元测试通过；Android 与 1.1.0 电脑端互连正常；记录 1.0 设备遇到 Linux 设备时的实际表现 | 无 | planned |
+| WP-080 | 设备平台增加 linux | 代码已按 [ADR-0007](../decisions/ADR-0007-linux-desktop.md#平台标识) 第 8 至 10 条实现。剩余真机验证：Android 与 1.1.0 电脑端互连正常；记录 1.0 设备遇到 Linux 设备时的实际表现 | 无 | active |
 | WP-081 | Tauri 宿主在 Linux 上运行 | 先解决 BUG-033（Linux 窗口图标），之后 `pnpm lint` 才能在 Linux 上跑完；`pnpm dev:desktop` 在 Linux 桌面上可用：sidecar 启停和退出顺序、目录和图片选择器、打开文件夹、单实例、跟随系统明暗和窗口背景、中日文字体；在 WebKitGTK 上按 [界面约定](ui-conventions.md) 过一遍各页面。完成标准：X11 和 Wayland 会话各验收一次，差异写进平台层文档 | 无 | planned |
 | WP-082 | Linux 打包、CI 和发布 | sidecar 增加 linux-x64 目标；打包脚本在 Linux 上产出 AppImage 和 deb（deb 声明 WebKitGTK 4.1 依赖）；AppImage 按 `APPIMAGE` 判断便携模式（`storage.rs`）；CI 增加 `ubuntu-22.04` 的 `pnpm check` 和桌面端测试，发布工作流增加 Linux 产物。完成标准：在没装开发依赖的 Ubuntu 22.04 和 Debian 12 上安装 deb、运行 AppImage 并完成一次传输 | WP-080、WP-081 | planned |
 | WP-083 | Linux 实机验收和用户文档 | 实机验收 Linux 与 Android、Linux 与 Windows 双向传输，Wine 或 Proton 前缀里的存档目录，系统已运行 avahi-daemon 时的自动发现，ufw 或 firewalld 开启时的连接；README 增加 Linux 下载、`libfuse2` 和防火墙放行说明；把 REQ-027 并入 REQ-001，更新范围和约束里的平台，验收结果写进测试文档。完成标准：验收场景全部通过，或未通过项登记在已知问题 | WP-082 | planned |

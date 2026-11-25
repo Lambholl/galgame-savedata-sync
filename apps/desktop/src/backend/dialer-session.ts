@@ -27,6 +27,7 @@ import type { DesktopDirectoryAdapter } from './directory-adapter.ts'
 import type { DesktopDiscoveryBrowser } from './discovery-browser.ts'
 import { HttpOperationError, toHttpError } from './http-errors.ts'
 import type { DesktopLibrary, LibraryDialer } from './library-store.ts'
+import { LOCAL_PLATFORM } from './local-platform.ts'
 
 /** 读取设备信息的期限；地址不对时尽快换下一个。 */
 const DEVICE_TIMEOUT_MS = 5000
@@ -39,7 +40,7 @@ const CONTROL_GRACE_MS = 10_000
 /** 按设备 ID 查找新地址的时长。 */
 const LOOKUP_TIMEOUT_MS = 5000
 /** 计算机名为空时发给对方的本机名称，让对方至少能看出是哪种系统的电脑。 */
-const FALLBACK_NAME = process.platform === 'linux' ? 'Linux' : 'Windows'
+const FALLBACK_NAME = LOCAL_PLATFORM === 'linux' ? 'Linux' : 'Windows'
 /** 这些错误说明地址上可能已经不是这台设备，可以换地址再试。 */
 const RELOCATABLE_CODES: readonly OperationErrorCode[] = [
   'network-failure',
@@ -492,7 +493,7 @@ export class DesktopDialer implements LibraryDialer {
       body: {
         deviceId: this.adapter.deviceId,
         name: this.localName,
-        platform: 'windows',
+        platform: LOCAL_PLATFORM,
         ...catalog,
       },
     })
