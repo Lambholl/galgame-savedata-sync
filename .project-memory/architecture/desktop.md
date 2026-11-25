@@ -143,7 +143,7 @@ sidecar 可执行文件由 `apps/desktop/scripts/build-sidecar-exe.mjs` 用 `@ya
 
 启动时 `startBackend` 创建四个目录并解析成真实路径，兼容系统目录重定向；然后把配置、数据、缓存目录登记为私有目录，备份库由备份存储登记。目录适配器拒绝把私有目录和备份库及其父子目录选作同步根。
 
-`identity.json`（schemaVersion=1）只保存设备 ID。`directories.json`（schemaVersion=2）保存 roots：内部根记录仅含 rootId、规范路径和 bigint dev/ino 的字符串身份；绝对路径不传到 Renderer，也不写进项目记忆。条目 ID/相对路径映射只在本进程内有效，不保存历史元数据或哈希，重启后重新枚举。
+`identity.json`（schemaVersion=1）只保存设备 ID。`directories.json`（schemaVersion=2）保存 roots：内部根记录仅含 rootId、规范路径和 bigint dev/ino 的字符串身份；绝对路径只作为 `displayPath` 发给界面和对端展示，文件操作只用 ID，路径也不写进项目记忆。条目 ID/相对路径映射只在本进程内有效，不保存历史元数据或哈希，重启后重新枚举。
 
 配置写入使用同目录独占临时文件、sync 和 rename；同进程登记串行处理，成功前不更新内存。配置必须位于所选根目录之外。跨外部进程的配置事务或锁不在当前实现内。
 

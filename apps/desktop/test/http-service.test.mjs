@@ -13,6 +13,16 @@ const unwrap = (result) => {
   return result.value
 }
 
+function findPaths(value, text, path = []) {
+  if (typeof value === 'string') {
+    return value.includes(text) ? [path.join('.')] : []
+  }
+  if (value === null || typeof value !== 'object') {
+    return []
+  }
+  return Object.entries(value).flatMap(([key, child]) => findPaths(child, text, [...path, key]))
+}
+
 async function setup(t) {
   const temporaryRoot = await realpath(tmpdir())
   const base = await mkdtemp(join(temporaryRoot, 'savedata-http-test-'))
@@ -124,7 +134,10 @@ test('设备/根/当前层通过真实 HTTP 返回公开 DTO，会话与目录�
     (await request(fixture, '/v1/roots/wrong-root/entries')).json.error.code,
     'not-found',
   )
-  assert.ok(!JSON.stringify([device.json, roots.json, listing]).includes(fixture.base))
+  // 目录的完整路径只作为展示用的 displayPath 发给对端，设备描述、目录条目和各种 ID 都不带本机路径。
+  assert.deepEqual(findPaths({ device: device.json, roots: roots.json, listing }, fixture.base), [
+    'roots.value.0.displayPath',
+  ])
 })
 
 test('重启服务保留设备但更换会话，旧会话的请求被拒绝', async (t) => {

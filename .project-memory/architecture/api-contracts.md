@@ -31,7 +31,7 @@ tags: [API, 接口约定]
 | 模型 | 当前字段与约束 |
 | --- | --- |
 | DeviceDescriptor | protocolVersion=4（`PROTOCOL_VERSION`）、deviceId、displayName、platform、capabilities；稳定 ID 与地址分离 |
-| DirectoryReference | rootId、deviceId、displayName、authorization；授权状态 granted/expired/unavailable/unverified；可选 displayPath 是完整展示路径或提供者地址，parentName 是可取得的父目录名。两个字段只用于展示和默认游戏名，文件操作只传不透明引用；守卫也接受不含这两个字段的格式 |
+| DirectoryReference | rootId、deviceId、displayName、authorization；授权状态 granted/expired/unavailable/unverified；可选 displayPath 是完整展示路径或提供者地址，parentName 是可取得的父目录名。两个字段只用于展示和默认游戏名，文件操作只传不透明引用；目录表随 `/v1/roots` 发给对端时带着 displayPath，对端在关联设备列表里显示为对端的存档路径；守卫也接受不含这两个字段的格式 |
 | EntryMetadata | rootId、entryId、parentId、name、kind、sizeBytes、modifiedAt、capabilities；file/directory 联合；根层 parentId=null，parentId 不指向自身；文件夹大小恒为 null，文件未知大小为 null，空文件为 0 |
 | DirectoryListing | rootId、parentId、observedAt、entries；成功空数组表示空目录；条目须属于同一根/层且 ID 不重复；错误用独立包络 |
 | EntryCapabilities / DeviceCapabilities | 条目能力 canRead/canList/canCreate/canRename/canDelete；设备能力只有 canListRoots（目录浏览），复制能力由 `/v1/sync/capabilities` 报告；各值 supported/unsupported/unknown |
