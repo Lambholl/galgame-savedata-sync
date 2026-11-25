@@ -29,6 +29,14 @@ function listDirectory(path) {
 const [nodeMajor, nodeMinor] = process.versions.node.split('.').map(Number)
 const isNodeSupported = (nodeMajor === 22 && nodeMinor >= 13) || nodeMajor >= 24
 addCheck('Node.js', isNodeSupported ? 'ok' : 'fail', `${process.version}; requires 22.13+ or 24+`)
+// 测试和 sidecar 开发版靠 Node 的类型剥离直接运行 .ts；部分发行版打包的 Node 编译时去掉了这项功能。
+addCheck(
+  'Node.js TypeScript stripping',
+  process.features.typescript ? 'ok' : 'fail',
+  process.features.typescript
+    ? String(process.features.typescript)
+    : 'This Node.js build lacks TypeScript support; use an official build from nodejs.org',
+)
 for (const [name, command, isBatch] of [
   ['Git', 'git', false],
   ['pnpm', isWindows ? 'pnpm.cmd' : 'pnpm', isWindows],
@@ -88,6 +96,28 @@ if (isWindows) {
     'WebView2 Runtime',
     webViewVersion ? 'ok' : 'fail',
     webViewVersion ?? 'Install the Microsoft Edge WebView2 Runtime (Evergreen)',
+  )
+} else if (process.platform === 'linux') {
+  const rustHost = getVersion('rustc', ['-vV']).output.match(/^host:\s*(\S+)/m)?.[1]
+  addCheck(
+    'Rust Linux toolchain',
+    rustHost === 'x86_64-unknown-linux-gnu' ? 'ok' : 'fail',
+    rustHost ?? 'rustc could not run; install the stable x86_64-unknown-linux-gnu toolchain',
+  )
+  // Tauri 在 Linux 上链接这几个库；它们的开发包随 libwebkit2gtk-4.1-dev 一起安装。
+  const webKit = getVersion('pkg-config', [
+    '--modversion',
+    'webkit2gtk-4.1',
+    'javascriptcoregtk-4.1',
+    'libsoup-3.0',
+    'gtk+-3.0',
+  ])
+  addCheck(
+    'WebKitGTK 4.1 development files',
+    webKit.ok ? 'ok' : 'fail',
+    webKit.ok
+      ? webKit.output.split('\n').join(', ')
+      : 'Install pkg-config, build-essential and libwebkit2gtk-4.1-dev; see docs/development.md',
   )
 }
 

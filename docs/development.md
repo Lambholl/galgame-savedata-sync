@@ -6,6 +6,7 @@
 
 - [快速开始](#快速开始)
 - [环境要求](#环境要求)
+- [Linux 环境准备](#linux-环境准备)
 - [本机工具路径](#本机工具路径)
 - [常用命令](#常用命令)
 - [仓库结构](#仓库结构)
@@ -48,15 +49,32 @@ pnpm dev:desktop
 
 | 工具 | 要求 |
 | --- | --- |
-| Node.js | 22.13+，建议用仍在官方维护期内的主版本里最新的安全补丁版本（`pnpm security:node` 不达标时提示）；桌面端开发版使用 `PATH` 中的 `node` 运行 sidecar |
+| Node.js | 22.13+，建议用仍在官方维护期内的主版本里最新的安全补丁版本（`pnpm security:node` 不达标时提示）；需支持 TypeScript 类型剥离，部分 Linux 发行版打包的 Node 去掉了这项功能，改用 nodejs.org 的官方构建；桌面端开发版使用 `PATH` 中的 `node` 运行 sidecar |
 | pnpm | 10.34.8（与 [package.json](../package.json) 的 `packageManager` 一致） |
-| Rust | stable，Windows 使用 `x86_64-pc-windows-msvc`，另需 VS 生成工具的“使用 C++ 的桌面开发”工作负载与 Windows SDK |
-| WebView2 运行时 | Windows 11 自带 |
-| JDK | 21（建议 21.0.13+） |
+| Rust | stable，含 clippy 与 rustfmt。Windows 使用 `x86_64-pc-windows-msvc`，另需 VS 生成工具的“使用 C++ 的桌面开发”工作负载与 Windows SDK；Linux 使用 `x86_64-unknown-linux-gnu` |
+| WebView2 运行时（Windows） | Windows 11 自带 |
+| WebKitGTK 4.1 开发包（Linux） | 见 [Linux 环境准备](#linux-环境准备) |
+| JDK | 21–24（建议 21.0.13+）；Gradle 8.14 不能在更新的 JDK 上运行 |
 | Android SDK | Platform 36、Build Tools 35.0.0+、Platform Tools、Command-line Tools（latest） |
 | Android Studio | 2025.2.1+（仅调试 Android 原生代码时需要） |
 
 仅开发桌面端时不需要安装 JDK、Android SDK 与 Android Studio。Android 最低支持 Android 11（API 30），编译目标为 API 36；前端 React 版本锁定在 18（受限于 `antd-mobile` 动画依赖）。
+
+## Linux 环境准备
+
+以下命令适用于 Debian、Ubuntu 及其衍生发行版，安装 Tauri 的构建依赖和 Rust：
+
+```bash
+sudo apt update
+sudo apt install build-essential pkg-config curl wget file libssl-dev libxdo-dev librsvg2-dev libwebkit2gtk-4.1-dev
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --component clippy,rustfmt
+```
+
+- Node.js 用 nodejs.org 的官方构建或 nvm、fnm 等版本管理器安装，`pnpm doctor --desktop` 的 “Node.js TypeScript stripping” 一项通过即可。
+- rustup 把工具装在 `~/.cargo/bin`，新开终端或执行 `. "$HOME/.cargo/env"` 后生效。
+- `pnpm lint` 的 Checkstyle 需要 JDK 21–24，只开发桌面端时也要装。软件源里有 `openjdk-21-jdk` 时直接安装，没有时另装 Eclipse Temurin 21；脚本不读系统默认的 `java`，要在 `dev.local.json` 的 `javaHome` 或 `JAVA_HOME` 里指定 JDK 21 的路径（Debian 系的 apt 包装在 `/usr/lib/jvm/java-21-openjdk-amd64`）。
+- 从 Windows 复制过来的仓库要删掉 `node_modules` 后重新 `pnpm install`，其中带有平台相关的二进制。
+- Linux 打包还没有实现，`pnpm desktop:package` 只支持 Windows x64。
 
 ## 本机工具路径
 
