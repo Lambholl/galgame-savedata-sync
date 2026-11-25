@@ -149,7 +149,7 @@ sidecar 可执行文件由 `apps/desktop/scripts/build-sidecar-exe.mjs` 用 `@ya
 
 启动时 `data-recovery.ts` 先检查 `identity.json`、`directories.json`、`game-library.json`、`backup-settings.json`、`backup-library.json`、`service-settings.json` 和 `preferences.json`。前五个文件中有 `schemaVersion` 大于当前版本的（规则见 [ADR-0006](../decisions/ADR-0006-stable-release-compatibility.md) 第 9 条），抛 `NewerDataError`，所有文件都不改名，`startBackend` 把它转成标题为“需要更新应用”、列出这些数据项的 `BackendStartError`，宿主显示 `fatal` 提示后退出。否则，不是普通文件、超过大小上限、不是 UTF-8 编码的 JSON，或者格式和格式版本不符时（端口设置和界面偏好只要求是 JSON 对象，无效或不认识的字段由读取模块读成默认值，端口无效时重新随机选一个），把文件改名为 `<名称>.unreadable-<UTC 时间>.<扩展名>`（时间形如 `20261123T081530Z`）留在原目录，各模块随后按文件不存在处理，用默认值启动；身份文件改名后会生成新的设备 ID。读取或改名遇到文件系统错误（如没有权限）时停止初始化，宿主显示 `fatal` 提示后退出。界面经 `window.desktopDataReset`（`list`、`dismiss`、`openFolder`，通道在 `src/bridge/data-reset-bridge.ts`）读出这次启动改了名的数据项，弹一次提示，列出各项的后果；“打开数据文件夹”打开数据目录，只有界面偏好被重置时打开配置目录。读不懂的备份和中断写入标记不走这条路：前者忽略（第 12 节），后者直接删除。
 
-每次读取重新检查根身份；路径逐段 lstat，拒绝 symlink/junction，核对 realpath 与根范围，读取句柄再核对身份。文件/目录替换使旧引用失效，需要刷新或明确重新选择。不跟随根内链接；不支持的条目会让该层读取返回错误，不显示成空目录。
+登记时先把选中的路径解析成真实路径（`realpath`），经过符号链接或目录联接选择的目录按链接目标登记，同一目录得到同一个 rootId。每次读取重新检查根身份；路径逐段 lstat，拒绝 symlink/junction，核对 realpath 与根范围，读取句柄再核对身份。文件/目录替换使旧引用失效，需要刷新或明确重新选择。目录里的符号链接、目录联接、FIFO、套接字和设备文件不列出，同一层的其他条目照常列出，所以扫描、计划和备份也看不到它们；目标端有同名的这类条目时，新建文件或文件夹那一步因名称已存在而失败，只剩这类条目的文件夹删除失败，规则见 [ADR-0007](../decisions/ADR-0007-linux-desktop.md#符号链接和特殊文件)。
 
 Node 的路径检查与文件打开是两个操作。本实现检查可观察到的替换和越界；外部进程恶意并发重排命名空间时不提供内核级隔离，也不提供目录级原子替换。
 

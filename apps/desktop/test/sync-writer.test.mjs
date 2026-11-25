@@ -1,5 +1,15 @@
 import assert from 'node:assert/strict'
-import { mkdtemp, mkdir, readdir, readFile, realpath, rm, writeFile } from 'node:fs/promises'
+import {
+  lstat,
+  mkdtemp,
+  mkdir,
+  readdir,
+  readFile,
+  realpath,
+  rm,
+  symlink,
+  writeFile,
+} from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Readable } from 'node:stream'
@@ -14,7 +24,8 @@ import { DesktopSyncWriter } from '../src/backend/sync-writer.ts'
 
 const SOURCE_MODIFIED_AT = Date.UTC(2026, 0, 1)
 
-async function setup(t, { io } = {}) {
+/** prepare 在扫描目标前运行，参数是目标目录和存放它的临时目录。 */
+async function setup(t, { io, prepare } = {}) {
   const base = await mkdtemp(join(await realpath(tmpdir()), 'savedata-writer-test-'))
   t.after(() => rm(base, { recursive: true, force: true }))
   const target = join(base, 'target')
@@ -26,6 +37,7 @@ async function setup(t, { io } = {}) {
   await writeFile(join(target, 'dropped.sav'), 'extra')
   // 扫描看不到 .nomedia，只剩它的多余文件夹要连同它删除。
   await writeFile(join(target, 'extra-dir', NOMEDIA_NAME), '')
+  await prepare?.(target, base)
   const adapter = await createDirectoryAdapter(join(privateDir, 'directories.json'))
   const selected = await adapter.registerDirectory(target)
   assert.equal(selected.status, 'success')
@@ -220,6 +232,45 @@ test('要删除的文件夹里出现别的文件时不删', async (t) => {
   const failed = result.outcomes.find((item) => item.path.join('/') === 'extra-dir')
   assert.equal(failed.status, 'failed')
   assert.equal((await readTree(fixture.target))['extra-dir/late.sav'], 'late')
+})
+
+test('目标里有与新建条目同名的链接时那一步失败，不跟随链接', async (t) => {
+  let outside = null
+  const fixture = await setup(t, {
+    prepare: async (target, base) => {
+      outside = join(base, 'outside')
+      await mkdir(outside)
+      await symlink(outside, join(target, 'new'), 'junction')
+    },
+  })
+  const { material } = sourceMaterial()
+
+  const result = await fixture.writer.apply(copyPlan(fixture, material), material)
+
+  const failed = result.outcomes.find((item) => item.path.join('/') === 'new')
+  assert.equal(failed.status, 'failed')
+  assert.ok((await lstat(join(fixture.target, 'new'))).isSymbolicLink())
+  assert.deepEqual(await readdir(outside), [])
+})
+
+test('要删除的文件夹里只剩链接时不删，链接和它指向的内容保留', async (t) => {
+  let outside = null
+  const fixture = await setup(t, {
+    prepare: async (target, base) => {
+      outside = join(base, 'outside')
+      await mkdir(outside)
+      await writeFile(join(outside, 'other.sav'), 'other')
+      await symlink(outside, join(target, 'extra-dir', 'link'), 'junction')
+    },
+  })
+  const { material } = sourceMaterial()
+
+  const result = await fixture.writer.apply(copyPlan(fixture, material), material)
+
+  const failed = result.outcomes.find((item) => item.path.join('/') === 'extra-dir')
+  assert.equal(failed.status, 'failed')
+  assert.ok((await lstat(join(fixture.target, 'extra-dir', 'link'))).isSymbolicLink())
+  assert.deepEqual(await readdir(outside), ['other.sav'])
 })
 
 test('写入途中进程结束时，下次启动能列出写入标记和这次的备份', async (t) => {

@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { open, readdir, realpath } from 'node:fs/promises'
+import { lstat, open, readdir, realpath } from 'node:fs/promises'
 import type { BigIntStats } from 'node:fs'
 import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path'
 import type { Readable } from 'node:stream'
@@ -144,7 +144,7 @@ export class DesktopDirectoryAdapter {
   }
 
   /**
-   * 把绝对路径登记为根目录，配置保存成功后才生效。
+   * 把绝对路径登记为根目录，配置保存成功后才生效。路径先解析成真实路径，经过符号链接或目录联接选择的目录按链接目标登记。
    * 重新登记同一路径时保留 rootId，并让这个根下的旧条目引用失效。
    */
   async registerDirectory(path: string): Promise<OperationResult<DirectoryReference>> {
@@ -156,14 +156,16 @@ export class DesktopDirectoryAdapter {
             'Select a valid absolute local directory.',
           )
         }
-        const stats = await inspectLocalPath(path)
+        // 系统选择器返回的路径可能经过符号链接（如 /home 本身是链接、Wine 前缀里的盘符链接）；
+        // 登记解析后的路径，之后访问时路径中途再出现链接仍按越界拒绝。
+        const canonicalPath = await realpath(path)
+        const stats = await inspectLocalPath(canonicalPath)
         if (!stats.isDirectory()) {
           throw new DirectoryAccessError(
             'invalid-request',
             'The selected entry is not a directory.',
           )
         }
-        const canonicalPath = await realpath(path)
         this.assertNotPrivate(canonicalPath)
         if (isWithinDirectory(canonicalPath, this.configPath)) {
           throw new DirectoryAccessError(
@@ -218,7 +220,7 @@ export class DesktopDirectoryAdapter {
     })
   }
 
-  /** 列出目录的一层；文件夹的大小为 null。 */
+  /** 列出目录的一层，只含普通文件和文件夹；文件夹的大小为 null。 */
   async listDirectory(
     rootId: string,
     parentId: string | null = null,
@@ -235,13 +237,13 @@ export class DesktopDirectoryAdapter {
       const entries: EntryMetadata[] = []
       for (const name of names) {
         const childPath = join(directoryPath, name)
-        const stats = await inspectLocalPath(childPath)
-        if (!stats.isFile() && !stats.isDirectory()) {
-          throw new DirectoryAccessError(
-            'unsupported-operation',
-            'The directory contains an unsupported file type.',
-          )
+        // 符号链接、目录联接、FIFO、套接字和设备文件不同步，跟 .nomedia 一样不列出。
+        // 跟随链接可能读写到根目录以外，读 FIFO 和设备文件会阻塞或读不完。
+        const linkStats = await lstat(childPath)
+        if (!linkStats.isFile() && !linkStats.isDirectory()) {
+          continue
         }
+        const stats = await inspectLocalPath(childPath)
         entries.push(this.describeEntry(root, childPath, stats, parentId))
       }
       await this.inspectRoot(rootId)

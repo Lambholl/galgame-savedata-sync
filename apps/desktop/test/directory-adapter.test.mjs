@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { execFile } from 'node:child_process'
 import {
   mkdtemp,
   mkdir,
@@ -10,9 +11,11 @@ import {
   symlink,
   writeFile,
 } from 'node:fs/promises'
+import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { dirname, isAbsolute, join, relative, sep } from 'node:path'
 import test from 'node:test'
+import { promisify } from 'node:util'
 import { createDirectoryAdapter } from '../src/backend/directory-adapter.ts'
 import { isWithinDirectory } from '../src/backend/directory-paths.ts'
 
@@ -71,9 +74,8 @@ test('登记配置与目录分离，重启保留设备和根 ID，不持久化�
 })
 
 test('只读取当前层，目录大小恒为空，展开后才访问后代', async (t) => {
-  const { root, outside, adapter } = await createFixture(t)
+  const { root, adapter } = await createFixture(t)
   await mkdir(join(root, '子目录'))
-  await symlink(outside, join(root, '子目录', 'junction'), 'junction')
   await writeFile(join(root, '存档 01.sav'), '内容')
   const selected = value(await adapter.registerDirectory(root))
   const listing = value(await adapter.listDirectory(selected.rootId))
@@ -83,10 +85,6 @@ test('只读取当前层，目录大小恒为空，展开后才访问后代', as
   assert.equal(
     listing.entries.find((entry) => entry.kind === 'file').sizeBytes,
     Buffer.byteLength('内容'),
-  )
-  assert.equal(
-    (await adapter.listDirectory(selected.rootId, directory.entryId)).error.code,
-    'path-outside-root',
   )
 })
 test('空目录成功，与失效、未登记及非法引用的错误不同', async (t) => {
@@ -102,19 +100,40 @@ test('空目录成功，与失效、未登记及非法引用的错误不同', as
   assert.equal((await adapter.listDirectory(selected.rootId)).error.code, 'not-found')
 })
 
-test('符号链接和 junction 根/祖先不允许登记，兄弟同名前缀不算根内', async (t) => {
+test('经过符号链接或 junction 选择的目录按真实路径登记，兄弟同名前缀不算根内', async (t) => {
   const { base, root, outside, adapter } = await createFixture(t)
+  const selected = value(await adapter.registerDirectory(root))
   const alias = join(base, 'alias')
   await symlink(root, alias, 'junction')
-  assert.equal((await adapter.registerDirectory(alias)).error.code, 'path-outside-root')
+  assert.deepEqual(value(await adapter.registerDirectory(alias)), selected)
   await mkdir(join(root, 'nested'))
   assert.equal(
-    (await adapter.registerDirectory(join(alias, 'nested'))).error.code,
-    'path-outside-root',
+    value(await adapter.registerDirectory(join(alias, 'nested'))).displayPath,
+    join(root, 'nested'),
   )
   assert.equal(isWithinDirectory(root, `${root}-sibling`), false)
   assert.equal(isWithinDirectory(root, outside), false)
   assert.equal(isWithinDirectory(root, join(root, 'nested')), true)
+})
+
+test('目录里的符号链接、junction、FIFO 和套接字不列出，其他条目照常列出', async (t) => {
+  const { root, outside, adapter } = await createFixture(t)
+  await writeFile(join(root, 'save.sav'), 'save')
+  await mkdir(join(root, 'folder'))
+  await symlink(outside, join(root, 'junction'), 'junction')
+  // Windows 上创建文件符号链接要管理员权限，也没有 FIFO 和 Unix 套接字文件。
+  if (process.platform !== 'win32') {
+    await symlink(join(root, 'save.sav'), join(root, 'file-link'))
+    await promisify(execFile)('mkfifo', [join(root, 'fifo')])
+    const server = createServer()
+    await new Promise((resolve, reject) => {
+      server.once('error', reject).listen(join(root, 'socket'), resolve)
+    })
+    t.after(() => new Promise((resolve) => server.close(resolve)))
+  }
+  const selected = value(await adapter.registerDirectory(root))
+  const listing = value(await adapter.listDirectory(selected.rootId))
+  assert.deepEqual(listing.entries.map((entry) => entry.name).sort(), ['folder', 'save.sav'])
 })
 
 test('文件读流验证引用归属，拒绝文件当目录和跨根引用', async (t) => {

@@ -151,7 +151,7 @@ export async function startBackend(options: BackendOptions): Promise<DesktopBack
   let stage = 'app-data'
   try {
     // 平台提供的目录可能经过系统重定向；先解析成真实路径，再做缓存的逐段检查和包含关系检查。
-    // 用户选择的存档目录仍由目录适配器独立拒绝链接和越界。
+    // 用户选择的存档目录由目录适配器在登记时另行解析。
     const prepare = async (path: string): Promise<string> => {
       await mkdir(path, { recursive: true })
       return realpath(path)

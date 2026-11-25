@@ -490,7 +490,14 @@ export class DesktopSyncWriter {
       job.locations.set(syncPathKey(operation.path), location)
       return outcome(operation, 'succeeded')
     } catch (error) {
-      if (!hasCreated) {
+      // mkdir 报 EEXIST 说明这个名称原来就有条目（如扫描看不到的链接或特殊文件），这一步确定没有创建。
+      const wasTaken =
+        !hasCreated &&
+        typeof error === 'object' &&
+        error !== null &&
+        'code' in error &&
+        error.code === 'EEXIST'
+      if (!hasCreated && !wasTaken) {
         hasCreated = await lstat(path).then(
           () => true,
           () => false,
