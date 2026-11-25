@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="app_background">#FFFFFF</color>
+    <!-- 自适应图标的背景层；不随夜间模式变化，所以没有 values-night 版本。 -->
+    <color name="ic_launcher_background">#FFFFFF</color>
 </resources>

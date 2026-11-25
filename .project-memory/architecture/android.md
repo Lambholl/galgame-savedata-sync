@@ -76,7 +76,7 @@ Android 可作拨号方和监听方。作拨号方时原生层连接监听方、
 
 Android 使用日夜主题及 `values`/`values-night` 的窗口/启动背景，WebView 为透明底色；运行中以 MainActivity 的 `savedata:theme-change` 原生通知（仅含 `isDark: boolean`）为准修正 WebView 缓存的媒体查询，并用 Capacitor 内置 `SystemBars` 显式同步系统栏图标颜色。应用自行渲染暗色，关闭原生自动反色。设置页可选择跟随系统、浅色或深色，偏好保存到原生存储。
 
-`drawable-nodpi/app_logo.png` 与仓库根目录 `assets/app-logo.webp` 使用同一份 PNG。Manifest 的 icon 和 roundIcon 直接引用该图片，保留透明背景；显示形状由系统和启动器决定。系统启动画面用 `drawable-nodpi/splash_open.webp`，随后由原生开屏覆盖层接管；设置里的“开屏动画”默认打开，关闭时覆盖层只停到网页首屏就绪，不播放眨眼动画。应用页面保留文字标识，不加 logo。
+应用图标是自适应图标：Manifest 的 icon 和 roundIcon 都引用 `mipmap-anydpi-v26/ic_launcher.xml`，背景层为纯色 `@color/ic_launcher_background`（白色，不随夜间模式变化），前景层为各密度的 `mipmap-*/ic_launcher_foreground.webp`（108 dp 画布，无损 WebP），启动器按自己的形状裁切。minSdk 30 都支持自适应图标，所以没有旧式位图图标。系统启动画面用 `drawable-nodpi/splash_open.webp`，随后由原生开屏覆盖层接管；设置里的“开屏动画”默认打开，关闭时覆盖层只停到网页首屏就绪，不播放眨眼动画。应用页面保留文字标识，不加 logo。
 
 ## 4. 目录桥与原生边界
 
