@@ -15,7 +15,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 
-/** 界面偏好（主题、语言、自动添加 .nomedia）的原生插件：偏好保存在应用私有 SharedPreferences，主题同时设置 AppCompat 夜间模式。 */
+/** 界面偏好（主题、语言、自动添加 .nomedia、开屏动画）的原生插件：偏好保存在应用私有 SharedPreferences，主题同时设置 AppCompat 夜间模式。 */
 @CapacitorPlugin(name = "AppPreferences")
 public class AppPreferencesPlugin extends Plugin {
 
@@ -25,6 +25,9 @@ public class AppPreferencesPlugin extends Plugin {
 
   /** “自动添加 .nomedia”开关在 {@link #FILE} 里的键，值为布尔值；没有这个键时开关关闭。 */
   static final String ADD_NOMEDIA = "addNomedia";
+
+  /** “开屏动画”开关在 {@link #FILE} 里的键，值为布尔值；没有这个键时开关打开。 */
+  static final String LAUNCH_ANIMATION = "launchAnimation";
 
   private static SharedPreferences store(Context context) {
     return context.getSharedPreferences(FILE, Context.MODE_PRIVATE);
@@ -100,6 +103,42 @@ public class AppPreferencesPlugin extends Plugin {
       return;
     }
     call.resolve(nomediaSnapshot(store));
+  }
+
+  /** 返回是否播放开屏动画；没有保存过或保存的值不是布尔值时返回 true。 */
+  static boolean shouldPlayLaunchAnimation(Context context) {
+    return !Boolean.FALSE.equals(store(context).getAll().get(LAUNCH_ANIMATION));
+  }
+
+  private static JSObject launchAnimationSnapshot(Context context) {
+    JSObject value = new JSObject();
+    value.put("shouldPlayLaunchAnimation", shouldPlayLaunchAnimation(context));
+    return value;
+  }
+
+  @PluginMethod
+  public void readLaunchAnimationSetting(PluginCall call) {
+    call.resolve(launchAnimationSnapshot(getContext()));
+  }
+
+  /** 保存是否播放开屏动画，在界面线程更新最近任务截图的开关，返回保存后的值。 */
+  @PluginMethod
+  public void writeLaunchAnimationSetting(PluginCall call) {
+    Boolean shouldPlay = call.getBoolean("shouldPlayLaunchAnimation");
+    if (shouldPlay == null) {
+      call.reject("invalid-request");
+      return;
+    }
+    if (!store(getContext()).edit().putBoolean(LAUNCH_ANIMATION, shouldPlay).commit()) {
+      call.reject("io-failure");
+      return;
+    }
+    getActivity().runOnUiThread(() -> {
+      if (getActivity() instanceof MainActivity && !getActivity().isDestroyed()) {
+        ((MainActivity) getActivity()).applyLaunchAnimationSetting();
+      }
+    });
+    call.resolve(launchAnimationSnapshot(getContext()));
   }
 
   @PluginMethod

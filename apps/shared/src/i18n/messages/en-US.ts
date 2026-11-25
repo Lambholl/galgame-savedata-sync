@@ -35,6 +35,7 @@ export const enUS: Messages = {
   'settings.version': 'Version',
   'settings.storage': 'Storage',
   'settings.directAccess': 'Direct file access',
+  'settings.launchAnimation': 'Launch animation',
   'settings.addNomedia': 'Add .nomedia automatically',
   'settings.addNomediaFailed': 'Could not add .nomedia to the save folders of these games',
   'directAccess.openFailed': 'Cannot open the system permission page',

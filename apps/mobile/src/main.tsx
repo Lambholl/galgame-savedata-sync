@@ -7,6 +7,7 @@ import type { VersionedDataItem } from '@savedata-sync/shared'
 import { installDesignTokens } from '@savedata-sync/shared/ui'
 import { getAppPreferences, loadAppPreferences } from './app/app-preferences'
 import { loadNomediaSetting } from './app/nomedia'
+import { loadLaunchAnimationSetting } from './app/launch-animation-setting'
 import { loadAppStorage, readNewerData } from './platform/app-storage'
 import { finishStartup } from './platform/launch-animation'
 import { startSystemTheme } from './app/system-theme'
@@ -63,7 +64,7 @@ Promise.all([loadAppPreferences(), readNewerData()])
       finishStartup()
       return
     }
-    await Promise.all([loadAppStorage(), loadNomediaSetting()])
+    await Promise.all([loadAppStorage(), loadNomediaSetting(), loadLaunchAnimationSetting()])
     // 先提交 React 首屏，再让原生等待 WebView 绘制；开屏淡出时，页面内容已经就绪。
     flushSync(() => {
       createRoot(root).render(

@@ -11,6 +11,10 @@ import type {
 import { useT } from '@savedata-sync/shared/ui'
 import { useFailureMessage } from '../../app/failure-message'
 import { setNomediaSetting, useNomedia } from '../../app/nomedia'
+import {
+  setLaunchAnimationSetting,
+  useLaunchAnimationSetting,
+} from '../../app/launch-animation-setting'
 import { useAllFilesAccess } from '../../app/use-all-files-access'
 import type { MobileSyncAdapter } from '../../platform/sync-adapter'
 import { BackupKeepCountField } from '../../components/BackupKeepCountField'
@@ -19,7 +23,7 @@ import { SwitchItem } from '../../components/SwitchItem'
 
 const THEMES: readonly ThemePreference[] = ['system', 'light', 'dark']
 
-/** 应用设置：外观、备份库的保留份数、存储权限和自动添加 .nomedia，改动立即保存。 */
+/** 应用设置：外观和开屏动画、备份库的保留份数、存储权限和自动添加 .nomedia，改动立即保存。 */
 export function SettingsPage({
   sync,
   games,
@@ -77,6 +81,12 @@ export function SettingsPage({
       showFailure(toShownError(cause), t('settings.saveFailed'))
     })
   }
+  const shouldPlayLaunchAnimation = useLaunchAnimationSetting()
+  function changeLaunchAnimation(shouldPlay: boolean): void {
+    setLaunchAnimationSetting(shouldPlay).catch((cause: unknown) => {
+      showFailure(toShownError(cause), t('settings.saveFailed'))
+    })
+  }
   function openDirectAccessSettings(): void {
     directAccess.openSettings().catch((cause: unknown) => {
       setBackupError({ context: t('directAccess.openFailed'), error: toShownError(cause) })
@@ -111,6 +121,11 @@ export function SettingsPage({
           value={preferences.theme}
           onChange={(theme) => onChange({ ...preferences, theme })}
           onOverlayChange={onOverlayChange}
+        />
+        <SwitchItem
+          title={t('settings.launchAnimation')}
+          isChecked={shouldPlayLaunchAnimation}
+          onChange={changeLaunchAnimation}
         />
       </List>
       {failureHolder}

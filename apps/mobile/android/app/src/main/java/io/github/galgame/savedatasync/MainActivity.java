@@ -29,7 +29,7 @@ public class MainActivity extends BridgeActivity {
     // 先按已保存主题设置夜间模式，窗口背景和启动画面随之取 values / values-night。
     AppPreferencesPlugin.applyStoredTheme(this);
     SplashScreen splash = SplashScreen.installSplashScreen(this);
-    launchAnimation = new LaunchAnimation();
+    launchAnimation = new LaunchAnimation(AppPreferencesPlugin.shouldPlayLaunchAnimation(this));
     splash.setOnExitAnimationListener(launchAnimation::start);
     registerPlugin(LaunchAnimationPlugin.class);
     registerPlugin(AppPreferencesPlugin.class);
@@ -51,10 +51,7 @@ public class MainActivity extends BridgeActivity {
     super.onCreate(savedInstanceState);
     // Android 15 起系统强制窗口铺满，更低版本要主动开启；否则页面画不到系统栏下面，状态栏显示系统自己的颜色。
     EdgeToEdge.enable(this);
-    // 系统从后台恢复窗口时会先显示任务快照，也就是离开前的页面，然后才轮到开屏覆盖层。
-    if (Build.VERSION.SDK_INT >= 33) {
-      setRecentsScreenshotEnabled(false);
-    }
+    applyLaunchAnimationSetting();
     ViewGroup decor = (ViewGroup) getWindow().getDecorView();
     // 系统回收后重建时，启动窗口可能是任务快照，开屏退出回调不一定到达。
     if (savedInstanceState == null) {
@@ -79,6 +76,14 @@ public class MainActivity extends BridgeActivity {
     }
   }
 
+  /** 按已保存的开屏动画开关设置最近任务里是否保留页面截图；只能在主线程调用。 */
+  void applyLaunchAnimationSetting() {
+    // 系统从后台恢复窗口时会先显示任务截图，也就是离开前的页面，然后才轮到开屏覆盖层；播放开屏动画时关掉截图。
+    if (Build.VERSION.SDK_INT >= 33) {
+      setRecentsScreenshotEnabled(!AppPreferencesPlugin.shouldPlayLaunchAnimation(this));
+    }
+  }
+
   /** 标记网页首屏已就绪，WebView 完成绘制后让开屏动画继续。 */
   void onStartupContentReady() {
     if (getBridge() == null) {
@@ -99,7 +104,7 @@ public class MainActivity extends BridgeActivity {
     );
   }
 
-  /** 从后台返回时在下一次绘制前重新播放开屏动画；从文件夹选择器返回时跳过。 */
+  /** 开屏动画开着时，从后台返回在下一次绘制前重新播放；从文件夹选择器返回时跳过。 */
   @Override
   public void onRestart() {
     super.onRestart();
@@ -107,7 +112,7 @@ public class MainActivity extends BridgeActivity {
       isSystemPickerOpen = false;
       return;
     }
-    launchAnimation = new LaunchAnimation();
+    launchAnimation = new LaunchAnimation(AppPreferencesPlugin.shouldPlayLaunchAnimation(this));
     launchAnimation.replay((ViewGroup) getWindow().getDecorView());
     // 网页首屏就绪只通知一次；还没就绪时由 onStartupContentReady 继续。
     if (isStartupContentReady) {

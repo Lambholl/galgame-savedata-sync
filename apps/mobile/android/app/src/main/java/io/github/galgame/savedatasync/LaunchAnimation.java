@@ -27,6 +27,8 @@ import androidx.core.splashscreen.SplashScreenViewProvider;
 /**
  * 开屏动画：从系统图标的位置和尺寸开始，眨眼时扩大圆形遮罩露出立绘，再淡出背景，角色保持不透明滑出。
  *
+ * <p>不播放动画时，冷启动的静态头像停留到网页内容就绪后直接移除，replay 不显示覆盖层。
+ *
  * <p>只能在 Activity 的主线程使用。每个实例只播放一次；stop 释放动画、延迟任务和开屏 View。
  */
 final class LaunchAnimation {
@@ -59,6 +61,12 @@ final class LaunchAnimation {
   private boolean isStopped;
   private boolean hasExitStarted;
   private boolean hasBlinkStarted;
+  private final boolean shouldAnimate;
+
+  /** 创建开屏动画；shouldAnimate 为 false 时不播放动画。 */
+  LaunchAnimation(boolean shouldAnimate) {
+    this.shouldAnimate = shouldAnimate;
+  }
 
   /** 准备覆盖层，在系统开屏图标的位置显示睁眼头像；要在 Activity 首帧之前调用。 */
   void prepare(ViewGroup decor) {
@@ -170,12 +178,12 @@ final class LaunchAnimation {
   }
 
   /**
-   * 直接准备并播放开屏动画；系统关闭了动画效果时不显示覆盖层。
+   * 直接准备并播放开屏动画；不播放动画或系统关闭了动画效果时不显示覆盖层。
    *
    * <p>头像使用 prepare 算出的图标尺寸，动画在 contentReady 之后的第一次绘制开始。
    */
   void replay(ViewGroup decor) {
-    if (!ValueAnimator.areAnimatorsEnabled()) {
+    if (!shouldAnimate || !ValueAnimator.areAnimatorsEnabled()) {
       stop();
       return;
     }
@@ -200,7 +208,7 @@ final class LaunchAnimation {
     splash.remove();
     handler.removeCallbacks(timeout);
     handler.postDelayed(timeout, MAX_WAIT_MS);
-    if (!ValueAnimator.areAnimatorsEnabled()) {
+    if (!shouldAnimate || !ValueAnimator.areAnimatorsEnabled()) {
       shouldSkip = true;
     }
     continueWhenReady();

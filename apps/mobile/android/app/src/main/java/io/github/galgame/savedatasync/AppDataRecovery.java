@@ -260,10 +260,15 @@ final class AppDataRecovery {
         wasSetAside = true;
       }
     }
-    Object addNomedia = saved.get(AppPreferencesPlugin.ADD_NOMEDIA);
-    if (addNomedia != null && !(addNomedia instanceof Boolean)) {
-      remove(store, AppPreferencesPlugin.ADD_NOMEDIA);
-      wasSetAside = true;
+    for (String key : List.of(
+      AppPreferencesPlugin.ADD_NOMEDIA,
+      AppPreferencesPlugin.LAUNCH_ANIMATION
+    )) {
+      Object value = saved.get(key);
+      if (value != null && !(value instanceof Boolean)) {
+        remove(store, key);
+        wasSetAside = true;
+      }
     }
     return wasSetAside;
   }

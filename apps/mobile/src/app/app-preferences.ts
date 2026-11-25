@@ -9,6 +9,8 @@ interface AppPreferencesPlugin {
   write(options: { theme: string; locale: string }): Promise<unknown>
   readNomediaSetting(): Promise<unknown>
   writeNomediaSetting(options: { shouldAddNomedia: boolean }): Promise<unknown>
+  readLaunchAnimationSetting(): Promise<unknown>
+  writeLaunchAnimationSetting(options: { shouldPlayLaunchAnimation: boolean }): Promise<unknown>
 }
 
 const NATIVE =
@@ -98,5 +100,37 @@ export async function readNomediaSetting(): Promise<boolean> {
 export async function writeNomediaSetting(shouldAddNomedia: boolean): Promise<void> {
   if (NATIVE) {
     await NATIVE.writeNomediaSetting({ shouldAddNomedia })
+  }
+}
+
+/**
+ * 读取是否播放开屏动画。
+ *
+ * @returns 没有保存过、保存的值无效或没有原生插件时为 true。
+ * @throws Error 原生插件读取失败。
+ */
+export async function readLaunchAnimationSetting(): Promise<boolean> {
+  if (!NATIVE) {
+    return true
+  }
+  const value = await NATIVE.readLaunchAnimationSetting()
+  return !(
+    typeof value === 'object' &&
+    value !== null &&
+    'shouldPlayLaunchAnimation' in value &&
+    value.shouldPlayLaunchAnimation === false
+  )
+}
+
+/**
+ * 保存是否播放开屏动画，下次冷启动或从后台返回时生效；没有原生插件时什么也不做。
+ *
+ * @throws Error 原生插件保存失败。
+ */
+export async function writeLaunchAnimationSetting(
+  shouldPlayLaunchAnimation: boolean,
+): Promise<void> {
+  if (NATIVE) {
+    await NATIVE.writeLaunchAnimationSetting({ shouldPlayLaunchAnimation })
   }
 }

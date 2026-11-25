@@ -33,6 +33,7 @@ export const zhTW: Messages = {
   'settings.version': '版本',
   'settings.storage': '儲存空間',
   'settings.directAccess': '直接讀寫檔案',
+  'settings.launchAnimation': '啟動動畫',
   'settings.addNomedia': '自動新增 .nomedia',
   'settings.addNomediaFailed': '以下遊戲的存檔目錄未能新增 .nomedia',
   'directAccess.openFailed': '無法開啟系統授權頁',

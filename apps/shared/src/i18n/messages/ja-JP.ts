@@ -36,6 +36,7 @@ export const jaJP: Messages = {
   'settings.version': 'バージョン',
   'settings.storage': 'ストレージ',
   'settings.directAccess': 'ファイルを直接読み書き',
+  'settings.launchAnimation': '起動アニメーション',
   'settings.addNomedia': '.nomedia を自動で追加',
   'settings.addNomediaFailed': '次のゲームの保存先に .nomedia を追加できませんでした',
   'directAccess.openFailed': 'システムの許可画面を開けません',

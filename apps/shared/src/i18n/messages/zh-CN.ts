@@ -35,6 +35,7 @@ export const zhCN = {
   'settings.version': '版本',
   'settings.storage': '存储',
   'settings.directAccess': '直接读写文件',
+  'settings.launchAnimation': '开屏动画',
   'settings.addNomedia': '自动添加 .nomedia',
   'settings.addNomediaFailed': '以下游戏的存档目录未能添加 .nomedia',
   'directAccess.openFailed': '无法打开系统授权页',
