@@ -251,9 +251,9 @@ Windows → Android（监听方 → 拨号方）：按确认计划里发起端�
 | `ListenerControl` | 控制通道监听端：同一时间一条连接，同一设备的新连接以 4002 取代旧连接，主动断开用 4001。每 15 秒 ping，请求 8 秒超时。对方发来的请求交给 `requests` 登记的处理函数，在单独的应答线程上执行；目前只应答 `poster.read`，其他方法答复 unsupported-operation |
 | `ListenerLibrary` | 目录表交换，规则与电脑监听方相同：屏蔽的设备 permission-denied；被断开的设备要带 `x-sync-connect: 1` 重新连接，否则 session-mismatch；本机正在拨号或已有别的设备在线时 busy；最多 32 台设备。新连接把设备移到已保存列表开头，合并对方的关联后写入配置。配置的读、改、写在 `ListenerLibrary` 的锁里完成；关闭控制连接和通知网页层配置已变都在锁外进行。经控制通道 `directory.list` 浏览对方目录，父目录必须是本会话读到过的条目 |
 | `ListenerAdvertiser` | NsdManager 注册 `_savedata-sync._tcp`，TXT 与电脑相同；注册失败 30 秒后重试，停止服务时注销 |
-| `ListenerRuntime` | 应用 Context 持有的单例：开关和端口保存在 SharedPreferences（`local-service`），首次生成 49152–65535 的随机端口，服务停止时才能换端口。本机地址优先 Wi-Fi 和以太网，再是热点，排除移动网络、VPN、回环、链路本地和 198.18/15，最多 8 个 |
+| `ListenerRuntime` | 应用 Context 持有的单例：服务只在本进程内运行，开关不保存；端口保存在 SharedPreferences（`local-service`），首次生成 49152–65535 的随机端口，服务停止时才能换端口。本机地址优先 Wi-Fi 和以太网，再是热点，排除移动网络、VPN、回环、链路本地和 198.18/15，最多 8 个 |
 | `ListenerService` | `connectedDevice` 前台服务，常驻通知显示推荐地址和连着的设备，带“停止”操作。不导出、`stopWithTask=false`、START_NOT_STICKY，没有开机启动 |
-| `LocalServicePlugin` | 网页接口；`handleOnResume` 时开关开着而服务没在运行（进程被系统结束过）就重新启动，启动失败则关掉开关 |
+| `LocalServicePlugin` | 网页接口；进程结束后再打开应用，服务保持关闭 |
 
 目录表交换在原生层完成，Activity 销毁后对方仍能连接。游戏库配置因此有两个写入方：`AppStoragePlugin.readLibrary` / `writeLibrary` 加同一把锁，原生层写入后发 `libraryChanged`，`library-adapter` 重新读入配置并丢掉缓存。网页的写入经 `appStorage` 按顺序交给原生层；`saveGames` 等写入落盘（`flushAppStorage`）后才发 `catalog.changed`，否则对方立即重新交换时原生层还读到旧的游戏和关联。读快照时还会补登记连着本机、配置里却没有的设备，防止网页的旧缓存覆盖原生层刚写入的设备。
 

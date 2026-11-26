@@ -99,8 +99,8 @@ public class ListenerService extends Service {
       stopForeground(STOP_FOREGROUND_REMOVE);
       stopSelf();
     }
-    // 进程被系统结束后不让系统重启服务：重启时没有 ListenerRuntime，服务会被直接停掉。开关开着时由
-    // LocalServicePlugin 在应用回到前台时重新启动。
+    // 进程被系统结束后不让系统重启服务：重启时没有 ListenerRuntime，服务会被直接停掉。打开应用时也不恢复服务：
+    // 进程结束可能是系统回收，也可能是用户划掉了应用，两者分不清，自动恢复会在用户不知情时重新在局域网里监听和广播。
     return START_NOT_STICKY;
   }
 

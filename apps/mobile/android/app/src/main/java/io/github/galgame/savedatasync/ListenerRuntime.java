@@ -25,8 +25,7 @@ import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.TimeUnit;
 
 /**
- * 进程内的本机服务：持有 HTTP 服务、局域网广播和前台服务。端口首次在 {@link #MIN_PORT} 到 {@link #MAX_PORT} 之间随机生成并保存；
- * 开关状态也保存，由 {@link #resume} 按开关重新启动。
+ * 进程内的本机服务：持有 HTTP 服务、局域网广播和前台服务。端口首次在 {@link #MIN_PORT} 到 {@link #MAX_PORT} 之间随机生成并保存。
  */
 final class ListenerRuntime {
 
@@ -39,7 +38,6 @@ final class ListenerRuntime {
 
   static final String SETTINGS = "local-service";
   static final String PORT = "port";
-  private static final String ENABLED = "enabled";
   /** 状态里本机 IPv4 地址的最多个数。 */
   private static final int MAX_ADDRESSES = 8;
   /** 等前台服务启动的最长时间（秒）。 */
@@ -189,10 +187,10 @@ final class ListenerRuntime {
   }
 
   /**
-   * 打开开关：在保存的端口监听 0.0.0.0，启动前台服务和局域网广播。已在运行时不做任何事。
+   * 启动服务：在保存的端口监听 0.0.0.0，启动前台服务和局域网广播。已在运行时不做任何事。
    *
    * @throws ArchiveFailure 端口被占用时抛出 port-unavailable，同步服务或前台服务启动不了时抛出
-   *     internal-error，开关状态不变。
+   *     internal-error，服务保持停止。
    */
   void start() throws ArchiveFailure {
     ListenerServer created;
@@ -263,29 +261,14 @@ final class ListenerRuntime {
         cause
       );
     }
-    settings.edit().putBoolean(ENABLED, true).apply();
     advertiser.start(host.displayName(), host.deviceId(), created.port());
     stateChanged();
   }
 
-  /**
-   * 开关开着但服务没在运行时重新启动；启动失败时关掉开关，失败原因保留在 {@link #status} 的 error 里。
-   */
-  void resume() {
-    if (settings.getBoolean(ENABLED, false) && !isRunning()) {
-      try {
-        start();
-      } catch (ArchiveFailure failed) {
-        settings.edit().putBoolean(ENABLED, false).apply();
-      }
-    }
-  }
-
-  /** 关掉开关：断开连接、注销广播、停止前台服务。可以重复调用。 */
+  /** 停止服务：断开连接、注销广播、停止前台服务。可以重复调用。 */
   void stop() {
     ListenerServer current;
     synchronized (this) {
-      settings.edit().putBoolean(ENABLED, false).apply();
       current = server;
       server = null;
       error = null;
@@ -311,7 +294,7 @@ final class ListenerRuntime {
   }
 
   /**
-   * 状态快照：设备 ID、保存的端口、开关、实际监听地址和开始时间、本机 IPv4 地址、广播状态、最近一次启动错误和当前连着的设备 ID。
+   * 状态快照：设备 ID、保存的端口、实际监听地址和开始时间、本机 IPv4 地址、广播状态、最近一次启动错误和当前连着的设备 ID。
    */
   synchronized Map<String, Object> status() {
     Map<String, Object> listener =
@@ -321,8 +304,6 @@ final class ListenerRuntime {
       host.deviceId(),
       "configuredPort",
       port(),
-      "isEnabled",
-      settings.getBoolean(ENABLED, false),
       "listener",
       listener,
       "ipv4Addresses",

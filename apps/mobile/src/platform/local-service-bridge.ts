@@ -28,8 +28,6 @@ export interface LocalServiceStatus {
   readonly deviceId: string
   /** 保存的监听端口，下次启动时使用。 */
   readonly configuredPort: number
-  /** 开关是否开着；进程被结束后到服务重新启动前，开关开着而 listener 为 null。 */
-  readonly isEnabled: boolean
   /** 正在监听的端口和开始时间（Unix 毫秒）；服务停止时为 null。 */
   readonly listener: { readonly port: number; readonly startedAt: number } | null
   /** 本机的局域网 IPv4 地址，按推荐顺序排列；服务停止时为空。 */
@@ -131,7 +129,6 @@ export function isLocalServiceStatus(value: unknown): value is LocalServiceStatu
   return (
     isOpaqueId(value.deviceId) &&
     isListeningPort(value.configuredPort) &&
-    typeof value.isEnabled === 'boolean' &&
     (listener === null ||
       (record(listener) &&
         isListeningPort(listener.port) &&

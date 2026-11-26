@@ -47,12 +47,6 @@ public class LocalServicePlugin extends Plugin {
     runtime.subscribe(observer);
   }
 
-  @Override
-  protected void handleOnResume() {
-    // 开关开着、进程却被结束过时，回到应用即重新启动服务。等 Activity 可见再启动：系统不允许后台应用启动前台服务。
-    io.execute(runtime::resume);
-  }
-
   private void submit(PluginCall call, Work work) {
     try {
       io.execute(() -> {
