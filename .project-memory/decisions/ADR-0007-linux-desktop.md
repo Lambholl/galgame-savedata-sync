@@ -2,10 +2,10 @@
 doc_type: adr
 status: accepted
 updated: 2026-11-26
-tags: [决策, Linux, 电脑端, 分发, 平台标识, 迁移, 符号链接]
+tags: [决策, Linux, 桌面端, 分发, 平台标识, 迁移, 符号链接]
 ---
 
-# ADR-0007 电脑端支持 Linux：分发形式、平台标识、迁移链和符号链接
+# ADR-0007 桌面端支持 Linux：分发形式、平台标识、迁移链和符号链接
 
 ## 目录
 
@@ -27,7 +27,7 @@ tags: [决策, Linux, 电脑端, 分发, 平台标识, 迁移, 符号链接]
 
 ## 状态
 
-accepted。全部已实现；随 1.1.0 发布，拆分和进度见[工作包登记](../development/work-packages.md)和[路线图](../project/roadmap.md) M-007。
+accepted。全部已实现并验收，随 1.1.0 发布。
 
 ## 替代关系
 
@@ -39,7 +39,7 @@ accepted。全部已实现；随 1.1.0 发布，拆分和进度见[工作包登�
 
 - ADR-0005 已经按 XDG 规划了 Linux 的存储目录，`storage.rs` 也有 Linux 分支；其余部分只在 Windows 上构建和测试过。
 - 推荐地址模块用 `route print` 和 `reg query`，不是 Windows 时直接报错（`recommended-address.ts`）。sidecar 构建和打包脚本只能在 Windows x64 上运行，CI 和发布工作流只有 `windows-latest`。
-- 协议、发现广播和游戏库里的设备平台只有 `'windows' | 'android'`。共享包 `library.ts` 和 Android `ListenerLibrary.java` 严格校验这个字段：1.0 读到其他值时整份游戏库校验失败，按读不懂的数据处理，电脑端改名保留后用空游戏库启动，Android 删除这份数据。
+- 协议、发现广播和游戏库里的设备平台只有 `'windows' | 'android'`。共享包 `library.ts` 和 Android `ListenerLibrary.java` 严格校验这个字段：1.0 读到其他值时整份游戏库校验失败，按读不懂的数据处理，桌面端改名保留后用空游戏库启动，Android 删除这份数据。
 - 1.0.0 已发布，ADR-0006 的兼容规则生效；1.0.0 不含迁移代码。
 - `directory-paths.ts` 遇到路径上任意一级是符号链接就拒绝访问，`directory-adapter.ts` 在目录里遇到文件和文件夹以外的条目时整个目录列不出来。Linux 上存档常在 Wine 或 Proton 前缀里，Steam 目录和前缀内部有大量符号链接，部分发行版的 `/home` 本身是符号链接，按现有规则很多存档目录用不了。
 
@@ -101,7 +101,7 @@ accepted。全部已实现；随 1.1.0 发布，拆分和进度见[工作包登�
 
 - 1.1.0 起协议和游戏库的版本都变了，Windows 和 Android 要一起升级；降级回 1.0 的应用会因为游戏库版本更新而拒绝启动。
 - 1.0 的设备连接 Linux 设备时提示版本不支持，实测如此。
-- AppImage 内含 WebKitGTK，体积比 deb 大；Ubuntu 22.04 及以后要另装 `libfuse2` 才能直接运行 AppImage。
+- AppImage 内含 WebKitGTK，体积比 deb 大；Ubuntu 22.04 及以后要另装 FUSE 2（`libfuse2` 或 `libfuse2t64`）才能直接运行 AppImage。
 - 发布工作流要增加 Linux 构建，Rust 和 WebKitGTK 的构建依赖要进 CI。
 - Linux 上没有 Windows 防火墙那样的首次运行提示，开着 ufw 或 firewalld 时端口要用户自己放行。
 

@@ -6,12 +6,15 @@
 
 - [快速开始](#快速开始)
 - [环境要求](#环境要求)
-- [Linux 环境准备](#linux-环境准备)
-- [本机工具路径](#本机工具路径)
+  - [工具版本](#工具版本)
+  - [Linux 环境准备](#linux-环境准备)
+  - [本机工具路径](#本机工具路径)
 - [常用命令](#常用命令)
 - [仓库结构](#仓库结构)
-- [Windows 打包](#windows-打包)
-- [Linux 打包](#linux-打包)
+- [桌面端打包](#桌面端打包)
+  - [后端 sidecar](#后端-sidecar)
+  - [Windows](#windows)
+  - [Linux](#linux)
 - [Android 构建与调试](#android-构建与调试)
   - [用 Chrome 检查页面](#用-chrome-检查页面)
   - [加载电脑上的开发服务器](#加载电脑上的开发服务器)
@@ -24,12 +27,16 @@
   - [GitHub Actions 配置](#github-actions-配置)
   - [密钥丢失或泄露](#密钥丢失或泄露)
 - [兼容性与卸载](#兼容性与卸载)
+  - [数据兼容性与迁移](#数据兼容性与迁移)
+  - [存储目录与卸载影响](#存储目录与卸载影响)
 - [版本号与发布](#版本号与发布)
   - [版本号规则](#版本号规则)
   - [1.x 版本升级规则](#1x-版本升级规则)
-  - [发布流程](#发布流程)
-- [依赖版本与更新](#依赖版本与更新)
-- [依赖安全检查](#依赖安全检查)
+  - [日常 CI 与发布流程](#日常-ci-与发布流程)
+- [依赖管理](#依赖管理)
+  - [版本写法与更新](#版本写法与更新)
+  - [安全检查](#安全检查)
+  - [修改依赖注意](#修改依赖注意)
 - [常见问题](#常见问题)
 
 ## 快速开始
@@ -48,6 +55,8 @@ pnpm dev:desktop
 
 ## 环境要求
 
+### 工具版本
+
 | 工具 | 要求 |
 | --- | --- |
 | Node.js | 22.13+，建议用仍在官方维护期内的主版本里最新的安全补丁版本（`pnpm security:node` 不达标时提示）；需支持 TypeScript 类型剥离，部分 Linux 发行版打包的 Node 去掉了这项功能，改用 nodejs.org 的官方构建；桌面端开发版使用 `PATH` 中的 `node` 运行 sidecar |
@@ -59,9 +68,9 @@ pnpm dev:desktop
 | Android SDK | Platform 36、Build Tools 35.0.0+、Platform Tools、Command-line Tools（latest） |
 | Android Studio | 2025.2.1+（仅调试 Android 原生代码时需要） |
 
-仅开发桌面端时不需要安装 JDK、Android SDK 与 Android Studio。Android 最低支持 Android 11（API 30），编译目标为 API 36；前端 React 版本锁定在 18（受限于 `antd-mobile` 动画依赖）。
+仅开发与运行桌面端时不需要安装 Android SDK 与 Android Studio；提交前运行 `pnpm check` 中的 Checkstyle 检查需要 JDK 21–24。Android 最低支持 Android 11（API 30），编译目标为 API 36；前端 React 版本锁定在 18（受限于 `antd-mobile` 动画依赖）。
 
-## Linux 环境准备
+### Linux 环境准备
 
 以下命令适用于 Debian、Ubuntu 及其衍生发行版，安装 Tauri 的构建依赖和 Rust：
 
@@ -73,11 +82,11 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profil
 
 - Node.js 用 nodejs.org 的官方构建或 nvm、fnm 等版本管理器安装，`pnpm doctor --desktop` 的 “Node.js TypeScript stripping” 一项通过即可。
 - rustup 把工具装在 `~/.cargo/bin`，新开终端或执行 `. "$HOME/.cargo/env"` 后生效。
-- `pnpm lint` 的 Checkstyle 需要 JDK 21–24，只开发桌面端时也要装。软件源里有 `openjdk-21-jdk` 时直接安装，没有时另装 Eclipse Temurin 21；脚本不读系统默认的 `java`，要在 `dev.local.json` 的 `javaHome` 或 `JAVA_HOME` 里指定 JDK 21 的路径（Debian 系的 apt 包装在 `/usr/lib/jvm/java-21-openjdk-amd64`）。
+- `pnpm lint` 的 Checkstyle 需要 JDK 21–24，软件源里有 `openjdk-21-jdk` 时直接安装，没有时另装 Eclipse Temurin 21；脚本不读系统默认的 `java`，要在 `dev.local.json` 的 `javaHome` 或 `JAVA_HOME` 里指定 JDK 21 的路径（Debian 系的 apt 包安装在 `/usr/lib/jvm/java-21-openjdk-amd64`）。
 - 从 Windows 复制过来的仓库要删掉 `node_modules` 后重新 `pnpm install`，其中带有平台相关的二进制。
-- 打包另需 `patchelf`（`sudo apt install patchelf`），见 [Linux 打包](#linux-打包)。
+- 打包另需 `patchelf`（`sudo apt install patchelf`），见 [Linux 打包说明](#linux)。
 
-## 本机工具路径
+### 本机工具路径
 
 若 JDK、Android SDK 等工具不在系统默认路径，将根目录 [dev.local.example.json](../dev.local.example.json) 复制为 `dev.local.json`（已被 Git 忽略）并填入绝对路径：
 
@@ -100,28 +109,28 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profil
 
 以下命令均在仓库根目录执行：
 
-| 命令 | 作用 |
-| --- | --- |
-| `pnpm dev:desktop` | 启动桌面端开发模式 |
-| `pnpm dev:mobile` | 在浏览器中启动移动端前端开发服务器 |
-| `pnpm dev:android` | 启动移动端前端开发服务器并做 USB 端口转发，供真机加载 |
-| `pnpm desktop:package` | 打包桌面端：Windows x64 上产出安装包与免安装 zip，Linux x64 上产出 AppImage 与 deb |
-| `pnpm check` | 提交前全量检查：typecheck、ESLint、Checkstyle、Clippy、构建、编码与格式化检查 |
-| `pnpm format` | 自动修复 ESLint 并运行 Prettier 与 `rustfmt` |
-| `pnpm lint` / `pnpm typecheck` / `pnpm build` | 单独运行对应检查或构建 |
-| `pnpm test` | 运行共享包与桌面端 sidecar 测试（无需 Android 工具） |
-| `pnpm test:all` | 运行 `pnpm test` 与 `pnpm android:test` |
-| `pnpm release:loopback` | 发版前本地双端回环测试：启动两个电脑端后端经 `127.0.0.1` 双向传输并验证备份与恢复 |
-| `pnpm doctor` | 检查本机工具链（支持 `--desktop`、`--json`） |
-| `pnpm android:sync` | 构建移动端前端资源并同步至 Android 工程 |
-| `pnpm android:build` | 构建 debug APK（加 `--release` 构建签名后的 release APK） |
-| `pnpm android:build:dev-server` | 构建加载电脑端 Vite 开发服务器的 debug APK |
-| `pnpm android:install` | 覆盖安装 debug APK 到已连接设备（保留应用数据） |
-| `pnpm android:unit` | 运行 Java 单元测试与 Windows/Java 归档互通检查（复用 Gradle 守护进程） |
-| `pnpm android:test` | 在 `android:unit` 基础上运行 Android lint 并构建调试与测试 APK |
-| `pnpm android:open` | 使用 Android Studio 打开 Android 工程 |
-| `pnpm security:node` | 审计 npm 依赖与 Node/pnpm 安全基线 |
-| `pnpm security:android` | 解析 Android 依赖并查询 OSV 安全公告 |
+| 分类 | 命令 | 作用 |
+| --- | --- | --- |
+| 开发与打包 | `pnpm doctor` | 检查本机工具链（支持 `--desktop`、`--json`） |
+| 开发与打包 | `pnpm dev:desktop` | 启动桌面端开发模式 |
+| 开发与打包 | `pnpm dev:mobile` | 在浏览器中启动移动端前端开发服务器 |
+| 开发与打包 | `pnpm dev:android` | 启动移动端前端开发服务器并做 USB 端口转发，供真机加载 |
+| 开发与打包 | `pnpm desktop:package` | 打包桌面端：Windows x64 上产出安装包与免安装 zip，Linux x64 上产出 AppImage 与 deb |
+| 检查与测试 | `pnpm check` | 提交前全量检查：typecheck、ESLint、Checkstyle、Clippy、构建、编码与格式化检查 |
+| 检查与测试 | `pnpm format` | 自动修复 ESLint 并运行 Prettier 与 `rustfmt` |
+| 检查与测试 | `pnpm lint` / `pnpm typecheck` / `pnpm build` | 单独运行对应检查或构建 |
+| 检查与测试 | `pnpm test` | 运行共享包与桌面端 sidecar 测试（无需 Android 工具） |
+| 检查与测试 | `pnpm test:all` | 运行 `pnpm test` 与 `pnpm android:test` |
+| 检查与测试 | `pnpm release:loopback` | 发版前本地双端回环测试：启动两个桌面端后端经 `127.0.0.1` 双向传输并验证备份与恢复 |
+| Android | `pnpm android:sync` | 构建移动端前端资源并同步至 Android 工程 |
+| Android | `pnpm android:build` | 构建 debug APK（加 `--release` 构建签名后的 release APK） |
+| Android | `pnpm android:build:dev-server` | 构建加载桌面端 Vite 开发服务器的 debug APK |
+| Android | `pnpm android:install` | 覆盖安装 debug APK 到已连接设备（保留应用数据） |
+| Android | `pnpm android:unit` | 运行 Java 单元测试与 Windows/Java 归档互通检查（复用 Gradle 守护进程） |
+| Android | `pnpm android:test` | 在 `android:unit` 基础上运行 Android lint 并构建调试与测试 APK |
+| Android | `pnpm android:open` | 使用 Android Studio 打开 Android 工程 |
+| 安全审计 | `pnpm security:node` | 审计 npm 依赖与 Node/pnpm 安全基线 |
+| 安全审计 | `pnpm security:android` | 解析 Android 依赖并查询 OSV 安全公告 |
 
 `pnpm check` 不含自动化测试；测试规范与验收标准见[项目记忆](../.project-memory/INDEX.md)。
 
@@ -130,33 +139,37 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profil
 | 路径 | 内容 |
 | --- | --- |
 | `apps/shared` | 两端共用的通信协议、数据模型、校验规则与纯展示组件 |
-| `apps/desktop` | Windows 桌面端：Tauri 宿主（`src-tauri`）、Node 后端 sidecar 与 React 界面 |
+| `apps/desktop` | 桌面端：Tauri 宿主（`src-tauri`）、Node 后端 sidecar 与 React 界面 |
 | `apps/mobile` | 移动端：React 前端页面及 `android/` 下的 Capacitor 原生工程 |
 | `scripts` | 检查、构建、版本号计算与安全审计脚本；`scripts/device` 为真机调试工具 |
 | `.project-memory` | 需求、架构、接口约定、决策、计划与测试记录 |
 
-## Windows 打包
+## 桌面端打包
 
-`pnpm desktop:package` 在 Windows x64 上构建产物到 `apps/desktop/release/`（均无数字签名）：
+`pnpm desktop:package` 根据当前系统在 `apps/desktop/release/` 生成对应平台的发布包（均无数字签名）。
+
+### 后端 sidecar
+
+- Windows 与 Linux 的后端 sidecar 均由 `@yao-pkg/pkg` 编成独立可执行文件（Windows 为 `savedata-sync-backend.exe`，Linux 为 `savedata-sync-backend`），内嵌预编译 Node 22（仅含英文区域数据），与本机 `node` 版本无关；升级 `@yao-pkg/pkg` 后可更新内嵌 Node。首次打包时 pkg-fetch 会从 GitHub 下载基础二进制。
+- 运行 [build-sidecar-exe.mjs](../apps/desktop/scripts/build-sidecar-exe.mjs) 可单独生成 sidecar 可执行文件到 `apps/desktop/src-tauri/binaries/`（已被 Git 忽略）。
+
+### Windows
 
 | 产物 | 说明 |
 | --- | --- |
 | `SavedataSync-<版本>-Setup-x64.exe` | NSIS 安装包，支持当前用户（`%LOCALAPPDATA%\Savedata Sync`）或所有用户（`%ProgramFiles%\Savedata Sync`）；缺少 WebView2 时自动下载安装 |
 | `SavedataSync-<版本>-Portable-x64.zip` | 免安装版，含 `SavedataSync.exe` 与 `savedata-sync-backend.exe` |
 
-- 后端 sidecar 由 `@yao-pkg/pkg` 编成 `savedata-sync-backend.exe`，内嵌预编译 Node 22（仅含英文区域数据），与本机 `node` 版本无关；升级 `@yao-pkg/pkg` 后可更新内嵌 Node。首次打包时 pkg-fetch 与 Tauri 会从 GitHub 下载基础二进制与 NSIS 工具。
-- 运行 [build-sidecar-exe.mjs](../apps/desktop/scripts/build-sidecar-exe.mjs) 可单独生成 sidecar 可执行文件到 `apps/desktop/src-tauri/binaries/`（已被 Git 忽略）。
+首次打包时 Tauri 会从 GitHub 下载 NSIS 工具。
 
-## Linux 打包
-
-`pnpm desktop:package` 在 Linux x64 上构建产物到 `apps/desktop/release/`：
+### Linux
 
 | 产物 | 说明 |
 | --- | --- |
-| `SavedataSync-<版本>-x86_64.AppImage` | 内含 WebKitGTK，可放在任意文件夹运行；同一文件夹里有 `portable_data` 时数据写在里面 |
+| `SavedataSync-<版本>-x86_64.AppImage` | 内含 WebKitGTK，可放在任意文件夹运行；同级目录有 `portable_data` 时数据保存在其中 |
 | `SavedataSync-<版本>-amd64.deb` | 依赖系统的 `libwebkit2gtk-4.1-0` 和 `libgtk-3-0`，数据始终写在 XDG 目录 |
 
-- 构建依赖见 [Linux 环境准备](#linux-环境准备)，另需 `patchelf`：sidecar 打包前要预设 RUNPATH，否则生成 AppImage 时 linuxdeploy 会改写 sidecar，pkg 附在文件末尾的代码随之损坏。打包脚本最后核对 AppImage 里的 sidecar 和构建出的一致，不一致时失败。
+- 构建依赖见 [Linux 环境准备](#linux-环境准备)，另需 `patchelf`：sidecar 打包前要预设 RUNPATH，否则生成 AppImage 时 linuxdeploy 会改写 sidecar，pkg 附在文件末尾的代码随之损坏。打包脚本最后核对 AppImage 里的 sidecar 与构建产物是否一致，不一致则失败。
 - 发布包在 Ubuntu 22.04 上构建，在更新的发行版上构建的包可能要求更高的 glibc。
 - 首次打包时 Tauri 会从 GitHub 下载 linuxdeploy 和 AppImage 运行时。
 - 在没有 FUSE 2 的系统上运行 AppImage 时设环境变量 `APPIMAGE_EXTRACT_AND_RUN=1`，或者安装 `libfuse2`。
@@ -299,14 +312,27 @@ keytool -genkeypair -v -keystore savedata-sync-release.jks -alias savedata-sync 
 
 ## 兼容性与卸载
 
+### 数据兼容性与迁移
+
 从 `1.0.0` 起按以下规则保持数据与备份兼容（设计见 [ADR-0006](../.project-memory/decisions/ADR-0006-stable-release-compatibility.md)）：
 
-- **结构化数据迁移**：设备身份（`identity.json`）、目录登记（`directories.json`）、游戏库配置、`backup-settings.json`、`backup-library.json` 及 Android 端对应存储均带 `schemaVersion`。版本升级时按版本逐级自动迁移，修改已有格式须同步编写迁移逻辑与兼容测试；主题、语言、端口等简单设置采用宽容读取（忽略未知字段，无效字段回退默认值）。
-- **遇到更新版本写入的数据**：若读到整数 `schemaVersion` 高于当前应用版本的数据，两端均不改动任何数据并阻止启动（电脑端 sidecar 报致命错误退出；Android 仅显示提示页，不注册业务插件、不恢复本机服务）。
-- **遇到损坏或 `0.x` 旧数据**：`1.0.0` 为兼容基线，**不迁移 `0.x` 测试版数据**，统一按读不懂的数据处理；内容损坏时同样适用。电脑端将原文件改名留在原目录后以默认值启动，Android 端删除该项数据后以默认值启动。
-- **备份与设备 ID**：`1.0.0` 起写入的备份在整个 `1.x` 内均可列出和恢复；设备 ID 仅在首次启动或数据损坏时生成，版本升级不重新生成。
-- **协议互通**：两端的 `PROTOCOL_VERSION`、`/v1/sync/capabilities.schemaVersion` 与控制消息版本必须一致，不做版本协商；版本不匹配时发现列表提示版本不同，连接与发起任务前提示更新两端。
-- **卸载影响**：卸载 Android 应用或清除应用数据会删除配置、目录访问授权与 `Android/data/io.github.galgame.savedatasync/files/backups/` 下的备份；卸载或删除桌面端程序后，`%APPDATA%\galgame-savedata-sync` 与 `%LOCALAPPDATA%\galgame-savedata-sync`（或免安装版的 `portable_data`）中的数据仍会保留。
+| 数据或场景 | 处理方式 |
+| --- | --- |
+| 结构化数据（`identity.json`、`directories.json`、游戏库配置、`backup-settings.json`、`backup-library.json` 及 Android 对应存储） | 均带 `schemaVersion`，版本升级时按版本逐级自动迁移；修改已有格式须同步编写迁移逻辑与兼容测试 |
+| 简单设置（主题、语言、端口） | 宽容读取，忽略未知字段，无效字段回退默认值 |
+| 读到更新版本写入的数据（整数 `schemaVersion` 高于当前应用版本） | 两端均不改动任何数据并阻止启动（桌面端 sidecar 报致命错误退出；Android 仅显示提示页，不注册业务插件、不恢复本机服务） |
+| 损坏数据或 `0.x` 旧数据（`1.0.0` 为基线，不迁移 `0.x`） | 桌面端将原文件改名留在原目录后以默认值启动；Android 端删除该项数据后以默认值启动 |
+| 备份与设备 ID | `1.0.0` 起写入的备份在整个 `1.x` 内均可列出和恢复；设备 ID 仅在首次启动或数据损坏时生成，版本升级不重新生成 |
+
+两端的 `PROTOCOL_VERSION`、`/v1/sync/capabilities.schemaVersion` 与控制消息版本必须一致，不做版本协商；版本不匹配时发现列表提示版本不同，连接与发起任务前提示更新两端（版本规则见 [1.x 版本升级规则](#1x-版本升级规则)）。
+
+### 存储目录与卸载影响
+
+| 平台 | 数据与配置位置 | 卸载或删除程序后 |
+| --- | --- | --- |
+| Windows | 配置在 `%APPDATA%\galgame-savedata-sync`，数据与备份在 `%LOCALAPPDATA%\galgame-savedata-sync`（便携模式在 `portable_data`） | 数据与备份保留 |
+| Linux | 配置在 `~/.config/galgame-savedata-sync`，数据与备份在 `~/.local/share/galgame-savedata-sync`（AppImage 便携模式在 `portable_data`） | 数据与备份保留 |
+| Android | 应用私有存储；备份在 `Android/data/io.github.galgame.savedatasync/files/backups/` | 一并删除配置、目录访问授权与备份 |
 
 ## 版本号与发布
 
@@ -323,7 +349,7 @@ keytool -genkeypair -v -keystore savedata-sync-release.jks -alias savedata-sync 
 - 发布 tag 格式必须为 `v<major>.<minor>.<patch>`（每段 0–999 且无前导零），带 `-` 的预发布 tag 不参与计算。
 - 开发版与对应 tag 正式版的 `versionCode` 相同，使用同一签名时可互相覆盖安装。
 - Android Gradle 构建会调用该脚本，需确保 `PATH` 中存在 `node`。
-- 开发模式下版本号在启动时计算一次；Windows 分发包文件名与 exe 文件属性仅保留数字版本号（如 `1.0.0`），界面显示完整版本号。
+- 开发模式下版本号在启动时计算一次；Windows 与 Linux 分发包文件名及 Windows exe 文件属性仅保留数字版本号（如 `1.0.0`），界面显示完整版本号。
 
 ### 1.x 版本升级规则
 
@@ -333,23 +359,27 @@ keytool -genkeypair -v -keystore savedata-sync-release.jks -alias savedata-sync 
 | 次版本（`1.x.0`） | 新增功能；可改落盘格式（须带自动迁移），可升级协议或能力版本（须维护者同意） | 协议或能力版本变化时两端须同时更新，并在发布说明写明 |
 | 主版本（`x.0.0`） | 存在无法自动迁移的破坏性变更（例如不再恢复上一主版本写入的备份） | 按发布说明处理 |
 
-### 发布流程
+### 日常 CI 与发布流程
 
-仅从 `master` 分支发布（补丁版本同样在 `master` 修复后打 tag，不单独维护发布分支），直接发布 `1.0.0` 正式版而不另发候选版。
+- **日常 CI**：分支推送与 PR 在 Windows 上运行 `pnpm check` 与 Android debug 构建，在 Ubuntu 22.04 上运行 `pnpm check` 与 `pnpm test`，不保留产物。
+- **发布分支**：仅从 `master` 分支发布（补丁版本同样在 `master` 修复后打 tag，不单独维护发布分支）。
+
+发版步骤：
 
 1. 打 tag 前在本地完成校验：`pnpm check`、`pnpm test:all`、`pnpm release:loopback`（以及打包产物与升级路径等发布前验证；`release.yml` 不运行 `release:loopback`）。
 2. 取得维护者对目标 tag 名的同意后，在 `master` 最新提交打 tag 并原子推送（单独推送 tag 会导致工作流分支校验失败）：
 
-```bash
-git tag -a v1.0.0 -m "1.0.0"
-git push --atomic origin master v1.0.0
-```
+   ```bash
+   git tag -a v<版本号> -m "<版本号> 版本名称"
+   git push --atomic origin master v<版本号>
+   ```
 
-推送 tag 后触发[发布工作流](../.github/workflows/release.yml)（需仓库 Actions 具备 `contents: write` 权限）：校验 tag 与 `origin/master`、运行 `pnpm check` 与 `pnpm test:all`、打包 Windows x64 安装包与免安装 zip、在 Ubuntu 22.04 上打包 Linux 的 AppImage 与 deb、构建并校验签名后的 Android release APK、生成 `SHA256SUMS.txt`、上传 Actions artifact 并创建**草稿 GitHub Release**。
+3. 推送 tag 后触发[发布工作流](../.github/workflows/release.yml)（需仓库 Actions 具备 `contents: write` 权限）：校验 tag 与 `origin/master`、运行 `pnpm check` 与 `pnpm test:all`、打包 Windows x64 安装包与免安装 zip、在 Ubuntu 22.04 上打包 Linux 的 AppImage 与 deb、构建并校验签名后的 Android release APK、生成 `SHA256SUMS.txt`、上传 Actions artifact 并创建**草稿 GitHub Release**。
+4. 在草稿 Release 页面补充已知问题、安装限制与兼容变更说明后正式发布。若工作流失败，须经维护者同意后删除 tag，修复后再重新打 tag。
 
-若工作流失败，须经维护者同意后删除 tag，修复后再重新打 tag。发布前在草稿 Release 页面补充已知问题、安装限制与兼容变更说明（发布 `1.0.0` 时写明 `0.x` 的数据不迁移）。日常分支推送与 PR 在 Windows 上运行 `pnpm check` 与 Android debug 构建，在 Ubuntu 22.04 上运行 `pnpm check` 与 `pnpm test`，不保留产物。
+## 依赖管理
 
-## 依赖版本与更新
+### 版本写法与更新
 
 `package.json` 里的版本写法按字段决定，`pnpm check` 会检查：
 
@@ -371,7 +401,7 @@ pnpm security:android
 - `pnpm update -r` 只升级写 `^` 的开发工具，不越过主版本。
 - `pnpm outdated -r` 列出可升级的运行时依赖和开发工具的新主版本，逐个决定是否升级；运行时依赖升级后按[依赖表](../.project-memory/architecture/dependencies.md)复测。Rust 依赖用 `cargo update`，Android 依赖改 Gradle 文件里的版本。
 
-## 依赖安全检查
+### 安全检查
 
 安全检查需手动联网执行，日常 CI 不运行：
 
@@ -383,13 +413,13 @@ pnpm security:android
 - `security:node`：通过 npm registry 审计全部依赖，向 OSV 查询固定 pnpm 版本，并向 Node 官方查询发行记录和维护期，检查打包进 sidecar 的 Node（pkg-fetch 选定的版本）和本机 Node：主版本要在维护期内，且不低于这个主版本最新的安全发布，规则在 [scripts/toolchain-policy.mjs](../scripts/toolchain-policy.mjs)。打包进 sidecar 的 Node 随应用发给用户，不达标时检查失败，升级 `@yao-pkg/pkg` 或它固定的 `@yao-pkg/pkg-fetch`；本机 Node 只运行开发工具和开发版 sidecar，不达标时只提示。
 - `security:android`：同步 Android 工程并解析全部 Maven 配置与 buildscript classpath（输出至 `.reports/android-dependencies.json`），向 OSV 查询已知漏洞。
 
-修改依赖时注意：
+最近一次审计结果与待处理公告见[当前回归状态](../.project-memory/testing/regression-notes.md)。
+
+### 修改依赖注意
 
 - [pnpm-workspace.yaml](../pnpm-workspace.yaml) 中的 `overrides` 用于统一同主版本 npm 包，`peerDependencyRules` 允许 `eslint-plugin-react` 7.37 搭配 ESLint 10；跨主版本共存的包暂不强行合并。
 - [gradle-wrapper.properties](../apps/mobile/android/gradle/wrapper/gradle-wrapper.properties) 配置了 Gradle 分发包 SHA-256 校验；[dependency-security.json](../apps/mobile/android/dependency-security.json) 通过 `singleVersionModules` 锁定 Android 间接依赖为单一版本（`listenablefuture` 固定为 `1.0`），存在多版本冲突时 `security:android` 会报错。
 - GitHub Actions 中的第三方 Action 固定到具体 commit SHA。
-
-最近一次审计结果与待处理公告见[当前回归状态](../.project-memory/testing/regression-notes.md)。
 
 ## 常见问题
 

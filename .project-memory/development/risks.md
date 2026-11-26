@@ -13,7 +13,6 @@ tags: [风险]
 
 | ID | 风险 | 概率 | 影响 | 等级 | 应对策略 | 状态 |
 | --- | --- | --- | --- | --- | --- | --- |
-| R-002 | Linux 上系统已运行 avahi-daemon 并占用 UDP 5353 时，sidecar 的 mDNS 广播和发现可能收不到报文 | 中 | 中 | 中 | WP-083 在开着 avahi-daemon 的系统上实测；不行时评估改用 avahi 的 D-Bus 接口，自动发现失败时仍可手动输入地址 | open |
-| R-003 | WebKitGTK 在部分显卡驱动上可能白屏或渲染异常 | 中 | 中 | 中 | X11 会话上开发版渲染正常；WP-083 在 Wayland 会话和其他显卡上实测；需要时由宿主在启动 WebView 前设置 WebKitGTK 的渲染环境变量 | open |
+| R-003 | WebKitGTK 在部分显卡驱动上可能白屏或渲染异常 | 中 | 中 | 中 | X11 和 Wayland 会话上开发版渲染正常；出现时由宿主在启动 WebView 前设置 WebKitGTK 的渲染环境变量 | open |
 
 其余实现边界与验证风险见[模块状态](module-status.md)及[测试覆盖缺口](../testing/coverage-gaps.md)。

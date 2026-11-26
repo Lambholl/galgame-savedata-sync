@@ -2,10 +2,10 @@
 doc_type: architecture
 status: active
 updated: 2026-11-26
-tags: [Windows, 电脑端, Tauri, sidecar, 存储目录]
+tags: [Windows, 桌面端, Tauri, sidecar, 存储目录]
 ---
 
-# 电脑端平台层
+# 桌面端平台层
 
 ## 目录
 
@@ -27,18 +27,18 @@ tags: [Windows, 电脑端, Tauri, sidecar, 存储目录]
 
 ## 1. 范围与入口
 
-代码在 `apps/desktop`。目录读取模块保持源只读；私有归档负责编解码和缓存清理；HTTP 服务负责设备/目录查询、目录表交换、控制通道和复制任务。桌面提供服务启停、实际地址/端口、目录选择、任务计划与实际结果、备份设置和本机恢复。
+代码在 `apps/desktop`。目录读取模块保持源只读；私有归档负责编解码和缓存清理；HTTP 服务负责设备/目录查询、目录表交换、控制通道和复制任务。桌面端提供服务启停、实际地址/端口、目录选择、任务计划与实际结果、备份设置和本机恢复。
 
 电脑作监听方时提供 HTTP 服务和控制通道，接纳拨号方登记的任务；电脑发起的复制经控制通道交给拨号方，对方须开着应用并保持连接，计划在电脑确认、拨号方执行。电脑也能作拨号方连接另一台设备（[ADR-0004](../decisions/ADR-0004-symmetric-listener-dialer-roles.md)）：用 `bonjour-service` 搜索局域网设备，用 `node:http` 和 `ws` 交换目录表、浏览对方目录、保持控制通道，见[第 2 节](#2-游戏与设备界面)。作拨号方时由 `dialer-sync.ts` 的 `DesktopDialerSync` 编排扫描、计划、任务登记、内容上传和下载、取消和结果读取，职责同 Android `SyncTransferEngine`；也处理对方经控制通道发来的 `sync.prepare`、`sync.confirm`、`sync.cancel`、`sync.job.*`，每 0.5 秒推送 `sync.job` 摘要。它和监听方任务共用进程内的写入名额，同一时间只有一个复制任务写入；`sync-ipc.ts` 按本机是否拨号连着所选设备把发起请求交给它或 `remote-sync-requests.ts`，复制任务列表合并两部分，`DesktopCopySummary.localSide` 标明本机是哪一方，传输页和任务详情据此决定方向和两端位置。复制按确认计划执行新增、受保护覆盖、跳过和删除多余项。
 
 后端代码在 `src/backend`，是纯 Node 代码。`backend.ts` 的 `startBackend` 接收配置、数据、备份库、缓存四个目录（第 7 节）、系统语言列表和宿主接口 `DesktopHost`（目录选择器、图片文件选择器、打开路径、设置明暗主题），初始化全部服务并把界面通道登记到 `ChannelRouter`；`stop` 按“拨号方任务、拨号连接、HTTP 服务和广播、本机恢复、写入器、备份”的顺序释放，失败可以重试。各 `*-ipc.ts` 只校验参数，能调用通道的页面由 Tauri capability 限定。
 
-电脑端由两个进程组成（[ADR-0005](../decisions/ADR-0005-tauri-sidecar-and-storage-layout.md)）：
+桌面端由两个进程组成（[ADR-0005](../decisions/ADR-0005-tauri-sidecar-and-storage-layout.md)）：
 
 - Tauri 宿主 `src-tauri`（Rust）：启动 sidecar，收到 `ready` 后打开主窗口，把界面请求经 `backend_invoke` 命令转给 sidecar，并应 sidecar 的 `host-request` 提供目录和图片文件选择器（`tauri-plugin-dialog`）、打开文件夹（`tauri-plugin-opener`）和窗口明暗。`storage.rs` 算出存储目录，`sidecar.rs` 管理 sidecar 进程和消息，`main.rs` 管窗口和生命周期。应用单实例运行（`tauri-plugin-single-instance`），再次启动时聚焦已有窗口；窗口没有菜单栏。Linux 上文件选择器用 GTK3 的对话框（`rfd` 的 `gtk3` 特性），不经桌面门户。
 - Node sidecar `src/sidecar/index.ts`（构建为 `out/sidecar/index.cjs`）：命令行参数 `--config-dir`、`--data-dir`、`--backup-dir`、`--cache-dir` 必须是绝对路径，`--languages <逗号分隔>` 可选。和宿主在 stdin/stdout 上每行交换一条 UTF-8 JSON，stderr 只写日志。宿主发 `invoke`（通道请求）、`shutdown`（停止服务）和 `host-result`；sidecar 发 `ready`（窗口标题、浅色和深色背景色、意外退出时的提示）、`fatal`（初始化失败，附可直接显示的标题和正文，随后以退出码 1 退出）、`result`、`shutdown-result`（`isStopped` 为 false 时附可直接显示的失败提示，进程继续运行）和 `host-request`（`chooseDirectory`、`chooseImageFile`、`openPath`、`setTheme`）。消息格式在 `src/sidecar/protocol.ts`，宿主的解析在 `src-tauri/src/sidecar.rs`，两边一起改。
 
-调试版宿主用 PATH 里的 `node` 运行 `out/sidecar/index.cjs`；发布版运行主程序旁边的 `savedata-sync-backend.exe`（打包见第 3 节）。`vite.sidecar.config.ts` 把 sidecar 打成单个 CommonJS 文件（pkg 直接打包 CommonJS 入口），第三方包全部打进产物，运行时只依赖 Node 内置模块。发布版内嵌的 Node 只带英文区域数据（small-icu），sidecar 和它加载的共享代码不用 `Intl.DateTimeFormat`、`toLocale*` 等依赖区域数据的接口，时间一律用毫秒时间戳或 ISO 8601 传给界面。
+调试版宿主用 PATH 里的 `node` 运行 `out/sidecar/index.cjs`；发布版运行主程序旁边的 `savedata-sync-backend`（Windows 为 `savedata-sync-backend.exe`，打包见第 3 节）。`vite.sidecar.config.ts` 把 sidecar 打成单个 CommonJS 文件（pkg 直接打包 CommonJS 入口），第三方包全部打进产物，运行时只依赖 Node 内置模块。发布版内嵌的 Node 只带英文区域数据（small-icu），sidecar 和它加载的共享代码不用 `Intl.DateTimeFormat`、`toLocale*` 等依赖区域数据的接口，时间一律用毫秒时间戳或 ISO 8601 传给界面。
 
 生命周期：
 
@@ -97,7 +97,7 @@ sidecar 可执行文件由 `apps/desktop/scripts/build-sidecar-exe.mjs` 用 `@ya
 
 ## 4. 系统明暗主题
 
-桌面默认跟随系统外观，也可以在设置中选择浅色或深色；选择保存在本机，重启后继续使用。sidecar 读取偏好后经 `setTheme` 请求宿主设置窗口主题（跟随系统时传 None）。Renderer 用共享包的 `resolveTheme` 定主题：选了浅色或深色时直接用偏好，跟随系统时读 `prefers-color-scheme`，再切换 antd 的 `defaultAlgorithm`/`darkAlgorithm`，组件卸载释放监听。不能只读媒体查询：Windows 上 WebView2 的 `prefers-color-scheme` 跟着宿主设置的窗口主题变，Linux 上 WebKitGTK 的跟着 GTK 主题，宿主设置窗口主题只改 GTK 的深色偏好（`gtk-application-prefer-dark-theme`），GTK 主题本身是深色（如 Kali-Dark）时选浅色也仍报深色。Linux 上宿主判断“系统明暗”用桌面门户的 `color-scheme`，界面跟随系统时用的是 GTK 主题，两者不一致的桌面上窗口背景色可能和界面明暗不同。宿主先隐藏创建窗口，按实际明暗设好背景色再显示；切换主题和系统明暗变化时同步更新背景色。背景色取共用色板 `PALETTES` 的 `bg`，由 `ready` 消息带给宿主。主题使用共用色板与组件库语义色。
+桌面端默认跟随系统外观，也可以在设置中选择浅色或深色；选择保存在本机，重启后继续使用。sidecar 读取偏好后经 `setTheme` 请求宿主设置窗口主题（跟随系统时传 None）。Renderer 用共享包的 `resolveTheme` 定主题：选了浅色或深色时直接用偏好，跟随系统时读 `prefers-color-scheme`，再切换 antd 的 `defaultAlgorithm`/`darkAlgorithm`，组件卸载释放监听。不能只读媒体查询：Windows 上 WebView2 的 `prefers-color-scheme` 跟着宿主设置的窗口主题变，Linux 上 WebKitGTK 的跟着 GTK 主题，宿主设置窗口主题只改 GTK 的深色偏好（`gtk-application-prefer-dark-theme`），GTK 主题本身是深色（如 Kali-Dark）时选浅色也仍报深色。Linux 上宿主判断“系统明暗”用桌面门户的 `color-scheme`，界面跟随系统时用的是 GTK 主题，两者不一致的桌面上窗口背景色可能和界面明暗不同。宿主先隐藏创建窗口，按实际明暗设好背景色再显示；切换主题和系统明暗变化时同步更新背景色。背景色取共用色板 `PALETTES` 的 `bg`，由 `ready` 消息带给宿主。主题使用共用色板与组件库语义色。
 
 ## 5. 目录适配器
 
@@ -128,12 +128,12 @@ sidecar 可执行文件由 `apps/desktop/scripts/build-sidecar-exe.mjs` 用 `@ya
 - 快照含设备 ID、本机设备名、配置端口、实际监听地址与开始监听的时间（Unix 毫秒）、本机 IPv4 地址、运行错误和局域网广播状态；没有 sessionId、私有路径或文件内容。
 - 本机 IPv4 由 `recommended-address.ts` 推荐：Windows 用 `route print -4` 查默认路由和 metric，用 `reg query` 查网卡驱动是否标记为物理网卡（NCF_PHYSICAL），按 IP 和 `os.networkInterfaces()` 对应，不启动 PowerShell，通常 0.2–0.3 秒；Linux 读 `/proc/net/route` 和 `/sys/class/net/<网卡>/device`，按网卡名对应，不运行外部命令。先取物理网卡且有默认网关的地址，没有时取任意有默认网关的地址，再加 Windows 移动热点 192.168.137.1；排除代理软件常用的 198.18.0.0/15，一个都没有时退回全部可用地址；按推荐顺序、去重，最多 8 个。服务每次启动后在后台重新读取，读到之前为 `null`，设备页显示读取中；之后缓存 30 秒并在后台刷新；查询失败时为空数组。
 - 设备页用设备 ID、实际端口和这组地址生成连接二维码，第一个地址作为显示和复制的地址。已保存的设备按最近连接排序：`library-store.ts` 在每次新连接（目录请求带 `x-sync-connect: 1`）时把该设备移到开头，连接期间的目录刷新不改顺序。
-- 设备页的本机服务卡片用 shared/ui `ServiceHero` 的常规排版，运行信息只有运行时长和局域网广播状态。地址按原本的字号放在二维码左边放不下时，二维码收进地址旁的按钮，地址不缩小；放不放得下由 `ServiceHero` 量出地址的实际宽度来判断，不按固定的卡片宽度：比较的是看得见的边，复制按钮只算图标，地址行可以伸进二维码左侧的间距，和开关光晕（`--ss-service-glow`）伸进右侧间距一样多，二维码两边的空隙看起来一样宽；换字体或改系统缩放也不会把地址压到二维码底下。连着哪台设备看下方设备列表里设备图标的绿点。已保存的设备行只显示名称和地址，状态只靠图标颜色表示：灰色是离线，蓝色是在线（附近搜到或已连接），已连接再在右下角加绿点；附近搜到时地址换成搜到的地址。服务停止时显示端口输入框和换随机端口的图标按钮（shared/ui `ShuffleIcon`，悬停提示“随机生成”）；窗口窄到一行放不下时，输入框和按钮一起换到标签下一行。设备列表的行不能点，不加悬停反馈。
+- 设备页的本机服务卡片用 shared/ui `ServiceHero` 的常规排版，运行信息只有运行时长和局域网广播状态。地址按原本的字号放在二维码左边放不下时，二维码先收进地址旁的按钮；收起后或者卡片窄到地址单独占一行后还放不下，才按放得下的比例缩小地址，直到最窄的窗口都不会伸到开关底下或超出卡片。放不放得下由 `ServiceHero` 量出地址的实际宽度来判断，不按固定的卡片宽度或字号：比较的是看得见的边，复制按钮只算图标，地址行可以伸进二维码左侧的间距，和开关光晕（`--ss-service-glow`）伸进右侧间距一样多，二维码两边的空隙看起来一样宽；换字体或改系统缩放也不会把地址压到二维码底下。连着哪台设备看下方设备列表里设备图标的绿点。已保存的设备行只显示名称和地址，状态只靠图标颜色表示：灰色是离线，蓝色是在线（附近搜到或已连接），已连接再在右下角加绿点；附近搜到时地址换成搜到的地址。服务停止时显示端口输入框和换随机端口的图标按钮（shared/ui `ShuffleIcon`，悬停提示“随机生成”）；窗口窄到一行放不下时，输入框和按钮一起换到标签下一行。设备列表的行不能点，不加悬停反馈。
 - `chooseTarget()` 打开原生系统选择器，选中后登记为本机目录并返回 `DirectorySelectionResult`，取消返回 cancelled。全部 Promise 将失败转为脱敏错误。界面每秒读取状态，卸载停止轮询。
 
 服务开始监听后，`src/backend/discovery-advertiser.ts` 用 `@homebridge/ciao` 在局域网广播 `_savedata-sync._tcp`（格式见[共享包](shared-package.md#9-发现与连接二维码)）：实例名取本机名称，TXT 的 `pf` 取 `src/backend/local-platform.ts` 的 `LOCAL_PLATFORM`（Linux 上为 `linux`，其余为 `windows`；设备描述、目录表交换和封面 User-Agent 用同一个值），SRV 主机名由设备 ID 生成，只发 IPv4，每块网卡只回答这块网卡的地址；网卡增减或地址变化后 ciao 每 15 秒检查一次并重新宣告。停止服务和退出应用时发送 goodbye 包并关闭 UDP 5353 套接字，最多等 3 秒。广播失败不影响 HTTP 服务，快照的 `discovery.status` 为 `failed`，每 30 秒重试。`advertising` 只表示本机已发出宣告，防火墙拦截 UDP 5353 时其他设备仍然搜不到。
 
-`src/backend/discovery-browser.ts` 用 `bonjour-service` 搜索 `_savedata-sync._tcp`，和 ciao 广播在同一进程里同时使用 UDP 5353。搜索在续期后进行，停止续期 10 秒后停止并关闭套接字；按设备 ID 查找期间也保持搜索。mDNS 应答方只在被问到或上线时宣告，所以搜索期间每 4 秒重新查询。搜到的服务要请求 `/v1/device` 得到 200 才出现在结果里，每次重新查询时一并重新探测，已出现的服务连续 2 次失败后去掉；离开的设备不一定发出 goodbye 包，原因见 [Android 平台层](android.md#12-局域网设备搜索)。结果排除本机设备 ID，同一设备 ID 只保留一项；TXT 协议版本不同的设备只列出实例名，界面显示为版本不同。无法开始搜索时状态为 `failed`，下次续期再试。
+`src/backend/discovery-browser.ts` 用 `bonjour-service` 搜索 `_savedata-sync._tcp`，和 ciao 广播在同一进程里同时使用 UDP 5353。Linux 上系统的 avahi-daemon 也占着 UDP 5353 时，广播和搜索照常工作，avahi-browse 也能看到本机的广播（实测）。搜索在续期后进行，停止续期 10 秒后停止并关闭套接字；按设备 ID 查找期间也保持搜索。mDNS 应答方只在被问到或上线时宣告，所以搜索期间每 4 秒重新查询。搜到的服务要请求 `/v1/device` 得到 200 才出现在结果里，每次重新查询时一并重新探测，已出现的服务连续 2 次失败后去掉；离开的设备不一定发出 goodbye 包，原因见 [Android 平台层](android.md#12-局域网设备搜索)。结果排除本机设备 ID，同一设备 ID 只保留一项；TXT 协议版本不同的设备只列出实例名，界面显示为版本不同。无法开始搜索时状态为 `failed`，下次续期再试。
 
 ## 7. 配置与路径边界
 
@@ -243,7 +243,7 @@ HTTP 服务注入 `scanSource: adapter` 后开放 `/v1/sync/capabilities`、`POS
 
 ## 13. 受保护目标写入与本机恢复
 
-`DesktopSyncWriter(adapter, backups, options)` 执行完整确认计划。`DesktopSyncRegistry` 接入 Android → Windows 的 HTTP 接收、缓存和实际结果查询，以及 Windows → Android 的原生源准备和单次下载。源端 POST 接纳后异步重新扫描并核对当前源、形成不可变归档；准备完成且扫描资源释放后才发布 ready。GET 内容只领取一次；无文件的源计划直接报告发送完成。协议见[复制、备份与恢复约定](sync-copy.md#6-http-与本地桥)。
+`DesktopSyncWriter(adapter, backups, options)` 执行完整确认计划。`DesktopSyncRegistry` 接入对端 → 桌面端的 HTTP 接收、缓存和实际结果查询，以及桌面端 → 对端的原生源准备和单次下载。源端 POST 接纳后异步重新扫描并核对当前源、形成不可变归档；准备完成且扫描资源释放后才发布 ready。GET 内容只领取一次；无文件的源计划直接报告发送完成。协议见[复制、备份与恢复约定](sync-copy.md#6-http-与本地桥)。
 
 | 原生方法 | 输入、输出与资源责任 |
 | --- | --- |
@@ -302,6 +302,6 @@ HTTP 测试使用真实回环 HTTP/TCP。
 
 自定义备份库位置没有长期测试。在开发版的便携模式下验证过：经系统选择器换位置后位置文件写入、设置页显示新路径；文件夹改名后显示不可用，列表和打开文件夹报 `backup-unavailable`，文件夹不重建；位置不可用时重启照常；换回默认位置删掉位置文件；位置文件读不懂时按第 7 节改名并提示。本机手动备份、换位置后新备份的写入和恢复、备份库不可用时开着备份的传输被拒绝，以及和手机之间的备份相关传输，在开发版上和真机一起验收过。
 
-Tauri 宿主的开发版在 Linux X11 会话上验证过：窗口和界面加载、明暗主题、中日文字体、目录和图片选择器、设置封面、打开文件夹、关闭窗口后主程序和 sidecar 都退出、第二个实例启动后立即退出；sidecar 收到停止请求和 stdin 关闭时都停止服务后退出。Wayland 会话和在 WebKitGTK 上逐页检查界面还没做，排在 WP-083。WebKitGTK 没有 Chrome DevTools Protocol，界面只能用它自带的 Web Inspector 查看。
+Tauri 宿主的开发版在 Linux 的 X11 会话和 Wayland 会话（XFCE 4.20 加 labwc）上验证过：窗口和界面加载、明暗主题、中日文字体、目录和图片选择器、设置封面、打开文件夹、关闭窗口后主程序和 sidecar 都退出、第二个实例启动后立即退出；sidecar 收到停止请求和 stdin 关闭时都停止服务后退出。两种会话上窗口、选择器、打开文件夹、明暗主题和复制地址没有差异；各页面在 WebKitGTK 上渲染正常，与 Android 双向传输、写入和备份正常。WebKitGTK 没有 Chrome DevTools Protocol，界面只能用它自带的 Web Inspector 查看。
 
 调试构建的宿主在环境变量 `SAVEDATA_SYNC_DEVTOOLS_PORT` 是端口号时，让 WebView2 在这个端口开放 Chrome DevTools Protocol，可以用 CDP 脚本读写界面；发布构建没有这段代码。

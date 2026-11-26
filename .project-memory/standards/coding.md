@@ -23,7 +23,7 @@ tags: [编码规范]
 
 | 项目 | 取值 |
 | --- | --- |
-| 语言 | TypeScript（共享包、电脑端、移动端网页层）；Android 原生用 Java，不引入 Kotlin；脚本用 `.mjs` |
+| 语言 | TypeScript（共享包、桌面端、移动端网页层）；Android 原生用 Java，不引入 Kotlin；脚本用 `.mjs` |
 | 注释语言 | 中文；代码标识、API 名称和工具指令保留原文 |
 | 工具配置 | `.editorconfig`、`.gitattributes`、`.prettierrc.json`、`.prettierignore`、`eslint.config.mjs`、`tsconfig.base.json`、`apps/mobile/android/checkstyle.xml` |
 | 检查入口 | `pnpm check` 依次运行类型检查、ESLint、Checkstyle（需要 JDK）、Clippy、两端构建、依赖版本写法、文本编码、Prettier 和 rustfmt，某一步失败即停止。文本编码和格式检查放最后：这两类问题不影响类型和 lint 的判断，不能挡住前面的结果。`pnpm format` 自动修复 |
@@ -46,7 +46,7 @@ tags: [编码规范]
 | eslint-plugin-react 的 React 版本在 `eslint.config.mjs` 里写死为 `18.3`，和 apps 的 react 依赖一致；升级 React 时一起改 | ESLint 10 去掉了 `context.getFilename`，插件的 `detect` 会报错 | TSX |
 | `pnpm-workspace.yaml` 的 `peerDependencyRules` 允许 eslint-plugin-react 7.37 搭配 ESLint 10；插件发布支持 ESLint 10 的版本后删掉这条 | 插件的 peer 范围还停在 ESLint 9，项目用到的规则在 ESLint 10 上能正常运行 | 依赖 |
 | npm 依赖的版本写法按所在字段决定，由 `scripts/check-dependency-specs.mjs`（`pnpm check` 运行）检查：`dependencies` 和 `peerDependencies` 会打包给用户，写精确版本；`devDependencies` 是开发工具，写 `^` 范围。例外：`@capacitor/cli` 写精确版本；`apps/shared` 为开发安装的 peer 依赖和 peer 声明写法相同。几个应用共用的运行时库（antd、`@ant-design/icons`、react、react-dom、`qrcode.react`）的版本只写在 `pnpm-workspace.yaml` 的 `catalog`（也写精确版本），各 `package.json` 写 `catalog:`。`@types/node` 停在 `^22`、`@types/react*` 停在 `^18`，跟随内嵌 Node 和 React 的主版本。`.npmrc` 的 `save-exact` 让 `pnpm add` 默认写精确版本，加开发工具时写 `pnpm add -D <包>@^x.y.z`。`pnpm-workspace.yaml` 的 `minimumReleaseAge` 让解析只用发布满 3 天的版本，等不了的安全修复临时加进 `minimumReleaseAgeExclude`，升级后删掉 | 实际版本始终由 `pnpm-lock.yaml` 固定，CI 用 `--frozen-lockfile`，写法只决定 `pnpm update` 能动哪些包。开发工具出问题由 `pnpm check` 发现，所以让 `pnpm update` 直接升级；运行时依赖升级后要按[依赖表](../architecture/dependencies.md)复测，`pnpm check` 发现不了，只能有意识地逐个升级。按字段判断不用维护包名清单，新加的依赖放对字段就自动适用；Capacitor 三个包要同版本整组升级；catalog 让两端用同一版本 | 根和各应用的 `package.json`、`pnpm-workspace.yaml` |
-| `@tauri-apps/api` 和 `tauri` crate 的主版本、小版本必须一致，升级时改 `@tauri-apps/api` 的精确版本并一起跑 `cargo update` | Tauri CLI 打包时检查两者版本，不一致直接报错 | 电脑端 |
+| `@tauri-apps/api` 和 `tauri` crate 的主版本、小版本必须一致，升级时改 `@tauri-apps/api` 的精确版本并一起跑 `cargo update` | Tauri CLI 打包时检查两者版本，不一致直接报错 | 桌面端 |
 | Android 同一 Maven 模块在运行、测试和构建工具里只解析一个版本，版本写在 `dependency-security.json` 的 `singleVersionModules` | 多版本时安全审计和运行结果对不上 | Android 依赖；`pnpm security:android` 检查 |
 
 ### 命名
@@ -64,10 +64,10 @@ tags: [编码规范]
 
 | 规则 | 原因 | 适用范围 |
 | --- | --- | --- |
-| 与两端交互差异无关的计算和渲染放 `apps/shared`。主入口 `@savedata-sync/shared` 只用纯 TypeScript，不引入 React、组件库、DOM、Node、Tauri 或 Android 接口；界面入口 `@savedata-sync/shared/ui` 可以用 React、`@ant-design/icons` 和不涉及平台交互的 antd 组件，不用 antd-mobile、react-dom、Tauri、Capacitor 和 Node。主入口不导入 ui 入口 | 电脑端 sidecar 和 node 测试只加载主入口；决定见 [ADR-0002](../decisions/ADR-0002-ui-library-and-shared-rendering.md) | `apps/shared`；`eslint.config.mjs` 的 `no-restricted-imports` 检查 |
+| 与两端交互差异无关的计算和渲染放 `apps/shared`。主入口 `@savedata-sync/shared` 只用纯 TypeScript，不引入 React、组件库、DOM、Node、Tauri 或 Android 接口；界面入口 `@savedata-sync/shared/ui` 可以用 React、`@ant-design/icons` 和不涉及平台交互的 antd 组件，不用 antd-mobile、react-dom、Tauri、Capacitor 和 Node。主入口不导入 ui 入口 | 桌面端 sidecar 和 node 测试只加载主入口；决定见 [ADR-0002](../decisions/ADR-0002-ui-library-and-shared-rendering.md) | `apps/shared`；`eslint.config.mjs` 的 `no-restricted-imports` 检查 |
 | ui 入口用独立的 `src/ui/tsconfig.json`（含 DOM），主入口的 tsconfig 排除它 | 主入口不能用到 DOM 类型 | `apps/shared` |
 | 弹层、抽屉、返回键、系统选择器、确认、提示消息等平台交互，以及页面状态和 Hook 留在各端；平台能力留在各应用的适配层 | 两端交互方式不同 | `apps/desktop`、`apps/mobile` |
-| 电脑端和移动端互不导入对方的源码 | 两端只通过共享包共用代码 | `eslint.config.mjs` 检查 |
+| 桌面端和移动端互不导入对方的源码 | 两端只通过共享包共用代码 | `eslint.config.mjs` 检查 |
 | shared/ui 组件的 Props 类型全部命名导出，每个参数写 TSDoc 用途说明（名称已经说清楚的也写）；不接受、不透传 `style`、`className`、`styles`、`classNames` 和剩余属性。两端差异只通过含义明确的参数表达（方向、尺寸、边距档位、紧凑程度等），相近的一组参数可以合并成一个导出的结构化类型 | 共用组件接口要可读，两端只能按约定的方式变化 | `apps/shared/src/ui`；样式参数和展开由 `no-restricted-syntax` 检查，TSDoc 由人工评审 |
 
 ### React 与界面代码
@@ -75,7 +75,7 @@ tags: [编码规范]
 | 规则 | 原因 | 适用范围 |
 | --- | --- | --- |
 | 所有提示消息走各端 `app/app-message.ts` 的 `useAppMessage`，别处不直接用 antd 的 `message` | 重开退场中的同 key 提示时计时不会重启，提示会一直不消失；统一入口才能保证每条用新 key | 两端界面；ESLint 检查 |
-| 日期和时间用 `apps/shared/src/i18n/format.ts` 的固定格式（`yy-MM-dd HH:mm`、`MM-dd`、`HH:mm`），不用 `Intl.DateTimeFormat`、`toLocaleString` 等按区域格式化的接口；名称排序用 `compareNames`、`compareNamePaths`（固定英文规则的 `Intl.Collator`）。列表按名称、大小、时间排序显示时在界面层排，后端只保留协议的规范顺序、备份保留和地址优先级这类不为显示的排序 | 界面格式不随系统区域变化；电脑端后端内嵌的 Node 只带英文区域数据，按区域格式化在后端会静默退回英文 | 两端界面、`apps/shared`、电脑端 sidecar |
+| 日期和时间用 `apps/shared/src/i18n/format.ts` 的固定格式（`yy-MM-dd HH:mm`、`MM-dd`、`HH:mm`），不用 `Intl.DateTimeFormat`、`toLocaleString` 等按区域格式化的接口；名称排序用 `compareNames`、`compareNamePaths`（固定英文规则的 `Intl.Collator`）。列表按名称、大小、时间排序显示时在界面层排，后端只保留协议的规范顺序、备份保留和地址优先级这类不为显示的排序 | 界面格式不随系统区域变化；桌面端后端内嵌的 Node 只带英文区域数据，按区域格式化在后端会静默退回英文 | 两端界面、`apps/shared`、桌面端 sidecar |
 | 条件渲染写成 `cond ? <X /> : null`，不用 `cond && <X />`（左侧是比较表达式时除外） | `0` 或空字符串会被渲染出来；`react/jsx-no-leaked-render` 检查 | TSX |
 | 传给 props 的渲染函数（antd 的 `itemRender`、`footer` 等）可以内联定义 | 组件直接调用这些函数，不会当作组件挂载；`react/no-unstable-nested-components` 设了 `allowAsProps` | TSX |
 | 按请求键重置的状态在渲染时用“上一次的键”比较后调整，不在 effect 里 `setState`；回调要读最新值时用 ref，并在 `useLayoutEffect` 里同步 | react-hooks 7 的 `set-state-in-effect`、`refs` 规则 | TSX |

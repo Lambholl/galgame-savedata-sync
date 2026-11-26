@@ -2,10 +2,10 @@
 doc_type: adr
 status: accepted
 updated: 2026-11-26
-tags: [决策, 电脑端, Tauri, sidecar, 存储目录, 便携模式, 备份库]
+tags: [决策, 桌面端, Tauri, sidecar, 存储目录, 便携模式, 备份库]
 ---
 
-# ADR-0005 电脑端采用 Tauri 宿主和 Node sidecar，存储目录按配置、数据、备份库、缓存分开
+# ADR-0005 桌面端采用 Tauri 宿主和 Node sidecar，存储目录按配置、数据、备份库、缓存分开
 
 ## 目录
 
@@ -27,7 +27,7 @@ tags: [决策, 电脑端, Tauri, sidecar, 存储目录, 便携模式, 备份库]
 
 ## 状态
 
-accepted。宿主、sidecar、存储目录、Windows 打包、数据文件读不懂时的启动处理和自定义备份库位置已实现；备份库位置的实现和验证情况见 [电脑端平台层](../architecture/desktop.md)第 12、15 节。
+accepted。宿主、sidecar、存储目录、Windows 打包、数据文件读不懂时的启动处理和自定义备份库位置已实现；备份库位置的实现和验证情况见 [桌面端平台层](../architecture/desktop.md)第 12、15 节。
 
 ## 替代关系
 
@@ -37,7 +37,7 @@ accepted。宿主、sidecar、存储目录、Windows 打包、数据文件读不
 
 ## 背景
 
-- Electron 分发包自带 Chromium 和 Node。电脑端后端（目录读取、归档、HTTP 服务、拨号、备份、写入）是纯 Node 代码，和 Electron 的耦合只有窗口、对话框、主题、`userData` 路径和 IPC。
+- Electron 分发包自带 Chromium 和 Node。桌面端后端（目录读取、归档、HTTP 服务、拨号、备份、写入）是纯 Node 代码，和 Electron 的耦合只有窗口、对话框、主题、`userData` 路径和 IPC。
 - Electron 的 `userData` 在 Windows 的 Roaming 目录下，设备 ID、目录登记、备份和传输缓存都放在那里，还混着 Chromium 的 `GPUCache`、`Local Storage` 等缓存。域环境下 Roaming 会同步到同一用户的其他电脑，设备 ID 会被两台电脑共用，大体积的备份也会拖慢登录。
 - 以后可能支持 Linux，存储结构不应写死 Windows 路径。
 - 应用还在测试阶段，存储格式和位置可以不兼容地修改，不迁移 Electron 版的数据。
@@ -46,7 +46,7 @@ accepted。宿主、sidecar、存储目录、Windows 打包、数据文件读不
 
 ### 宿主与后端
 
-1. 电脑端用 Tauri 2 作宿主，界面运行在系统 WebView（Windows 为 WebView2，Linux 为 WebKitGTK）里，React 界面和 bridge 接口不变。
+1. 桌面端用 Tauri 2 作宿主，界面运行在系统 WebView（Windows 为 WebView2，Linux 为 WebKitGTK）里，React 界面和 bridge 接口不变。
 2. 后端 `apps/desktop/src/backend` 作为 Node sidecar 在独立进程运行；分发时用 `@yao-pkg/pkg` 编成独立可执行文件（内嵌只带英文区域数据的 Node），作为 Tauri 的 externalBin。
 3. 宿主和 sidecar 经 stdin/stdout 每行交换一条 UTF-8 JSON，格式在 `src/sidecar/protocol.ts`。界面只能调用一个 Tauri 命令，由它把通道请求转给 sidecar；capability 限定只有主窗口里的应用页面能调用。sidecar 不为界面开本地端口。
 4. 目录选择器、打开文件夹、窗口明暗由 Rust 宿主应 sidecar 的 `host-request` 提供。
@@ -77,7 +77,7 @@ accepted。宿主、sidecar、存储目录、Windows 打包、数据文件读不
 
 ### 备份库位置
 
-12. 备份库指全部游戏备份所在的整个文件夹，默认是数据根下的 `backups`（便携模式下是 `portable_data\backups`）。设置页可以用系统选择器把整个备份库换到别的文件夹，作用于所有游戏；只有电脑端提供，移动端没有这项设置。
+12. 备份库指全部游戏备份所在的整个文件夹，默认是数据根下的 `backups`（便携模式下是 `portable_data\backups`）。设置页可以用系统选择器把整个备份库换到别的文件夹，作用于所有游戏；只有桌面端提供，移动端没有这项设置。
 13. 换位置不搬已有的备份。应用只列出当前备份库里的备份；旧位置的备份留在原处，换回原位置后重新列出。换位置前界面提示这一点。
 14. 备份库和任何同步目录不能互相包含，选择备份库和选择同步目录时都检查。
 15. 启动时备份库不可用（如移动硬盘未连接）不影响启动；开着备份的游戏传输时报备份库不可用并拒绝开始，不改用其他位置。
@@ -125,4 +125,4 @@ accepted。宿主、sidecar、存储目录、Windows 打包、数据文件读不
 | `apps/desktop/src/backend/backend.ts` | 后端启动、宿主接口 `DesktopHost` 和停止顺序 |
 | `apps/desktop/src/sidecar/index.ts`、`protocol.ts` | sidecar 入口和 stdio 消息格式 |
 | `apps/desktop/src-tauri/` | Tauri 宿主 |
-| [电脑端平台层](../architecture/desktop.md) | 电脑端结构、接口和生命周期 |
+| [桌面端平台层](../architecture/desktop.md) | 桌面端结构、接口和生命周期 |
