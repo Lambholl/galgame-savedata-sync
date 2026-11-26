@@ -11,6 +11,9 @@ concurrency:
   group: release-${{ github.ref_name }}
   cancel-in-progress: false
 
+env:
+  RELEASE_TAG: ${{ github.ref_name }}
+
 jobs:
   # Linux 包在支持的最早 LTS 上构建，二进制要求的 glibc 不高于它的版本；产物交给下面的 release 一起发布。
   linux:
@@ -24,13 +27,19 @@ jobs:
         with:
           node-version: '22'
           cache: pnpm
+      # 只发布 master 上的提交；先拦截非 master tag 或非法 tag 名，避免浪费构建时间。
+      - name: Verify release tag
+        run: |
+          node scripts/app-version.mjs
+          if ! git merge-base --is-ancestor HEAD origin/master; then
+            echo "$RELEASE_TAG 指向的提交不在 origin/master 上" >&2
+            exit 1
+          fi
       # patchelf 给 sidecar 预设 RUNPATH，见 apps/desktop/scripts/build-sidecar-exe.mjs。
       - run: sudo apt-get update && sudo apt-get install -y build-essential pkg-config file patchelf libssl-dev libxdo-dev librsvg2-dev libwebkit2gtk-4.1-dev
       # 和 Windows 一样不加 Rust 编译缓存，发布包里的宿主从源码完整编译。
       - run: rustup toolchain install stable --profile minimal
       - run: pnpm install --frozen-lockfile
-      # tag 是否在 origin/master 上由 release 检查，这里只确认版本号能从 tag 推算出来。
-      - run: node scripts/app-version.mjs
       - run: pnpm test
       - run: pnpm release:loopback
       - run: pnpm desktop:package
@@ -43,11 +52,9 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
-  release:
-    needs: linux
+  # Windows 桌面端与 Android 发布包并行于 Linux 构建；工程检查与全量测试也在这里完成。
+  windows:
     runs-on: windows-latest
-    env:
-      RELEASE_TAG: ${{ github.ref_name }}
     steps:
       # 先确认签名 Secrets 齐全，fork 或新仓库未配置时不必等完整构建才失败；这里只检查是否为空。
       - name: Check Android signing secrets
@@ -72,14 +79,6 @@ jobs:
         with:
           node-version: '22'
           cache: pnpm
-      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
-        with:
-          distribution: temurin
-          java-version: '21'
-          cache: gradle
-      # 这里不加 Rust 编译缓存：缓存由普通分支的 CI 写入，发布包里的宿主要从源码完整编译。
-      - run: rustup toolchain install stable --profile minimal --component clippy,rustfmt
-      - run: pnpm install --frozen-lockfile
       # 版本号来自 tag。只发布 master 上的提交，master 和 tag 要一起推送（git push --atomic origin master vX.Y.Z），
       # 或者先推送 master；只推送 tag 时这一步失败，推送 master 后重新运行即可。
       - name: Verify release tag
@@ -90,6 +89,14 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'tag 不是 vX.Y.Z，或当前提交不是这个 tag 指向的提交' }
           git merge-base --is-ancestor HEAD origin/master
           if ($LASTEXITCODE -ne 0) { throw "$env:RELEASE_TAG 指向的提交不在 origin/master 上" }
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+      # 这里不加 Rust 编译缓存：缓存由普通分支的 CI 写入，发布包里的宿主要从源码完整编译。
+      - run: rustup toolchain install stable --profile minimal --component clippy,rustfmt
+      - run: pnpm install --frozen-lockfile
       - run: pnpm check
       - run: pnpm test:all
       - run: pnpm release:loopback
@@ -117,31 +124,58 @@ jobs:
             Sort-Object { [version]$_.Directory.Name } | Select-Object -Last 1
           & $apksigner.FullName verify --print-certs apps/mobile/android/app/build/outputs/apk/release/app-release.apk
           if ($LASTEXITCODE -ne 0) { throw 'Android 安装包签名校验失败' }
-      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          name: linux-packages
-          path: release-assets
-      - name: Prepare release assets
+      - name: Collect Windows and Android artifacts
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
           $version = $env:RELEASE_TAG.TrimStart('v')
-          New-Item -ItemType Directory -Path release-assets -Force | Out-Null
-          foreach ($name in "SavedataSync-$version-x86_64.AppImage", "SavedataSync-$version-amd64.deb") {
-            if (-not (Test-Path -LiteralPath "release-assets/$name")) { throw "缺少 Linux 产物 $name" }
-          }
+          New-Item -ItemType Directory -Path windows-assets -Force | Out-Null
           foreach ($name in "SavedataSync-$version-Setup-x64.exe", "SavedataSync-$version-Portable-x64.zip") {
-            Copy-Item -LiteralPath "apps/desktop/release/$name" -Destination "release-assets/$name"
+            Copy-Item -LiteralPath "apps/desktop/release/$name" -Destination "windows-assets/$name"
           }
           Copy-Item -LiteralPath "apps/mobile/android/app/build/outputs/apk/release/app-release.apk" `
-            -Destination "release-assets/SavedataSync-$version-Android.apk"
-          $checksums = Get-ChildItem -LiteralPath release-assets -File |
-            Sort-Object Name |
-            ForEach-Object {
-              $hash = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
-              "$hash  $($_.Name)"
-            }
-          Set-Content -LiteralPath release-assets/SHA256SUMS.txt -Value $checksums -Encoding utf8NoBOM
+            -Destination "windows-assets/SavedataSync-$version-Android.apk"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: windows-packages
+          path: windows-assets/*
+          if-no-files-found: error
+          retention-days: 1
+
+  # 两端并行打包完成后再汇总产物、生成校验和并创建草稿 Release。
+  release:
+    needs: [linux, windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: linux-packages
+          path: release-assets
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: windows-packages
+          path: release-assets
+      - name: Prepare release assets
+        run: |
+          version="${RELEASE_TAG#v}"
+          for name in \
+            "SavedataSync-$version-x86_64.AppImage" \
+            "SavedataSync-$version-amd64.deb" \
+            "SavedataSync-$version-Setup-x64.exe" \
+            "SavedataSync-$version-Portable-x64.zip" \
+            "SavedataSync-$version-Android.apk"; do
+            if [ ! -f "release-assets/$name" ]; then
+              echo "缺少发布产物 $name" >&2
+              exit 1
+            fi
+          done
+          rm -f release-assets/SHA256SUMS.txt
+          # 先输出到临时目录，避免 shell 重定向先建文件后被 * 一起算进校验和。
+          (cd release-assets && LC_ALL=C sha256sum -- * > "$RUNNER_TEMP/SHA256SUMS.txt")
+          mv "$RUNNER_TEMP/SHA256SUMS.txt" release-assets/SHA256SUMS.txt
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: savedata-sync-${{ github.ref_name }}
@@ -149,26 +183,19 @@ jobs:
           if-no-files-found: error
           retention-days: 7
       - name: Create draft release
-        shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $ErrorActionPreference = 'Stop'
-          $version = $env:RELEASE_TAG.TrimStart('v')
-          $tagRef = "refs/tags/$($env:RELEASE_TAG)"
-          $tagType = (git cat-file -t $tagRef) | Out-String
-          $title = ''
-          if ($LASTEXITCODE -eq 0 -and $tagType.Trim() -eq 'tag') {
-            $subject = (git for-each-ref $tagRef --format='%(contents:subject)') | Out-String
-            if ($LASTEXITCODE -eq 0) {
-              $title = $subject.Trim()
-            }
-          }
-          if (-not $title) {
-            $title = $version
-          }
-          $assets = Get-ChildItem -LiteralPath release-assets -File | ForEach-Object FullName
-          gh release create $env:RELEASE_TAG @assets `
-            --draft `
-            --title $title `
+          version="${RELEASE_TAG#v}"
+          tag_ref="refs/tags/$RELEASE_TAG"
+          title=""
+          if [ "$(git cat-file -t "$tag_ref" 2>/dev/null || true)" = "tag" ]; then
+            title="$(git for-each-ref "$tag_ref" --format='%(contents:subject)' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+          fi
+          if [ -z "$title" ]; then
+            title="$version"
+          fi
+          gh release create "$RELEASE_TAG" release-assets/* \
+            --draft \
+            --title "$title" \
             --generate-notes
