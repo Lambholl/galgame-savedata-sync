@@ -1,3 +1,4 @@
+import { SYNC_MODIFIED_TOLERANCE_MS } from './sync-contracts.ts'
 import type { SyncEntry, SyncSnapshot } from './sync-contracts.ts'
 import { syncPathKey } from './sync-paths.ts'
 import { isSameSyncFile } from './sync-plan.ts'
@@ -25,6 +26,11 @@ export interface CompareItem {
   readonly state: CompareState
   /** 文件夹里不一致的文件数（含子文件夹，两端合计按路径去重）；文件为 0。 */
   readonly differingCount: number
+  /**
+   * 两端都是文件、内容不同，且这一端的修改日期比另一端晚 SYNC_MODIFIED_TOLERANCE_MS 以上时为 true；
+   * 任一端日期未知时为 false。
+   */
+  readonly isNewer: boolean
 }
 
 /** 两端快照的比较结果。 */
@@ -135,6 +141,13 @@ export function compareSnapshots(listener: SyncSnapshot, dialer: SyncSnapshot): 
       } else {
         state = isSameSyncFile(entry, counterpart) ? 'same' : 'differs'
       }
+      const isNewer =
+        state === 'differs' &&
+        entry.kind === 'file' &&
+        counterpart?.kind === 'file' &&
+        entry.modifiedAt !== null &&
+        counterpart.modifiedAt !== null &&
+        entry.modifiedAt - counterpart.modifiedAt > SYNC_MODIFIED_TOLERANCE_MS
       const listKey = childrenKey(side, entry.path.slice(0, -1))
       const list = children.get(listKey) ?? []
       list.push({
@@ -145,6 +158,7 @@ export function compareSnapshots(listener: SyncSnapshot, dialer: SyncSnapshot): 
         modifiedAt: entry.modifiedAt,
         state,
         differingCount,
+        isNewer,
       })
       children.set(listKey, list)
     }

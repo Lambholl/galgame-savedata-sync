@@ -36,6 +36,7 @@ function rowsAt(files: readonly SyncBackupFile[], path: readonly string[]): Pane
       modifiedAt: file.modifiedAt,
       marker: 'none',
       tone: 'same',
+      isNewer: false,
     })
   }
   return [
@@ -47,6 +48,7 @@ function rowsAt(files: readonly SyncBackupFile[], path: readonly string[]): Pane
       modifiedAt: null,
       marker: 'none',
       tone: 'same',
+      isNewer: false,
     })),
     ...rows.sort((a, b) => compareNames(a.name, b.name)),
   ]

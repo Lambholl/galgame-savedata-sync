@@ -217,6 +217,7 @@ function ComparePane({
               modifiedAt: item.modifiedAt,
               marker: markerOf(item, isSource, isKeeping),
               tone: toneOf(item, isSource, isKeeping),
+              isNewer: item.isNewer,
             }))
           : null
       }
@@ -352,7 +353,7 @@ export function TransferComparison({
           {counts === null ? (
             <TransferStatus status={status} />
           ) : (
-            <span className="ss-diffbar-group">
+            <span className="ss-diffbar-group is-counts">
               {counts.every((item) => item.count === 0) ? (
                 <span className="ss-count is-same">{t('compare.allSame')}</span>
               ) : (

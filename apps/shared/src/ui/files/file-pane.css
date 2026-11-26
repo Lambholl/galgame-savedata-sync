@@ -15,7 +15,7 @@
   top: 0;
   z-index: 1;
   flex: none;
-  padding: 8px 10px;
+  padding: 8px 6px;
   background: var(--ss-group);
   border-bottom: 1px solid var(--ss-line);
   color: var(--ss-muted);
@@ -54,16 +54,18 @@
 }
 /*
  * 文件行：两端用同一套结构，只按这一列的宽度切换。
- * 窄列（默认）：文件名最多两行，下方小字写修改时间与大小；
+ * 窄列（默认）：文件名最多两行，下方一行小字写修改时间与大小；
  * 宽列：表格三列（名称 / 大小 / 修改时间），名称一行。过长时省略，悬停显示全名。
+ * 窄列的边距、图标和间距比宽列小：手机上每列只有 180px 左右，
+ * 省出的宽度让常见的修改时间和大小能排在同一行。
  */
 .ss-row {
   display: flex;
   align-items: flex-start;
-  gap: 8px;
+  gap: 6px;
   width: 100%;
   min-width: 0;
-  padding: 7px 10px;
+  padding: 7px 6px;
   border: 0;
   border-bottom: 1px solid var(--ss-line);
   background: transparent;
@@ -73,6 +75,11 @@
 }
 .ss-row.is-up {
   align-items: center;
+}
+.ss-row .ss-file-icon {
+  width: 26px;
+  height: 26px;
+  font-size: 15px;
 }
 /* 行的差异底色：覆盖琥珀、只在目标蓝、新建绿、将删除红；可点的行再叠 ss-pressable 的遮罩 */
 .ss-row.is-differs {
@@ -109,16 +116,35 @@
   -webkit-line-clamp: 2;
   line-clamp: 2;
 }
+/*
+ * 窄列的时间与大小不用等宽数字：等宽数字给“1”两侧补空白，常让这一行放不下。
+ * 宽列右对齐的两格仍用等宽数字。
+ */
 .ss-row-meta {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0 8px;
+  gap: 5px;
+  min-width: 0;
+  overflow: hidden;
   color: var(--ss-muted);
   font-size: 10.5px;
-  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+/* 时间与大小始终一行：时间完整显示，列太窄时省略大小的末尾。 */
+.ss-row-meta > span {
+  flex: none;
+}
+.ss-row-meta > span + span {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .ss-row-meta:empty {
   display: none;
+}
+/* 较新一端的修改日期：与内容不同的行底色、差异数 ~ 标签同用覆盖色。 */
+.ss-row-date.is-newer {
+  color: var(--ss-warn);
 }
 .ss-pane-label,
 .ss-row-cell {
@@ -134,6 +160,16 @@
   container: ss-pane / inline-size;
 }
 @container ss-pane (min-width: 400px) {
+  .ss-pane-head,
+  .ss-row {
+    gap: 8px;
+    padding-inline: 10px;
+  }
+  .ss-row .ss-file-icon {
+    width: 30px;
+    height: 30px;
+    font-size: 17px;
+  }
   .ss-pane-head,
   .ss-row:not(.is-up) {
     display: grid;

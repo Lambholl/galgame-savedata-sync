@@ -140,6 +140,10 @@ button.ss-end:disabled {
   align-items: center;
   gap: 6px;
 }
+/* 差异数标签彼此靠得更近，读成一组，与右边的操作按钮区分开。 */
+.ss-diffbar-group.is-counts {
+  gap: 3px;
+}
 .ss-diffbar-group.is-tools {
   justify-content: flex-end;
   margin-left: auto;
@@ -264,8 +268,14 @@ button.ss-end:disabled {
   flex: 1;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   grid-template-rows: minmax(0, 1fr);
-  gap: 8px;
+  gap: 6px;
   min-height: 0;
+}
+/* 窄屏的两列间距与文件列的窄列边距一起收紧，给每行的修改时间和大小多留宽度。 */
+@container ss-transfer (min-width: 560px) {
+  .ss-panes {
+    gap: 8px;
+  }
 }
 /*
  * 两列限高各自滚动，滚到头时不带动外层。不限高的文件列（如备份文件）不能这样设：

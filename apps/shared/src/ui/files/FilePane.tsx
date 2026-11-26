@@ -18,11 +18,13 @@ export interface PaneRow {
   readonly marker: FileIconMarker
   /** 行的差异底色：same 无底色，differs 覆盖，only 只在目标，new 新建，delete 将从目标删除。 */
   readonly tone: 'same' | 'differs' | 'only' | 'new' | 'delete'
+  /** 修改日期是否用覆盖色显示，表示这一端的文件比另一端新。 */
+  readonly isNewer: boolean
 }
 
 /**
  * 一列文件：列头写路径，文件夹排在文件前，点按文件夹进入，点按“..”返回上一层。
- * 窄列的名称最多两行，下方小字写时间和大小；宽列分名称、大小、修改时间三列。
+ * 窄列的名称最多两行，下方一行小字写时间和大小，放不下时省略大小的末尾；宽列分名称、大小、修改时间三列。
  */
 export function FilePane({
   label,
@@ -80,6 +82,7 @@ export function FilePane({
             </button>
           ) : null}
           {rows.map((row) => {
+            const dateClass = row.isNewer ? 'ss-row-date is-newer' : 'ss-row-date'
             // 窄列和宽列共用这份内容，由样式按列宽决定显示成名称下方的小字还是右侧两格。
             const body = (
               <>
@@ -89,12 +92,14 @@ export function FilePane({
                     {row.name}
                   </span>
                   <span className="ss-row-meta">
-                    {row.modifiedAt !== null && <span>{time(row.modifiedAt)}</span>}
+                    {row.modifiedAt !== null && (
+                      <span className={dateClass}>{time(row.modifiedAt)}</span>
+                    )}
                     {row.kind !== 'directory' && <span>{size(row)}</span>}
                   </span>
                 </span>
                 <span className="ss-row-cell">{size(row)}</span>
-                <span className="ss-row-cell">{time(row.modifiedAt)}</span>
+                <span className={`ss-row-cell ${dateClass}`}>{time(row.modifiedAt)}</span>
               </>
             )
             const className = `ss-row is-${row.tone}`
