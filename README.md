@@ -10,6 +10,8 @@ Windows、Linux 与 Android 的局域网存档同步工具
 [![Downloads](https://img.shields.io/github/downloads/Lambholl/galgame-savedata-sync/total?style=flat-square&logo=github)](https://github.com/Lambholl/galgame-savedata-sync/releases)
 [![License](https://img.shields.io/github/license/Lambholl/galgame-savedata-sync?style=flat-square)](LICENSE)
 
+中文 · [English](README.en.md)
+
 [下载](#下载) · [快速上手](#快速上手) · [注意事项](#注意事项) · [常见问题](#常见问题) · [开发指南](docs/development.md)
 
 <img src="assets/screenshots/games.webp" alt="桌面端和移动端的游戏页" width="900">
@@ -90,12 +92,14 @@ Windows、Linux 与 Android 的局域网存档同步工具
 
 ### 数据位置与卸载
 
-| 平台 / 模式 | 界面设置 | 游戏、设备与默认备份 | 卸载或删除程序 |
-| --- | --- | --- | --- |
-| Windows（安装版与免安装版默认） | `%APPDATA%\galgame-savedata-sync` | 数据在 `%LOCALAPPDATA%\galgame-savedata-sync\data`，默认备份在同级 `backups`（可在设置中更改） | 保留数据与备份 |
-| Linux（deb 与 AppImage 默认） | `~/.config/galgame-savedata-sync` | 数据在 `~/.local/share/galgame-savedata-sync/data`，默认备份在同级 `backups`（可在设置中更改） | 保留数据与备份 |
-| 开启便携模式（自建 `portable_data` 后） | `portable_data/config` | 数据在 `portable_data/data`，默认备份在 `portable_data/backups`（可在设置中更改） | 保留（随 `portable_data` 目录） |
-| Android | 应用私有目录 | 备份在 `Android/data/io.github.galgame.savedatasync/files/backups/` | **一并删除所有配置与备份** |
+默认备份位置均可在设置中更改。
+
+| 平台 / 模式 | 路径 | 卸载或删除程序 |
+| --- | --- | --- |
+| Windows<br>（安装版与免安装版默认） | 界面设置：`%APPDATA%\galgame-savedata-sync`<br>游戏与设备：`%LOCALAPPDATA%\galgame-savedata-sync\data`<br>默认备份：`%LOCALAPPDATA%\galgame-savedata-sync\backups` | 保留数据与备份 |
+| Linux<br>（deb 与 AppImage 默认） | 界面设置：`~/.config/galgame-savedata-sync`<br>游戏与设备：`~/.local/share/galgame-savedata-sync/data`<br>默认备份：`~/.local/share/galgame-savedata-sync/backups` | 保留数据与备份 |
+| 便携模式<br>（自建 `portable_data` 后） | 界面设置：`portable_data/config`<br>游戏与设备：`portable_data/data`<br>默认备份：`portable_data/backups` | 保留（随 `portable_data` 目录） |
+| Android | 界面设置与数据：应用私有目录<br>默认备份：`Android/data/io.github.galgame.savedatasync/files/backups/` | **一并删除所有配置与备份** |
 
 ## 常见问题
 
