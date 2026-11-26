@@ -31,6 +31,7 @@
   - [存储目录与卸载影响](#存储目录与卸载影响)
 - [版本号与发布](#版本号与发布)
   - [版本号规则](#版本号规则)
+  - [发布文件名](#发布文件名)
   - [1.x 版本升级规则](#1x-版本升级规则)
   - [日常 CI 与发布流程](#日常-ci-与发布流程)
 - [依赖管理](#依赖管理)
@@ -157,8 +158,8 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profil
 
 | 产物 | 说明 |
 | --- | --- |
-| `SavedataSync-<版本>-Setup-x64.exe` | NSIS 安装包，支持当前用户（`%LOCALAPPDATA%\Savedata Sync`）或所有用户（`%ProgramFiles%\Savedata Sync`）；缺少 WebView2 时自动下载安装 |
-| `SavedataSync-<版本>-Portable-x64.zip` | 免安装版，含 `SavedataSync.exe` 与 `savedata-sync-backend.exe` |
+| `SavedataSync-<版本>-windows-amd64-setup.exe` | NSIS 安装包，支持当前用户（`%LOCALAPPDATA%\Savedata Sync`）或所有用户（`%ProgramFiles%\Savedata Sync`）；缺少 WebView2 时自动下载安装 |
+| `SavedataSync-<版本>-windows-amd64-portable.zip` | 免安装版，含 `SavedataSync.exe` 与 `savedata-sync-backend.exe` |
 
 首次打包时 Tauri 会从 GitHub 下载 NSIS 工具。
 
@@ -166,8 +167,8 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profil
 
 | 产物 | 说明 |
 | --- | --- |
-| `SavedataSync-<版本>-x86_64.AppImage` | 内含 WebKitGTK，可放在任意文件夹运行；同级目录有 `portable_data` 时数据保存在其中 |
-| `SavedataSync-<版本>-amd64.deb` | 依赖系统的 `libwebkit2gtk-4.1-0` 和 `libgtk-3-0`，数据始终写在 XDG 目录 |
+| `SavedataSync-<版本>-linux-amd64.AppImage` | 内含 WebKitGTK，可放在任意文件夹运行；同级目录有 `portable_data` 时数据保存在其中 |
+| `SavedataSync-<版本>-linux-amd64.deb` | 依赖系统的 `libwebkit2gtk-4.1-0` 和 `libgtk-3-0`，数据始终写在 XDG 目录 |
 
 - 构建依赖见 [Linux 环境准备](#linux-环境准备)，另需 `patchelf`：sidecar 打包前要预设 RUNPATH，否则生成 AppImage 时 linuxdeploy 会改写 sidecar，pkg 附在文件末尾的代码随之损坏。打包脚本最后核对 AppImage 里的 sidecar 与构建产物是否一致，不一致则失败。
 - 发布包在 Ubuntu 22.04 上构建，在更新的发行版上构建的包可能要求更高的 glibc。
@@ -351,6 +352,19 @@ keytool -genkeypair -v -keystore savedata-sync-release.jks -alias savedata-sync 
 - Android Gradle 构建会调用该脚本，需确保 `PATH` 中存在 `node`。
 - 开发模式下版本号在启动时计算一次；Windows 与 Linux 分发包文件名及 Windows exe 文件属性仅保留数字版本号（如 `1.0.0`），界面显示完整版本号。
 
+### 发布文件名
+
+发布文件按 `SavedataSync-<版本>-<系统>-<架构>[-<形式>].<扩展名>` 命名，由打包脚本和发布工作流生成：
+
+| 段 | 取值 |
+| --- | --- |
+| 系统 | `windows`、`linux`、`android` |
+| 架构 | `amd64`、`arm64`；APK 不含原生库、各架构通用，写 `universal` |
+| 形式 | 同一系统和架构有多种包时加，目前只有 Windows：`setup`（安装包）、`portable`（免安装版）；其余省略 |
+| 扩展名 | `.AppImage` 保留官方大小写，其余小写 |
+
+当前产物为 `windows-amd64-setup.exe`、`windows-amd64-portable.zip`、`linux-amd64.AppImage`、`linux-amd64.deb` 和 `android-universal.apk`。不另附校验和文件，各文件的 SHA-256 由 GitHub 在 Release 页面显示。改名时同步修改打包脚本、[发布工作流](../.github/workflows/release.yml)和 README 里的文件名。
+
 ### 1.x 版本升级规则
 
 | 版本段 | 适用变更 | 两端互通 |
@@ -374,7 +388,7 @@ keytool -genkeypair -v -keystore savedata-sync-release.jks -alias savedata-sync 
    git push --atomic origin master v<版本号>
    ```
 
-3. 推送 tag 后触发[发布工作流](../.github/workflows/release.yml)（需仓库 Actions 具备 `contents: write` 权限）：校验 tag 与 `origin/master`、运行 `pnpm check`、`pnpm test:all` 与 `pnpm release:loopback`、打包 Windows x64 安装包与免安装 zip、在 Ubuntu 22.04 上运行 `pnpm test` 与 `pnpm release:loopback` 并打包 Linux 的 AppImage 与 deb、构建并校验签名后的 Android release APK、生成 `SHA256SUMS.txt`、上传 Actions artifact 并创建**草稿 GitHub Release**（标题默认取附注 tag 的首行说明，未写时回退为版本号）。
+3. 推送 tag 后触发[发布工作流](../.github/workflows/release.yml)（需仓库 Actions 具备 `contents: write` 权限）：校验 tag 与 `origin/master`、运行 `pnpm check`、`pnpm test:all` 与 `pnpm release:loopback`、打包 Windows x64 安装包与免安装 zip、在 Ubuntu 22.04 上运行 `pnpm test` 与 `pnpm release:loopback` 并打包 Linux 的 AppImage 与 deb、构建并校验签名后的 Android release APK、上传 Actions artifact 并创建**草稿 GitHub Release**（标题默认取附注 tag 的首行说明，未写时回退为版本号）。
 4. 在草稿 Release 页面补充已知问题、安装限制与兼容变更说明后正式发布。若工作流失败，须经维护者同意后删除 tag，修复后再重新打 tag。
 
 ## 依赖管理

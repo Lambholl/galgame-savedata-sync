@@ -77,15 +77,15 @@ tags: [Windows, 桌面端, Tauri, sidecar, 存储目录]
 
 `pnpm desktop:package`（`apps/desktop/scripts/package.mjs`）按本机平台调用 `package-windows.mjs` 或 `package-linux.mjs`，输出到 `apps/desktop/release/`。Windows x64 上的产物：
 
-- `SavedataSync-<版本>-Setup-x64.exe`：NSIS 安装包，安装时选择只为当前用户安装（`%LOCALAPPDATA%\Savedata Sync`）或为所有用户安装（`%ProgramFiles%\Savedata Sync`，需要管理员权限）；管理员账户启动安装包时先弹出 UAC（NSIS MultiUser 的执行级别为 `Highest`）；界面语言和应用一致，按系统语言在英文、简体中文、繁体中文和日文间选择，都不匹配时用英文；缺少 WebView2 时下载引导程序安装。卸载只删除程序文件，存储目录保留。
-- `SavedataSync-<版本>-Portable-x64.zip`：一个文件夹，内含 `SavedataSync.exe` 和 `savedata-sync-backend.exe`，不带 `portable_data`。
+- `SavedataSync-<版本>-windows-amd64-setup.exe`：NSIS 安装包，安装时选择只为当前用户安装（`%LOCALAPPDATA%\Savedata Sync`）或为所有用户安装（`%ProgramFiles%\Savedata Sync`，需要管理员权限）；管理员账户启动安装包时先弹出 UAC（NSIS MultiUser 的执行级别为 `Highest`）；界面语言和应用一致，按系统语言在英文、简体中文、繁体中文和日文间选择，都不匹配时用英文；缺少 WebView2 时下载引导程序安装。卸载只删除程序文件，存储目录保留。
+- `SavedataSync-<版本>-windows-amd64-portable.zip`：一个文件夹，内含 `SavedataSync.exe` 和 `savedata-sync-backend.exe`，不带 `portable_data`。
 
 版本号取 `scripts/app-version.mjs` 的推算结果去掉构建元数据，打包时通过 `tauri build --config` 写入；界面显示完整版本。`tauri.conf.json` 的 `version` 固定为 `0.0.0`，`bundle.active` 为 false，打包时才打开并登记 `bundle.externalBin`：登记后 `tauri dev` 和 `cargo build` 也要求 sidecar 可执行文件已经存在。
 
 Linux x64 上的产物（规则见 [ADR-0007](../decisions/ADR-0007-linux-desktop.md#支持范围与分发)）：
 
-- `SavedataSync-<版本>-x86_64.AppImage`：在 Ubuntu 22.04 上构建约 104 MiB，内含构建机的 WebKitGTK 和 GTK，运行时要 FUSE 2 或 `APPIMAGE_EXTRACT_AND_RUN=1`。按 AppImage 的惯例，Wayland 客户端、X11、Mesa（`libgbm`、`libEGL`、`libGLESv2`）等桌面基础库不打进包里，由系统提供，普通桌面都装有这些库。
-- `SavedataSync-<版本>-amd64.deb`：约 32 MiB，包名 `savedata-sync`，依赖 `libwebkit2gtk-4.1-0` 和 `libgtk-3-0`（Tauri 自动声明），主程序和 sidecar 装在 `/usr/bin`，另装桌面启动项和 256×256 图标。
+- `SavedataSync-<版本>-linux-amd64.AppImage`：在 Ubuntu 22.04 上构建约 104 MiB，内含构建机的 WebKitGTK 和 GTK，运行时要 FUSE 2 或 `APPIMAGE_EXTRACT_AND_RUN=1`。按 AppImage 的惯例，Wayland 客户端、X11、Mesa（`libgbm`、`libEGL`、`libGLESv2`）等桌面基础库不打进包里，由系统提供，普通桌面都装有这些库。
+- `SavedataSync-<版本>-linux-amd64.deb`：约 32 MiB，包名 `savedata-sync`，依赖 `libwebkit2gtk-4.1-0` 和 `libgtk-3-0`（Tauri 自动声明），主程序和 sidecar 装在 `/usr/bin`，另装桌面启动项和 256×256 图标。
 
 两种包都由 Tauri 生成，打包时打开 `bundle.targets` 的 `deb` 和 `appimage`。AppImage 由 linuxdeploy 组装，它会用 patchelf 把 `usr/bin` 里每个可执行文件的 RUNPATH 改成 `$ORIGIN/../lib`，没有排除选项；这一改写会挪动文件内容，pkg 附在 sidecar 末尾的代码按固定偏移读取，改写后 sidecar 启动即崩溃。所以 `build-sidecar-exe.mjs` 在 Linux 上先用 patchelf 把基础 Node 的 RUNPATH 设成同样的值再交给 pkg，linuxdeploy 写同样长的值时原地覆盖，文件不变；`package-linux.mjs` 最后解出 AppImage 里的 sidecar 和构建结果逐字节比较，不同就失败。Linux 版 sidecar 要求的 glibc 不高于 2.28，主程序要求的版本取决于构建机。在 Ubuntu 22.04 容器里打出的两个包，在没装开发依赖的 Ubuntu 22.04 容器里验证过：deb 用 `apt install` 装上后依赖齐全，AppImage 在只装了 GTK 3 和 Mesa、没有 WebKitGTK 的系统上运行；两者都能打开窗口、启动 sidecar，数据分别写进 XDG 目录和 `portable_data`。deb 的维护者字段为 Tauri 按 `identifier` 推出的 `github`：设 `bundle.publisher` 会同时改变 Windows 安装包登记表项的路径，已装的 1.0 认不出来。
 

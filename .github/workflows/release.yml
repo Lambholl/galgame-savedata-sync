@@ -130,11 +130,11 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $version = $env:RELEASE_TAG.TrimStart('v')
           New-Item -ItemType Directory -Path windows-assets -Force | Out-Null
-          foreach ($name in "SavedataSync-$version-Setup-x64.exe", "SavedataSync-$version-Portable-x64.zip") {
+          foreach ($name in "SavedataSync-$version-windows-amd64-setup.exe", "SavedataSync-$version-windows-amd64-portable.zip") {
             Copy-Item -LiteralPath "apps/desktop/release/$name" -Destination "windows-assets/$name"
           }
           Copy-Item -LiteralPath "apps/mobile/android/app/build/outputs/apk/release/app-release.apk" `
-            -Destination "windows-assets/SavedataSync-$version-Android.apk"
+            -Destination "windows-assets/SavedataSync-$version-android-universal.apk"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: windows-packages
@@ -142,7 +142,7 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
-  # 两端并行打包完成后再汇总产物、生成校验和并创建草稿 Release。
+  # 两端并行打包完成后再汇总产物并创建草稿 Release；各文件的 SHA-256 由 GitHub 在 Release 页面提供。
   release:
     needs: [linux, windows]
     runs-on: ubuntu-latest
@@ -158,24 +158,20 @@ jobs:
         with:
           name: windows-packages
           path: release-assets
-      - name: Prepare release assets
+      - name: Check release assets
         run: |
           version="${RELEASE_TAG#v}"
           for name in \
-            "SavedataSync-$version-x86_64.AppImage" \
-            "SavedataSync-$version-amd64.deb" \
-            "SavedataSync-$version-Setup-x64.exe" \
-            "SavedataSync-$version-Portable-x64.zip" \
-            "SavedataSync-$version-Android.apk"; do
+            "SavedataSync-$version-linux-amd64.AppImage" \
+            "SavedataSync-$version-linux-amd64.deb" \
+            "SavedataSync-$version-windows-amd64-setup.exe" \
+            "SavedataSync-$version-windows-amd64-portable.zip" \
+            "SavedataSync-$version-android-universal.apk"; do
             if [ ! -f "release-assets/$name" ]; then
               echo "缺少发布产物 $name" >&2
               exit 1
             fi
           done
-          rm -f release-assets/SHA256SUMS.txt
-          # 先输出到临时目录，避免 shell 重定向先建文件后被 * 一起算进校验和。
-          (cd release-assets && LC_ALL=C sha256sum -- * > "$RUNNER_TEMP/SHA256SUMS.txt")
-          mv "$RUNNER_TEMP/SHA256SUMS.txt" release-assets/SHA256SUMS.txt
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: savedata-sync-${{ github.ref_name }}

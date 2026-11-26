@@ -42,13 +42,13 @@ async function main() {
     })
 
     await mkdir(RELEASE_DIRECTORY, { recursive: true })
-    const installer = join(RELEASE_DIRECTORY, `SavedataSync-${version}-Setup-x64.exe`)
+    const installer = join(RELEASE_DIRECTORY, `SavedataSync-${version}-windows-amd64-setup.exe`)
     // Tauri 按 `productName_版本_x64-setup.exe` 命名安装包；目录里可能留着旧产品名或旧版本的安装包。
     const { productName } = JSON.parse(await readFile(join(TAURI_ROOT, 'tauri.conf.json'), 'utf8'))
     const bundleDirectory = join(TAURI_ROOT, 'target', 'release', 'bundle', 'nsis')
     await copyFile(join(bundleDirectory, `${productName}_${version}_x64-setup.exe`), installer)
 
-    const portableName = `SavedataSync-${version}-Portable-x64`
+    const portableName = `SavedataSync-${version}-windows-amd64-portable`
     const staging = join(workDirectory, portableName)
     await mkdir(staging)
     const releaseBuild = join(TAURI_ROOT, 'target', 'release')

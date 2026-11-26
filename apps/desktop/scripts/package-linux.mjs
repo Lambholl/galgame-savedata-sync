@@ -50,11 +50,11 @@ async function main() {
     const outputs = [
       [
         join(bundleDirectory, 'appimage', `${productName}_${version}_amd64.AppImage`),
-        join(RELEASE_DIRECTORY, `SavedataSync-${version}-x86_64.AppImage`),
+        join(RELEASE_DIRECTORY, `SavedataSync-${version}-linux-amd64.AppImage`),
       ],
       [
         join(bundleDirectory, 'deb', `${productName}_${version}_amd64.deb`),
-        join(RELEASE_DIRECTORY, `SavedataSync-${version}-amd64.deb`),
+        join(RELEASE_DIRECTORY, `SavedataSync-${version}-linux-amd64.deb`),
       ],
     ]
     // linuxdeploy 改写过的 sidecar 启动即崩溃，见 build-sidecar-exe.mjs 里设 RUNPATH 的原因。

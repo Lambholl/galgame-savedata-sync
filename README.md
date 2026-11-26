@@ -33,15 +33,13 @@ Windows、Linux 与 Android 的局域网存档同步工具
 
 ## 下载
 
-从 [GitHub Releases](https://github.com/Lambholl/galgame-savedata-sync/releases/latest) 下载对应安装包，页面同时提供用于校验完整性的 `SHA256SUMS.txt`。
+从 [GitHub Releases](https://github.com/Lambholl/galgame-savedata-sync/releases/latest) 下载对应安装包。
 
-| 平台 | 文件 | 说明 |
+| 系统 | 要求 | 下载 |
 | --- | --- | --- |
-| Windows 10+ | `SavedataSync-<版本>-Setup-x64.exe` | 64 位安装包，支持只为当前用户或所有用户安装 |
-| Windows 10+ | `SavedataSync-<版本>-Portable-x64.zip` | 64 位免安装版，解压后运行 `SavedataSync.exe` |
-| Linux x86_64 | `SavedataSync-<版本>-x86_64.AppImage` | 免安装版，适用于 Ubuntu 22.04、Debian 12 及更新的发行版 |
-| Linux x86_64 | `SavedataSync-<版本>-amd64.deb` | Debian、Ubuntu 安装包，适用于 Ubuntu 22.04、Debian 12 及更新的版本 |
-| Android 11+ | `SavedataSync-<版本>-Android.apk` | 安装时按系统提示允许安装来自该来源的应用 |
+| Windows | Windows 10 及以上，x64 | [![Setup x64](https://img.shields.io/badge/Setup-x64-2d7d9a.svg?style=flat-square&logo=windows)](https://github.com/Lambholl/galgame-savedata-sync/releases/latest)<br>[![Portable x64](https://img.shields.io/badge/Portable-x64-67b7d1.svg?style=flat-square&logo=windows)](https://github.com/Lambholl/galgame-savedata-sync/releases/latest) |
+| Linux | Ubuntu 22.04、Debian 12 及以上，x64 | [![AppImage x64](https://img.shields.io/badge/AppImage-x64-f84e29.svg?style=flat-square&logo=linux)](https://github.com/Lambholl/galgame-savedata-sync/releases/latest)<br>[![DebPackage x64](https://img.shields.io/badge/DebPackage-x64-FF9966.svg?style=flat-square&logo=debian)](https://github.com/Lambholl/galgame-savedata-sync/releases/latest) |
+| Android | Android 11 及以上 | [![APK Universal](https://img.shields.io/badge/APK-Universal-168039.svg?style=flat-square&logo=android)](https://github.com/Lambholl/galgame-savedata-sync/releases/latest) |
 
 ### Windows 运行说明
 
@@ -51,11 +49,11 @@ Windows、Linux 与 Android 的局域网存档同步工具
 
 ### Linux 运行说明
 
-**AppImage**：下载后需先添加可执行权限（`chmod +x SavedataSync-<版本>-x86_64.AppImage`）再运行。运行依赖 FUSE 2：
+**AppImage**：下载后需先添加可执行权限（`chmod +x SavedataSync-<版本>-linux-amd64.AppImage`）再运行。运行依赖 FUSE 2：
   - Ubuntu 22.04、Debian 12 执行 `sudo apt install libfuse2`，较新的发行版包名为 `libfuse2t64`。
   - 未安装 FUSE 2 时，也可设置环境变量 `APPIMAGE_EXTRACT_AND_RUN=1` 后运行。
 
-**deb 安装包**：执行 `sudo apt install ./SavedataSync-<版本>-amd64.deb` 安装，会自动安装所需系统组件。
+**deb 安装包**：执行 `sudo apt install ./SavedataSync-<版本>-linux-amd64.deb` 安装，会自动安装所需系统组件。
 
 ### 便携模式
 
