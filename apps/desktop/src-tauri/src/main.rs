@@ -1,4 +1,4 @@
-//! 电脑端 Tauri 宿主：启动 Node sidecar，打开主窗口，把界面请求转给 sidecar，并为 sidecar 提供平台能力。
+//! 桌面端 Tauri 宿主：启动 Node sidecar，打开主窗口，把界面请求转给 sidecar，并为 sidecar 提供平台能力。
 
 // 发布版不带控制台窗口。
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]

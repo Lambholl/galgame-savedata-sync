@@ -4,6 +4,7 @@
  *   地址旁放得下二维码时：信息 | 二维码 | 开关；
  *   放不下时（ServiceHero 量出实际宽度后加 is-qr-folded）：信息 | 开关，二维码收进地址旁的按钮；
  *   卡片 520px 以下：标题和运行信息在左、开关在右，地址单独占一整行，不会被开关压住。
+ * 二维码收起或地址单独占一行后还放不下地址时，ServiceHero 在地址行上设 --ss-address-scale 按比例缩小地址。
  * 紧凑排版（is-compact）在这三档之上缩小开关和边距，二维码总是收进按钮，见文件末尾。
  */
 
@@ -95,7 +96,7 @@
   align-items: center;
   gap: 4px;
   white-space: nowrap;
-  font-size: clamp(20px, 4.2cqi, 36px);
+  font-size: calc(clamp(20px, 4.2cqi, 36px) * var(--ss-address-scale, 1));
   font-weight: 700;
   line-height: 1.15;
   /* 换成读取中或读不到地址的小字时保持地址行高度，卡片内容不上下跳动。 */
@@ -330,6 +331,8 @@
     display: grid;
   }
   .ss-service-body {
+    /* ServiceHero 据此知道地址单独占一行。 */
+    --ss-service-stacked: 1;
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
     grid-template-areas:
@@ -353,17 +356,9 @@
     flex-wrap: wrap;
     gap: 12px 20px;
   }
-  /*
-   * 地址独占一行，字号按最长的 IPv4 地址加端口（21 个字符，约 10.9em）一行放得下来算：
-   * 卡片宽减去左右内边距（48px）和复制、二维码两个按钮及间距（86px），再除以 11em。
-   */
   .ss-service-address {
     grid-area: address;
-    font-size: min(30px, calc((100cqi - 134px) / 11));
-  }
-  /* 紧凑排版的左右内边距是 38px。 */
-  .ss-service-hero.is-compact .ss-service-address {
-    font-size: min(30px, calc((100cqi - 124px) / 11));
+    font-size: calc(30px * var(--ss-address-scale, 1));
   }
   /* 停止时没有运行信息，端口放在标题下面、开关左边，卡片只剩开关那么高。 */
   .ss-service-port {

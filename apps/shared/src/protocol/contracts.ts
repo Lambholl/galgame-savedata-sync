@@ -18,7 +18,7 @@ export interface DeviceCapabilities {
   readonly canListRoots: CapabilityState
 }
 
-/** 设备平台；windows 和 linux 是电脑端，界面按电脑显示。 */
+/** 设备平台；windows 和 linux 是桌面端，界面按电脑显示。 */
 export type DevicePlatform = 'windows' | 'linux' | 'android'
 
 /** 设备描述：这次安装的稳定身份和显示信息。 */

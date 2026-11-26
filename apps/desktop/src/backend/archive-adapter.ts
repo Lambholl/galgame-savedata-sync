@@ -74,7 +74,7 @@ async function* binaryChunks(source: AsyncIterable<unknown>): AsyncGenerator<Buf
   }
 }
 
-/** 电脑端的归档编解码器：边读源文件边打包发送 tar.gz，接收时解包到私有缓存。 */
+/** 桌面端的归档编解码器：边读源文件边打包发送 tar.gz，接收时解包到私有缓存。 */
 export class DesktopArchiveAdapter {
   private readonly source: ArchiveSource
   private readonly cache: ArchiveCache

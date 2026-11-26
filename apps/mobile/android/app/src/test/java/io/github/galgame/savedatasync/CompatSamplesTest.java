@@ -28,7 +28,7 @@ import org.junit.Test;
 /**
  * 按格式版本冻结的兼容样本：当前版本都有样本，全部样本都能读，当前版本读出再写回不变。
  *
- * <p>样本在 desktop/test/fixtures/compat，和电脑端测试共用；Android 目录登记的读取依赖 Android 框架，由设备测试核对。
+ * <p>样本在 desktop/test/fixtures/compat，和桌面端测试共用；Android 目录登记的读取依赖 Android 框架，由设备测试核对。
  */
 public class CompatSamplesTest {
 

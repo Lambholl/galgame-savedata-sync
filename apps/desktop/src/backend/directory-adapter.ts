@@ -57,7 +57,7 @@ export interface NativeDirectoryLocation {
   readonly describeFile: (name: string, identity: FileIdentity) => Promise<FileMetadata>
 }
 
-/** 电脑端本地目录的只读访问：登记、列出和读取目录。条目引用只在当前进程有效。 */
+/** 桌面端本地目录的只读访问：登记、列出和读取目录。条目引用只在当前进程有效。 */
 export class DesktopDirectoryAdapter {
   private readonly configPath: string
   readonly #deviceId: string

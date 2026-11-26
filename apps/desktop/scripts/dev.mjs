@@ -1,4 +1,4 @@
-// pnpm dev（电脑端）：选一个空闲端口启动界面开发服务器和 Tauri 宿主。
+// pnpm dev（桌面端）：选一个空闲端口启动界面开发服务器和 Tauri 宿主。
 // 首选端口取 src-tauri/tauri.conf.json 的 devUrl，被占用时往后找；devUrl、启动 Vite 的命令和 devCsp
 // 里的热更新地址经 tauri dev --config 一起换成实际端口。
 import { spawn } from 'node:child_process'

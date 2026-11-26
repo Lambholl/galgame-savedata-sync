@@ -37,7 +37,7 @@ jobs:
       - run: pnpm --filter @savedata-sync/mobile exec cap sync android
       - run: node scripts/android-build.mjs
 
-  # Linux 只构建电脑端：在支持的最早 LTS 上检查宿主能编译、各检查通过，跑共享包和电脑端的测试。
+  # Linux 只构建桌面端：在支持的最早 LTS 上检查宿主能编译、各检查通过，跑共享包和桌面端的测试。
   check-linux:
     runs-on: ubuntu-22.04
     steps:

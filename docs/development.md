@@ -139,7 +139,7 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profil
 | 路径 | 内容 |
 | --- | --- |
 | `apps/shared` | 两端共用的通信协议、数据模型、校验规则与纯展示组件 |
-| `apps/desktop` | 桌面端：Tauri 宿主（`src-tauri`）、Node 后端 sidecar 与 React 界面 |
+| `apps/desktop` | 桌面端（Windows、Linux）：Tauri 宿主（`src-tauri`）、Node 后端 sidecar 与 React 界面 |
 | `apps/mobile` | 移动端：React 前端页面及 `android/` 下的 Capacitor 原生工程 |
 | `scripts` | 检查、构建、版本号计算与安全审计脚本；`scripts/device` 为真机调试工具 |
 | `.project-memory` | 需求、架构、接口约定、决策、计划与测试记录 |
