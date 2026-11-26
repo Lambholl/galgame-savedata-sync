@@ -813,6 +813,13 @@ html.camera-live .app-heading {
   padding: 0 4px;
   font-weight: 600;
 }
+/*
+ * antd-mobile 的 Popup 在动画停稳前给弹层主体内联 pointer-events: none，升起末段减速很慢时也点不到。
+ * 打开时（外层带 is-open）改为可点；收起时保持不可点，避免收起中的菜单项被再次点中。
+ */
+.adm-popup.is-open > .adm-popup-body {
+  pointer-events: auto !important;
+}
 /* 悬浮在底部、四周留边的弹层。 */
 .adm-popup-body.add-game-dialog {
   left: 12px;

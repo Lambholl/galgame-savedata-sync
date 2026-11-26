@@ -30,6 +30,7 @@ export function AddGameDialog({
       position="bottom"
       closeOnMaskClick={!isBusy}
       onClose={onCancel}
+      className={isOpen ? 'is-open' : ''}
       style={{ '--z-index': '1100' }}
       bodyClassName="add-game-dialog"
       destroyOnClose

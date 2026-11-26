@@ -359,6 +359,7 @@ export function SyncCopyPage({
       {isPlan && !plan ? <p className="notice">{t('transfer.planUnavailable')}</p> : null}
       <ActionSheet
         visible={isPeerSheetOpen}
+        popupClassName={isPeerSheetOpen ? 'is-open' : ''}
         extra={t('transfer.pickPeerTitle')}
         cancelText={t('common.cancel')}
         actions={game.links.map((link) => {

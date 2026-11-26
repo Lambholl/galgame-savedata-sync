@@ -1294,6 +1294,7 @@ export function MobileApp({
       </GameMenu>
       <ActionSheet
         visible={isTransferMenuOpen}
+        popupClassName={isTransferMenuOpen ? 'is-open' : ''}
         cancelText={t('common.cancel')}
         actions={[
           { key: 'edit', text: t('page.gameSettings') },

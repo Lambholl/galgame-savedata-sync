@@ -26,6 +26,7 @@ export function Sheet({
       position="bottom"
       onClose={onClose}
       closeOnMaskClick={!isBusy}
+      className={isOpen ? 'is-open' : ''}
       style={{ '--z-index': String(layer) }}
       bodyClassName="mobile-sheet"
       destroyOnClose
