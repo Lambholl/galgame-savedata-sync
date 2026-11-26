@@ -32,7 +32,7 @@ tags: [代码地图]
 | `scripts/security-check.mjs`、`scripts/toolchain-policy.mjs` | npm 全量审计、pnpm 公告与 Node 安全补丁门禁 | 查询失败即失败；Node 的安全发布和维护期运行时向官方查询，打包进 sidecar 的 Node 达不到所在主版本最新的安全发布时失败，本机 Node 只提示 |
 | `scripts/android-inventory.gradle`、`scripts/security-android.mjs` | 解析 Maven 实际依赖并查询 OSV | 含运行、测试和构建图；未解析依赖导致失败；临时报告在 .reports/ |
 | `.github/workflows/ci.yml` | Windows 工程检查（含 Clippy 和 rustfmt）与 Android debug 构建，以及 Ubuntu 22.04 工程检查与 `pnpm test` | Action 固定 commit SHA；Rust 编译缓存用 rust-cache；只处理分支 push 与 PR，tag 交给发布流程 |
-| `.github/workflows/release.yml`、`scripts/app-version.mjs` | `vX.Y.Z` tag 的版本推算、完整测试、Windows 安装包和免安装 zip、Linux AppImage 和 deb、APK 构建、SHA-256、artifact 和草稿 Release | 版本只来自 Git tag，`app-version.mjs` 供两端 Vite 配置（注入共享包 `APP_VERSION`）、桌面端打包和 Android `build.gradle` 共用；tag 必须指向当前提交且在 `origin/master` 上；Rust 不用编译缓存；Release 说明在 GitHub 页面补充，不进 Git |
+| `.github/workflows/release.yml`、`scripts/app-version.mjs` | `vX.Y.Z` tag 的版本推算、完整测试、回环验证、Windows 安装包和免安装 zip、Linux AppImage 和 deb、APK 构建、SHA-256、artifact 和草稿 Release | 版本只来自 Git tag，`app-version.mjs` 供两端 Vite 配置（注入共享包 `APP_VERSION`）、桌面端打包和 Android `build.gradle` 共用；tag 必须指向当前提交且在 `origin/master` 上；Rust 不用编译缓存；Release 说明在 GitHub 页面补充，不进 Git |
 
 ## 2. 共享包
 

@@ -121,7 +121,7 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profil
 | 检查与测试 | `pnpm lint` / `pnpm typecheck` / `pnpm build` | 单独运行对应检查或构建 |
 | 检查与测试 | `pnpm test` | 运行共享包与桌面端 sidecar 测试（无需 Android 工具） |
 | 检查与测试 | `pnpm test:all` | 运行 `pnpm test` 与 `pnpm android:test` |
-| 检查与测试 | `pnpm release:loopback` | 发版前本地双端回环测试：启动两个桌面端后端经 `127.0.0.1` 双向传输并验证备份与恢复 |
+| 检查与测试 | `pnpm release:loopback` | 双端回环测试：启动两个桌面端后端经 `127.0.0.1` 双向传输并验证备份与恢复（发布工作流会自动运行） |
 | Android | `pnpm android:sync` | 构建移动端前端资源并同步至 Android 工程 |
 | Android | `pnpm android:build` | 构建 debug APK（加 `--release` 构建签名后的 release APK） |
 | Android | `pnpm android:build:dev-server` | 构建加载桌面端 Vite 开发服务器的 debug APK |
@@ -366,7 +366,7 @@ keytool -genkeypair -v -keystore savedata-sync-release.jks -alias savedata-sync 
 
 发版步骤：
 
-1. 打 tag 前在本地完成校验：`pnpm check`、`pnpm test:all`、`pnpm release:loopback`（以及打包产物与升级路径等发布前验证；`release.yml` 不运行 `release:loopback`）。
+1. 打 tag 前在本地完成 CI 不覆盖的检查：依赖安全审计（`pnpm security:node`、`pnpm security:android`），以及打包产物与升级路径等发布前验证（`pnpm check`、`pnpm test:all` 与 `pnpm release:loopback` 由发布工作流运行）。
 2. 取得维护者对目标 tag 名的同意后，在 `master` 最新提交打 tag 并原子推送（单独推送 tag 会导致工作流分支校验失败）：
 
    ```bash
@@ -374,7 +374,7 @@ keytool -genkeypair -v -keystore savedata-sync-release.jks -alias savedata-sync 
    git push --atomic origin master v<版本号>
    ```
 
-3. 推送 tag 后触发[发布工作流](../.github/workflows/release.yml)（需仓库 Actions 具备 `contents: write` 权限）：校验 tag 与 `origin/master`、运行 `pnpm check` 与 `pnpm test:all`、打包 Windows x64 安装包与免安装 zip、在 Ubuntu 22.04 上打包 Linux 的 AppImage 与 deb、构建并校验签名后的 Android release APK、生成 `SHA256SUMS.txt`、上传 Actions artifact 并创建**草稿 GitHub Release**。
+3. 推送 tag 后触发[发布工作流](../.github/workflows/release.yml)（需仓库 Actions 具备 `contents: write` 权限）：校验 tag 与 `origin/master`、运行 `pnpm check`、`pnpm test:all` 与 `pnpm release:loopback`、打包 Windows x64 安装包与免安装 zip、在 Ubuntu 22.04 上运行 `pnpm test` 与 `pnpm release:loopback` 并打包 Linux 的 AppImage 与 deb、构建并校验签名后的 Android release APK、生成 `SHA256SUMS.txt`、上传 Actions artifact 并创建**草稿 GitHub Release**（标题默认取附注 tag 的首行说明，未写时回退为版本号）。
 4. 在草稿 Release 页面补充已知问题、安装限制与兼容变更说明后正式发布。若工作流失败，须经维护者同意后删除 tag，修复后再重新打 tag。
 
 ## 依赖管理

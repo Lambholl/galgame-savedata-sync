@@ -32,6 +32,7 @@ jobs:
       # tag 是否在 origin/master 上由 release 检查，这里只确认版本号能从 tag 推算出来。
       - run: node scripts/app-version.mjs
       - run: pnpm test
+      - run: pnpm release:loopback
       - run: pnpm desktop:package
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -91,6 +92,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "$env:RELEASE_TAG 指向的提交不在 origin/master 上" }
       - run: pnpm check
       - run: pnpm test:all
+      - run: pnpm release:loopback
       - run: pnpm desktop:package
       # 密钥只在这一步解码并交给 Gradle，构建后删除。
       - name: Build signed Android release
@@ -153,8 +155,20 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $version = $env:RELEASE_TAG.TrimStart('v')
+          $tagRef = "refs/tags/$($env:RELEASE_TAG)"
+          $tagType = (git cat-file -t $tagRef) | Out-String
+          $title = ''
+          if ($LASTEXITCODE -eq 0 -and $tagType.Trim() -eq 'tag') {
+            $subject = (git for-each-ref $tagRef --format='%(contents:subject)') | Out-String
+            if ($LASTEXITCODE -eq 0) {
+              $title = $subject.Trim()
+            }
+          }
+          if (-not $title) {
+            $title = $version
+          }
           $assets = Get-ChildItem -LiteralPath release-assets -File | ForEach-Object FullName
           gh release create $env:RELEASE_TAG @assets `
             --draft `
-            --title "存档同步 $version" `
+            --title $title `
             --generate-notes
