@@ -17,6 +17,11 @@ export interface GameActionsProps {
   readonly caption: string
   /** 为 true 时禁用移除游戏。 */
   readonly isRemoveDisabled: boolean
+  /**
+   * “传输存档”按钮为什么不能用：no-link 游戏还没有关联设备，显示“请先关联设备”；
+   * offline 关联的设备都没有连接，显示“关联设备未连接”。为 null 时按钮可用。
+   */
+  readonly transferBlocker: 'no-link' | 'offline' | null
   /** 打开传输存档。 */
   readonly onTransfer: () => void
   /** 打开游戏设置。 */
@@ -29,10 +34,17 @@ export interface GameActionsProps {
   readonly onRemove: () => void
 }
 
+const TRANSFER_LABELS = {
+  ready: 'page.transfer',
+  'no-link': 'game.linkFirst',
+  offline: 'game.linkOffline',
+} as const
+
 /** 游戏操作面板的内容：主操作“传输存档”，下方是设置、备份、传输详情和移除四项。 */
 export function GameActions({
   caption,
   isRemoveDisabled,
+  transferBlocker,
   onTransfer,
   onSettings,
   onBackup,
@@ -69,10 +81,16 @@ export function GameActions({
   return (
     <div className="ss-game-actions">
       <p className="ss-game-caption">{caption}</p>
-      <Button type="primary" block className="ss-game-action is-primary" onClick={onTransfer}>
+      <Button
+        type="primary"
+        block
+        className="ss-game-action is-primary"
+        disabled={transferBlocker !== null}
+        onClick={onTransfer}
+      >
         <SwapOutlined />
-        <b>{t('page.transfer')}</b>
-        <RightOutlined className="ss-game-action-chevron" />
+        <b>{t(TRANSFER_LABELS[transferBlocker ?? 'ready'])}</b>
+        {transferBlocker === null ? <RightOutlined className="ss-game-action-chevron" /> : null}
       </Button>
       <div className="ss-game-action-grid">
         {actions.map((item) => (

@@ -242,7 +242,7 @@ function ComparePane({
  * 摘要行在比较完成后用彩色标签写差异数：~ 内容不同，+ 只在来源有，− 只在目标有；
  * 比较完成前写进度或已取消，扫描中可以取消。目标有多出的条目时，摘要行多一个开关：
  * 蓝色“− 保留”，点按后变红色“− 删除”，这些条目随之标红。
- * 比较失败或无法比较时摘要行换成红色提示条，写明原因，右侧“重试”按钮调用 onRefresh。
+ * 比较失败或无法比较时摘要行换成红色提示条，写明原因；比较失败时右侧“重试”按钮调用 onRefresh。
  *
  * 放进限高的纵向 flex 容器时铺满剩余高度，两列各自滚动，列头固定在列顶；
  * 列末留出 --ss-pane-end-space 的空白。
@@ -343,11 +343,8 @@ export function TransferComparison({
           action={{ label: t('common.retry'), isDisabled: isLocked, onClick: onRefresh }}
         />
       ) : status.kind === 'unavailable' ? (
-        <Notice
-          tone="error"
-          text={status.reason}
-          action={{ label: t('common.retry'), isDisabled: isLocked, onClick: onRefresh }}
-        />
+        // 这里不放“重试”：前提缺失时重新扫描不会开始，前提补上后页面按新的设备和目录状态自动比较。
+        <Notice tone="error" text={status.reason} action={null} />
       ) : (
         <div className="ss-diffbar">
           {counts === null ? (

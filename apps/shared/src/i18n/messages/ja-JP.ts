@@ -233,6 +233,8 @@ export const jaJP: Messages = {
   'game.name': 'ゲーム名',
   'game.localFolder': 'この端末の保存先',
   'game.noFolder': '保存先が選択されていません',
+  'game.linkFirst': '先に端末を関連付けてください',
+  'game.linkOffline': '関連付けた端末が未接続です',
   'game.noTask': '転送履歴はありません',
   'game.cardLinks': ({ count }) => `${count} 台の端末と関連付け`,
   'game.cardUnlinked': '端末の関連付けなし',

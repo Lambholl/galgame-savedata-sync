@@ -1,5 +1,23 @@
 import { LIBRARY_LIMITS } from './library.ts'
-import type { CatalogGame, GameLink, LibraryGame } from './library.ts'
+import type { CatalogGame, GameLink, LibraryGame, LibraryPeer } from './library.ts'
+
+/**
+ * 判断游戏现在能不能打开传输页。
+ *
+ * @returns no-link：游戏没有关联设备；offline：关联的设备都没有连接；null：至少一台关联设备已连接。
+ */
+export function gameTransferBlocker(
+  game: LibraryGame,
+  peers: readonly LibraryPeer[],
+): 'no-link' | 'offline' | null {
+  if (game.links.length === 0) {
+    return 'no-link'
+  }
+  const isAnyConnected = game.links.some((link) =>
+    peers.some((peer) => peer.isConnected && peer.device.id === link.deviceId),
+  )
+  return isAnyConnected ? null : 'offline'
+}
 
 function isSameLink(value: GameLink, deviceId: string, gameId: string): boolean {
   return value.deviceId === deviceId && value.gameId === gameId

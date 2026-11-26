@@ -238,6 +238,8 @@ export const enUS: Messages = {
   'game.name': 'Game name',
   'game.localFolder': 'Save folder on this device',
   'game.noFolder': 'No folder chosen',
+  'game.linkFirst': 'Link a device first',
+  'game.linkOffline': 'No linked device connected',
   'game.noTask': 'No transfers yet',
   'game.cardLinks': ({ count }) => `${count} linked ${count === 1 ? 'device' : 'devices'}`,
   'game.cardUnlinked': 'Not linked',

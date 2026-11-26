@@ -145,6 +145,24 @@ body {
   flex-wrap: wrap;
   gap: 12px;
 }
+.library-connection-status {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  overflow-wrap: anywhere;
+}
+/* 游戏页连接状态前的圆点，和移动端游戏页一致：绿色是已连接，灰色是没有连接。 */
+.library-status-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ss-faint);
+}
+.library-status-dot.is-online {
+  background: var(--ss-ok);
+}
 .library-section-heading h2 {
   margin: 8px 0;
   font-size: 17px;

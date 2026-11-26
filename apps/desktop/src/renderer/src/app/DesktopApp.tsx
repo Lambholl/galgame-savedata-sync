@@ -4,6 +4,7 @@ import { ControlOutlined, HistoryOutlined } from '@ant-design/icons'
 import {
   emptyLibrary,
   formatConnectionAddress,
+  gameTransferBlocker,
   withGameLink,
   withoutGameLink,
   withoutGamePoster,
@@ -1003,6 +1004,7 @@ export function DesktopApp({
         <GameActions
           caption={`${localRoot?.displayName ?? t('game.noFolder')} · ${t('game.linkCount', { count: game?.links.length ?? 0 })}`}
           isRemoveDisabled={isActive}
+          transferBlocker={game ? gameTransferBlocker(game, peers) : 'no-link'}
           onTransfer={() => go('transfer')}
           onSettings={() => go('edit')}
           onBackup={() => go('backup')}

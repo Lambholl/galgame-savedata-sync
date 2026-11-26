@@ -34,9 +34,14 @@ export function GamesPage({
   return (
     <>
       <div className="library-section-heading">
-        <Typography.Text type="secondary">
-          {online ? t('app.connectedTo', { name: online.device.name }) : t('device.noneConnected')}
-        </Typography.Text>
+        <span className="library-connection-status">
+          <i className={`library-status-dot${online ? ' is-online' : ''}`} />
+          <Typography.Text type="secondary">
+            {online
+              ? t('app.connectedTo', { name: online.device.name })
+              : t('device.noneConnected')}
+          </Typography.Text>
+        </span>
         <Space>
           <Button
             icon={<DownloadOutlined />}

@@ -7,6 +7,7 @@ import {
   createConnectionCandidates,
   emptyLibrary,
   formatConnectionAddress,
+  gameTransferBlocker,
   observeRestoreTask,
   observeSyncJob,
   toShownError,
@@ -1280,6 +1281,7 @@ export function MobileApp({
         <GameActions
           caption={`${localRoot?.displayName ?? t('game.noFolder')} · ${t('game.linkCount', { count: game?.links.length ?? 0 })}`}
           isRemoveDisabled={isActive}
+          transferBlocker={game ? gameTransferBlocker(game, peers) : 'no-link'}
           onTransfer={() => {
             setSyncDirection(null)
             go('sync')

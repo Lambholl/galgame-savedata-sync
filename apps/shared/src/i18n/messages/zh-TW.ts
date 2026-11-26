@@ -221,6 +221,8 @@ export const zhTW: Messages = {
   'game.name': '遊戲名稱',
   'game.localFolder': '本機存檔目錄',
   'game.noFolder': '未選擇目錄',
+  'game.linkFirst': '請先關聯裝置',
+  'game.linkOffline': '關聯裝置未連線',
   'game.noTask': '暫無傳輸記錄',
   'game.cardLinks': ({ count }) => `關聯 ${count} 台裝置`,
   'game.cardUnlinked': '未關聯裝置',

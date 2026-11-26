@@ -239,6 +239,8 @@ export const zhCN = {
   'game.name': '游戏名称',
   'game.localFolder': '本机存档目录',
   'game.noFolder': '未选择目录',
+  'game.linkFirst': '请先关联设备',
+  'game.linkOffline': '关联设备未连接',
   'game.noTask': '暂无传输记录',
   'game.cardLinks': ({ count }: { count: number }): string => `关联 ${count} 台设备`,
   'game.cardUnlinked': '未关联设备',
