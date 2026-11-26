@@ -81,7 +81,7 @@ export function DesktopShell({
             onClick={({ key }) => onNavigate(key as Page)}
           />
           <small>
-            {t('settings.version')} <span className="ss-copyable">{APP_VERSION}</span>
+            v<span className="ss-copyable">{APP_VERSION}</span>
           </small>
         </aside>
         <div className="library-surface">
