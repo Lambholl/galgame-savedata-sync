@@ -1,7 +1,7 @@
 ---
 doc_type: standards-testing
 status: active
-updated: 2026-11-26
+updated: 2026-11-27
 tags: [测试规范]
 ---
 
@@ -47,7 +47,6 @@ tags: [测试规范]
 | 打包产物只验证和开发版行为不同的部分，其余功能在开发版上验证的结论直接适用，不单独列为打包产物的未测项。目前的差别和覆盖方式：sidecar 内嵌 Node 22，发布工作流在 Node 22 上跑 `pnpm test:all`；内嵌 Node 只带英文区域数据，编码约定禁止后端用依赖区域数据的接口；pkg 打包、宿主定位并启动 sidecar 可执行文件、便携模式的数据位置，已在 `PATH` 里没有 `node` 的环境验证过（见 [桌面端平台层](../architecture/desktop.md)第 15 节）。新增打包或安装步骤，或者能指出某项功能在打包产物上会走不同代码或运行环境时，才把它列为打包产物的验证项 | 打包产物和开发版运行同一份前端和 sidecar 代码，重复验证同样的代码不会发现新问题 | 桌面端发布 |
 | 界面按常规字号和常用移动设备尺寸实际运行、截图验收，不验证极端字体大小 | 界面不进长期测试，验收范围要有边界 | 两端界面 |
 | `pnpm android:unit` 只在改了 Android 原生代码时跑；`pnpm android:test` 只在准备发布或维护者要求时跑 | 两者都需要 JDK 和 Android SDK。`android:unit` 在后台进程已启动、Java 有改动时约 20 秒；`android:test` 每次启动新的 Gradle 进程并附带 Android lint 和打包，约一分半 | Android 原生 |
-| 测试只用合成数据和系统临时目录，不读写真实存档 | 测试失败不能损坏存档 | 全部自动化测试 |
 | 归档格式的跨语言夹具 `apps/desktop/test/fixtures/archive-v1.json` 由 Python 标准库独立生成，Node 和 Java 测试共用；`scripts/verify-archive-interop.mjs` 在 `pnpm android:unit` 和 `pnpm android:test` 里核对两端互通 | 两端编解码器各自实现，要有和实现无关的预期 | 归档 |
 | 需要真机的测试有 4 项（SAF 选择与读取、归档夹具互通、实际 SAF 两轮快照、依赖 Android 框架的兼容样本核对），运行方法见 [Android 平台层](../architecture/android.md#15-测试范围) | 授权和提供者行为只能在设备上验证 | Android 设备 |
 | 同步功能的真机验收按[验收标准](../testing/acceptance.md)在两台设备上做，换设备时重新选择目录，不沿用另一台设备的结论 | 提供者、系统版本和目录授权因设备而异 | 跨端验收 |
